@@ -721,11 +721,11 @@ export default function FinancialStatements() {
       <Dialog open={tbDialogOpen} onOpenChange={setTbDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Paste a Romanian trial balance</DialogTitle>
+            <DialogTitle>Paste a trial balance</DialogTitle>
             <DialogDescription>
-              The parser recognizes the OMFP-1802 chart of accounts (classes 1–7).
-              Paste lines like <code className="px-1 rounded bg-bg-2">5121&nbsp;&nbsp;Cont&nbsp;curent&nbsp;la&nbsp;bancă&nbsp;&nbsp;&nbsp;1.494.837,00</code>{" "}
-              — closing balances are picked from the last numeric column.
+              Paste any chart of accounts — language and format are auto-detected.
+              Lines like <code className="px-1 rounded bg-bg-2">5121&nbsp;&nbsp;Bank&nbsp;account&nbsp;&nbsp;&nbsp;1.494.837,00</code>{" "}
+              work — closing balances are picked from the last numeric column.
             </DialogDescription>
           </DialogHeader>
           <textarea
@@ -733,7 +733,7 @@ export default function FinancialStatements() {
             onChange={(e) => setTbInput(e.target.value)}
             spellCheck={false}
             className="w-full h-[360px] rounded-lg border border-rule bg-bg-2/30 p-3 text-[11.5px] font-mono leading-snug text-ink resize-none focus:outline-none focus:border-brand-d/40"
-            placeholder="Paste your balanță de verificare here…"
+            placeholder="Paste your trial balance text here — any language, any chart of accounts."
           />
           <DialogFooter>
             <button

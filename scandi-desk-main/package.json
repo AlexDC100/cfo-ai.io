@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "lint:placeholders": "bash scripts/check-no-placeholders.sh",
+    "lint:country-copy": "bash scripts/check-no-country-specific-copy.sh",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

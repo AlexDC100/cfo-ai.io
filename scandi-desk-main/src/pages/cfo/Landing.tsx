@@ -221,8 +221,8 @@ function FlagshipUseCases() {
     {
       icon: LineChart,
       title: "Financial Statement Intelligence",
-      tagline: "Bilanț → board-ready report",
-      body: "Romanian Ministry of Finance filings, accountant exports, annual reports. Auto-extracted, normalized, ratioed, valued, and explained.",
+      tagline: "Trial balance → board-ready report",
+      body: "Ministry-of-Finance filings, accountant exports, annual reports — from any European country. Auto-detected, normalized, ratioed, valued, and explained.",
       href: "/dashboard",
       cta: "Open module",
       live: true,
