@@ -113,6 +113,20 @@ bilanț (balance sheet), a P&L, an invoice register (e-Factura / SAF-T /
 SmartBill / generic CSV), a sales-by-product analysis, a bank statement, or
 any other accounting / business document.
 
+ADDITIONAL EXTRACTION FOR SKU/SALES DOCUMENTS:
+If the document contains SKU-level or product-level rollups (sales by
+product, trading analysis, invoice register with line items, inventory
+report), populate the `skus` array with one row per distinct SKU.
+Each SKU row: { sku, brand, category, channel, volume, volume_unit,
+units_sold, revenue, cogs, gross_margin, gross_margin_pct,
+inventory_value, days_inventory_on_hand }. All numeric fields default to
+null when not in the source. Volume in tonnes when the data is in tonnes,
+otherwise "units". For trading analyses with NIV (Net Invoiced Value),
+treat NIV as `revenue`. For documents with only category-level rollups
+(no individual SKUs), emit one row PER category as the sku ("CATEGORY:
+PESTE") with category=name and brand=null — these synthetic rows still
+let the engine classify portfolio segments.
+
 CRITICAL RULES — read these before extracting:
 
 1. Output STRICT JSON matching <schema>. No prose, no preamble, no markdown
@@ -172,6 +186,23 @@ CRITICAL RULES — read these before extracting:
     "top_records": [string],
     "warnings": [string]
   },
+  "skus": [
+    {
+      "sku": "string (full descriptor incl. weight/format)",
+      "brand": "string | null",
+      "category": "string | null",
+      "channel": "string | null",
+      "volume": "number | null",
+      "volume_unit": "tons | units | kg | l | null",
+      "units_sold": "number | null",
+      "revenue": "number | null (NIV in source currency)",
+      "cogs": "number | null",
+      "gross_margin": "number | null (revenue - cogs)",
+      "gross_margin_pct": "number | null (gm / revenue, decimal)",
+      "inventory_value": "number | null",
+      "days_inventory_on_hand": "number | null"
+    }
+  ],
   "warnings": [string]
 }
 </schema>
@@ -359,6 +390,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     data.setdefault("accounts", [])
     data.setdefault("warnings", [])
     data.setdefault("summary", {})
+    data.setdefault("skus", [])
 
     # Coerce account amounts
     cleaned: List[Dict[str, Any]] = []
@@ -779,12 +811,22 @@ def stage_persist_narrative(
 
 
 def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative: Dict[str, Any]) -> None:
-    """Persist a SKU analysis without touching financial_periods.
+    """Persist a SKU analysis + classified per-SKU rollups.
 
     SKU/inventory uploads (XLSX trading analysis, sales-by-product exports,
     invoice registers) are intentionally separate from the financial-statement
     data model — they should never appear on Dashboard / Cash / Profit.
+
+    Two writes per upload:
+      1. sku_analyses (one row per document) — briefing + recommendations
+      2. sku_aggregates (N rows) — engine-classified per-SKU rollups
     """
+    from ._sku_classify import classify_portfolio
+
+    raw_skus = parsed.get("skus") or []
+    classified = classify_portfolio(raw_skus)
+    period_label = parsed.get("period_label") or "Imported period"
+
     with _supabase.admin() as client:
         client.upsert(
             "sku_analyses",
@@ -800,6 +842,39 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
             on_conflict="document_id",
             returning=False,
         )
+
+        # Wipe + re-insert SKU aggregates (idempotent on re-run).
+        client.delete("sku_aggregates", filters={"document_id": f"eq.{doc['id']}"})
+        if classified:
+            rows = [
+                {
+                    "org_id": doc["org_id"],
+                    "document_id": doc["id"],
+                    "period_label": period_label,
+                    "sku": s.get("sku"),
+                    "brand": s.get("brand"),
+                    "category": s.get("category"),
+                    "channel": s.get("channel"),
+                    "volume": s.get("volume"),
+                    "volume_unit": s.get("volume_unit") or "tons",
+                    "units_sold": s.get("units_sold"),
+                    "revenue": s.get("revenue") or 0,
+                    "cogs": s.get("cogs") or 0,
+                    "gross_margin": s.get("gross_margin"),
+                    "gross_margin_pct": s.get("gross_margin_pct"),
+                    "real_margin": s.get("real_margin"),
+                    "real_margin_pct": s.get("real_margin_pct"),
+                    "inventory_value": s.get("inventory_value") or 0,
+                    "days_inventory_on_hand": s.get("days_inventory_on_hand"),
+                    "capital_tied_up": s.get("capital_tied_up"),
+                    "classification": s.get("classification") or "keep",
+                    "classification_reason": s.get("classification_reason"),
+                    "classification_confidence": s.get("classification_confidence"),
+                }
+                for s in classified
+            ]
+            for i in range(0, len(rows), 500):
+                client.insert("sku_aggregates", rows[i:i+500], returning=False)
 
 
 def _run_pipeline_sync(document_id: str) -> None:
@@ -954,6 +1029,90 @@ def build_router() -> APIRouter:
                     "created_at": r.get("created_at"),
                 },
             }
+
+    @router.get("/api/sku-analysis/portfolio")
+    def get_sku_portfolio(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Consolidated payload for the Products page: totals, classification
+        counts, full SKU list (frontend virtualizes), categories, briefing,
+        recommendations. Returns the latest active SKU document's analysis.
+        """
+        from ._sku_classify import portfolio_totals
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            # Latest active sku document
+            docs = client.select(
+                "documents",
+                filters={"scope": "eq.sku", "is_active": "eq.true", "deleted_at": "is.null"},
+                order="created_at.desc",
+                limit=1,
+            )
+            if not docs:
+                return {"document": None, "totals": None, "skus": [], "analysis": None}
+            doc = docs[0]
+            skus = client.select(
+                "sku_aggregates",
+                filters={"document_id": f"eq.{doc['id']}"},
+                order="real_margin.desc.nullslast",
+            )
+            analyses = client.select(
+                "sku_analyses",
+                filters={"document_id": f"eq.{doc['id']}"},
+            )
+            analysis = analyses[0] if analyses else None
+
+        totals = portfolio_totals(skus)
+        return {
+            "document": {
+                "id": doc["id"],
+                "filename": doc.get("display_name") or doc["original_filename"],
+                "status": doc["status"],
+                "created_at": doc["created_at"],
+                "is_active": doc.get("is_active", True),
+            },
+            "totals": totals,
+            "skus": skus,
+            "analysis": analysis and {
+                "briefing": analysis.get("briefing"),
+                "recommendations": analysis.get("recommendations") or [],
+                "summary": analysis.get("summary") or {},
+                "model": analysis.get("model"),
+            },
+        }
+
+    @router.get("/api/sku-analysis/documents")
+    def list_sku_documents(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Document history for /products. Excludes soft-deleted docs by default."""
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            docs = client.select(
+                "documents",
+                filters={"scope": "eq.sku", "deleted_at": "is.null"},
+                order="created_at.desc",
+            )
+            counts: Dict[str, int] = {}
+            for d in docs:
+                rows = client.select(
+                    "sku_aggregates",
+                    filters={"document_id": f"eq.{d['id']}"},
+                    columns="id",
+                )
+                counts[d["id"]] = len(rows)
+        return {
+            "documents": [
+                {
+                    "id": d["id"],
+                    "filename": d.get("display_name") or d["original_filename"],
+                    "original_filename": d["original_filename"],
+                    "status": d["status"],
+                    "is_active": d.get("is_active", True),
+                    "created_at": d["created_at"],
+                    "size_bytes": d["size_bytes"],
+                    "sku_count": counts.get(d["id"], 0),
+                    "error": d.get("error"),
+                }
+                for d in docs
+            ],
+        }
 
     @router.get("/api/sku-analysis/inflight")
     def get_inflight_sku_doc(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
