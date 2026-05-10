@@ -49,6 +49,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  AlertCircle,
   ArrowDownToLine,
   ArrowRight,
   Building2,
@@ -57,6 +58,7 @@ import {
   ClipboardPaste,
   FileSpreadsheet,
   FileText,
+  Loader2,
   RefreshCw,
   Shield,
   Sparkles,
@@ -295,22 +297,84 @@ export default function FinancialStatements() {
     }
   }, [remotePeriod.isLoaded, remotePeriod.id, remotePeriod.statements, remotePeriod.invoices, remotePeriod.availableTypes, remotePeriod.label, remotePeriod.source]);
 
-  function onFileChosen(file: File) {
+  // Single canonical upload entry point. Used by:
+  //   - Empty-state dropzone (drag-and-drop or "Choose a file")
+  //   - Replace dropdown's "Choose a file…" menu item
+  //   - Statements > Documents section (when added)
+  // Pushes the file to Storage, creates the documents row, kicks off the
+  // pipeline, subscribes to status changes, and navigates to
+  // /dashboard?period=<id> once the orchestrator hits 'analyzed'.
+  const [uploadInFlight, setUploadInFlight] = useState<{
+    docId: string;
+    filename: string;
+    status: import("@/lib/supabase").DocumentStatus;
+    error?: string | null;
+  } | null>(null);
+
+  async function onFileChosen(file: File) {
     setUploadName(file.name);
-    // The dropzone here is a courtesy — the real upload + pipeline lives at
-    // /upload. Send the user there with a friendly message instead of trying
-    // to handle the upload inline.
-    toast({
-      title: "Open the Upload page to start analysis",
-      description:
-        `${file.name} → /upload runs detection, OCR, extraction, ratios, and Opus 4.7 narrative end-to-end.`,
+    const MAX_BYTES = 25 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast({
+        title: "File too large",
+        description: `${(file.size / 1_000_000).toFixed(1)} MB exceeds the 25 MB limit.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setUploadInFlight({ docId: "", filename: file.name, status: "queued" });
+    const { uploadDocument, enqueuePipeline, subscribeToDocumentStatus } =
+      await import("@/lib/supabase");
+    const { row, error } = await uploadDocument(file);
+    if (!row) {
+      setUploadInFlight(null);
+      toast({
+        title: "Upload failed",
+        description: error ?? "Unknown error.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setUploadInFlight({ docId: row.id, filename: file.name, status: "queued" });
+    const enqueued = await enqueuePipeline(row.id);
+    if (!enqueued) {
+      setUploadInFlight((prev) => prev && { ...prev, status: "failed", error: "Backend unreachable." });
+      toast({
+        title: "Couldn't start analysis",
+        description: "Backend is unreachable. The file uploaded but analysis didn't start.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const unsub = subscribeToDocumentStatus(row.id, (next) => {
+      setUploadInFlight((prev) => prev && { ...prev, status: next.status, error: next.error });
+      if (next.status === "analyzed" && next.period_id) {
+        toast({
+          title: "Analysis ready",
+          description: `${file.name} loaded into Dashboard.`,
+        });
+        unsub();
+        setSearchParams((prev) => {
+          const sp = new URLSearchParams(prev);
+          sp.set("period", next.period_id!);
+          return sp;
+        }, { replace: true });
+      }
+      if (next.status === "failed") {
+        unsub();
+        toast({
+          title: "Analysis failed",
+          description: next.error ?? "Unknown error.",
+          variant: "destructive",
+        });
+      }
     });
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (file) onFileChosen(file);
+    if (file) void onFileChosen(file);
   }
 
   return (
@@ -336,19 +400,20 @@ export default function FinancialStatements() {
             activeSampleId={activeSampleId}
             onPickSample={pickSample}
             onTriggerFile={() => fileRef.current?.click()}
+            onPasteTrialBalance={() => setTbDialogOpen(true)}
             onReset={resetWorkspace}
           />
         ) : (
           <section className="mb-10 transition-opacity duration-200">
-            <div className="label-eyebrow">Invoice & financial statement AI</div>
+            <div className="label-eyebrow">Get started</div>
             <h1 className="mt-3 font-serif text-[40px] sm:text-[48px] leading-[1.05] tracking-[-0.02em] text-ink max-w-[820px]">
-              Drop a{" "}
-              <span className="text-grad font-medium">Trial Balance</span>.
+              Upload your{" "}
+              <span className="text-grad font-medium">trial balance</span> to begin.
             </h1>
             <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px]">
-              Upload invoices, P&Ls, balance sheets, trial balances, or annual
-              reports. The engine extracts structured financials, computes 25+ ratios,
-              flags bankruptcy risk, and produces a board-ready analysis report.
+              We'll extract financials, compute 25+ ratios, flag risks, and
+              produce a board-ready analysis. Language and accounting format
+              are auto-detected.
             </p>
           </section>
         )}
@@ -452,21 +517,28 @@ export default function FinancialStatements() {
 
           {!hasPeriodLoaded ? (
             // STATE A — entry surface. Upload zone + sample picker only.
-            <UploadAndSamplePanel
-              statements={statements}
-              activeSampleId={activeSampleId}
-              uploadName={uploadName}
-              onPickSample={pickSample}
-              onReset={undefined}
-              onTriggerFile={() => fileRef.current?.click()}
-              onPasteTrialBalance={() => {
-                setTbInput(DEMO_RO_TRIAL_BALANCE);
-                setTbDialogOpen(true);
-              }}
-              onDrop={onDrop}
-              fileRef={fileRef}
-              onFileChosen={onFileChosen}
-            />
+            // While a pipeline run is in flight, swap the dropzone for an
+            // in-place progress card so the user sees the analysis is
+            // happening without leaving the page.
+            uploadInFlight ? (
+              <UploadProgressCard inflight={uploadInFlight} />
+            ) : (
+              <UploadAndSamplePanel
+                statements={statements}
+                activeSampleId={activeSampleId}
+                uploadName={uploadName}
+                onPickSample={pickSample}
+                onReset={undefined}
+                onTriggerFile={() => fileRef.current?.click()}
+                onPasteTrialBalance={() => {
+                  setTbInput(DEMO_RO_TRIAL_BALANCE);
+                  setTbDialogOpen(true);
+                }}
+                onDrop={onDrop}
+                fileRef={fileRef}
+                onFileChosen={onFileChosen}
+              />
+            )
           ) : (
             <StateBOverview
               statements={statements}
@@ -814,6 +886,7 @@ function CompactPeriodHeader({
   activeSampleId,
   onPickSample,
   onTriggerFile,
+  onPasteTrialBalance,
   onReset,
 }: {
   statements: Statements | null;
@@ -821,6 +894,7 @@ function CompactPeriodHeader({
   activeSampleId: string | null;
   onPickSample: (id: string, opts?: { additive?: boolean }) => void;
   onTriggerFile: () => void;
+  onPasteTrialBalance: () => void;
   onReset: () => void;
 }) {
   const companyName =
@@ -860,29 +934,45 @@ function CompactPeriodHeader({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-              Switch to another sample
+              Upload
             </DropdownMenuLabel>
-            {SAMPLE_DATASETS.map((s) => (
-              <DropdownMenuItem
-                key={s.id}
-                data-testid={`sample-pick-${s.id}`}
-                onClick={() => onPickSample(s.id)}
-                className={`text-[12.5px] cursor-pointer ${activeSampleId === s.id ? "bg-bg-2 text-ink" : ""}`}
-              >
-                <span className="truncate">{s.label}</span>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-              Or upload your own
-            </DropdownMenuLabel>
-            <DropdownMenuItem onClick={onTriggerFile} className="text-[12.5px] cursor-pointer">
+            <DropdownMenuItem
+              data-testid="replace-menu-upload"
+              onClick={onTriggerFile}
+              className="text-[12.5px] cursor-pointer"
+            >
               <UploadCloud size={13} strokeWidth={1.75} className="mr-1.5" />
-              Choose a file
+              Choose a file…
             </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="replace-menu-paste"
+              onClick={onPasteTrialBalance}
+              className="text-[12.5px] cursor-pointer"
+            >
+              <ClipboardPaste size={13} strokeWidth={1.75} className="mr-1.5" />
+              Paste trial balance text
+            </DropdownMenuItem>
+            {SAMPLES_ENABLED && SAMPLE_DATASETS.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+                  Try a synthetic sample
+                </DropdownMenuLabel>
+                {SAMPLE_DATASETS.map((s) => (
+                  <DropdownMenuItem
+                    key={s.id}
+                    data-testid={`sample-pick-${s.id}`}
+                    onClick={() => onPickSample(s.id)}
+                    className={`text-[12.5px] cursor-pointer ${activeSampleId === s.id ? "bg-bg-2 text-ink" : ""}`}
+                  >
+                    <span className="truncate">{s.label}</span>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onReset} className="text-[12.5px] cursor-pointer text-ink-soft">
-              Clear workspace
+              Reset (clear period)
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1194,6 +1284,70 @@ function CalloutCard({
         </div>
       )}
       <p className="text-[13px] text-ink-soft leading-snug">{body}</p>
+    </div>
+  );
+}
+
+/**
+ * In-flight pipeline progress card. Replaces the dropzone while an upload
+ * is being analyzed so the user sees status without navigating away.
+ */
+function UploadProgressCard({
+  inflight,
+}: {
+  inflight: { docId: string; filename: string; status: import("@/lib/supabase").DocumentStatus; error?: string | null };
+}) {
+  const STAGES: Record<string, { label: string; ordinal: number }> = {
+    queued:     { label: "Queued for analysis…",  ordinal: 0 },
+    extracting: { label: "Reading the document…", ordinal: 1 },
+    mapping:    { label: "Mapping accounts…",     ordinal: 2 },
+    computing:  { label: "Computing ratios…",     ordinal: 3 },
+    narrating:  { label: "Generating insights…",  ordinal: 4 },
+    analyzed:   { label: "Analysis ready",        ordinal: 6 },
+    failed:     { label: "Analysis failed",       ordinal: 0 },
+  };
+  const total = 6;
+  const stage = STAGES[inflight.status] ?? { label: inflight.status, ordinal: 0 };
+  const isFailed = inflight.status === "failed";
+  return (
+    <div
+      data-testid="dashboard-upload-progress"
+      className="rounded-2xl border border-rule bg-surface p-7 max-w-[640px] mx-auto"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {isFailed ? (
+            <AlertCircle size={16} className="text-alert" strokeWidth={2} />
+          ) : (
+            <Loader2 size={16} className="text-brand animate-spin" strokeWidth={2} />
+          )}
+          <span className="text-[14px] font-medium text-ink">
+            {isFailed ? "Couldn't finish analysis" : "Analyzing your document…"}
+          </span>
+        </div>
+        {!isFailed && (
+          <span className="text-[11.5px] text-ink-mute tabular-nums">
+            Step {stage.ordinal} of {total}
+          </span>
+        )}
+      </div>
+      <div className="text-[13px] text-ink-soft mb-3">
+        <span className="text-ink font-medium">{inflight.filename}</span>{" "}
+        · {stage.label}
+      </div>
+      {!isFailed && (
+        <div className="h-1.5 rounded-full bg-bg-2 overflow-hidden">
+          <div
+            className="h-full bg-brand transition-all duration-500"
+            style={{ width: `${(stage.ordinal / total) * 100}%` }}
+          />
+        </div>
+      )}
+      {isFailed && inflight.error && (
+        <div className="mt-2 rounded-md border border-alert/30 bg-alert/5 px-3 py-2 text-[12px] text-alert">
+          {inflight.error}
+        </div>
+      )}
     </div>
   );
 }

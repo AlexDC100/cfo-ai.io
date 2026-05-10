@@ -52,7 +52,7 @@ export default function Onboarding() {
   // If org already has an industry, skip onboarding entirely.
   useEffect(() => {
     if (!loading && org && org.industry_key) {
-      navigate("/upload", { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [loading, org, navigate]);
 
@@ -74,7 +74,7 @@ export default function Onboarding() {
       return;
     }
     await refreshActiveOrg();
-    navigate("/upload", { replace: true });
+    navigate("/dashboard", { replace: true });
   }
 
   return (

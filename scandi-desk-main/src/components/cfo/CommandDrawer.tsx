@@ -280,16 +280,16 @@ function WorkspaceTab({
   );
 }
 
-function DataTab({ onUpload }: { onUpload: () => void }) {
+function DataTab({ onUpload: _onUpload }: { onUpload: () => void }) {
+  // The "Upload workbook" entry was removed in the upload consolidation
+  // pass — there's a single canonical upload concept now (Dashboard's
+  // empty-state zone + the Replace dropdown). The legacy inventory-XLSX
+  // dialog remains reachable programmatically through onUpload but isn't
+  // surfaced in the command center to avoid duplicating the dashboard
+  // entry point. ERP connectors are still TBD.
   return (
     <>
       <Section label="Import">
-        <Row
-          icon={UploadCloud}
-          title="Upload workbook"
-          hint="Excel / CSV"
-          onClick={onUpload}
-        />
         <Row
           icon={Plug}
           title="ERP connector"

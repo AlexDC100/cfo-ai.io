@@ -52,11 +52,10 @@ export function AppShell({ children }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Sidebar footer actions — Upload now navigates to the dedicated /upload
-  // route (Phase 1: real Storage + documents row). The legacy inventory-XLSX
-  // dialog is still available via the command center for backward compat.
+  // Sidebar footer — only Settings remains; Upload was removed in the
+  // upload-consolidation pass. Upload entry points now live exclusively on
+  // /dashboard (empty-state zone + Replace dropdown).
   const sidebarHandlers = {
-    onUpload:   () => navigate("/upload"),
     onSettings: () => navigate("/settings"),
   };
 

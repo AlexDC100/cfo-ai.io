@@ -22,7 +22,6 @@ import {
   ClipboardCheck,
   PackageSearch,
   Bell,
-  UploadCloud,
   Settings as SettingsIcon,
   Sun,
   Moon,
@@ -30,8 +29,6 @@ import {
 } from "lucide-react";
 
 interface Props {
-  /** Triggered by the footer icon row. */
-  onUpload: () => void;
   onSettings: () => void;
   /** Drawer mode — closes the slide-over after a click on mobile. */
   inDrawer?: boolean;
@@ -54,8 +51,7 @@ const WORKFLOW: { to: string; label: string; icon: LucideIcon; testId: string }[
 ];
 
 export function Sidebar({
-  onUpload,
-  onSettings,
+  onSettings: _onSettings,
   inDrawer = false,
   onItemClick,
 }: Props) {
@@ -77,12 +73,14 @@ export function Sidebar({
         </Section>
       </nav>
 
-      {/* Footer — theme toggle + upload shortcut + AI disclosure. Settings
-          moved into the workflow list above (Step 1 of FIX-NOW). */}
+      {/* Footer — theme toggle + AI disclosure. Upload entry points live on
+          Dashboard (empty-state zone + Replace dropdown). The sidebar
+          previously had an "Upload data" icon here; removed in the upload
+          consolidation pass — duplicating an action that's already
+          contextually surfaced on the page the user is on creates noise. */}
       <div className="px-3 pt-3 pb-4 border-t border-rule">
         <div className="flex items-center gap-1 mb-3">
           <ThemeIconButton />
-          <IconButton icon={UploadCloud} label="Upload data" onClick={() => { onItemClick?.(); onUpload(); }} />
         </div>
         <p className="px-2 text-[10.5px] text-ink-mute leading-snug">
           AI-assisted financial recommendations only. Final decisions remain with management.
@@ -143,32 +141,6 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
       </div>
       <div className="space-y-0.5">{children}</div>
     </div>
-  );
-}
-
-function IconButton({
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className="
-        inline-flex items-center justify-center
-        h-9 w-9 rounded-lg
-        text-ink-soft hover:text-ink hover:bg-bg-2
-        transition-colors
-      "
-    >
-      <Icon size={15} strokeWidth={1.75} />
-    </button>
   );
 }
 

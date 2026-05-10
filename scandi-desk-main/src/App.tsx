@@ -20,7 +20,6 @@ import Pricing from "./pages/cfo/Pricing";
 // round was deleted; its Overview content survives as Dashboard's Overview
 // tab inside FinancialStatements.tsx.
 import Dashboard from "./pages/cfo/FinancialStatements";
-import UploadPage from "./pages/cfo/Upload";
 import Cash from "./pages/cfo/Cash";
 import Profit from "./pages/cfo/Profit";
 import Decisions from "./pages/cfo/Decisions";
@@ -67,7 +66,11 @@ function App() {
               {/* Authenticated app — gated by AuthGuard. Visiting any of these
                   paths without sign-in OR demo-mode redirects to "/". */}
               <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
-              <Route path="/upload" element={<AuthGuard><UploadPage /></AuthGuard>} />
+              {/* /upload was a separate page; consolidated into Dashboard's
+                  empty-state zone + Replace dropdown. Legacy redirect kept so
+                  bookmarks / external links / onboarding redirects all land
+                  on the canonical surface without a 404. */}
+              <Route path="/upload" element={<RedirectPreservingQuery to="/dashboard" />} />
               <Route path="/cash" element={<AuthGuard><Cash /></AuthGuard>} />
               <Route path="/profit" element={<AuthGuard><Profit /></AuthGuard>} />
               <Route path="/decisions" element={<AuthGuard><Decisions /></AuthGuard>} />
