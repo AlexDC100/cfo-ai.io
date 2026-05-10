@@ -261,6 +261,50 @@ create policy "invoices member insert" on invoices for insert with check (is_mem
 create policy "invoices member update" on invoices for update using (is_member_of(org_id));
 create policy "invoices member delete" on invoices for delete using (is_member_of(org_id));
 
+-- statement_line_items (joins through financial_periods.org_id)
+drop policy if exists "statement_line_items member select" on statement_line_items;
+drop policy if exists "statement_line_items member insert" on statement_line_items;
+drop policy if exists "statement_line_items member update" on statement_line_items;
+drop policy if exists "statement_line_items member delete" on statement_line_items;
+create policy "statement_line_items member select" on statement_line_items
+  for select using (
+    exists (select 1 from financial_periods p where p.id = period_id and is_member_of(p.org_id))
+  );
+create policy "statement_line_items member insert" on statement_line_items
+  for insert with check (
+    exists (select 1 from financial_periods p where p.id = period_id and is_member_of(p.org_id))
+  );
+create policy "statement_line_items member update" on statement_line_items
+  for update using (
+    exists (select 1 from financial_periods p where p.id = period_id and is_member_of(p.org_id))
+  );
+create policy "statement_line_items member delete" on statement_line_items
+  for delete using (
+    exists (select 1 from financial_periods p where p.id = period_id and is_member_of(p.org_id))
+  );
+
+-- invoice_lines (joins through invoices.org_id)
+drop policy if exists "invoice_lines member select" on invoice_lines;
+drop policy if exists "invoice_lines member insert" on invoice_lines;
+drop policy if exists "invoice_lines member update" on invoice_lines;
+drop policy if exists "invoice_lines member delete" on invoice_lines;
+create policy "invoice_lines member select" on invoice_lines
+  for select using (
+    exists (select 1 from invoices i where i.id = invoice_id and is_member_of(i.org_id))
+  );
+create policy "invoice_lines member insert" on invoice_lines
+  for insert with check (
+    exists (select 1 from invoices i where i.id = invoice_id and is_member_of(i.org_id))
+  );
+create policy "invoice_lines member update" on invoice_lines
+  for update using (
+    exists (select 1 from invoices i where i.id = invoice_id and is_member_of(i.org_id))
+  );
+create policy "invoice_lines member delete" on invoice_lines
+  for delete using (
+    exists (select 1 from invoices i where i.id = invoice_id and is_member_of(i.org_id))
+  );
+
 -- coa_mappings
 drop policy if exists "coa_mappings member select" on coa_mappings;
 drop policy if exists "coa_mappings member insert" on coa_mappings;
