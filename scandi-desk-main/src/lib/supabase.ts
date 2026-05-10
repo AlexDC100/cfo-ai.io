@@ -439,14 +439,19 @@ export interface UploadResult {
  * storage policy in schema_phase3.sql checks
  * is_member_of((storage.foldername(name))[1]::uuid).
  *
- * Common failure modes (each surfaces a specific message to the caller):
- *   - Supabase not configured           → "Authentication isn't configured…"
- *   - User not signed in                → "Sign in to upload documents."
- *   - Storage RLS rejects               → "Storage policy rejected the upload — apply schema_phase3.sql."
- *   - documents table RLS rejects       → "Database policy rejected the row — apply schema_phase3.sql."
- *   - Bucket missing                    → "The 'documents' bucket doesn't exist yet."
+ * `scope` separates two concepts:
+ *   - 'financial' (default): the upload is a financial statement (PDF
+ *     bilanț, P&L, trial balance). Pipeline writes financial_periods +
+ *     calculated_metrics + briefings — drives Dashboard / Cash / Profit.
+ *   - 'sku': the upload is a SKU/inventory/sales analysis (XLSX trading
+ *     analysis, invoice register, sales-by-product). Pipeline writes
+ *     sku_analyses ONLY — never touches financial_periods, never appears
+ *     on the dashboard. Drives the Products page.
  */
-export async function uploadDocument(file: File): Promise<UploadResult> {
+export async function uploadDocument(
+  file: File,
+  options: { scope?: "financial" | "sku" } = {},
+): Promise<UploadResult> {
   if (!client) return { row: null, error: "Authentication isn't configured (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY)." };
 
   const { data: session } = await client.auth.getSession();
@@ -494,6 +499,7 @@ export async function uploadDocument(file: File): Promise<UploadResult> {
       size_bytes: file.size,
       detected_type: detected,
       status: "queued" as DocumentStatus,
+      scope: options.scope ?? "financial",
     })
     .select()
     .single();

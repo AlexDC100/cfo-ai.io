@@ -778,6 +778,30 @@ def stage_persist_narrative(
 # ─── Orchestrator ───────────────────────────────────────────────────────────
 
 
+def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative: Dict[str, Any]) -> None:
+    """Persist a SKU analysis without touching financial_periods.
+
+    SKU/inventory uploads (XLSX trading analysis, sales-by-product exports,
+    invoice registers) are intentionally separate from the financial-statement
+    data model — they should never appear on Dashboard / Cash / Profit.
+    """
+    with _supabase.admin() as client:
+        client.upsert(
+            "sku_analyses",
+            {
+                "org_id": doc["org_id"],
+                "document_id": doc["id"],
+                "briefing": narrative.get("briefing", ""),
+                "summary": parsed.get("summary") or {},
+                "recommendations": narrative.get("recommendations") or [],
+                "language": "en",
+                "model": "claude-opus-4-7",
+            },
+            on_conflict="document_id",
+            returning=False,
+        )
+
+
 def _run_pipeline_sync(document_id: str) -> None:
     t0 = time.time()
     try:
@@ -791,9 +815,29 @@ def _run_pipeline_sync(document_id: str) -> None:
             org_rows = admin_client.select("organizations", filters={"id": f"eq.{doc['org_id']}"}, single=True)
             org = org_rows[0] if org_rows else {"id": doc["org_id"], "name": "Unknown", "industry_key": None, "industry_display_name": None}
 
+        scope = (doc.get("scope") or "financial").lower()
+
         _admin_set_status(document_id, "extracting", pipeline_started_at=_now_iso())
         parsed = stage_extract(doc)
 
+        # SKU branch — completely independent of financial_periods. Just
+        # extract → narrate → persist the analysis on sku_analyses. No
+        # period, no line items, no metrics, no dashboard pollution.
+        if scope == "sku":
+            _admin_set_status(document_id, "narrating")
+            assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
+            narrative = stage_narrate(doc, assembled, [], org, period_id="-", parsed=parsed)
+            _persist_sku_analysis(doc, parsed, narrative)
+            _admin_set_status(
+                document_id,
+                "analyzed",
+                duration_ms=int((time.time() - t0) * 1000),
+                period_id=None,
+            )
+            logger.info("[pipeline] %s (sku scope) complete in %dms", document_id, int((time.time() - t0) * 1000))
+            return
+
+        # Financial branch — existing path.
         _admin_set_status(document_id, "mapping")
         assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
         period_id = stage_persist(doc, parsed, assembled)
@@ -871,6 +915,66 @@ def build_router() -> APIRouter:
         _admin_set_status(req.document_id, "queued", pipeline_started_at=_now_iso())
         _enqueue(req.document_id)
         return RunResponse(document_id=req.document_id, status="queued")
+
+    @router.get("/api/sku-analysis/latest")
+    def get_latest_sku_analysis(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Return the latest SKU analysis for the caller's organization.
+
+        Strictly scoped to scope='sku' documents — never returns financial
+        statement data. Used by the Products page to render the briefing +
+        recommendations from the most recent inventory/sales upload.
+        """
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            rows = client.select(
+                "sku_analyses",
+                columns="*,documents!inner(id,original_filename,status,scope,created_at,error)",
+                order="created_at.desc",
+                limit=1,
+            )
+            if not rows:
+                return {"analysis": None}
+            r = rows[0]
+            doc = r.get("documents") or {}
+            return {
+                "analysis": {
+                    "id": r["id"],
+                    "document": {
+                        "id": doc.get("id"),
+                        "filename": doc.get("original_filename"),
+                        "status": doc.get("status"),
+                        "scope": doc.get("scope"),
+                        "created_at": doc.get("created_at"),
+                        "error": doc.get("error"),
+                    },
+                    "briefing": r.get("briefing"),
+                    "summary": r.get("summary"),
+                    "recommendations": r.get("recommendations") or [],
+                    "model": r.get("model"),
+                    "created_at": r.get("created_at"),
+                },
+            }
+
+    @router.get("/api/sku-analysis/inflight")
+    def get_inflight_sku_doc(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Return the most recent in-flight (not analyzed) SKU document, if any.
+        Lets the Products page resume showing a progress card after a refresh.
+        """
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            rows = client.select(
+                "documents",
+                filters={"scope": "eq.sku"},
+                columns="id,original_filename,status,error,created_at",
+                order="created_at.desc",
+                limit=1,
+            )
+            if not rows:
+                return {"document": None}
+            d = rows[0]
+            if d.get("status") in ("analyzed", "failed"):
+                return {"document": None}
+            return {"document": d}
 
     @router.post("/api/pipeline/retry", response_model=RunResponse, status_code=202)
     def retry_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:

@@ -382,6 +382,59 @@ begin
   end if;
 end$$;
 
+-- ─── documents.scope ─────────────────────────────────────────────────────
+-- Hard-separates two upload paths:
+--   'financial' → trial balance / bilanț / P&L → financial_periods, briefings,
+--                 calculated_metrics → drives Dashboard / Cash / Profit.
+--   'sku'       → trading analysis / sales-by-product / invoice register →
+--                 sku_analyses ONLY → drives Products page. Never appears on
+--                 the dashboard data model.
+alter table documents add column if not exists scope text not null default 'financial';
+alter table documents drop constraint if exists documents_scope_check;
+alter table documents add constraint documents_scope_check check (scope in ('financial', 'sku'));
+create index if not exists documents_org_scope_idx on documents (org_id, scope, created_at desc);
+
+-- ─── sku_analyses ────────────────────────────────────────────────────────
+-- One row per analyzed SKU document. Independent of financial_periods.
+create table if not exists sku_analyses (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  document_id uuid not null references documents(id) on delete cascade,
+  briefing text,
+  summary jsonb,
+  recommendations jsonb,
+  language text default 'en',
+  model text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (document_id)
+);
+create index if not exists sku_analyses_org_created_idx on sku_analyses (org_id, created_at desc);
+
+drop trigger if exists sku_analyses_set_updated_at on sku_analyses;
+create trigger sku_analyses_set_updated_at before update on sku_analyses
+  for each row execute function set_updated_at_now();
+
+alter table sku_analyses enable row level security;
+drop policy if exists "sku_analyses member select" on sku_analyses;
+drop policy if exists "sku_analyses member insert" on sku_analyses;
+drop policy if exists "sku_analyses member update" on sku_analyses;
+drop policy if exists "sku_analyses member delete" on sku_analyses;
+create policy "sku_analyses member select" on sku_analyses for select using (is_member_of(org_id));
+create policy "sku_analyses member insert" on sku_analyses for insert with check (is_member_of(org_id));
+create policy "sku_analyses member update" on sku_analyses for update using (is_member_of(org_id));
+create policy "sku_analyses member delete" on sku_analyses for delete using (is_member_of(org_id));
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='sku_analyses'
+  ) then
+    alter publication supabase_realtime add table public.sku_analyses;
+  end if;
+end$$;
+
 -- ═════════════════════════════════════════════════════════════════════════
 -- PHASE 3 — pipeline output tables
 -- ═════════════════════════════════════════════════════════════════════════
