@@ -426,38 +426,60 @@ export function subscribeToDocumentStatus(
   };
 }
 
+export interface UploadResult {
+  row: DocumentRow | null;
+  /** Specific failure reason, surfaced to the user. */
+  error: string | null;
+}
+
 /**
- * Upload a file to the per-user Storage folder, then insert the documents
- * row. Returns the new row (or null when Supabase isn't configured).
+ * Upload a file to the per-org Storage folder, then insert the documents row.
  *
- * Storage convention: `{user_id}/{document_id}.{ext}` — the RLS storage
- * policy in schema.sql checks (storage.foldername(name))[1] = auth.uid().
+ * Storage convention: `{org_id}/uploads/{document_id}.{ext}` — the RLS
+ * storage policy in schema_phase3.sql checks
+ * is_member_of((storage.foldername(name))[1]::uuid).
  *
- * No server pipeline kicked off here — Phase 2 wires the extraction worker.
+ * Common failure modes (each surfaces a specific message to the caller):
+ *   - Supabase not configured           → "Authentication isn't configured…"
+ *   - User not signed in                → "Sign in to upload documents."
+ *   - Storage RLS rejects               → "Storage policy rejected the upload — apply schema_phase3.sql."
+ *   - documents table RLS rejects       → "Database policy rejected the row — apply schema_phase3.sql."
+ *   - Bucket missing                    → "The 'documents' bucket doesn't exist yet."
  */
-export async function uploadDocument(file: File): Promise<DocumentRow | null> {
-  if (!client) return null;
+export async function uploadDocument(file: File): Promise<UploadResult> {
+  if (!client) return { row: null, error: "Authentication isn't configured (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY)." };
+
+  const { data: session } = await client.auth.getSession();
+  const userId = session.session?.user?.id ?? null;
+  if (!userId) return { row: null, error: "Sign in to upload documents." };
+
   const orgId = await currentOrgId();
   if (!orgId) {
-    console.warn("[supabase] uploadDocument skipped: not signed in");
-    return null;
+    return {
+      row: null,
+      error: "No organization found for this user. Apply supabase/schema_phase3.sql so the bootstrap trigger seeds an org + membership on signup.",
+    };
   }
+
   const detected = detectFromName(file.name, file.type);
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
   const documentId = crypto.randomUUID();
-  // Storage convention: {org_id}/uploads/{document_id}.{ext}
-  // RLS policy on storage.objects in schema_phase3.sql checks
-  // is_member_of((storage.foldername(name))[1]::uuid).
   const storagePath = `${orgId}/uploads/${documentId}.${ext}`;
-  const { data: session } = await client.auth.getSession();
-  const userId = session.session?.user?.id ?? null;
 
   const { error: upErr } = await client.storage
     .from(DOC_BUCKET)
     .upload(storagePath, file, { contentType: file.type, upsert: false });
   if (upErr) {
-    console.warn("[supabase] uploadDocument storage upload failed:", upErr.message);
-    return null;
+    console.warn("[supabase] storage upload failed:", upErr.message);
+    // Map common Supabase storage errors to actionable messages.
+    const msg = upErr.message.toLowerCase();
+    if (msg.includes("bucket not found")) {
+      return { row: null, error: "The 'documents' Storage bucket doesn't exist. Create it in Supabase → Storage → New bucket (private, 25 MB limit), then re-run schema_phase3.sql." };
+    }
+    if (msg.includes("row-level") || msg.includes("rls") || msg.includes("policy") || msg.includes("not authorized") || msg.includes("403")) {
+      return { row: null, error: `Storage policy rejected the upload (path: ${storagePath}). Apply supabase/schema_phase3.sql to bind the new is_member_of-based policies on the 'documents' bucket.` };
+    }
+    return { row: null, error: `Storage upload failed: ${upErr.message}` };
   }
 
   const { data, error } = await client
@@ -479,9 +501,16 @@ export async function uploadDocument(file: File): Promise<DocumentRow | null> {
     console.warn("[supabase] documents insert failed:", error.message);
     // Best-effort cleanup so we don't leave orphan blobs in Storage.
     await client.storage.from(DOC_BUCKET).remove([storagePath]);
-    return null;
+    const msg = error.message.toLowerCase();
+    if (msg.includes("row-level") || msg.includes("rls") || msg.includes("policy") || msg.includes("violates")) {
+      return { row: null, error: "Database policy rejected the row — apply supabase/schema_phase3.sql so member-scoped policies bind on documents." };
+    }
+    if (msg.includes("check constraint") && msg.includes("status")) {
+      return { row: null, error: "documents.status check constraint rejected 'queued' — apply schema_phase3.sql to update the constraint to the new 7-state pipeline enum." };
+    }
+    return { row: null, error: `Database insert failed: ${error.message}` };
   }
-  return data as DocumentRow;
+  return { row: data as DocumentRow, error: null };
 }
 
 export async function listDocuments(limit = 50): Promise<DocumentRow[]> {

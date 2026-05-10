@@ -276,6 +276,56 @@ create policy "coa_mappings member insert" on coa_mappings for insert with check
 create policy "coa_mappings member update" on coa_mappings for update using (is_member_of(org_id));
 create policy "coa_mappings member delete" on coa_mappings for delete using (is_member_of(org_id));
 
+-- ─── Storage policies for the `documents` bucket (Phase 3 path) ───────────
+-- The Phase 1 storage policies in schema.sql key on auth.uid() being the
+-- first folder segment. After Phase 3 the path is {org_id}/uploads/...
+-- and org_id is a fresh UUID per organization (NOT the user's UID), so
+-- the legacy policy rejects every upload. Drop the legacy policies and
+-- recreate using is_member_of() against the first folder segment cast to
+-- uuid. This works for both:
+--   • Pre-Phase-3 paths: {auth.uid()}/{document_id}.{ext}  — only valid if
+--     auth.uid() also exists as an org_id (it doesn't post-Phase-3, so
+--     these uploads have to come through the new path).
+--   • Phase 3 paths:    {org_id}/uploads/{document_id}.{ext}
+
+do $$
+begin
+  if exists (select 1 from storage.buckets where id = 'documents') then
+    -- Drop legacy auth.uid()-keyed policies if present.
+    drop policy if exists "documents storage select own" on storage.objects;
+    drop policy if exists "documents storage insert own" on storage.objects;
+    drop policy if exists "documents storage update own" on storage.objects;
+    drop policy if exists "documents storage delete own" on storage.objects;
+
+    -- Drop new-style policies if a previous run left them around.
+    drop policy if exists "documents storage member select" on storage.objects;
+    drop policy if exists "documents storage member insert" on storage.objects;
+    drop policy if exists "documents storage member update" on storage.objects;
+    drop policy if exists "documents storage member delete" on storage.objects;
+
+    create policy "documents storage member select" on storage.objects
+      for select using (
+        bucket_id = 'documents'
+        and is_member_of(((storage.foldername(name))[1])::uuid)
+      );
+    create policy "documents storage member insert" on storage.objects
+      for insert with check (
+        bucket_id = 'documents'
+        and is_member_of(((storage.foldername(name))[1])::uuid)
+      );
+    create policy "documents storage member update" on storage.objects
+      for update using (
+        bucket_id = 'documents'
+        and is_member_of(((storage.foldername(name))[1])::uuid)
+      );
+    create policy "documents storage member delete" on storage.objects
+      for delete using (
+        bucket_id = 'documents'
+        and is_member_of(((storage.foldername(name))[1])::uuid)
+      );
+  end if;
+end$$;
+
 -- ═════════════════════════════════════════════════════════════════════════
 -- PHASE 3 — pipeline output tables
 -- ═════════════════════════════════════════════════════════════════════════

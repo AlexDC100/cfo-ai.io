@@ -136,14 +136,12 @@ export default function UploadPage() {
       return;
     }
     setBusy(true);
-    const row = await uploadDocument(file);
+    const { row, error } = await uploadDocument(file);
     if (!row) {
       setBusy(false);
       toast({
         title: "Upload failed",
-        description: supabaseEnabled
-          ? "Sign in is required, or your storage policy hasn't been applied yet."
-          : "Authentication isn't configured on this build.",
+        description: error ?? "Unknown error.",
         variant: "destructive",
       });
       if (fileRef.current) fileRef.current.value = "";
