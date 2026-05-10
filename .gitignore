@@ -19,3 +19,7 @@ scandi-desk-main/.vite/
 
 # Local data dumps
 data/
+
+# Runtime artifacts (do not commit)
+logs/
+supabase/.temp/
