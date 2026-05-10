@@ -1,0 +1,82 @@
+# Default tenant configuration.
+#
+# Generic FMCG-shaped defaults for the inventory engine. Mirrors the legacy
+# top-level config.yaml so we can switch the loader to tenant routing without
+# changing classifications. Override per-tenant via additional yaml files in
+# this folder.
+
+# ──────────────────────────────────────────────────────────────
+# Tenant identity
+# ──────────────────────────────────────────────────────────────
+tenant:
+  id: "default"
+  name: "Default tenant"
+  industry: "fmcg"
+  currency: "RON"
+  fiscal_year_start_month: 1
+  default_payment_terms_days: 30
+
+# ──────────────────────────────────────────────────────────────
+# Financial parameters
+# ──────────────────────────────────────────────────────────────
+cost_of_capital_pct: 6.5    # RO SME baseline; tenants override per actuals
+fx_eur_ron: 4.97
+
+# ──────────────────────────────────────────────────────────────
+# Anchor classification
+# ──────────────────────────────────────────────────────────────
+anchor:
+  top_pct_by_absolute_profit: 20
+  min_revenue_share_pct: 5.0
+  volume_threshold_tons_default: 50
+  floor_real_margin_pct: -2.0
+  high_volume_anchor_floor_pct: 5.0
+
+# ──────────────────────────────────────────────────────────────
+# Elimination rules (non-anchor only)
+# ──────────────────────────────────────────────────────────────
+eliminate:
+  micro_volume_tons: 5
+  micro_profit_kron: 5
+  dio_capital_trap: 150
+  capital_trap_real_margin: 5.0
+  zero_sales_window_days: 60
+  ccc_category_red_days: 120
+
+# ──────────────────────────────────────────────────────────────
+# Warning rules (non-anchor only)
+# ──────────────────────────────────────────────────────────────
+warning:
+  thin_real_margin_max_pct: 3.0
+  long_dio_days: 100
+  trend_lookback_months: 3
+  min_volume_tons: 5
+  max_volume_tons: 150
+  min_profit_kron: 0
+
+# ──────────────────────────────────────────────────────────────
+# Scale rules (non-anchor only)
+# ──────────────────────────────────────────────────────────────
+scale:
+  high_margin_min_pct: 10.0
+  high_margin_min_volume: 30
+  volume_play_min_pct: 5.0
+  volume_play_min_volume: 100
+  gmroii_min_pct: 150
+  high_volume_dio_max: 45
+
+# ──────────────────────────────────────────────────────────────
+# Computation windows
+# ──────────────────────────────────────────────────────────────
+windows:
+  dio_rolling_days: 90
+  trend_lookback_days: 90
+  yoy_lookback_days: 365
+
+# ──────────────────────────────────────────────────────────────
+# Output
+# ──────────────────────────────────────────────────────────────
+output:
+  default_path: "./output"
+  json_filename_pattern: "daily_decisions_{date}.json"
+  briefing_languages: ["en"]

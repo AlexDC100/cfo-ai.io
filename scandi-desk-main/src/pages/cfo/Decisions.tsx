@@ -1,0 +1,227 @@
+// Decisions — action queue for the active period.
+//
+// Step 4 of FIX-NOW: replaced the SKU-bucket recommendation queue (which
+// was wrong for non-FMCG companies) with the engine's prioritized financial
+// recommendations from generateRecommendations(statements, ratios). Each
+// card surfaces severity, rationale, action steps, and estimated RON
+// impact — and the spec's three workflow buttons (mark in progress / done
+// / dismiss) toggle a per-recommendation status held in component state
+// (persistence to the recommendations table comes with Phase G's schema apply).
+
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Check, Clock, FileText, X } from "lucide-react";
+import { AppShell } from "@/components/cfo/AppShell";
+import { useActivePeriod } from "@/lib/activePeriod";
+import {
+  computeRatios,
+  formatCurrency,
+  generateRecommendations,
+  type Recommendation,
+  type RecommendationPriority,
+} from "@/lib/financialReport";
+
+type Status = "open" | "in_progress" | "done" | "dismissed";
+
+const PRIORITY_ORDER: RecommendationPriority[] = ["critical", "high", "medium", "info"];
+const PRIORITY_LABEL: Record<RecommendationPriority, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  info: "Info",
+};
+const PRIORITY_TONE: Record<RecommendationPriority, string> = {
+  critical: "bg-red-50 text-red-700 border-red-200",
+  high:     "bg-amber-50 text-amber-700 border-amber-200",
+  medium:   "bg-blue-50 text-blue-700 border-blue-200",
+  info:     "bg-bg-2 text-ink-soft border-rule",
+};
+
+export default function Decisions() {
+  const period = useActivePeriod();
+  if (!period.isLoaded || !period.statements) {
+    return (
+      <AppShell>
+        <DecisionsEmptyState />
+      </AppShell>
+    );
+  }
+  return (
+    <AppShell>
+      <DecisionsLoaded statements={period.statements} />
+    </AppShell>
+  );
+}
+
+function DecisionsEmptyState() {
+  return (
+    <section className="max-w-[680px] mx-auto py-16 text-center" data-testid="decisions-empty">
+      <div className="mx-auto h-14 w-14 rounded-2xl bg-bg-2 text-ink-mute flex items-center justify-center mb-4">
+        <FileText size={22} strokeWidth={1.5} />
+      </div>
+      <h1 className="font-serif text-[34px] sm:text-[40px] leading-[1.1] tracking-[-0.02em] text-ink">
+        No decisions yet
+      </h1>
+      <p className="mt-4 text-[15px] text-ink-soft max-w-[480px] mx-auto">
+        Recommendations are derived from a loaded P&L + balance sheet. Open
+        Statements to load a sample or upload your own.
+      </p>
+      <Link
+        to="/dashboard"
+        className="mt-6 inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-brand text-paper text-[14px] font-medium hover:bg-brand-d transition-colors"
+      >
+        Open Financial Statements
+        <ArrowRight size={14} strokeWidth={2} />
+      </Link>
+    </section>
+  );
+}
+
+function DecisionsLoaded({ statements }: { statements: NonNullable<ReturnType<typeof useActivePeriod>["statements"]> }) {
+  const ratios = useMemo(() => computeRatios(statements), [statements]);
+  const recommendations = useMemo(() => generateRecommendations(statements, ratios), [statements, ratios]);
+  const cur = statements.currency;
+
+  const [statusMap, setStatusMap] = useState<Record<string, Status>>({});
+  const [filter, setFilter] = useState<RecommendationPriority | "all">("all");
+
+  const visible = useMemo(() => {
+    let xs = recommendations.filter((r) => statusMap[r.id] !== "dismissed");
+    if (filter !== "all") xs = xs.filter((r) => r.priority === filter);
+    return xs.sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
+  }, [recommendations, statusMap, filter]);
+
+  const counts: Record<RecommendationPriority | "all", number> = {
+    all: recommendations.filter((r) => statusMap[r.id] !== "dismissed").length,
+    critical: recommendations.filter((r) => r.priority === "critical" && statusMap[r.id] !== "dismissed").length,
+    high: recommendations.filter((r) => r.priority === "high" && statusMap[r.id] !== "dismissed").length,
+    medium: recommendations.filter((r) => r.priority === "medium" && statusMap[r.id] !== "dismissed").length,
+    info: recommendations.filter((r) => r.priority === "info" && statusMap[r.id] !== "dismissed").length,
+  };
+
+  const totalImpact = visible.reduce((s, r) => s + (r.estimatedImpact ?? 0), 0);
+
+  return (
+    <div className="space-y-7" data-testid="decisions-body">
+      <header>
+        <div className="label-eyebrow">Decisions</div>
+        <h1 className="mt-2 font-serif text-[36px] leading-[1.1] tracking-[-0.02em]">
+          {visible.length} prioritized action{visible.length === 1 ? "" : "s"}
+        </h1>
+        <p className="mt-3 text-[14.5px] text-ink-soft max-w-[640px]">
+          {totalImpact > 0
+            ? <>Combined estimated impact: <span className="text-ink font-medium">~{formatCurrency(totalImpact, cur)} / year</span>.</>
+            : "Recommendations are tracked here. Mark them in-progress, done, or dismiss as appropriate."}
+        </p>
+      </header>
+
+      {/* Filter strip */}
+      <div className="flex items-center gap-1 flex-wrap">
+        {(["all", "critical", "high", "medium", "info"] as const).map((p) => (
+          <button
+            key={p}
+            onClick={() => setFilter(p)}
+            data-testid={`decisions-filter-${p}`}
+            className={`rounded-md px-2.5 py-1 text-[12px] border transition-colors ${
+              filter === p
+                ? "bg-ink text-paper border-ink"
+                : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+            }`}
+          >
+            {p === "all" ? "All" : PRIORITY_LABEL[p]}
+            <span className={`ml-1.5 ${filter === p ? "text-paper/70" : "text-ink-mute"}`}>{counts[p]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Recommendation cards */}
+      <div className="space-y-3">
+        {visible.length === 0 && (
+          <div className="rounded-2xl border border-rule bg-surface px-6 py-12 text-center text-[13.5px] text-ink-soft">
+            No decisions match this filter.
+          </div>
+        )}
+        {visible.map((rec) => (
+          <DecisionCard
+            key={rec.id}
+            rec={rec}
+            currency={cur}
+            status={statusMap[rec.id] ?? "open"}
+            onStatusChange={(next) => setStatusMap((m) => ({ ...m, [rec.id]: next }))}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DecisionCard({
+  rec,
+  currency,
+  status,
+  onStatusChange,
+}: {
+  rec: Recommendation;
+  currency: string;
+  status: Status;
+  onStatusChange: (next: Status) => void;
+}) {
+  const tone = PRIORITY_TONE[rec.priority];
+  const inProgress = status === "in_progress";
+  const done = status === "done";
+
+  return (
+    <article
+      data-testid="recommendation-card"
+      className={`rounded-2xl border bg-surface p-5 transition-opacity ${done ? "opacity-60" : ""}`}
+    >
+      <div className="flex items-start gap-3 mb-2">
+        <span className={`inline-flex items-center text-[10.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border ${tone}`}>
+          {PRIORITY_LABEL[rec.priority]}
+        </span>
+        <h3 className={`font-serif text-[17px] text-ink leading-tight ${done ? "line-through" : ""}`}>{rec.title}</h3>
+      </div>
+      <p className="text-[13px] text-ink-soft leading-snug mt-2">
+        <span className="text-ink font-medium">Why:</span> {rec.rationale}
+      </p>
+      <p className="text-[13px] text-ink-soft leading-snug mt-2">
+        <span className="text-ink font-medium">Action:</span> {rec.action}
+      </p>
+      {rec.estimatedImpact && (
+        <div className="mt-3 inline-flex items-center text-[11.5px] font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
+          Estimated impact: ~{formatCurrency(rec.estimatedImpact, currency)} / year
+        </div>
+      )}
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => onStatusChange(inProgress ? "open" : "in_progress")}
+          data-testid="rec-action-progress"
+          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
+            inProgress ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+          }`}
+        >
+          <Clock size={12} strokeWidth={2} />
+          {inProgress ? "In progress" : "Mark in progress"}
+        </button>
+        <button
+          onClick={() => onStatusChange(done ? "open" : "done")}
+          data-testid="rec-action-done"
+          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
+            done ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+          }`}
+        >
+          <Check size={12} strokeWidth={2} />
+          {done ? "Done" : "Mark done"}
+        </button>
+        <button
+          onClick={() => onStatusChange("dismissed")}
+          data-testid="rec-action-dismiss"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 transition-colors ml-auto"
+        >
+          <X size={12} strokeWidth={2} />
+          Dismiss
+        </button>
+      </div>
+    </article>
+  );
+}

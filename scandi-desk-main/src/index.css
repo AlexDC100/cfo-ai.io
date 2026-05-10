@@ -1,0 +1,424 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  CFO AI — Dual-theme design system.
+  Both light and dark are first-class. Light = warm enterprise cream with
+  near-black ink + teal CTA + gold accent. Dark = deep navy with the same
+  brand teal at higher saturation. Tokens are scoped by `:root` (light) and
+  `.dark` (data-theme via next-themes' class strategy). Components consume
+  tokens through Tailwind aliases — never inline hex.
+*/
+
+@layer base {
+  :root {
+    /* ─────────────────────────────────────────────────────────
+       LIGHT MODE — warm enterprise cream. Background is soft off-white,
+       borders sit a touch warmer, ink is a cool near-black for clarity.
+       Token names align with the canonical theme spec (bg / surface /
+       border / text / primary / gold / danger / warning / success / info).
+       ───────────────────────────────────────────────────────── */
+    --bg:           42 17% 97%;        /* #FAFAF7 — page bg */
+    --bg-2:         42 11% 93%;        /* #F3F1EC — surface-muted / inset */
+    --surface:      0  0%  100%;       /* #FFFFFF — cards */
+    --surface-soft: 42 22% 95%;        /* #F5F3EE — elevated card variant */
+    --surface-hi:   42 17% 95%;        /* #F1EFEA — card hover */
+    --surface-hover:42 17% 95%;        /* alias of surface-hi */
+
+    --ink:          240 10% 9%;        /* #14141A — primary text */
+    --ink-2:        240 8%  18%;
+    --ink-soft:     36  5%  41%;       /* #6E6A63 — secondary text */
+    --ink-mute:     36  6%  58%;       /* #9B978E — tertiary text */
+    --ink-faint:    36  10% 80%;
+
+    /* Canonical text aliases for the spec-compliant token names. */
+    --text:         var(--ink);
+    --text-muted:   var(--ink-soft);
+    --text-soft:    var(--ink-mute);
+
+    --rule:         38 22% 87%;        /* #E7E1D7 — warm hairline */
+    --rule-soft:    38 22% 92%;
+    --rule-strong:  38 18% 78%;        /* #D7D1C5 */
+
+    /* Spec aliases. */
+    --border:       var(--rule);
+    --border-strong:var(--rule-strong);
+
+    /* Brand — teal primary, gold premium accent */
+    --brand:        175 64% 46%;       /* #2DBFB3 — teal */
+    --brand-d:      175 73% 32%;       /* #168C83 — teal-dark */
+    --brand-l:      175 56% 60%;
+    --brand-tint:   175 50% 94%;       /* very subtle teal wash for hover/active */
+    --primary-hover:175 67% 40%;       /* #23A89D */
+
+    --brand-2:      42 53% 54%;        /* #C9A24A — metallic gold */
+    --brand-2-d:    38 49% 44%;
+    --brand-2-l:    44 60% 63%;
+    --brand-2-tint: 42 53% 93%;
+
+    --silver:       38 8% 78%;
+
+    --success:      152 54% 31%;       /* #257A4F */
+    --success-tint: 152 40% 90%;
+    --caution:      36 71% 42%;        /* #B7791F */
+    --caution-tint: 38 60% 92%;
+    --alert:        7  62% 44%;        /* #B83A2A */
+    --alert-tint:   7  60% 93%;
+    --info:         207 50% 37%;       /* #2F5F8F */
+    --info-tint:    207 40% 92%;
+    --warning-2:    32 90% 45%;
+    --warning-2-tint: 32 70% 92%;
+
+    --paper:        var(--bg);
+    --burgundy:     var(--brand);
+    --burgundy-d:   var(--brand-d);
+    --gold:         var(--brand-2);
+    --success-bg:   var(--success-tint);
+    --caution-bg:   var(--caution-tint);
+    --alert-bg:     var(--alert-tint);
+
+    --background:           var(--bg);
+    --foreground:           var(--ink);
+    --card:                 var(--surface);
+    --card-foreground:      var(--ink);
+    --popover:              var(--surface);
+    --popover-foreground:   var(--ink);
+    --primary:              var(--brand);
+    --primary-foreground:   222 47% 11%;
+    --secondary:            var(--bg-2);
+    --secondary-foreground: var(--ink);
+    --muted:                var(--bg-2);
+    --muted-foreground:     var(--ink-soft);
+    --accent:               var(--brand-tint);
+    --accent-foreground:    var(--brand-d);
+    --destructive:          var(--alert);
+    --destructive-foreground: 0 0% 100%;
+    --border:               var(--rule);
+    --input:                var(--rule);
+    --ring:                 var(--brand);
+
+    --radius-sm: 8px;
+    --radius:    14px;
+    --radius-lg: 20px;
+
+    --shadow-1:
+      0 1px 2px hsl(222 47% 11% / 0.05),
+      0 1px 1px hsl(222 47% 11% / 0.03);
+    --shadow-2:
+      0 2px 4px hsl(222 47% 11% / 0.04),
+      0 8px 16px hsl(222 47% 11% / 0.06);
+    --shadow-3:
+      0 4px 8px hsl(222 47% 11% / 0.04),
+      0 16px 32px hsl(222 47% 11% / 0.08);
+    --shadow-4:
+      0 8px 16px hsl(222 47% 11% / 0.06),
+      0 32px 64px hsl(222 47% 11% / 0.12);
+    --shadow-inset: inset 0 1px 2px hsl(222 47% 11% / 0.06);
+    --ring-focus:   0 0 0 3px hsl(var(--brand) / 0.28);
+    --shadow-glow:  0 0 32px hsl(var(--brand) / 0.20);
+
+    --ease-quint:  cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-fluid:  cubic-bezier(0.4, 0, 0.2, 1);
+
+    --bucket-protect-fg:    var(--brand-2-d);
+    --bucket-protect-bg:    var(--brand-2-tint);
+    --bucket-watch-fg:      var(--info);
+    --bucket-watch-bg:      var(--info-tint);
+    --bucket-fix-fg:        var(--warning-2);
+    --bucket-fix-bg:        var(--warning-2-tint);
+    --bucket-reduce-fg:     var(--caution);
+    --bucket-reduce-bg:     var(--caution-tint);
+    --bucket-liquidate-fg:  var(--alert);
+    --bucket-liquidate-bg:  var(--alert-tint);
+    --bucket-scale-fg:      var(--success);
+    --bucket-scale-bg:      var(--success-tint);
+
+    --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--info)) 100%);
+    --grad-hero:   linear-gradient(135deg, hsl(174 67% 51%) 0%, hsl(189 95% 55%) 50%, hsl(210 100% 62%) 100%);
+    --grad-mesh:
+      radial-gradient(at 18% 16%, hsl(var(--brand) / 0.08) 0px, transparent 55%),
+      radial-gradient(at 82% 8%,  hsl(var(--info) / 0.07)  0px, transparent 55%);
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     DARK MODE — primary brand surface. Deep navy, metallic
+     gold/silver, teal CTA. Inspired by Vitalis AI landing.
+     ───────────────────────────────────────────────────────── */
+  .dark {
+    --bg:           215 33% 4%;        /* #05070A — page bg */
+    --bg-2:         215 30% 6%;        /* #080D12 — soft inset */
+    --surface:      213 27% 8%;        /* #0D131A — cards */
+    --surface-soft: 213 30% 11%;       /* #111A24 — elevated card variant */
+    --surface-hi:   213 30% 14%;       /* #18222E — card hover */
+    --surface-hover:213 30% 14%;       /* alias */
+
+    --ink:          210 16% 96%;       /* #F4F6F8 — primary text */
+    --ink-2:        212 13% 86%;
+    --ink-soft:     215 13% 67%;       /* #A2ACB8 — muted */
+    --ink-mute:     217 11% 55%;       /* #7F8B99 — tertiary */
+    --ink-faint:    215 20% 30%;       /* #2E3D4C */
+
+    --text:         var(--ink);
+    --text-muted:   var(--ink-soft);
+    --text-soft:    var(--ink-mute);
+
+    --rule:         213 30% 16%;       /* #1E2A36 — default hairline */
+    --rule-soft:    215 30% 10%;
+    --rule-strong:  215 22% 24%;       /* #2E3D4C */
+
+    --border:       var(--rule);
+    --border-strong:var(--rule-strong);
+
+    --brand:        174 67% 51%;       /* #2ED3C6 — teal CTA */
+    --brand-d:      174 75% 42%;
+    --brand-l:      174 70% 62%;
+    --brand-tint:   174 50% 12%;
+    --primary-hover:174 71% 43%;       /* #20BEB2 */
+
+    --brand-2:      40  62% 57%;       /* #D6A84F — metallic gold */
+    --brand-2-d:    36  60% 45%;
+    --brand-2-l:    44  82% 67%;       /* #F0C96A — gold-soft */
+    --brand-2-tint: 40  40% 14%;
+
+    --silver:       220 9%  80%;       /* #C6CCD4 */
+
+    --success:      147 60% 50%;       /* #35C77B */
+    --success-tint: 147 50% 14%;
+    --caution:      32  95% 60%;
+    --caution-tint: 32  60% 16%;
+    --alert:        0   100% 65%;      /* #FF4D4D */
+    --alert-tint:   0   60% 18%;
+    --info:         210 100% 62%;      /* #3BA7FF */
+    --info-tint:    210 50% 16%;
+    --warning-2:    36  92% 55%;       /* #F6A623 */
+    --warning-2-tint: 36 60% 16%;
+
+    --shadow-1:
+      0 1px 0 hsl(0 0% 100% / 0.04) inset,
+      0 1px 2px hsl(0 0% 0% / 0.5);
+    --shadow-2:
+      0 1px 0 hsl(0 0% 100% / 0.04) inset,
+      0 4px 16px hsl(0 0% 0% / 0.55);
+    --shadow-3:
+      0 1px 0 hsl(0 0% 100% / 0.05) inset,
+      0 8px 32px hsl(0 0% 0% / 0.65);
+    --shadow-4:
+      0 1px 0 hsl(0 0% 100% / 0.06) inset,
+      0 16px 48px hsl(0 0% 0% / 0.7);
+    --shadow-inset: inset 0 1px 2px hsl(0 0% 0% / 0.55);
+    --ring-focus:   0 0 0 3px hsl(var(--brand) / 0.36);
+    --shadow-glow:  0 0 40px hsl(var(--brand) / 0.32);
+
+    --bucket-protect-fg:    var(--brand-2-l);
+    --bucket-protect-bg:    var(--brand-2-tint);
+    --bucket-watch-fg:      var(--info);
+    --bucket-watch-bg:      var(--info-tint);
+    --bucket-fix-fg:        var(--warning-2);
+    --bucket-fix-bg:        var(--warning-2-tint);
+    --bucket-reduce-fg:     var(--caution);
+    --bucket-reduce-bg:     var(--caution-tint);
+    --bucket-liquidate-fg:  var(--alert);
+    --bucket-liquidate-bg:  var(--alert-tint);
+    --bucket-scale-fg:      var(--success);
+    --bucket-scale-bg:      var(--success-tint);
+
+    --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--info)) 100%);
+    --grad-hero:   linear-gradient(135deg, hsl(174 67% 51%) 0%, hsl(189 95% 55%) 50%, hsl(210 100% 62%) 100%);
+    --grad-gold:   linear-gradient(135deg, hsl(40 62% 57%) 0%, hsl(44 82% 67%) 100%);
+    --grad-mesh:
+      radial-gradient(at 18% 18%, hsl(var(--brand) / 0.10) 0px, transparent 55%),
+      radial-gradient(at 82% 10%, hsl(var(--info) / 0.08)  0px, transparent 60%),
+      radial-gradient(at 50% 92%, hsl(var(--brand-2) / 0.06) 0px, transparent 60%);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  html {
+    font-feature-settings: "tnum" 1, "ss03" 1, "cv11" 1;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "tnum" 1, "ss03" 1, "cv11" 1;
+    /* Smooth theme transitions on the body itself. Per-element transitions
+       are opt-in via `.theme-transition` (set on common surfaces below)
+       so we don't fight existing animation systems. */
+    transition:
+      background-color 220ms var(--ease-fluid),
+      color 220ms var(--ease-fluid);
+  }
+
+  /* Coordinated theme transition for common themed surfaces. Applied via
+     the helper class so components can opt out by removing it. */
+  .theme-transition,
+  [data-theme-transition] {
+    transition:
+      background-color 220ms var(--ease-fluid),
+      border-color 220ms var(--ease-fluid),
+      color 220ms var(--ease-fluid);
+  }
+
+  /* Mesh gradient applied to a fixed pseudo-element so children don't
+     recompute it on scroll. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: var(--grad-mesh);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .tnum,
+  table,
+  .font-serif,
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :where(button, [role="button"], a, input, select, textarea, [role="slider"], [role="tab"])
+  :focus-visible,
+  :where(button, [role="button"], a, input, select, textarea, [role="slider"], [role="tab"]):focus-visible {
+    outline: none;
+    box-shadow: var(--ring-focus);
+    border-radius: var(--radius-sm);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .label-eyebrow {
+    @apply text-[12px] font-medium uppercase tracking-[0.06em] text-ink-soft;
+  }
+
+  .rule-top { @apply border-t border-rule; }
+
+  .hero-number {
+    @apply font-serif text-[64px] leading-[72px] font-normal text-ink;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .section-hero {
+    @apply font-serif text-[40px] leading-[48px] font-normal text-ink;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.015em;
+  }
+
+  /* Teal/blue gradient — used on hero accent words */
+  .text-grad {
+    background-image: var(--grad-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Gold gradient — for premium/protect accents */
+  .text-gold {
+    background-image: var(--grad-gold);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .card {
+    background: hsl(var(--surface));
+    border-radius: var(--radius);
+    transition: background 160ms var(--ease-quint), box-shadow 160ms var(--ease-quint);
+  }
+  .card.is-interactive:hover {
+    background: hsl(var(--surface-hi));
+    box-shadow: var(--shadow-2);
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-2 py-[2px] text-[11px] tracking-[0.04em];
+    border-radius: var(--radius-sm);
+    background: hsl(var(--bg-2));
+    color: hsl(var(--ink-soft));
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium tracking-[0.02em];
+    border-radius: var(--radius-sm);
+    line-height: 1.4;
+  }
+  .chip-protect    { background: hsl(var(--bucket-protect-bg));    color: hsl(var(--bucket-protect-fg)); }
+  .chip-watch      { background: hsl(var(--bucket-watch-bg));      color: hsl(var(--bucket-watch-fg)); }
+  .chip-fix        { background: hsl(var(--bucket-fix-bg));        color: hsl(var(--bucket-fix-fg)); }
+  .chip-reduce     { background: hsl(var(--bucket-reduce-bg));     color: hsl(var(--bucket-reduce-fg)); }
+  .chip-liquidate  { background: hsl(var(--bucket-liquidate-bg));  color: hsl(var(--bucket-liquidate-fg)); }
+  .chip-scale      { background: hsl(var(--bucket-scale-bg));      color: hsl(var(--bucket-scale-fg)); }
+
+  /* CFO surfaces — solid card + hairline + tiny lift in light mode so the
+     pure-white cards actually pop from the cool whisper background. Dark
+     mode keeps it borders-only because shadows fight the deep navy. */
+  .cfo-surface {
+    background: hsl(var(--surface));
+    border: 1px solid hsl(var(--rule));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-1);
+  }
+  .dark .cfo-surface {
+    box-shadow: none;
+  }
+  .cfo-surface-muted {
+    background: hsl(var(--bg-2));
+    border-radius: var(--radius);
+  }
+
+  .ring-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Premium teal-filled CTA — Vitalis-style */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2;
+    @apply rounded-lg px-5 py-3 font-medium text-[14px];
+    background: hsl(var(--brand));
+    color: hsl(215 33% 4%);
+    transition: filter 160ms var(--ease-quint), transform 160ms var(--ease-quint);
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-primary:active { transform: translateY(1px); }
+
+  /* Outlined ghost CTA */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2;
+    @apply rounded-lg px-5 py-3 font-medium text-[14px];
+    background: transparent;
+    color: hsl(var(--ink));
+    border: 1px solid hsl(var(--rule-strong));
+    transition: background 160ms var(--ease-quint), border-color 160ms var(--ease-quint);
+  }
+  .btn-ghost:hover {
+    background: hsl(var(--surface-hi));
+    border-color: hsl(var(--ink-mute));
+  }
+
+  /* Hides the native scrollbar on the horizontally-scrolling Financial
+   * Statements tab bar (mobile) while preserving keyboard + wheel scroll +
+   * momentum on touch devices. Edge fades over the container handle the
+   * visual cue that more content is to the side. */
+  .scrollbar-none {
+    scrollbar-width: none;            /* Firefox */
+    -ms-overflow-style: none;         /* IE / old Edge */
+    -webkit-overflow-scrolling: touch; /* iOS momentum */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;                    /* Chromium / WebKit */
+  }
+}

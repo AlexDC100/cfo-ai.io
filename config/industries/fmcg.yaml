@@ -1,0 +1,24 @@
+# Industry Template — FMCG / Food & Beverage
+#
+# Seed values for fast-moving consumer goods. Tenants in this industry can
+# inherit these and only override what's specific. Higher inventory turnover
+# than a generic distributor; tighter DIO thresholds.
+
+industry: "fmcg"
+
+cost_of_capital_pct: 7.0
+
+anchor:
+  volume_threshold_tons_default: 30
+  high_volume_anchor_floor_pct: 5.0
+
+eliminate:
+  dio_capital_trap: 120     # FMCG should turn faster than the generic 150d
+  capital_trap_real_margin: 4.0
+
+warning:
+  long_dio_days: 90         # Tighter than generic — FMCG = fast turn
+  thin_real_margin_max_pct: 3.0
+
+scale:
+  high_volume_dio_max: 35

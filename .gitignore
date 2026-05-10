@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+output/*.json
+.DS_Store
+
+# Production secrets — never commit
+.env
+.env.local
+.env.production
+
+# Frontend build artifacts
+scandi-desk-main/node_modules/
+scandi-desk-main/dist/
+scandi-desk-main/.vite/
+
+# Local data dumps
+data/

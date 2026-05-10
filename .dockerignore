@@ -1,0 +1,20 @@
+# Local dev junk we don't want in the image
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+output/
+.DS_Store
+.git/
+.gitignore
+
+# Frontend (separate Dockerfile, separate context)
+scandi-desk-main/
+
+# Tests aren't needed in production
+tests/
+
+# Local data dumps
+data/*
+files.zip

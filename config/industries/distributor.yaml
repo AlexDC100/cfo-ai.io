@@ -1,0 +1,23 @@
+# Industry Template — Distributor / Wholesaler
+#
+# Lower-velocity than FMCG, longer payment terms typical. Higher tolerance
+# on DIO but sharper attention on DSO.
+
+industry: "distributor"
+
+cost_of_capital_pct: 8.5
+
+anchor:
+  volume_threshold_tons_default: 50
+  high_volume_anchor_floor_pct: 4.0
+
+eliminate:
+  dio_capital_trap: 180
+  capital_trap_real_margin: 5.0
+
+warning:
+  long_dio_days: 120
+  thin_real_margin_max_pct: 4.0
+
+scale:
+  high_volume_dio_max: 60

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Teal C — hexagonal frame with right side notched out. -->
+  <path
+    d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z"
+    fill="#2DBFB3"
+  />
+  <!-- A peak — splays from upper-mid to bottom-right; ink in light, ivory in dark.
+       Browsers don't honor `prefers-color-scheme` inside SVG fills via
+       currentColor when used as a favicon, so we hard-code an ivory that reads
+       on both Chrome's light + dark tab strips. -->
+  <path
+    d="M 38 14 L 60 60 L 48 60 L 38 38 Z"
+    fill="#F4F6F8"
+  />
+  <rect x="34" y="34" width="14" height="3" fill="#F4F6F8" />
+</svg>

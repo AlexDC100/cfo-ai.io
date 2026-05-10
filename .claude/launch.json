@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "engine-api (FastAPI)",
+      "runtimeExecutable": "/Users/alex/Desktop/folder claude Scandia copy/.venv/bin/python",
+      "runtimeArgs": [
+        "-m",
+        "engine",
+        "serve",
+        "--config",
+        "/Users/alex/Desktop/folder claude Scandia copy/config.yaml",
+        "--canonical-excel",
+        "/Users/alex/Desktop/folder claude Scandia copy/files/Trading_analysis_YTDOct'25_LV.xlsx",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "scandi-desk (Vite)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/alex/Desktop/folder claude Scandia copy/scandi-desk-main", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}
