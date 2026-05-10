@@ -161,9 +161,11 @@ def _empty_bs() -> Dict[str, float]:
 
 
 def _empty_pl() -> Dict[str, float]:
+    # Field names mirror the TS IncomeStatement interface so the frontend's
+    # computeRatios() can read this dict directly without remapping.
     return {
         "revenue": 0.0, "costOfGoodsSold": 0.0, "operatingExpenses": 0.0,
-        "depreciation": 0.0, "interestExpense": 0.0,
+        "depreciationAmortization": 0.0, "interestExpense": 0.0,
         "otherIncome": 0.0, "financialIncome": 0.0, "financialExpense": 0.0,
         "taxExpense": 0.0,
     }
@@ -192,7 +194,7 @@ _BUCKET_TO_PL_FIELD = {
     "revenue": "revenue",
     "cogs": "costOfGoodsSold",
     "operatingExpenses": "operatingExpenses",
-    "depreciation": "depreciation",
+    "depreciation": "depreciationAmortization",
     "interestExpense": "interestExpense",
     "otherIncome": "otherIncome",
     "financialIncome": "financialIncome",
@@ -261,6 +263,14 @@ def assemble_statements(
         "periodLabel": period_label,
         "balanceSheet": bs,
         "incomeStatement": pl,
+        # Required by the TS Statements interface — computeRatios() reads
+        # supplementary.periodDays. Empty defaults are fine; real values would
+        # come from a follow-up "enrichment" stage (employee count, lease
+        # obligations, market value of property — the user can fill these in
+        # via the Settings UI later).
+        "supplementary": {
+            "periodDays": 365,
+        },
     }
     return {
         "statements": statements,

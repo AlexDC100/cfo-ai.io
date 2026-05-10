@@ -216,7 +216,7 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
     revenue = pl["revenue"]
     cogs = pl["costOfGoodsSold"]
     opex = pl["operatingExpenses"]
-    depreciation = pl["depreciation"]
+    depreciation = pl["depreciationAmortization"]
     interest = pl["interestExpense"]
     other_inc = pl["otherIncome"]
     fin_inc = pl["financialIncome"]
@@ -668,7 +668,7 @@ def build_router() -> APIRouter:
         }
         pl_buckets = {
             "revenue": "revenue", "cogs": "costOfGoodsSold", "operatingExpenses": "operatingExpenses",
-            "depreciation": "depreciation", "interestExpense": "interestExpense",
+            "depreciation": "depreciationAmortization", "interestExpense": "interestExpense",
             "otherIncome": "otherIncome", "financialIncome": "financialIncome",
             "financialExpense": "financialExpense", "taxExpense": "taxExpense",
         }
@@ -689,6 +689,10 @@ def build_router() -> APIRouter:
             "periodLabel": period.get("period_end"),
             "balanceSheet": {k: round(v, 2) for k, v in bs.items()},
             "incomeStatement": {k: round(v, 2) for k, v in pl.items()},
+            # Required by the TS Statements interface so computeRatios() can
+            # read supplementary.periodDays. Real enrichment values arrive
+            # later via Settings.
+            "supplementary": {"periodDays": 365},
         }
 
         return {
