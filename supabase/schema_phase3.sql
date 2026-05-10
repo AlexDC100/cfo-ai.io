@@ -365,6 +365,23 @@ begin
   end if;
 end$$;
 
+-- ─── Realtime publication ────────────────────────────────────────────────
+-- The frontend's UploadProgressCard subscribes to Postgres Changes on the
+-- documents table to walk users through queued → extracting → mapping →
+-- computing → narrating → analyzed without polling. That subscription only
+-- fires for tables in the supabase_realtime publication. Add documents
+-- here so the upload UX works out of the box; without this the progress
+-- card sticks at "Step 0 of 6" even though the backend is making progress.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='documents'
+  ) then
+    alter publication supabase_realtime add table public.documents;
+  end if;
+end$$;
+
 -- ═════════════════════════════════════════════════════════════════════════
 -- PHASE 3 — pipeline output tables
 -- ═════════════════════════════════════════════════════════════════════════
