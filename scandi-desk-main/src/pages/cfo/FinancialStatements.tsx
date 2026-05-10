@@ -23,6 +23,7 @@
 
 import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -116,6 +117,7 @@ import { MarginTab } from "./dashboard/tabs/MarginTab";
 import { useToast } from "@/hooks/use-toast";
 
 export default function FinancialStatements() {
+  const { t } = useTranslation();
   // Initial state — empty. The page starts as a sample picker / upload zone;
   // tab visibility evolves as the user picks a sample or uploads a document.
   // This honors the master-prompt acceptance: "with no documents uploaded:
@@ -405,15 +407,14 @@ export default function FinancialStatements() {
           />
         ) : (
           <section className="mb-10 transition-opacity duration-200">
-            <div className="label-eyebrow">Get started</div>
+            <div className="label-eyebrow">{t("dashboard.label_eyebrow")}</div>
             <h1 className="mt-3 font-serif text-[40px] sm:text-[48px] leading-[1.05] tracking-[-0.02em] text-ink max-w-[820px]">
-              Upload your{" "}
-              <span className="text-grad font-medium">trial balance</span> to begin.
+              {t("dashboard.hero_pre")}{" "}
+              <span className="text-grad font-medium">{t("dashboard.hero_highlight")}</span>
+              {" "}{t("dashboard.hero_post")}
             </h1>
             <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px]">
-              We'll extract financials, compute 25+ ratios, flag risks, and
-              produce a board-ready analysis. Language and accounting format
-              are auto-detected.
+              {t("dashboard.hero_subtitle")}
             </p>
           </section>
         )}
@@ -721,11 +722,9 @@ export default function FinancialStatements() {
       <Dialog open={tbDialogOpen} onOpenChange={setTbDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Paste a trial balance</DialogTitle>
+            <DialogTitle>{t("upload.paste_text_dialog_title")}</DialogTitle>
             <DialogDescription>
-              Paste any chart of accounts — language and format are auto-detected.
-              Lines like <code className="px-1 rounded bg-bg-2">5121&nbsp;&nbsp;Bank&nbsp;account&nbsp;&nbsp;&nbsp;1.494.837,00</code>{" "}
-              work — closing balances are picked from the last numeric column.
+              {t("upload.paste_text_dialog_description")}
             </DialogDescription>
           </DialogHeader>
           <textarea
@@ -733,7 +732,7 @@ export default function FinancialStatements() {
             onChange={(e) => setTbInput(e.target.value)}
             spellCheck={false}
             className="w-full h-[360px] rounded-lg border border-rule bg-bg-2/30 p-3 text-[11.5px] font-mono leading-snug text-ink resize-none focus:outline-none focus:border-brand-d/40"
-            placeholder="Paste your trial balance text here — any language, any chart of accounts."
+            placeholder={t("upload.paste_text_placeholder")}
           />
           <DialogFooter>
             <button

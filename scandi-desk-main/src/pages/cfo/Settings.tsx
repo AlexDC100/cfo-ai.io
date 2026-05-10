@@ -7,7 +7,9 @@
 
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
+import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
 import {
   isSubscriptionEntitled,
@@ -52,6 +54,7 @@ export default function Settings() {
 
       <div className="space-y-6 max-w-[860px]">
         <ProfileCard />
+        <LanguageCard />
         <WorkspaceCard />
 
         {/* Subscription — the centrepiece. */}
@@ -208,6 +211,45 @@ function ProfileCard() {
         </div>
       </div>
     </Section>
+  );
+}
+
+/* ───────── Language card ───────────────────────────────────────────────── */
+
+function LanguageCard() {
+  const { t, i18n } = useTranslation();
+  return (
+    <div className="rounded-2xl border border-rule bg-surface px-5 py-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="font-serif text-[18px] text-ink">{t("settings.language")}</h3>
+          <p className="mt-1 text-[12.5px] text-ink-soft max-w-[480px]">
+            {t("settings.language_description")}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {SUPPORTED_LANGUAGES.map((lang) => {
+            const active = i18n.language?.startsWith(lang.code) ?? false;
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => setLanguage(lang.code)}
+                data-testid={`lang-${lang.code}`}
+                className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12.5px] transition-colors ${
+                  active
+                    ? "bg-ink text-paper border-ink"
+                    : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+                }`}
+              >
+                <span>{lang.flag}</span>
+                <span>{lang.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 

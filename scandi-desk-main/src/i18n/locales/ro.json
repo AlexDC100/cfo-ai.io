@@ -1,0 +1,140 @@
+{
+  "sidebar": {
+    "workflow": "Flux de lucru",
+    "dashboard": "Tablou de bord",
+    "cash": "Numerar",
+    "profit": "Profit",
+    "products": "Produse",
+    "decisions": "Decizii",
+    "alerts": "Alerte",
+    "settings": "Setări",
+    "footer_note": "Recomandări financiare asistate de AI. Deciziile finale rămân la conducere."
+  },
+  "topbar": {
+    "ask": "Întreabă CFO AI",
+    "notifications": "Notificări",
+    "open_command_center": "Deschide panoul de comandă",
+    "switch_theme_light": "Comută la tema deschisă",
+    "switch_theme_dark": "Comută la tema închisă"
+  },
+  "upload": {
+    "hero_title": "Încarcă balanța de verificare pentru a începe",
+    "hero_subtitle": "Extragem datele financiare, calculăm peste 25 de indicatori, semnalizăm riscurile și producem o analiză gata pentru consiliu. Limba și formatul contabil sunt detectate automat.",
+    "choose_file": "Alege un fișier",
+    "uploading": "Se încarcă…",
+    "paste_text_button": "Lipește balanța",
+    "paste_text_dialog_title": "Lipește o balanță de verificare",
+    "paste_text_dialog_description": "Lipește orice plan de conturi — limba și formatul sunt detectate automat.",
+    "paste_text_placeholder": "Lipește conținutul balanței aici — orice limbă, orice plan de conturi.",
+    "accepted_formats": "PDF · XLSX · CSV · JPG · PNG",
+    "drop_or_click": "Trage un fișier sau apasă pentru a căuta",
+    "drop_here": "Aruncă fișierul aici",
+    "tagline": "Detectare · OCR · extragere · indicatori · narațiune Opus 4.7 — capăt la capăt",
+    "size_limit": "Până la 25 MB"
+  },
+  "dashboard": {
+    "label_eyebrow": "Începe aici",
+    "hero_pre": "Încarcă",
+    "hero_highlight": "balanța de verificare",
+    "hero_post": "pentru a începe.",
+    "hero_subtitle": "Extragem datele financiare, calculăm peste 25 de indicatori, semnalizăm riscurile și producem o analiză gata pentru consiliu. Limba și formatul sunt detectate automat.",
+    "kpi": {
+      "revenue": "Cifră de afaceri",
+      "ebitda": "EBITDA",
+      "net_income": "Profit net",
+      "total_debt": "Datorie totală",
+      "margin": "marjă"
+    },
+    "briefing_label": "Briefing CFO"
+  },
+  "products": {
+    "header_eyebrow": "Portofoliu",
+    "header_title": "Fiecare SKU, decis.",
+    "header_subtitle": "{{skus}} SKU-uri în {{categories}} categorii. Motorul a clasificat fiecare — verifică categoriile mai jos.",
+    "empty_title": "Încarcă datele tale SKU pentru a începe",
+    "empty_subtitle": "Analiză comercială (XLSX), registru de facturi sau vânzări pe produs. Motorul clasifică fiecare SKU în categoriile anchor / scale / watch / eliminate — complet separat de încărcările pentru situațiile financiare.",
+    "drop_title": "Aruncă analiza ta comercială sau registrul de facturi",
+    "drop_hint": "XLSX · CSV — registre cu mai multe foi acceptate.",
+    "kpi": {
+      "skus": "SKU-uri",
+      "eliminate": "Elimină",
+      "watch": "Monitorizare",
+      "anchors": "Anchore",
+      "in_categories": "în {{count}} cat",
+      "losses": "{{amount}} pierderi",
+      "no_losses": "fără pierderi",
+      "thin_margin": "marjă subțire / DIO",
+      "protecting_volume": "protejând volumul"
+    },
+    "table": {
+      "sku_category": "SKU · Categorie",
+      "volume": "Volum",
+      "gm_pct": "GM %",
+      "real_margin_pct": "Marjă reală %",
+      "profit": "Profit",
+      "signal": "Semnal",
+      "empty_filter": "Niciun SKU nu se potrivește cu acest filtru."
+    },
+    "search_placeholder": "Caută SKU, brand, categorie…",
+    "all_categories": "Toate categoriile",
+    "sort_profit_desc": "Sortare: profit ↓",
+    "sort_rm_desc": "Sortare: marjă reală % ↓",
+    "sort_rm_asc": "Sortare: marjă reală % ↑",
+    "sort_volume_desc": "Sortare: volum ↓",
+    "export_csv": "Export CSV",
+    "ai_recommendations": "Recomandări AI",
+    "total_portfolio": "Total portofoliu",
+    "totals": {
+      "volume": "Volum",
+      "revenue": "Cifră (NIV)",
+      "profit": "Profit",
+      "losses": "Pierderi"
+    },
+    "buckets": {
+      "anchor": "Anchor",
+      "anchor_alert": "Anchor alertă",
+      "scale": "Scale",
+      "keep": "Păstrează",
+      "watch": "Monitorizare",
+      "eliminate": "Elimină",
+      "wind_down": "Lichidare"
+    }
+  },
+  "onboarding": {
+    "eyebrow": "Pasul 1 din 2 · Industrie",
+    "welcome": "Bine ai venit",
+    "intro": "Alege cea mai apropiată potrivire pentru industria companiei tale. CFO AI aplică criterii adaptate fiecărei industrii — un Debt/EBITDA de 4× este normal în imobiliare și alarmant în SaaS B2B.",
+    "company_name": "Numele companiei",
+    "industry": "Industrie",
+    "continue": "Continuă către încărcare",
+    "missing_industry": "Alege o industrie pentru a continua",
+    "save_failed": "Nu am putut salva",
+    "save_failed_body": "Verifică conexiunea și încearcă din nou.",
+    "footer_note": "Poți schimba mai târziu din Setări · Spațiu de lucru."
+  },
+  "auth": {
+    "sign_in": "Autentificare",
+    "sign_up": "Creează cont",
+    "sign_out": "Deconectare",
+    "email": "Email de serviciu",
+    "password": "Parolă",
+    "full_name": "Nume complet",
+    "company": "Numele companiei",
+    "back_to_home": "Înapoi la pagina principală",
+    "welcome": "Bun venit la CFO AI"
+  },
+  "settings": {
+    "language": "Limbă",
+    "language_description": "Alege limba pentru interfață și analiza generată de AI."
+  },
+  "common": {
+    "loading": "Se încarcă…",
+    "cancel": "Anulează",
+    "save": "Salvează",
+    "yes": "Da",
+    "no": "Nu",
+    "retry": "Reîncearcă",
+    "close": "Închide",
+    "back": "Înapoi"
+  }
+}

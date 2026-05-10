@@ -352,6 +352,15 @@ export async function enqueuePipeline(documentId: string): Promise<boolean> {
     console.warn("[supabase] enqueuePipeline: no access token");
     return false;
   }
+  // Active UI language → tells the backend's narrate stage what language to
+  // reply in. The user's pick on Settings → Language wins; otherwise i18n
+  // falls back to browser locale.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  let outputLanguage = "en";
+  try {
+    const { getActiveLanguage } = await import("@/i18n");
+    outputLanguage = (getActiveLanguage() || "en").slice(0, 2);
+  } catch { /* i18n not booted yet — fall through to en */ }
   const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
   try {
     const res = await fetch(`${apiUrl}/api/pipeline/run`, {
@@ -360,7 +369,7 @@ export async function enqueuePipeline(documentId: string): Promise<boolean> {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ document_id: documentId }),
+      body: JSON.stringify({ document_id: documentId, output_language: outputLanguage }),
     });
     if (!res.ok) {
       console.warn("[pipeline] enqueue failed:", res.status, await res.text());

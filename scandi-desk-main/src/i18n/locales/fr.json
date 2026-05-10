@@ -1,0 +1,140 @@
+{
+  "sidebar": {
+    "workflow": "Flux de travail",
+    "dashboard": "Tableau de bord",
+    "cash": "Trésorerie",
+    "profit": "Profit",
+    "products": "Produits",
+    "decisions": "Décisions",
+    "alerts": "Alertes",
+    "settings": "Paramètres",
+    "footer_note": "Recommandations financières assistées par IA. Les décisions finales reviennent à la direction."
+  },
+  "topbar": {
+    "ask": "Demander à CFO AI",
+    "notifications": "Notifications",
+    "open_command_center": "Ouvrir le centre de commande",
+    "switch_theme_light": "Passer au thème clair",
+    "switch_theme_dark": "Passer au thème sombre"
+  },
+  "upload": {
+    "hero_title": "Téléversez votre balance pour commencer",
+    "hero_subtitle": "Nous extrayons les données financières, calculons plus de 25 ratios, signalons les risques et produisons une analyse prête pour le conseil. La langue et le plan comptable sont détectés automatiquement.",
+    "choose_file": "Choisir un fichier",
+    "uploading": "Téléversement…",
+    "paste_text_button": "Coller la balance",
+    "paste_text_dialog_title": "Coller une balance des comptes",
+    "paste_text_dialog_description": "Collez n'importe quel plan comptable — langue et format détectés automatiquement.",
+    "paste_text_placeholder": "Collez votre balance ici — toute langue, tout plan comptable.",
+    "accepted_formats": "PDF · XLSX · CSV · JPG · PNG",
+    "drop_or_click": "Déposez un fichier ou cliquez pour parcourir",
+    "drop_here": "Déposez votre fichier ici",
+    "tagline": "Détecter · OCR · extraire · ratios · narration Opus 4.7 — de bout en bout",
+    "size_limit": "Jusqu'à 25 Mo"
+  },
+  "dashboard": {
+    "label_eyebrow": "Commencer",
+    "hero_pre": "Téléversez votre",
+    "hero_highlight": "balance des comptes",
+    "hero_post": "pour commencer.",
+    "hero_subtitle": "Nous extrayons les données financières, calculons plus de 25 ratios, signalons les risques et produisons une analyse prête pour le conseil. La langue et le format sont détectés automatiquement.",
+    "kpi": {
+      "revenue": "Chiffre d'affaires",
+      "ebitda": "EBITDA",
+      "net_income": "Résultat net",
+      "total_debt": "Dette totale",
+      "margin": "marge"
+    },
+    "briefing_label": "Briefing CFO"
+  },
+  "products": {
+    "header_eyebrow": "Portefeuille",
+    "header_title": "Chaque SKU, décidé.",
+    "header_subtitle": "{{skus}} SKU dans {{categories}} catégories. Le moteur a classé chacun — examinez les seaux ci-dessous.",
+    "empty_title": "Téléversez vos données SKU pour commencer",
+    "empty_subtitle": "Analyse commerciale (XLSX), registre de factures ou ventes par produit. Le moteur classe chaque SKU en seaux ancre / scaler / surveiller / éliminer — totalement distinct de vos téléversements d'états financiers.",
+    "drop_title": "Déposez votre analyse commerciale ou registre de factures",
+    "drop_hint": "XLSX · CSV — classeurs multi-feuilles pris en charge.",
+    "kpi": {
+      "skus": "SKU",
+      "eliminate": "Éliminer",
+      "watch": "Surveiller",
+      "anchors": "Ancres",
+      "in_categories": "dans {{count}} cat",
+      "losses": "{{amount}} pertes",
+      "no_losses": "pas de pertes",
+      "thin_margin": "marge faible / DIO",
+      "protecting_volume": "volume protégé"
+    },
+    "table": {
+      "sku_category": "SKU · Catégorie",
+      "volume": "Volume",
+      "gm_pct": "Marge brute %",
+      "real_margin_pct": "Marge réelle %",
+      "profit": "Profit",
+      "signal": "Signal",
+      "empty_filter": "Aucun SKU ne correspond à ce filtre."
+    },
+    "search_placeholder": "Rechercher SKU, marque, catégorie…",
+    "all_categories": "Toutes les catégories",
+    "sort_profit_desc": "Trier : profit ↓",
+    "sort_rm_desc": "Trier : marge réelle % ↓",
+    "sort_rm_asc": "Trier : marge réelle % ↑",
+    "sort_volume_desc": "Trier : volume ↓",
+    "export_csv": "Exporter CSV",
+    "ai_recommendations": "Recommandations IA",
+    "total_portfolio": "Portefeuille total",
+    "totals": {
+      "volume": "Volume",
+      "revenue": "CA (NIV)",
+      "profit": "Profit",
+      "losses": "Pertes"
+    },
+    "buckets": {
+      "anchor": "Ancre",
+      "anchor_alert": "Ancre alerte",
+      "scale": "Scaler",
+      "keep": "Garder",
+      "watch": "Surveiller",
+      "eliminate": "Éliminer",
+      "wind_down": "Arrêter"
+    }
+  },
+  "onboarding": {
+    "eyebrow": "Étape 1 sur 2 · Secteur",
+    "welcome": "Bienvenue",
+    "intro": "Choisissez la correspondance la plus proche pour le secteur de votre entreprise. CFO AI applique des références adaptées au secteur — un Dette/EBITDA de 4× est normal dans l'immobilier et alarmant dans le SaaS B2B.",
+    "company_name": "Nom de l'entreprise",
+    "industry": "Secteur",
+    "continue": "Continuer vers le téléversement",
+    "missing_industry": "Choisissez un secteur pour continuer",
+    "save_failed": "Échec de l'enregistrement",
+    "save_failed_body": "Vérifiez votre connexion et réessayez.",
+    "footer_note": "Vous pouvez modifier cela plus tard dans Paramètres · Espace de travail."
+  },
+  "auth": {
+    "sign_in": "Se connecter",
+    "sign_up": "Créer un compte",
+    "sign_out": "Se déconnecter",
+    "email": "E-mail professionnel",
+    "password": "Mot de passe",
+    "full_name": "Nom complet",
+    "company": "Nom de l'entreprise",
+    "back_to_home": "Retour à l'accueil",
+    "welcome": "Bienvenue chez CFO AI"
+  },
+  "settings": {
+    "language": "Langue",
+    "language_description": "Choisissez la langue pour l'interface et l'analyse générée par IA."
+  },
+  "common": {
+    "loading": "Chargement…",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "yes": "Oui",
+    "no": "Non",
+    "retry": "Réessayer",
+    "close": "Fermer",
+    "back": "Retour"
+  }
+}

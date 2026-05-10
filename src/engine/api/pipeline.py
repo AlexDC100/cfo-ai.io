@@ -631,9 +631,37 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     detected_type = (parsed or {}).get("detected_type") or "unknown"
     is_financial = accounts_count > 0 or detected_type in ("trial_balance", "bilant", "pl", "annual_report")
 
+    # Output language — explicit on document row, falls back to English. The
+    # /api/pipeline/run endpoint stores the user's UI language onto
+    # documents.detected_language when they trigger a run; later, the real
+    # auto-detection stage (Phase 4 Step 2) will overwrite this from the
+    # document itself, so an English UI user uploading a German Saldenliste
+    # still gets German narrative.
+    output_language = (doc.get("detected_language") or "en").lower()[:2]
+    language_instructions = {
+        "en": "Reply in English.",
+        "ro": "Răspunde în limba română.",
+        "de": "Antworten Sie auf Deutsch.",
+        "fr": "Répondez en français.",
+        "es": "Responde en español.",
+        "it": "Rispondi in italiano.",
+        "pt": "Responda em português.",
+        "nl": "Antwoord in het Nederlands.",
+        "pl": "Odpowiedz po polsku.",
+    }
+    lang_instruction = language_instructions.get(output_language, language_instructions["en"])
+    # Currency formatting hint — locale conventions follow the language.
+    currency_hint = {
+        "en": "Numbers and currency in English locale (1,234,567 RON).",
+        "ro": "Numere și monedă în format românesc (1.234.567 RON).",
+        "de": "Zahlen und Währung im deutschen Format (1.234.567 €).",
+        "fr": "Nombres et monnaie au format français (1 234 567 €).",
+        "es": "Números y moneda en formato español (1.234.567 €).",
+    }.get(output_language, "")
+
     if is_financial:
         system = (
-            "You are a senior CFO advising the management team of a Romanian SME.\n"
+            "You are a senior CFO advising the management team of a European SME.\n"
             "You receive standardized financial statements and computed ratios.\n"
             "You DO NOT compute numbers — explain them in industry context.\n\n"
             "CRITICAL: Apply industry-appropriate thresholds.\n"
@@ -641,7 +669,10 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             " - SaaS: focus on rule-of-40, ARR growth, gross margin >70%.\n"
             " - FMCG: working-capital efficiency, inventory turn, thin margins are normal.\n"
             " - Manufacturing: capex intensity, fixed-cost leverage are normal.\n\n"
-            "Reply in English. Be specific. Quantify recommendations in RON impact when possible.\n"
+            f"LANGUAGE: {lang_instruction} {currency_hint}\n"
+            "Translate industry terminology appropriately (e.g. Working capital → Betriebskapital / Fonds de roulement / Capital de lucru / Capital de trabajo).\n"
+            "Briefing text, recommendation titles, rationales, actions — all in the output language.\n"
+            "Be specific. Quantify recommendations in monetary terms when possible.\n"
             "Output STRICT JSON. No prose outside JSON. The first character of your reply must be '{'."
         )
     else:
@@ -660,7 +691,8 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "  3. Alerts: only obvious data-quality issues (e.g. 'no totals row found'),\n"
             "     not financial-ratio alerts.\n\n"
             "Do NOT fabricate revenue / EBITDA / ratios. Do NOT lecture about leverage.\n"
-            "Reply in English. Output STRICT JSON. The first character of your reply must be '{'."
+            f"LANGUAGE: {lang_instruction} {currency_hint}\n"
+            "Output STRICT JSON. The first character of your reply must be '{'."
         )
 
     user_payload = {
@@ -973,6 +1005,9 @@ def _enqueue(document_id: str) -> None:
 
 class RunRequest(BaseModel):
     document_id: str
+    # Optional ISO 639-1 language code (en, ro, de, fr, es, …). When provided,
+    # stage_narrate replies in that language; defaults to English.
+    output_language: Optional[str] = None
 
 
 class RunResponse(BaseModel):
@@ -987,6 +1022,17 @@ def build_router() -> APIRouter:
     def run_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
         jwt = _require_jwt(authorization)
         doc = _verify_user_owns_document(jwt, req.document_id)
+        # Stash the requested output language on the document row so the
+        # orchestrator (which runs on a daemon thread without HTTP context)
+        # can pick it up. detected_language is the right column — it doubles
+        # as the explicit user choice when no detection has happened yet.
+        if req.output_language:
+            with _supabase.admin() as ac:
+                ac.update(
+                    "documents",
+                    {"detected_language": req.output_language},
+                    filters={"id": f"eq.{req.document_id}"},
+                )
         _admin_set_status(req.document_id, "queued", pipeline_started_at=_now_iso())
         _enqueue(req.document_id)
         return RunResponse(document_id=req.document_id, status="queued")

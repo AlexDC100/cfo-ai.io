@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import "@/i18n"; // i18n bootstrap — must run before any component imports t()
 import { ThemeProvider } from "@/theme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {

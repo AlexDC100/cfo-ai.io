@@ -14,6 +14,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "next-themes";
 import {
   LayoutDashboard,
@@ -36,18 +37,18 @@ interface Props {
 }
 
 // Locked sidebar order — UNIFY prompt: Financial Statements merged into
-// Dashboard. Seven items, no separate Statements entry, no Reports/Invoices
-// /Today. Dashboard IS the financial-analysis surface (was /financial-
-// statements; the standalone /dashboard page from the previous round is
-// gone, its Overview content is now the Dashboard's Overview tab).
-const WORKFLOW: { to: string; label: string; icon: LucideIcon; testId: string }[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testId: "sidebar-dashboard" },
-  { to: "/cash",      label: "Cash",      icon: Wallet,          testId: "sidebar-cash" },
-  { to: "/profit",    label: "Profit",    icon: TrendingUp,      testId: "sidebar-profit" },
-  { to: "/products",  label: "Products",  icon: PackageSearch,   testId: "sidebar-products" },
-  { to: "/decisions", label: "Decisions", icon: ClipboardCheck,  testId: "sidebar-decisions" },
-  { to: "/alerts",    label: "Alerts",    icon: Bell,            testId: "sidebar-alerts" },
-  { to: "/settings",  label: "Settings",  icon: SettingsIcon,    testId: "sidebar-settings" },
+// Dashboard. Seven items. Labels come from i18n so a German user sees
+// "Übersicht" / "Liquidität" / "Gewinn" etc.; the to/icon/testId stay
+// stable so deep links + tests keep working across languages.
+interface WorkflowItem { to: string; labelKey: string; icon: LucideIcon; testId: string }
+const WORKFLOW: WorkflowItem[] = [
+  { to: "/dashboard", labelKey: "sidebar.dashboard", icon: LayoutDashboard, testId: "sidebar-dashboard" },
+  { to: "/cash",      labelKey: "sidebar.cash",      icon: Wallet,          testId: "sidebar-cash" },
+  { to: "/profit",    labelKey: "sidebar.profit",    icon: TrendingUp,      testId: "sidebar-profit" },
+  { to: "/products",  labelKey: "sidebar.products",  icon: PackageSearch,   testId: "sidebar-products" },
+  { to: "/decisions", labelKey: "sidebar.decisions", icon: ClipboardCheck,  testId: "sidebar-decisions" },
+  { to: "/alerts",    labelKey: "sidebar.alerts",    icon: Bell,            testId: "sidebar-alerts" },
+  { to: "/settings",  labelKey: "sidebar.settings",  icon: SettingsIcon,    testId: "sidebar-settings" },
 ];
 
 export function Sidebar({
@@ -55,6 +56,7 @@ export function Sidebar({
   inDrawer = false,
   onItemClick,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <aside
       className={`
@@ -66,9 +68,9 @@ export function Sidebar({
       `}
     >
       <nav className="flex-1 overflow-y-auto px-3 py-5">
-        <Section label="Workflow">
-          {WORKFLOW.map(({ to, label, icon: Icon, testId }) => (
-            <SidebarLink key={to} to={to} testId={testId} onClick={onItemClick} icon={Icon} label={label} />
+        <Section label={t("sidebar.workflow")}>
+          {WORKFLOW.map(({ to, labelKey, icon: Icon, testId }) => (
+            <SidebarLink key={to} to={to} testId={testId} onClick={onItemClick} icon={Icon} label={t(labelKey)} />
           ))}
         </Section>
       </nav>
@@ -83,7 +85,7 @@ export function Sidebar({
           <ThemeIconButton />
         </div>
         <p className="px-2 text-[10.5px] text-ink-mute leading-snug">
-          AI-assisted financial recommendations only. Final decisions remain with management.
+          {t("sidebar.footer_note")}
         </p>
       </div>
     </aside>
