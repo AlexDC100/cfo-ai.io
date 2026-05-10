@@ -155,9 +155,9 @@ function Hero() {
           </h1>
 
           <p className="mt-6 text-[16px] sm:text-[17.5px] leading-relaxed text-ink-soft max-w-[580px]">
-            Upload a Romanian{" "}
-            <span className="text-ink">bilanț</span>, Ministry of Finance
-            statement, invoice export, or accounting report. CFO AI builds the
+            Upload a{" "}
+            <span className="text-ink">trial balance</span> — balanță de
+            verificare, bilanț, P&L, or invoice export. CFO AI builds the
             financial model, ratios, valuations, and strategic recommendations —
             in minutes.
           </p>

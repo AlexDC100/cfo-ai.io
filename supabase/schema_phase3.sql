@@ -176,29 +176,24 @@ create policy "organizations owner update" on organizations
 drop policy if exists "memberships self select" on memberships;
 drop policy if exists "memberships owner write" on memberships;
 
--- A user always sees their own memberships. Owners can list every member of
--- the orgs they own (so the team-management UI can render the roster).
+-- Users see their own membership rows.
+--
+-- IMPORTANT: do NOT add a self-referencing exists() on memberships here.
+-- An earlier draft tried to grant "owners see all members of their orgs" via
+-- exists(select 1 from memberships m2 where m2.org_id = memberships.org_id
+-- and m2.user_id = auth.uid() and m2.role in ('owner','admin')). PostgreSQL
+-- evaluates that subquery under the same RLS policy on memberships and
+-- raises "42P17 infinite recursion detected in policy". Every membership
+-- read fails — including the frontend's currentOrgId() lookup. When the
+-- team-management UI lands, expose the cross-row visibility through a
+-- SECURITY DEFINER helper function (similar to is_member_of) instead.
 create policy "memberships self select" on memberships
-  for select using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from memberships m2
-      where m2.org_id = memberships.org_id
-        and m2.user_id = auth.uid()
-        and m2.role in ('owner','admin')
-    )
-  );
+  for select using (auth.uid() = user_id);
 
--- Owners can invite/remove members of their org.
-create policy "memberships owner write" on memberships
-  for all using (
-    exists (
-      select 1 from memberships m2
-      where m2.org_id = memberships.org_id
-        and m2.user_id = auth.uid()
-        and m2.role in ('owner','admin')
-    )
-  );
+-- No client-side write policy intentional. Inserts come from the
+-- bootstrap_organization() trigger (SECURITY DEFINER). Updates / deletes
+-- (e.g. role changes when the team UI lands) will go through service-role
+-- backend endpoints.
 
 -- ─── Switch existing tables' RLS to is_member_of ───────────────────────────
 -- Add new policies named "*_member_*" alongside the legacy "*_owner_*"
