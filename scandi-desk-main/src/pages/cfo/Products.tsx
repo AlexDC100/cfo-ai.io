@@ -162,6 +162,38 @@ export default function Products() {
     return unsub;
   }, [inflight?.id, refresh]);
 
+  // ALL HOOKS BEFORE ANY EARLY RETURN.
+  // Rules of hooks: the hook count must match across every render. Earlier
+  // versions of this component had `if (loading) return …; if (inflight)
+  // return …; if (empty) return …;` ABOVE this useMemo, which meant the
+  // first render (loading) called fewer hooks than subsequent renders
+  // (loaded). React threw "Rendered more hooks than during the previous
+  // render". Compute `filtered` against the (possibly-empty) sku list now
+  // and let the JSX branches below decide what to actually render.
+  const activeFilter = (params.get("filter") as Classification | null) ?? null;
+  const skusForFilter = portfolio?.skus ?? [];
+  const filtered = useMemo(() => {
+    let xs = skusForFilter;
+    if (activeFilter) xs = xs.filter((s) => s.classification === activeFilter);
+    if (categoryFilter) xs = xs.filter((s) => s.category === categoryFilter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      xs = xs.filter((s) =>
+        s.sku.toLowerCase().includes(q)
+        || (s.brand ?? "").toLowerCase().includes(q)
+        || (s.category ?? "").toLowerCase().includes(q),
+      );
+    }
+    const cmp: Record<typeof sort, (a: SkuRow, b: SkuRow) => number> = {
+      profit_desc: (a, b) => (b.real_margin ?? 0) - (a.real_margin ?? 0),
+      rm_pct_desc: (a, b) => (b.real_margin_pct ?? 0) - (a.real_margin_pct ?? 0),
+      rm_pct_asc:  (a, b) => (a.real_margin_pct ?? 0) - (b.real_margin_pct ?? 0),
+      volume_desc: (a, b) => (b.volume ?? 0) - (a.volume ?? 0),
+    };
+    return [...xs].sort(cmp[sort]);
+  }, [skusForFilter, activeFilter, categoryFilter, search, sort]);
+
+  // ─── Render branches (no more hooks past this point) ──────────────────────
   if (loading && !portfolio) {
     return (
       <AppShell>
@@ -181,30 +213,7 @@ export default function Products() {
     return <AppShell><EmptyState onUploaded={refresh} hasDocButNoSkus={!!portfolio?.document} /></AppShell>;
   }
 
-  // ─── Loaded state ─────────────────────────────────────────────────────────
-  const { document: doc, totals, skus, analysis } = portfolio;
-  const activeFilter = (params.get("filter") as Classification | null) ?? null;
-
-  const filtered = useMemo(() => {
-    let xs = skus;
-    if (activeFilter) xs = xs.filter((s) => s.classification === activeFilter);
-    if (categoryFilter) xs = xs.filter((s) => s.category === categoryFilter);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      xs = xs.filter((s) =>
-        s.sku.toLowerCase().includes(q)
-        || (s.brand ?? "").toLowerCase().includes(q)
-        || (s.category ?? "").toLowerCase().includes(q),
-      );
-    }
-    const cmp: Record<typeof sort, (a: SkuRow, b: SkuRow) => number> = {
-      profit_desc: (a, b) => (b.real_margin ?? 0) - (a.real_margin ?? 0),
-      rm_pct_desc: (a, b) => (b.real_margin_pct ?? 0) - (a.real_margin_pct ?? 0),
-      rm_pct_asc:  (a, b) => (a.real_margin_pct ?? 0) - (b.real_margin_pct ?? 0),
-      volume_desc: (a, b) => (b.volume ?? 0) - (a.volume ?? 0),
-    };
-    return [...xs].sort(cmp[sort]);
-  }, [skus, activeFilter, categoryFilter, search, sort]);
+  const { document: doc, totals, analysis } = portfolio;
 
   return (
     <AppShell>
