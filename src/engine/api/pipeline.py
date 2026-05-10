@@ -97,39 +97,284 @@ def _admin_set_status(doc_id: str, status: str, *, error: Optional[str] = None,
 # ─── Pipeline stages ────────────────────────────────────────────────────────
 
 
+# ─── Multi-format extraction ────────────────────────────────────────────────
+# stage_extract dispatches on file type. The original PDF-only path lives at
+# /api/financial-statements/parse and is reused for actual PDFs. For everything
+# else (XLSX, CSV, JPG, PNG, plain text) we call Claude directly with the
+# appropriate content block shape, using a broader extraction prompt that
+# accepts trial balances, balance sheets, P&Ls, invoice registers, sales
+# analyses, product catalogs, and bank statements.
+
+_BROAD_SYSTEM_PROMPT = """You are a forensic accountant analyzing a financial business document.
+
+Your job: extract structured financial data from whatever the user uploaded.
+The document might be a Romanian trial balance ("balanță de verificare"), a
+bilanț (balance sheet), a P&L, an invoice register (e-Factura / SAF-T /
+SmartBill / generic CSV), a sales-by-product analysis, a bank statement, or
+any other accounting / business document.
+
+CRITICAL RULES — read these before extracting:
+
+1. Output STRICT JSON matching <schema>. No prose, no preamble, no markdown
+   fences. The first character of your reply must be '{'.
+
+2. Identify the document type and set `detected_type` accordingly. Acceptable
+   values: trial_balance | bilant | pl | annual_report | invoice_register |
+   sales_analysis | bank_statement | unknown.
+
+3. If the document IS a trial balance / bilanț / P&L (financial statements):
+   extract account rows into the `accounts` array using Romanian OMFP-1802
+   account codes. Each account: closing balance (sold final). For accounts
+   with separate debit/credit columns, follow standard signing — Class 1, 4
+   (passive), 5 (passive), 7 take credit, emit positive; Class 2, 3, 4
+   (active), 5 (active cash), 6 take debit, emit positive. If the codes
+   aren't shown, map line items to canonical RO codes (5121 cash, 4111 AR,
+   371 inventory, 212 PPE, 401 AP, 1621 LT debt, 1012 share capital, 117
+   retained earnings, 704/706 revenue, 602 materials, 628 services, 641
+   salaries, 681 D&A, 666 interest, 691 tax).
+
+4. If the document IS NOT a financial statement (e.g. invoice register,
+   sales analysis, product list): leave `accounts` as an empty array. Do
+   NOT invent accounts. Populate `summary` with what the document IS and
+   what it contains so downstream tabs can render it. Suggested fields:
+       summary.row_count            — number of detail rows
+       summary.headline_total       — RON total if obvious
+       summary.headline_label       — what the total represents
+       summary.top_records          — array of up to 10 string descriptors of
+                                      the most material rows (e.g. customer
+                                      names, product SKUs, invoice numbers)
+       summary.warnings             — anything you couldn't resolve
+
+5. Romanian numbers use ',' or '.' as decimal separator with '.' or space
+   thousand grouping. Always emit clean decimal numbers.
+
+6. Confidence rubric (emit a number 0..1):
+   0.95 — clear balanță de verificare with all rows mapped
+   0.85 — bilanț + P&L extracted to canonical RO codes
+   0.70 — invoice register / sales analysis with structured rows captured
+   0.60 — scanned/OCR'd image, some rows unclear
+   0.40 — heavily inferred from narrative
+   <0.40 — only headline figures
+
+<schema>
+{
+  "company_name": string | null,
+  "period_label": string,
+  "period_end": string | null,         // ISO yyyy-mm-dd if discoverable
+  "currency": string,                  // default "RON"
+  "confidence": number,                // 0..1
+  "detected_type": string,             // see rule 2
+  "accounts": [{ "code": "5121", "name": "...", "amount": 1494836.00 }],
+  "summary": {
+    "row_count": number | null,
+    "headline_total": number | null,
+    "headline_label": string | null,
+    "top_records": [string],
+    "warnings": [string]
+  },
+  "warnings": [string]
+}
+</schema>
+
+Begin."""
+
+
+def _classify_file(doc: Dict[str, Any]) -> str:
+    """Returns 'pdf' | 'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'."""
+    mime = (doc.get("mime_type") or "").lower()
+    name = (doc.get("original_filename") or "").lower()
+    if mime == "application/pdf" or name.endswith(".pdf"):
+        return "pdf"
+    if "spreadsheet" in mime or name.endswith(".xlsx") or name.endswith(".xls"):
+        return "xlsx"
+    if mime == "text/csv" or name.endswith(".csv"):
+        return "csv"
+    if mime == "image/jpeg" or name.endswith((".jpg", ".jpeg")):
+        return "image_jpeg"
+    if mime == "image/png" or name.endswith(".png"):
+        return "image_png"
+    if mime.startswith("text/") or name.endswith(".txt"):
+        return "text"
+    return "unknown"
+
+
+def _xlsx_to_text(xlsx_bytes: bytes, *, max_chars: int = 200_000) -> str:
+    """Render an XLSX workbook as TSV text Claude can read.
+    Each sheet becomes a labeled section: '=== Sheet: <name> ===' followed by
+    rows joined with tabs. Truncated at max_chars to stay under context limits.
+    """
+    import io
+    from openpyxl import load_workbook  # type: ignore
+
+    wb = load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
+    out: List[str] = []
+    total_chars = 0
+    for sheet_name in wb.sheetnames:
+        if total_chars > max_chars:
+            out.append(f"\n[truncated — additional sheets omitted at {max_chars} chars]")
+            break
+        ws = wb[sheet_name]
+        section = [f"=== Sheet: {sheet_name} ==="]
+        for row in ws.iter_rows(values_only=True):
+            cells = ["" if v is None else str(v).replace("\t", " ") for v in row]
+            if not any(c.strip() for c in cells):
+                continue
+            line = "\t".join(cells)
+            if total_chars + len(line) > max_chars:
+                section.append("[truncated]")
+                break
+            section.append(line)
+            total_chars += len(line) + 1
+        out.append("\n".join(section))
+    return "\n\n".join(out)
+
+
 def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Mint a signed URL, call Claude Opus 4.7 via the existing parser, return
-    the structured ParseResponse dict.
+    """Format-aware extraction. Sends the document to Claude Opus 4.7 in the
+    most appropriate content-block shape for its type, then validates the
+    JSON response and returns it.
+
+    Supported inputs:
+      - PDF      → document content block (handled by the legacy parser)
+      - XLSX     → openpyxl-rendered TSV text content block
+      - CSV      → raw text content block
+      - JPG/PNG  → image content block
+      - Plain text → text content block
+    Anything else falls back to text after best-effort UTF-8 decoding.
     """
     storage_path: str = doc["storage_path"]
-    bucket = "documents"
+    kind = _classify_file(doc)
+
+    # PDF still uses the existing parser (it has the canonical RO trial-balance
+    # rubric in its system prompt — re-using avoids drift between two prompts).
+    if kind == "pdf":
+        with _supabase.admin() as admin_client:
+            signed = admin_client.signed_url("documents", storage_path, expires_in=300)
+        from .financial_statements import (  # type: ignore
+            ParseRequest,
+            build_router as _build_fs_router,
+        )
+        fs_router = _build_fs_router()
+        parse_handler = None
+        for route in fs_router.routes:
+            if getattr(route, "name", None) == "parse_document":
+                parse_handler = route.endpoint  # type: ignore[attr-defined]
+                break
+        if parse_handler is None:
+            raise RuntimeError("financial_statements router missing parse_document route")
+        parsed = parse_handler(ParseRequest(
+            pdf_url=signed,
+            original_filename=doc.get("original_filename"),
+        ))
+        return parsed.model_dump() if hasattr(parsed, "model_dump") else dict(parsed)
+
+    # Everything else: download bytes, build a Claude message, parse the JSON.
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY not configured.")
 
     with _supabase.admin() as admin_client:
-        signed = admin_client.signed_url(bucket, storage_path, expires_in=300)
+        signed = admin_client.signed_url("documents", storage_path, expires_in=300)
+    with httpx.Client(timeout=30.0) as http:
+        r = http.get(signed)
+        r.raise_for_status()
+        file_bytes = r.content
 
-    # Reuse the existing /api/financial-statements/parse logic by importing it
-    # directly — no extra HTTP hop.
-    from .financial_statements import (  # type: ignore
-        ParseRequest,
-        build_router as _build_fs_router,
+    if len(file_bytes) > 25 * 1024 * 1024:
+        raise RuntimeError(f"File too large ({len(file_bytes)/1_000_000:.1f} MB) — 25 MB ceiling.")
+
+    try:
+        from anthropic import Anthropic  # type: ignore
+    except ImportError:
+        raise RuntimeError("anthropic SDK not installed.")
+    client = Anthropic(api_key=api_key)
+
+    import base64 as _b64
+    user_content: List[Dict[str, Any]]
+    user_text = (
+        f"Extract this document into the JSON schema. "
+        f"Filename: {doc.get('original_filename') or 'unknown'}. "
+        "Pick the most appropriate detected_type. Return JSON only."
     )
 
-    # Ugly but effective: rebuild the router and grab its registered POST handler.
-    fs_router = _build_fs_router()
-    parse_handler = None
-    for route in fs_router.routes:
-        if getattr(route, "name", None) == "parse_document":
-            parse_handler = route.endpoint  # type: ignore[attr-defined]
-            break
-    if parse_handler is None:
-        raise RuntimeError("financial_statements router missing parse_document route")
+    if kind in ("image_jpeg", "image_png"):
+        media_type = "image/jpeg" if kind == "image_jpeg" else "image/png"
+        b64 = _b64.standard_b64encode(file_bytes).decode("ascii")
+        user_content = [
+            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
+            {"type": "text", "text": user_text},
+        ]
+    else:
+        # XLSX, CSV, plain text, unknown — coerce to text.
+        if kind == "xlsx":
+            text_payload = _xlsx_to_text(file_bytes)
+            preamble = "Workbook rendered as TSV (sheets separated by '=== Sheet:' markers)."
+        elif kind == "csv":
+            text_payload = file_bytes.decode("utf-8", errors="replace")
+            preamble = "CSV content."
+        else:
+            text_payload = file_bytes.decode("utf-8", errors="replace")
+            preamble = "File content as text (best-effort decode)."
 
-    parsed = parse_handler(ParseRequest(
-        pdf_url=signed,
-        original_filename=doc.get("original_filename"),
-    ))
-    # parsed is a ParseResponse; convert to plain dict for downstream stages.
-    return parsed.model_dump() if hasattr(parsed, "model_dump") else dict(parsed)
+        # Cap the text payload so we don't blow the context window.
+        if len(text_payload) > 250_000:
+            text_payload = text_payload[:250_000] + "\n[truncated at 250k chars]"
+
+        user_content = [
+            {"type": "text", "text": f"{preamble}\n\n{text_payload}"},
+            {"type": "text", "text": user_text},
+        ]
+
+    try:
+        resp = client.messages.create(
+            model="claude-opus-4-7",
+            max_tokens=8000,
+            system=[
+                {"type": "text", "text": _BROAD_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+            ],
+            messages=[{"role": "user", "content": user_content}],
+            output_config={"effort": "high"},
+        )
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"Claude extraction failed: {e}")
+
+    text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Claude returned invalid JSON. First 200 chars: {text[:200]!r}. Error: {e}")
+
+    # Repair / defaults
+    data.setdefault("company_name", None)
+    data.setdefault("period_label", "Imported period")
+    data.setdefault("period_end", None)
+    data.setdefault("currency", "RON")
+    data.setdefault("confidence", 0.5)
+    data.setdefault("detected_type", "unknown")
+    data.setdefault("accounts", [])
+    data.setdefault("warnings", [])
+    data.setdefault("summary", {})
+
+    # Coerce account amounts
+    cleaned: List[Dict[str, Any]] = []
+    for raw in data.get("accounts", []):
+        try:
+            amt = float(raw.get("amount", 0) or 0)
+            cleaned.append({
+                "code": str(raw.get("code", "")).strip(),
+                "name": str(raw.get("name", "")).strip(),
+                "amount": amt,
+            })
+        except (TypeError, ValueError):
+            data["warnings"].append(f"Dropped malformed account row: {raw}")
+    data["accounts"] = cleaned
+
+    return data
 
 
 def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[str]) -> Dict[str, Any]:
@@ -326,9 +571,15 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
 
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
-                  org: Dict[str, Any], period_id: str) -> Dict[str, Any]:
+                  org: Dict[str, Any], period_id: str,
+                  parsed: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Call Opus 4.7 with the metrics + industry context. Returns:
        { briefing: str, recommendations: [...], alerts: [...] }
+
+    For non-financial documents (invoice register, sales analysis, product
+    catalog) the prompt switches modes: instead of ratio-based CFO commentary,
+    Claude describes what's in the document and surfaces the headline
+    findings from `parsed.summary`.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -344,18 +595,41 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     industry_key = org.get("industry_key") or "generic"
     industry_display = org.get("industry_display_name") or industry_key
 
-    system = (
-        "You are a senior CFO advising the management team of a Romanian SME.\n"
-        "You receive standardized financial statements and computed ratios.\n"
-        "You DO NOT compute numbers — explain them in industry context.\n\n"
-        "CRITICAL: Apply industry-appropriate thresholds.\n"
-        " - Real estate: 4× Debt/EBITDA is normal; do NOT recommend deleveraging at that level.\n"
-        " - SaaS: focus on rule-of-40, ARR growth, gross margin >70%.\n"
-        " - FMCG: working-capital efficiency, inventory turn, thin margins are normal.\n"
-        " - Manufacturing: capex intensity, fixed-cost leverage are normal.\n\n"
-        "Reply in English. Be specific. Quantify recommendations in RON impact when possible.\n"
-        "Output STRICT JSON. No prose outside JSON. The first character of your reply must be '{'."
-    )
+    accounts_count = len((parsed or {}).get("accounts") or [])
+    detected_type = (parsed or {}).get("detected_type") or "unknown"
+    is_financial = accounts_count > 0 or detected_type in ("trial_balance", "bilant", "pl", "annual_report")
+
+    if is_financial:
+        system = (
+            "You are a senior CFO advising the management team of a Romanian SME.\n"
+            "You receive standardized financial statements and computed ratios.\n"
+            "You DO NOT compute numbers — explain them in industry context.\n\n"
+            "CRITICAL: Apply industry-appropriate thresholds.\n"
+            " - Real estate: 4× Debt/EBITDA is normal; do NOT recommend deleveraging at that level.\n"
+            " - SaaS: focus on rule-of-40, ARR growth, gross margin >70%.\n"
+            " - FMCG: working-capital efficiency, inventory turn, thin margins are normal.\n"
+            " - Manufacturing: capex intensity, fixed-cost leverage are normal.\n\n"
+            "Reply in English. Be specific. Quantify recommendations in RON impact when possible.\n"
+            "Output STRICT JSON. No prose outside JSON. The first character of your reply must be '{'."
+        )
+    else:
+        system = (
+            "You are a senior CFO advisor reviewing a business document. The user uploaded\n"
+            "a non-statement document (invoice register, sales analysis, product catalog,\n"
+            "bank statement, etc.) — there is NO income statement or balance sheet to read.\n\n"
+            "Your job:\n"
+            "  1. Briefing (3 sentences): describe in concrete terms what the document IS,\n"
+            "     what it covers, and what the most material rows / aggregates are. Use the\n"
+            "     `summary` block in the input — row_count, headline_total, top_records.\n"
+            "  2. Recommendations: 1–3 actionable next steps grounded in this specific\n"
+            "     document. E.g. 'export accounts receivable aging from this register and\n"
+            "     contact the top 3 overdue customers' or 'cross-check this sales analysis\n"
+            "     against your trial balance to confirm revenue recognition'.\n"
+            "  3. Alerts: only obvious data-quality issues (e.g. 'no totals row found'),\n"
+            "     not financial-ratio alerts.\n\n"
+            "Do NOT fabricate revenue / EBITDA / ratios. Do NOT lecture about leverage.\n"
+            "Reply in English. Output STRICT JSON. The first character of your reply must be '{'."
+        )
 
     user_payload = {
         "company": {
@@ -364,6 +638,12 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "industry_display_name": industry_display,
             "currency": assembled["statements"].get("currency", "RON"),
             "period_label": assembled["statements"].get("periodLabel"),
+        },
+        "document": {
+            "filename": doc.get("original_filename"),
+            "detected_type": detected_type,
+            "accounts_extracted": accounts_count,
+            "summary": (parsed or {}).get("summary") or {},
         },
         "balance_sheet": assembled["statements"]["balanceSheet"],
         "income_statement": assembled["statements"]["incomeStatement"],
@@ -519,11 +799,19 @@ def _run_pipeline_sync(document_id: str) -> None:
         period_id = stage_persist(doc, parsed, assembled)
 
         _admin_set_status(document_id, "computing")
-        metrics = stage_compute(doc, assembled, period_id)
-        validation_alerts = stage_validate(doc, assembled, period_id)
+        # For non-financial docs (no accounts extracted), skip ratio
+        # computation + the empty-PL alert — they'd just produce noise. The
+        # narrative stage covers what the document actually contains.
+        accounts_count = len(parsed.get("accounts") or [])
+        if accounts_count > 0:
+            metrics = stage_compute(doc, assembled, period_id)
+            validation_alerts = stage_validate(doc, assembled, period_id)
+        else:
+            metrics = []
+            validation_alerts = []
 
         _admin_set_status(document_id, "narrating")
-        narrative = stage_narrate(doc, assembled, metrics, org, period_id)
+        narrative = stage_narrate(doc, assembled, metrics, org, period_id, parsed=parsed)
         stage_persist_narrative(doc, period_id, narrative, validation_alerts)
 
         # Persist the assembled statements blob on financial_periods so the
