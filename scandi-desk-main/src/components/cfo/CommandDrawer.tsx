@@ -43,6 +43,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
 
 interface Props {
   open: boolean;
@@ -483,33 +485,31 @@ function AiTab({
 }
 
 function AccountTab({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const { signOut, user, displayName } = useAuth();
   return (
     <>
       <Section label="Account">
         <Row
           icon={User}
-          title="Profile"
-          hint="Name, role, notifications"
-          onClick={() =>
-            comingSoon(
-              "Profile",
-              "Account settings ship with the auth layer (Supabase wiring).",
-            )
-          }
+          title={displayName ?? user?.email ?? "Profile"}
+          hint={user?.email ?? "Manage your account"}
+          onClick={() => {
+            onClose();
+            setTimeout(() => navigate("/settings"), 220);
+          }}
         />
         <Row
           icon={LogOut}
           title="Sign out"
-          onClick={() => {
+          onClick={async () => {
             onClose();
-            setTimeout(
-              () =>
-                toast("Sign out", {
-                  description:
-                    "Auth ships with the Supabase wiring. No session to clear in demo.",
-                }),
-              220,
-            );
+            const { error } = await signOut();
+            if (error) {
+              toast("Sign-out failed", { description: error.message });
+              return;
+            }
+            navigate("/login");
           }}
         />
       </Section>

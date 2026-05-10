@@ -45,6 +45,8 @@ export interface AuthActions {
     password: string;
     displayName?: string;
     companyName?: string;
+    industryKey?: string;
+    industryDisplayName?: string;
   }) => Promise<{ error: AuthError | null; needsConfirmation: boolean }>;
   signIn: (input: { email: string; password: string }) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
@@ -107,13 +109,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   }, [companyName, demoActive, status, displayName]);
 
-  const signUp = useCallback<AuthActions["signUp"]>(async ({ email, password, displayName, companyName }) => {
+  const signUp = useCallback<AuthActions["signUp"]>(async ({ email, password, displayName, companyName, industryKey, industryDisplayName }) => {
     if (!supabase) {
       return { error: disabledError(), needsConfirmation: false };
     }
+    // Bootstrap trigger (handle_new_user_v2 in supabase/schema_phase3.sql)
+    // reads these `pending_*` keys from raw_user_meta_data to seed the user's
+    // first organization + membership atomically with the auth.users insert.
     const meta: Record<string, string> = {};
     if (displayName) meta.display_name = displayName;
-    if (companyName) meta.company_name = companyName;
+    if (companyName) {
+      meta.company_name = companyName;
+      meta.pending_org_name = companyName;
+    }
+    if (industryKey) meta.pending_industry_key = industryKey;
+    if (industryDisplayName) meta.pending_industry_display = industryDisplayName;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

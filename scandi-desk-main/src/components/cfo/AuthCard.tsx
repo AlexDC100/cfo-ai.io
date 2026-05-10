@@ -127,9 +127,11 @@ export function AuthCard({
       return;
     }
     // Brand-new signup with no preselection AND no explicit next — push them
-    // to /pricing so the post-onboarding flow always asks for a plan choice.
+    // through onboarding (industry pick) then on to /upload. The AuthGuard
+    // will keep them on /onboarding until they finish, even if they try to
+    // jump to /dashboard manually.
     if (mode === "sign_up" && !next) {
-      navigate("/pricing");
+      navigate("/onboarding");
       return;
     }
     target();

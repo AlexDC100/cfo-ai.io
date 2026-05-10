@@ -30,14 +30,31 @@ export function getSupabase(): SupabaseClient | null {
   return client;
 }
 
-// org_id is the signed-in user's id (auth.uid()). The schema's RLS policies
-// enforce this on the server, so even if a caller sends a different value
-// the database rejects it. We resolve it lazily from the current session so
-// callers don't have to thread auth state through every persistence call.
+// Resolves the active org_id for the signed-in user. Phase 3 introduced
+// a real organizations table — `currentOrgId()` reads the user's first
+// membership instead of using auth.uid(). The is_member_of() RLS policy
+// validates server-side, so a client sending a stale value gets 403.
+//
+// During the rollout window where some users still have legacy rows whose
+// org_id == auth.uid(), the legacy "owner" RLS policies remain in place
+// alongside the new "member" ones so reads keep working. Writes always
+// use the membership-derived org_id below.
 async function currentOrgId(): Promise<string | null> {
   if (!client) return null;
-  const { data } = await client.auth.getSession();
-  return data.session?.user?.id ?? null;
+  const { data: session } = await client.auth.getSession();
+  const user = session.session?.user;
+  if (!user) return null;
+  const { data, error } = await client
+    .from("memberships")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) {
+    // Fallback during the rollout: legacy data uses auth.uid() as org_id.
+    return user.id;
+  }
+  return data.org_id;
 }
 
 // ─────────── Alert state persistence ───────────────────────────────────────
@@ -267,7 +284,16 @@ export async function recordDataset(input: {
 export type DocumentDetectedType =
   | "invoice" | "bilant" | "pl" | "trial_balance" | "annual_report"
   | "xlsx_workbook" | "csv" | "image" | "unknown";
-export type DocumentStatus = "uploaded" | "extracting" | "mapped" | "analyzed" | "failed";
+// Phase 3 pipeline: 7 stages plus 'failed'. 'queued' is the entry state
+// (replaces legacy 'uploaded'); 'analyzed' is the terminal state.
+export type DocumentStatus =
+  | "queued"
+  | "extracting"
+  | "mapping"
+  | "computing"
+  | "narrating"
+  | "analyzed"
+  | "failed";
 
 export interface DocumentRow {
   id: string;
@@ -283,6 +309,11 @@ export interface DocumentRow {
   error: string | null;
   created_at: string;
   updated_at: string;
+  duration_ms?: number | null;
+  pipeline_started_at?: string | null;
+  /** Filled by the pipeline once status hits 'analyzed' — the period the
+   *  frontend should hydrate Dashboard/Cash/Profit/etc. from. */
+  period_id?: string | null;
 }
 
 const DOC_BUCKET = "documents";
@@ -294,15 +325,105 @@ const DOC_BUCKET = "documents";
  */
 function detectFromName(filename: string, mime: string): DocumentDetectedType {
   const n = filename.toLowerCase();
-  if (/balanta\s*verificare|trial[\s_-]?balance/.test(n)) return "trial_balance";
-  if (/bilan[tț]|balance[\s_-]?sheet/.test(n)) return "bilant";
-  if (/factur|invoice/.test(n)) return "invoice";
-  if (/p[\s_-]?l|profit[\s_-]?loss|cont[\s_-]?profit/.test(n)) return "pl";
+  if (/balanta\s*verificare|trial[\s_-]?balance|^tb_/.test(n)) return "trial_balance";
+  if (/bilan[tț]|balance[\s_-]?sheet|^bs_/.test(n)) return "bilant";
+  if (/factur|invoice|saft|d406|smartbill/.test(n)) return "invoice";
+  if (/p[\s_-]?l|profit[\s_-]?loss|cont[\s_-]?profit|^pl_/.test(n)) return "pl";
   if (/anual|annual[\s_-]?report/.test(n)) return "annual_report";
   if (mime.includes("spreadsheet") || /\.xlsx?$/.test(n)) return "xlsx_workbook";
   if (mime === "text/csv" || /\.csv$/.test(n)) return "csv";
   if (mime.startsWith("image/")) return "image";
   return "unknown";
+}
+
+/**
+ * Trigger the Phase 3 pipeline. Backend kicks off detect → ocr → extract →
+ * map → assemble → validate → compute → narrate, persisting each stage and
+ * mutating documents.status as it progresses. The frontend subscribes to
+ * status changes via subscribeToDocumentStatus() and renders a progress card.
+ *
+ * Returns true on enqueue (HTTP 202); the actual analysis runs async.
+ */
+export async function enqueuePipeline(documentId: string): Promise<boolean> {
+  if (!client) return false;
+  const { data } = await client.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) {
+    console.warn("[supabase] enqueuePipeline: no access token");
+    return false;
+  }
+  const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+  try {
+    const res = await fetch(`${apiUrl}/api/pipeline/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ document_id: documentId }),
+    });
+    if (!res.ok) {
+      console.warn("[pipeline] enqueue failed:", res.status, await res.text());
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[pipeline] enqueue error:", err);
+    return false;
+  }
+}
+
+/**
+ * Re-run the pipeline for a document that previously failed (or analyzed —
+ * useful for re-extraction after the user uploads a corrected file). The
+ * server resets the status to 'queued' and wipes prior derivatives.
+ */
+export async function retryPipeline(documentId: string): Promise<boolean> {
+  if (!client) return false;
+  const { data } = await client.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return false;
+  const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+  try {
+    const res = await fetch(`${apiUrl}/api/pipeline/retry`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ document_id: documentId }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Subscribe to status changes for a single document via Postgres Changes.
+ * Returns the unsubscribe function. Pass null `documentId` to subscribe to
+ * all of the user's documents (RLS scopes the channel server-side).
+ */
+export function subscribeToDocumentStatus(
+  documentId: string | null,
+  onChange: (row: DocumentRow) => void,
+): () => void {
+  if (!client) return () => {};
+  const filter = documentId ? `id=eq.${documentId}` : undefined;
+  const channelName = documentId ? `doc-${documentId}` : "docs-all";
+  const channel = client
+    .channel(channelName)
+    .on(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      "postgres_changes" as any,
+      { event: "UPDATE", schema: "public", table: "documents", filter },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (payload: any) => onChange(payload.new as DocumentRow),
+    )
+    .subscribe();
+  return () => {
+    void client?.removeChannel(channel);
+  };
 }
 
 /**
@@ -324,7 +445,12 @@ export async function uploadDocument(file: File): Promise<DocumentRow | null> {
   const detected = detectFromName(file.name, file.type);
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
   const documentId = crypto.randomUUID();
-  const storagePath = `${orgId}/${documentId}.${ext}`;
+  // Storage convention: {org_id}/uploads/{document_id}.{ext}
+  // RLS policy on storage.objects in schema_phase3.sql checks
+  // is_member_of((storage.foldername(name))[1]::uuid).
+  const storagePath = `${orgId}/uploads/${documentId}.${ext}`;
+  const { data: session } = await client.auth.getSession();
+  const userId = session.session?.user?.id ?? null;
 
   const { error: upErr } = await client.storage
     .from(DOC_BUCKET)
@@ -339,13 +465,13 @@ export async function uploadDocument(file: File): Promise<DocumentRow | null> {
     .insert({
       id: documentId,
       org_id: orgId,
-      uploaded_by: orgId,
+      uploaded_by: userId,
       storage_path: storagePath,
       original_filename: file.name,
       mime_type: file.type || "application/octet-stream",
       size_bytes: file.size,
       detected_type: detected,
-      status: "uploaded" as DocumentStatus,
+      status: "queued" as DocumentStatus,
     })
     .select()
     .single();

@@ -88,8 +88,28 @@ function AlertsEmptyState() {
 }
 
 function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeof useActivePeriod>["statements"]> }) {
+  const period = useActivePeriod();
   const ratios = useMemo(() => computeRatios(statements), [statements]);
-  const recommendations = useMemo(() => generateRecommendations(statements, ratios), [statements, ratios]);
+  // For uploads, server-generated alerts (Opus 4.7 + validation) are the
+  // source of truth. We coerce them into the Recommendation shape this page
+  // already knows how to render. For samples, fall back to the client-side
+  // generator so the dev preview keeps working.
+  const recommendations = useMemo<Recommendation[]>(() => {
+    if (period.alerts.length > 0) {
+      const sevToPriority: Record<string, RecommendationPriority> = {
+        critical: "critical", high: "high", medium: "medium", low: "info", info: "info",
+      };
+      return period.alerts.map((a) => ({
+        id: a.id,
+        priority: sevToPriority[a.severity] ?? "medium",
+        title: a.title,
+        rationale: a.body ?? "",
+        action: "Review the data and take action — see the rationale above.",
+        category: a.category,
+      } as Recommendation));
+    }
+    return generateRecommendations(statements, ratios);
+  }, [period.alerts, statements, ratios]);
   const cur = statements.currency;
 
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());

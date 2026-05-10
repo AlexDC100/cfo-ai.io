@@ -1,54 +1,52 @@
-// /app/upload — Phase 1 real upload route.
+// /upload — drop a real document, watch the pipeline finish, get pushed to
+// the populated Dashboard.
 //
-// Drop a file → uploadDocument() pushes it to Supabase Storage and inserts a
-// row in the documents table. List below refreshes from the database (not
-// optimistic state) so we know the row truly persisted.
+// Flow:
+//   1. uploadDocument() pushes the file to {org_id}/uploads/{document_id}.{ext}
+//      and inserts a documents row at status='queued'.
+//   2. enqueuePipeline() POSTs to /api/pipeline/run on the FastAPI backend.
+//   3. The backend runs detect → ocr → extract → map → assemble → validate →
+//      compute → narrate, mutating documents.status as each stage starts.
+//   4. We subscribe to Postgres Changes on this document and re-render the
+//      progress card with the current stage. When status hits 'analyzed',
+//      we navigate to /dashboard?period=<period_id>.
 //
-// What this page does NOT do (yet):
-//   • Run extraction / OCR — that's Phase 2's pipeline worker.
-//   • Render the parsed financial statements — `/dashboard` does.
-//
-// When Supabase isn't configured the page falls back to an explicit warning;
-// it does not silently pretend the upload "worked".
+// When Supabase isn't configured the page shows an authentication-required
+// banner — every code path here requires a real session.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/cfo/AppShell";
 import {
+  AlertCircle,
   ArrowRight,
   Check,
   ClockAlert,
   FileText,
   Loader2,
-  Sparkles,
+  RefreshCcw,
   Trash2,
   UploadCloud,
   X,
 } from "lucide-react";
 import {
   deleteDocument,
+  enqueuePipeline,
   listDocuments,
-  setDocumentStatus,
-  signedDocumentUrl,
+  retryPipeline,
+  subscribeToDocumentStatus,
   supabaseEnabled,
   uploadDocument,
   type DocumentRow,
   type DocumentDetectedType,
   type DocumentStatus,
 } from "@/lib/supabase";
-import { parseFinancialDocument } from "@/lib/api";
-import { buildStatementsFromAccounts } from "@/lib/trialBalanceParser";
-import type { DocumentType } from "@/lib/financialStatementTabs";
 import { useAuth } from "@/lib/auth";
+import { useActiveOrg } from "@/lib/org";
 import { useToast } from "@/hooks/use-toast";
 
-// Hand-off payload key — when the parse pipeline finishes, we stash the
-// resulting Statements here and navigate. The FinancialStatements page picks
-// it up on mount and clears the slot.
-const HANDOFF_KEY = "cfoai.parsed";
-
 const ACCEPTED = ".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png";
-const MAX_BYTES = 25 * 1024 * 1024; // 25 MB ceiling — anything bigger likely needs server-side chunking
+const MAX_BYTES = 25 * 1024 * 1024;
 
 const DETECTED_LABEL: Record<DocumentDetectedType, string> = {
   trial_balance: "Trial balance",
@@ -62,16 +60,20 @@ const DETECTED_LABEL: Record<DocumentDetectedType, string> = {
   unknown: "Document",
 };
 
-const STATUS_LABEL: Record<DocumentStatus, string> = {
-  uploaded: "Uploaded · awaiting extraction",
-  extracting: "Extracting…",
-  mapped: "Mapped",
-  analyzed: "Analyzed",
-  failed: "Failed",
+interface StageMeta { label: string; ordinal: number; total: number }
+const STAGES: Record<DocumentStatus, StageMeta> = {
+  queued:     { label: "Queued for analysis…",        ordinal: 0, total: 6 },
+  extracting: { label: "Reading the document…",       ordinal: 1, total: 6 },
+  mapping:    { label: "Mapping accounts…",           ordinal: 2, total: 6 },
+  computing:  { label: "Computing ratios…",           ordinal: 3, total: 6 },
+  narrating:  { label: "Generating insights…",        ordinal: 4, total: 6 },
+  analyzed:   { label: "Analysis ready",              ordinal: 6, total: 6 },
+  failed:     { label: "Analysis failed",             ordinal: 0, total: 6 },
 };
 
 export default function UploadPage() {
-  const { status: authStatus, demoActive } = useAuth();
+  const { status: authStatus } = useAuth();
+  const { org } = useActiveOrg();
   const { toast } = useToast();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -79,9 +81,6 @@ export default function UploadPage() {
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Per-document analysis state — guards the spinner + disables the button
-  // while Claude is working on this specific file.
-  const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     if (!supabaseEnabled) {
@@ -94,9 +93,36 @@ export default function UploadPage() {
     setLoading(false);
   }, []);
 
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  // Subscribe to live status changes for every document in this workspace.
+  // When any of them transitions to 'analyzed' with a period_id, navigate.
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (!supabaseEnabled || authStatus !== "signed_in") return;
+    const unsub = subscribeToDocumentStatus(null, (row) => {
+      setDocs((prev) => {
+        const idx = prev.findIndex((d) => d.id === row.id);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        next[idx] = { ...next[idx], ...row };
+        return next;
+      });
+      if (row.status === "analyzed" && row.period_id) {
+        toast({
+          title: "Analysis ready",
+          description: `${row.original_filename} is loaded into Dashboard.`,
+        });
+        navigate(`/dashboard?period=${row.period_id}`);
+      } else if (row.status === "failed" && row.error) {
+        toast({
+          title: "Analysis failed",
+          description: row.error,
+          variant: "destructive",
+        });
+      }
+    });
+    return unsub;
+  }, [authStatus, navigate, toast]);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -111,17 +137,33 @@ export default function UploadPage() {
     }
     setBusy(true);
     const row = await uploadDocument(file);
-    setBusy(false);
-    if (row) {
-      toast({ title: "Uploaded", description: `${file.name} · ${DETECTED_LABEL[row.detected_type ?? "unknown"]}` });
-      await refresh();
-    } else {
+    if (!row) {
+      setBusy(false);
       toast({
         title: "Upload failed",
         description: supabaseEnabled
-          ? "Sign in is required to upload documents."
+          ? "Sign in is required, or your storage policy hasn't been applied yet."
           : "Authentication isn't configured on this build.",
         variant: "destructive",
+      });
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    // Optimistic update so the new row is visible immediately.
+    setDocs((prev) => [row, ...prev]);
+
+    const enqueued = await enqueuePipeline(row.id);
+    setBusy(false);
+    if (!enqueued) {
+      toast({
+        title: "Couldn't start analysis",
+        description: "Backend is unreachable. The file uploaded but analysis didn't start.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Analysis started",
+        description: `${file.name} — you'll be redirected when it's ready.`,
       });
     }
     if (fileRef.current) fileRef.current.value = "";
@@ -143,89 +185,17 @@ export default function UploadPage() {
     }
   }
 
-  /**
-   * Run the Phase 2 extraction pipeline on one document:
-   *   1. Mint a 5-min signed Storage URL.
-   *   2. POST to backend → Claude Opus 4.7 reads the PDF and returns
-   *      structured Romanian trial-balance accounts.
-   *   3. Map account codes → standardized buckets (frontend, no AI).
-   *   4. Stash the resulting Statements in sessionStorage and navigate
-   *      to /dashboard; that page hydrates from the slot.
-   *
-   * Document.status is updated through the lifecycle so the table chip
-   * reflects what's happening (extracting → mapped → analyzed).
-   */
-  async function onAnalyze(doc: DocumentRow) {
-    setAnalyzing((prev) => new Set(prev).add(doc.id));
-    await setDocumentStatus(doc, { status: "extracting" });
-    void refresh();
-    try {
-      const url = await signedDocumentUrl(doc);
-      if (!url) throw new Error("Could not mint Storage signed URL — check Supabase config.");
-
-      const parsed = await parseFinancialDocument({
-        pdf_url: url,
-        original_filename: doc.original_filename,
-      });
-
-      const { statements } = buildStatementsFromAccounts(parsed.accounts, {
-        companyName: parsed.company_name ?? "Imported entity",
-        currency: parsed.currency,
-        periodLabel: parsed.period_label,
-      });
-
-      // Tab visibility — the same shape a sample contributes.
-      const availableTypes: DocumentType[] = (() => {
-        const t = parsed.detected_type;
-        if (t === "trial_balance") return ["trial_balance", "bilant", "pl"];
-        if (t === "bilant") return ["bilant", "pl"];
-        if (t === "pl") return ["pl"];
-        if (t === "annual_report") return ["annual_report", "bilant", "pl"];
-        return ["bilant", "pl"]; // fallback — we got accounts so BS+PL surfaces should appear
-      })();
-
-      sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({
-        statements,
-        availableTypes,
-        source: {
-          documentId: doc.id,
-          documentName: doc.original_filename,
-          confidence: parsed.confidence,
-          warnings: parsed.warnings,
-          accountCount: parsed.accounts.length,
-        },
-      }));
-      await setDocumentStatus(doc, {
-        status: "analyzed",
-        extraction_confidence: parsed.confidence,
-        detected_type: parsed.detected_type as never,
-      });
-      toast({
-        title: "Analysis complete",
-        description: `Extracted ${parsed.accounts.length} accounts at ${(parsed.confidence * 100).toFixed(0)}% confidence.`,
-      });
-      navigate("/dashboard");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error.";
-      await setDocumentStatus(doc, { status: "failed", error: msg });
-      void refresh();
-      toast({
-        title: "Analysis failed",
-        description: msg,
-        variant: "destructive",
-      });
-    } finally {
-      setAnalyzing((prev) => {
-        const next = new Set(prev);
-        next.delete(doc.id);
-        return next;
-      });
+  async function onRetry(doc: DocumentRow) {
+    const ok = await retryPipeline(doc.id);
+    if (!ok) {
+      toast({ title: "Retry failed", description: "Backend unreachable.", variant: "destructive" });
+      return;
     }
+    setDocs((prev) => prev.map((d) => d.id === doc.id ? { ...d, status: "queued", error: null } : d));
   }
 
-  // Real Storage upload requires a real Supabase session — demo mode alone
-  // is not enough (the RLS policy keys off auth.uid()). Warn explicitly.
   const showAuthWarning = !supabaseEnabled || authStatus !== "signed_in";
+  const inFlight = docs.find((d) => d.status !== "analyzed" && d.status !== "failed");
 
   return (
     <AppShell>
@@ -241,6 +211,11 @@ export default function UploadPage() {
           PDF / XLSX / CSV / JPG / PNG. Files land in your private workspace
           and become available to every analysis surface.
         </p>
+        {org?.industry_display_name && (
+          <p className="mt-1.5 text-[12.5px] text-ink-mute">
+            Workspace: <span className="text-ink">{org.name}</span> · {org.industry_display_name}
+          </p>
+        )}
       </section>
 
       {showAuthWarning && (
@@ -248,16 +223,41 @@ export default function UploadPage() {
           {!supabaseEnabled ? (
             <>Authentication isn't configured on this build (missing{" "}
               <code className="px-1 rounded bg-amber-100">VITE_SUPABASE_URL</code>{" "}
-              or <code className="px-1 rounded bg-amber-100">VITE_SUPABASE_ANON_KEY</code>).
-              You can browse demo data, but upload requires sign-in.</>
+              or <code className="px-1 rounded bg-amber-100">VITE_SUPABASE_ANON_KEY</code>).</>
           ) : (
             <>Sign in to upload documents. <Link to="/login?next=/upload" className="font-medium underline">Sign in →</Link></>
           )}
         </div>
       )}
 
+      {/* In-flight pipeline progress card. Always present when any doc is processing. */}
+      {inFlight && (
+        <div data-testid="pipeline-progress" className="mb-6 rounded-2xl border border-rule bg-surface p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="text-brand animate-spin" strokeWidth={2} />
+              <span className="text-[13.5px] font-medium text-ink">Analyzing your document…</span>
+            </div>
+            <span className="text-[11.5px] text-ink-mute tabular-nums">
+              Step {STAGES[inFlight.status].ordinal} of {STAGES[inFlight.status].total}
+            </span>
+          </div>
+          <div className="text-[13px] text-ink-soft mb-2">
+            <span className="text-ink font-medium">{inFlight.original_filename}</span>{" "}
+            · {STAGES[inFlight.status].label}
+          </div>
+          <div className="h-1.5 rounded-full bg-bg-2 overflow-hidden">
+            <div
+              className="h-full bg-brand transition-all duration-500"
+              style={{ width: `${(STAGES[inFlight.status].ordinal / STAGES[inFlight.status].total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Dropzone */}
       <div
+        data-testid="upload-dropzone"
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={onDrop}
@@ -298,7 +298,7 @@ export default function UploadPage() {
             to="/dashboard"
             className="text-[13px] text-brand-d hover:text-brand transition-colors inline-flex items-center gap-1"
           >
-            Open Statements AI <ArrowRight size={12} strokeWidth={2} />
+            Open Dashboard <ArrowRight size={12} strokeWidth={2} />
           </Link>
         </div>
 
@@ -324,11 +324,19 @@ export default function UploadPage() {
               </thead>
               <tbody>
                 {docs.map((doc) => (
-                  <tr key={doc.id} className="border-t border-rule">
+                  <tr key={doc.id} className="border-t border-rule align-top" data-testid={`doc-row-${doc.id}`}>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
                         <FileIcon mime={doc.mime_type} />
-                        <span className="text-ink truncate max-w-[280px]">{doc.original_filename}</span>
+                        <div>
+                          <div className="text-ink truncate max-w-[280px]">{doc.original_filename}</div>
+                          {doc.status === "failed" && doc.error && (
+                            <div className="mt-0.5 text-[11.5px] text-alert flex items-start gap-1.5">
+                              <AlertCircle size={11} className="mt-0.5 shrink-0" />
+                              <span className="line-clamp-2 max-w-[320px]">{doc.error}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-ink-soft">
@@ -348,18 +356,26 @@ export default function UploadPage() {
                     </td>
                     <td className="py-3 px-2">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => onAnalyze(doc)}
-                          disabled={analyzing.has(doc.id) || doc.status === "extracting"}
-                          title="Run extraction with Claude Opus 4.7"
-                          aria-label="Run analysis"
-                          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11.5px] font-medium text-brand-d border border-brand/30 bg-brand-tint hover:bg-brand/15 transition-colors disabled:opacity-50 disabled:cursor-progress"
-                        >
-                          {analyzing.has(doc.id)
-                            ? <Loader2 size={11} strokeWidth={2} className="animate-spin" />
-                            : <Sparkles size={11} strokeWidth={2} />}
-                          {analyzing.has(doc.id) ? "Analyzing…" : doc.status === "analyzed" ? "Re-analyze" : "Run analysis"}
-                        </button>
+                        {doc.status === "analyzed" && doc.period_id && (
+                          <Link
+                            to={`/dashboard?period=${doc.period_id}`}
+                            data-testid="open-analysis"
+                            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11.5px] font-medium text-brand-d border border-brand/30 bg-brand-tint hover:bg-brand/15 transition-colors"
+                          >
+                            Open <ArrowRight size={11} strokeWidth={2} />
+                          </Link>
+                        )}
+                        {doc.status === "failed" && (
+                          <button
+                            type="button"
+                            onClick={() => onRetry(doc)}
+                            data-testid="retry-pipeline"
+                            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11.5px] font-medium text-brand-d border border-brand/30 bg-brand-tint hover:bg-brand/15 transition-colors"
+                          >
+                            <RefreshCcw size={11} strokeWidth={2} />
+                            Re-run
+                          </button>
+                        )}
                         <button
                           onClick={() => onDelete(doc)}
                           title="Delete"
@@ -411,18 +427,20 @@ function FileIcon({ mime }: { mime: string }) {
 }
 
 function StatusChip({ status }: { status: DocumentStatus }) {
-  const config: Record<DocumentStatus, { icon: typeof Check; bg: string; text: string }> = {
-    uploaded: { icon: ClockAlert, bg: "bg-amber-50", text: "text-amber-700" },
-    extracting: { icon: Loader2, bg: "bg-blue-50", text: "text-blue-700" },
-    mapped: { icon: Check, bg: "bg-blue-50", text: "text-blue-700" },
-    analyzed: { icon: Check, bg: "bg-emerald-50", text: "text-emerald-700" },
-    failed: { icon: X, bg: "bg-red-50", text: "text-red-700" },
+  const config: Record<DocumentStatus, { icon: typeof Check; bg: string; text: string; spin?: boolean }> = {
+    queued:     { icon: ClockAlert, bg: "bg-amber-50",   text: "text-amber-700" },
+    extracting: { icon: Loader2,    bg: "bg-blue-50",    text: "text-blue-700",    spin: true },
+    mapping:    { icon: Loader2,    bg: "bg-blue-50",    text: "text-blue-700",    spin: true },
+    computing:  { icon: Loader2,    bg: "bg-indigo-50",  text: "text-indigo-700",  spin: true },
+    narrating:  { icon: Loader2,    bg: "bg-violet-50",  text: "text-violet-700",  spin: true },
+    analyzed:   { icon: Check,      bg: "bg-emerald-50", text: "text-emerald-700" },
+    failed:     { icon: X,          bg: "bg-red-50",     text: "text-red-700" },
   };
-  const { icon: Icon, bg, text } = config[status];
+  const { icon: Icon, bg, text, spin } = config[status];
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${bg} ${text}`}>
-      <Icon size={11} strokeWidth={2} className={status === "extracting" ? "animate-spin" : ""} />
-      {STATUS_LABEL[status]}
+      <Icon size={11} strokeWidth={2} className={spin ? "animate-spin" : ""} />
+      {STAGES[status].label}
     </span>
   );
 }

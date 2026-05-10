@@ -39,6 +39,21 @@ Repo root `.env` (backend):
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ENGINE_API_TOKEN=<bearer token n8n sends>
+
+# Phase 3 pipeline orchestrator — admin client for service-role writes
+SUPABASE_SERVICE_ROLE_KEY=<service_role secret from Supabase dashboard>
+# These two are also required server-side because the orchestrator uses
+# them for per-user RLS reads and Storage signed URLs:
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon publishable key>
+```
+
+Source the root `.env` before launching the FastAPI server so the pipeline
+endpoints can authenticate against Supabase:
+
+```bash
+set -a && . ./.env && set +a
+python -m engine.api.server
 ```
 
 When `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are missing the app
@@ -56,6 +71,17 @@ Project: `cjclenykwlngqvapmisb` (eu-west-1).
    `create` uses `if not exists`, every policy is `drop … if exists` then
    recreated.
 3. Run.
+4. Then paste + run `supabase/schema_phase3.sql`. This adds the multi-tenant
+   `organizations` + `memberships` tables, the `is_member_of()` RLS helper,
+   the `bootstrap_organization` trigger, and the pipeline output tables
+   (`calculated_metrics`, `briefings`). Also idempotent.
+
+The Phase 3 file:
+  - Replaces the bootstrap trigger so new signups get an org + owner membership
+    seeded from `pending_org_name` / `pending_industry_key` user metadata.
+  - Adds membership-scoped RLS policies alongside the legacy owner-only ones,
+    so existing data keeps working during the rollout.
+  - Backfills an organization + membership for every pre-existing user.
 
 Or via Management API (requires a personal access token `sbp_…`):
 
@@ -163,3 +189,90 @@ banner on `/upload` with a "Sign in" CTA.
 Check Supabase → Authentication → URL Configuration → Redirect URLs
 includes the origin the user signed up from. Each origin (dev, staging,
 prod) must be listed.
+
+## Phase 3 — End-to-end pipeline
+
+The "upload → populated dashboard" flow has six moving pieces:
+
+  1. Real Supabase auth (Phase 1)
+  2. Multi-tenancy via `organizations` + `memberships` (Phase 3)
+  3. Onboarding (`/onboarding`) captures `industry_key` for each org
+  4. Storage upload writes to `{org_id}/uploads/{document_id}.{ext}`
+  5. The Python pipeline orchestrator on the FastAPI backend turns the doc
+     into a `financial_periods` row + `calculated_metrics` + `briefings` +
+     `recommendations` + `alerts`, stepping `documents.status` through
+     queued → extracting → mapping → computing → narrating → analyzed.
+  6. The frontend subscribes via Postgres Changes; on `analyzed` it
+     navigates to `/dashboard?period=<period_id>` and `useActivePeriod()`
+     fetches `/api/period/<id>` (RLS-scoped to the caller's JWT).
+
+### Verification gates (run these after applying both schemas)
+
+**Gate 1 — RLS isolates two users.** In an incognito window:
+
+```sql
+-- After signing up user A "Acme Test" and user B "Beta Test", run from each
+-- session (Supabase SQL editor → set "Run as user" to A, then to B):
+select count(*) from organizations;   -- expect 1 for each user
+select count(*) from memberships where user_id = auth.uid();  -- expect 1
+```
+
+**Gate 2 — Upload + storage RLS.** Sign in as user A, upload via `/upload`,
+note the `storage_path` from the document row. Sign in as user B and try:
+
+```js
+await supabase.storage.from('documents').download('<userA storage_path>');
+// expect: { error: { ... 403 / not authorized ... } }
+```
+
+**Gate 3 — Pipeline reaches `analyzed`.** Watch the document row's status:
+
+```sql
+select id, status, error, period_id, duration_ms
+from documents order by created_at desc limit 1;
+-- expect status to advance through queued → extracting → mapping →
+--        computing → narrating → analyzed within ~30-60s.
+-- If it hangs at extracting: check ANTHROPIC_API_KEY is set on the backend.
+-- If it hits failed: read the error column.
+```
+
+**Gate 4 — UI populated.** With the document's `period_id`, visit
+`/dashboard?period=<period_id>`. Required:
+- KPI cards (`kpi-revenue`, `kpi-ebitda`, `kpi-net-income`, `kpi-total-debt`)
+  show non-zero values matching the source PDF.
+- The CFO Briefing card (`cfo-briefing`) renders an industry-aware paragraph.
+- `/decisions` shows ≥ 1 recommendation card (Opus 4.7 output).
+- `/alerts` shows recommendations or an empty-state card.
+
+**Gate 5 — Failure + retry.** Upload a non-document (a JPEG of anything).
+Wait for status='failed'. The error message renders in the documents table.
+Click "Re-run" — status returns to `queued` and the pipeline runs again.
+
+**Gate 6 — Playwright real-e2e.** Set up a fixture trial-balance PDF at
+`scandi-desk-main/e2e/fixtures/test-trial-balance.pdf`, then:
+
+```bash
+E2E_REAL=1 npm run test:e2e -- e2e/real-e2e.spec.ts
+```
+
+The spec creates two ephemeral test users (`playwright+<ts>@cfoai.dev`),
+runs the full flow for each, asserts populated UI for user A, and checks
+user B can't see user A's data via direct API access.
+
+### Common pipeline failures
+
+- `ANTHROPIC_API_KEY is not configured` — the backend wasn't started with
+  the env sourced. Run `set -a && . ./.env && set +a; python -m engine.api.server`.
+- `Could not fetch PDF from URL` — the storage signed URL expired before
+  Claude downloaded it. Retry; the orchestrator mints a fresh URL each run.
+- `Claude returned invalid JSON` — Opus 4.7 emitted a non-JSON preamble.
+  Re-run; this is rare and usually transient.
+- Pipeline never starts after upload — the frontend couldn't reach
+  `VITE_API_URL`. Check the URL points at a running FastAPI process.
+
+### CI guard against placeholder strings
+
+`npm run lint:placeholders` (or `bash scripts/check-no-placeholders.sh`)
+fails if any of the deferred-feature markers reappear in `src/`. The list
+of forbidden strings lives in the script — extend it whenever you remove
+another stub.

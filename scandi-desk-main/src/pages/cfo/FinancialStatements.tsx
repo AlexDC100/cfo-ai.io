@@ -91,7 +91,8 @@ import {
   parseTrialBalance,
 } from "@/lib/trialBalanceParser";
 import { downloadExcelReport } from "@/lib/financialExports";
-import { SAMPLE_DATASETS } from "@/data/sampleStatements";
+import { SAMPLE_DATASETS, SAMPLES_ENABLED } from "@/data/sampleStatements";
+import { useActivePeriod } from "@/lib/activePeriod";
 import {
   allTabs,
   disabledHint,
@@ -273,26 +274,36 @@ export default function FinancialStatements() {
   }
 
   // ─── URL hydration ──────────────────────────────────────────────────────
-  // ?period=<sample_id> on first render → load that sample synchronously so
-  // the page renders State B with no flash of State A. Refresh-stable.
+  // ?period=<sample_id|uuid> on first render → resolve via useActivePeriod()
+  // (handles both fictional samples and pipeline-produced uploads). Hydrates
+  // local statements/invoices/availableTypes in sync with the URL so the rest
+  // of this page (which still uses local state) stays correct.
+  const remotePeriod = useActivePeriod();
   useEffect(() => {
-    const periodParam = searchParams.get("period");
-    if (!periodParam || hasPeriodLoaded) return;
-    const found = SAMPLE_DATASETS.find((s) => s.id === periodParam);
-    if (!found) return;
-    setActiveSampleId(found.id);
-    if (found.statements !== undefined) setStatements(found.statements);
-    if (found.invoicesGetter !== undefined) setInvoices(found.invoicesGetter());
-    setAvailableTypes(new Set(found.availableTypes));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!remotePeriod.isLoaded || !remotePeriod.statements) return;
+    setStatements(remotePeriod.statements);
+    if (remotePeriod.invoices) setInvoices(remotePeriod.invoices);
+    setAvailableTypes(new Set(remotePeriod.availableTypes));
+    setActiveSampleId(remotePeriod.id ?? "remote");
+    if (remotePeriod.source === "upload") {
+      setParseSource({
+        documentName: remotePeriod.label ?? "Uploaded document",
+        confidence: 1,
+        warnings: [],
+        accountCount: 0,
+      });
+    }
+  }, [remotePeriod.isLoaded, remotePeriod.id, remotePeriod.statements, remotePeriod.invoices, remotePeriod.availableTypes, remotePeriod.label, remotePeriod.source]);
 
   function onFileChosen(file: File) {
     setUploadName(file.name);
+    // The dropzone here is a courtesy — the real upload + pipeline lives at
+    // /upload. Send the user there with a friendly message instead of trying
+    // to handle the upload inline.
     toast({
-      title: "Upload received",
+      title: "Open the Upload page to start analysis",
       description:
-        "OCR + extraction pipeline ships next phase. For now, switch a sample dataset to explore the analysis surface.",
+        `${file.name} → /upload runs detection, OCR, extraction, ratios, and Opus 4.7 narrative end-to-end.`,
     });
   }
 
@@ -369,6 +380,23 @@ export default function FinancialStatements() {
 
         {/* Second KPI row — invoice analytics (when invoices loaded). */}
         {hasPeriodLoaded && invoices && invoices.length > 0 && <InvoiceKpiStrip invoices={invoices} />}
+
+        {/* Server-generated CFO briefing. Only renders when the active period
+            came from the pipeline (Opus 4.7 narrate stage). Empty for samples. */}
+        {hasPeriodLoaded && remotePeriod.briefing && (
+          <section className="mt-3">
+            <article
+              data-testid="cfo-briefing"
+              className="rounded-2xl border border-brand/25 bg-brand-tint/40 p-5"
+            >
+              <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium mb-2">
+                <Sparkles size={11} strokeWidth={2} />
+                CFO briefing — Opus 4.7
+              </div>
+              <p className="text-[14px] text-ink leading-relaxed">{remotePeriod.briefing}</p>
+            </article>
+          </section>
+        )}
         <div className={hasPeriodLoaded ? "mb-8" : ""} />
 
         <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
@@ -1194,7 +1222,7 @@ function UploadAndSamplePanel({
   onFileChosen: (file: File) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-4">
+    <div className={`grid grid-cols-1 ${SAMPLES_ENABLED ? "lg:grid-cols-[1.2fr_1fr]" : ""} gap-4`}>
       {/* Upload zone */}
       <div
         data-testid="upload-dropzone"
@@ -1253,11 +1281,14 @@ function UploadAndSamplePanel({
         )}
         <div className="mt-4 inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
           <Sparkles size={10} strokeWidth={2} />
-          OCR + extraction pipeline ships next phase
+          Detect · OCR · extract · ratios · Opus 4.7 narrative — end-to-end
         </div>
       </div>
 
-      {/* Sample picker */}
+      {/* Sample picker — production default OFF (set VITE_ENABLE_SAMPLES=true
+          for development with fictional fixtures). When disabled, the entire
+          right-rail panel is omitted and the dropzone above spans full-width. */}
+      {SAMPLES_ENABLED && (
       <div data-testid="sample-picker-panel" className="rounded-2xl border border-rule bg-surface p-5">
         <div className="flex items-center justify-between mb-3 gap-2">
           <h3 className="font-serif text-[16px] text-ink">Try a sample</h3>
@@ -1302,6 +1333,7 @@ function UploadAndSamplePanel({
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

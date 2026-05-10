@@ -32,6 +32,7 @@ from ..storage import PostgresAdapter, create_engine_from_url
 from .cfo_ai import create_cfo_router
 from .financial_statements import build_router as create_financial_statements_router
 from .frontend import create_frontend_router
+from .pipeline import build_router as create_pipeline_router
 
 
 # ─────────── Request / response shapes ───────────
@@ -108,6 +109,8 @@ def create_app(
     app.include_router(create_cfo_router(cfg, adapter))
     # Financial Statement Intelligence pipeline (Phase 2)
     app.include_router(create_financial_statements_router())
+    # Phase 3 — async pipeline orchestrator + period read endpoint
+    app.include_router(create_pipeline_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

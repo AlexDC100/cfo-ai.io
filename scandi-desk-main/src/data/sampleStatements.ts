@@ -1,15 +1,16 @@
 // Sample financial-statement datasets.
 //
-// REAL-AUTH Step 1: previously-shipped fixtures based on real customer data
-// (a private real-estate operator and a private FMCG distributor) have been
-// deleted from this file. Step 2 of the same prompt replaces them with
-// synthetic fictional samples gated behind VITE_ENABLE_SAMPLES, OR removes
-// the sample picker entirely from production builds. Until that lands, the
-// SAMPLE_DATASETS array is empty — the Dashboard's empty state shows the
-// upload-first surface (Step 4).
+// Production-default: NO samples. The MVP is upload-first; users see the
+// "Upload your trial balance" surface, not a sample picker. The previous
+// fixtures (based on real customer data) were deleted in Step 1 of the
+// REAL-AUTH prompt. This file remains so internal teams can reintroduce
+// dev-only fictional samples behind the VITE_ENABLE_SAMPLES env flag.
 //
-// Do NOT add new sample entries to this file without ensuring every number
-// is invented and every entity name is fictional.
+// To enable samples for development:
+//   echo "VITE_ENABLE_SAMPLES=true" >> .env.local
+// then add fictional entries to the SAMPLES array below. Every number must
+// be invented; every entity name must be fictional. Do NOT seed real
+// company data, customer names, banks, addresses, or registration numbers.
 
 import type { Statements } from "@/lib/financialReport";
 import type { DocumentType } from "@/lib/financialStatementTabs";
@@ -29,7 +30,14 @@ export interface SampleEntry {
   invoicesGetter?: () => Invoice[];
 }
 
-/** Empty by default. Step 2 of the REAL-AUTH prompt populates this with
- *  synthetic fictional samples (Option B) or leaves it empty under a dev
- *  env flag (Option A). */
-export const SAMPLE_DATASETS: SampleEntry[] = [];
+/** Toggled via VITE_ENABLE_SAMPLES at build time. Production builds leave
+ *  this unset → samples never render, sample picker UI never mounts. */
+export const SAMPLES_ENABLED: boolean =
+  import.meta.env.VITE_ENABLE_SAMPLES === "true";
+
+/** When SAMPLES_ENABLED is false (the production default), this is always [].
+ *  When the flag is set, internal teams can populate this with fictional
+ *  samples for development. Keep the array empty in committed source. */
+const SYNTHETIC_SAMPLES: SampleEntry[] = [];
+
+export const SAMPLE_DATASETS: SampleEntry[] = SAMPLES_ENABLED ? SYNTHETIC_SAMPLES : [];

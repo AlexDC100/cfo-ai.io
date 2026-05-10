@@ -78,8 +78,29 @@ function DecisionsEmptyState() {
 }
 
 function DecisionsLoaded({ statements }: { statements: NonNullable<ReturnType<typeof useActivePeriod>["statements"]> }) {
+  const period = useActivePeriod();
   const ratios = useMemo(() => computeRatios(statements), [statements]);
-  const recommendations = useMemo(() => generateRecommendations(statements, ratios), [statements, ratios]);
+  // Server-generated (Opus 4.7) recommendations win when available — they
+  // carry industry context the local rule-based generator lacks. For samples
+  // (no remote payload) we fall back to the client-side recommendations.
+  const recommendations = useMemo<Recommendation[]>(() => {
+    if (period.recommendations.length > 0) {
+      const urgencyToPriority: Record<string, RecommendationPriority> = {
+        critical: "critical", high: "high", medium: "medium", low: "info",
+      };
+      return period.recommendations.map((r) => ({
+        id: r.id,
+        priority: urgencyToPriority[r.urgency ?? "medium"] ?? "medium",
+        title: r.title,
+        rationale: r.explanation ?? "",
+        action: r.explanation?.split("Actions:")[1]?.replace(/\n[•·]\s*/g, " ").trim()
+              ?? "Review the rationale and take corrective action.",
+        estimatedImpact: r.expected_cash_impact_kron ?? undefined,
+        category: "financial",
+      } as Recommendation));
+    }
+    return generateRecommendations(statements, ratios);
+  }, [period.recommendations, statements, ratios]);
   const cur = statements.currency;
 
   const [statusMap, setStatusMap] = useState<Record<string, Status>>({});

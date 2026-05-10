@@ -27,6 +27,7 @@ import Decisions from "./pages/cfo/Decisions";
 import Products from "./pages/cfo/Products";
 import Alerts from "./pages/cfo/Alerts";
 import Settings from "./pages/cfo/Settings";
+import Onboarding from "./pages/cfo/Onboarding";
 import NotFound from "./pages/NotFound";
 import { heartbeatIfIdentified } from "@/lib/identity";
 import { AuthProvider } from "@/lib/auth";
@@ -58,6 +59,10 @@ function App() {
               {/* /pricing is public — but signed-in users see it as the
                   upgrade picker. Used as the post-signup destination too. */}
               <Route path="/pricing" element={<Pricing />} />
+
+              {/* Onboarding: industry pick + workspace name. Reached after
+                  signup or when AuthGuard sees an org without industry_key. */}
+              <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
 
               {/* Authenticated app — gated by AuthGuard. Visiting any of these
                   paths without sign-in OR demo-mode redirects to "/". */}
