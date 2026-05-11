@@ -26,6 +26,8 @@ import { CommandDrawer } from "./CommandDrawer";
 import { ChatCopilot } from "./ChatCopilot";
 import { SearchDialog } from "./SearchDialog";
 import { UploadDialog } from "./UploadDialog";
+import { DocsPanel } from "./DocsPanel";
+import { useDocsPanelOpen } from "@/lib/docsPanel";
 
 interface Props {
   children: ReactNode;
@@ -39,6 +41,9 @@ export function AppShell({ children }: Props) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // DocsPanel state — when open on wide screens, main content reflows
+  // left to avoid being covered by the slide-out.
+  const [docsOpen] = useDocsPanelOpen();
 
   // Cmd/Ctrl+K opens the search palette anywhere
   useEffect(() => {
@@ -91,8 +96,15 @@ export function AppShell({ children }: Props) {
         </SheetContent>
       </Sheet>
 
-      {/* Main content — offset for the fixed header + sidebar */}
-      <main className="pt-16 lg:pl-[240px]">
+      {/* Documents slide-out panel — right-anchored, available across
+          every authenticated page. Closed by default; opens via the
+          Docs pill in the dashboard header or Cmd/Ctrl+D shortcut. */}
+      <DocsPanel />
+
+      {/* Main content — offset for the fixed header + sidebar. When the
+          docs panel is open on wide screens (≥1280px) the content shifts
+          left by the panel's width so nothing is hidden. */}
+      <main className={`pt-16 lg:pl-[240px] ${docsOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
         <div className="px-5 sm:px-8 lg:px-10 py-8 sm:py-10 lg:py-12 pb-32">
           {children}
         </div>

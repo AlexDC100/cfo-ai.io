@@ -1076,6 +1076,152 @@ def build_router() -> APIRouter:
                 },
             }
 
+    @router.get("/api/org/periods-with-documents")
+    def list_periods_with_documents(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Right-anchored Docs panel feed: every financial_period the user's
+        org has, with the source documents that produced it, ordered newest
+        first. Plus a `recently_deleted` shelf for soft-deleted docs that
+        haven't hit the 30-day hard-delete cutoff.
+
+        Single endpoint per panel-open (no re-fetch on toggle).
+        """
+        from datetime import datetime, timezone, timedelta
+
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            # Caller's active org (first membership).
+            session = client.get_user(jwt)
+            user_id = session.get("id") or session.get("user", {}).get("id")
+            if not user_id:
+                raise HTTPException(401, "Could not resolve user from JWT.")
+            mems = client.select("memberships", filters={"user_id": f"eq.{user_id}"}, limit=1)
+            if not mems:
+                return {"active_period_id": None, "periods": [], "recently_deleted": []}
+            org_id = mems[0]["org_id"]
+
+            periods = client.select(
+                "financial_periods",
+                filters={"org_id": f"eq.{org_id}"},
+                order="period_end.desc,created_at.desc",
+            )
+            docs = client.select(
+                "documents",
+                filters={
+                    "org_id": f"eq.{org_id}",
+                    "scope": "eq.financial",
+                    "deleted_at": "is.null",
+                },
+                order="created_at.desc",
+            )
+            deleted = client.select(
+                "documents",
+                filters={
+                    "org_id": f"eq.{org_id}",
+                    "deleted_at": "not.is.null",
+                },
+                order="deleted_at.desc",
+            )
+
+        # Index docs by period_id (one doc → one period). Documents not yet
+        # attached to a period (mid-pipeline or sku-scope) are omitted; the
+        # panel surfaces only analyzed financial periods.
+        docs_by_period: Dict[str, List[Dict[str, Any]]] = {}
+        for d in docs:
+            pid = d.get("period_id")
+            if not pid:
+                continue
+            docs_by_period.setdefault(pid, []).append({
+                "id": d["id"],
+                "display_name": d.get("display_name") or d["original_filename"],
+                "original_filename": d["original_filename"],
+                "detected_type": d.get("detected_type"),
+                "size_bytes": d["size_bytes"],
+                "uploaded_at": d["created_at"],
+                "status": d["status"],
+                "is_active": d.get("is_active", True),
+                "confidence": d.get("extraction_confidence"),
+                "error": d.get("error"),
+            })
+
+        # Most recent analyzed period = the dashboard default.
+        active_period_id = next(
+            (p["id"] for p in periods if docs_by_period.get(p["id"])),
+            None,
+        )
+
+        period_rows = []
+        for p in periods:
+            doc_list = docs_by_period.get(p["id"], [])
+            period_rows.append({
+                "period_id": p["id"],
+                "period_label": p.get("period_end") or "Imported period",
+                "period_start": p.get("period_start"),
+                "period_end": p.get("period_end"),
+                "is_active": p["id"] == active_period_id,
+                "currency": p.get("currency"),
+                "documents": doc_list,
+                "extraction_confidence": p.get("extraction_confidence"),
+            })
+
+        # Soft-delete window is 30 days — surface deleted docs that fall
+        # within that range so the user can restore them.
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        deleted_rows = []
+        for d in deleted:
+            try:
+                deleted_at = datetime.fromisoformat(d["deleted_at"].replace("Z", "+00:00"))
+            except (KeyError, ValueError, AttributeError):
+                continue
+            if deleted_at < cutoff:
+                continue
+            deleted_rows.append({
+                "id": d["id"],
+                "display_name": d.get("display_name") or d["original_filename"],
+                "deleted_at": d["deleted_at"],
+                "restorable_until": (deleted_at + timedelta(days=30)).isoformat(),
+            })
+
+        return {
+            "active_period_id": active_period_id,
+            "periods": period_rows,
+            "recently_deleted": deleted_rows,
+        }
+
+    @router.patch("/api/documents/{document_id}")
+    def patch_document(document_id: str, payload: Dict[str, Any], authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Rename / mark-inactive / soft-delete a document. RLS scoped — the
+        caller must be a member of the document's org for the update to
+        succeed (per-user client respects member-scoped policies)."""
+        jwt = _require_jwt(authorization)
+        allowed = {"display_name", "is_active"}
+        patch = {k: v for k, v in payload.items() if k in allowed}
+        if not patch:
+            raise HTTPException(400, "No allowed fields provided. Allowed: display_name, is_active.")
+        with _supabase.per_user(jwt) as client:
+            client.update("documents", patch, filters={"id": f"eq.{document_id}"})
+            rows = client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
+            if not rows:
+                raise HTTPException(404, "Document not found or not visible.")
+            return rows[0]
+
+    @router.delete("/api/documents/{document_id}")
+    def soft_delete_document(document_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Soft-delete a document. Sets deleted_at = now(). Restorable via
+        POST /api/documents/:id/restore within 30 days; a cron sweep
+        hard-deletes after."""
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            client.update("documents", {"deleted_at": _now_iso()}, filters={"id": f"eq.{document_id}"})
+            return {"document_id": document_id, "deleted_at": _now_iso()}
+
+    @router.post("/api/documents/{document_id}/restore")
+    def restore_document(document_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Restore a soft-deleted document."""
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            client.update("documents", {"deleted_at": None}, filters={"id": f"eq.{document_id}"})
+            return {"document_id": document_id, "restored": True}
+
     @router.get("/api/sku-analysis/portfolio")
     def get_sku_portfolio(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
         """Consolidated payload for the Products page: totals, classification

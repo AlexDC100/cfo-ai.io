@@ -96,6 +96,7 @@ import {
 import { downloadExcelReport } from "@/lib/financialExports";
 import { SAMPLE_DATASETS, SAMPLES_ENABLED } from "@/data/sampleStatements";
 import { useActivePeriod } from "@/lib/activePeriod";
+import { DocsToggle, useDocsCount } from "@/components/cfo/DocsPanel";
 import {
   allTabs,
   disabledHint,
@@ -896,6 +897,7 @@ function CompactPeriodHeader({
   onPasteTrialBalance: () => void;
   onReset: () => void;
 }) {
+  const docsCount = useDocsCount();
   const companyName =
     statements?.companyName
     ?? (invoices && invoices.length > 0 ? "Invoice register" : "Loaded period");
@@ -921,6 +923,7 @@ function CompactPeriodHeader({
         </h1>
       </div>
       <div className="flex items-center gap-2">
+        <DocsToggle count={docsCount} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
