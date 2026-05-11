@@ -1134,6 +1134,8 @@ def build_router() -> APIRouter:
                 "id": d["id"],
                 "display_name": d.get("display_name") or d["original_filename"],
                 "original_filename": d["original_filename"],
+                "storage_path": d["storage_path"],
+                "mime_type": d.get("mime_type"),
                 "detected_type": d.get("detected_type"),
                 "size_bytes": d["size_bytes"],
                 "uploaded_at": d["created_at"],

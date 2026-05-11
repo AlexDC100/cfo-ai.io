@@ -7,27 +7,56 @@
 // Switching periods uses `router.replace`, not push — period switching
 // is substitution, not navigation. The user's back button stays clean.
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
+  Check,
   ChevronRight,
+  Download,
   FileText,
   Loader2,
+  MoreHorizontal,
+  Pencil,
+  Power,
   RefreshCcw,
   RotateCcw,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
-import { getSupabase } from "@/lib/supabase";
+import {
+  enqueuePipeline,
+  getSupabase,
+  retryPipeline,
+  signedDocumentUrl,
+} from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface DocRow {
   id: string;
   display_name: string;
   original_filename: string;
+  storage_path: string;
+  mime_type: string | null;
   detected_type: string | null;
   size_bytes: number;
   uploaded_at: string;
@@ -76,15 +105,31 @@ async function fetchPanelData(): Promise<ApiResponse | null> {
 }
 
 async function restoreDoc(id: string): Promise<boolean> {
+  return await callDocEndpoint(`/api/documents/${id}/restore`, "POST");
+}
+
+async function softDeleteDoc(id: string): Promise<boolean> {
+  return await callDocEndpoint(`/api/documents/${id}`, "DELETE");
+}
+
+async function patchDoc(id: string, body: { display_name?: string; is_active?: boolean }): Promise<boolean> {
+  return await callDocEndpoint(`/api/documents/${id}`, "PATCH", body);
+}
+
+async function callDocEndpoint(path: string, method: "POST" | "DELETE" | "PATCH", body?: object): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
   const { data: session } = await supabase.auth.getSession();
   const token = session.session?.access_token;
   if (!token) return false;
   const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
-  const res = await fetch(`${apiUrl}/api/documents/${id}/restore`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+  const res = await fetch(`${apiUrl}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
   });
   return res.ok;
 }
@@ -366,15 +411,7 @@ function PeriodCard({
               <li className="text-[11.5px] text-ink-mute">No documents</li>
             )}
             {period.documents.slice(0, 3).map((d) => (
-              <li key={d.id} className="text-[11.5px] text-ink-soft truncate flex items-center gap-1.5">
-                <FileText size={9} strokeWidth={1.75} className="text-ink-mute shrink-0" />
-                <span className="truncate">{d.display_name}</span>
-                {d.status !== "analyzed" && (
-                  <span className="text-[9.5px] uppercase tracking-[0.06em] font-medium text-amber-700 shrink-0">
-                    · {d.status}
-                  </span>
-                )}
-              </li>
+              <DocRowItem key={d.id} doc={d} />
             ))}
             {period.documents.length > 3 && (
               <li className="text-[10.5px] text-ink-mute">+ {period.documents.length - 3} more</li>
@@ -393,5 +430,187 @@ function PeriodCard({
         </button>
       )}
     </article>
+  );
+}
+
+// ─── DocRowItem — single document line with rename + menu ─────────────────
+
+function DocRowItem({ doc }: { doc: DocRow }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(doc.display_name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renaming) inputRef.current?.select();
+  }, [renaming]);
+
+  function invalidate() {
+    void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+  }
+
+  async function commitRename() {
+    const next = draftName.trim();
+    if (!next || next === doc.display_name) {
+      setRenaming(false);
+      setDraftName(doc.display_name);
+      return;
+    }
+    const ok = await patchDoc(doc.id, { display_name: next });
+    if (ok) {
+      toast({ title: "Renamed" });
+      invalidate();
+    } else {
+      toast({ title: "Couldn't rename", variant: "destructive" });
+      setDraftName(doc.display_name);
+    }
+    setRenaming(false);
+  }
+
+  async function handleDownload() {
+    setDownloading(true);
+    const url = await signedDocumentUrl({
+      // signedDocumentUrl reads doc.storage_path; the other DocumentRow
+      // fields it doesn't touch can be undefined for this call.
+      id: doc.id,
+      storage_path: doc.storage_path,
+    } as never);
+    setDownloading(false);
+    if (!url) {
+      toast({ title: "Couldn't generate download link", variant: "destructive" });
+      return;
+    }
+    window.open(url, "_blank", "noopener");
+  }
+
+  async function handleRerun() {
+    const ok = await retryPipeline(doc.id);
+    if (ok) {
+      toast({ title: "Re-running analysis", description: doc.display_name });
+      invalidate();
+    } else {
+      toast({ title: "Couldn't start re-run", variant: "destructive" });
+    }
+  }
+
+  async function handleToggleActive() {
+    const ok = await patchDoc(doc.id, { is_active: !doc.is_active });
+    if (ok) {
+      toast({ title: doc.is_active ? "Marked inactive" : "Marked active" });
+      invalidate();
+    } else {
+      toast({ title: "Couldn't update", variant: "destructive" });
+    }
+  }
+
+  async function handleDelete() {
+    setConfirmDelete(false);
+    const ok = await softDeleteDoc(doc.id);
+    if (ok) {
+      toast({ title: "Deleted", description: `${doc.display_name} — restorable for 30 days.` });
+      invalidate();
+    } else {
+      toast({ title: "Couldn't delete", variant: "destructive" });
+    }
+  }
+
+  const isInflight = !["analyzed", "failed"].includes(doc.status);
+
+  return (
+    <li
+      data-testid="doc-row"
+      className={`group flex items-center gap-1.5 text-[11.5px] ${doc.is_active ? "text-ink-soft" : "text-ink-mute line-through"}`}
+    >
+      <FileText size={9} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+      {renaming ? (
+        <input
+          ref={inputRef}
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void commitRename();
+            if (e.key === "Escape") { setRenaming(false); setDraftName(doc.display_name); }
+          }}
+          onBlur={() => void commitRename()}
+          className="flex-1 min-w-0 bg-bg-2 border border-rule rounded px-1 py-0.5 text-[11px] text-ink outline-none focus:border-brand"
+        />
+      ) : (
+        <span className="truncate flex-1 min-w-0">{doc.display_name}</span>
+      )}
+      {!renaming && doc.status !== "analyzed" && (
+        <span className={`text-[9.5px] uppercase tracking-[0.06em] font-medium shrink-0 ${doc.status === "failed" ? "text-red-700" : "text-amber-700"}`}>
+          · {doc.status}
+        </span>
+      )}
+      {!renaming && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              data-testid="doc-menu"
+              aria-label="Document actions"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity h-5 w-5 inline-flex items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-bg-2"
+            >
+              <MoreHorizontal size={11} strokeWidth={1.75} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onSelect={() => setRenaming(true)} className="text-[12px] cursor-pointer">
+              <Pencil size={11} strokeWidth={1.75} className="mr-2" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => void handleDownload()}
+              disabled={downloading}
+              className="text-[12px] cursor-pointer"
+            >
+              <Download size={11} strokeWidth={1.75} className="mr-2" />
+              {downloading ? "Preparing…" : "Download original"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => void handleRerun()}
+              disabled={isInflight}
+              className="text-[12px] cursor-pointer"
+            >
+              <RefreshCcw size={11} strokeWidth={1.75} className="mr-2" /> Re-run analysis
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void handleToggleActive()} className="text-[12px] cursor-pointer">
+              <Power size={11} strokeWidth={1.75} className="mr-2" />
+              {doc.is_active ? "Mark inactive" : "Mark active"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => setConfirmDelete(true)}
+              className="text-[12px] cursor-pointer text-red-700 focus:text-red-700"
+            >
+              <Trash2 size={11} strokeWidth={1.75} className="mr-2" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {doc.display_name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The document is moved to Recently deleted and can be restored
+              within 30 days. After that it's removed from storage permanently.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="confirm-delete-doc"
+              onClick={() => void handleDelete()}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </li>
   );
 }
