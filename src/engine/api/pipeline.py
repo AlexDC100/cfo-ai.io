@@ -1363,6 +1363,159 @@ def build_router() -> APIRouter:
             client.update("documents", {"deleted_at": None}, filters={"id": f"eq.{document_id}"})
             return {"document_id": document_id, "restored": True}
 
+    @router.patch("/api/sales-datasets/{dataset_id}")
+    def patch_sales_dataset(dataset_id: str, payload: Dict[str, Any], authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Rename a sales dataset's user-visible label."""
+        jwt = _require_jwt(authorization)
+        allowed = {"label", "is_active"}
+        patch = {k: v for k, v in payload.items() if k in allowed}
+        if not patch:
+            raise HTTPException(400, "No allowed fields. Allowed: label, is_active.")
+        with _supabase.per_user(jwt) as client:
+            client.update("sales_datasets", patch, filters={"id": f"eq.{dataset_id}"})
+            rows = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
+            if not rows:
+                raise HTTPException(404, "Dataset not found.")
+            return rows[0]
+
+    @router.delete("/api/sales-datasets/{dataset_id}")
+    def delete_sales_dataset(dataset_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Soft-delete: marks the parent document as deleted_at=now() so the
+        dataset list filter (which joins documents where deleted_at IS NULL)
+        hides it. The sku_lines + sku_aggregates rows cascade-delete only
+        when the dataset row itself is hard-deleted by the 30-day cron."""
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            ds = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
+            if not ds:
+                raise HTTPException(404, "Dataset not found.")
+            doc_id = ds[0]["document_id"]
+            client.update("documents", {"deleted_at": _now_iso()}, filters={"id": f"eq.{doc_id}"})
+            return {"dataset_id": dataset_id, "document_id": doc_id, "deleted_at": _now_iso()}
+
+    @router.post("/api/sales-datasets/{dataset_id}/rerun")
+    def rerun_sales_dataset(dataset_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Re-classify a dataset without re-uploading. Useful after engine
+        rule changes — wipes sku_aggregates classifications, recomputes."""
+        from ._sku_classify import classify_portfolio
+
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            ds = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
+            if not ds:
+                raise HTTPException(404, "Dataset not found.")
+
+        with _supabase.admin() as ac:
+            aggs = ac.select("sku_aggregates", filters={"dataset_id": f"eq.{dataset_id}"})
+            if not aggs:
+                return {"reclassified": 0}
+            # Bridge column names: classifier expects 'sku' + 'revenue'.
+            for a in aggs:
+                a["sku"] = a["product_name"]
+                a["revenue"] = a["niv_krn"] or 0
+                a["cogs"] = max(0.0, (a["niv_krn"] or 0) - (a["gm_krn"] or 0))
+            classified = classify_portfolio(aggs)
+            for c in classified:
+                ac.update(
+                    "sku_aggregates",
+                    {
+                        "classification": c["classification"],
+                        "classification_reason": c.get("classification_reason"),
+                        "real_margin_krn": c.get("real_margin"),
+                        "real_margin_pct": c.get("real_margin_pct"),
+                    },
+                    filters={"id": f"eq.{c['id']}"},
+                )
+            return {"reclassified": len(classified)}
+
+    @router.get("/api/sales-datasets/compare")
+    def compare_sales_datasets(
+        a: str,
+        b: str,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """Side-by-side comparison of two datasets. Matches SKUs by product_name;
+        returns per-SKU deltas, top movers (winners + losers), and SKUs that
+        exist in one dataset but not the other."""
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            datasets = client.select(
+                "sales_datasets",
+                filters={"id": f"in.({a},{b})"},
+            )
+            if len(datasets) != 2:
+                raise HTTPException(404, "One or both datasets not found.")
+            ds_a = next(d for d in datasets if d["id"] == a)
+            ds_b = next(d for d in datasets if d["id"] == b)
+
+            skus_a = client.select("sku_aggregates", filters={"dataset_id": f"eq.{a}"})
+            skus_b = client.select("sku_aggregates", filters={"dataset_id": f"eq.{b}"})
+
+        by_name_a = {s["product_name"]: s for s in skus_a}
+        by_name_b = {s["product_name"]: s for s in skus_b}
+        all_names = sorted(set(by_name_a) | set(by_name_b))
+
+        rows: List[Dict[str, Any]] = []
+        for name in all_names:
+            sa = by_name_a.get(name)
+            sb = by_name_b.get(name)
+            niv_a = float(sa["niv_krn"]) if sa and sa.get("niv_krn") else 0.0
+            niv_b = float(sb["niv_krn"]) if sb and sb.get("niv_krn") else 0.0
+            gm_a = float(sa["gm_krn"]) if sa and sa.get("gm_krn") else 0.0
+            gm_b = float(sb["gm_krn"]) if sb and sb.get("gm_krn") else 0.0
+            vol_a = float(sa["volume_tons"]) if sa and sa.get("volume_tons") else 0.0
+            vol_b = float(sb["volume_tons"]) if sb and sb.get("volume_tons") else 0.0
+            rows.append({
+                "product_name": name,
+                "brand": (sa or sb or {}).get("brand"),
+                "category": (sa or sb or {}).get("category"),
+                "niv_a": round(niv_a, 2),
+                "niv_b": round(niv_b, 2),
+                "niv_delta": round(niv_a - niv_b, 2),
+                "gm_a": round(gm_a, 2),
+                "gm_b": round(gm_b, 2),
+                "gm_delta": round(gm_a - gm_b, 2),
+                "volume_a": round(vol_a, 2),
+                "volume_b": round(vol_b, 2),
+                "volume_delta": round(vol_a - vol_b, 2),
+                "classification_a": sa.get("classification") if sa else None,
+                "classification_b": sb.get("classification") if sb else None,
+                "new_in_a": not sb,
+                "new_in_b": not sa,
+            })
+
+        # Movers: top 10 winners (gm_delta > 0) + top 10 losers (gm_delta < 0)
+        ranked = sorted(rows, key=lambda r: r["gm_delta"], reverse=True)
+        winners = [r for r in ranked if r["gm_delta"] > 0][:10]
+        losers = [r for r in reversed(ranked) if r["gm_delta"] < 0][:10]
+        new_in_active = [r for r in rows if r["new_in_a"]]
+
+        return {
+            "active": {
+                "id": ds_a["id"],
+                "label": ds_a["label"],
+                "source_filename": ds_a.get("source_filename"),
+            },
+            "compared": {
+                "id": ds_b["id"],
+                "label": ds_b["label"],
+                "source_filename": ds_b.get("source_filename"),
+            },
+            "totals": {
+                "niv_a": round(sum(r["niv_a"] for r in rows), 2),
+                "niv_b": round(sum(r["niv_b"] for r in rows), 2),
+                "gm_a": round(sum(r["gm_a"] for r in rows), 2),
+                "gm_b": round(sum(r["gm_b"] for r in rows), 2),
+                "sku_count_a": len(skus_a),
+                "sku_count_b": len(skus_b),
+                "new_in_active": len(new_in_active),
+            },
+            "winners": winners,
+            "losers": losers,
+            "new_in_active": new_in_active[:20],
+            "rows": rows,
+        }
+
     @router.get("/api/sales-datasets")
     def list_sales_datasets(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
         """Right-anchored Datasets panel feed for /products."""

@@ -20,6 +20,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
+import { DatasetsToggle, useDatasetsCount } from "@/components/cfo/DatasetsPanel";
 import {
   enqueuePipeline,
   getSupabase,
@@ -127,6 +128,42 @@ async function fetchDatasetSkus(datasetId: string): Promise<DatasetPayload | nul
   return (await r.json()) as DatasetPayload;
 }
 
+interface ComparePayload {
+  active: { id: string; label: string; source_filename: string | null };
+  compared: { id: string; label: string; source_filename: string | null };
+  totals: {
+    niv_a: number; niv_b: number;
+    gm_a: number; gm_b: number;
+    sku_count_a: number; sku_count_b: number;
+    new_in_active: number;
+  };
+  winners: CompareRow[];
+  losers: CompareRow[];
+  new_in_active: CompareRow[];
+  rows: CompareRow[];
+}
+
+interface CompareRow {
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  niv_a: number; niv_b: number; niv_delta: number;
+  gm_a: number; gm_b: number; gm_delta: number;
+  volume_a: number; volume_b: number; volume_delta: number;
+  classification_a: Classification | null;
+  classification_b: Classification | null;
+  new_in_a: boolean;
+  new_in_b: boolean;
+}
+
+async function fetchCompare(a: string, b: string): Promise<ComparePayload | null> {
+  const h = await authHeader();
+  if (!h) return null;
+  const r = await fetch(`${apiBase()}/api/sales-datasets/compare?a=${a}&b=${b}`, { headers: h });
+  if (!r.ok) return null;
+  return (await r.json()) as ComparePayload;
+}
+
 async function fetchInflight(): Promise<InflightDoc | null> {
   const h = await authHeader();
   if (!h) return null;
@@ -184,6 +221,19 @@ export default function Products() {
   const { data: inflight } = useQuery({
     queryKey: ["sku-analysis", "inflight"],
     queryFn: fetchInflight,
+  });
+
+  // ?compare=<id> triggers the side-by-side comparison view. We render a
+  // banner above the SKU table; the table itself still shows the active
+  // dataset's SKUs (the comparison is additive, not replacement).
+  const compareId = params.get("compare");
+  const { data: compare } = useQuery({
+    queryKey: ["sales-dataset-compare", activeDatasetId, compareId],
+    queryFn: () =>
+      activeDatasetId && compareId && activeDatasetId !== compareId
+        ? fetchCompare(activeDatasetId, compareId)
+        : Promise.resolve(null),
+    enabled: !!activeDatasetId && !!compareId && activeDatasetId !== compareId,
   });
 
   // Live status — invalidate datasets list when an inflight upload terminates
@@ -322,12 +372,10 @@ export default function Products() {
                 {dataset.label} · {dataset.source_filename} · {dataset.row_count?.toLocaleString("en-GB")} line rows · analyzed {new Date(dataset.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
               </p>
             </div>
-            {/* Dataset switcher pill (full panel UI deferred to Step 4) */}
-            <DatasetSwitcher
-              datasets={datasetsPayload?.datasets ?? []}
-              activeId={activeDatasetId}
-              onSwitch={(id) => setUrlParam("dataset", id)}
-            />
+            {/* Dataset switcher — header pill opens the right-anchored
+                Datasets panel for full switch / rename / re-run / delete.
+                Cmd/Ctrl+Shift+D also toggles. */}
+            <DatasetsToggle count={useDatasetsCount()} />
           </div>
 
           <div className="mt-6 grid grid-cols-2 lg:grid-cols-6 gap-3">
@@ -402,6 +450,22 @@ export default function Products() {
           </div>
         </div>
 
+        {compare && (
+          <ComparisonSection
+            payload={compare}
+            onClose={() => setUrlParam("compare", null)}
+            onSwitchActive={() => {
+              // Promote the compared dataset to active (swap roles).
+              setParams((prev) => {
+                const sp = new URLSearchParams(prev);
+                sp.set("dataset", compare.compared.id);
+                sp.set("compare", compare.active.id);
+                return sp;
+              }, { replace: true });
+            }}
+          />
+        )}
+
         <SkuTable rows={filtered} />
 
         <PortfolioTotalsBar totals={totals} />
@@ -444,26 +508,121 @@ function Chip({
   );
 }
 
-function DatasetSwitcher({ datasets, activeId, onSwitch }: {
-  datasets: DatasetSummary[];
-  activeId: string | null;
-  onSwitch: (id: string) => void;
+// DatasetSwitcher was replaced by <DatasetsToggle /> + <DatasetsPanel />;
+// inline <select> retired in favor of the slide-out panel.
+
+function ComparisonSection({
+  payload,
+  onClose,
+  onSwitchActive,
+}: {
+  payload: ComparePayload;
+  onClose: () => void;
+  onSwitchActive: () => void;
 }) {
-  if (datasets.length === 0) return null;
+  const { active, compared, totals, winners, losers, new_in_active } = payload;
+  const nivDelta = totals.niv_a - totals.niv_b;
+  const gmDelta = totals.gm_a - totals.gm_b;
+
   return (
-    <select
-      value={activeId ?? ""}
-      onChange={(e) => onSwitch(e.target.value)}
-      className="h-9 rounded-lg border border-rule bg-surface px-3 text-[12.5px] font-medium text-ink hover:bg-bg-2"
-      data-testid="dataset-switcher"
-      title="Switch dataset"
+    <section
+      data-testid="comparison-section"
+      className="rounded-2xl border border-brand/25 bg-brand-tint/30 p-5 space-y-4"
     >
-      {datasets.map((d) => (
-        <option key={d.id} value={d.id}>
-          {d.label}{typeof d.sku_count === "number" ? ` (${d.sku_count} SKUs)` : ""}
-        </option>
-      ))}
-    </select>
+      <header className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">Comparison</div>
+          <h3 className="mt-1 font-serif text-[20px] text-ink leading-tight">
+            <span>{active.label}</span>
+            <span className="text-ink-soft font-normal mx-2">vs</span>
+            <span>{compared.label}</span>
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onSwitchActive}
+            className="h-8 px-3 rounded-md border border-rule bg-surface text-[12px] font-medium text-ink hover:bg-bg-2 transition-colors"
+          >
+            Switch active to {compared.label}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            data-testid="comparison-close"
+            aria-label="Close comparison"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2"
+          >
+            ✕
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Stat
+          label={`SKUs · ${active.label}`}
+          value={totals.sku_count_a.toLocaleString("en-GB")}
+        />
+        <Stat
+          label={`SKUs · ${compared.label}`}
+          value={totals.sku_count_b.toLocaleString("en-GB")}
+        />
+        <Stat
+          label="NIV delta"
+          value={formatKron(nivDelta)}
+          tone={nivDelta < 0 ? "alert" : undefined}
+        />
+        <Stat
+          label="GM delta"
+          value={formatKron(gmDelta)}
+          tone={gmDelta < 0 ? "alert" : undefined}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <MoversList title="Top winners (Δ GM ↑)" rows={winners} dir="up" />
+        <MoversList title="Top losers (Δ GM ↓)" rows={losers} dir="down" />
+      </div>
+
+      {new_in_active.length > 0 && (
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
+            New in {active.label} ({totals.new_in_active})
+          </div>
+          <ul className="text-[12px] text-ink-soft space-y-0.5 max-h-32 overflow-y-auto">
+            {new_in_active.slice(0, 12).map((r) => (
+              <li key={r.product_name} className="truncate">
+                + {r.product_name} <span className="text-ink-mute">· GM {formatKron(r.gm_a)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MoversList({ title, rows, dir }: { title: string; rows: CompareRow[]; dir: "up" | "down" }) {
+  return (
+    <div>
+      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">{title}</div>
+      <ul className="rounded-lg border border-rule bg-surface divide-y divide-rule/60 max-h-64 overflow-y-auto">
+        {rows.length === 0 && (
+          <li className="px-3 py-2 text-[12px] text-ink-mute">No movers in this bucket.</li>
+        )}
+        {rows.map((r) => (
+          <li key={r.product_name} className="px-3 py-2 grid grid-cols-[1fr_auto] gap-2 items-center">
+            <div className="min-w-0">
+              <div className="text-[12px] text-ink truncate">{r.product_name}</div>
+              <div className="text-[10.5px] text-ink-mute truncate">{r.brand} · {r.category}</div>
+            </div>
+            <div className={`text-right tabular-nums text-[12px] font-medium ${dir === "up" ? "text-emerald-700" : "text-red-700"}`}>
+              {dir === "up" ? "+" : ""}{formatKron(r.gm_delta)}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
