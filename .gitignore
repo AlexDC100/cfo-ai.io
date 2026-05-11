@@ -23,3 +23,5 @@ data/
 # Runtime artifacts (do not commit)
 logs/
 supabase/.temp/
+
+.claude/
