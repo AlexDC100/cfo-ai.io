@@ -16,6 +16,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "next-themes";
+import { usePrefetchPeriod } from "@/lib/activePeriod";
 import {
   LayoutDashboard,
   Wallet,
@@ -113,11 +114,19 @@ function SidebarLink({
   const [params] = useSearchParams();
   const period = params.get("period");
   const href = period ? `${to}?period=${encodeURIComponent(period)}` : to;
+  const prefetchPeriod = usePrefetchPeriod();
+  // On hover, kick off the period fetch + the React Query cache fill so by
+  // the time the user clicks the data is already in cache. ~100-300ms head
+  // start typically — enough to make navigation feel instant once a period
+  // is loaded.
+  const onHover = period ? () => prefetchPeriod(period) : undefined;
   return (
     <NavLink
       to={href}
       data-testid={testId}
       onClick={onClick}
+      onMouseEnter={onHover}
+      onFocus={onHover}
       // Active match keys off the pathname only — query param differences
       // (?period=eei vs none) shouldn't affect the highlight.
       end={false}

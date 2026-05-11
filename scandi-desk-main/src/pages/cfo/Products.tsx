@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Boxes,
@@ -133,28 +134,39 @@ const FILTER_ORDER: Classification[] = ["eliminate", "watch", "anchor_alert", "s
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function Products() {
-  const [portfolio, setPortfolio] = useState<PortfolioPayload | null>(null);
-  const [inflight, setInflight] = useState<InflightDoc | null>(null);
-  const [loading, setLoading] = useState(true);
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [sort, setSort] = useState<"profit_desc" | "rm_pct_desc" | "rm_pct_asc" | "volume_desc">("profit_desc");
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    const [p, inf] = await Promise.all([fetchPortfolio(), fetchInflight()]);
-    setPortfolio(p);
-    setInflight(inf);
-    setLoading(false);
-  }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
+  // Portfolio + inflight cached via React Query so navigating away and
+  // back paints from cache instead of refetching. The realtime
+  // subscription (below) is the canonical source of truth for status
+  // changes — it invalidates these queries on terminal status.
+  const qc = useQueryClient();
+  const { data: portfolio, isLoading: loadingPortfolio } = useQuery({
+    queryKey: ["sku-portfolio"],
+    queryFn: fetchPortfolio,
+  });
+  const { data: inflightFetched, isLoading: loadingInflight } = useQuery({
+    queryKey: ["sku-inflight"],
+    queryFn: fetchInflight,
+  });
+  const inflight = inflightFetched ?? null;
+  const loading = loadingPortfolio || loadingInflight;
 
-  // Live status updates while the pipeline runs
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["sku-portfolio"] }),
+      qc.invalidateQueries({ queryKey: ["sku-inflight"] }),
+    ]);
+  }, [qc]);
+
+  // Live status updates while the pipeline runs — invalidate React Query
+  // caches on terminal status so the portfolio + inflight data refresh.
   useEffect(() => {
     if (!inflight) return;
     const unsub = subscribeToDocumentStatus(inflight.id, (next) => {
-      setInflight((prev) => prev && { ...prev, status: next.status, error: next.error ?? null });
       if (next.status === "analyzed" || next.status === "failed") {
         void refresh();
       }

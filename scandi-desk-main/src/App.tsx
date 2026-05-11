@@ -34,7 +34,25 @@ import { AuthProvider } from "@/lib/auth";
 import { AuthGuard } from "@/components/cfo/AuthGuard";
 import { ErrorBoundary } from "@/components/cfo/ErrorBoundary";
 
-const queryClient = new QueryClient();
+// Single QueryClient for the whole app. Tuned for the "data was analyzed
+// once, navigate between pages instantly" workflow — once a period is
+// fetched it stays fresh for 5 minutes (no refetch on tab switches) and
+// lives in cache for 30 minutes after the last subscriber unmounts (so
+// going Dashboard → Cash → Dashboard pulls from cache, not the network).
+//
+// Background refetches still happen on window focus + reconnect so users
+// who leave a tab open overnight see fresh numbers when they return.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,        // 5 min — period analyses don't change unless re-uploaded
+      gcTime: 30 * 60 * 1000,          // 30 min — keep cached payloads warm across navigation
+      refetchOnWindowFocus: true,      // background refresh on tab focus, never blocks
+      refetchOnMount: false,           // critical: don't refetch on every page mount
+      retry: 1,
+    },
+  },
+});
 
 function App() {
   useEffect(() => {
