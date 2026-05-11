@@ -21,7 +21,6 @@ import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 
 type AuthStatus = "loading" | "signed_out" | "signed_in" | "disabled";
 
-const DEMO_KEY = "cfoai_user";
 const WORKSPACE_KEY = "cfoai_workspace";
 
 export interface AuthState {
@@ -30,12 +29,12 @@ export interface AuthState {
   user: User | null;
   displayName: string | null;
   initials: string | null;
-  /** Workspace label shown in the app shell — company name when signed in, "Demo workspace" in demo mode. */
+  /** Workspace label shown in the app shell — company name when signed in. */
   workspaceLabel: string | null;
   companyName: string | null;
-  /** True when the user is browsing in demo mode without real auth. */
+  /** Demo mode is removed; field retained for source compat — always false. */
   demoActive: boolean;
-  /** Returns true when either signed in (Supabase) or in demo mode. */
+  /** True when the user has a real Supabase session. */
   isAuthenticated: boolean;
 }
 
@@ -50,17 +49,13 @@ export interface AuthActions {
   }) => Promise<{ error: AuthError | null; needsConfirmation: boolean }>;
   signIn: (input: { email: string; password: string }) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
-  /** Enter demo mode — bypasses Supabase auth, persists across reloads. */
+  /** No-op — demo mode was removed. Kept on the interface so legacy callers
+   *  don't break; the body navigates to the real /signup flow if invoked. */
   enterDemo: () => void;
-  /** Exit demo mode — clears the demo flag from localStorage. */
   exitDemo: () => void;
 }
 
 const AuthContext = createContext<(AuthState & AuthActions) | null>(null);
-
-function readDemoActive(): boolean {
-  try { return localStorage.getItem(DEMO_KEY) !== null; } catch { return false; }
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabase();
@@ -68,7 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(
     supabaseEnabled ? "loading" : "disabled",
   );
-  const [demoActive, setDemoActive] = useState<boolean>(readDemoActive);
 
   // Hydrate the current session on mount + subscribe to changes.
   useEffect(() => {
@@ -89,25 +83,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase]);
 
-  // Sync demo state across tabs.
-  useEffect(() => {
-    function onStorage(e: StorageEvent) {
-      if (e.key === DEMO_KEY) setDemoActive(readDemoActive());
-    }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
   const user = session?.user ?? null;
   const displayName = useMemo(() => extractDisplayName(user), [user]);
   const companyName = useMemo(() => extractCompanyName(user), [user]);
   const initials = useMemo(() => extractInitials(displayName, user?.email), [displayName, user]);
   const workspaceLabel = useMemo(() => {
     if (companyName) return companyName;
-    if (demoActive && status !== "signed_in") return "Demo workspace";
     if (displayName) return `${displayName}'s workspace`;
     return null;
-  }, [companyName, demoActive, status, displayName]);
+  }, [companyName, displayName]);
 
   const signUp = useCallback<AuthActions["signUp"]>(async ({ email, password, displayName, companyName, industryKey, industryDisplayName }) => {
     if (!supabase) {
@@ -148,34 +132,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signOut = useCallback<AuthActions["signOut"]>(async () => {
-    // Always clear demo state on sign-out so the auth-gate redirects cleanly.
     try {
-      localStorage.removeItem(DEMO_KEY);
       localStorage.removeItem(WORKSPACE_KEY);
+      // Clean up any legacy demo flags from older builds so a returning
+      // user with a stale localStorage doesn't accidentally re-enable demo.
+      localStorage.removeItem("cfoai_user");
     } catch { /* ignore */ }
-    setDemoActive(false);
     if (!supabase) return { error: null };
     const { error } = await supabase.auth.signOut();
     return { error };
   }, [supabase]);
 
-  const enterDemo = useCallback(() => {
-    try {
-      localStorage.setItem(DEMO_KEY, JSON.stringify({ mode: "demo", since: new Date().toISOString() }));
-      localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ name: "Demo workspace" }));
-    } catch { /* quota — fine, demo state is best-effort */ }
-    setDemoActive(true);
-  }, []);
+  // Demo mode was removed in this pass. The interface keeps stubs so any
+  // remaining caller doesn't break; if invoked they no-op (and a returning
+  // user with a stale demo flag in localStorage gets cleared on next signOut).
+  const enterDemo = useCallback(() => { /* removed */ }, []);
+  const exitDemo  = useCallback(() => { /* removed */ }, []);
 
-  const exitDemo = useCallback(() => {
-    try {
-      localStorage.removeItem(DEMO_KEY);
-      localStorage.removeItem(WORKSPACE_KEY);
-    } catch { /* ignore */ }
-    setDemoActive(false);
-  }, []);
-
-  const isAuthenticated = status === "signed_in" || demoActive;
+  const demoActive = false;
+  const isAuthenticated = status === "signed_in";
 
   const value = useMemo<AuthState & AuthActions>(() => ({
     status,
@@ -192,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     enterDemo,
     exitDemo,
-  }), [status, session, user, displayName, initials, workspaceLabel, companyName, demoActive, isAuthenticated, signUp, signIn, signOut, enterDemo, exitDemo]);
+  }), [status, session, user, displayName, initials, workspaceLabel, companyName, isAuthenticated, signUp, signIn, signOut, enterDemo, exitDemo]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

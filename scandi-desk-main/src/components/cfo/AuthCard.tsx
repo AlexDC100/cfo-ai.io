@@ -34,9 +34,6 @@ interface Props {
   /** Callback fired after a successful sign-in or sign-up that returned a
       session immediately. Default: navigate("/dashboard"). */
   onAuthenticated?: () => void;
-  /** Callback for the "Continue with demo" path. Default: enterDemo() then
-      navigate("/dashboard"). */
-  onDemo?: () => void;
 }
 
 export function AuthCard({
@@ -44,12 +41,11 @@ export function AuthCard({
   tabsHidden = false,
   subtitle,
   onAuthenticated,
-  onDemo,
 }: Props) {
   // ─── Hooks (all unconditional, fixed order) ────────────────────────────
   // useAuth + useNavigate + useSearchParams must run on every render or React
   // throws "change in the order of Hooks". Keep them tight at the top.
-  const { signIn, signUp, enterDemo, status } = useAuth();
+  const { signIn, signUp, status } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -170,15 +166,6 @@ export function AuthCard({
     }
   }
 
-  function handleDemo() {
-    if (onDemo) {
-      onDemo();
-      return;
-    }
-    enterDemo();
-    navigate("/dashboard");
-  }
-
   return (
     <div
       className="
@@ -240,7 +227,7 @@ export function AuthCard({
 
       {!supabaseEnabled && (
         <div className="mb-4 rounded-xl border border-accent2/30 bg-accent2/10 px-3.5 py-3 text-[12px] text-accent2">
-          Authentication isn't configured on this build. Demo access still works.
+          Authentication isn't configured on this build.
         </div>
       )}
 
@@ -371,25 +358,6 @@ export function AuthCard({
               {mode === "sign_in" ? "Sign in" : "Create account"}
             </button>
           </form>
-
-          {/* Demo bypass */}
-          <div className="mt-4">
-            <button
-              type="button"
-              data-testid="auth-continue-demo"
-              onClick={handleDemo}
-              className="
-                w-full inline-flex items-center justify-center gap-2
-                h-11 px-5 rounded-full
-                bg-transparent
-                border border-rule hover:border-rule-strong/90
-                text-ink/90 hover:text-ink text-[13.5px]
-                transition-colors
-              "
-            >
-              Continue with demo data
-            </button>
-          </div>
 
           <p className="mt-5 text-[11px] text-ink-soft text-center leading-relaxed">
             {mode === "sign_in" ? (

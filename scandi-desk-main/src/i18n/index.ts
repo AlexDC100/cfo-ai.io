@@ -43,11 +43,19 @@ void i18n
       fr: { translation: fr },
       es: { translation: es },
     },
+    lng: "en",
     fallbackLng: "en",
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
     interpolation: { escapeValue: false }, // React already escapes
     detection: {
-      order: ["localStorage", "navigator"],
+      // localStorage only — if the user explicitly picks a language in
+      // Settings → Language, persist that. Otherwise stay in English.
+      // Browser-language auto-detection was removed in the english-default
+      // pass: too many users were getting flipped into Romanian/German
+      // unexpectedly. Multi-country narrative still flows when the user
+      // picks their language explicitly OR when the document-detection
+      // stage ships and overrides per-upload.
+      order: ["localStorage"],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
       caches: ["localStorage"],
     },

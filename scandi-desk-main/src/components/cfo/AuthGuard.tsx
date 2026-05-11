@@ -2,9 +2,8 @@
 // `next=` query param so post-auth navigation can return them to the page
 // they were trying to reach.
 //
-// "Authenticated" means: signed in via Supabase OR running in demo mode.
-// While the auth context is still hydrating (loading), we render nothing
-// to avoid a flash of the redirect.
+// "Authenticated" means: signed in via Supabase. Demo mode was removed in
+// the demo-strip pass — there's only one path into the app now (real auth).
 //
 // On top of auth, the guard also enforces *onboarding completion*: a signed-in
 // user whose active org doesn't yet have an industry_key set is bounced to
@@ -15,7 +14,7 @@ import { useAuth } from "@/lib/auth";
 import { useActiveOrg } from "@/lib/org";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { status, isAuthenticated, demoActive } = useAuth();
+  const { status, isAuthenticated } = useAuth();
   const { org, loading: orgLoading, needsOnboarding } = useActiveOrg();
   const location = useLocation();
 
@@ -28,11 +27,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to={`/login?next=${next}`} replace />;
   }
 
-  // Demo mode skips onboarding (no real org to configure).
   // The /onboarding route itself shouldn't bounce to /onboarding — that loops.
   const onOnboardingRoute = location.pathname === "/onboarding";
 
-  if (!demoActive && !onOnboardingRoute) {
+  if (!onOnboardingRoute) {
     if (orgLoading) {
       return <div className="min-h-screen bg-[#05070A]" aria-hidden />;
     }

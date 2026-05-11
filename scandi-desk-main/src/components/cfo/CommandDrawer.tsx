@@ -119,7 +119,7 @@ export function CommandDrawer({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-medium text-ink leading-tight">
-                  Demo workspace
+                  Your workspace
                 </div>
                 <div className="text-[11px] text-ink-soft mt-0.5 leading-tight">
                   No dataset connected
@@ -237,10 +237,10 @@ function WorkspaceTab({
         <Row
           icon={Building2}
           title="Switch workspace"
-          hint="Demo workspace · 1 user"
+          hint="Your workspace"
           onClick={() =>
             comingSoon(
-              "Single workspace in demo",
+              "Single workspace",
               "Multi-tenant switching ships with the upload flow.",
             )
           }
@@ -408,7 +408,7 @@ function AiTab({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          company: { name: "Demo workspace" },
+          company: { name: "Your workspace" },
           skus: [],
           categories: [],
         }),

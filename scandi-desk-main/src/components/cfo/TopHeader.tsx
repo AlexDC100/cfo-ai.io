@@ -10,7 +10,7 @@
 // demo mode — replaces the static "Financial Intelligence" brand line.
 
 import { useNavigate } from "react-router-dom";
-import { Bell, CreditCard, LogOut, MoreHorizontal, Settings as SettingsIcon, Sparkles, Menu, Sparkle, User as UserIcon } from "lucide-react";
+import { Bell, CreditCard, LogOut, MoreHorizontal, Settings as SettingsIcon, Sparkles, Menu, User as UserIcon } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAuth } from "@/lib/auth";
 import {
@@ -31,7 +31,7 @@ interface Props {
 }
 
 export function TopHeader({ onOpenAi, onOpenCommand, onOpenSidebar }: Props) {
-  const { status, displayName, initials, user, workspaceLabel, demoActive, signOut } = useAuth();
+  const { status, displayName, initials, user, workspaceLabel, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -63,11 +63,6 @@ export function TopHeader({ onOpenAi, onOpenCommand, onOpenSidebar }: Props) {
           <Logo size={26} compact />
         </button>
         <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-rule h-7">
-          {demoActive && status !== "signed_in" && (
-            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-accent2/15 text-accent2">
-              <Sparkle size={9} strokeWidth={2} />
-            </span>
-          )}
           <span className="text-[11px] uppercase tracking-[0.14em] text-ink-mute font-medium truncate max-w-[180px]">
             {workspaceLabel ?? "Financial Intelligence"}
           </span>
@@ -162,41 +157,6 @@ export function TopHeader({ onOpenAi, onOpenCommand, onOpenSidebar }: Props) {
               >
                 <LogOut size={14} strokeWidth={1.75} className="mr-2" />
                 Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : demoActive ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label="Demo menu"
-                className="ml-1 inline-flex items-center justify-center h-9 px-2.5 rounded-full bg-bg-2 text-ink-soft hover:text-ink border border-rule hover:border-rule-strong transition-colors gap-1.5 text-[12px] font-medium"
-              >
-                <Sparkle size={12} strokeWidth={2} className="text-accent2" />
-                <span className="hidden sm:inline">Demo</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-surface border-rule-strong w-56">
-              <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.08em] text-ink-mute font-medium">
-                Demo workspace
-              </DropdownMenuLabel>
-              <div className="px-2 pb-1.5 text-[12px] text-ink-soft">No account — data lives in this browser.</div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-[13px] cursor-pointer"
-                onClick={() => navigate("/signup")}
-              >
-                Create your account
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-[13px] cursor-pointer"
-                onClick={async () => {
-                  await signOut();
-                  navigate("/", { replace: true });
-                }}
-              >
-                <LogOut size={14} strokeWidth={1.75} className="mr-2" />
-                Exit demo
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

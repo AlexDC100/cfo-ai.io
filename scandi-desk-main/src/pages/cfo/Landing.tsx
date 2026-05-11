@@ -1,7 +1,7 @@
 // CFO AI — public landing page.
 //
 // Premium dark fintech style. Sections:
-//   1. Header — logo + nav + Sign in + Start free demo
+//   1. Header — logo + nav + Sign in + Get started — free
 //   2. Hero (left)  + AuthCard (right, embedded — desktop only)
 //   3. Product preview — AI CFO Briefing dashboard mock
 //   4. How it works — 3 steps
@@ -106,7 +106,7 @@ function Header() {
             transition-all
           "
         >
-          Start free demo
+          Get started — free
           <ArrowRight size={13} strokeWidth={2.25} />
         </Link>
       </div>
@@ -188,7 +188,7 @@ function Hero() {
                 transition-colors
               "
             >
-              Try demo analysis
+              See how it works
             </Link>
           </div>
 
@@ -200,10 +200,10 @@ function Hero() {
 
         {/* Right column — embedded AuthCard. Renders once per breakpoint. */}
         <div className="hidden lg:flex justify-end">
-          <AuthCard subtitle="Pick up where you left off — or start with demo data in one click." />
+          <AuthCard subtitle="Sign in to your CFO AI workspace." />
         </div>
         <div className="lg:hidden">
-          <AuthCard subtitle="Pick up where you left off — or start with demo data in one click." />
+          <AuthCard subtitle="Sign in to your CFO AI workspace." />
         </div>
       </div>
 
@@ -522,7 +522,7 @@ function FinalCTA() {
               transition-all
             "
           >
-            Start free demo
+            Get started — free
             <ArrowRight size={14} strokeWidth={2.25} />
           </Link>
           <Link

@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 
 export default function Settings() {
-  const { user, displayName, companyName, demoActive, signOut } = useAuth();
+  const { user, displayName, companyName, signOut } = useAuth();
   const { subscription, loading, cancel, reactivate, refresh } = useSubscription();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -59,17 +59,9 @@ export default function Settings() {
 
         {/* Subscription — the centrepiece. */}
         <Section title="Subscription" subtitle="Plan, trial, and renewal — all in one place.">
-          {!supabaseEnabled || demoActive ? (
+          {!supabaseEnabled ? (
             <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
-              You're browsing in demo mode. Sign in or create an account to manage a real subscription.
-              <div className="mt-3">
-                <Link
-                  to="/signup"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-brand text-paper px-3 py-1.5 text-[12px] font-medium hover:bg-brand/90 transition-colors"
-                >
-                  Create account
-                </Link>
-              </div>
+              Authentication isn't configured on this build (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY).
             </div>
           ) : loading ? (
             <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-6 text-[13px] text-ink-mute">

@@ -114,7 +114,7 @@ export function ChatCopilot({ open, onOpenChange }: Props) {
         messages: history,
         dataset_summary: buildDatasetSummary(),
         page: currentPage,
-        company_name: "Demo workspace",
+        company_name: "Your workspace",
       });
       if (res.answer && res.answer.trim()) {
         return { blocks: [{ text: res.answer.trim() }] };
@@ -127,7 +127,7 @@ export function ChatCopilot({ open, onOpenChange }: Props) {
       if (lastUser) {
         const res = await cfoApi.chat({
           question: lastUser.content,
-          company: { name: "Demo workspace" },
+          company: { name: "Your workspace" },
           skus: [],
           categories: [],
           page: currentPage,
@@ -222,7 +222,7 @@ export function ChatCopilot({ open, onOpenChange }: Props) {
           {/* Context chips — what the model is grounded in */}
           <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
             <ContextChip label="Page"    value={currentPage} />
-            <ContextChip label="Workspace" value="Demo" />
+            <ContextChip label="Workspace" value="Your workspace" />
           </div>
         </div>
 
