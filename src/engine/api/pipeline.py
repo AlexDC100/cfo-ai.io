@@ -842,6 +842,122 @@ def stage_persist_narrative(
 # ─── Orchestrator ───────────────────────────────────────────────────────────
 
 
+def _run_sales_dataset_pipeline(doc: Dict[str, Any]) -> Optional[str]:
+    """Branch for trading-analysis / sales XLSX uploads. Reads the workbook
+    via openpyxl, persists native-granularity rows into sku_lines, rolls up
+    into sku_aggregates, classifies via the engine, and creates the
+    sales_datasets row that ties it all together.
+
+    Returns the new dataset_id on success, None when the file isn't sales-
+    shaped (caller falls back to the generic LLM-summary path).
+    """
+    from . import _supabase
+    from ._sales_extract import is_sales_dataset, stream_sales_rows, aggregate_sku_lines
+    from ._sku_classify import classify_portfolio
+
+    # Mint a signed URL + download the bytes so openpyxl can read them.
+    with _supabase.admin() as ac:
+        signed = ac.signed_url("documents", doc["storage_path"], expires_in=300)
+    r = httpx.get(signed, timeout=60.0)
+    r.raise_for_status()
+    xlsx_bytes = r.content
+
+    detected, info = is_sales_dataset(xlsx_bytes)
+    if not detected or not info:
+        return None
+
+    # Stream rows + materialize so we can both insert AND aggregate.
+    lines = list(stream_sales_rows(xlsx_bytes, info))
+    if not lines:
+        return None
+
+    period_label = info.get("period_label") or "Imported dataset"
+
+    with _supabase.admin() as ac:
+        # 1. sales_datasets row (upsert on document_id — re-running for the
+        # same doc replaces the dataset).
+        existing = ac.select("sales_datasets", filters={"document_id": f"eq.{doc['id']}"}, single=True)
+        if existing:
+            dataset_id = existing[0]["id"]
+            ac.update("sales_datasets", {
+                "label": period_label,
+                "source_filename": doc["original_filename"],
+                "row_count": len(lines),
+            }, filters={"id": f"eq.{dataset_id}"})
+            ac.delete("sku_lines", filters={"dataset_id": f"eq.{dataset_id}"})
+            ac.delete("sku_aggregates", filters={"dataset_id": f"eq.{dataset_id}"})
+        else:
+            inserted = ac.insert("sales_datasets", {
+                "org_id": doc["org_id"],
+                "document_id": doc["id"],
+                "label": period_label,
+                "source_filename": doc["original_filename"],
+                "row_count": len(lines),
+                "is_active": True,
+            }, returning=True)
+            dataset_id = inserted[0]["id"]
+
+        # 2. sku_lines — batched insert. Use small batches so a single bad
+        # row only kills the row, not 400 rows. On batch failure we fall
+        # back to per-row insertion to identify the offender.
+        line_rows = [{
+            "dataset_id": dataset_id,
+            "org_id": doc["org_id"],
+            **{k: v for k, v in line.items() if v is not None},
+        } for line in lines]
+        BATCH = 200
+        inserted = 0
+        for i in range(0, len(line_rows), BATCH):
+            batch = line_rows[i:i+BATCH]
+            try:
+                ac.insert("sku_lines", batch, returning=False)
+                inserted += len(batch)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[sales] batch %d failed, falling back per-row: %s", i // BATCH, e)
+                for row in batch:
+                    try:
+                        ac.insert("sku_lines", row, returning=False)
+                        inserted += 1
+                    except Exception as e2:  # noqa: BLE001
+                        logger.warning("[sales] dropped row product=%r reason=%s", row.get("product_name"), e2)
+        logger.info("[sales] inserted %d/%d sku_lines into dataset %s", inserted, len(line_rows), dataset_id)
+
+        # 3. Aggregate + classify.
+        agg_rows = aggregate_sku_lines(lines)
+        # classify_portfolio expects 'sku' + 'revenue' keys; bridge to its API.
+        for a in agg_rows:
+            a["sku"] = a["product_name"]
+            a["revenue"] = a["niv_krn"]
+            a["cogs"] = max(0.0, (a["niv_krn"] or 0) - (a["gm_krn"] or 0))
+        classified = classify_portfolio(agg_rows)
+
+        agg_inserts = [{
+            "dataset_id": dataset_id,
+            "org_id": doc["org_id"],
+            "product_name": c["product_name"],
+            "brand": c.get("brand"),
+            "category": c.get("category"),
+            "volume_tons": c.get("volume_tons"),
+            "niv_krn": c.get("niv_krn"),
+            "gm_krn": c.get("gm_krn"),
+            "gm_pct": c.get("gm_pct"),
+            "real_margin_krn": c.get("real_margin"),
+            "real_margin_pct": c.get("real_margin_pct"),
+            "classification": c.get("classification") or "keep",
+            "classification_reason": c.get("classification_reason"),
+            "line_row_count": c.get("line_row_count"),
+            "channels_present": c.get("channels_present") or [],
+            "clients_present": c.get("clients_present") or [],
+        } for c in classified]
+        for i in range(0, len(agg_inserts), 400):
+            ac.insert("sku_aggregates", agg_inserts[i:i+400], returning=False)
+
+        ac.update("sales_datasets", {"sku_count": len(agg_inserts)},
+                  filters={"id": f"eq.{dataset_id}"})
+
+    return dataset_id
+
+
 def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative: Dict[str, Any]) -> None:
     """Persist a SKU analysis + classified per-SKU rollups.
 
@@ -875,9 +991,14 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
             returning=False,
         )
 
-        # Wipe + re-insert SKU aggregates (idempotent on re-run).
-        client.delete("sku_aggregates", filters={"document_id": f"eq.{doc['id']}"})
-        if classified:
+        # Legacy: the OLD sku_aggregates table was keyed on document_id +
+        # produced from the LLM's synthetic category roll-ups. After the
+        # sales-dataset refactor the table is keyed on dataset_id and is
+        # populated by _run_sales_dataset_pipeline directly. _persist_sku_
+        # analysis no longer manages sku_aggregates — it only writes the
+        # briefing/summary into sku_analyses. The deletes below are a no-op
+        # in the new schema (we skip them).
+        if False and classified:  # legacy path retained as dead code for clarity
             rows = [
                 {
                     "org_id": doc["org_id"],
@@ -927,21 +1048,39 @@ def _run_pipeline_sync(document_id: str) -> None:
         _admin_set_status(document_id, "extracting", pipeline_started_at=_now_iso())
         parsed = stage_extract(doc)
 
-        # SKU branch — completely independent of financial_periods. Just
-        # extract → narrate → persist the analysis on sku_analyses. No
-        # period, no line items, no metrics, no dashboard pollution.
+        # SKU branch — completely independent of financial_periods. Two
+        # sub-paths:
+        #   1. Trading-analysis XLSX with native per-SKU rows → openpyxl
+        #      extraction into sku_lines + sku_aggregates (full 406-row
+        #      portfolio for the user's actual file).
+        #   2. Anything else (PDF, CSV without recognizable sales shape) →
+        #      the LLM-summary briefing path (sku_analyses).
         if scope == "sku":
+            _admin_set_status(document_id, "mapping")
+            dataset_id: Optional[str] = None
+            try:
+                dataset_id = _run_sales_dataset_pipeline(doc)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[pipeline] sales dataset path failed, falling back to summary: %s", e)
+
+            # Always also produce a briefing — useful even with sku_lines,
+            # gives the user a 3-sentence executive summary alongside the
+            # raw portfolio. Skips if extraction returned nothing.
             _admin_set_status(document_id, "narrating")
             assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
             narrative = stage_narrate(doc, assembled, [], org, period_id="-", parsed=parsed)
             _persist_sku_analysis(doc, parsed, narrative)
+
             _admin_set_status(
                 document_id,
                 "analyzed",
                 duration_ms=int((time.time() - t0) * 1000),
                 period_id=None,
             )
-            logger.info("[pipeline] %s (sku scope) complete in %dms", document_id, int((time.time() - t0) * 1000))
+            logger.info(
+                "[pipeline] %s (sku scope) complete in %dms, dataset_id=%s",
+                document_id, int((time.time() - t0) * 1000), dataset_id,
+            )
             return
 
         # Financial branch — existing path.
@@ -1223,6 +1362,89 @@ def build_router() -> APIRouter:
         with _supabase.per_user(jwt) as client:
             client.update("documents", {"deleted_at": None}, filters={"id": f"eq.{document_id}"})
             return {"document_id": document_id, "restored": True}
+
+    @router.get("/api/sales-datasets")
+    def list_sales_datasets(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Right-anchored Datasets panel feed for /products."""
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            rows = client.select(
+                "sales_datasets",
+                order="uploaded_at.desc",
+                columns="*,documents!inner(original_filename,status,deleted_at)",
+            )
+        active = [r for r in rows if not (r.get("documents") or {}).get("deleted_at")]
+        return {
+            "active_dataset_id": active[0]["id"] if active else None,
+            "datasets": [{
+                "id": r["id"],
+                "label": r["label"],
+                "source_filename": r.get("source_filename"),
+                "row_count": r.get("row_count"),
+                "sku_count": r.get("sku_count"),
+                "uploaded_at": r["uploaded_at"],
+                "is_active": r.get("is_active", True),
+                "document_status": (r.get("documents") or {}).get("status"),
+                "deleted_at": (r.get("documents") or {}).get("deleted_at"),
+            } for r in active],
+        }
+
+    @router.get("/api/sales-datasets/{dataset_id}/skus")
+    def list_skus_for_dataset(dataset_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """All SKU aggregates for one dataset — the full 406-row portfolio.
+        Frontend virtualizes the table, so this endpoint can return the
+        whole list (typical files are 400-2000 SKUs, ~150 KB JSON)."""
+        jwt = _require_jwt(authorization)
+        with _supabase.per_user(jwt) as client:
+            ds = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
+            if not ds:
+                raise HTTPException(404, "Dataset not found.")
+            skus = client.select(
+                "sku_aggregates",
+                filters={"dataset_id": f"eq.{dataset_id}"},
+                order="gm_krn.desc.nullslast",
+            )
+        # Totals for the KPI strip — computed server-side once instead of
+        # the frontend mapping over the full list per render.
+        cls_counts: Dict[str, int] = {}
+        total_volume = total_niv = total_gm = total_losses = 0.0
+        categories: set = set()
+        brands: set = set()
+        for s in skus:
+            cls = s.get("classification") or "keep"
+            cls_counts[cls] = cls_counts.get(cls, 0) + 1
+            total_volume += s.get("volume_tons") or 0
+            total_niv += s.get("niv_krn") or 0
+            total_gm += s.get("gm_krn") or 0
+            if (s.get("gm_krn") or 0) < 0:
+                total_losses += s.get("gm_krn") or 0
+            if s.get("category"):
+                categories.add(s["category"])
+            if s.get("brand"):
+                brands.add(s["brand"])
+        return {
+            "dataset": {
+                "id": ds[0]["id"],
+                "label": ds[0]["label"],
+                "source_filename": ds[0].get("source_filename"),
+                "row_count": ds[0].get("row_count"),
+                "sku_count": ds[0].get("sku_count"),
+                "uploaded_at": ds[0]["uploaded_at"],
+            },
+            "totals": {
+                "sku_count": len(skus),
+                "classification_counts": cls_counts,
+                "volume_tons": round(total_volume, 2),
+                "niv_krn": round(total_niv, 2),
+                "gm_krn": round(total_gm, 2),
+                "losses_krn": round(total_losses, 2),
+                "category_count": len(categories),
+                "brand_count": len(brands),
+                "categories": sorted(categories),
+                "brands": sorted(brands),
+            },
+            "skus": skus,
+        }
 
     @router.get("/api/sku-analysis/portfolio")
     def get_sku_portfolio(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
