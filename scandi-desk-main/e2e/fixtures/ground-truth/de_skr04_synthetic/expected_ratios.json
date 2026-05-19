@@ -1,0 +1,34 @@
+{
+  "_status": "DRAFT — synthetic.",
+  "tolerance_pct": 0.05,
+
+  "leverage": {
+    "total_debt":              350000.00,
+    "total_debt_minus_cash":    10100.00,
+    "debt_to_equity":            0.318,
+    "debt_to_ebitda":            0.288
+  },
+  "coverage": {
+    "interest_coverage_ebitda":  53.5,
+    "_interest_coverage_note":   "EBITDA 1.21M / interest 22.7k. Excellent — services firm with no material debt."
+  },
+  "liquidity": {
+    "current_ratio":             2.59
+  },
+  "profitability": {
+    "revenue_operational":     4960000.00,
+    "gross_margin_pct":          0.677,
+    "_gross_margin_note":        "67.7% gross margin — typical for professional services (60-80%).",
+    "ebitda_margin_operational_pct": 0.245,
+    "_ebitda_margin_note":       "24.5% EBITDA margin — strong for professional services (typical 15-25%)."
+  },
+  "valuation_primary": {
+    "method":              "ev_ebitda_peer_multiple",
+    "industry":            "professional_services",
+    "_industry_band":      "Damodaran Business Services 2026 P25-P50-P75 = 7.0× - 10.0× - 15.0×",
+    "ebitda_basis":        1213400.00,
+    "equity_p50_estimate":12134000.00,
+    "_equity_p50_note":    "EBITDA 1.21M × P50 10.0× = EV 12.13M − net debt 10k = equity ~12.12M.",
+    "confidence":          "high"
+  }
+}

@@ -29,10 +29,10 @@ import { cfoApi } from "@/lib/cfoApi";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard":     "Today",
-  "/cash":      "Cash",
-  "/profit":    "Profit",
-  "/decisions": "Decisions",
-  "/products":  "Products",
+  "/decisions":     "Decisions",
+  "/products":      "Products",
+  "/alerts":        "Alerts",
+  "/settings":      "Settings",
 };
 
 interface Props {
@@ -533,6 +533,7 @@ function Markdown({ text }: { text: string }) {
             </pre>
           );
         }
+        if (seg.kind !== "p") return null; // exhaustiveness — narrows seg to the paragraph shape
         // paragraph — preserve single newlines as <br> so Claude's
         // intentional line breaks survive.
         return (

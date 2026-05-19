@@ -29,6 +29,12 @@ from ..config import Config, load_config
 from ..models import CategoryRow
 from ..pipeline import run_pipeline
 from ..storage import PostgresAdapter, create_engine_from_url
+from .ask import build_router as create_ask_router
+from ._benchmarks import build_router as create_benchmarks_router
+from ._billing import build_router as create_billing_router
+from ._features import build_router as create_features_router
+from ._industry_intelligence import build_router as create_industry_router
+from ._pricing_routes import build_router as create_pricing_router
 from .cfo_ai import create_cfo_router
 from .financial_statements import build_router as create_financial_statements_router
 from .frontend import create_frontend_router
@@ -111,6 +117,28 @@ def create_app(
     app.include_router(create_financial_statements_router())
     # Phase 3 — async pipeline orchestrator + period read endpoint
     app.include_router(create_pipeline_router())
+    # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III)
+    app.include_router(create_ask_router())
+    # Stripe-backed billing (checkout, portal, webhook, renewal cron)
+    app.include_router(create_billing_router())
+    # Phase 7 — industry-benchmark comparison (suggest / set-caen / report).
+    app.include_router(create_benchmarks_router())
+    # Phase Industry Intelligence B — read-only routes over the new
+    # industry_profiles / caen_industry_mappings / peer_candidates /
+    # benchmark_sets catalog + per-period detect endpoint. Writes land in Phase C.
+    app.include_router(create_industry_router())
+    # App-shell cleanup Phase 1 — feature registry. Single source of
+    # truth for "is this product capability active, coming_soon, or
+    # hidden". Read by Command Center + Sidebar + Settings on first
+    # paint to gate UI rendering. No auth.
+    app.include_router(create_features_router())
+    # Pricing V2 — new tier model (trial/intro/starter/pro) with
+    # config-driven prices, daily+monthly chat caps, extra-doc
+    # metering, and an internal below-COGS warning. Public
+    # `GET /api/pricing/config` is read by Landing + Pricing pages;
+    # `GET /api/plan/state` drives the Settings usage card; admin
+    # endpoint surfaces the below-COGS warnings.
+    app.include_router(create_pricing_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

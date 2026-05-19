@@ -13,6 +13,8 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Check, Clock, FileText, X } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod } from "@/lib/activePeriod";
+import { usePeriodFacts } from "@/lib/periodFacts";
+import { RecommendationsView } from "@/components/cfo/RecommendationsView";
 import {
   computeRatios,
   formatCurrency,
@@ -39,6 +41,7 @@ const PRIORITY_TONE: Record<RecommendationPriority, string> = {
 
 export default function Decisions() {
   const period = useActivePeriod();
+  const facts = usePeriodFacts();
   if (!period.isLoaded || !period.statements) {
     return (
       <AppShell>
@@ -48,6 +51,20 @@ export default function Decisions() {
   }
   return (
     <AppShell>
+      {/* Single-source-of-truth recommendations driven by deterministic
+          rule detection over PeriodFacts. Same facts always produce the
+          same conditions; each card's numbers come straight from the
+          canonical facts (no LLM-derived numerics).
+
+          The legacy DecisionsLoaded panel below still renders so the
+          existing workflow (mark in progress / done / dismiss) keeps
+          working until the server-side recommendations table is migrated
+          to consume the rule output. */}
+      {facts && (
+        <section className="max-w-[860px] mx-auto pt-6 mb-10">
+          <RecommendationsView facts={facts} />
+        </section>
+      )}
       <DecisionsLoaded statements={period.statements} />
     </AppShell>
   );

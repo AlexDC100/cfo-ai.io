@@ -17,12 +17,10 @@ export type DocumentType =
 
 export type TabId =
   | "overview"
-  | "statements"
+  | "pl"
+  | "balance_sheet"
+  | "cash_flow"
   | "ratios"
-  | "customers"
-  | "payments"
-  | "margin"
-  | "vat"
   | "valuation"
   | "risks"
   | "recommendations"
@@ -35,18 +33,22 @@ export interface TabSpec {
   order: number;
 }
 
+// Top tab row — 9 entries. P&L, Balance Sheet, Cash Flow replace the
+// single "Financial statements" tab so each statement gets its own
+// top-level surface. Customers / Payments / Margin / VAT removed —
+// non-FMCG companies don't benefit from them; the relevant signals
+// (margin metrics, VAT compliance) surface elsewhere (Overview KPI
+// strip, Recommendations).
 export const TAB_SPECS: TabSpec[] = [
-  { id: "overview",        label: "Overview",             order: 1  },
-  { id: "statements",      label: "Financial statements", order: 2  },
-  { id: "ratios",          label: "Ratios",               order: 3  },
-  { id: "customers",       label: "Customers",            order: 4  },
-  { id: "payments",        label: "Payments",             order: 5  },
-  { id: "margin",          label: "Margin",               order: 6  },
-  { id: "vat",             label: "VAT",                  order: 7  },
-  { id: "valuation",       label: "Valuation",            order: 8  },
-  { id: "risks",           label: "Risks & credit",       order: 9  },
-  { id: "recommendations", label: "Recommendations",      order: 10 },
-  { id: "export",          label: "Export",               order: 11 },
+  { id: "overview",        label: "Overview",        order: 1 },
+  { id: "pl",              label: "P&L",             order: 2 },
+  { id: "balance_sheet",   label: "Balance Sheet",   order: 3 },
+  { id: "cash_flow",       label: "Cash Flow",       order: 4 },
+  { id: "ratios",          label: "Ratios",          order: 5 },
+  { id: "valuation",       label: "Valuation",       order: 6 },
+  { id: "risks",           label: "Risks & credit",  order: 7 },
+  { id: "recommendations", label: "Recommendations", order: 8 },
+  { id: "export",          label: "Export",          order: 9 },
 ];
 
 /**
@@ -74,25 +76,19 @@ export type TabState = Record<TabId, boolean>;
  */
 export function tabEnabled(types: Set<DocumentType>): TabState {
   const has = (...ts: DocumentType[]) => ts.some((t) => types.has(t));
-  const hasInvoices = has("invoice_register", "invoice_single");
-  const hasPL = has("pl");
   const hasFinancials = has("bilant", "pl", "trial_balance", "annual_report");
   // No data at all → State A. Recommendations stays clickable so the user
-  // can preview the empty-state CTA. Once invoice-only data lands (Aurelius),
-  // Recommendations disables because the engine can't derive recs from
-  // invoice register alone.
+  // can preview the empty-state CTA.
   const noData = types.size === 0;
 
   return {
     overview:        true,
-    statements:      hasFinancials,
+    pl:              hasFinancials,
+    balance_sheet:   hasFinancials,
+    cash_flow:       hasFinancials,
     ratios:          hasFinancials,
-    valuation:       has("bilant", "pl"),
+    valuation:       has("bilant", "pl") || has("trial_balance", "annual_report"),
     risks:           has("bilant", "pl", "trial_balance"),
-    customers:       has("invoice_register", "invoice_single"),
-    payments:        has("invoice_register"),
-    margin:          has("invoice_register") || (hasInvoices && hasPL),
-    vat:             has("invoice_register"),
     recommendations: hasFinancials || noData,
     export:          true,
   };
@@ -119,14 +115,35 @@ export function allTabs(): TabSpec[] {
 /**
  * Coerce a `?tab=` query value to a valid TabId, with fallback to overview
  * when the value is missing/unrecognized OR when the requested tab isn't
- * currently enabled (e.g. ?tab=payments with no invoices loaded).
+ * currently enabled. Also redirects legacy tab slugs from the old 11-tab
+ * layout (`statements`, `customers`, `payments`, `margin`, `vat`) to the
+ * sensible new home so bookmarks keep working:
+ *   statements → pl           (most relevant landing of the old combined tab)
+ *   customers  → balance_sheet (receivables live there)
+ *   payments   → cash_flow
+ *   margin     → ratios
+ *   vat        → balance_sheet (tax payables live there)
  */
+const LEGACY_TAB_MAP: Record<string, TabId> = {
+  statements: "pl",
+  customers:  "balance_sheet",
+  payments:   "cash_flow",
+  margin:     "ratios",
+  vat:        "balance_sheet",
+};
 export function resolveActiveTab(
   raw: string | null,
   enabled: TabState,
 ): TabId {
   const valid = TAB_SPECS.map((t) => t.id);
-  const requested = raw && (valid as string[]).includes(raw) ? (raw as TabId) : "overview";
+  let requested: TabId;
+  if (raw && (valid as string[]).includes(raw)) {
+    requested = raw as TabId;
+  } else if (raw && LEGACY_TAB_MAP[raw]) {
+    requested = LEGACY_TAB_MAP[raw];
+  } else {
+    requested = "overview";
+  }
   return enabled[requested] ? requested : "overview";
 }
 
@@ -137,14 +154,12 @@ export function resolveActiveTab(
 export function disabledHint(tab: TabId): string {
   const prefix: Record<TabId, string> = {
     overview:        "",
-    statements:      "Needs a balance sheet, P&L, or trial balance — ",
+    pl:              "Needs a P&L, trial balance, or annual report — ",
+    balance_sheet:   "Needs a balance sheet, trial balance, or annual report — ",
+    cash_flow:       "Needs a balance sheet + P&L (or trial balance) — ",
     ratios:          "Needs a balance sheet, P&L, or trial balance — ",
     valuation:       "Needs a balance sheet AND P&L — ",
     risks:           "Needs a balance sheet, P&L, or trial balance — ",
-    customers:       "Needs an invoice register — ",
-    payments:        "Needs an invoice register — ",
-    margin:          "Needs an invoice register — ",
-    vat:             "Needs an invoice register — ",
     recommendations: "Needs a balance sheet, P&L, or trial balance — ",
     export:          "",
   };

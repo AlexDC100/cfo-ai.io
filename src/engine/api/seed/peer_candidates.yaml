@@ -1,0 +1,169 @@
+# peer_candidates.yaml — Phase 3 seed for the peer_candidates table.
+#
+# Schema: supabase/schema_phase_industry_intelligence.sql → peer_candidates
+#
+# WHAT THIS SEEDS
+# ===============
+# Names-only peer candidates for the calibration industries. Surfaces in
+# the IndustryPicker → PendingIndustryContext component as:
+#   · "Typical peers" — external companies in the same industry
+#   · Internal-brand callout — Sadu/Bucegi for Scandia, NOT peers
+#
+# IDEMPOTENCY
+# ===========
+# Loader keys on `(industry_key, company_name)` UNIQUE. Re-running is a
+# no-op for already-seeded rows.
+#
+# RULES
+# =====
+# · `is_internal_brand_default: true` means this company is a BRAND
+#   owned by the org being analyzed, not a competitor. The UI suppresses
+#   it from peer comparison and shows it in an internal-brand note.
+# · `country` is RO unless noted.
+# · `source: internal_demo` — for the v1 seed list. Promote to
+#   `verified` once we have public-records financials for the peer.
+# · `has_uploaded_financials: false` — none of these have been onboarded.
+#   The IndustryPicker shows them as names only.
+
+# ──────────────────────────────────────────────────────────────────────
+# Scandia Food calibration (packaged_canned_meat_prepared_foods)
+# ──────────────────────────────────────────────────────────────────────
+# Sadu and Bucegi are Scandia's own brand labels — they appear on the
+# Scandia balance sheet as inventory SKUs, not as peer competitors. The
+# `is_internal_brand_default` flag drives the picker's internal-brand
+# callout so users don't try to "add Sadu as a peer".
+
+- industry_key: packaged_canned_meat_prepared_foods
+  company_name: Sadu
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: true
+  has_uploaded_financials: false
+  notes: "Internal brand within the Scandia Food portfolio — not a peer competitor."
+
+- industry_key: packaged_canned_meat_prepared_foods
+  company_name: Bucegi
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: true
+  has_uploaded_financials: false
+  notes: "Internal brand within the Scandia Food portfolio — not a peer competitor."
+
+# Mandy — canned meat producer, Bucharest. Direct peer.
+- industry_key: packaged_canned_meat_prepared_foods
+  company_name: Mandy
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+# Hame Romania — Czech-owned canned meat manufacturer with RO subsidiary.
+- industry_key: packaged_canned_meat_prepared_foods
+  company_name: Hame Romania
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+# Arealul — domestic canned meat brand.
+- industry_key: packaged_canned_meat_prepared_foods
+  company_name: Arealul
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+# Cris-Tim — broader meat-products operator; useful as wider-food peer.
+- industry_key: packaged_canned_meat_prepared_foods
+  company_name: Cris-Tim
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+  notes: "Broader meat-products operator; use carefully — wider product mix than canned meat."
+
+# Transavia — poultry processing leader; reasonable benchmark for broader
+# food / meat KPIs but NOT a direct canned-meat peer.
+- industry_key: packaged_canned_meat_prepared_foods
+  company_name: Transavia
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+  notes: "Poultry-meat leader; useful as a broader food/meat benchmark — not a direct canned-meat competitor."
+
+# ──────────────────────────────────────────────────────────────────────
+# Porsche Romania calibration (automotive_retail_distribution)
+# ──────────────────────────────────────────────────────────────────────
+# All entries here are external; no internal brands to suppress.
+
+- industry_key: automotive_retail_distribution
+  company_name: Auto Cobălcescu
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+- industry_key: automotive_retail_distribution
+  company_name: Țiriac Auto
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+- industry_key: automotive_retail_distribution
+  company_name: Auto Bara
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+# ──────────────────────────────────────────────────────────────────────
+# EEI Imobiliara calibration (real_estate_commercial_rental)
+# ──────────────────────────────────────────────────────────────────────
+- industry_key: real_estate_commercial_rental
+  company_name: Globalworth
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+  notes: "Large CRE landlord; useful for occupancy + WAULT benchmarking."
+
+- industry_key: real_estate_commercial_rental
+  company_name: CTP Romania
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+  notes: "Industrial / logistics-park specialist; benchmark with care for office assets."
+
+- industry_key: real_estate_commercial_rental
+  company_name: Iulius Group
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+# ──────────────────────────────────────────────────────────────────────
+# ELIT calibration (employment_services)
+# ──────────────────────────────────────────────────────────────────────
+- industry_key: employment_services
+  company_name: Adecco Romania
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+- industry_key: employment_services
+  company_name: Randstad Romania
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false
+
+- industry_key: employment_services
+  company_name: Manpower Romania
+  country: RO
+  source: internal_demo
+  is_internal_brand_default: false
+  has_uploaded_financials: false

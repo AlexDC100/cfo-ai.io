@@ -10,29 +10,26 @@
 // demo mode — replaces the static "Financial Intelligence" brand line.
 
 import { useNavigate } from "react-router-dom";
-import { Bell, CreditCard, LogOut, MoreHorizontal, Settings as SettingsIcon, Sparkles, Menu, User as UserIcon } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Logo } from "./Logo";
+import { AccountMenu } from "./AccountMenu";
 import { useAuth } from "@/lib/auth";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   onOpenAi: () => void;
-  onOpenCommand: () => void;
   /** Mobile-only: opens the sidebar as a slide-over drawer. */
   onOpenSidebar: () => void;
 }
 
-export function TopHeader({ onOpenAi, onOpenCommand, onOpenSidebar }: Props) {
-  const { status, displayName, initials, user, workspaceLabel, signOut } = useAuth();
-  const { toast } = useToast();
+export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
+  // May 2026 redesign — the inline dropdown was replaced by <AccountMenu/>
+  // which carries the THE single sign-out (sign-out moved here from the
+  // Sidebar System group). The `onOpenAi` prop is unused at runtime today
+  // (the TopHeader Ask CFO AI pill was removed earlier per directive) but
+  // kept on the interface so a future re-introduction is a one-line JSX
+  // restore, not a propagating type change.
+  void onOpenAi;
+  const { status, user, workspaceLabel } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -70,96 +67,36 @@ export function TopHeader({ onOpenAi, onOpenCommand, onOpenSidebar }: Props) {
 
         <div className="flex-1" />
 
-        {/* Right actions */}
-        <button
-          onClick={onOpenAi}
-          className="
-            inline-flex items-center gap-1.5
-            h-9 px-3 rounded-full
-            text-[13px] font-medium text-brand-d
-            hover:bg-brand-tint
-            transition-colors
-          "
-        >
-          <Sparkles size={14} strokeWidth={2} />
-          Ask CFO AI
-        </button>
+        {/* Ask CFO AI pill removed from TopHeader per the operator's
+            directive. The contextual launchers remain:
+              · Command Center → Workspace tab → Quick actions
+              · In-page chips (e.g. /benchmark, /financials) that fire
+                the OPEN_ASK_CFO_AI_EVENT and AppShell catches it
+              · The /chat page is still reachable directly
+            The `onOpenAi` prop is kept on TopHeader so future reverts
+            are a one-line JSX restore. AppShell still passes a real
+            handler today. */}
 
-        <button
-          aria-label="Notifications"
-          className="
-            inline-flex items-center justify-center h-9 w-9 rounded-md
-            text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors
-          "
-        >
-          <Bell size={15} strokeWidth={1.75} />
-        </button>
+        {/* Bell removed per the operator's directive. The previous
+            implementation was a visible-but-dead control (no onClick,
+            no popover, no badge) — a trust killer for a CFO product.
+            A real Notification Center is a future scoped task. Until
+            then, no bell at all is better than a placebo bell.
+            See diagnostics-trail / the header-cleanup brief. */}
 
-        <button
-          onClick={onOpenCommand}
-          aria-label="Open command center"
-          className="
-            inline-flex items-center justify-center h-9 w-9 rounded-md
-            text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors
-          "
-        >
-          <MoreHorizontal size={16} strokeWidth={1.75} />
-        </button>
+        {/* Command Center trigger was removed from the top-right header.
+            It now lives in the sidebar's System group, directly below
+            Settings (`data-testid="sidebar-command-center"`). Single
+            entry point per the relocation directive. */}
 
-        {/* Auth — profile menu when signed in or in demo mode, else Sign in link */}
+        {/* Account menu — single source of truth for sign-out (May 2026
+            redesign). All the prior inline dropdown items moved into
+            <AccountMenu/> together with the plan status chip, usage
+            preview, theme toggle, and a Privacy entry marked
+            "Coming soon" until a Privacy route ships. Unauthed visitors
+            still see a plain "Sign in" link below. */}
         {status === "signed_in" && user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label="Account menu"
-                className="ml-1 inline-flex items-center justify-center h-9 px-2.5 rounded-full bg-brand-tint text-brand-d hover:bg-brand-tint/80 transition-colors gap-1.5 text-[12px] font-medium"
-              >
-                <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-brand text-paper text-[10.5px] font-semibold tracking-tight">
-                  {initials ?? <UserIcon size={12} strokeWidth={1.75} />}
-                </span>
-                <span className="hidden sm:inline max-w-[120px] truncate">
-                  {displayName ?? user.email}
-                </span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-surface border-rule-strong w-56">
-              <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.08em] text-ink-mute font-medium">
-                Signed in as
-              </DropdownMenuLabel>
-              <div className="px-2 pb-1.5 text-[12px] text-ink truncate">{user.email}</div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-[13px] cursor-pointer"
-                onClick={() => navigate("/settings")}
-              >
-                <SettingsIcon size={14} strokeWidth={1.75} className="mr-2" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-[13px] cursor-pointer"
-                onClick={() => navigate("/pricing")}
-              >
-                <CreditCard size={14} strokeWidth={1.75} className="mr-2" />
-                Plan & billing
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-[13px] cursor-pointer"
-                onClick={async () => {
-                  const { error } = await signOut();
-                  toast({
-                    title: error ? "Couldn't sign out" : "Signed out",
-                    description: error?.message,
-                    variant: error ? "destructive" : undefined,
-                  });
-                  if (!error) navigate("/", { replace: true });
-                }}
-              >
-                <LogOut size={14} strokeWidth={1.75} className="mr-2" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <AccountMenu />
         ) : (
           <button
             onClick={() => navigate("/login")}

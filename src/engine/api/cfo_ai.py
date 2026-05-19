@@ -11,9 +11,12 @@ their statuses) lives in Postgres via the storage adapter.
 from __future__ import annotations
 
 from datetime import date as Date, datetime
+import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
@@ -128,11 +131,21 @@ class LlmChatRequest(BaseModel):
     plus an optional `dataset_summary` snapshot so the model is grounded in
     the operator's current portfolio. When ANTHROPIC_API_KEY isn't set the
     endpoint returns a friendly fallback so the UI never breaks.
+
+    `mode` selects the system-prompt persona:
+      · "inventory" (default) — the SKU/inventory-CFO persona used by the
+        existing chat-copilot drawer; "kEUR / DIO / CCC" vocabulary.
+      · "workspace" — the universal Ask-CFO-AI tab persona. Open-domain
+        assistant (finance, strategy, industry, the app, general
+        knowledge) that grounds company-specific answers in the active
+        period's workspace context and never fabricates the user's own
+        figures. Picks up dataset_summary as the workspace snapshot.
     """
     messages: List[LlmChatMessage] = Field(..., min_length=1, max_length=200)
     dataset_summary: Optional[str] = None
     page: str = "Today"
     company_name: str = "Demo workspace"
+    mode: Optional[str] = None  # "inventory" (default) | "workspace"
 
 
 # ─── Conversion helpers ──────────────────────────────────────────────────
@@ -561,7 +574,10 @@ def create_cfo_router(
     # absent so the UI never shows "I track 0 categories" stubs.
 
     @router.post("/chat/llm")
-    def chat_llm(req: LlmChatRequest) -> Dict[str, Any]:
+    def chat_llm(
+        req: LlmChatRequest,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
         import os
         key = os.environ.get("ANTHROPIC_API_KEY")
         if not key:
@@ -575,20 +591,67 @@ def create_cfo_router(
                 "usage": None,
             }
 
+        # Pricing V3 — atomic chat-cap reservation BEFORE the Opus call.
+        # When `Authorization: Bearer …` is missing the call still runs
+        # (legacy callers don't auth this endpoint). When a JWT is
+        # present we resolve the user and apply daily+monthly caps via
+        # `_usage_gate.reserve_chat`. The reservation is committed on
+        # success (Opus returned a response) or released on exception
+        # (gap D, optional for chat — same principle as documents).
+        # No-op while USAGE_LIMITS_ENABLED is unset.
+        _v3_user_id: Optional[str] = None
+        if authorization and authorization.lower().startswith("bearer "):
+            from . import _usage_gate as _ug, _supabase as _sb
+            jwt = authorization.split(" ", 1)[1].strip()
+            try:
+                with _sb.per_user(jwt) as _c:
+                    user = _c.get_user(jwt)
+                _v3_user_id = (user or {}).get("id") if user else None
+            except Exception:  # noqa: BLE001
+                _v3_user_id = None
+            if _v3_user_id:
+                decision = _ug.reserve_chat(_v3_user_id)
+                if decision.kind not in ("allowed", "disabled"):
+                    raise HTTPException(
+                        status_code=429,
+                        detail={
+                            "code": "chat_cap_reached",
+                            "kind": decision.kind,
+                            "plan_key": decision.plan_key,
+                            "daily_used": decision.daily_used,
+                            "daily_cap": decision.daily_cap,
+                            "monthly_used": decision.monthly_used,
+                            "monthly_cap": decision.monthly_cap,
+                            "message": decision.message,
+                            "upgrade_url": "/pricing",
+                        },
+                    )
+
         try:
             from anthropic import Anthropic
         except ImportError:
             return {"answer": "anthropic SDK is not installed.", "model": None, "usage": None}
 
-        client = Anthropic(api_key=key)
+        # max_retries=5 covers transient Opus 529 overloads.
+        client = Anthropic(api_key=key, max_retries=5, timeout=120.0)
 
         # System prompt — persona + grounding. Cached so the per-turn cost
         # is dominated by the user's question, not the system instructions.
-        system_text = _build_chat_system_prompt(
-            page=req.page,
-            company_name=req.company_name,
-            dataset_summary=req.dataset_summary,
-        )
+        # `mode="workspace"` selects the universal Ask-CFO-AI persona used
+        # by the /chat tab; default is the inventory-CFO persona used by
+        # the legacy chat-copilot drawer.
+        if (req.mode or "").strip().lower() == "workspace":
+            system_text = _build_workspace_chat_system_prompt(
+                page=req.page,
+                company_name=req.company_name,
+                dataset_summary=req.dataset_summary,
+            )
+        else:
+            system_text = _build_chat_system_prompt(
+                page=req.page,
+                company_name=req.company_name,
+                dataset_summary=req.dataset_summary,
+            )
 
         try:
             resp = client.messages.create(
@@ -607,6 +670,14 @@ def create_cfo_router(
                 output_config={"effort": "high"},
             )
         except Exception as e:  # noqa: BLE001
+            # Pricing V3 gap D — Opus errored. Release the reservation
+            # so this failed call doesn't count toward the user's caps.
+            if _v3_user_id:
+                from . import _usage_gate as _ug
+                try:
+                    _ug.release_chat(_v3_user_id)
+                except Exception:
+                    logger.exception("[chat] release_chat failed")
             return {
                 "answer": f"Couldn't reach Claude: {e}. Try again in a moment.",
                 "model": "claude-opus-4-7",
@@ -616,6 +687,15 @@ def create_cfo_router(
         text = "".join(
             getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text"
         ).strip()
+
+        # Pricing V3 gap D — Opus returned cleanly. Commit the
+        # reservation now: this turn counts toward the user's caps.
+        if _v3_user_id:
+            from . import _usage_gate as _ug
+            try:
+                _ug.commit_chat(_v3_user_id)
+            except Exception:
+                logger.exception("[chat] commit_chat failed")
 
         return {
             "answer": text,
@@ -977,6 +1057,93 @@ def _build_chat_system_prompt(
             "tell them to upload a workbook from the sidebar to get "
             "grounded answers, then offer general CFO guidance for the "
             "topic they raised.\n"
+        )
+
+    return persona + page_line + company_line + grounding
+
+
+def _build_workspace_chat_system_prompt(
+    *,
+    page: str,
+    company_name: str,
+    dataset_summary: Optional[str],
+) -> str:
+    """System prompt for the universal Ask-CFO-AI workspace chat tab.
+
+    Per the human's explicit, recorded choice: this is a genuinely
+    open-domain assistant ("ask anything") that also carries the user's
+    active-period workspace context. Open-domain answers (general
+    finance / strategy / industry / tax theory / general knowledge) are
+    answered fully, ChatGPT-style.
+
+    The single hard boundary is correctness of THIS user's own figures:
+    workspace numbers must come only from the dataset_summary passed in
+    here. If a requested company figure isn't in the snapshot, the model
+    says so plainly — it does not guess the user's numbers.
+
+    Standard general-answer disclosure is rendered persistently in the
+    UI near the chat input (a single line, not per-message), so the
+    system prompt does not need to repeat it on every turn.
+    """
+    persona = (
+        "You are CFO AI, a capable general assistant with access to the "
+        "user's CFO AI financial workspace. Answer any question helpfully "
+        "— finance, strategy, industry, the app itself, general knowledge. "
+        "You are NOT a refuse-everything-ungrounded bot; open-domain "
+        "questions are welcome and should be answered with the same care "
+        "as a knowledgeable colleague would.\n\n"
+        "Voice:\n"
+        "  · Direct, specific, warm. Skip preambles like \"Great "
+        "question!\" or \"That's an interesting one\".\n"
+        "  · Use markdown for structure when it helps — short headers, "
+        "bullet lists, bold for key numbers.\n"
+        "  · Multi-turn — earlier turns are context for the next one.\n\n"
+        "Workspace grounding rules (non-negotiable):\n"
+        "  · When you state a number about THIS user's company, it must "
+        "come from the workspace snapshot below. Cite the period and the "
+        "figure (e.g. \"FY2025 EBITDA of 2.13M RON, from the snapshot\").\n"
+        "  · If the user asks for a specific company figure that is NOT "
+        "in the snapshot, say so plainly. Do not guess, infer, or "
+        "fabricate the user's own numbers. Suggest they upload the "
+        "relevant document or check the active period.\n"
+        "  · General-knowledge numbers (e.g. typical industry margins, "
+        "WACC ranges, benchmark ratios) are fine to share as general "
+        "guidance, but make clear they are NOT this user's data.\n\n"
+        "Open-domain latitude:\n"
+        "  · You may discuss accounting concepts, Romanian RAS / IFRS "
+        "differences, tax theory, valuation methodology, M&A processes, "
+        "strategy frameworks, or anything else the user asks. You are "
+        "not required to refuse non-workspace topics.\n"
+        "  · For Romanian regulatory / tax / legal specifics, advise the "
+        "user to confirm with a qualified Romanian advisor before acting "
+        "— the persistent disclosure in the UI states this; you can echo "
+        "it briefly when relevant but do not nag.\n\n"
+        "Final-decision posture:\n"
+        "  · Frame recommendations as analysis, not commands. \"The data "
+        "suggests\", \"a CFO playbook here would be\", \"if it were my "
+        "call\". Final decisions remain with the user.\n"
+    )
+
+    page_line = f"\nThe operator is currently viewing the {page} page."
+    company_line = f"\nCompany context: {company_name}."
+
+    if dataset_summary and dataset_summary.strip():
+        grounding = (
+            "\n\n=== Active workspace snapshot ===\n"
+            + dataset_summary.strip()
+            + "\n=== End snapshot ===\n"
+            "\n"
+            "Use this snapshot for any company-specific answer. Cite the "
+            "period and the figure when you do. If something the user "
+            "asks about isn't in this snapshot, say so — never guess "
+            "their numbers.\n"
+        )
+    else:
+        grounding = (
+            "\n\nNo workspace data is loaded yet. Open-domain questions "
+            "remain fully answerable; for any question that needs THIS "
+            "user's specific company figures, tell them to load a period "
+            "from the Dashboard first.\n"
         )
 
     return persona + page_line + company_line + grounding

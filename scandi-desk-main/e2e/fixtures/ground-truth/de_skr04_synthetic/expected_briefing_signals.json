@@ -1,0 +1,48 @@
+{
+  "_status": "DRAFT — synthetic SKR 04 services firm. The most important assertion: briefing must reference account 4000 (SKR 04) NOT 8400 (SKR 03).",
+
+  "must_contain_any_of_each_group": [
+    {
+      "group": "company_identification",
+      "examples": ["Berger", "GmbH", "Beratung", "services", "professional services"]
+    },
+    {
+      "group": "operational_revenue",
+      "examples": [
+        "4,960,000", "4.96M", "EUR 4.96",
+        "Umsatzerlöse", "Inland",
+        "4000", "4100"
+      ]
+    },
+    {
+      "group": "high_gross_margin",
+      "examples": [
+        "EBITDA", "24.5%", "1.21M", "1,213,400", "1.2M",
+        "margin", "professional services", "services"
+      ]
+    }
+  ],
+
+  "optional_groups_observed": [
+    {"group": "skr04_specific", "examples": ["SKR 04", "Umsatzerlöse Inland"]},
+    {"group": "near_zero_net_debt", "examples": ["net cash", "350,000", "no material debt", "comfortable"]}
+  ],
+
+  "must_NOT_contain": [
+    {
+      "key": "wrong_8400_revenue",
+      "value_patterns": ["8400", "Erlöse 19% USt 8400"],
+      "rationale": "8400 is SKR 03's revenue. If the briefing mentions 8400 the detector misclassified."
+    },
+    {
+      "key": "wrong_bank_at_1200",
+      "value_patterns": ["bank at 1200", "1200 bank"],
+      "rationale": "In SKR 04, 1200 is AR, not bank. Detection failure if briefing says 1200 is bank."
+    }
+  ],
+
+  "structural_requirements": {
+    "min_length_chars": 350,
+    "must_have_followups": true
+  }
+}

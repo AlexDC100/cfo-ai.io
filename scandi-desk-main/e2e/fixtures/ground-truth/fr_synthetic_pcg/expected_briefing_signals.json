@@ -1,0 +1,56 @@
+{
+  "_status": "DRAFT — synthetic fixture for French PCG. Keywords reflect the briefing the pipeline should produce once detection routes the file through pcg_2014 mappings.",
+
+  "must_contain_any_of_each_group": [
+    {
+      "group": "company_identification",
+      "examples": ["SARL", "Atelier", "France", "French", "industrial", "manufacturing"]
+    },
+    {
+      "group": "operational_revenue_corrected",
+      "examples": [
+        "3,517,000", "3,517,000.00", "3.52M", "3.5M", "EUR 3.5",
+        "ventes de produits", "prestations de services",
+        "701", "706", "707"
+      ],
+      "_note": "MUST quote operational revenue (701+706+707), NOT inflated 3.57M+ that includes 72/78/79."
+    },
+    {
+      "group": "leverage_framing",
+      "examples": [
+        "620,000", "620K", "0.62M",
+        "leverage", "debt-to-EBITDA", "interest coverage",
+        "Debt/EBITDA", "1.45×"
+      ]
+    },
+    {
+      "group": "ebitda_or_profitability",
+      "examples": [
+        "EBITDA",
+        "426,100", "0.43M", "12%", "12.1%",
+        "operating profit", "operating margin", "marge opérationnelle"
+      ]
+    }
+  ],
+
+  "optional_groups_observed": [
+    {"group": "capitalized_own_work_trap", "examples": ["72", "production immobilisée", "capitalized own-work"]},
+    {"group": "provision_reversals_78", "examples": ["78", "reprises", "non-recurring"]},
+    {"group": "cost_transfers_79", "examples": ["79", "transferts de charges"]},
+    {"group": "subsidies_74", "examples": ["74", "subvention", "subsidy"]}
+  ],
+
+  "must_NOT_contain": [
+    {
+      "key": "wrong_revenue_inflated",
+      "value_patterns": ["3,587,100", "3.59M"],
+      "rationale": "If 72/74/78/79 are folded into revenue the headline overstates."
+    }
+  ],
+
+  "structural_requirements": {
+    "min_length_chars": 400,
+    "must_use_markdown_headers": false,
+    "must_have_followups": true
+  }
+}

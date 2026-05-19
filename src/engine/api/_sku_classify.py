@@ -109,24 +109,46 @@ def classify(sku: Dict[str, Any], peer: PeerPercentiles) -> Dict[str, Any]:
     volume = float(sku.get("volume", 0) or 0)
     dio = float(sku.get("days_inventory_on_hand", 0) or 0)
 
-    # 1. Eliminate vs wind-down — real margin is the kill signal.
-    if rm_pct < -0.05 and volume > peer.volume_p10:
+    # 1. Eliminate — ANY negative real margin is a kill signal.
+    # Previously split between `eliminate` (high volume + steep bleed) and
+    # `wind_down` (any negative + sub-decile volume). Operator feedback:
+    # every loss-maker belongs in one place, regardless of size — small-
+    # volume bleeders are STILL bleeders, and bundling them with the
+    # "thin-margin watch list" hides the signal. So: rm_pct < 0 → eliminate,
+    # full stop. Confidence + reason text adjust with severity / volume so
+    # the user can still triage which to cut first.
+    if rm_pct < 0:
+        is_material_volume = volume > peer.volume_p10
+        is_severe_bleed = rm_pct < -0.05
+        if is_severe_bleed and is_material_volume:
+            reason = (
+                f"Real margin {rm_pct*100:.1f}% — bleeds money on every unit. "
+                f"Material volume ({volume:.1f}) makes this a priority cut."
+            )
+            confidence = 0.95
+        elif is_severe_bleed:
+            reason = (
+                f"Real margin {rm_pct*100:.1f}% — heavy per-unit loss on "
+                f"sub-decile volume ({volume:.1f}). Cut on next ranging review."
+            )
+            confidence = 0.90
+        elif is_material_volume:
+            reason = (
+                f"Negative real margin ({rm_pct*100:.1f}%) on material "
+                f"volume ({volume:.1f}) — every unit costs the business."
+            )
+            confidence = 0.90
+        else:
+            reason = (
+                f"Negative real margin ({rm_pct*100:.1f}%) — loss-maker. "
+                f"Volume is small ({volume:.1f}) so cash impact is limited, "
+                f"but cut to clean up the portfolio."
+            )
+            confidence = 0.80
         return {
             "classification": "eliminate",
-            "classification_reason": f"Real margin {rm_pct*100:.1f}% — bleeds money on every unit. Material volume ({volume:.1f}) makes this a priority cut.",
-            "classification_confidence": 0.95,
-        }
-    if rm_pct < 0 and volume <= peer.volume_p10:
-        return {
-            "classification": "wind_down",
-            "classification_reason": f"Negative real margin ({rm_pct*100:.1f}%) and sub-decile volume — wind down rather than urgent cut.",
-            "classification_confidence": 0.85,
-        }
-    if rm_pct < -0.02:
-        return {
-            "classification": "eliminate",
-            "classification_reason": f"Negative real margin {rm_pct*100:.1f}% — every unit costs the business.",
-            "classification_confidence": 0.85,
+            "classification_reason": reason,
+            "classification_confidence": confidence,
         }
 
     # 2. Anchor — top-decile profit + healthy margin.

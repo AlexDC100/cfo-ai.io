@@ -1,0 +1,74 @@
+{
+  "_status": "DRAFT — synthetic. Will iterate after first pipeline run lands.",
+  "currency": "EUR",
+  "period_end": "2025-12-31",
+  "tolerance_pct": 0.02,
+
+  "balance_sheet": {
+    "assets": {
+      "cash":                   403400.00,
+      "accountsReceivable":     760800.00,
+      "inventory":              924500.00,
+      "otherCurrentAssets":     106600.00,
+      "_ppe_gross":            1972000.00,
+      "intangibles":            102500.00,
+      "total_assets":          4269800.00
+    },
+    "liabilities_equity": {
+      "accountsPayable":         412700.00,
+      "otherCurrentLiab":        503100.00,
+      "shortTermDebt":           180000.00,
+      "longTermDebt":                 0.00,
+      "shareCapital":            100000.00,
+      "otherEquity":             700000.00,
+      "retainedEarnings":       1356800.00,
+      "total_liabilities_equity": 3252600.00,
+      "_imbalance_note": "Synthetic — assets > L+E by ~1M; missing long-term debt counterpart for the geschäftsbauten financing typical of this profile. Will refine."
+    }
+  },
+
+  "income_statement_ytd": {
+    "revenue_operational":     7998400.00,
+    "_revenue_components": {
+      "8400_inland_19_USt":    4820000.00,
+      "8125_innergem_export":  1480000.00,
+      "8300_inland_7_USt":      720000.00,
+      "8200_misc":              980000.00,
+      "_subtotal_revenue":     8000000.00
+    },
+    "_other_operating_income": {
+      "8336_erlose_schrott":     18400.00,
+      "2820_aoEr":                8500.00
+    },
+    "cogs":                    6278500.00,
+    "_cogs_components": {
+      "3400_wareneingang_19":  4580000.00,
+      "3300_wareneingang_7":    240000.00,
+      "3000_RHB_consumption":  1420000.00,
+      "3001_bezugskosten":       38500.00
+    },
+    "gross_profit":            1721500.00,
+    "operating_expenses": {
+      "4100_lohne":             482000.00,
+      "4120_gehalter":          384000.00,
+      "4130_soz_aufw":          196500.00,
+      "4138_BG":                 18400.00,
+      "4140_freiwillig_soz":     12800.00,
+      "4210_miete":              96000.00,
+      "4380_kfz":                42400.00,
+      "49x_office":             154400.00,
+      "total":                 1386500.00
+    },
+    "ebitda_operational":       335000.00,
+    "_ebitda_note": "Operational EBITDA margin 4.2% — within typical FMCG-distribution band (3-7%). 8M revenue is the launch fixture profile.",
+    "depreciation_amortization": 198700.00,
+    "ebit":                     136300.00,
+    "interest_expense":          44600.00,
+    "interest_income":            4200.00,
+    "pretax_income":             95900.00,
+    "tax_expense":              217700.00,
+    "net_income_computed":     -121800.00,
+    "_native_check_account_0870": 524300.00,
+    "_native_check_note": "Synthetic — value of 0870 (524,300) overstates computed net income vs reconstruction; opex/COGS may need calibration."
+  }
+}

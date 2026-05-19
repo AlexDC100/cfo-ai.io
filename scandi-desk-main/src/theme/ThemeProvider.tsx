@@ -11,10 +11,12 @@
 // brief `theme-flipping` class trick if we ever want to coordinate a more
 // elaborate transition than the 220ms CSS rule in index.css.
 
-import {
-  ThemeProvider as NextThemesProvider,
-  type ThemeProviderProps,
-} from "next-themes";
+import { ComponentProps } from "react";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
+
+// next-themes ≥0.3 removed the named `ThemeProviderProps` export; derive
+// the prop type from the component itself so we don't break on upgrades.
+type ThemeProviderProps = ComponentProps<typeof NextThemesProvider>;
 
 export type CFOThemeProviderProps = Omit<ThemeProviderProps, "attribute" | "enableSystem"> & {
   attribute?: ThemeProviderProps["attribute"];

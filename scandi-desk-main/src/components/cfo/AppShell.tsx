@@ -12,8 +12,8 @@
 // Sidebar collapses into a Sheet drawer below lg. The floating "Ask CFO AI"
 // pill sits bottom-right on every viewport.
 
-import { ReactNode, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { ReactNode, useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Sheet,
   SheetContent,
@@ -21,15 +21,30 @@ import {
 } from "@/components/ui/sheet";
 import { TopHeader } from "./TopHeader";
 import { Sidebar } from "./Sidebar";
-import { FloatingAiButton } from "./FloatingAiButton";
-import { CommandDrawer } from "./CommandDrawer";
-import { ChatCopilot } from "./ChatCopilot";
+// FloatingAiButton import removed — see comment in JSX below.
+// App-shell cleanup Phase 4 — the legacy CommandDrawer is replaced by
+// CommandCenter (4 tabs: Workspace / Data / AI / Account, live state
+// card, registry-driven row gating, single sign-out). The old file
+// stays on disk one release for reversibility.
+import { CommandCenter } from "./command";
+// NOTE: `ChatCopilot` is intentionally NOT imported here any more.
+// The new chat experience ships in two surfaces that share the same
+// components: the full `/chat` page (Chat.tsx → CFOChatShell variant=page)
+// and a right-anchored slide-over panel (CFOChatPanel) mounted here so
+// every other route can summon "Ask CFO AI" without losing context.
+// ChatCopilot.tsx remains on disk for reversibility.
 import { SearchDialog } from "./SearchDialog";
 import { UploadDialog } from "./UploadDialog";
 import { DocsPanel } from "./DocsPanel";
 import { DatasetsPanel } from "./DatasetsPanel";
+import { CFOChatPanel } from "./chat/CFOChatPanel";
+import { getChatShellRef } from "./chat/sharedShellRef";
+import { OPEN_ASK_CFO_AI_EVENT, type OpenAskCfoAiDetail } from "./chat/openAskCfoAi";
+import { useActivePeriod } from "@/lib/activePeriod";
+import { useAuth } from "@/lib/auth";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   children: ReactNode;
@@ -38,11 +53,110 @@ interface Props {
 
 export function AppShell({ children }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [params] = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  // Optional prefill payload — pages can dispatch the
+  // `cfo-ai-open-ask` event with a prompt to drop the composer into
+  // an "already typed for you, hit Enter" state.
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+
+  // Cross-page listener: any page can `openAskCfoAi("Which SKUs…")`
+  // and the panel pops open with the text waiting in the composer.
+  // The handler dispatches even when already on /chat — in that case
+  // the shell's focusComposer + setText path is what runs (see
+  // openAskCfoAi handler below).
+  useEffect(() => {
+    function onEvt(e: Event) {
+      const ce = e as CustomEvent<OpenAskCfoAiDetail>;
+      const prompt = ce.detail?.prompt ?? null;
+      if (location.pathname.startsWith("/chat")) {
+        // Already on the chat page — push the prefill into the live
+        // composer and focus it. No panel mount, no overlay.
+        const handle = getChatShellRef();
+        if (handle) {
+          if (prompt) handle.setComposer(prompt);
+          else handle.focusComposer();
+          return;
+        }
+      }
+      // Not on /chat — open the slide-over panel with the prompt
+      // queued; CFOChatPanel will deliver it on first render.
+      if (prompt) setPendingPrompt(prompt);
+      setChatPanelOpen(true);
+    }
+    window.addEventListener(OPEN_ASK_CFO_AI_EVENT, onEvt as EventListener);
+    return () => window.removeEventListener(OPEN_ASK_CFO_AI_EVENT, onEvt as EventListener);
+  }, [location.pathname]);
+
+  // Active-period context for the slide-over panel. The full /chat
+  // page already pulls this directly; mounting the same hook here lets
+  // the panel ground answers in the user's loaded period from any route.
+  const activePeriod = useActivePeriod();
+  const panelSnapshot = activePeriod.id ? buildPanelSnapshot(activePeriod) : undefined;
+
+  // Mirror the sidebar's collapsed-rail flag (persisted in localStorage
+  // by Sidebar.tsx under key `cfo-ai-sidebar-collapsed-v1`). The main
+  // content's left padding follows the rail width so the content
+  // doesn't get clipped (240px expanded → 68px collapsed). Reactive to
+  // both localStorage changes from this tab (custom event) and other
+  // tabs (`storage` event).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return window.localStorage.getItem("cfo-ai-sidebar-collapsed-v1") === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    function read() {
+      if (typeof window === "undefined") return;
+      try { setSidebarCollapsed(window.localStorage.getItem("cfo-ai-sidebar-collapsed-v1") === "1"); }
+      catch { /* private mode */ }
+    }
+    function onStorage(e: StorageEvent) {
+      if (e.key === "cfo-ai-sidebar-collapsed-v1") read();
+    }
+    // Custom in-tab event so the same tab's collapse-toggle click also
+    // updates the main padding without waiting for a re-render race.
+    function onCustom() { read(); }
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("cfo-ai-sidebar-collapsed", onCustom);
+    // Re-read on focus too — covers edge cases where the page was hidden.
+    window.addEventListener("focus", read);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("cfo-ai-sidebar-collapsed", onCustom);
+      window.removeEventListener("focus", read);
+    };
+  }, []);
+
+  // "Ask CFO AI" smart-open:
+  //   · On /chat: focus the live composer (no nav, no overlay — the user
+  //     is already in the assistant). Falls back to opening the panel
+  //     only if the shell ref hasn't published yet (first paint).
+  //   · Elsewhere: open the right-anchored slide-over panel that mounts
+  //     the SAME conversation engine + history + composer as /chat.
+  const openAskCfoAi = useCallback(() => {
+    if (location.pathname.startsWith("/chat")) {
+      const handle = getChatShellRef();
+      if (handle) {
+        handle.focusComposer();
+        return;
+      }
+    }
+    setChatPanelOpen(true);
+  }, [location.pathname]);
+
+  // The previous behaviour was to fully navigate the user from any
+  // surface to /chat. That broke flow — opening a side panel keeps the
+  // benchmark / dashboard / products page they were on. The expanded
+  // "Open page" affordance inside the panel header still lets them
+  // jump to the full surface when they want it. ?period= is preserved
+  // there.
+  void params; // (param-preservation handled by CFOChatPanel.expandToPage)
   // Slide-out panels — when either is open on wide screens, main
   // content reflows left to avoid being covered.
   const [docsOpen] = useDocsPanelOpen();
@@ -61,18 +175,37 @@ export function AppShell({ children }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Sidebar footer — only Settings remains; Upload was removed in the
-  // upload-consolidation pass. Upload entry points now live exclusively on
-  // /dashboard (empty-state zone + Replace dropdown).
+  // Sidebar handlers. `onOpenCommandCenter` is the relocated CC trigger
+  // (System group below Settings). `onSignOut` USED to drive a Sidebar
+  // sign-out row; the row was removed in the May 2026 redesign and the
+  // THE single sign-out now lives in the top-right <AccountMenu/>
+  // (`data-testid="account-menu-sign-out"`). The handler is still wired
+  // through to Sidebar so a future revert is one-line JSX restore, not
+  // a propagating prop change.
+  const { signOut } = useAuth();
+  const { toast } = useToast();
   const sidebarHandlers = {
     onSettings: () => navigate("/settings"),
+    onOpenCommandCenter: () => setDrawerOpen(true),
+    onSignOut: async () => {
+      const { error } = await signOut();
+      if (error) {
+        toast({
+          title: "Sign-out failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({ title: "Signed out" });
+      navigate("/login", { replace: true });
+    },
   };
 
   return (
     <div className="min-h-screen bg-bg text-ink">
       <TopHeader
-        onOpenAi={() => setChatOpen(true)}
-        onOpenCommand={() => setDrawerOpen(true)}
+        onOpenAi={openAskCfoAi}
         onOpenSidebar={() => setSidebarOpen(true)}
       />
 
@@ -113,25 +246,70 @@ export function AppShell({ children }: Props) {
       {/* Main content — offset for the fixed header + sidebar. When any
           slide-out is open on wide screens (≥1280px) the content shifts
           left by the panel's width so nothing is hidden. */}
-      <main className={`pt-16 lg:pl-[240px] ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
+      <main className={`pt-16 ${sidebarCollapsed ? "lg:pl-[68px]" : "lg:pl-[244px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
         <div className="px-5 sm:px-8 lg:px-10 py-8 sm:py-10 lg:py-12 pb-32">
           {children}
         </div>
       </main>
 
-      <FloatingAiButton onClick={() => setChatOpen(true)} />
+      {/* Floating Ask CFO AI launcher removed per the operator's
+          directive. `openAskCfoAi` is still wired below for the
+          slide-over panel — invoked by Command Center → Workspace
+          tab, by in-page chips that dispatch OPEN_ASK_CFO_AI_EVENT,
+          and by the keyboard shortcut. Component file
+          FloatingAiButton.tsx remains on disk for revert. */}
+
+      {/* Slide-over Ask CFO AI panel — shown from any non-/chat route.
+       *  Reuses CFOChatShell (variant="panel") which mounts the same
+       *  conversation store, history sidebar, message components, and
+       *  composer as the /chat page. */}
+      <CFOChatPanel
+        open={chatPanelOpen}
+        onClose={() => { setChatPanelOpen(false); setPendingPrompt(null); }}
+        workspaceSnapshot={panelSnapshot}
+        periodId={activePeriod.id}
+        periodLabel={activePeriod.label}
+        companyName={activePeriod.statements?.companyName ?? null}
+        prefillPrompt={pendingPrompt}
+        onPrefillConsumed={() => setPendingPrompt(null)}
+      />
 
       {/* Overlays */}
-      <CommandDrawer
+      <CommandCenter
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        onOpenAi={() => setChatOpen(true)}
-        onOpenSearch={() => setSearchOpen(true)}
+        onOpenAi={openAskCfoAi}
         onOpenUpload={() => setUploadOpen(true)}
       />
-      <ChatCopilot open={chatOpen} onOpenChange={setChatOpen} />
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
       <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />
     </div>
   );
+}
+
+// ─── Workspace snapshot for the slide-over ────────────────────────
+// Compact serialisation of the active period so the panel can ground
+// answers from any route. Mirrors the format used by the /chat page
+// (intentionally identical so an answer asked from the panel matches
+// what /chat would return for the same prompt). No engine recompute —
+// pure formatting of values the engine already emits.
+type ActivePeriod = ReturnType<typeof useActivePeriod>;
+function buildPanelSnapshot(p: ActivePeriod): string | undefined {
+  if (!p.id) return undefined;
+  const lines: string[] = [];
+  lines.push(`Period: ${p.label ?? p.id}`);
+  if (p.statements?.companyName) lines.push(`Company: ${p.statements.companyName}`);
+  if (p.industry) lines.push(`Industry: ${p.industry}`);
+  if (p.metrics && p.metrics.length > 0) {
+    lines.push("\nHeadline metrics:");
+    for (const m of p.metrics) {
+      if (m.value === null || m.value === undefined) continue;
+      lines.push(`  · ${m.name}: ${m.value}${m.unit ? " " + m.unit : ""}`);
+    }
+  }
+  if (p.briefing) {
+    lines.push("\nPrior briefing:");
+    lines.push(p.briefing.trim());
+  }
+  return lines.join("\n");
 }

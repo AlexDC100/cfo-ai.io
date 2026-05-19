@@ -1,0 +1,35 @@
+{
+  "_status": "DRAFT — synthetic, retail distribution.",
+  "tolerance_pct": 0.05,
+
+  "leverage": {
+    "total_debt":              748500.00,
+    "total_debt_minus_cash":   561400.00,
+    "debt_to_equity":            0.748,
+    "debt_to_ebitda":            0.912
+  },
+  "coverage": {
+    "interest_coverage_ebitda": 28.89,
+    "_interest_coverage_note":  "EBITDA 820k / interest 28.4k. Strong."
+  },
+  "liquidity": {
+    "current_ratio":            1.32
+  },
+  "profitability": {
+    "revenue_operational":     4037700.00,
+    "gross_margin_pct":         0.442,
+    "_gross_margin_note":       "44% gross margin — high for retail (typical 25-35%). Synthetic likely understates COGS.",
+    "ebitda_margin_operational_pct": 0.203,
+    "_ebitda_margin_note":      "20% EBITDA margin — high for retail. Synthetic; refine."
+  },
+  "valuation_primary": {
+    "method":              "ev_ebitda_peer_multiple",
+    "industry":            "retail",
+    "_industry_band":      "Damodaran Retail (General) 2026 P25-P50-P75 = 7.0× - 10.0× - 14.0×",
+    "ebitda_basis":        820500.00,
+    "equity_p50_estimate": 7644000.00,
+    "_equity_p50_note":    "EBITDA 820k × P50 10× = EV 8.21M − net debt 561k + cash 187k = equity ~7.83M.",
+    "confidence":          "medium",
+    "_confidence_note":    "Synthetic EBITDA margin is uncharacteristically high — actual retail SLs run thinner; revenue-multiple cross-check (peer P50 0.9× × 4M = 3.6M) is more conservative."
+  }
+}

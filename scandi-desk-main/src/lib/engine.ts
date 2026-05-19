@@ -254,7 +254,7 @@ export function rowsFromSheet(
 function toNum(v: unknown): number {
   if (v == null || v === "") return 0;
   if (typeof v === "number") return v;
-  const cleaned = String(v).replace(/[^\d,.\-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
+  const cleaned = String(v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
   const n = parseFloat(cleaned);
   return Number.isFinite(n) ? n : 0;
 }

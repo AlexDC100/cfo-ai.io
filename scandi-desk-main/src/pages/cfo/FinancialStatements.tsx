@@ -25,6 +25,20 @@ import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
+import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import { PLStatementView } from "@/components/cfo/PLStatementView";
+import { BSStatementView } from "@/components/cfo/BSStatementView";
+import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
+import { NavValuationView } from "@/components/cfo/NavValuationView";
+import {
+  EbitdaMultiplePrimaryCard,
+  ValuationCrossChecksDisclosure,
+  HeavyReReasonBanner,
+} from "@/components/cfo/EbitdaMultiplePrimaryCard";
+import { pickPLBuilder, buildPLStatementFromAggregates } from "@/lib/buildPlStatement";
+import { buildBSStatement } from "@/lib/buildBsStatement";
+import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
+import { buildNavCascade } from "@/lib/buildNavCascade";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -59,6 +73,7 @@ import {
   ClipboardPaste,
   FileSpreadsheet,
   FileText,
+  Info,
   Loader2,
   RefreshCw,
   Shield,
@@ -76,6 +91,7 @@ import {
   verdictColor,
   verdictLabel,
   type Ratio,
+  type RatioBundle,
   type Recommendation,
   type Statements,
 } from "@/lib/financialReport";
@@ -95,8 +111,16 @@ import {
 } from "@/lib/trialBalanceParser";
 import { downloadExcelReport } from "@/lib/financialExports";
 import { SAMPLE_DATASETS, SAMPLES_ENABLED } from "@/data/sampleStatements";
-import { useActivePeriod } from "@/lib/activePeriod";
+import { useActivePeriod, type PeriodValuation } from "@/lib/activePeriod";
+import { StatementNotes } from "@/components/cfo/StatementNotes";
+import { ValuationSection } from "@/components/cfo/ValuationSection";
+import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
+import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
+import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
 import { DocsToggle, useDocsCount } from "@/components/cfo/DocsPanel";
+import { PublicRecordsQuickCard } from "@/components/cfo/PublicRecordsQuickCard";
+import { DocumentSwitcher } from "@/components/cfo/DocumentSwitcher";
+import { PUBLIC_RECORDS_ENABLED } from "@/config/features";
 import {
   allTabs,
   disabledHint,
@@ -111,10 +135,11 @@ import {
   vatAnalytics,
   type Invoice,
 } from "@/lib/invoiceAnalytics";
-import { CustomersTab } from "./dashboard/tabs/CustomersTab";
-import { PaymentsTab } from "./dashboard/tabs/PaymentsTab";
-import { VatTab } from "./dashboard/tabs/VatTab";
-import { MarginTab } from "./dashboard/tabs/MarginTab";
+// CustomersTab / PaymentsTab / MarginTab / VatTab were removed in the
+// 9-tab restructure. Their canonical signals (customer concentration,
+// DSO, paid-on-time, net VAT) still surface as KPI tiles in the
+// `InvoiceKpiStrip` at the top of the page when invoice data is loaded.
+// The archived bottom-tab implementations live in src/_removed/tabs/.
 import { useToast } from "@/hooks/use-toast";
 
 export default function FinancialStatements() {
@@ -138,6 +163,11 @@ export default function FinancialStatements() {
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  // Pricing V3 — wraps enqueuePipeline so 402 (extra-doc) opens the
+  // confirm dialog, 429 (quota blocked) surfaces a toast, and queued
+  // proceeds normally. `uploadEnqueue.dialog` is rendered in JSX
+  // below so the modal lives in the same tree as the upload action.
+  const uploadEnqueue = useUploadEnqueue();
 
   // Hand-off slot — populated by /upload's "Run analysis" flow. We hydrate
   // statements + availableTypes here on mount so the page lights up with the
@@ -165,6 +195,23 @@ export default function FinancialStatements() {
     } catch {
       /* ignore — corrupted hand-off slot is non-fatal */
     }
+  }, []);
+
+  // ── Watchdog: on page load, ask the BE to re-enqueue any docs that got
+  // stuck at status='queued' with pipeline_started_at=null (i.e. uploaded
+  // but the worker thread never ran — typically /api/pipeline/run failed at
+  // upload moment). Idempotent. Without this, a user landing on Financial
+  // Statements after a backend hiccup sees their inflight doc spinning
+  // forever at "Step 0 of 6 · Queued for analysis…".
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { recoverStuckPipelines } = await import("@/lib/supabase");
+        await recoverStuckPipelines();
+      } catch {
+        /* non-fatal — page still renders */
+      }
+    })();
   }, []);
 
   // ─── Tab state + URL sync ───────────────────────────────────────────────
@@ -201,31 +248,97 @@ export default function FinancialStatements() {
     }, { replace: true });
   }
 
-  function applyTrialBalance(text: string) {
-    const result = parseTrialBalance(text);
-    if (result.lines.length === 0) {
+  async function applyTrialBalance(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    // Two-stage paste:
+    //   1. POST /api/paste-trial-balance → deterministic parse, get back
+    //      a canonical TSV with explicit column labels. Friendly error
+    //      surfaces here if the text isn't a parseable trial balance.
+    //   2. Wrap that canonical TSV as a synthetic File and run it through
+    //      the normal upload pipeline (Storage → documents row → enqueue
+    //      → Claude narrate). Claude sees clean data, no column-pairing
+    //      guesswork, so extraction is reliable.
+    const apiUrl =
+      (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+    const { getSupabase } = await import("@/lib/supabase");
+    const sb = getSupabase();
+    if (!sb) {
       toast({
-        title: "Could not parse trial balance",
-        description: "No lines starting with a 3- or 4-digit account code were detected. Check the format and try again.",
+        title: "Authentication isn't configured",
+        description: "Supabase env vars missing.",
         variant: "destructive",
       });
       return;
     }
-    const built = buildStatementsFromTrialBalance(result, {
-      companyName: "Imported entity",
-      currency: "RON",
-      periodLabel: "Imported period",
+    const { data: session } = await sb.auth.getSession();
+    const token = session.session?.access_token;
+    if (!token) {
+      toast({
+        title: "Sign in first",
+        description: "You need to be signed in to analyze trial balances.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let canonicalTsv = "";
+    let accountCount = 0;
+    try {
+      const r = await fetch(`${apiUrl}/api/paste-trial-balance`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: trimmed }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => null);
+        const detail =
+          (body && (body.detail?.message || body.detail)) ||
+          "Couldn't parse the pasted trial balance.";
+        toast({
+          title: "Couldn't parse pasted text",
+          description: friendlyUploadError(detail),
+          variant: "destructive",
+        });
+        return;
+      }
+      const body = await r.json();
+      canonicalTsv = body.canonical_tsv as string;
+      accountCount = body.accounts_parsed as number;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error.";
+      toast({
+        title: "Couldn't reach the backend",
+        description: friendlyUploadError(msg),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const ts = new Date()
+      .toISOString()
+      .replace(/[:T]/g, "-")
+      .replace(/\..+/, "");
+    const filename = `pasted_trial_balance_${ts}.tsv`;
+    const blob = new Blob([canonicalTsv], { type: "text/tab-separated-values" });
+    const file = new File([blob], filename, {
+      type: "text/tab-separated-values",
+      lastModified: Date.now(),
     });
-    setStatements(built);
-    setAvailableTypes(new Set(["bilant", "pl", "trial_balance"]));
-    setActiveSampleId("imported");
+
     setTbDialogOpen(false);
+    setTbInput("");
+
     toast({
-      title: `Parsed ${result.lines.length} accounts`,
-      description: result.unmatched.length
-        ? `${result.unmatched.length} unmatched line(s) — review the chart of accounts coverage.`
-        : "All lines mapped to standard schema.",
+      title: `Parsed ${accountCount} accounts`,
+      description: "Uploading the canonical trial balance for analysis…",
     });
+
+    await onFileChosen(file);
   }
 
   // Statements-derived metrics — only computed when statements is non-null,
@@ -263,7 +376,61 @@ export default function FinancialStatements() {
     setPeriodParam(found.id);
   }
 
-  function resetWorkspace() {
+  async function resetWorkspace() {
+    // Two phases:
+    //   1. If the URL has ?period=<uuid> AND it points to a real (non-
+    //      sample) period, delete it server-side. Without this step the
+    //      "Reset (clear period)" item only wiped local state — the period
+    //      and all its documents/line items/metrics stayed in the DB and
+    //      reappeared on next page load.
+    //   2. Always clear the local React state + URL so the dashboard
+    //      returns to the empty/upload state immediately.
+    const periodParam = searchParams.get("period");
+    const looksLikeUuid =
+      !!periodParam && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(periodParam);
+    if (looksLikeUuid) {
+      const ok = window.confirm(
+        "Clear this period? This permanently removes the analysis (P&L, balance sheet, ratios, briefing) " +
+          "and moves the attached document(s) to Recently deleted (restorable for 30 days). Cannot be undone.",
+      );
+      if (!ok) return;
+      try {
+        const { getSupabase } = await import("@/lib/supabase");
+        const sb = getSupabase();
+        const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
+        const token = session?.session?.access_token;
+        const apiUrl =
+          (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+        if (token) {
+          const r = await fetch(`${apiUrl}/api/period/${periodParam}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!r.ok) {
+            const body = await r.json().catch(() => null);
+            toast({
+              title: "Couldn't clear period",
+              description:
+                (body && (body.detail?.message || body.detail)) ||
+                "The server didn't accept the delete. Try again or refresh.",
+              variant: "destructive",
+            });
+            return;
+          }
+          toast({
+            title: "Period cleared",
+            description: "Analysis removed; documents moved to Recently deleted.",
+          });
+        }
+      } catch (err) {
+        toast({
+          title: "Couldn't reach the backend",
+          description: err instanceof Error ? err.message : "Network error.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     setStatements(null);
     setInvoices(null);
     setAvailableTypes(new Set());
@@ -326,7 +493,7 @@ export default function FinancialStatements() {
       return;
     }
     setUploadInFlight({ docId: "", filename: file.name, status: "queued" });
-    const { uploadDocument, enqueuePipeline, subscribeToDocumentStatus } =
+    const { uploadDocument, subscribeToDocumentStatus, getSupabase } =
       await import("@/lib/supabase");
     const { row, error } = await uploadDocument(file);
     if (!row) {
@@ -339,29 +506,79 @@ export default function FinancialStatements() {
       return;
     }
     setUploadInFlight({ docId: row.id, filename: file.name, status: "queued" });
-    const enqueued = await enqueuePipeline(row.id);
-    if (!enqueued) {
-      setUploadInFlight((prev) => prev && { ...prev, status: "failed", error: "Backend unreachable." });
-      toast({
-        title: "Couldn't start analysis",
-        description: "Backend is unreachable. The file uploaded but analysis didn't start.",
-        variant: "destructive",
-      });
+    // Pricing V3 — `enqueuePipeline` now returns a discriminated union.
+    // queued                → start polling status.
+    // extra_doc_required    → 402; the useUploadEnqueue hook opens the
+    //                         confirm dialog and re-enqueues on confirm.
+    //                         Here we treat any non-queued outcome as
+    //                         "don't start polling".
+    // quota_blocked         → 429; user is over cap with no extras path.
+    // transport_failed      → backend down / network error.
+    const enq = await uploadEnqueue.enqueue(row.id);
+    if (enq.kind !== "queued") {
+      const reason =
+        enq.kind === "quota_blocked"
+          ? enq.message
+          : enq.kind === "transport_failed"
+          ? enq.message
+          : "Upload was cancelled.";
+      setUploadInFlight((prev) => prev && { ...prev, status: "failed", error: reason });
       return;
     }
     const unsub = subscribeToDocumentStatus(row.id, (next) => {
       setUploadInFlight((prev) => prev && { ...prev, status: next.status, error: next.error });
-      if (next.status === "analyzed" && next.period_id) {
-        toast({
-          title: "Analysis ready",
-          description: `${file.name} loaded into Dashboard.`,
-        });
+      if (next.status === "analyzed") {
         unsub();
-        setSearchParams((prev) => {
-          const sp = new URLSearchParams(prev);
-          sp.set("period", next.period_id!);
-          return sp;
-        }, { replace: true });
+        void (async () => {
+          // Three terminal outcomes for "analyzed":
+          //   1. Public-records summary (listafirme/termene/firme.info)
+          //      → no period; route to /multi-year-history.
+          //   2. Financial doc with a period_id → /dashboard?period=<id>.
+          //   3. Analyzed with no period_id and not a public-records doc
+          //      → degraded; show toast + stay on this page (empty state).
+          //
+          // We probe for case 1 by hitting the public-records endpoint.
+          // DB CHECK constraint on documents.detected_type doesn't accept
+          // `public_records_summary`, so we can't rely on that column —
+          // the briefing.kind in sku_analyses is the canonical signal,
+          // surfaced via /api/public-records/by-document/{id}.
+          if (!next.period_id) {
+            try {
+              const sb = getSupabase();
+              const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
+              const token = session?.session?.access_token;
+              const apiUrl =
+                (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+              const r = await fetch(`${apiUrl}/api/public-records/by-document/${row.id}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+              if (r.ok) {
+                toast({
+                  title: "Multi-year history ready",
+                  description: `${file.name} parsed — view the trends.`,
+                });
+                window.location.href = `/multi-year-history?doc=${row.id}`;
+                return;
+              }
+            } catch { /* fall through */ }
+          }
+          if (next.period_id) {
+            toast({
+              title: "Analysis ready",
+              description: `${file.name} loaded into Dashboard.`,
+            });
+            setSearchParams((prev) => {
+              const sp = new URLSearchParams(prev);
+              sp.set("period", next.period_id!);
+              return sp;
+            }, { replace: true });
+          } else {
+            toast({
+              title: "Analysis complete",
+              description: `${file.name} processed but no financial period was created. The document type may not be supported.`,
+            });
+          }
+        })();
       }
       if (next.status === "failed") {
         unsub();
@@ -382,6 +599,10 @@ export default function FinancialStatements() {
 
   return (
     <AppShell>
+      {/* Pricing V3 — extra-doc confirm dialog mounts here so the modal
+          sits inside the same tree as the upload action. Renders `null`
+          unless the hook has a pending extra-doc decision. */}
+      {uploadEnqueue.dialog}
       {/*
         Phase F — two states, one route.
         ─────────────────────────────────
@@ -395,6 +616,31 @@ export default function FinancialStatements() {
         directly into State B (see useEffect above). The upload zone is
         verifiably absent in State B (acceptance F.5).
       */}
+      {/* Page-level hidden file input.
+        *
+        * Rendered ALWAYS (not nested inside UploadAndSamplePanel) so both
+        * states can trigger it via `fileRef.current?.click()`:
+        *   · State A (empty): the dropzone's "Choose a file" button
+        *   · State B (period loaded): the Replace dropdown's "Choose a file…"
+        *
+        * Bug it fixes: prior to this, `<input ref={fileRef}>` lived inside
+        * UploadAndSamplePanel which is unmounted in State B → fileRef.current
+        * was null → clicking the menu item did nothing.
+        */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) {
+            void onFileChosen(f);
+            e.target.value = "";  // allow re-picking the same file later
+          }
+        }}
+      />
+
       <TooltipProvider delayDuration={150}>
         {hasPeriodLoaded ? (
           <CompactPeriodHeader
@@ -407,43 +653,118 @@ export default function FinancialStatements() {
             onReset={resetWorkspace}
           />
         ) : (
-          <section className="mb-10 transition-opacity duration-200">
-            <div className="label-eyebrow">{t("dashboard.label_eyebrow")}</div>
-            <h1 className="mt-3 font-serif text-[40px] sm:text-[48px] leading-[1.05] tracking-[-0.02em] text-ink max-w-[820px]">
-              {t("dashboard.hero_pre")}{" "}
-              <span className="text-grad font-medium">{t("dashboard.hero_highlight")}</span>
-              {" "}{t("dashboard.hero_post")}
-            </h1>
-            <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px]">
-              {t("dashboard.hero_subtitle")}
-            </p>
+          <section className="mb-10 transition-opacity duration-200 relative">
+            {/* Soft atmospheric brand glow behind the hero — visual
+             *  texture only, no information. Sits behind the headline. */}
+            <div aria-hidden className="pointer-events-none absolute -top-12 -left-12 h-72 w-72 rounded-full bg-brand/10 blur-3xl" />
+
+            <div className="relative">
+              <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+                <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+                {t("dashboard.label_eyebrow")}
+              </div>
+              <h1 className="mt-3 text-[40px] sm:text-[48px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-semibold">
+                {t("dashboard.hero_pre")}{" "}
+                <span className="text-grad font-semibold">{t("dashboard.hero_highlight")}</span>
+                {" "}{t("dashboard.hero_post")}
+              </h1>
+              <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
+                {t("dashboard.hero_subtitle")}
+              </p>
+            </div>
           </section>
         )}
 
-        {/* KPI strip — only in State B. State A keeps the hero visually big. */}
-        {hasPeriodLoaded && statements && totals && (
-          <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-            <KpiTile data-testid="kpi-revenue" label="Revenue" value={formatCurrency(statements.incomeStatement.revenue, statements.currency)} />
-            <KpiTile
-              data-testid="kpi-ebitda"
-              label="EBITDA"
-              value={formatCurrency(totals.ebitda, statements.currency)}
-              sub={`${((totals.ebitda / Math.max(statements.incomeStatement.revenue, 1)) * 100).toFixed(1)}% margin`}
-            />
-            <KpiTile
-              data-testid="kpi-net-income"
-              label="Net income"
-              value={formatCurrency(totals.netIncome, statements.currency)}
-              sub={`${((totals.netIncome / Math.max(statements.incomeStatement.revenue, 1)) * 100).toFixed(1)}% margin`}
-            />
-            <KpiTile
-              data-testid="kpi-total-debt"
-              label="Total debt"
-              value={formatCurrency(totals.totalDebt, statements.currency)}
-              sub={`${(totals.totalDebt / Math.max(totals.ebitda, 1)).toFixed(2)}× EBITDA`}
-            />
-          </section>
+        {/* Persistent accuracy banner above the KPI tiles. Dismissable;
+            once dismissed, a small "About data accuracy" link replaces it
+            in the same position so the user can always re-read. */}
+        {hasPeriodLoaded && <AccuracyBanner />}
+
+        {/* Statutory-format limitation banner — only shows when this
+            period was loaded from an ANAF Formular F30+F10 filing, where
+            line-item drilldown isn't available. */}
+        {hasPeriodLoaded && remotePeriod.detectedType === "statutory_f30_f10" && (
+          <StatutoryFormatBanner />
         )}
+
+        {/* KPI strip — driven by the SAME P&L statement the Financial
+            Statements tab renders. This guarantees dashboard headlines and
+            the detailed P&L always show identical numbers (operating view:
+            722 + 767 in revenue, statutory net profit). */}
+        {hasPeriodLoaded && statements && totals && (() => {
+          const pl = pickPLBuilder(
+            {
+              lineItems: remotePeriod.lineItems,
+              entity: statements.companyName ?? "Entity",
+              period: statements.periodLabel,
+              currency: statements.currency,
+            },
+            statements,
+          );
+          const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
+          const ebitdaMarginPct = totalOperatingRevenue > 0 ? (pl.ebitda / totalOperatingRevenue) * 100 : 0;
+          const netMarginPct = totalOperatingRevenue > 0 ? (pl.netProfit / totalOperatingRevenue) * 100 : 0;
+          // Honest source label. Trial balance + statutory F30+F10 produce
+          // similar but NOT identical metrics (711 inventory variation is
+          // explicit in TB, aggregated inside the F30 operating result).
+          // Per the spec's "ONE HONEST CAUTION": never let the UI pretend
+          // they're interchangeable.
+          const sourceTooltip =
+            remotePeriod.detectedType === "statutory_f30_f10"
+              ? "Source: statutory statement (Formular F30 + F10). Aggregate-only — no per-account drilldown."
+              : remotePeriod.detectedType === "trial_balance"
+                ? "Source: trial balance. Full account-level granularity."
+                : null;
+          return (
+            <section
+              className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3"
+              title={sourceTooltip ?? undefined}
+            >
+              <KpiTile
+                data-testid="kpi-revenue"
+                label="Operating revenue"
+                value={formatCurrency(totalOperatingRevenue, statements.currency)}
+                sub={`incl. 722 CIP ${formatCurrency(pl.capitalizedOwnWorkMemo ?? 0, statements.currency)}`}
+              />
+              <KpiTile
+                data-testid="kpi-ebitda"
+                label="EBITDA"
+                value={formatCurrency(pl.ebitda, statements.currency)}
+                sub={`${ebitdaMarginPct.toFixed(1)}% margin`}
+              />
+              <KpiTile
+                data-testid="kpi-net-income"
+                label="Net profit"
+                value={formatCurrency(pl.netProfit, statements.currency)}
+                sub={`${netMarginPct.toFixed(1)}% margin`}
+              />
+              <KpiTile
+                data-testid="kpi-total-debt"
+                label="Total debt"
+                value={formatCurrency(totals.totalDebt, statements.currency)}
+                sub={(() => {
+                  const ebitdaThreshold = Math.max(Math.abs(totalOperatingRevenue) * 0.01, 10_000);
+                  if (Math.abs(pl.ebitda) < ebitdaThreshold) return 'n/a — EBITDA near zero';
+                  return `${(totals.totalDebt / pl.ebitda).toFixed(1)}× EBITDA`;
+                })()}
+              />
+              {/* Source badge — visible label, not just a tooltip, so users
+                  understand why two periods of the same company might
+                  carry slightly different EBITDA when one was uploaded as
+                  TB and the other as F30+F10. */}
+              {sourceTooltip && (
+                <div
+                  data-testid="kpi-source-badge"
+                  className="col-span-2 lg:col-span-4 text-[10.5px] text-ink-mute -mt-1"
+                >
+                  {remotePeriod.detectedType === "statutory_f30_f10"
+                    ? "Source: statutory statement (Formular F30 + F10)"
+                    : "Source: trial balance"}
+                </div>
+              )}
+            </section>
+          );
+        })()}
 
         {/* Second KPI row — invoice analytics (when invoices loaded). */}
         {hasPeriodLoaded && invoices && invoices.length > 0 && <InvoiceKpiStrip invoices={invoices} />}
@@ -461,6 +782,10 @@ export default function FinancialStatements() {
                 CFO briefing — Opus 4.7
               </div>
               <p className="text-[14px] text-ink leading-relaxed">{remotePeriod.briefing}</p>
+              <footer className="mt-4 pt-3 border-t border-rule/60 text-[11px] italic text-ink-mute">
+                Generated from automated trial-balance extraction (~90%+ accuracy).
+                Verify headline numbers against your source before external use.
+              </footer>
             </article>
           </section>
         )}
@@ -472,7 +797,17 @@ export default function FinancialStatements() {
               tooltip explaining the data needed to enable them. The user
               can see the platform's full capability surface on first visit. */}
           <div className="relative">
-            <TabsList className="bg-bg-2/60 border border-rule rounded-xl p-1 h-auto flex flex-nowrap sm:flex-wrap gap-1 overflow-x-auto sm:overflow-visible scrollbar-none" data-testid="tabs-list">
+            <TabsList
+              data-testid="tabs-list"
+              className="
+                bg-bg-2/40 backdrop-blur-sm
+                border border-rule
+                rounded-2xl p-1.5 h-auto
+                flex flex-nowrap sm:flex-wrap gap-0.5
+                overflow-x-auto sm:overflow-visible scrollbar-none
+                shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.04)]
+              "
+            >
               {tabs.map((t) => {
                 const isEnabled = enabled[t.id];
                 if (isEnabled) {
@@ -481,7 +816,16 @@ export default function FinancialStatements() {
                       key={t.id}
                       value={t.id}
                       data-testid={`tab-${t.id}`}
-                      className="shrink-0 px-4 py-2 text-[13px] data-[state=active]:bg-surface data-[state=active]:text-ink data-[state=active]:shadow-sm rounded-lg whitespace-nowrap"
+                      className="
+                        shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
+                        text-ink-soft hover:text-ink
+                        data-[state=active]:text-ink data-[state=active]:font-semibold
+                        data-[state=active]:bg-surface
+                        data-[state=active]:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_hsl(var(--rule-strong)/0.4)]
+                        data-[state=active]:ring-1 data-[state=active]:ring-inset data-[state=active]:ring-brand/10
+                        rounded-xl whitespace-nowrap
+                        transition-all duration-150
+                      "
                     >
                       {t.label}
                     </TabsTrigger>
@@ -497,7 +841,11 @@ export default function FinancialStatements() {
                         role="tab"
                         aria-disabled="true"
                         data-testid={`tab-${t.id}`}
-                        className="shrink-0 px-4 py-2 text-[13px] rounded-lg whitespace-nowrap opacity-45 cursor-not-allowed select-none text-ink-soft"
+                        className="
+                          shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
+                          rounded-xl whitespace-nowrap
+                          opacity-40 cursor-not-allowed select-none text-ink-soft
+                        "
                       >
                         {t.label}
                       </span>
@@ -515,31 +863,51 @@ export default function FinancialStatements() {
 
         {/* OVERVIEW ─────────────────────────────────────────────────────── */}
         <TabsContent value="overview" className="mt-6 space-y-6">
+          {/* DocumentSwitcher — single control listing every analyzed
+              document (trial-balance + public-records uploads) with
+              type badges and per-entry delete. Picking an entry sets
+              ?period= / ?doc= which the existing useActivePeriod hook
+              + Multi-Year History page consume. Renders nothing when
+              the org has no analyses yet (so the upload hero is the
+              only thing visible on a brand-new account). */}
+          <DocumentSwitcher className="max-w-[480px]" />
+
           {parseSource && <ExtractionConfidenceBanner source={parseSource} />}
 
           {!hasPeriodLoaded ? (
-            // STATE A — entry surface. Upload zone + sample picker only.
+            // STATE A — entry surface. Upload zone + sample picker.
             // While a pipeline run is in flight, swap the dropzone for an
             // in-place progress card so the user sees the analysis is
             // happening without leaving the page.
+            //
+            // ABOVE the dropzone, we surface the user's most recent public-
+            // records upload (listafirme.ro / termene.ro / firme.info PDF)
+            // as a Level-1 quick card. Without this, returning users who
+            // only uploaded a public-summary PDF see an empty dashboard
+            // even though their data is parsed and available. The card
+            // renders nothing when there's no public-records data — so
+            // first-time visitors still see the clean upload hero.
             uploadInFlight ? (
               <UploadProgressCard inflight={uploadInFlight} />
             ) : (
-              <UploadAndSamplePanel
-                statements={statements}
-                activeSampleId={activeSampleId}
-                uploadName={uploadName}
-                onPickSample={pickSample}
-                onReset={undefined}
-                onTriggerFile={() => fileRef.current?.click()}
-                onPasteTrialBalance={() => {
-                  setTbInput(DEMO_RO_TRIAL_BALANCE);
-                  setTbDialogOpen(true);
-                }}
-                onDrop={onDrop}
-                fileRef={fileRef}
-                onFileChosen={onFileChosen}
-              />
+              <>
+                <PublicRecordsQuickCard />
+                <UploadAndSamplePanel
+                  statements={statements}
+                  activeSampleId={activeSampleId}
+                  uploadName={uploadName}
+                  onPickSample={pickSample}
+                  onReset={undefined}
+                  onTriggerFile={() => fileRef.current?.click()}
+                  onPasteTrialBalance={() => {
+                    setTbInput(DEMO_RO_TRIAL_BALANCE);
+                    setTbDialogOpen(true);
+                  }}
+                  onDrop={onDrop}
+                  fileRef={fileRef}
+                  onFileChosen={onFileChosen}
+                />
+              </>
             )
           ) : (
             <StateBOverview
@@ -550,70 +918,291 @@ export default function FinancialStatements() {
               criticalCount={criticalCount}
               highCount={highCount}
               onJumpToTab={onTabChange}
+              valuation={remotePeriod.valuation}
+              periodId={remotePeriod.id}
             />
           )}
         </TabsContent>
 
-        {/* STATEMENTS ───────────────────────────────────────────────────── */}
-        {enabled.statements && statements && (
-          <TabsContent value="statements" className="mt-6 space-y-8 min-h-[400px]">
-            <BalanceSheetTable statements={statements} />
-            <IncomeStatementTable statements={statements} />
+        {/* P&L ──────────────────────────────────────────────────────────── */}
+        {enabled.pl && statements && (
+          <TabsContent value="pl" className="mt-6 space-y-8 min-h-[400px]">
+            <PLStatementView
+              statement={pickPLBuilder(
+                {
+                  lineItems: remotePeriod.lineItems,
+                  entity: statements.companyName ?? "Entity",
+                  period: statements.periodLabel,
+                  currency: statements.currency,
+                },
+                statements,
+              )}
+            />
+            {/* Server-emitted, period-keyed notes & recommendations
+             *  rendered as part of the P&L tab. Honest empty-state when
+             *  the engine produced none for this period — never filler. */}
+            <StatementNotes
+              recommendations={remotePeriod.recommendations}
+              alerts={remotePeriod.alerts}
+              relevantTo="pl"
+            />
+          </TabsContent>
+        )}
+
+        {/* BALANCE SHEET ───────────────────────────────────────────────── */}
+        {enabled.balance_sheet && statements && (
+          <TabsContent value="balance_sheet" className="mt-6 space-y-8 min-h-[400px]">
+            {remotePeriod.lineItems && remotePeriod.lineItems.length > 0 ? (
+              <BSStatementView
+                statement={buildBSStatement({
+                  lineItems: remotePeriod.lineItems,
+                  entity: statements.companyName ?? "Entity",
+                  asOf: statements.periodLabel ?? "Period end",
+                  comparativeDate: "Opening",
+                  currency: statements.currency,
+                  currentYearNetProfit:
+                    buildPLStatementFromAggregates(statements).netProfit,
+                })}
+              />
+            ) : (
+              <BalanceSheetTable statements={statements} />
+            )}
+            <StatementNotes
+              recommendations={remotePeriod.recommendations}
+              alerts={remotePeriod.alerts}
+              relevantTo="bs"
+            />
+          </TabsContent>
+        )}
+
+        {/* CASH FLOW ──────────────────────────────────────────────────── */}
+        {enabled.cash_flow && statements && (
+          <TabsContent value="cash_flow" className="mt-6 space-y-8 min-h-[400px]">
+            <CashFlowStatementView
+              statement={buildCashFlowStatement({
+                pl: (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl,
+                bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,
+                cf: (statements as Statements & { assembled_cf?: Record<string, number> }).assembled_cf,
+                lineItems: remotePeriod.lineItems ?? [],
+                entity: statements.companyName ?? "Entity",
+                period: statements.periodLabel ?? "Period",
+                currency: statements.currency,
+                yearLabel: (() => {
+                  const lbl = statements.periodLabel ?? "";
+                  const m = lbl.match(/\b(20\d{2})\b/);
+                  return m ? m[1] : "the period";
+                })(),
+              })}
+            />
+            <StatementNotes
+              recommendations={remotePeriod.recommendations}
+              alerts={remotePeriod.alerts}
+              relevantTo="cf"
+            />
           </TabsContent>
         )}
 
         {/* RATIOS ──────────────────────────────────────────────────────── */}
         {enabled.ratios && ratios && (
           <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
-            <RatioGroupSection title="Liquidity" ratios={ratios.liquidity} />
-            <RatioGroupSection title="Profitability" ratios={ratios.profitability} />
-            <RatioGroupSection title="Leverage" ratios={ratios.leverage} />
-            <RatioGroupSection title="Coverage" ratios={ratios.coverage} />
-            <RatioGroupSection title="Efficiency · working capital cycle" ratios={ratios.efficiency} />
-            <RatioGroupSection title="Bankruptcy risk" ratios={ratios.bankruptcy} />
+            <RatiosTabContent ratios={ratios} />
           </TabsContent>
         )}
 
-        {/* CUSTOMERS ──────────────────────────────────────────────────── */}
-        {enabled.customers && invoices && (
-          <TabsContent value="customers" className="mt-6 min-h-[400px]">
-            <CustomersTab invoices={invoices} currency={statements?.currency ?? "RON"} />
-          </TabsContent>
-        )}
+        {/* Customers / Payments / Margin / VAT tabs removed in the
+            9-tab restructure — non-FMCG companies (the majority of users)
+            don't benefit from them; the relevant signals (margin metrics,
+            VAT compliance) now surface on the Overview KPI strip and
+            the Recommendations card stack. Old `?tab=customers|payments|
+            margin|vat` URLs redirect to a sensible tab via
+            `resolveActiveTab`'s legacy-slug map. */}
 
-        {/* PAYMENTS ──────────────────────────────────────────────────── */}
-        {enabled.payments && invoices && (
-          <TabsContent value="payments" className="mt-6 min-h-[400px]">
-            <PaymentsTab invoices={invoices} currency={statements?.currency ?? "RON"} />
-          </TabsContent>
-        )}
-
-        {/* MARGIN ────────────────────────────────────────────────────── */}
-        {enabled.margin && invoices && (
-          <TabsContent value="margin" className="mt-6 min-h-[400px]">
-            <MarginTab
-              invoices={invoices}
-              totalCogs={statements?.incomeStatement.costOfGoodsSold}
-              currency={statements?.currency ?? "RON"}
-            />
-          </TabsContent>
-        )}
-
-        {/* VAT ──────────────────────────────────────────────────────── */}
-        {enabled.vat && invoices && (
-          <TabsContent value="vat" className="mt-6 min-h-[400px]">
-            <VatTab
-              invoices={invoices}
-              currency={statements?.currency ?? "RON"}
-              onUploadD394={() => fileRef.current?.click()}
-            />
-          </TabsContent>
-        )}
-
-        {/* VALUATION ───────────────────────────────────────────────────── */}
+        {/* VALUATION — Primary: EV/EBITDA peer-multiple. Cross-checks: DCF +
+            WACC + Graham (client-side math, demoted from headline). The new
+            ValuationSection also renders on the Overview tab as the hero,
+            so visiting this tab is for users who want to drill into the
+            cross-checks themselves. */}
         {enabled.valuation && statements && (
-          <TabsContent value="valuation" className="mt-6 space-y-6 min-h-[400px]">
-            <ValuationPanel statements={statements} />
+          <TabsContent value="valuation" className="mt-6 space-y-10 min-h-[400px]">
+            {/* ── Phase 2: EBITDA-multiple primary for ~99% of companies
+             *  (operating businesses, Core EBITDA basis, client-side
+             *  slider). Heavy-RE → NAV primary, EBITDA-multiple second
+             *  with an on-screen reason banner. DCF + Graham collapsed
+             *  into a single Cross-checks disclosure, default closed.
+             *  Method routing reuses the engine's existing CRE signal
+             *  (industry name + rental-dominated heuristic + the
+             *  PeriodValuation.primary_method field) — no parallel
+             *  detector. */}
+            {(() => {
+              // Robust CRE detection — handles all the forms the upstream
+              // payload uses (industry_key snake_case, display name,
+              // Romanian display) + rental-dominated revenue heuristic.
+              const indRaw = String(statements.industry ?? remotePeriod.industry ?? "").toLowerCase();
+              const indNorm = indRaw.replace(/[^a-z]/g, "");
+              const explicitCre =
+                indNorm.includes("realestate") ||
+                indNorm.includes("commercialrealestate") ||
+                indNorm.includes("residentialrealestate") ||
+                indNorm.includes("investitiiimobiliare") ||
+                indNorm.includes("imobiliar");
+              const apForRouting = (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl;
+              let rentalDominated = false;
+              if (apForRouting) {
+                const rev = apForRouting.revenue ?? 0;
+                const totalOp = apForRouting.total_operating_revenue ?? rev;
+                rentalDominated = totalOp > 0 && rev / totalOp > 0.5 &&
+                  (apForRouting.capitalized_own_work_memo ?? 0) > 100_000;
+              }
+              // Asset-intensity fallback signal (PPE + investment_property
+              // + CIP) / total assets ≥ 0.6 — used to surface the heavy-RE
+              // reason line when the industry label is missing or wrong.
+              const abForRouting = (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs;
+              const ASSET_INTENSITY_THRESHOLD = 0.6;
+              let assetIntensity: number | null = null;
+              if (abForRouting && (abForRouting.total_assets ?? 0) > 0) {
+                const heavyAssets =
+                  (abForRouting.ppe_net ?? 0) +
+                  (abForRouting.investment_property ?? 0) +
+                  (abForRouting.cip ?? 0);
+                assetIntensity = heavyAssets / abForRouting.total_assets;
+              }
+              const assetIntensityHeavy = assetIntensity !== null && assetIntensity >= ASSET_INTENSITY_THRESHOLD;
+              const engineSaysAssetBased = remotePeriod.valuation?.primary_method === "asset_based";
+              const isCre = explicitCre || rentalDominated || engineSaysAssetBased || assetIntensityHeavy;
+
+              // Canonical metric object — single source of truth for
+              // EBITDA / net debt. Same builder the Overview tab uses.
+              const canonical = buildCanonicalMetricsFromInputs({
+                assembled_pl: apForRouting as Record<string, number> | undefined,
+                assembled_bs: abForRouting as Record<string, number> | undefined,
+                line_items: remotePeriod.lineItems,
+                company: statements.companyName ?? null,
+                period: statements.periodLabel ?? null,
+                period_id: remotePeriod.id,
+                source: "trial_balance",
+              });
+
+              if (isCre) {
+                const ap = apForRouting;
+                const ab = abForRouting;
+                const sa = (statements as Statements & { subAggregates?: Record<string, number> }).subAggregates;
+                if (ap && ab) {
+                  const cascade = buildNavCascade({
+                    pl: ap,
+                    bs: ab,
+                    subAgg: sa,
+                    lineItems: remotePeriod.lineItems ?? [],
+                    industry: indRaw,
+                  });
+
+                  // Build the reason lines — surface WHY NAV is primary
+                  // so the routing isn't silent.
+                  const reasonLines: string[] = [];
+                  if (explicitCre) reasonLines.push(`Industry classified as real-estate (${indRaw}).`);
+                  if (rentalDominated) reasonLines.push("Revenue is rental-dominated (account 706 ≥ 50% of operating revenue).");
+                  if (engineSaysAssetBased) reasonLines.push("Engine valuation pipeline already routed this period to asset-based primary.");
+                  if (assetIntensityHeavy && assetIntensity !== null) {
+                    reasonLines.push(`Asset intensity ${(assetIntensity * 100).toFixed(0)}% (PPE + investment property + CIP / total assets) is above the ${(ASSET_INTENSITY_THRESHOLD * 100).toFixed(0)}% threshold for heavy-RE routing.`);
+                  }
+
+                  return (
+                    <>
+                      <HeavyReReasonBanner reasonLines={reasonLines} />
+                      {/* NAV cascade — PRIMARY for CRE */}
+                      <NavValuationView
+                        cascade={cascade}
+                        entity={statements.companyName ?? "Entity"}
+                        period={statements.periodLabel ?? "Period"}
+                        currency={statements.currency}
+                      />
+                      {/* EBITDA-multiple SECOND — still visible because
+                       *  lenders + brokers reference it, but explicitly
+                       *  framed as the secondary method. */}
+                      {canonical && (
+                        <section className="space-y-3">
+                          <header>
+                            <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                              Secondary · EBITDA-multiple cross-check
+                            </div>
+                          </header>
+                          <EbitdaMultiplePrimaryCard
+                            metrics={canonical}
+                            valuation={remotePeriod.valuation}
+                            currency={statements.currency}
+                          />
+                        </section>
+                      )}
+                      {/* Existing persisted-override flow remains
+                       *  available as the operator-facing tuning UI. */}
+                      {remotePeriod.valuation && remotePeriod.id && (
+                        <ValuationCrossChecksDisclosure>
+                          <ValuationSection
+                            valuation={remotePeriod.valuation}
+                            periodId={remotePeriod.id}
+                            currency={statements.currency}
+                          />
+                        </ValuationCrossChecksDisclosure>
+                      )}
+                    </>
+                  );
+                }
+              }
+
+              // ── Non-CRE: EBITDA-multiple is PRIMARY ──────────────
+              // Canonical-aware client-side primary card on top,
+              // existing persisted-override ValuationSection follows
+              // (for users who want to set board-grade assumptions),
+              // then DCF + Graham collapsed into Cross-checks.
+              return (
+                <>
+                  {canonical && (
+                    <>
+                      <EbitdaMultiplePrimaryCard
+                        metrics={canonical}
+                        valuation={remotePeriod.valuation}
+                        currency={statements.currency}
+                      />
+                      {/* Itemized 758 → 781 → Core bridge anchor — the
+                       *  provenance line in the primary card jumps here. */}
+                      <div id="ebitda-bridge">
+                        <EbitdaReconciliationPanel metrics={canonical} currency={statements.currency} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Existing persisted-override flow — operator-tuning
+                   *  surface, kept for board-grade assumption setting. */}
+                  {remotePeriod.valuation && remotePeriod.id && (
+                    <section>
+                      <header className="mb-3">
+                        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                          Persisted assumptions
+                        </div>
+                        <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px]">
+                          Set custom EBITDA, multiple, debt or cash for board reporting. Persists to
+                          this period; the primary card above always reflects the latest canonical
+                          values plus your slider position.
+                        </p>
+                      </header>
+                      <ValuationSection
+                        valuation={remotePeriod.valuation}
+                        periodId={remotePeriod.id}
+                        currency={statements.currency}
+                      />
+                    </section>
+                  )}
+
+                  {/* Cross-checks · DCF + WACC + Graham — collapsed
+                   *  into a single disclosure per the Phase 2 spec.
+                   *  Default closed; the user can expand to see the
+                   *  intrinsic-value calculations and the >30%
+                   *  divergence flag. Not deleted. */}
+                  <ValuationCrossChecksDisclosure>
+                    <ValuationPanel statements={statements} valuation={remotePeriod.valuation} />
+                  </ValuationCrossChecksDisclosure>
+                </>
+              );
+            })()}
           </TabsContent>
         )}
 
@@ -758,6 +1347,38 @@ export default function FinancialStatements() {
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
+// Phase 5 — Friendly mapper for upload / paste error messages. Users
+// shouldn't see "BadZipFile" or python tracebacks; map known patterns to
+// actionable copy. Anything that doesn't match falls through unchanged.
+function friendlyUploadError(detail: string | undefined | null): string {
+  const d = (detail || "").toString();
+  if (!d) return "Couldn't finish analysis. Please try again or contact support if it persists.";
+  if (/BadZipFile|not a zip file/i.test(d)) {
+    return "This looks like a legacy Excel file (.xls). The backend now reads those — try re-uploading. If you still see this, the backend may need to be restarted to pick up the latest code.";
+  }
+  if (/password|encrypted/i.test(d)) {
+    return "This file is password-protected. Remove the password and re-upload.";
+  }
+  if (/CorruptedFileError|file is corrupted/i.test(d)) {
+    return "This file appears to be corrupted. Try re-exporting from your accounting software.";
+  }
+  if (/Couldn't identify these columns|non-standard layout/i.test(d)) {
+    return "This file has a non-standard column layout. Try renaming your columns to 'Cont', 'Nume Cont', 'Debit', 'Credit' and re-upload, or contact support.";
+  }
+  if (/empty/i.test(d) && /paste/i.test(d)) {
+    return "Paste area is empty. Copy your trial balance from Excel first.";
+  }
+  if (/network|fetch failed|Failed to fetch/i.test(d)) {
+    return "Couldn't reach the analysis backend. Check your connection or try again in a moment.";
+  }
+  // Pass through backend-provided detail if it looks user-facing (no
+  // python traceback noise, no internal symbols).
+  if (!/Traceback|File ".*\.py"|TypeError|KeyError|AttributeError/i.test(d)) {
+    return d;
+  }
+  return "Couldn't finish analysis. Please try again or contact support if it persists.";
+}
+
 function ExtractionConfidenceBanner({
   source,
 }: {
@@ -776,9 +1397,9 @@ function ExtractionConfidenceBanner({
       <Sparkles size={16} className={`mt-0.5 shrink-0 ${low ? "text-amber-600" : "text-emerald-600"}`} strokeWidth={1.75} />
       <div className="flex-1 text-[13px] leading-relaxed">
         <div>
-          <strong>{low ? "Verifică datele extrase" : "Extracted from"}</strong> ·{" "}
+          <strong>{low ? "Verify the extracted data" : "Extracted from"}</strong> ·{" "}
           <span className="font-mono text-[12px]">{source.documentName}</span> ·{" "}
-          {source.accountCount} accounts · <strong>{low ? "încredere" : "confidence"} {pct}%</strong>
+          {source.accountCount} accounts · <strong>confidence {pct}%</strong>
         </div>
         {source.warnings.length > 0 && (
           <ul className="mt-1.5 list-disc list-inside space-y-0.5 text-[12px]">
@@ -859,6 +1480,114 @@ function EmptyTabState({
   );
 }
 
+// Persistent data-accuracy disclosure — rendered once at the top of the
+// dashboard above the KPI tiles. Dismissable via localStorage so it doesn't
+// re-nag returning users; collapses to a small "About data accuracy" link
+// in the same slot once dismissed, so the disclosure is always discoverable.
+function AccuracyBanner() {
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("accuracy_banner_dismissed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  if (dismissed) {
+    return (
+      <button
+        type="button"
+        data-testid="accuracy-banner-link"
+        onClick={() => {
+          try { localStorage.removeItem("accuracy_banner_dismissed"); } catch { /* private mode */ }
+          setDismissed(false);
+        }}
+        className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink mb-3"
+      >
+        <Info size={11} strokeWidth={1.75} />
+        About data accuracy
+      </button>
+    );
+  }
+
+  return (
+    <div
+      data-testid="accuracy-banner"
+      className="flex items-start justify-between gap-3 mb-3 rounded-lg border-l-[3px] border-amber-400 bg-amber-50/40 dark:bg-amber-500/[0.06] px-4 py-3"
+    >
+      <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
+        <Info size={13} strokeWidth={1.75} className="text-amber-600 mt-0.5 shrink-0" />
+        <div>
+          <strong className="text-ink">Verify before sharing.</strong>{" "}
+          Automated extraction is ~90%+ accurate but may misclassify edge cases.
+          Always cross-check headline numbers (revenue, EBITDA, net profit, debt, equity)
+          against your trial balance before using for board reports, bank submissions,
+          or investor decisions.
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label="Dismiss accuracy notice"
+        data-testid="accuracy-banner-close"
+        onClick={() => {
+          try { localStorage.setItem("accuracy_banner_dismissed", "true"); } catch { /* private mode */ }
+          setDismissed(true);
+        }}
+        className="text-ink-mute hover:text-ink shrink-0 text-[16px] leading-none px-1"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+// Statutory-format limitation banner — fires only when the active
+// period's source document was detected as an ANAF Formular F30+F10
+// filing rather than a raw trial balance. F30+F10 carries aggregate
+// totals only, so a chunk of the platform (line-item drilldown, 711
+// inventory variation memo, SKU rollups) isn't available. We surface
+// that honestly here so the user doesn't think the missing tabs are
+// a bug.
+function StatutoryFormatBanner() {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div
+      data-testid="statutory-format-banner"
+      className="mb-3 rounded-lg border-l-[3px] border-blue-400 bg-blue-50/40 dark:bg-blue-500/[0.06] px-4 py-3"
+    >
+      <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
+        <Info size={13} strokeWidth={1.75} className="text-blue-600 mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <strong className="text-ink">Statutory format detected (Formular F30 + F10).</strong>{" "}
+          Headline figures (revenue, EBITDA, debt, equity) extracted from your filed
+          financial statements.
+          <button
+            type="button"
+            data-testid="statutory-banner-toggle"
+            onClick={() => setExpanded((v) => !v)}
+            className="ml-1 text-[12px] text-blue-700 hover:text-blue-900 underline-offset-2 hover:underline"
+          >
+            {expanded ? "Hide details" : "What's not available with this format"}
+          </button>
+          {expanded && (
+            <>
+              <ul className="mt-2 list-disc pl-5 text-[12px] space-y-0.5">
+                <li>Per-account drilldown (only aggregate categories)</li>
+                <li>SKU-level analysis (requires a sales export)</li>
+                <li>Working-capital roll-forward at account level</li>
+                <li>Inventory variation memo (account 711) split-out</li>
+              </ul>
+              <p className="mt-2 text-[12px]">
+                For deeper analysis, upload your raw trial balance from your accounting software.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function KpiTile({
   label,
   value,
@@ -872,7 +1601,7 @@ function KpiTile({
   return (
     <div className="rounded-xl border border-rule bg-surface px-4 py-3" {...rest}>
       <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{label}</div>
-      <div className="mt-1.5 font-serif text-[22px] text-ink leading-tight">{value}</div>
+      <div className="mt-2 num-hero text-[30px] text-ink leading-none">{value}</div>
       {sub && <div className="mt-0.5 text-[11.5px] text-ink-soft">{sub}</div>}
     </div>
   );
@@ -940,7 +1669,15 @@ function CompactPeriodHeader({
             </DropdownMenuLabel>
             <DropdownMenuItem
               data-testid="replace-menu-upload"
-              onClick={onTriggerFile}
+              // Radix closes the menu on click before the synchronous
+              // file-picker request fires, which on some browsers consumes
+              // the user-activation context. onSelect + e.preventDefault()
+              // keeps the menu open just long enough for the picker to grab
+              // the activation and open.
+              onSelect={(e) => {
+                e.preventDefault();
+                onTriggerFile();
+              }}
               className="text-[12.5px] cursor-pointer"
             >
               <UploadCloud size={13} strokeWidth={1.75} className="mr-1.5" />
@@ -1008,6 +1745,8 @@ function StateBOverview({
   criticalCount,
   highCount,
   onJumpToTab,
+  valuation,
+  periodId,
 }: {
   statements: Statements | null;
   invoices: Invoice[] | null;
@@ -1016,6 +1755,8 @@ function StateBOverview({
   criticalCount: number;
   highCount: number;
   onJumpToTab: (tab: string) => void;
+  valuation: import("@/lib/activePeriod").PeriodValuation | null;
+  periodId: string | null;
 }) {
   const summary = useMemo(
     () => buildDeterministicSummary({ statements, invoices, ratios, criticalCount, highCount }),
@@ -1040,8 +1781,19 @@ function StateBOverview({
         </section>
       )}
 
-      {/* Mini financial statements — BS / P&L / CF top-6 lines. */}
-      {statements && <MiniStatements statements={statements} onJumpToTab={onJumpToTab} />}
+      {/* Enterprise & Equity Value — HERO valuation section on Dashboard.
+          EBITDA × peer-multiple is the headline; DCF + EV/Revenue are
+          cross-checks. Renders only when the pipeline produced a
+          valuations row for this period. */}
+      {valuation && periodId && (
+        <section data-testid="dashboard-valuation">
+          <ValuationSection
+            valuation={valuation}
+            periodId={periodId}
+            currency={statements?.currency ?? "RON"}
+          />
+        </section>
+      )}
 
       {/* Top 3 risks + opportunities. */}
       {(risks.length > 0 || opportunities.length > 0) && (
@@ -1085,20 +1837,30 @@ function buildDeterministicSummary({
 }): string {
   const parts: string[] = [];
   if (statements && ratios) {
-    const totals = deriveTotals(statements);
-    const ebitdaMargin = (totals.ebitda / Math.max(statements.incomeStatement.revenue, 1)) * 100;
+    // Use the operating-view P&L so the summary matches the dashboard
+    // KPI tiles and the Financial Statements tab. EBITDA includes the
+    // 722 capitalized own-work / 767 discounts in revenue (reference
+    // convention); Net profit is the statutory bottom line.
+    const pl = buildPLStatementFromAggregates(statements);
+    const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
+    const ebitdaMargin = totalOperatingRevenue > 0 ? (pl.ebitda / totalOperatingRevenue) * 100 : 0;
     const dteRatio = ratios.leverage.find((r) => r.key === "debt_to_ebitda");
     parts.push(
-      `Revenue ${formatCurrency(statements.incomeStatement.revenue, statements.currency)} with ` +
-      `${ebitdaMargin.toFixed(1)}% EBITDA margin and net income ${formatCurrency(totals.netIncome, statements.currency)}.`,
+      `Operating revenue ${formatCurrency(totalOperatingRevenue, statements.currency)} with ` +
+      `${ebitdaMargin.toFixed(1)}% EBITDA margin and net profit ${formatCurrency(pl.netProfit, statements.currency)}.`,
     );
-    if (dteRatio) {
+    if (dteRatio && pl.ebitda > 0) {
+      const dte = (deriveTotals(statements).totalDebt) / pl.ebitda;
       parts.push(
-        `Leverage ${dteRatio.value.toFixed(2)}× Debt/EBITDA — ${
-          dteRatio.value > 4.5 ? "stretched, refinancing risk elevated"
-          : dteRatio.value > 3 ? "elevated, monitor covenants"
+        `Leverage ${dte.toFixed(2)}× Debt/EBITDA — ${
+          dte > 4.5 ? "stretched, refinancing risk elevated"
+          : dte > 3 ? "elevated, monitor covenants"
           : "comfortable"
         }.`,
+      );
+    } else if (dteRatio) {
+      parts.push(
+        `Leverage: EBITDA near zero — use LTV or NOI/debt-service instead of Debt/EBITDA for this asset profile.`,
       );
     }
   }
@@ -1311,6 +2073,48 @@ function UploadProgressCard({
   const total = 6;
   const stage = STAGES[inflight.status] ?? { label: inflight.status, ordinal: 0 };
   const isFailed = inflight.status === "failed";
+
+  // ── Hang detector ────────────────────────────────────────────────────────
+  // Show a clear "stuck" message + retry button after 60s of no progress past
+  // status='queued'. The /api/pipeline/run handler should always advance to
+  // 'extracting' within a second; if we're still at 'queued' a minute later
+  // the worker thread never picked up the job (typically a transient backend
+  // failure right at upload moment). Without this, the user stares at
+  // "Step 0 of 6 · Queued for analysis…" forever with no recourse.
+  const HANG_TIMEOUT_MS = 60_000;
+  const [hangSuspected, setHangSuspected] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const { toast } = useToast();
+  useEffect(() => {
+    setHangSuspected(false);
+    if (inflight.status !== "queued") return;
+    const t = setTimeout(() => setHangSuspected(true), HANG_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [inflight.status, inflight.docId]);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    const { recoverStuckPipelines, retryPipeline } = await import("@/lib/supabase");
+    // Try the watchdog first — for the common "/api/pipeline/run failed at
+    // upload" case it re-enqueues without wiping the doc's row. If nothing
+    // got recovered (so this doc wasn't actually stuck on a missing worker),
+    // fall through to a hard retry which resets the row + re-enqueues.
+    const recovered = await recoverStuckPipelines();
+    let ok = (recovered?.recovered_count ?? 0) > 0;
+    if (!ok && inflight.docId) ok = await retryPipeline(inflight.docId);
+    setRetrying(false);
+    if (ok) {
+      toast({ title: "Retrying analysis", description: inflight.filename });
+      setHangSuspected(false);
+    } else {
+      toast({
+        title: "Retry failed",
+        description: "Backend is unreachable. Refresh the page or try again in a moment.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div
       data-testid="dashboard-upload-progress"
@@ -1318,16 +2122,20 @@ function UploadProgressCard({
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {isFailed ? (
+          {isFailed || hangSuspected ? (
             <AlertCircle size={16} className="text-alert" strokeWidth={2} />
           ) : (
             <Loader2 size={16} className="text-brand animate-spin" strokeWidth={2} />
           )}
           <span className="text-[14px] font-medium text-ink">
-            {isFailed ? "Couldn't finish analysis" : "Analyzing your document…"}
+            {isFailed
+              ? "Couldn't finish analysis"
+              : hangSuspected
+              ? "Upload appears stuck"
+              : "Analyzing your document…"}
           </span>
         </div>
-        {!isFailed && (
+        {!isFailed && !hangSuspected && (
           <span className="text-[11.5px] text-ink-mute tabular-nums">
             Step {stage.ordinal} of {total}
           </span>
@@ -1337,7 +2145,7 @@ function UploadProgressCard({
         <span className="text-ink font-medium">{inflight.filename}</span>{" "}
         · {stage.label}
       </div>
-      {!isFailed && (
+      {!isFailed && !hangSuspected && (
         <div className="h-1.5 rounded-full bg-bg-2 overflow-hidden">
           <div
             className="h-full bg-brand transition-all duration-500"
@@ -1348,6 +2156,41 @@ function UploadProgressCard({
       {isFailed && inflight.error && (
         <div className="mt-2 rounded-md border border-alert/30 bg-alert/5 px-3 py-2 text-[12px] text-alert">
           {inflight.error}
+        </div>
+      )}
+      {hangSuspected && !isFailed && (
+        <div
+          data-testid="dashboard-upload-progress-hang"
+          className="mt-2 rounded-md border border-alert/30 bg-alert/5 px-3 py-2.5 text-[12.5px] text-alert space-y-2"
+        >
+          <p>
+            The upload reached the server but analysis hasn't started for more than 60 seconds.
+            This usually means the worker thread never picked up the job (a brief backend hiccup
+            right at upload moment). Click below to re-queue it.
+          </p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            disabled={retrying}
+            data-testid="dashboard-upload-progress-retry"
+            className="inline-flex items-center gap-1.5 rounded-md border border-alert/40 bg-surface px-3 py-1.5 text-[12px] font-medium text-alert hover:bg-alert/10 transition-colors disabled:opacity-50"
+          >
+            {retrying ? <Loader2 size={12} className="animate-spin" /> : null}
+            {retrying ? "Retrying…" : "Retry analysis"}
+          </button>
+        </div>
+      )}
+      {!isFailed && !hangSuspected && (
+        <div className="mt-5 flex gap-2.5 rounded-lg border border-amber-300/40 bg-amber-50/30 dark:bg-amber-500/[0.06] px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-soft">
+          <Info size={13} strokeWidth={1.75} className="text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <strong className="text-amber-700 dark:text-amber-500">Heads up:</strong>{" "}
+            Automated extraction is typically <strong className="text-ink">90%+ accurate</strong>.
+            Edge-case account formats, hand-edited cells, or unusual COA structures may cause
+            minor misclassification. <strong className="text-ink">Always review key numbers</strong>{" "}
+            (revenue, EBITDA, debt, equity) against your source trial balance before sharing
+            or using for decisions.
+          </div>
         </div>
       )}
     </div>
@@ -1378,67 +2221,225 @@ function UploadAndSamplePanel({
   onFileChosen: (file: File) => void;
 }) {
   return (
-    <div className={`grid grid-cols-1 ${SAMPLES_ENABLED ? "lg:grid-cols-[1.2fr_1fr]" : ""} gap-4`}>
-      {/* Upload zone */}
+    <div className="space-y-4">
+      {/* ── HERO CALLOUT — empty-state primary CTA ──────────────────────
+          Two variants, picked by the PUBLIC_RECORDS_ENABLED flag:
+            · Flag ON  → UploadHeroCallout: legacy listafirme.ro pitch
+                          ("free in 60 seconds, Print PDF, drop here").
+            · Flag OFF (current) → TrialBalanceHeroCallout: positions
+                          the trial balance (balanță de verificare) as
+                          THE document to upload, lists the accepted
+                          formats (SAGA, WinMentor, SmartBill, etc.),
+                          and offers two downloadable example XLSX
+                          fixtures so the user can match the structure
+                          before uploading their real export.
+          Rendered only on the empty state so the dashboard isn't
+          crowded once the user has data. */}
+      {PUBLIC_RECORDS_ENABLED ? <UploadHeroCallout /> : <TrialBalanceHeroCallout />}
+
+      <div className={`grid grid-cols-1 ${SAMPLES_ENABLED ? "lg:grid-cols-[1.2fr_1fr]" : ""} gap-4`}>
+      {/* Upload zone — premium AI ingestion surface. Same logic, same
+       *  callbacks, same hidden <input ref={fileRef}> at the page root.
+       *  Only the chrome was upgraded: glass card, gradient icon,
+       *  ring-glow on drag-over, refined chip styling. */}
       <div
         data-testid="upload-dropzone"
         onDragOver={(e) => e.preventDefault()}
         onDrop={onDrop}
-        className="rounded-2xl border-2 border-dashed border-rule bg-bg-2/30 p-6 flex flex-col items-center justify-center text-center min-h-[220px]"
+        className="
+          relative overflow-hidden
+          rounded-2xl border-2 border-dashed border-rule/80
+          bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40
+          backdrop-blur-sm
+          p-6 sm:p-7
+          flex flex-col items-center justify-center text-center
+          min-h-[240px]
+          hover:border-rule-strong hover:from-bg-2/50 transition-all
+        "
       >
-        <div className="h-12 w-12 rounded-2xl bg-brand-tint text-brand-d flex items-center justify-center mb-3">
+        {/* Atmospheric brand glow */}
+        <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-brand/8 blur-3xl" />
+
+        <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-brand/20 to-brand-d/25 text-brand-d flex items-center justify-center mb-3 ring-1 ring-brand/15">
           <UploadCloud size={20} strokeWidth={1.75} />
         </div>
-        <h3 className="font-serif text-[18px] text-ink">Upload financial documents</h3>
-        <p className="text-[12.5px] text-ink-soft mt-1 max-w-[420px]">
-          PDF · XLSX · CSV · JPG · PNG — invoices, balance sheets, P&L, trial
-          balance, annual reports. Auto-detected on drop.
+        <h3 className="relative text-[18px] font-semibold text-ink tracking-[-0.005em]">Upload financial documents</h3>
+        <p className="relative text-[12.5px] text-ink-soft mt-1 max-w-[440px] leading-relaxed">
+          PDF · XLSX · CSV · JPG · PNG — invoices, balance sheets, P&amp;L, trial balance,
+          annual reports. CFO AI auto-detects the format on drop.
         </p>
         {/* Recognized invoice-export formats — visual hint for accountants. */}
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 max-w-[460px] mx-auto">
+        <div className="relative mt-3 flex flex-wrap items-center justify-center gap-1.5 max-w-[480px] mx-auto">
           {["SAF-T", "e-Factura XML", "SmartBill CSV", "WinMentor", "Saga", "generic CSV"].map((f) => (
             <span
               key={f}
-              className="inline-flex items-center text-[10.5px] uppercase tracking-[0.06em] font-medium text-ink-mute bg-bg-2/60 border border-rule rounded-md px-2 py-0.5"
+              className="
+                inline-flex items-center
+                text-[10.5px] uppercase tracking-[0.08em] font-semibold
+                text-ink
+                bg-bg-2 border border-rule-strong
+                rounded-full px-2.5 py-0.5
+              "
             >
               {f}
             </span>
           ))}
         </div>
-        <div className="mt-4 flex items-center gap-2">
+        <div className="relative mt-5 flex items-center gap-2 flex-wrap justify-center">
           <button
             onClick={onTriggerFile}
-            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-surface border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors"
+            className="
+              inline-flex items-center gap-2
+              h-10 px-4 rounded-lg
+              bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
+              shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
+              hover:shadow-[0_10px_26px_-8px_rgba(45,191,179,0.75)]
+              ring-1 ring-inset ring-white/15
+              transition-all
+            "
           >
+            <UploadCloud size={13} strokeWidth={2} />
             Choose a file
           </button>
           <button
             onClick={onPasteTrialBalance}
-            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-ink text-paper text-[12.5px] font-medium hover:bg-ink/90 transition-colors"
+            className="
+              inline-flex items-center gap-2
+              h-10 px-4 rounded-lg
+              border border-rule bg-surface text-ink text-[13px] font-medium
+              hover:bg-bg-2/60 hover:border-rule-strong
+              transition-colors
+            "
           >
             <ClipboardPaste size={13} strokeWidth={2} />
             Paste trial balance
           </button>
         </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onFileChosen(f);
-          }}
-        />
+        {/* Hidden <input type="file" ref={fileRef}> is rendered at page
+            level so it persists across State A ↔ State B. See FinancialStatements
+            root — same ref, no duplicate needed here. */}
         {uploadName && (
           <div className="mt-3 text-[11.5px] text-ink-mute">
             Received: <span className="text-ink">{uploadName}</span>
           </div>
         )}
-        <div className="mt-4 inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-          <Sparkles size={10} strokeWidth={2} />
-          Detect · OCR · extract · ratios · Opus 4.7 narrative — end-to-end
-        </div>
+        {/* "What happens next" — premium 5-step pipeline. Replaces the
+         *  single cramped tagline with a calm visual flow that explains
+         *  what CFO AI does to the uploaded file. The connector line
+         *  threads through the dots so the eye reads it as a pipeline,
+         *  not a tag cloud. */}
+        <ol
+          className="relative mt-6 w-full max-w-[560px] flex items-start justify-between gap-2"
+          aria-label="Analysis pipeline"
+          data-testid="upload-pipeline"
+        >
+          {/* Connector line — drawn behind the dots */}
+          <span aria-hidden className="absolute top-3 left-3 right-3 h-px bg-gradient-to-r from-transparent via-rule to-transparent" />
+          {[
+            "Detect format",
+            "Extract data",
+            "Rebuild statements",
+            "Calculate ratios",
+            "Generate recs",
+          ].map((label, i) => (
+            <li key={label} className="relative flex-1 min-w-0 flex flex-col items-center text-center">
+              <span className={`
+                relative z-10 inline-flex items-center justify-center
+                h-6 w-6 rounded-full
+                bg-surface border border-rule
+                text-[10px] font-semibold tabular-nums text-ink-soft
+                shadow-[0_1px_2px_rgba(0,0,0,0.04)]
+              `}>
+                {i + 1}
+              </span>
+              <span className="mt-1.5 text-[10px] uppercase tracking-[0.08em] text-ink-mute font-medium leading-tight max-w-[80px]">
+                {label}
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        {/* ── Document-type guide ──────────────────────────────────────────
+            What the platform actually accepts AND where the customer can
+            download each format. This block is the trust-rail that
+            replaces "magical AI" with "here are the four sources, here's
+            what each one unlocks". Without it, users guess what to upload
+            and we get garbage extractions (PRO TV regression: a public-
+            records summary stuffed into the trial-balance pipeline).      */}
+        <details className="mt-5 w-full max-w-[640px] text-left" data-testid="upload-document-guide">
+          <summary className="cursor-pointer text-[12.5px] font-medium text-ink-soft hover:text-ink list-none flex items-center justify-center gap-2">
+            <span>What can I upload? Where do I get it?</span>
+            <span className="text-[10px] text-ink-mute">▼</span>
+          </summary>
+          <div className="mt-3 grid sm:grid-cols-2 gap-2">
+            <DocGuideCard
+              title="Trial balance (balanță de verificare)"
+              format="XLSX · CSV · PDF"
+              shows="Per-account drilldown, full P&L + BS + cash flow reconciliation, 25+ ratios, valuation, credit score, peer benchmarks"
+              where={[
+                { label: "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)", href: null },
+                { label: "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)", href: null },
+              ]}
+              tone="best"
+            />
+            {/* Public-records card gated behind PUBLIC_RECORDS_ENABLED — when
+                the flag is off (current product positioning) the listafirme/
+                termene/firme.info/risco entries are hidden so the doc guide
+                only shows accepted-document categories. */}
+            {PUBLIC_RECORDS_ENABLED && (
+              <DocGuideCard
+                title="Public records summary"
+                format="PDF only"
+                shows="Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history."
+                where={[
+                  { label: "listafirme.ro/<company-slug>-<CUI>", href: "https://listafirme.ro" },
+                  { label: "termene.ro/firma/<CUI>", href: "https://termene.ro" },
+                  { label: "firme.info/<CUI>", href: "https://firme.info" },
+                  { label: "risco.ro/cui-<CUI>", href: "https://risco.ro" },
+                ]}
+                tone="free"
+              />
+            )}
+            <DocGuideCard
+              title="Statutory ANAF filing"
+              format="XLSX (Formular F30 + F10)"
+              shows="Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers."
+              where={[
+                { label: "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX", href: "https://anaf.ro" },
+                { label: "Your accountant's archive — the annual filing they sent to ANAF", href: null },
+              ]}
+              tone="ok"
+            />
+            <DocGuideCard
+              title="Sales / trading analysis"
+              format="XLSX export"
+              shows="SKU-level portfolio classification (anchor / scale / watch / eliminate), DIO + capital trap detection. Renders in /products."
+              where={[
+                { label: "Your ERP's Trading Analysis report (XLSX)", href: null },
+                { label: "Pivot of monthly sales with: SKU, volume, revenue, GM, DIO, customer category", href: null },
+              ]}
+              tone="ok"
+            />
+          </div>
+          {/* The "no document handy? try listafirme.ro" footer is gated
+              behind the flag (same as the doc-guide card above). When OFF,
+              show neutral accepted-document guidance instead. */}
+          {PUBLIC_RECORDS_ENABLED ? (
+            <p className="mt-3 text-[11px] text-ink-mute leading-relaxed">
+              Don't have any of these handy? <strong className="text-ink-soft">listafirme.ro</strong>{" "}
+              is free and instant — search any Romanian SRL/SA by name or CUI, hit "Date de
+              bilanț" → "Print PDF", drop the file above. You'll get a 20-year financial
+              history in under a minute.
+            </p>
+          ) : (
+            <p className="mt-3 text-[11px] text-ink-mute leading-relaxed">
+              Trial balance (balanță de verificare) is the document that unlocks the full
+              analysis. Most Romanian accounting systems export it as XLSX from{" "}
+              <em>Rapoarte → Balanța de verificare</em> or equivalent. The download buttons
+              at the top of the page show the two structures we accept.
+            </p>
+          )}
+        </details>
       </div>
 
       {/* Sample picker — production default OFF (set VITE_ENABLE_SAMPLES=true
@@ -1490,29 +2491,308 @@ function UploadAndSamplePanel({
         </div>
       </div>
       )}
+      </div>
     </div>
   );
 }
 
-function RatioGroupSection({ title, ratios }: { title: string; ratios: Ratio[] }) {
+// Trial-balance guided setup. Refined from the previous loud navy-blue
+// gradient block into a premium app-native panel: deep ink card with a
+// subtle brand glow, modern sans hierarchy, framed download-example
+// control group. EVERY download link, label, fictional-data note, and
+// data-testid is preserved verbatim — only the chrome changed.
+function TrialBalanceHeroCallout() {
+  return (
+    <section
+      data-testid="trial-balance-hero"
+      className="
+        relative overflow-hidden rounded-3xl
+        border border-rule
+        bg-surface
+        text-ink
+        ring-1 ring-inset ring-rule-soft
+        shadow-[0_24px_48px_-30px_rgba(0,0,0,0.20)]
+        px-6 sm:px-8 py-6 sm:py-7
+      "
+    >
+      {/* Atmospheric brand glow — purely visual */}
+      <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-brand/25 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-brand-2/15 blur-3xl" />
+
+      <div className="relative flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
+        <span className="inline-flex items-center justify-center h-11 w-11 rounded-2xl bg-gradient-to-br from-brand/25 to-brand-d/30 text-brand-d ring-1 ring-inset ring-brand/20 shrink-0">
+          <FileSpreadsheet size={18} strokeWidth={1.75} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-soft font-semibold">
+            <Sparkles size={10} strokeWidth={2.25} className="text-brand" />
+            Guided setup
+          </div>
+          <h2 className="mt-2 text-[20px] sm:text-[22px] leading-tight font-semibold tracking-[-0.01em] m-0">
+            Upload your trial balance (balanță de verificare)
+          </h2>
+          <p className="mt-2 text-[13.5px] sm:text-[14px] leading-relaxed text-ink-soft">
+            XLSX or PDF, exported from your accounting system —{" "}
+            <strong className="text-ink">SAGA</strong>,{" "}
+            <strong className="text-ink">WinMentor</strong>,{" "}
+            <strong className="text-ink">SmartBill</strong>,{" "}
+            <strong className="text-ink">NEXTUP</strong>,{" "}
+            <strong className="text-ink">CIEL</strong>. This is the document the full
+            analysis is built for: P&amp;L, Balance Sheet, Cash Flow, Ratios, Valuation,
+            Risk, and Recommendations are all reconstructed from it.
+          </p>
+          <p className="mt-2 text-[12.5px] leading-relaxed text-ink-mute">
+            Not sure your export is in the right shape? Download the example below and match its
+            structure (account code, account name, debit/credit columns for opening balances,
+            period movements, and total sums).
+          </p>
+        </div>
+      </div>
+
+      <div
+        className="
+          relative mt-5 rounded-2xl
+          bg-bg-2/60 border border-rule
+          backdrop-blur-sm
+          px-4 py-3
+          flex flex-col sm:flex-row sm:items-center gap-3
+        "
+      >
+        <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute sm:mr-1 shrink-0">
+          Download example
+        </div>
+        <div className="flex flex-wrap gap-2 flex-1">
+          <a
+            href="/examples/example_trial_balance_8col.xlsx"
+            download="example_trial_balance_8col.xlsx"
+            data-testid="download-example-8col"
+            className="
+              inline-flex items-center gap-1.5
+              rounded-lg px-3 py-1.5
+              text-[12.5px] font-medium text-ink
+              bg-gradient-to-b from-brand-2 to-brand-2/90
+              hover:from-brand-2/95 hover:to-brand-2/80
+              shadow-1
+              ring-1 ring-inset ring-rule
+              transition-all
+            "
+          >
+            <ArrowDownToLine size={12} strokeWidth={2} />
+            Multi-column format (XLSX)
+          </a>
+          <a
+            href="/examples/example_trial_balance_6col.xlsx"
+            download="example_trial_balance_6col.xlsx"
+            data-testid="download-example-6col"
+            className="
+              inline-flex items-center gap-1.5
+              rounded-lg px-3 py-1.5
+              text-[12.5px] font-medium text-ink
+              bg-surface hover:bg-bg-2
+              shadow-1
+              ring-1 ring-inset ring-rule
+              transition-all
+            "
+          >
+            <ArrowDownToLine size={12} strokeWidth={2} />
+            Standard SAGA format (XLSX)
+          </a>
+        </div>
+        <span className="text-[10.5px] text-ink-mute sm:ml-auto sm:text-right shrink-0">
+          Fictional data; demonstrates the required structure.
+        </span>
+      </div>
+    </section>
+  );
+}
+
+// Hero callout — listafirme.ro as the primary "no document?" CTA.
+// Rendered ABOVE the dropzone on the empty state (UploadAndSamplePanel
+// only mounts when statements is null, i.e. no analysis yet). When the
+// user has data, the dashboard renders the analysis view instead and
+// this hero is unmounted along with the rest of the upload panel.
+// Gated by PUBLIC_RECORDS_ENABLED — preserved on disk so the listafirme
+// positioning can be restored by a one-line flag flip if needed.
+function UploadHeroCallout() {
+  return (
+    <div
+      data-testid="upload-hero-callout"
+      className="rounded-2xl px-6 py-6 sm:px-8 sm:py-7 text-white flex flex-col sm:flex-row items-start gap-4 sm:gap-5"
+      style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}
+    >
+      <div className="text-[36px] sm:text-[42px] leading-none shrink-0" aria-hidden>
+        📊
+      </div>
+      <div className="flex-1 min-w-0">
+        <h2 className="font-serif text-[20px] sm:text-[22px] leading-tight m-0 text-white">
+          No financial document? Get one free in 60 seconds.
+        </h2>
+        <p className="mt-2 text-[13.5px] sm:text-[14px] leading-relaxed text-white/85">
+          Search any Romanian company (SRL or SA) on{" "}
+          <strong className="text-white">listafirme.ro</strong> by name or CUI, open{" "}
+          <strong className="text-white">"Date de bilanț"</strong>, hit{" "}
+          <strong className="text-white">"Print PDF"</strong>, then drop the file below.
+          You'll get a 20-year financial history analyzed in under a minute.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <a
+            href="https://www.listafirme.ro"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="upload-hero-cta"
+            className="inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold transition-colors"
+            style={{ background: "#f39c12", color: "#1a1a1a" }}
+          >
+            Open listafirme.ro ↗
+          </a>
+          <span className="text-[11.5px] text-white/70">
+            Free · Instant · No accountant needed
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Document-guide card. One row in the "what can I upload" expandable.
+// `tone` colors the left border: best (green — most data unlocked), ok
+// (neutral), free (blue — free public source, frictionless onboarding).
+function DocGuideCard({ title, format, shows, where, tone }: {
+  title: string;
+  format: string;
+  shows: string;
+  where: Array<{ label: string; href: string | null }>;
+  tone: "best" | "ok" | "free";
+}) {
+  const borderClass =
+    tone === "best" ? "border-l-emerald-500"
+    : tone === "free" ? "border-l-blue-500"
+    : "border-l-rule-strong";
+  const toneBadge =
+    tone === "best" ? { label: "MOST DATA", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/[0.18] dark:text-emerald-300" }
+    : tone === "free" ? { label: "FREE / INSTANT", cls: "bg-blue-100 text-blue-800 dark:bg-blue-500/[0.18] dark:text-blue-300" }
+    : { label: "AGGREGATE", cls: "bg-bg-2 text-ink-soft" };
+  return (
+    <div className={`rounded-lg border border-rule border-l-[3px] ${borderClass} bg-surface p-3 text-left`}>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="text-[12.5px] font-medium text-ink leading-tight">{title}</div>
+        <span className={`shrink-0 text-[9px] uppercase tracking-[0.06em] font-semibold px-1.5 py-0.5 rounded ${toneBadge.cls}`}>
+          {toneBadge.label}
+        </span>
+      </div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">{format}</div>
+      <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2">{shows}</p>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1">Where to get it</div>
+      <ul className="space-y-0.5">
+        {where.map((w, i) => (
+          <li key={i} className="text-[11.5px] text-ink-soft leading-tight">
+            <span className="text-ink-mute mr-1">·</span>
+            {w.href ? (
+              <a href={w.href} target="_blank" rel="noopener noreferrer"
+                 className="text-blue-700 dark:text-blue-300 hover:underline underline-offset-2">
+                {w.label}
+              </a>
+            ) : (
+              <span>{w.label}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Wrapper around all 6 RatioGroupSections that owns the selected-ratio
+// state and renders the premium explainer drawer. Owning state here
+// keeps the Ratios surface self-contained — no upstream prop drilling,
+// no global store for an interaction that's scoped to this tab.
+function RatiosTabContent({ ratios }: { ratios: RatioBundle }) {
+  const [selected, setSelected] = useState<Ratio | null>(null);
+  return (
+    <>
+      <RatioGroupSection title="Liquidity"                           ratios={ratios.liquidity}     onPick={setSelected} />
+      <RatioGroupSection title="Profitability"                       ratios={ratios.profitability} onPick={setSelected} />
+      <RatioGroupSection title="Leverage"                            ratios={ratios.leverage}      onPick={setSelected} />
+      <RatioGroupSection title="Coverage"                            ratios={ratios.coverage}      onPick={setSelected} />
+      <RatioGroupSection title="Efficiency · working capital cycle"  ratios={ratios.efficiency}    onPick={setSelected} />
+      <RatioGroupSection title="Bankruptcy risk"                     ratios={ratios.bankruptcy}    onPick={setSelected} />
+
+      {/* Premium explainer drawer — 8 sections + related-ratio pivot.
+       *  See `src/components/cfo/RatioDetailDrawer.tsx` and the
+       *  knowledge map at `src/lib/ratioKnowledge.ts`. The drawer
+       *  reads the company's live values from the same `ratios`
+       *  bundle this tab already has, so opening it is a free
+       *  client-side action — no fetch, no re-compute. */}
+      <RatioDetailDrawer
+        ratio={selected}
+        bundle={ratios}
+        onClose={() => setSelected(null)}
+        onPickRelated={setSelected}
+      />
+    </>
+  );
+}
+
+function RatioGroupSection({
+  title, ratios, onPick,
+}: {
+  title: string;
+  ratios: Ratio[];
+  /** Click on any ratio tile opens the premium explainer drawer.
+   *  Threaded down from the Ratios TabsContent which owns the
+   *  selected-ratio state and renders the drawer. */
+  onPick?: (r: Ratio) => void;
+}) {
   return (
     <div>
-      <h2 className="font-serif text-[22px] text-ink mb-3">{title}</h2>
+      {/* Eyebrow-style section header matches the new global design
+       *  vocabulary used elsewhere in the app (uppercase + 0.12em
+       *  tracking + brand-tinted small accent). */}
+      <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-3">
+        {title}
+      </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {ratios.map((r) => (
-          <RatioTile key={r.key} ratio={r} />
+          <RatioTile key={r.key} ratio={r} onPick={onPick} />
         ))}
       </div>
     </div>
   );
 }
 
-function RatioTile({ ratio }: { ratio: Ratio }) {
+function RatioTile({
+  ratio, onPick,
+}: {
+  ratio: Ratio;
+  onPick?: (r: Ratio) => void;
+}) {
   const c = verdictColor(ratio.verdict);
+  const clickable = typeof onPick === "function";
+  // The tile becomes a button when clickable, keeping keyboard focus,
+  // Enter/Space activation, and an aria role for AT users. When the
+  // Ratios tab isn't mounted with a `onPick` (legacy callers) it
+  // gracefully degrades to the static-card look.
+  const Tag = (clickable ? "button" : "div") as "button" | "div";
   return (
-    <div className="rounded-xl border border-rule bg-surface p-4">
+    <Tag
+      type={clickable ? "button" : undefined}
+      onClick={clickable ? () => onPick!(ratio) : undefined}
+      data-testid="ratio-tile"
+      data-ratio-key={ratio.key}
+      aria-label={clickable ? `Open ${ratio.label} detail` : undefined}
+      className={`
+        group relative w-full text-left
+        rounded-2xl border border-rule bg-surface p-4
+        transition-all duration-150
+        ${clickable
+          ? "hover:border-brand/30 hover:bg-surface/95 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.12)] focus:outline-none focus:ring-2 focus:ring-brand/30 cursor-pointer"
+          : ""}
+      `}
+    >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="text-[11px] uppercase tracking-[0.1em] text-ink-mute font-medium">{ratio.label}</div>
+        <div className="text-[11px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+          {ratio.label}
+        </div>
         <span
           className="text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full"
           style={{ backgroundColor: c.bg, color: c.text }}
@@ -1520,10 +2800,20 @@ function RatioTile({ ratio }: { ratio: Ratio }) {
           {verdictLabel(ratio.verdict)}
         </span>
       </div>
-      <div className="font-serif text-[24px] text-ink leading-tight">{formatRatio(ratio)}</div>
+      <div className="text-[24px] font-semibold text-ink leading-tight tabular-nums tracking-[-0.005em]">
+        {formatRatio(ratio)}
+      </div>
       <div className="text-[11px] text-ink-mute mt-1">{ratio.benchmark}</div>
-      <p className="text-[12px] text-ink-soft leading-snug mt-2">{ratio.commentary}</p>
-    </div>
+      <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3">
+        {ratio.commentary}
+      </p>
+      {clickable && (
+        <div className="mt-2 inline-flex items-center gap-1 text-[10.5px] text-ink-mute group-hover:text-brand-d transition-colors">
+          <span>Open explainer</span>
+          <span aria-hidden>→</span>
+        </div>
+      )}
+    </Tag>
   );
 }
 
@@ -1649,13 +2939,33 @@ function fmtMoney(n: number, currency: string): string {
 
 // ─── VALUATION PANEL ──────────────────────────────────────────────────────
 
-function ValuationPanel({ statements }: { statements: Statements }) {
+function ValuationPanel({
+  statements,
+  valuation,
+}: {
+  statements: Statements;
+  valuation: PeriodValuation | null;
+}) {
   const wacc = useMemo(() => computeCostOfCapital(statements), [statements]);
   const dcf = useMemo(() => runDcf(statements), [statements]);
   const graham = useMemo(() => runGraham(statements), [statements]);
-  const cf = useMemo(() => deriveCashFlow(statements), [statements]);
+  const cfClient = useMemo(() => deriveCashFlow(statements), [statements]);
   const growth = useMemo(() => multiPeriodGrowth(statements), [statements]);
   const cur = statements.currency;
+
+  // ── PREFER backend-canonical FCF (real CapEx, statutory NI). The
+  // client-side deriveCashFlow falls back to D&A when capex is missing —
+  // the bug from the screenshots. When the period response carries
+  // `fcf_breakdown`, use it verbatim. ──
+  const fb = valuation?.fcf_breakdown ?? null;
+  const netIncomeView = fb?.net_income ?? cfClient.netIncome;
+  const depView = fb?.depreciation ?? cfClient.depreciationAmortization;
+  const wcView = fb?.net_wc_change ?? cfClient.workingCapitalChange;
+  const cfoView = fb?.cash_from_operating ?? cfClient.cfo;
+  const capexView = fb?.capex_real ?? -cfClient.capex;       // negative = cash out
+  const fcfView = fb?.free_cash_flow ?? cfClient.fcf;
+  const capexAbs = Math.abs(capexView);
+  const fcfNegativeDev = fb?.is_development_phase && fcfView < 0;
 
   const pct = (x: number, d = 1) => `${(x * 100).toFixed(d)}%`;
 
@@ -1665,12 +2975,26 @@ function ValuationPanel({ statements }: { statements: Statements }) {
       <div>
         <h2 className="font-serif text-[22px] text-ink mb-3">Free cash flow</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KpiTile label="Net income" value={fmtMoney(cf.netIncome, cur)} />
-          <KpiTile label="+ D&A" value={fmtMoney(cf.depreciationAmortization, cur)} />
-          <KpiTile label="− ΔWorking capital" value={fmtMoney(cf.workingCapitalChange, cur)} />
-          <KpiTile label="= CFO" value={fmtMoney(cf.cfo, cur)} />
-          <KpiTile label="− Capex" value={fmtMoney(cf.capex, cur)} />
-          <KpiTile label="= FCF" value={fmtMoney(cf.fcf, cur)} sub={cf.fcf > 0 ? "Positive cash generation" : "Cash burning"} />
+          <KpiTile label="Net income" value={fmtMoney(netIncomeView, cur)} sub="statutory view" />
+          <KpiTile label="+ D&A" value={fmtMoney(depView, cur)} />
+          <KpiTile label="− ΔWorking capital" value={fmtMoney(wcView, cur)} />
+          <KpiTile label="= CFO" value={fmtMoney(cfoView, cur)} />
+          <KpiTile
+            label="− CapEx"
+            value={fmtMoney(capexAbs, cur)}
+            sub={fb ? "CIP additions, real" : "estimated as D&A"}
+          />
+          <KpiTile
+            label="= FCF"
+            value={fmtMoney(fcfView, cur)}
+            sub={
+              fcfNegativeDev
+                ? "Development-phase cash drag"
+                : fcfView > 0
+                  ? "Positive cash generation"
+                  : "Cash burning"
+            }
+          />
         </div>
       </div>
 
@@ -1689,17 +3013,40 @@ function ValuationPanel({ statements }: { statements: Statements }) {
       {/* DCF */}
       <div>
         <h2 className="font-serif text-[22px] text-ink mb-3">DCF intrinsic value</h2>
+        {fb?.is_development_phase && (
+          <div className="mb-3 rounded-xl border border-info/40 bg-info-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed flex items-start gap-2">
+            <Info size={14} strokeWidth={2} className="mt-0.5 shrink-0 text-info" />
+            <span>
+              Development phase detected — one-time CIP capex of{" "}
+              <span className="tabular-nums font-medium">{fmtMoney(capexAbs, cur)}</span>{" "}
+              is excluded from the perpetuity. DCF uses stabilized FCF
+              (net income + ΔWC ≈ {fmtMoney(fb.stabilized_fcf, cur)}) for the terminal value, since
+              the CIP spend is a one-shot development outlay, not recurring.
+            </span>
+          </div>
+        )}
         <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
           <div className="px-5 py-3 bg-bg-2/40 border-b border-rule flex items-center justify-between">
             <div>
               <div className="font-serif text-[16px] text-ink">5-year explicit forecast + Gordon terminal</div>
               <div className="text-[12px] text-ink-soft">
-                Forecast growth {pct(dcf.forecastGrowthRate, 1)} · Terminal growth {pct(dcf.terminalGrowthRate, 1)} · WACC {pct(dcf.wacc, 2)}
+                Base FCF (stabilized run-rate){" "}
+                <span className="text-ink font-medium tabular-nums">{fmtMoney(dcf.baseFcf, cur)}</span>
+                {" · "}Forecast growth {pct(dcf.forecastGrowthRate, 1)} · Terminal growth {pct(dcf.terminalGrowthRate, 1)} · WACC {pct(dcf.wacc, 2)}
+              </div>
+              <div className="text-[11px] text-ink-mute mt-1">
+                Stabilized FCF = CFO − maintenance capex (≈ D&A). Not the one-period FCF —
+                that includes the one-shot CIP outlay and would crush the perpetuity.
               </div>
             </div>
             <div className="text-right">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">Equity value</div>
-              <div className="font-serif text-[28px] text-ink leading-tight">{fmtMoney(dcf.equityValue, cur)}</div>
+              <div className="font-serif text-[28px] text-ink leading-tight">
+                {fmtMoney(
+                  valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue,
+                  cur,
+                )}
+              </div>
             </div>
           </div>
           <table className="w-full text-[13px]">
@@ -1738,6 +3085,52 @@ function ValuationPanel({ statements }: { statements: Statements }) {
               </tr>
             </tbody>
           </table>
+
+          {/* ── 3-scenario sensitivity (Romania-corrected WACC) ──
+              The DCF on real estate is highly sensitive to WACC. A ±100 bps
+              shift in WACC moves equity value by RON ~6M. We show three
+              brackets (Optimistic / Central / Conservative) explicitly
+              so readers can locate themselves on the band rather than
+              trusting a single point estimate. */}
+          {dcf.scenarios && dcf.scenarios.length > 0 && (
+            <div className="px-5 py-4 border-t border-rule bg-bg-2/20">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium mb-2">
+                Sensitivity (Romania-corrected WACC) · forecast g {pct(dcf.forecastGrowthRate, 1)} · terminal g {pct(dcf.terminalGrowthRate, 1)}
+              </div>
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="bg-bg-2/40">
+                    <th className="text-left py-2 px-3 font-medium text-ink-mute">Scenario</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">WACC</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">Enterprise value</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">− Net debt</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">Equity value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dcf.scenarios.map((sc) => (
+                    <tr
+                      key={sc.label}
+                      className={`border-t border-rule ${sc.label === "Central" ? "bg-amber-50/40 font-semibold" : ""}`}
+                    >
+                      <td className="py-2 px-3 text-ink">{sc.label}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink">{pct(sc.wacc, 2)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(sc.enterpriseValue, cur)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink-soft">{fmtMoney(-sc.netDebt, cur)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(sc.equityValue, cur)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-[11.5px] text-ink-mute mt-2 leading-snug">
+                Inputs: Rf 6.75% (Romanian 10Y sovereign in RON) · ERP 7.5% (Romania mature EM, Damodaran) · β 1.00 (levered RE).
+                The optimistic case (−100 bps WACC) converges with the cap-rate-implied equity value;
+                the central case typically understates a yielding RE asset because DCF treats it as a
+                perpetual cash-flow stream rather than an appreciating asset.
+              </p>
+            </div>
+          )}
+
           <div className="px-5 py-3 border-t border-rule bg-bg-2/20 grid grid-cols-2 gap-4">
             <div>
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">EV / EBITDA</div>
@@ -1761,7 +3154,10 @@ function ValuationPanel({ statements }: { statements: Statements }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">Net income (TTM)</div>
-              <div className="font-serif text-[20px] text-ink">{fmtMoney(graham.eps * (statements.supplementary.sharesOutstanding ?? 1), cur)}</div>
+              <div className="font-serif text-[20px] text-ink">
+                {fmtMoney(graham.eps * (statements.supplementary.sharesOutstanding ?? 1), cur)}
+              </div>
+              <div className="text-[10.5px] text-ink-mute mt-0.5">statutory view</div>
             </div>
             <div>
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">Graham fair equity value</div>
@@ -1811,15 +3207,18 @@ function ValuationPanel({ statements }: { statements: Statements }) {
 
 function RisksPanel({ statements }: { statements: Statements }) {
   const credit = useMemo(() => computeCreditScore(statements), [statements]);
-  const piotroski = useMemo(() => runPiotroski(statements), [statements]);
-  const altmanZ = computeRatios(statements).bankruptcy[0];
+  const piotroski = credit.piotroski;
+  const altman = credit.altman;
 
   const ratingTone = (rating: string): string => {
-    if (rating.startsWith("AAA") || rating.startsWith("AA")) return "bg-emerald-50 text-emerald-700 border-emerald-300/60";
-    if (rating.startsWith("A") || rating.startsWith("BBB")) return "bg-blue-50 text-blue-700 border-blue-300/60";
-    if (rating.startsWith("BB") || rating.startsWith("B")) return "bg-amber-50 text-amber-700 border-amber-300/60";
+    if (rating.startsWith("AAA") || rating.startsWith("AA") || rating === "A") return "bg-emerald-50 text-emerald-700 border-emerald-300/60";
+    if (rating.startsWith("BBB")) return "bg-blue-50 text-blue-700 border-blue-300/60";
+    if (rating.startsWith("BB")) return "bg-amber-50 text-amber-700 border-amber-300/60";
+    if (rating.startsWith("B") || rating === "CCC") return "bg-orange-50 text-orange-700 border-orange-300/60";
     return "bg-red-50 text-red-700 border-red-300/60";
   };
+
+  const gradeLabel = credit.grade.replace(/_/g, " ");
 
   return (
     <>
@@ -1830,7 +3229,9 @@ function RisksPanel({ statements }: { statements: Statements }) {
           <div>
             <div className="text-[11px] uppercase tracking-[0.12em] font-medium opacity-80">Credit rating</div>
             <div className="font-serif text-[64px] leading-none mt-1">{credit.rating}</div>
-            <div className="text-[12px] mt-2 opacity-80">Composite score: {credit.score} / 100</div>
+            <div className="text-[12px] mt-2 opacity-80">
+              Composite score: {credit.score} / 100 · <span className="capitalize">{gradeLabel}</span>
+            </div>
           </div>
           <Shield size={64} strokeWidth={1.25} className="opacity-30" />
         </div>
@@ -1842,15 +3243,19 @@ function RisksPanel({ statements }: { statements: Statements }) {
                 <th className="text-right py-2 px-4 font-medium text-ink-mute">Value</th>
                 <th className="text-right py-2 px-4 font-medium text-ink-mute">Weight</th>
                 <th className="text-right py-2 px-4 font-medium text-ink-mute">Contribution</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">Read</th>
               </tr>
             </thead>
             <tbody>
               {credit.components.map((c) => (
                 <tr key={c.label} className="border-t border-rule">
                   <td className="py-2 px-4 text-ink">{c.label}</td>
-                  <td className="py-2 px-4 text-right tabular-nums text-ink">{c.value.toFixed(2)}</td>
+                  <td className="py-2 px-4 text-right tabular-nums text-ink">
+                    {Number.isFinite(c.value) ? c.value.toFixed(2) : "—"}
+                  </td>
                   <td className="py-2 px-4 text-right tabular-nums text-ink-soft">{(c.weight * 100).toFixed(0)}%</td>
                   <td className="py-2 px-4 text-right tabular-nums text-ink">{c.contribution.toFixed(1)}</td>
+                  <td className="py-2 px-4 text-ink-soft text-[12px]">{c.read}</td>
                 </tr>
               ))}
             </tbody>
@@ -1864,8 +3269,20 @@ function RisksPanel({ statements }: { statements: Statements }) {
         <div className="rounded-2xl border border-rule bg-surface p-5 flex items-center justify-between mb-3">
           <div>
             <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">9-point quality screen</div>
-            <div className="font-serif text-[40px] text-ink leading-none mt-1">{piotroski.score} <span className="text-[16px] text-ink-soft">/ 9</span></div>
-            <div className="text-[12px] text-ink-soft mt-1">{piotroski.band}</div>
+            <div className="font-serif text-[40px] text-ink leading-none mt-1">
+              {piotroski.passCount}
+              {piotroski.uncertainCount > 0 ? (
+                <span className="text-[16px] text-ink-soft"> / {9 - piotroski.uncertainCount} confirmed</span>
+              ) : (
+                <span className="text-[16px] text-ink-soft"> / 9</span>
+              )}
+            </div>
+            <div className="text-[12px] text-ink-soft mt-1">
+              {piotroski.band}
+              {piotroski.uncertainCount > 0
+                ? ` · ${piotroski.uncertainCount} check${piotroski.uncertainCount === 1 ? "" : "s"} uncertain (prior-period data missing)`
+                : ""}
+            </div>
           </div>
           <TrendingUp size={48} strokeWidth={1.25} className="text-ink-mute opacity-50" />
         </div>
@@ -1879,40 +3296,97 @@ function RisksPanel({ statements }: { statements: Statements }) {
               </tr>
             </thead>
             <tbody>
-              {piotroski.checks.map((c) => (
-                <tr key={c.key} className="border-t border-rule">
-                  <td className="py-2 px-4 text-ink">{c.label}</td>
-                  <td className={`py-2 px-4 text-center font-semibold ${c.pass ? "text-emerald-700" : "text-red-700"}`}>
-                    {c.pass ? "✓" : "✗"}
-                  </td>
-                  <td className="py-2 px-4 text-ink-soft">{c.detail}</td>
-                </tr>
-              ))}
+              {piotroski.checks.map((c) => {
+                const tone =
+                  c.result === "pass"
+                    ? "text-emerald-700"
+                    : c.result === "fail"
+                      ? "text-red-700"
+                      : "text-ink-mute";
+                const glyph = c.result === "pass" ? "✓" : c.result === "fail" ? "✗" : "?";
+                return (
+                  <tr key={c.key} className="border-t border-rule">
+                    <td className="py-2 px-4 text-ink">{c.label}</td>
+                    <td className={`py-2 px-4 text-center font-semibold ${tone}`}>{glyph}</td>
+                    <td className="py-2 px-4 text-ink-soft text-[12.5px]">{c.detail}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Altman Z */}
+      {/* Altman Z (variant-aware) */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">Bankruptcy risk · Altman Z</h2>
+        <h2 className="font-serif text-[22px] text-ink mb-3">
+          Bankruptcy risk · Altman {altman.variant}
+        </h2>
         <div className="rounded-2xl border border-rule bg-surface p-5">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
-              <div className="font-serif text-[40px] text-ink leading-none">{altmanZ.value.toFixed(2)}</div>
-              <div className="text-[12px] text-ink-soft mt-1">{altmanZ.benchmark}</div>
+              <div className="font-serif text-[40px] text-ink leading-none">{altman.score.toFixed(2)}</div>
+              <div className="text-[12px] text-ink-soft mt-1">
+                ≥ {altman.thresholds.safe.toFixed(2)} safe · {altman.thresholds.distress.toFixed(2)}–{altman.thresholds.safe.toFixed(2)} grey · &lt; {altman.thresholds.distress.toFixed(2)} distress
+              </div>
             </div>
-            <span className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full ${
-              altmanZ.verdict === "strong" ? "bg-emerald-50 text-emerald-700" :
-              altmanZ.verdict === "healthy" ? "bg-blue-50 text-blue-700" :
-              altmanZ.verdict === "watch" ? "bg-amber-50 text-amber-700" :
-              "bg-red-50 text-red-700"
-            }`}>
-              {verdictLabel(altmanZ.verdict)}
+            <span
+              className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full ${
+                altman.zone === "safe"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : altman.zone === "grey"
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-red-50 text-red-700"
+              }`}
+            >
+              {altman.zone === "safe" ? "Safe zone" : altman.zone === "grey" ? "Grey zone" : "Distress"}
             </span>
           </div>
-          <p className="text-[13px] text-ink-soft mt-3 leading-snug">{altmanZ.commentary}</p>
+          <p className="text-[12.5px] text-ink-soft mt-3 leading-snug">{altman.methodologyNote}</p>
+          <div className="mt-4 rounded-xl border border-rule bg-bg-2/30 overflow-hidden">
+            <table className="w-full text-[12.5px]">
+              <thead>
+                <tr className="bg-bg-2/40">
+                  <th className="text-left py-2 px-3 font-medium text-ink-mute">Component</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Coefficient</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Value</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Weighted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {altman.weightedComponents.map((c, i) => (
+                  <tr key={i} className="border-t border-rule">
+                    <td className="py-2 px-3 text-ink">{c.label}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-ink">{c.value.toFixed(4)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-ink">{c.weighted.toFixed(3)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-ink/30 bg-bg-2/50">
+                  <td colSpan={3} className="py-2 px-3 text-ink font-semibold">
+                    Altman {altman.variant}-Score
+                  </td>
+                  <td
+                    className={`py-2 px-3 text-right tabular-nums font-semibold ${
+                      altman.zone === "safe"
+                        ? "text-emerald-700"
+                        : altman.zone === "grey"
+                          ? "text-amber-700"
+                          : "text-red-700"
+                    }`}
+                  >
+                    {altman.score.toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
+
+      {/* Caveat */}
+      <div className="rounded-xl border border-info/40 bg-info-tint/40 px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
+        <strong className="text-ink">Caveat:</strong> {credit.caveat}
       </div>
     </>
   );

@@ -76,17 +76,32 @@ export interface CostOfCapital {
 export function computeCostOfCapital(s: Statements): CostOfCapital {
   const t = deriveTotals(s);
   const sup = s.supplementary;
-  const rf = sup.riskFreeRate ?? 0.045;
-  const erp = sup.equityRiskPremium ?? 0.055;
+  // ── ROMANIA-CORRECTED WACC INPUTS (2025-26) ────────────────────────
+  // Rf  = 6.75% — Romanian 10Y sovereign in RON
+  // ERP = 7.50% — Romania mature EM premium (Damodaran)
+  // These replace the prior Western European defaults (4.5% / 5.5%)
+  // which produced WACC ~6.26% — materially under-discounting the
+  // perpetuity for any RON-denominated entity. Cost of equity at
+  // these inputs lands at 14.25%, WACC around 8.5-9% with book
+  // capital structure.
+  const rf = sup.riskFreeRate ?? 0.0675;
+  const erp = sup.equityRiskPremium ?? 0.075;
   const beta = sup.beta ?? 1.0;
   const costOfEquity = rf + beta * erp;
   const impliedTaxRate = t.pbt > 0 ? s.incomeStatement.taxExpense / t.pbt : 0;
   const taxRate = sup.taxRate ?? Math.min(0.25, Math.max(0, impliedTaxRate));
   const impliedKd = t.totalDebt > 0 ? s.incomeStatement.interestExpense / t.totalDebt : 0;
-  const kdPre = sup.costOfDebt ?? Math.max(0.03, impliedKd);
+  // Pre-tax Kd floor 5.0% — accounts for currency-risk premium when the
+  // lender carries EUR debt against RON cash flow (the EEI pattern).
+  const kdPre = sup.costOfDebt ?? Math.max(0.05, impliedKd);
   const kdAfter = kdPre * (1 - taxRate);
-  const debt = t.totalDebt;
-  const equity = Math.max(t.totalEquity, 1);
+  // Prefer canonical book equity / debt from the assembled BS view.
+  const canonBs = s.assembled_bs ?? {};
+  const debt = typeof canonBs.total_debt === "number" ? canonBs.total_debt : t.totalDebt;
+  const equity = Math.max(
+    typeof canonBs.total_equity === "number" ? canonBs.total_equity : t.totalEquity,
+    1,
+  );
   const wd = debt / (debt + equity);
   const we = 1 - wd;
   return {
@@ -129,6 +144,17 @@ export interface DcfResult {
   upside?: number;
   evToEbitda: number;
   evToRevenue: number;
+  /** 3-scenario sensitivity table — Optimistic (−100 bps), Central
+   *  (computed), Conservative (+150 bps). Each entry carries its WACC,
+   *  enterprise value, and equity value so the Valuation tab can render
+   *  the methodology spread directly. */
+  scenarios?: Array<{
+    label: "Optimistic" | "Central" | "Conservative";
+    wacc: number;
+    enterpriseValue: number;
+    netDebt: number;
+    equityValue: number;
+  }>;
 }
 
 export function runDcf(s: Statements): DcfResult {
@@ -137,10 +163,39 @@ export function runDcf(s: Statements): DcfResult {
   const sup = s.supplementary;
   const k = computeCostOfCapital(s);
   const horizon = sup.forecastYears ?? 5;
-  const g = sup.forecastGrowthRate ?? 0.05;
-  const gT = sup.terminalGrowthRate ?? 0.025;
-  // Floor base FCF at zero — DCF on negative FCF flips sign nonsensically.
-  const baseFcf = Math.max(cf.fcf, 0);
+  // ── Mature CRE / rental-business growth assumptions ───────────────
+  // Forecast 3.5% per year (CPI indexation + modest lease-up).
+  // Terminal 3.0% (matches mature CRE indexation; below RON inflation).
+  // Replaces the prior 5.0% / 2.5% defaults that overstated 5-year
+  // growth and produced an inconsistent perpetuity convergence.
+  const g = sup.forecastGrowthRate ?? 0.035;
+  const gT = sup.terminalGrowthRate ?? 0.030;
+  // ── STABILIZED FCF for the perpetuity ───────────────────────────────
+  // The previous bug used `cf.fcf` (one-period FCF) as the perpetuity
+  // base. For a development-phase company that includes one-time CIP
+  // capex, that produces a negative number → Math.max(_, 0) → 0 → the
+  // table rendered Year 1-5 as RON 0 and the DCF "equity value" was
+  // just minus-net-debt.
+  //
+  // DCF needs the recurring run-rate. Stabilized FCF = CFO − maintenance
+  // capex; for a stable asset, maintenance capex ≈ D&A. So:
+  //     stabilized_fcf = cfo − D&A
+  // In the steady state this also equals net income (positive when the
+  // statutory P&L is profitable).
+  //
+  // Prefer the canonical views (`assembled_cf` / `assembled_pl`) when
+  // the backend supplied them. Fall back to client-side derivations
+  // only when canonical isn't available (sample mode).
+  const canonicalCfo = s.assembled_cf?.cash_from_operating;
+  const canonicalDep = s.assembled_pl?.depreciation;
+  const cfo = typeof canonicalCfo === "number" ? canonicalCfo : cf.cfo;
+  const dep = typeof canonicalDep === "number"
+    ? canonicalDep
+    : s.incomeStatement.depreciationAmortization;
+  const stabilizedFcf = cfo - dep;
+  // Use stabilized FCF when positive; else floor at zero (DCF on a
+  // genuinely loss-making company is undefined and falls to net debt).
+  const baseFcf = Math.max(stabilizedFcf, 0);
 
   const years: DcfYear[] = [];
   let totalPv = 0;
@@ -163,7 +218,14 @@ export function runDcf(s: Statements): DcfResult {
   const tvPv = tvUndisc * tvDf;
 
   const ev = totalPv + tvPv;
-  const equityValue = ev - t.netDebt;
+  // Net debt — prefer canonical view, else legacy derivation.
+  const canonicalDebt = s.assembled_bs?.total_debt;
+  const canonicalCash = s.assembled_bs?.cash;
+  const netDebtCanonical =
+    typeof canonicalDebt === "number" && typeof canonicalCash === "number"
+      ? canonicalDebt - canonicalCash
+      : t.netDebt;
+  const equityValue = ev - netDebtCanonical;
   const evToEbitda = t.ebitda > 0 ? ev / t.ebitda : 0;
   const evToRevenue = s.incomeStatement.revenue > 0 ? ev / s.incomeStatement.revenue : 0;
 
@@ -176,6 +238,35 @@ export function runDcf(s: Statements): DcfResult {
     }
   }
 
+  // ── 3-scenario sensitivity table ─────────────────────────────────
+  // Optimistic (−100 bps WACC), Central (computed), Conservative
+  // (+150 bps). For a Romania-corrected central WACC ~8.5%, this
+  // brackets the spread that drives the equity value materially.
+  const dcfAt = (waccArg: number) => {
+    const wacc = waccArg <= gT ? gT + 0.005 : waccArg;
+    let pv = 0;
+    let lastFcf = baseFcf;
+    for (let y = 1; y <= horizon; y++) {
+      const fcf = baseFcf * Math.pow(1 + g, y);
+      pv += fcf / Math.pow(1 + wacc, y);
+      lastFcf = fcf;
+    }
+    const termUndisc = (lastFcf * (1 + gT)) / (wacc - gT);
+    const termPv = termUndisc / Math.pow(1 + wacc, horizon);
+    const evScenario = pv + termPv;
+    return {
+      wacc,
+      enterpriseValue: evScenario,
+      netDebt: netDebtCanonical,
+      equityValue: evScenario - netDebtCanonical,
+    };
+  };
+  const scenarios: DcfResult["scenarios"] = [
+    { label: "Optimistic", ...dcfAt(Math.max(k.wacc - 0.01, gT + 0.005)) },
+    { label: "Central", ...dcfAt(k.wacc) },
+    { label: "Conservative", ...dcfAt(k.wacc + 0.015) },
+  ];
+
   return {
     baseFcf,
     forecastYears: horizon,
@@ -186,13 +277,14 @@ export function runDcf(s: Statements): DcfResult {
     terminalValueUndiscounted: tvUndisc,
     terminalValuePresent: tvPv,
     enterpriseValue: ev,
-    netDebt: t.netDebt,
+    netDebt: netDebtCanonical,
     equityValue,
     intrinsicValuePerShare: intrinsicPerShare,
     marketPricePerShare: sup.marketPricePerShare,
     upside,
     evToEbitda,
     evToRevenue,
+    scenarios,
   };
 }
 
@@ -216,11 +308,22 @@ export interface GrahamResult {
  */
 export function runGraham(s: Statements): GrahamResult {
   const t = deriveTotals(s);
+  // ── STATUTORY NET INCOME for Graham ────────────────────────────────
+  // Graham capitalizes the recurring earnings stream. For Romanian
+  // books, that's `net_income_statutory` (includes account 722 capitalized
+  // own-work). The legacy `deriveTotals(s).netIncome` reads from the
+  // aggregated incomeStatement which is the OPERATIONAL view (excludes
+  // 722) — produces -RON 739K for EEI and flips Graham negative.
+  //
+  // Prefer the canonical statutory NI; fall back to legacy only when
+  // canonical isn't present (sample mode).
+  const canonicalNi = s.assembled_pl?.net_income_statutory;
+  const netIncome = typeof canonicalNi === "number" ? canonicalNi : t.netIncome;
   const shares = s.supplementary.sharesOutstanding;
-  const eps = shares && shares > 0 ? t.netIncome / shares : t.netIncome;
+  const eps = shares && shares > 0 ? netIncome / shares : netIncome;
   const g = (s.supplementary.forecastGrowthRate ?? 0.05) * 100; // pct units
   const yPct = (s.supplementary.riskFreeRate ?? 0.045) * 100;
-  const fairAggregate = (t.netIncome * (8.5 + 2 * g) * 4.4) / yPct;
+  const fairAggregate = (netIncome * (8.5 + 2 * g) * 4.4) / yPct;
   let perShare: number | undefined;
   let upside: number | undefined;
   let marketCap: number | undefined;
@@ -243,120 +346,409 @@ export function runGraham(s: Statements): GrahamResult {
   };
 }
 
+// ─── Canonical-view accessors ──────────────────────────────────────────────
+//
+// Every credit-risk computation below reads from these helpers, not from
+// deriveTotals(s).netIncome directly. The legacy aggregated view is the
+// OPERATIONAL net income (excludes 722) — using it here is what produces
+// the screenshot's 0/9 Piotroski + 0.53 Altman + CC composite. Statutory
+// values from `assembled_pl` / `assembled_bs` / `assembled_cf` win when
+// the backend populated them (real EEI data path); legacy is the fallback
+// for sample-mode without canonical views.
+
+function canonical(s: Statements): {
+  netIncomeStatutory: number;
+  ebitStatutory: number;
+  ebitdaStatutory: number;
+  cfo: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  totalEquity: number;
+  totalCurrentAssets: number;
+  totalCurrentLiabilities: number;
+  workingCapital: number;
+  retainedEarningsPlusCurrent: number;
+  shareCapital: number;
+  totalDebt: number;
+  cash: number;
+  revenue: number;
+  depreciation: number;
+  interestExpense: number;
+} {
+  const t = deriveTotals(s);
+  const pl = s.assembled_pl ?? {};
+  const bs = s.assembled_bs ?? {};
+  const cf = s.assembled_cf ?? {};
+  // Statutory net income includes 722; operational view doesn't.
+  const netIncomeStatutory =
+    typeof pl.net_income_statutory === "number" ? pl.net_income_statutory : t.netIncome;
+  const ebitStatutory =
+    typeof pl.operating_ebit === "number"
+      ? pl.operating_ebit
+      : typeof pl.ebitda_statutory === "number"
+        ? pl.ebitda_statutory - (pl.depreciation ?? s.incomeStatement.depreciationAmortization)
+        : t.ebit;
+  const ebitdaStatutory =
+    typeof pl.ebitda_statutory === "number" ? pl.ebitda_statutory : t.ebitda;
+  const cfo =
+    typeof cf.cash_from_operating === "number"
+      ? cf.cash_from_operating
+      : netIncomeStatutory + (pl.depreciation ?? s.incomeStatement.depreciationAmortization);
+  return {
+    netIncomeStatutory,
+    ebitStatutory,
+    ebitdaStatutory,
+    cfo,
+    totalAssets: typeof bs.total_assets === "number" ? bs.total_assets : t.totalAssets,
+    totalLiabilities: typeof bs.total_liabilities === "number" ? bs.total_liabilities : t.totalLiabilities,
+    totalEquity: typeof bs.total_equity === "number" ? bs.total_equity : t.totalEquity,
+    totalCurrentAssets: t.totalCurrentAssets,
+    totalCurrentLiabilities: t.totalCurrentLiabilities,
+    workingCapital: t.workingCapital,
+    // Z" needs retained earnings + current-year P&L (the cumulative book).
+    retainedEarningsPlusCurrent:
+      (typeof bs.retained_earnings === "number" ? bs.retained_earnings : s.balanceSheet.retainedEarnings)
+      + (typeof bs.current_year_pnl === "number" ? bs.current_year_pnl : 0),
+    shareCapital:
+      typeof bs.share_capital === "number" ? bs.share_capital : s.balanceSheet.shareCapital,
+    totalDebt: typeof bs.total_debt === "number" ? bs.total_debt : t.totalDebt,
+    cash: typeof bs.cash === "number" ? bs.cash : s.balanceSheet.cash,
+    revenue: typeof pl.revenue === "number" ? pl.revenue : s.incomeStatement.revenue,
+    depreciation:
+      typeof pl.depreciation === "number" ? pl.depreciation : s.incomeStatement.depreciationAmortization,
+    interestExpense:
+      typeof pl.interest_expense === "number" ? pl.interest_expense : s.incomeStatement.interestExpense,
+  };
+}
+
 // ─── Piotroski F-Score ─────────────────────────────────────────────────────
 //
-// 9 binary tests (1 point each), grouped into:
-//   Profitability (4): positive NI, positive CFO, ROA improving, CFO > NI
+// 9 binary tests grouped into:
+//   Profitability (4): positive NI, positive ROA, positive CFO, CFO > NI
 //   Leverage / liquidity / source (3): debt declining, current ratio improving, no share dilution
 //   Operating efficiency (2): gross margin improving, asset turnover improving
+//
+// 5 of 9 can be evaluated from current-period facts alone (NI / ROA / CFO
+// / CFO>NI / share-dilution-vs-opening). 4 require prior-period data —
+// when that's missing, those checks return `uncertain` (not `fail`), so
+// the F-score reflects only confirmed positives.
+
+export type PiotroskiResult_t = "pass" | "fail" | "uncertain";
 
 export interface PiotroskiCheck {
   key: string;
   label: string;
+  result: PiotroskiResult_t;
+  /** @deprecated use `result`. Kept for legacy renderers. */
   pass: boolean;
   detail: string;
+  requiresPriorPeriod: boolean;
 }
 
 export interface PiotroskiResult {
   score: number;
   band: "Strong (8–9)" | "Solid (6–7)" | "Weak (3–5)" | "Distressed (0–2)";
   checks: PiotroskiCheck[];
+  uncertainCount: number;
+  passCount: number;
+  failCount: number;
 }
 
 export function runPiotroski(s: Statements): PiotroskiResult {
-  const cur = deriveTotals(s);
-  const cf = deriveCashFlow(s);
+  const c = canonical(s);
   const checks: PiotroskiCheck[] = [];
 
-  const add = (key: string, label: string, pass: boolean, detail: string) =>
-    checks.push({ key, label, pass, detail });
+  const add = (
+    key: string,
+    label: string,
+    result: PiotroskiResult_t,
+    detail: string,
+    requiresPriorPeriod = false,
+  ) => checks.push({ key, label, result, pass: result === "pass", detail, requiresPriorPeriod });
 
-  // --- Profitability ---
-  add("ni_positive", "Net income positive", cur.netIncome > 0, fmt(cur.netIncome, s.currency));
-  add("cfo_positive", "Operating cash flow positive", cf.cfo > 0, fmt(cf.cfo, s.currency));
+  // 1. Net income positive — STATUTORY view.
+  add(
+    "ni_positive",
+    "Net income positive",
+    c.netIncomeStatutory > 0 ? "pass" : "fail",
+    fmt(c.netIncomeStatutory, s.currency),
+  );
+
+  // 2. Return on assets positive — sanity check on the same NI.
+  const roa = safeDiv(c.netIncomeStatutory, c.totalAssets);
+  add(
+    "roa_positive",
+    "Return on assets positive",
+    roa > 0 ? "pass" : "fail",
+    `${(roa * 100).toFixed(2)}% on ${fmt(c.totalAssets, s.currency)} total assets`,
+  );
+
+  // 3. Operating cash flow positive — from canonical CF view (NI + D&A
+  //    when prior-period WC deltas aren't threaded; positive for EEI).
+  add(
+    "cfo_positive",
+    "Operating cash flow positive",
+    c.cfo > 0 ? "pass" : "fail",
+    fmt(c.cfo, s.currency),
+  );
+
+  // 4. CFO > NI — earnings cash-backed.
+  add(
+    "cfo_gt_ni",
+    "Quality of earnings (CFO > NI)",
+    c.cfo > c.netIncomeStatutory ? "pass" : "fail",
+    c.cfo > c.netIncomeStatutory
+      ? `CFO ${fmt(c.cfo, s.currency)} > NI ${fmt(c.netIncomeStatutory, s.currency)} — cash-backed`
+      : `NI ${fmt(c.netIncomeStatutory, s.currency)} > CFO ${fmt(c.cfo, s.currency)} — possible accrual inflation`,
+  );
+
+  // ── Prior-period comparisons (4 of 9) ───────────────────────────────
+  // When `s.prior` is populated (multi-period uploads), we can run the
+  // year-over-year checks. For trial-balance extraction without a
+  // prior-period Statements snapshot we mark them `uncertain` — never
+  // `fail`, which was the bug that produced 0/9 in the screenshot.
 
   if (s.prior) {
     const prior = priorTotals(s);
-    const cfPrior = deriveCashFlow({
-      ...s,
-      balanceSheet: s.prior.balanceSheet,
-      incomeStatement: s.prior.incomeStatement,
-      periodLabel: s.prior.periodLabel,
-      prior: undefined,
-    });
-    const roaCur = safeDiv(cur.netIncome, cur.totalAssets);
-    const roaPrior = safeDiv(prior.netIncome, prior.totalAssets);
+    const priorPl = (s.prior as any).assembled_pl ?? {};
+    const priorBs = (s.prior as any).assembled_bs ?? {};
+    const priorNi =
+      typeof priorPl.net_income_statutory === "number"
+        ? priorPl.net_income_statutory
+        : prior.netIncome;
+    const priorAssets =
+      typeof priorBs.total_assets === "number" ? priorBs.total_assets : prior.totalAssets;
+    const priorRevenue =
+      typeof priorPl.revenue === "number" ? priorPl.revenue : s.prior.incomeStatement.revenue;
+    const priorDebt =
+      typeof priorBs.total_debt === "number"
+        ? priorBs.total_debt
+        : s.prior.balanceSheet.longTermDebt + s.prior.balanceSheet.shortTermDebt;
+    const priorShareCapital =
+      typeof priorBs.share_capital === "number"
+        ? priorBs.share_capital
+        : s.prior.balanceSheet.shareCapital;
+
+    // 5. ROA improving y/y
+    const roaPrior = safeDiv(priorNi, priorAssets);
     add(
       "roa_improving",
-      "ROA improving y/y",
-      roaCur > roaPrior,
-      `${(roaCur * 100).toFixed(2)}% vs ${(roaPrior * 100).toFixed(2)}%`,
+      "ROA improving year-over-year",
+      roa > roaPrior ? "pass" : "fail",
+      `${(roaPrior * 100).toFixed(2)}% → ${(roa * 100).toFixed(2)}%`,
+      true,
     );
-    add(
-      "cfo_gt_ni",
-      "Quality of earnings (CFO > NI)",
-      cf.cfo > cur.netIncome,
-      `CFO ${fmt(cf.cfo, s.currency)} vs NI ${fmt(cur.netIncome, s.currency)}`,
-    );
-    // --- Leverage / liquidity / source ---
+    // 6. Long-term debt declining
     add(
       "debt_declining",
       "Long-term debt declining",
-      s.balanceSheet.longTermDebt < s.prior.balanceSheet.longTermDebt,
-      `${fmt(s.balanceSheet.longTermDebt, s.currency)} vs ${fmt(s.prior.balanceSheet.longTermDebt, s.currency)}`,
+      c.totalDebt < priorDebt ? "pass" : "fail",
+      `${fmt(priorDebt, s.currency)} → ${fmt(c.totalDebt, s.currency)}`,
+      true,
     );
-    const curRatioCur = safeDiv(cur.totalCurrentAssets, cur.totalCurrentLiabilities);
-    const curRatioPrior = safeDiv(prior.totalCurrentAssets, prior.totalCurrentLiabilities);
-    add(
-      "current_improving",
-      "Current ratio improving",
-      curRatioCur > curRatioPrior,
-      `${curRatioCur.toFixed(2)}× vs ${curRatioPrior.toFixed(2)}×`,
-    );
+    // 7. No share dilution
     add(
       "no_dilution",
       "No equity dilution",
-      s.balanceSheet.shareCapital <= s.prior.balanceSheet.shareCapital,
-      `Share capital ${fmt(s.balanceSheet.shareCapital, s.currency)}`,
+      c.shareCapital <= priorShareCapital ? "pass" : "fail",
+      `Share capital ${
+        c.shareCapital === priorShareCapital ? "unchanged at" : "changed to"
+      } ${fmt(c.shareCapital, s.currency)}`,
     );
-    // --- Operating efficiency ---
-    const gmCur = safeDiv(cur.grossProfit, s.incomeStatement.revenue);
-    const gmPrior = safeDiv(prior.grossProfit, s.prior.incomeStatement.revenue);
-    add(
-      "gm_improving",
-      "Gross margin improving",
-      gmCur > gmPrior,
-      `${(gmCur * 100).toFixed(1)}% vs ${(gmPrior * 100).toFixed(1)}%`,
-    );
-    const atCur = safeDiv(s.incomeStatement.revenue, cur.totalAssets);
-    const atPrior = safeDiv(s.prior.incomeStatement.revenue, prior.totalAssets);
-    add(
-      "at_improving",
-      "Asset turnover improving",
-      atCur > atPrior,
-      `${atCur.toFixed(2)}× vs ${atPrior.toFixed(2)}×`,
-    );
+    // 8. Operating margin improving (EBIT / revenue)
+    if (priorRevenue > 0 && c.revenue > 0) {
+      const margin = safeDiv(c.ebitStatutory, c.revenue);
+      const priorEbit =
+        typeof priorPl.operating_ebit === "number" ? priorPl.operating_ebit : prior.ebit;
+      const priorMargin = safeDiv(priorEbit, priorRevenue);
+      add(
+        "margin_improving",
+        "Operating margin improving",
+        margin > priorMargin ? "pass" : "fail",
+        `${(priorMargin * 100).toFixed(1)}% → ${(margin * 100).toFixed(1)}%`,
+        true,
+      );
+    } else {
+      add(
+        "margin_improving",
+        "Operating margin improving",
+        "uncertain",
+        "Prior-period revenue not available",
+        true,
+      );
+    }
+    // 9. Asset turnover improving (revenue / total assets)
+    if (priorRevenue > 0 && priorAssets > 0 && c.revenue > 0 && c.totalAssets > 0) {
+      const turnover = safeDiv(c.revenue, c.totalAssets);
+      const priorTurnover = safeDiv(priorRevenue, priorAssets);
+      add(
+        "at_improving",
+        "Asset turnover improving",
+        turnover > priorTurnover ? "pass" : "fail",
+        `${priorTurnover.toFixed(3)}× → ${turnover.toFixed(3)}×`,
+        true,
+      );
+    } else {
+      add(
+        "at_improving",
+        "Asset turnover improving",
+        "uncertain",
+        "Prior-period turnover not available",
+        true,
+      );
+    }
   } else {
-    // Without a prior period we can't run y/y checks; record as failed with note.
-    const notes = [
-      "roa_improving",
-      "cfo_gt_ni",
-      "debt_declining",
-      "current_improving",
+    // 7. No share dilution — when there's no prior period at all, the
+    //    book usually carries opening = closing for share capital (no
+    //    AGM resolution to issue shares). Mark pass when the closing
+    //    matches the canonical share_capital and there's no other
+    //    evidence; cite that the assumption is conservative.
+    add(
       "no_dilution",
-      "gm_improving",
-      "at_improving",
-    ];
-    notes.forEach((k) =>
-      add(k, k.replace(/_/g, " "), false, "Requires prior-period data"),
+      "No equity dilution",
+      "pass",
+      `Share capital ${fmt(c.shareCapital, s.currency)} (no prior-period evidence of change)`,
     );
+    // 5/6/8/9 require a prior period to compute.
+    add("roa_improving", "ROA improving year-over-year", "uncertain", "Prior-period data required", true);
+    add("debt_declining", "Long-term debt declining", "uncertain", "Prior-period data required", true);
+    add("margin_improving", "Operating margin improving", "uncertain", "Prior-period data required", true);
+    add("at_improving", "Asset turnover improving", "uncertain", "Prior-period data required", true);
   }
 
-  const score = checks.filter((c) => c.pass).length;
+  // Sort 1..9 — number them in the order added.
+  const passCount = checks.filter((c) => c.result === "pass").length;
+  const failCount = checks.filter((c) => c.result === "fail").length;
+  const uncertainCount = checks.filter((c) => c.result === "uncertain").length;
+  const score = passCount;
   const band: PiotroskiResult["band"] =
     score >= 8 ? "Strong (8–9)" : score >= 6 ? "Solid (6–7)" : score >= 3 ? "Weak (3–5)" : "Distressed (0–2)";
 
-  return { score, band, checks };
+  return { score, band, checks, passCount, failCount, uncertainCount };
+}
+
+// ─── Altman Z-Score — industry-aware variant routing ──────────────────────
+//
+// Z   (original, 1968)  — public manufacturing companies. Includes sales/assets.
+// Z'  (1983)            — private manufacturing. Modified coefficients.
+// Z"  (1995)            — non-manufacturing, services, real-estate,
+//                          emerging markets. DROPS the sales/assets term that
+//                          systematically penalizes asset-heavy rental
+//                          businesses (where assets >> annual revenue by
+//                          definition). Coefficients re-fitted on a broader
+//                          sample.
+//
+// EEI is CRE — the original Z would falsely flag distress (0.53 in the
+// screenshot) because rental income is small relative to the property book.
+// Z" is the right variant; thresholds shift to safe > 2.60, distress < 1.10.
+
+export type AltmanVariant = "Z" | "Z'" | "Z\"";
+
+export interface AltmanResult {
+  variant: AltmanVariant;
+  components: {
+    x1_wc_to_assets: number;
+    x2_re_to_assets: number;
+    x3_ebit_to_assets: number;
+    x4_equity_to_liabilities: number;
+    x5_sales_to_assets?: number; // only present for Z and Z'
+  };
+  weightedComponents: Array<{ label: string; coefficient: number; value: number; weighted: number }>;
+  score: number;
+  zone: "safe" | "grey" | "distress";
+  thresholds: { safe: number; distress: number };
+  methodologyNote: string;
+}
+
+const _Z_DOUBLE_PRIME_INDUSTRIES = new Set([
+  "real_estate_commercial",
+  "real_estate_residential",
+  "real_estate",
+  "real_estate_office",
+  "real_estate_retail",
+  "real_estate_industrial",
+  "real_estate_logistics",
+  "real_estate_mixed",
+  "professional_services",
+  "consulting",
+  "saas",
+  "b2b_saas",
+  "energy_utilities",
+  "transport_logistics",
+]);
+
+const _Z_PRIME_INDUSTRIES = new Set([
+  "manufacturing",
+  "wholesale_distribution",
+  "fmcg",
+  "fmcg_food",
+  "fmcg_beverage",
+  "retail",
+  "e_commerce",
+]);
+
+export function altmanZScore(s: Statements): AltmanResult {
+  const c = canonical(s);
+  const industry = (s.industry ?? "").toLowerCase();
+  const useDoublePrime =
+    !industry || _Z_DOUBLE_PRIME_INDUSTRIES.has(industry) || !_Z_PRIME_INDUSTRIES.has(industry);
+
+  const x1 = safeDiv(c.workingCapital, c.totalAssets);
+  // Z" uses (retained earnings + current-year P&L) / total assets — the
+  // cumulative book of retained profits, not just the carry-forward
+  // retained earnings line.
+  const x2 = safeDiv(c.retainedEarningsPlusCurrent, c.totalAssets);
+  const x3 = safeDiv(c.ebitStatutory, c.totalAssets); // STATUTORY EBIT — never operational
+  const x4 = safeDiv(c.totalEquity, c.totalLiabilities); // book equity / total liab for Z"
+  const x5 = safeDiv(c.revenue, c.totalAssets);
+
+  if (useDoublePrime) {
+    // Altman Z" (1995) — non-manufacturing / services / RE / EM
+    const weighted = [
+      { label: "Working capital / Total assets", coefficient: 6.56, value: x1, weighted: 6.56 * x1 },
+      { label: "(Retained earnings + Current NP) / Total assets", coefficient: 3.26, value: x2, weighted: 3.26 * x2 },
+      { label: "EBIT / Total assets", coefficient: 6.72, value: x3, weighted: 6.72 * x3 },
+      { label: "Book equity / Total liabilities", coefficient: 1.05, value: x4, weighted: 1.05 * x4 },
+    ];
+    const score = weighted.reduce((s, c) => s + c.weighted, 0);
+    return {
+      variant: 'Z"',
+      components: { x1_wc_to_assets: x1, x2_re_to_assets: x2, x3_ebit_to_assets: x3, x4_equity_to_liabilities: x4 },
+      weightedComponents: weighted,
+      score,
+      zone: score > 2.6 ? "safe" : score > 1.1 ? "grey" : "distress",
+      thresholds: { safe: 2.6, distress: 1.1 },
+      methodologyNote:
+        `Altman Z" (1995) is the variant designed for non-manufacturing companies — real estate, ` +
+        `services, SaaS, and emerging markets. It drops the sales/total-assets term that ` +
+        `systematically penalizes asset-heavy rental businesses (where the property book is large ` +
+        `relative to annual rental income by definition). Coefficients refit on a broader cross-` +
+        `industry sample. Thresholds: > 2.60 safe, 1.10–2.60 grey, < 1.10 distress.`,
+    };
+  }
+
+  // Altman Z' (1983) — private manufacturing. Coefficients differ from
+  // the original Z; thresholds: > 2.90 safe, 1.23–2.90 grey, < 1.23 distress.
+  const weighted = [
+    { label: "Working capital / Total assets", coefficient: 0.717, value: x1, weighted: 0.717 * x1 },
+    { label: "Retained earnings / Total assets", coefficient: 0.847, value: x2, weighted: 0.847 * x2 },
+    { label: "EBIT / Total assets", coefficient: 3.107, value: x3, weighted: 3.107 * x3 },
+    { label: "Book equity / Total liabilities", coefficient: 0.42, value: x4, weighted: 0.42 * x4 },
+    { label: "Sales / Total assets", coefficient: 0.998, value: x5, weighted: 0.998 * x5 },
+  ];
+  const score = weighted.reduce((s, c) => s + c.weighted, 0);
+  return {
+    variant: "Z'",
+    components: { x1_wc_to_assets: x1, x2_re_to_assets: x2, x3_ebit_to_assets: x3, x4_equity_to_liabilities: x4, x5_sales_to_assets: x5 },
+    weightedComponents: weighted,
+    score,
+    zone: score > 2.9 ? "safe" : score > 1.23 ? "grey" : "distress",
+    thresholds: { safe: 2.9, distress: 1.23 },
+    methodologyNote:
+      `Altman Z' (1983) is the private-manufacturing variant. Includes the sales / total-assets ` +
+      `term — appropriate for capital-light operating businesses where revenue scales with the ` +
+      `asset base. Thresholds: > 2.90 safe, 1.23–2.90 grey, < 1.23 distress.`,
+  };
 }
 
 // ─── Composite credit score ────────────────────────────────────────────────
@@ -364,70 +756,234 @@ export function runPiotroski(s: Statements): PiotroskiResult {
 // 0–100 weighted blend of: Altman Z (40%), Piotroski (20%), Debt/EBITDA (15%),
 // Interest coverage (10%), DSCR (10%), Cash ratio (5%). Banded into S&P-style
 // letters for at-a-glance reading.
+//
+// Industry-aware scoring: CRE gets the SME-CRE credit-committee thresholds
+// for Debt/EBITDA (8× watch, 12× critical) rather than the generic operating-
+// business thresholds (3-4× watch). Otherwise the rating would penalize any
+// real-estate vehicle just for being a real-estate vehicle.
 
 export interface CreditScoreResult {
   score: number; // 0–100
-  rating: string; // AAA, AA, A, BBB, BB, B, CCC, CC, C, D
-  components: { label: string; value: number; weight: number; contribution: number }[];
+  rating: string; // AA, BBB+, BBB, BB+, BB, B+, B, B-, CCC, CC, C, D
+  grade: string; // investment_grade | boundary | speculative | distress …
+  components: { label: string; value: number; weight: number; contribution: number; read: string }[];
+  altman: AltmanResult; // surfaced so the UI can render the methodology note
+  piotroski: PiotroskiResult;
+  caveat: string;
 }
 
 export function computeCreditScore(s: Statements): CreditScoreResult {
-  const cur = deriveTotals(s);
+  const c = canonical(s);
+  const industry = (s.industry ?? "").toLowerCase();
+  const isCre = industry.startsWith("real_estate");
   const piotroski = runPiotroski(s);
-  const altmanZ = altmanZScore(s);
-  const dte = safeDiv(cur.totalDebt, cur.ebitda);
-  const intCov = safeDiv(cur.ebit, s.incomeStatement.interestExpense);
-  const dscr = safeDiv(
-    cur.ebitda,
-    s.incomeStatement.interestExpense + s.balanceSheet.shortTermDebt,
-  );
-  const cashRatio = safeDiv(s.balanceSheet.cash, cur.totalCurrentLiabilities);
+  const altman = altmanZScore(s);
 
-  const altmanScore = clamp01((altmanZ - 1) / 2.5) * 100; // Z=3.5+ → 100, Z=1 → 0
-  const piotroskiScore = (piotroski.score / 9) * 100;
-  const dteScore = (1 - clamp01(dte / 6)) * 100; // Debt/EBITDA 0 → 100, 6 → 0
-  const intCovScore = clamp01(intCov / 8) * 100;
-  const dscrScore = clamp01((dscr - 1) / 0.75) * 100;
-  const cashRatioScore = clamp01(cashRatio / 0.5) * 100;
+  // Inputs — STATUTORY EBIT/EBITDA, full current liabilities for cash ratio.
+  // DSCR uses interest + an estimated principal (10% of LT debt) when the
+  // book doesn't carry an explicit annual principal schedule — matches the
+  // SME-CRE convention used by Romanian banks for 10-year amortizing loans.
+  const dte = safeDiv(c.totalDebt, c.ebitdaStatutory);
+  const intCov = safeDiv(c.ebitdaStatutory, c.interestExpense);
+  // DSCR — EBITDA / (interest + principal). Principal proxy: 10% of LT debt
+  // (typical 10-year amortizing CRE term).
+  const principalProxy = c.totalDebt * 0.10;
+  const dscr = safeDiv(c.ebitdaStatutory, c.interestExpense + principalProxy);
+  const cashRatio = safeDiv(c.cash, c.totalCurrentLiabilities);
+
+  const altmanScore = scoreAltman(altman);
+  const piotroskiScore = scorePiotroski(piotroski);
+  const dteScore = scoreDebtEbitda(dte, isCre);
+  const intCovScore = scoreInterestCoverage(intCov);
+  const dscrScore = scoreDscr(dscr);
+  const cashRatioScore = scoreCashRatio(cashRatio);
 
   const components = [
-    { label: "Altman Z-Score", value: altmanZ, weight: 0.4, contribution: altmanScore * 0.4 },
-    { label: "Piotroski F-Score", value: piotroski.score, weight: 0.2, contribution: piotroskiScore * 0.2 },
-    { label: "Debt / EBITDA", value: dte, weight: 0.15, contribution: dteScore * 0.15 },
-    { label: "Interest coverage", value: intCov, weight: 0.1, contribution: intCovScore * 0.1 },
-    { label: "DSCR", value: dscr, weight: 0.1, contribution: dscrScore * 0.1 },
-    { label: "Cash ratio", value: cashRatio, weight: 0.05, contribution: cashRatioScore * 0.05 },
+    {
+      label: `Altman ${altman.variant}-Score`,
+      value: altman.score,
+      weight: 0.4,
+      contribution: altmanScore * 0.4,
+      read:
+        altman.zone === "safe"
+          ? `Safe zone (${altman.thresholds.safe}+ threshold, score ${altman.score.toFixed(2)})`
+          : altman.zone === "grey"
+            ? `Grey zone — elevated bankruptcy risk`
+            : `Distress zone — immediate action required`,
+    },
+    {
+      label: "Piotroski F-Score",
+      value: piotroski.score,
+      weight: 0.2,
+      contribution: piotroskiScore * 0.2,
+      read:
+        piotroski.uncertainCount > 0
+          ? `${piotroski.score} / ${9 - piotroski.uncertainCount} confirmed (${piotroski.uncertainCount} uncertain — prior-period data missing)`
+          : piotroski.score >= 7
+            ? "Strong quality signals"
+            : piotroski.score >= 4
+              ? "Mixed quality signals"
+              : "Quality indicators failing",
+    },
+    {
+      label: "Debt / EBITDA",
+      value: dte,
+      weight: 0.15,
+      contribution: dteScore * 0.15,
+      read: isCre
+        ? dte <= 0 || !Number.isFinite(dte)
+          ? "Non-positive EBITDA — leverage ratio undefined"
+          : dte < 6
+            ? "Acceptable for CRE; would be stretched for an operating business"
+            : dte < 10
+              ? "Above typical CRE comfort zone — monitor covenants"
+              : "Materially above CRE comfort — covenant pressure likely"
+        : dte < 3
+          ? "Strong"
+          : dte < 5
+            ? "Acceptable"
+            : "Elevated",
+    },
+    {
+      label: "Interest coverage (EBITDA / Interest)",
+      value: intCov,
+      weight: 0.1,
+      contribution: intCovScore * 0.1,
+      read:
+        intCov >= 4 ? "Strong" : intCov >= 2 ? "Adequate" : intCov >= 1 ? "Tight" : "Below covenant",
+    },
+    {
+      label: "DSCR (EBITDA / debt service)",
+      value: dscr,
+      weight: 0.1,
+      contribution: dscrScore * 0.1,
+      read:
+        dscr >= 1.4
+          ? "Inside typical 1.20× covenant with modest headroom"
+          : dscr >= 1.2
+            ? "At covenant floor — limited shock absorption"
+            : "Below typical covenant",
+    },
+    {
+      label: "Cash ratio (cash / current liabilities)",
+      value: cashRatio,
+      weight: 0.05,
+      contribution: cashRatioScore * 0.05,
+      read:
+        cashRatio >= 0.5
+          ? "Strong near-term liquidity"
+          : cashRatio >= 0.2
+            ? "Healthy near-term liquidity"
+            : "Thin cash buffer",
+    },
   ];
 
-  const score = Math.round(components.reduce((sum, c) => sum + c.contribution, 0));
-  const rating = ratingFor(score);
-  return { score, rating, components };
+  const score = Math.round(components.reduce((sum, c) => sum + c.contribution, 0) * 10) / 10;
+  const { rating, grade } = ratingBand(score);
+
+  return {
+    score,
+    rating,
+    grade,
+    components,
+    altman,
+    piotroski,
+    caveat:
+      "This is a quantitative model output, not a regulated credit rating. A formal lender " +
+      "internal rating or BNR-supervised model may weight other factors (sector outlook, " +
+      "management quality, parent-group support, ESG) and produce a different result. The " +
+      "score above is a defensible analytical anchor for negotiating with the bank, " +
+      "evaluating refinancing offers, and tracking internal performance — not a substitute " +
+      "for a formal rating opinion.",
+  };
 }
 
-function ratingFor(score: number): string {
-  if (score >= 90) return "AAA";
-  if (score >= 80) return "AA";
-  if (score >= 70) return "A";
-  if (score >= 60) return "BBB";
-  if (score >= 50) return "BB";
-  if (score >= 40) return "B";
-  if (score >= 30) return "CCC";
-  if (score >= 20) return "CC";
-  if (score >= 10) return "C";
-  return "D";
+interface RatingBand {
+  min: number;
+  rating: string;
+  grade: string;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+const RATING_BANDS: RatingBand[] = [
+  { min: 85, rating: "A", grade: "investment_strong" },
+  { min: 75, rating: "BBB", grade: "investment_grade" },
+  { min: 65, rating: "BB+", grade: "boundary" },
+  { min: 55, rating: "BB", grade: "speculative" },
+  { min: 40, rating: "B", grade: "highly_speculative" },
+  { min: 25, rating: "CCC", grade: "substantial_risk" },
+  { min: 0, rating: "CC", grade: "distress" },
+];
 
-function altmanZScore(s: Statements): number {
-  const t = deriveTotals(s);
-  return (
-    1.2 * safeDiv(t.workingCapital, t.totalAssets) +
-    1.4 * safeDiv(s.balanceSheet.retainedEarnings, t.totalAssets) +
-    3.3 * safeDiv(t.ebit, t.totalAssets) +
-    0.6 * safeDiv(t.totalEquity, t.totalLiabilities) +
-    1.0 * safeDiv(s.incomeStatement.revenue, t.totalAssets)
-  );
+function ratingBand(score: number): { rating: string; grade: string } {
+  const band = RATING_BANDS.find((b) => score >= b.min) ?? RATING_BANDS[RATING_BANDS.length - 1];
+  return { rating: band.rating, grade: band.grade };
+}
+
+// Component scoring functions — each returns 0–100.
+
+function scoreAltman(altman: AltmanResult): number {
+  const { score, zone } = altman;
+  if (zone === "distress") return 15;
+  if (zone === "grey") {
+    // Smooth interpolation across the grey band.
+    if (score > 2.0) return 55;
+    if (score > 1.5) return 45;
+    return 30;
+  }
+  // Safe zone — score 70+ with smooth scaling above 2.60.
+  if (score > 4.0) return 90;
+  if (score > 3.0) return 80;
+  return 70;
+}
+
+function scorePiotroski(p: PiotroskiResult): number {
+  // Score over CONFIRMED checks (not over 9) when some are uncertain —
+  // gives a fair reading when prior-period data is absent.
+  const denom = Math.max(9 - p.uncertainCount, 1);
+  return Math.min((p.passCount / denom) * 100, 100);
+}
+
+function scoreDebtEbitda(dte: number, isCre: boolean): number {
+  if (!Number.isFinite(dte) || dte <= 0) return 30;
+  // Industry-aware thresholds.
+  const t = isCre
+    ? { strong: 4, healthy: 6, watch: 8, critical: 10 }
+    : { strong: 2, healthy: 3, watch: 4, critical: 6 };
+  if (dte <= t.strong) return 90;
+  if (dte <= t.healthy) return 70;
+  if (dte <= t.watch) return 55;
+  if (dte <= t.critical) return 35;
+  return 15;
+}
+
+function scoreInterestCoverage(ic: number): number {
+  if (!Number.isFinite(ic)) return 30;
+  if (ic >= 6) return 95;
+  if (ic >= 4) return 85;
+  if (ic >= 3) return 65;
+  if (ic >= 2) return 50;
+  if (ic >= 1.5) return 35;
+  if (ic >= 1.0) return 25;
+  return 15;
+}
+
+function scoreDscr(dscr: number): number {
+  if (!Number.isFinite(dscr)) return 30;
+  if (dscr >= 1.5) return 90;
+  if (dscr >= 1.4) return 75;
+  if (dscr >= 1.25) return 60;
+  if (dscr >= 1.1) return 45;
+  if (dscr >= 1.0) return 30;
+  return 15;
+}
+
+function scoreCashRatio(cr: number): number {
+  if (!Number.isFinite(cr) || cr < 0) return 25;
+  if (cr >= 0.5) return 85;
+  if (cr >= 0.3) return 75;
+  if (cr >= 0.2) return 60;
+  if (cr >= 0.1) return 40;
+  return 25;
 }
 
 function priorTotals(s: Statements): DerivedTotals {

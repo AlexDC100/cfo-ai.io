@@ -185,26 +185,59 @@ export interface ProductsResponse {
   rows: ProductRow[];
 }
 
+/**
+ * Pricing V3 — typed error so chat-cap 429s can be rendered as a
+ * friendly cap-reached message instead of a generic "Couldn't reach
+ * the assistant" string. Carries the parsed `detail` object so the
+ * UI can show the right reset timing + upgrade CTA.
+ */
+export class CfoApiError extends Error {
+  status: number;
+  detail: unknown;
+  constructor(message: string, status: number, detail: unknown) {
+    super(message);
+    this.name = "CfoApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
+  // Pricing V3 — attach the Supabase JWT to every cfoApi call so
+  // server-side caps (chat reserve/commit) can resolve the user.
+  // Endpoints that don't require auth simply ignore the header.
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string> | undefined ?? {}),
+  };
+  try {
+    const { getSupabase } = await import("@/lib/supabase");
+    const sb = getSupabase();
+    if (sb) {
+      const { data } = await sb.auth.getSession();
+      const token = data.session?.access_token;
+      if (token && !headers.Authorization) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+  } catch { /* supabase not loaded — proceed unauthenticated */ }
+
+  const res = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
+    let detail: unknown = `${res.status} ${res.statusText}`;
     try {
       const body = await res.json();
-      if (body?.detail) {
-        detail =
-          typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
-      }
+      if (body?.detail !== undefined) detail = body.detail;
     } catch {
       /* leave default */
     }
-    throw new Error(detail);
+    const msg =
+      typeof detail === "string"
+        ? detail
+        : typeof detail === "object" && detail !== null && "message" in detail
+        ? String((detail as { message?: unknown }).message ?? `${res.status} ${res.statusText}`)
+        : JSON.stringify(detail);
+    throw new CfoApiError(msg, res.status, detail);
   }
   return (await res.json()) as T;
 }
@@ -244,12 +277,19 @@ export const cfoApi = {
     }),
 
   /** Conversational chat backed by Claude Opus 4.7. Multi-turn — pass the
-   *  full message history each call. Returns plain markdown text. */
+   *  full message history each call. Returns plain markdown text.
+   *
+   *  `mode` selects the system-prompt persona on the backend:
+   *    · undefined / "inventory"  — SKU/inventory-CFO drawer persona
+   *    · "workspace"              — universal Ask-CFO-AI tab persona
+   *      (open-domain, grounded in workspace snapshot, never fabricates
+   *      the user's own figures). */
   chatLlm: (req: {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
     dataset_summary?: string;
     page?: string;
     company_name?: string;
+    mode?: "inventory" | "workspace";
   }) =>
     call<{
       answer: string;

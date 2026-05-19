@@ -1,245 +1,313 @@
-// Pricing section embedded on the landing page (also routable via /pricing
-// + the #pricing anchor on /).
+// Pricing section embedded on the landing page (also routable via /pricing).
 //
-// Three cards: Starter / Professional (highlighted) / Enterprise. Monthly /
-// Yearly toggle with "2 months free" on yearly. Clicking a plan persists
-// the choice and routes:
-//   · signed-in   → setPlan() writes to subscriptions table → /today
-//   · signed-out  → setSelectedPlanLocal() → /signup?plan=…
-//   · enterprise  → mailto: contact path (no self-serve)
+// MODEL: one product, two introductory prices.
+//   · Founding Member — €1 charged at signup, then €99/year. Limited to first 500 sign-ups.
+//   · Standard        — 14-day free trial, then €99/year.
+//
+// The full €99/year renewal price appears at equal visual weight to the €1
+// — "then €99/year" is the line that prevents chargebacks at month 3. The
+// FAQ surfaces the renewal email expectation and the cancel rule explicitly.
+//
+// The Founding Member card displays a live seats-remaining counter via
+// useFounderCohort() (reads the public founder_cohort_public view, polls
+// every 60s). When seats_left hits 0 the card hides automatically; only
+// Standard renders.
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Sparkle } from "lucide-react";
-import {
-  ALL_PLAN_IDS,
-  PLANS,
-  type BillingCycle,
-  type Plan,
-  formatPriceLabel,
-} from "@/lib/plans";
-import { setSelectedPlanLocal, useSubscription } from "@/lib/billing";
+import { Check, Sparkle, Zap } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useFounderCohort } from "@/lib/founder";
 import { useToast } from "@/hooks/use-toast";
+import { getSupabase } from "@/lib/supabase";
+
+const FEATURES_SHARED = [
+  "Unlimited document uploads",
+  "CFO-grade analysis with 25+ ratios",
+  "Industry-aware recommendations",
+  "Ask CFO AI mastermind assistant",
+  "EBITDA × peer-multiple valuation",
+  "SKU portfolio analytics",
+  "Multi-country, multi-language (15 EU countries)",
+  "Email support",
+] as const;
+
+type PlanKey = "founder" | "standard";
+
+async function startCheckout(plan: PlanKey, locale: string): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data: session } = await supabase.auth.getSession();
+  const token = session.session?.access_token;
+  if (!token) return null;
+  const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+  try {
+    const res = await fetch(`${apiUrl}/api/checkout/start`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ plan, locale }),
+    });
+    if (res.status === 409) {
+      return "FOUNDER_SOLD_OUT";
+    }
+    if (!res.ok) return null;
+    const body = await res.json();
+    return body.url as string;
+  } catch {
+    return null;
+  }
+}
 
 export function PricingSection() {
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
-  const [submitting, setSubmitting] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { status } = useAuth();
-  const { setPlan } = useSubscription();
+  const { status, user } = useAuth();
   const { toast } = useToast();
+  const cohort = useFounderCohort();
+  const [submitting, setSubmitting] = useState<PlanKey | null>(null);
 
-  async function handlePick(plan: Plan) {
-    if (plan.contactSales) {
-      // Enterprise — open a contact path. Replace with a /demo route + form
-      // when sales ops is set up.
-      window.location.href = `mailto:hello@cfoai.example?subject=${encodeURIComponent("CFO AI — Enterprise inquiry")}`;
-      return;
-    }
+  const founderAvailable = cohort.seats_left > 0;
 
+  async function handlePick(plan: PlanKey) {
     if (status !== "signed_in") {
-      // Pre-signup: persist locally so AuthCard echoes the choice in the
-      // signup form, then redirect to /signup with the plan in the URL.
-      setSelectedPlanLocal(plan.id, cycle);
-      navigate(`/signup?plan=${plan.id}&cycle=${cycle}`);
+      // Persist intent across the signup roundtrip so AuthCard can echo
+      // the choice and the post-signup redirect knows where to go.
+      try {
+        localStorage.setItem("cfo.intent.plan", plan);
+      } catch { /* private mode */ }
+      navigate(`/signup?plan=${plan}`);
       return;
     }
 
-    // Signed in: write straight to the DB (status flips to active until
-    // Stripe is wired). See billing.ts → setPlan() for the TODO marker.
-    setSubmitting(plan.id);
-    try {
-      const next = await setPlan(plan.id, cycle);
-      if (next) {
-        toast({ title: `${plan.name} active`, description: "You can manage your plan from Settings any time." });
-        navigate("/dashboard");
-      } else {
-        toast({ title: "Couldn't update plan", description: "Try again, or contact support.", variant: "destructive" });
-      }
-    } finally {
-      setSubmitting(null);
+    setSubmitting(plan);
+    const url = await startCheckout(plan, (navigator.language || "en").slice(0, 2));
+    setSubmitting(null);
+    if (url === "FOUNDER_SOLD_OUT") {
+      toast({
+        title: "Founding Member is sold out",
+        description: "Choose Standard or join the waitlist.",
+        variant: "destructive",
+      });
+      return;
     }
+    if (!url) {
+      toast({
+        title: "Couldn't start checkout",
+        description: "Please try again, or contact support if this persists.",
+        variant: "destructive",
+      });
+      return;
+    }
+    window.location.href = url;
   }
 
   return (
-    <section id="pricing" className="border-t border-rule/40">
-      <div className="mx-auto max-w-[1280px] px-5 sm:px-8 py-16 sm:py-24">
-        <div className="text-center max-w-[680px] mx-auto">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-ink-soft">Pricing</div>
-          <h2 className="mt-3 font-serif text-[32px] sm:text-[40px] leading-[1.05] tracking-[-0.02em]">
-            One license. Releases more cash than it costs.
+    <section
+      data-testid="pricing-section"
+      id="pricing"
+      className="px-5 sm:px-8 lg:px-10 py-16 sm:py-20 bg-bg"
+    >
+      <div className="max-w-[1100px] mx-auto">
+        <header className="text-center mb-12">
+          <div className="inline-flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft font-medium">
+            <span className="inline-block h-[7px] w-[7px] bg-[hsl(var(--brand))]" aria-hidden />
+            Pricing
+          </div>
+          <h2 className="mt-4 font-serif text-[36px] sm:text-[44px] text-ink leading-[1.05]">
+            One product. Two ways to start.
           </h2>
-          <p className="mt-4 text-[15px] text-ink-soft leading-relaxed">
-            14-day free trial on every paid plan. €499/month is nothing if it
-            frees €50k–€500k of trapped capital. Upgrade, downgrade, or cancel
-            anytime from Settings.
+          <p className="mt-3 text-[15px] text-ink-soft max-w-[600px] mx-auto">
+            Same product, same full feature set. Choose how you want to begin.
           </p>
-        </div>
+        </header>
 
-        <div className="mt-8 flex justify-center">
-          <CycleToggle cycle={cycle} onChange={setCycle} />
-        </div>
-
-        <div className="mt-12 grid gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-[1100px] mx-auto">
-          {ALL_PLAN_IDS.map((id) => (
-            <PricingCard
-              key={id}
-              plan={PLANS[id]}
-              cycle={cycle}
-              highlighted={id === "professional"}
-              busy={submitting === id}
-              onPick={handlePick}
+        <div className={`grid gap-5 ${founderAvailable ? "lg:grid-cols-2" : "lg:grid-cols-1 max-w-[480px] mx-auto"}`}>
+          {founderAvailable && (
+            <PlanCard
+              testId="plan-founder"
+              eyebrow={
+                <span
+                  className="
+                    inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
+                    bg-amber-100 text-amber-900
+                    dark:bg-amber-900/30 dark:text-amber-300
+                    font-mono text-[10.5px] uppercase tracking-[0.16em] font-semibold
+                  "
+                >
+                  <Zap size={11} strokeWidth={2.25} />
+                  Limited · {cohort.seats_left} of {cohort.cap} seats left
+                </span>
+              }
+              name="Founding Member"
+              headlinePrice="€1"
+              headlineSuffix="for 3 months"
+              renewalLine="Then €99/year, renewing annually"
+              cta="Start for €1"
+              ctaPrimary
+              loading={submitting === "founder"}
+              onClick={() => handlePick("founder")}
+              features={[
+                "Full product access (same as Standard)",
+                "Card charged €1 immediately on signup",
+                "Email reminders 14 days and 3 days before renewal",
+                "Cancel anytime — never charged €99 if you cancel in the first 3 months",
+              ]}
             />
-          ))}
+          )}
+
+          <PlanCard
+            testId="plan-standard"
+            eyebrow={null}
+            name="Standard"
+            headlinePrice="€99"
+            headlineSuffix="/ year"
+            renewalLine="14-day free trial · card required after trial"
+            cta="Start free trial"
+            ctaPrimary={!founderAvailable}
+            loading={submitting === "standard"}
+            onClick={() => handlePick("standard")}
+            features={[
+              "Full product access",
+              "No charge during 14-day trial",
+              "Cancel anytime during the trial — no charge",
+              "Renews annually at €99",
+            ]}
+          />
         </div>
 
-        <p className="mt-10 text-center text-[12.5px] text-ink-soft/80">
-          All paid plans include the AI CFO chat, decision buckets, and the alert engine. Enterprise adds SSO + dedicated infrastructure.
+        {/* Shared feature list */}
+        <div data-testid="pricing-shared-features" className="mt-12 rounded-2xl border border-rule bg-surface p-6 sm:p-8">
+          <h3 className="font-serif text-[18px] text-ink">What's included in both</h3>
+          <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-2">
+            {FEATURES_SHARED.map((f) => (
+              <li key={f} className="flex items-start gap-2 text-[13.5px] text-ink-soft">
+                <Check size={14} strokeWidth={2.25} className="shrink-0 mt-[3px] text-brand-d" />
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div data-testid="pricing-faq" className="mt-12 max-w-[760px] mx-auto">
+          <h3 className="font-serif text-[20px] text-ink">Frequently asked</h3>
+          <dl className="mt-5 space-y-5">
+            <FaqEntry q="When am I charged?">
+              On Founding Member, your card is charged €1 the moment you add it.
+              Three months later, the same card is charged €99 for the next 12 months of access.
+              On Standard, your card is charged €99 at the end of your 14-day free trial.
+            </FaqEntry>
+            <FaqEntry q="What happens after the 3 months on Founding Member?">
+              We'll send a reminder email 14 days before renewal and a final reminder 3 days before.
+              If you keep the subscription, your card is charged €99 for 12 months. You can manage everything
+              from Settings → Billing.
+            </FaqEntry>
+            <FaqEntry q="Can I cancel?">
+              Yes, anytime, in two clicks from Settings → Billing. If you cancel during the first 3 months on
+              Founding Member, you keep access until month 3 and are <strong>never charged the €99</strong>.
+              On Standard, cancel anytime during the 14-day trial and you're never charged.
+            </FaqEntry>
+            <FaqEntry q="What's the difference between the two plans?">
+              None — the product, features, and support are identical. The only difference is how you start:
+              Founding Member is a €1 paid trial (real charge, real card, real customer), Standard is a 14-day free trial.
+              The Founding Member price is the introductory rate for the first 500 customers and disappears
+              once those seats are taken.
+            </FaqEntry>
+            <FaqEntry q="Why €1 instead of free?">
+              A €1 charge converts you from "trying" to "customer" in a way a free trial doesn't.
+              It also forces card capture upfront so the renewal isn't a surprise.
+              Compared to free trials, paid trials renew at 5–8× the rate, which lets us keep the standard price
+              at €99 instead of pricing for the 90% who never convert.
+            </FaqEntry>
+          </dl>
+        </div>
+
+        <p className="mt-10 text-center text-[12.5px] text-ink-mute">
+          Prices in EUR. VAT added at checkout if applicable. Card processing by Stripe.
         </p>
       </div>
     </section>
   );
 }
 
-/* ───────── Cycle toggle ────────────────────────────────────────────────── */
-
-function CycleToggle({
-  cycle, onChange,
-}: {
-  cycle: BillingCycle;
-  onChange: (c: BillingCycle) => void;
-}) {
-  return (
-    <div className="inline-flex items-center gap-3">
-      <div className="inline-flex items-center p-1 rounded-full border border-rule bg-bg-2/60">
-        <ToggleButton active={cycle === "monthly"} onClick={() => onChange("monthly")}>
-          Monthly
-        </ToggleButton>
-        <ToggleButton active={cycle === "annual"} onClick={() => onChange("annual")}>
-          Annual
-        </ToggleButton>
-      </div>
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/30 bg-brand/10 text-brand px-2.5 py-1 text-[11px] uppercase tracking-[0.1em]">
-        <Sparkle size={10} strokeWidth={2.25} />
-        2 months free
-      </span>
-    </div>
-  );
-}
-
-function ToggleButton({
-  active, children, onClick,
-}: {
-  active: boolean;
-  children: React.ReactNode;
+interface PlanCardProps {
+  testId: string;
+  eyebrow: React.ReactNode | null;
+  name: string;
+  headlinePrice: string;
+  headlineSuffix: string;
+  renewalLine: string;
+  cta: string;
+  ctaPrimary?: boolean;
+  loading?: boolean;
   onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`
-        h-8 px-4 rounded-full text-[12.5px] font-medium transition-colors
-        ${active
-          ? "bg-ink text-bg"
-          : "text-ink-soft hover:text-ink"}
-      `}
-    >
-      {children}
-    </button>
-  );
+  features: string[];
 }
 
-/* ───────── Card ───────────────────────────────────────────────────────── */
-
-function PricingCard({
-  plan, cycle, highlighted, busy, onPick,
-}: {
-  plan: Plan;
-  cycle: BillingCycle;
-  highlighted: boolean;
-  busy: boolean;
-  onPick: (p: Plan) => void;
-}) {
-  const { amount, unit, footnote } = formatPriceLabel(plan, cycle);
-
+function PlanCard({
+  testId, eyebrow, name, headlinePrice, headlineSuffix, renewalLine,
+  cta, ctaPrimary, loading, onClick, features,
+}: PlanCardProps) {
   return (
-    <div
-      className={`
-        relative
-        rounded-3xl
-        p-7 sm:p-8
-        flex flex-col
-        transition-colors
-        ${highlighted
-          ? "border border-brand/40 bg-gradient-to-b from-surface to-surface-soft shadow-[0_0_60px_-12px_rgba(46,211,198,0.30)]"
-          : "border border-rule bg-bg-2/40 hover:border-rule-strong/80"}
-      `}
+    <article
+      data-testid={testId}
+      className={`rounded-2xl border ${
+        ctaPrimary ? "border-brand bg-brand-tint/40" : "border-rule bg-surface"
+      } p-7 flex flex-col`}
     >
-      {plan.badge && (
-        <div
-          className={`
-            absolute -top-3 left-1/2 -translate-x-1/2
-            inline-flex items-center gap-1.5
-            px-3 py-1 rounded-full text-[10.5px] uppercase tracking-[0.12em] font-medium
-            ${highlighted
-              ? "bg-brand text-[#05070A] shadow-[0_8px_24px_-8px_rgba(46,211,198,0.6)]"
-              : "bg-bg-2/90 text-ink border border-rule"}
-          `}
+      {eyebrow && <div className="mb-4">{eyebrow}</div>}
+      <h3 className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft font-medium">{name}</h3>
+      <div className="mt-4 flex items-baseline gap-2">
+        <span
+          data-testid={`${testId}-headline-price`}
+          className={`num-hero text-[64px] sm:text-[72px] leading-none ${
+            ctaPrimary ? "text-gradient-cfo" : "text-ink"
+          }`}
         >
-          {highlighted && <Sparkle size={10} strokeWidth={2.25} />}
-          {plan.badge}
-        </div>
-      )}
-
-      <div className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">{plan.audience}</div>
-      <h3 className="mt-1.5 font-serif text-[24px] sm:text-[26px] leading-[1.1] tracking-[-0.01em] text-ink">
-        {plan.name}
-      </h3>
-      <p className="mt-2 text-[13px] text-ink-soft leading-snug min-h-[3em]">{plan.description}</p>
-
-      <div className="mt-5 flex items-baseline gap-1.5">
-        <div
-          className={`
-            font-serif text-[40px] leading-none tracking-[-0.02em]
-            ${highlighted ? "text-brand" : "text-ink"}
-          `}
-        >
-          {amount}
-        </div>
-        {unit && <div className="text-[13px] text-ink-soft">{unit}</div>}
+          {headlinePrice}
+        </span>
+        <span className="text-[14.5px] text-ink-soft">{headlineSuffix}</span>
       </div>
-      <div className="mt-1 text-[11.5px] text-ink-soft/80">{footnote}</div>
+      <div data-testid={`${testId}-renewal-line`} className="mt-2 text-[13.5px] text-ink-soft font-medium">
+        {renewalLine}
+      </div>
 
-      <ul className="mt-6 space-y-2.5 text-[13px] text-ink/90 flex-1">
-        {plan.features.map((f) => (
-          <li key={f} className="flex items-start gap-2.5">
-            <Check
-              size={13}
-              strokeWidth={2.25}
-              className={`mt-1 shrink-0 ${highlighted ? "text-brand" : "text-ink-soft"}`}
-            />
-            <span className="leading-snug">{f}</span>
+      <ul className="mt-6 space-y-2.5 flex-1">
+        {features.map((f) => (
+          <li key={f} className="flex items-start gap-2 text-[13.5px] text-ink">
+            <Check size={14} strokeWidth={2.25} className="shrink-0 mt-[3px] text-brand-d" />
+            <span>{f}</span>
           </li>
         ))}
       </ul>
 
       <button
-        onClick={() => onPick(plan)}
-        disabled={busy}
-        className={`
-          mt-7 w-full inline-flex items-center justify-center
-          h-11 px-5 rounded-full text-[13.5px] font-medium
-          transition-all
-          disabled:opacity-60 disabled:cursor-not-allowed
-          ${highlighted
-            ? "bg-brand text-[#05070A] hover:bg-brand/90 hover:shadow-[0_0_32px_-6px_rgba(46,211,198,0.55)]"
-            : "border border-rule-strong/70 hover:border-rule-strong text-ink hover:bg-bg-2/70"}
-        `}
+        type="button"
+        data-testid={`${testId}-cta`}
+        onClick={onClick}
+        disabled={loading}
+        className={`mt-7 h-11 px-5 rounded-xl text-[14px] font-medium transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed hover:-translate-y-[1px] active:translate-y-0 ${
+          ctaPrimary
+            ? "bg-gradient-cfo text-white shadow-2 hover:shadow-3"
+            : "bg-ink text-paper hover:bg-ink/90"
+        }`}
       >
-        {busy ? "Saving…" : plan.cta}
+        {loading ? "Opening checkout…" : cta}
       </button>
+    </article>
+  );
+}
+
+function FaqEntry({ q, children }: { q: string; children: React.ReactNode }) {
+  return (
+    <div data-testid="faq-entry" className="border-b border-rule pb-4">
+      <dt className="font-medium text-[14.5px] text-ink">{q}</dt>
+      <dd className="mt-1.5 text-[13.5px] text-ink-soft leading-relaxed">{children}</dd>
     </div>
   );
 }
+
+// Quick re-export to keep existing imports happy (PricingSection is sometimes
+// imported by the legacy /pricing route shell that wrapped the section in a layout).
+export { Sparkle };

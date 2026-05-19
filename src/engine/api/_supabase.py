@@ -93,7 +93,20 @@ class SupabaseClient:
             headers["Prefer"] = "return=representation"
         body = rows if isinstance(rows, list) else [rows]
         r = self._client.post(f"{self.url}/rest/v1/{table}", json=body, headers=headers)
-        r.raise_for_status()
+        if r.status_code >= 400:
+            # PostgREST returns the actual SQL error in the body — surface
+            # it so we can see why the row was rejected (CHECK constraint
+            # violation, unknown column, etc.).
+            try:
+                detail = r.json()
+            except Exception:
+                detail = {"raw": r.text[:500]}
+            # First row payload (for debugging which column/value tripped it)
+            sample = body[0] if body else None
+            raise RuntimeError(
+                f"Supabase insert into {table} failed (HTTP {r.status_code}): {detail} "
+                f"| sample row: {sample}"
+            )
         return r.json() if returning else []
 
     def upsert(self, table: str, rows: List[Dict[str, Any]] | Dict[str, Any], *,
@@ -123,16 +136,23 @@ class SupabaseClient:
         r = self._client.delete(f"{self.url}/rest/v1/{table}", params=params)
         r.raise_for_status()
 
-    # ── Auth (verify a user JWT) ──────────────────────────────────────────
+    # ── Auth (resolve user identity from a JWT) ──────────────────────────
+    #
+    # We do NOT call /auth/v1/user — Supabase rotated to ES256-signed
+    # tokens + new-format publishable/secret API keys, and the legacy
+    # anon-JWT used as `apikey` no longer authenticates against the auth
+    # gateway (returns 403). The user id is in the JWT's `sub` claim
+    # anyway; we read it locally and rely on Postgres RLS for the actual
+    # authorization check on every subsequent query.
+    #
+    # Local decode is safe because we don't trust the result for security
+    # — every downstream SELECT uses the per_user client which sends the
+    # raw JWT to PostgREST, where Supabase verifies the signature before
+    # applying RLS. We're only using the decoded claims to populate
+    # convenience fields (id, email) that the caller wants to log or echo.
 
     def get_user(self, jwt: str) -> Dict[str, Any]:
-        r = httpx.get(
-            f"{self.url}/auth/v1/user",
-            headers={"Authorization": f"Bearer {jwt}", "apikey": self._headers["apikey"]},
-            timeout=10.0,
-        )
-        r.raise_for_status()
-        return r.json()
+        return _decode_jwt_claims(jwt)
 
     # ── Storage (signed URL minting) ──────────────────────────────────────
 
@@ -149,6 +169,48 @@ class SupabaseClient:
         if signed.startswith("/"):
             signed = f"{self.url}/storage/v1{signed}"
         return signed
+
+    # ── Storage delete ────────────────────────────────────────────────────
+    # Hard-delete an object from a bucket. Used by the permanent-delete
+    # endpoint after a document has been soft-deleted — removes the
+    # underlying blob from storage so the user's quota is reclaimed and
+    # the file is genuinely gone (not just hidden behind `deleted_at`).
+    def delete_object(self, bucket: str, path: str) -> None:
+        r = self._client.delete(f"{self.url}/storage/v1/object/{bucket}/{path}")
+        # Some Supabase deployments return 200 with `{message: "Successfully deleted"}`,
+        # others 204; 404 is also acceptable (object already gone).
+        if r.status_code not in (200, 204, 404):
+            r.raise_for_status()
+
+
+def _decode_jwt_claims(jwt: str) -> Dict[str, Any]:
+    """Parse a JWT's payload claims without verifying the signature.
+
+    Signature verification happens server-side at Supabase/PostgREST on
+    every downstream request — we only need the claims to populate the
+    caller's user_id / email locally. Bypasses /auth/v1/user (which has
+    apikey/format compatibility issues after Supabase's key rotation).
+    """
+    import base64
+    import json as _json
+    try:
+        # JWTs are three base64url-encoded segments separated by dots.
+        # The middle segment is the payload (claims).
+        parts = jwt.split(".")
+        if len(parts) != 3:
+            return {}
+        # base64url needs padding for the standard decoder
+        payload_b64 = parts[1] + "=" * (-len(parts[1]) % 4)
+        payload_bytes = base64.urlsafe_b64decode(payload_b64.encode("ascii"))
+        claims = _json.loads(payload_bytes.decode("utf-8"))
+        # Supabase puts the user id in `sub`. Also surface `email`.
+        return {
+            "id": claims.get("sub"),
+            "email": claims.get("email"),
+            "claims": claims,
+        }
+    except Exception:
+        return {}
 
 
 def admin() -> SupabaseClient:

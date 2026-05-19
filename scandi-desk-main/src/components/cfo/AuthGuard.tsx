@@ -19,7 +19,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   if (status === "loading") {
-    return <div className="min-h-screen bg-[#05070A]" aria-hidden />;
+    return <div className="min-h-screen bg-bg" aria-hidden />;
   }
 
   if (!isAuthenticated) {
@@ -32,7 +32,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!onOnboardingRoute) {
     if (orgLoading) {
-      return <div className="min-h-screen bg-[#05070A]" aria-hidden />;
+      return <div className="min-h-screen bg-bg" aria-hidden />;
     }
     if (needsOnboarding && org) {
       return <Navigate to="/onboarding" replace />;

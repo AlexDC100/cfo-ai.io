@@ -63,6 +63,16 @@ export function buildExcelWorkbook(s: Statements): XLSX.WorkBook {
     ["Total debt", t.totalDebt],
     ["Net debt", t.netDebt],
     ["Total equity", t.totalEquity],
+    [],
+    ["DATA ACCURACY NOTICE"],
+    ["This workbook was generated from automated trial-balance extraction with"],
+    ["approximately 90%+ accuracy. Edge-case account classifications, sub-account"],
+    ["aggregations, or non-standard COA structures may produce minor"],
+    ["misclassifications. Always verify headline figures (revenue, EBITDA, net"],
+    ["profit, total assets, total debt, total equity) against your source trial"],
+    ["balance before using this report for external purposes — including board"],
+    ["reports, bank submissions, investor pitches, due diligence packages, or"],
+    ["audit materials."],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cover), "Cover");
 
@@ -214,8 +224,12 @@ export function buildExcelWorkbook(s: Statements): XLSX.WorkBook {
     ["Score (0–9)", piotroski.score],
     ["Band", piotroski.band],
     [],
-    ["Check", "Pass", "Detail"],
-    ...piotroski.checks.map((c) => [c.label, c.pass ? "✓" : "✗", c.detail]),
+    ["Check", "Result", "Detail"],
+    ...piotroski.checks.map((c) => [
+      c.label,
+      c.result === "pass" ? "✓" : c.result === "fail" ? "✗" : "?",
+      c.detail,
+    ]),
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(creditRows), "Credit & Risk");
 

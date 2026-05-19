@@ -14,16 +14,27 @@ import {
   AlertCircle,
   Boxes,
   Check,
+  FileSpreadsheet,
   Loader2,
   Search,
   Sparkles,
+  TableProperties,
   UploadCloud,
+  Layers,
+  Cpu,
+  FileText,
 } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { DatasetsToggle, useDatasetsCount } from "@/components/cfo/DatasetsPanel";
+import { SkuDetailDrawer } from "@/components/cfo/SkuDetailDrawer";
+import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
+import { useActivePeriod } from "@/lib/activePeriod";
+import { computeRatios } from "@/lib/financialReport";
+import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import {
-  enqueuePipeline,
   getSupabase,
+  recoverStuckPipelines,
+  retryPipeline,
   subscribeToDocumentStatus,
   uploadDocument,
   type DocumentStatus,
@@ -45,11 +56,29 @@ interface SkuAggregate {
   niv_krn: number | null;
   gm_krn: number | null;
   gm_pct: number | null;
+  // Engine-computed economics — already in `sku_aggregates`, surfaced
+  // verbatim by `/api/sales-datasets/{id}/skus`. The detail drawer needs
+  // these to render the "Marjă reală" breakdown card.
+  real_margin_krn: number | null;
+  real_margin_pct: number | null;
+  days_inventory_on_hand: number | null;
+  inventory_value_krn: number | null;
+  /** COGS aggregated from the upload (Optional column). Surfaces when
+   *  the upload provided a `COGS` column. Used by the Working-Capital
+   *  roll-up panel to compute company DIO as sum(inv)/sum(cogs)*365.
+   *  When absent the panel falls back to a weighted-average by
+   *  inventory_value_krn so the metric remains computable on older
+   *  schemas — but the spec's preferred path is COGS-driven. */
+  cogs_krn?: number | null;
   classification: Classification;
   classification_reason: string | null;
   channels_present: string[] | null;
   clients_present: string[] | null;
   line_row_count: number | null;
+  // Operator decision persisted from the drawer. Null = engine
+  // classification stands; 'eliminate_approved' / 'strategic_override'
+  // are user choices that lock the bucket.
+  user_override: string | null;
 }
 
 interface DatasetPayload {
@@ -197,6 +226,10 @@ export default function Products() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortKey, setSortKey] = useState<"gm_krn" | "gm_pct" | "volume_tons" | "niv_krn" | "name">("gm_krn");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  // Selected SKU drives the detail drawer. We store the id (not the row) so
+  // the drawer re-renders from fresh data after a mutation invalidates the
+  // SKUs query.
+  const [selectedSkuId, setSelectedSkuId] = useState<string | null>(null);
 
   // Debounce search 200ms
   useEffect(() => {
@@ -222,6 +255,27 @@ export default function Products() {
     queryKey: ["sku-analysis", "inflight"],
     queryFn: fetchInflight,
   });
+
+  // ── Watchdog: on mount, ask the BE to recover any docs that got stuck at
+  // status='queued' because /api/pipeline/run failed at upload moment (env
+  // crash, network blip, backend restart between FE upload and FE enqueue).
+  // Idempotent on the server — calling it when nothing is stuck is a no-op.
+  // Without this, a user who uploads while the backend is briefly unhealthy
+  // is silently stranded at "Step 0 of 6 · Queued for analysis…" forever.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const result = await recoverStuckPipelines();
+      if (cancelled || !result || result.recovered_count === 0) return;
+      // Re-poll inflight so the card updates from queued→extracting.
+      void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount, NOT on every qc identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ?compare=<id> triggers the side-by-side comparison view. We render a
   // banner above the SKU table; the table itself still shows the active
@@ -257,11 +311,22 @@ export default function Products() {
   }, [qc, activeDatasetId]);
 
   // ── Hooks above any early return (rules of hooks)
+  // Datasets badge count — hook MUST be called unconditionally on every render.
+  // Previously this was called inline inside the main return JSX, which meant
+  // the four early-return branches above skipped it, producing "Rendered more
+  // hooks than during the previous render" when the component switched from a
+  // loading branch into the main branch.
+  const datasetsCount = useDatasetsCount();
+
   const activeFilters = useMemo(() => {
     const raw = params.get("state");
-    return new Set<Classification>(
-      raw ? (raw.split(",").filter(Boolean) as Classification[]) : [],
-    );
+    const tokens = raw ? (raw.split(",").filter(Boolean) as Classification[]) : [];
+    // `eliminate` and `anchor_alert` were removed as user-facing filter
+    // chips. Defensively scrub them out of any persisted `?state=` URL so a
+    // returning user doesn't get stranded on an empty filtered view (the
+    // chip to clear them is gone).
+    const HIDDEN_FILTERS = new Set<Classification>(["eliminate", "anchor_alert"]);
+    return new Set<Classification>(tokens.filter((c) => !HIDDEN_FILTERS.has(c)));
   }, [params]);
   const channelFilter = params.get("channel") ?? "";
   const categoryFilter = params.get("category") ?? "";
@@ -342,7 +407,14 @@ export default function Products() {
   const hasAnyDataset = (datasetsPayload?.datasets.length ?? 0) > 0;
 
   if (!hasAnyDataset) {
-    return <AppShell><EmptyState onUploaded={refresh} /></AppShell>;
+    return (
+      <AppShell>
+        <EmptyState
+          onUploaded={refresh}
+          datasets={datasetsPayload?.datasets ?? []}
+        />
+      </AppShell>
+    );
   }
 
   if (loadingSkus || !dsPayload) {
@@ -375,12 +447,14 @@ export default function Products() {
             {/* Dataset switcher — header pill opens the right-anchored
                 Datasets panel for full switch / rename / re-run / delete.
                 Cmd/Ctrl+Shift+D also toggles. */}
-            <DatasetsToggle count={useDatasetsCount()} />
+            <DatasetsToggle count={datasetsCount} />
           </div>
 
-          <div className="mt-6 grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="mt-6 grid grid-cols-2 lg:grid-cols-5 gap-3">
             <KpiCard data-testid="kpi-sku-count" label="SKUs" value={totals.sku_count.toLocaleString("en-GB")} sub={`${totals.category_count} cats · ${totals.brand_count} brands`} />
-            <KpiCard data-testid="kpi-eliminate" label="Eliminate" value={(totals.classification_counts.eliminate ?? 0).toLocaleString("en-GB")} sub={totals.losses_krn < 0 ? `${formatKron(totals.losses_krn)}` : "no losses"} tone="critical" />
+            {/* `kpi-eliminate` removed per operator request — the bucket is
+                still computed server-side (losses_krn rolls into total), it
+                just doesn't surface its own KPI tile. */}
             <KpiCard data-testid="kpi-wind-down" label="Wind down" value={(totals.classification_counts.wind_down ?? 0).toLocaleString("en-GB")} sub="sub-decile vol" tone="warn" />
             <KpiCard data-testid="kpi-watch" label="Watch" value={(totals.classification_counts.watch ?? 0).toLocaleString("en-GB")} sub="thin GM" tone="warn" />
             <KpiCard data-testid="kpi-anchor" label="Anchor" value={(totals.classification_counts.anchor ?? 0).toLocaleString("en-GB")} sub="top P90 GM" tone="strong" />
@@ -412,7 +486,17 @@ export default function Products() {
               <option value="">All channels</option>
               {(["KA", "DIST", "EXP", "OLN"] as const).map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select value={`${sortKey}_${sortDir}`} onChange={(e) => { const [k, d] = e.target.value.split("_") as [typeof sortKey, "asc" | "desc"]; setSortKey(k); setSortDir(d); }} data-testid="sort-dropdown" className="h-9 rounded-lg border border-rule bg-surface px-2.5 text-[12.5px] text-ink">
+            <select value={`${sortKey}_${sortDir}`} onChange={(e) => {
+              // Sort keys themselves contain underscores (gm_krn, gm_pct,
+              // volume_tons, niv_krn). Split on the LAST underscore so the
+              // key+direction parse correctly.
+              const value = e.target.value;
+              const idx = value.lastIndexOf("_");
+              const k = value.slice(0, idx) as typeof sortKey;
+              const d = value.slice(idx + 1) as "asc" | "desc";
+              setSortKey(k);
+              setSortDir(d);
+            }} data-testid="sort-dropdown" className="h-9 rounded-lg border border-rule bg-surface px-2.5 text-[12.5px] text-ink">
               <option value="gm_krn_desc">Sort: GM ↓ (profit)</option>
               <option value="gm_krn_asc">Sort: GM ↑ (loss-makers first)</option>
               <option value="gm_pct_desc">Sort: GM% ↓</option>
@@ -428,9 +512,12 @@ export default function Products() {
 
           <div className="flex items-center gap-1.5 flex-wrap">
             <Chip testid="chip-all" label="All" count={totals.sku_count} active={activeFilters.size === 0} onClick={() => setStateFilter(null)} />
-            {FILTER_ORDER.map((c) => {
+            {FILTER_ORDER.filter((c) => c !== "eliminate" && c !== "anchor_alert").map((c) => {
               const n = totals.classification_counts[c] ?? 0;
-              if (!n) return null;
+              // `eliminate` and `anchor_alert` are filtered out per operator
+              // request. Defensive scrub in `activeFilters` above ensures any
+              // persisted `?state=` URL containing them doesn't strand the
+              // user on an empty filtered view.
               return (
                 <Chip
                   key={c}
@@ -439,6 +526,7 @@ export default function Products() {
                   count={n}
                   dotClass={BUCKET_META[c].dot}
                   active={activeFilters.has(c)}
+                  empty={n === 0}
                   onClick={() => setStateFilter(c)}
                 />
               );
@@ -466,10 +554,37 @@ export default function Products() {
           />
         )}
 
-        <SkuTable rows={filtered} />
+        <SkuTable rows={filtered} onSelect={(s) => setSelectedSkuId(s.id)} />
+
+        {/* Company working-capital roll-up — per-SKU DIO covered rows
+         *  aggregated to a company DIO (with coverage %), combined with
+         *  DSO/DPO from the loaded period's trial-balance context
+         *  (when available) into CCC = DIO + DSO − DPO. Each component
+         *  is labelled with its source; missing components show
+         *  "not available" rather than a fabricated value. */}
+        <WorkingCapitalRollup skus={dsPayload.skus} />
 
         <PortfolioTotalsBar totals={totals} />
       </section>
+
+      <SkuDetailDrawer
+        sku={
+          selectedSkuId
+            ? dsPayload.skus.find((s) => s.id === selectedSkuId) ?? null
+            : null
+        }
+        onClose={() => setSelectedSkuId(null)}
+        datasetId={activeDatasetId}
+        categoryNivTotal={(() => {
+          if (!selectedSkuId) return null;
+          const sel = dsPayload.skus.find((s) => s.id === selectedSkuId);
+          if (!sel || !sel.category) return null;
+          // Sum NIV across the same category — drives "Cotă din categorie".
+          return dsPayload.skus
+            .filter((s) => s.category === sel.category)
+            .reduce((acc, s) => acc + (s.niv_krn ?? 0), 0);
+        })()}
+      />
     </AppShell>
   );
 }
@@ -483,25 +598,253 @@ function KpiCard({
   return (
     <div {...rest} className={`rounded-2xl border ${ring} bg-surface p-3.5`}>
       <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">{label}</div>
-      <div className="mt-1 font-serif text-[22px] text-ink leading-tight">{value}</div>
+      <div className="mt-2 num-hero text-[30px] text-ink leading-none">{value}</div>
       {sub && <div className="text-[11px] text-ink-soft mt-0.5">{sub}</div>}
     </div>
   );
 }
 
+// ─── Working-capital roll-up ────────────────────────────────────────────────
+//
+// Per the spec:
+//   · Per-SKU DIO is parsed from the upload (`Inventory value` + `COGS`
+//     columns). Graceful-missing: rows without inputs show "—" + n/a
+//     in the SKU table, never 0.
+//   · Company DIO aggregates ONLY covered rows. Coverage % of NIV and
+//     of line count are surfaced so the user knows exactly how broad
+//     the metric is. Formula: sum(inv) / sum(cogs) * 365 when cogs is
+//     present per-SKU; weighted-average-by-inventory fallback when
+//     only DIO+inv are available (older schema without the cogs_krn
+//     column persisted).
+//   · DSO and DPO come from the loaded period's trial-balance context
+//     (receivables 4111 / payables 401, vs revenue / COGS) — reused
+//     via the same `computeRatios()` the dashboard ratios tab uses.
+//     No pipeline/engine recompute.
+//   · CCC = DIO + DSO − DPO. Shown ONLY when all three components are
+//     available; otherwise the panel labels CCC "not available" and
+//     names which component is missing. Never fabricated.
+
+function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
+  const period = useActivePeriod();
+
+  // ── Per-SKU DIO coverage + company DIO ────────────────────────────
+  const covered = useMemo(
+    () => skus.filter(
+      (s) => s.days_inventory_on_hand != null && s.inventory_value_krn != null,
+    ),
+    [skus],
+  );
+  const coverageLinesPct = skus.length > 0 ? (covered.length / skus.length) : 0;
+  const totalNiv = skus.reduce((acc, s) => acc + (s.niv_krn ?? 0), 0);
+  const coveredNiv = covered.reduce((acc, s) => acc + (s.niv_krn ?? 0), 0);
+  const coverageNivPct = totalNiv > 0 ? coveredNiv / totalNiv : 0;
+
+  // Company DIO. Preferred formula: sum(inv) / sum(cogs) * 365 when
+  // cogs_krn is available per covered row. Fallback: weighted average
+  // of per-SKU DIO by inventory_value_krn (mathematically valid since
+  // each per-SKU DIO is inv/cogs*365; weighting by inv reduces to
+  // sum(inv²/cogs) / sum(inv) — used only when cogs_krn is missing on
+  // the schema). Both formulas honestly use only covered rows.
+  let companyDio: number | null = null;
+  let companyDioFormulaNote = "";
+  if (covered.length > 0) {
+    const hasCogs = covered.every((s) => s.cogs_krn != null && (s.cogs_krn ?? 0) > 0);
+    if (hasCogs) {
+      const sumInv = covered.reduce((a, s) => a + (s.inventory_value_krn ?? 0), 0);
+      const sumCogs = covered.reduce((a, s) => a + (s.cogs_krn ?? 0), 0);
+      companyDio = sumCogs > 0 ? (sumInv / sumCogs) * 365 : null;
+      companyDioFormulaNote = "sum(Inventory) ÷ sum(COGS) × 365, covered rows";
+    } else {
+      const sumInv = covered.reduce((a, s) => a + (s.inventory_value_krn ?? 0), 0);
+      const wsum = covered.reduce(
+        (a, s) => a + (s.inventory_value_krn ?? 0) * (s.days_inventory_on_hand ?? 0),
+        0,
+      );
+      companyDio = sumInv > 0 ? wsum / sumInv : null;
+      companyDioFormulaNote = "weighted by Inventory (per-SKU DIO; COGS not persisted)";
+    }
+  }
+
+  // ── DSO / DPO from period trial-balance context ───────────────────
+  // `computeRatios()` is the same FE arithmetic the Dashboard's Ratios
+  // tab consumes — receivables / payables / revenue / cogs already
+  // emitted by the engine into the period's statements. No recompute.
+  let dso: number | null = null;
+  let dpo: number | null = null;
+  let periodContextNote: string | null = null;
+  if (period.statements) {
+    try {
+      const r = computeRatios(period.statements);
+      const dsoRatio = r.efficiency.find((x) => x.key === "dso");
+      const dpoRatio = r.efficiency.find((x) => x.key === "dpo");
+      dso = dsoRatio && Number.isFinite(dsoRatio.value) ? dsoRatio.value : null;
+      dpo = dpoRatio && Number.isFinite(dpoRatio.value) ? dpoRatio.value : null;
+      periodContextNote = `period: ${period.label ?? period.id ?? "loaded"}`;
+    } catch {
+      // Sample periods may not have a full balance sheet; leave nulls
+      // and the panel will mark these "not available" honestly.
+      dso = null;
+      dpo = null;
+    }
+  }
+
+  // ── CCC = DIO + DSO − DPO ─────────────────────────────────────────
+  const ccc =
+    companyDio != null && dso != null && dpo != null
+      ? companyDio + dso - dpo
+      : null;
+  const missingForCcc: string[] = [];
+  if (companyDio == null) missingForCcc.push("DIO");
+  if (dso == null) missingForCcc.push("DSO");
+  if (dpo == null) missingForCcc.push("DPO");
+
+  return (
+    <section
+      data-testid="wc-rollup-panel"
+      className="rounded-2xl border border-rule bg-surface px-5 py-5"
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-semibold">
+            Working-capital roll-up
+          </div>
+          <h4 className="font-serif text-[18px] leading-tight text-ink mt-1">
+            Company DIO · DSO · DPO · CCC
+          </h4>
+          <p className="text-[12px] text-ink-soft mt-1 max-w-[640px]">
+            DIO from uploaded SKU inventory &amp; COGS, covered rows only.
+            DSO / DPO from the period&rsquo;s trial-balance context. CCC is a
+            company roll-up, not per-SKU.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <WcCard
+          label="Company DIO"
+          value={companyDio}
+          unit="days"
+          source={
+            covered.length > 0
+              ? `${(coverageNivPct * 100).toFixed(0)}% of NIV · ${covered.length} of ${skus.length} SKUs`
+              : "Inventory / COGS not provided on any SKU"
+          }
+          formula={companyDioFormulaNote}
+          missingHint="Add Inventory value and COGS columns to the upload to compute DIO."
+          testid="wc-dio"
+        />
+        <WcCard
+          label="DSO"
+          value={dso}
+          unit="days"
+          source={dso != null ? `from trial balance${periodContextNote ? ` · ${periodContextNote}` : ""}` : "no trial balance in this session"}
+          missingHint="Load a period with a trial balance to compute DSO."
+          testid="wc-dso"
+        />
+        <WcCard
+          label="DPO"
+          value={dpo}
+          unit="days"
+          source={dpo != null ? `from trial balance${periodContextNote ? ` · ${periodContextNote}` : ""}` : "no trial balance in this session"}
+          missingHint="Load a period with a trial balance to compute DPO."
+          testid="wc-dpo"
+        />
+        <WcCard
+          label="CCC"
+          value={ccc}
+          unit="days"
+          source={
+            ccc != null
+              ? "DIO + DSO − DPO, company-level"
+              : `missing: ${missingForCcc.join(", ")}`
+          }
+          missingHint={
+            ccc == null
+              ? "CCC is computed only when DIO, DSO and DPO are all available."
+              : undefined
+          }
+          accent={ccc != null}
+          testid="wc-ccc"
+        />
+      </div>
+
+      <p className="mt-3 text-[11px] text-ink-mute italic">
+        Rows without inventory + COGS show DIO as &ldquo;—&rdquo; in the table above and are
+        excluded from the company DIO aggregate (never treated as zero).
+      </p>
+    </section>
+  );
+}
+
+function WcCard({
+  label, value, unit, source, formula, missingHint, accent, testid,
+}: {
+  label: string;
+  value: number | null;
+  unit: string;
+  source: string;
+  formula?: string;
+  missingHint?: string;
+  accent?: boolean;
+  testid?: string;
+}) {
+  const available = value != null && Number.isFinite(value);
+  return (
+    <div
+      data-testid={testid}
+      data-available={available ? "true" : "false"}
+      className={`rounded-xl border ${accent ? "border-brand/40" : "border-rule"} bg-bg-2/30 px-4 py-3`}
+    >
+      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+        {label}
+      </div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        {available ? (
+          <>
+            <span className="text-[22px] tabular-nums text-ink font-semibold leading-none">
+              {Math.round(value).toLocaleString("en-GB")}
+            </span>
+            <span className="text-[11.5px] text-ink-soft">{unit}</span>
+          </>
+        ) : (
+          <span className="text-[14px] text-ink-mute italic">not available</span>
+        )}
+      </div>
+      <div className="mt-1.5 text-[11px] text-ink-soft leading-snug">{source}</div>
+      {formula && available && (
+        <div className="mt-0.5 text-[10.5px] text-ink-mute leading-snug">{formula}</div>
+      )}
+      {!available && missingHint && (
+        <div className="mt-1 text-[10.5px] text-ink-mute leading-snug">{missingHint}</div>
+      )}
+    </div>
+  );
+}
+
 function Chip({
-  testid, label, count, active, onClick, dotClass,
-}: { testid: string; label: string; count: number; active: boolean; onClick: () => void; dotClass?: string }) {
+  testid, label, count, active, onClick, dotClass, empty,
+}: { testid: string; label: string; count: number; active: boolean; onClick: () => void; dotClass?: string; empty?: boolean }) {
+  // `empty` chips (count = 0) render dimmed so they're visually distinct
+  // from populated buckets — but still clickable, so the user can see the
+  // full classification surface and confirm the bucket really is empty
+  // (vs the chip being missing entirely, which used to read as a bug).
+  const baseTone = active
+    ? "bg-ink text-paper border-ink"
+    : empty
+      ? "bg-surface text-ink-mute/70 border-rule/60 hover:text-ink-soft hover:border-rule"
+      : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong";
   return (
     <button
       type="button"
       onClick={onClick}
       data-testid={testid}
-      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] border transition-colors ${
-        active ? "bg-ink text-paper border-ink" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
-      }`}
+      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] border transition-colors ${baseTone}`}
     >
-      {dotClass && <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />}
+      {dotClass && (
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass} ${empty && !active ? "opacity-40" : ""}`}
+        />
+      )}
       {label}
       <span className={`ml-0.5 ${active ? "text-paper/70" : "text-ink-mute"}`}>{count}</span>
     </button>
@@ -626,7 +969,7 @@ function MoversList({ title, rows, dir }: { title: string; rows: CompareRow[]; d
   );
 }
 
-function SkuTable({ rows }: { rows: SkuAggregate[] }) {
+function SkuTable({ rows, onSelect }: { rows: SkuAggregate[]; onSelect: (sku: SkuAggregate) => void }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -645,12 +988,13 @@ function SkuTable({ rows }: { rows: SkuAggregate[] }) {
 
   return (
     <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
-      <div className="grid grid-cols-[1fr_120px_120px_90px_90px_80px_80px_120px] gap-3 px-4 py-2.5 bg-bg-2/40 border-b border-rule text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+      <div className="grid grid-cols-[1fr_120px_120px_90px_90px_90px_80px_80px_120px] gap-3 px-4 py-2.5 bg-bg-2/40 border-b border-rule text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
         <div>SKU · Category</div>
         <div className="text-right">Volume (t)</div>
         <div className="text-right">NIV (kRON)</div>
         <div className="text-right">GM%</div>
         <div className="text-right">GM (kRON)</div>
+        <div className="text-right">DIO (days)</div>
         <div className="text-center"># lines</div>
         <div className="text-center"># channels</div>
         <div>Signal</div>
@@ -670,7 +1014,16 @@ function SkuTable({ rows }: { rows: SkuAggregate[] }) {
               <div
                 key={s.id}
                 data-testid="sku-row"
+                role="button"
+                tabIndex={0}
                 title={s.classification_reason ?? ""}
+                onClick={() => onSelect(s)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(s);
+                  }
+                }}
                 style={{
                   position: "absolute",
                   top: 0,
@@ -679,7 +1032,7 @@ function SkuTable({ rows }: { rows: SkuAggregate[] }) {
                   transform: `translateY(${virt.start}px)`,
                   height: virt.size,
                 }}
-                className="grid grid-cols-[1fr_120px_120px_90px_90px_80px_80px_120px] gap-3 px-4 py-2.5 border-b border-rule/60 hover:bg-bg-2/40 transition-colors text-[12.5px] items-center"
+                className="grid grid-cols-[1fr_120px_120px_90px_90px_90px_80px_80px_120px] gap-3 px-4 py-2.5 border-b border-rule/60 hover:bg-bg-2/40 transition-colors text-[12.5px] items-center cursor-pointer focus:outline-none focus:bg-bg-2/60 focus:ring-1 focus:ring-inset focus:ring-ink/20"
               >
                 <div className="min-w-0">
                   <div className="text-ink truncate" title={s.product_name}>{s.product_name}</div>
@@ -700,6 +1053,25 @@ function SkuTable({ rows }: { rows: SkuAggregate[] }) {
                 </div>
                 <div className={`text-right tabular-nums font-medium ${gm < 0 ? "text-red-700" : "text-ink"}`}>
                   {gm.toLocaleString("en-GB", { maximumFractionDigits: 0 })}
+                </div>
+                {/* DIO (days). Graceful-missing — when inventory/COGS
+                 *  weren't provided for this SKU, render an explicit
+                 *  "—" with an "inv/COGS n/a" caption on hover so the
+                 *  user never reads a 0 as "perfect inventory turn".
+                 *  This is the no-fabrication rail for DIO. */}
+                <div
+                  className="text-right tabular-nums"
+                  title={
+                    s.days_inventory_on_hand == null
+                      ? "DIO not available — inventory value and/or COGS not provided for this SKU"
+                      : undefined
+                  }
+                  data-testid="sku-dio-cell"
+                  data-dio-available={s.days_inventory_on_hand != null ? "true" : "false"}
+                >
+                  {s.days_inventory_on_hand != null
+                    ? <span className="text-ink">{Math.round(s.days_inventory_on_hand).toLocaleString("en-GB")}</span>
+                    : <span className="text-ink-mute/70 italic">—<span className="ml-1 text-[10px]">n/a</span></span>}
                 </div>
                 <div className="text-center text-[11.5px] text-ink-mute tabular-nums">{s.line_row_count ?? "—"}</div>
                 <div className="text-center text-[11.5px] text-ink-mute">
@@ -754,41 +1126,215 @@ function InflightCard({ inflight }: { inflight: InflightDoc }) {
   };
   const stage = STAGES[inflight.status];
   const failed = inflight.status === "failed";
+
+  // ── Hang detector ──────────────────────────────────────────────────────────
+  // If the doc stays at status='queued' (ordinal=0) for >60s the user is
+  // most likely staring at a silent backend hang — typically /api/pipeline/run
+  // failed at upload moment so the worker thread never started. Surface a
+  // clear message + retry button rather than spinning forever. Status changes
+  // away from "queued" reset the timer; analysis completing makes it moot.
+  const HANG_TIMEOUT_MS = 60_000;
+  const [hangSuspected, setHangSuspected] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  useEffect(() => {
+    setHangSuspected(false);
+    if (inflight.status !== "queued") return;
+    const t = setTimeout(() => setHangSuspected(true), HANG_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [inflight.status, inflight.id]);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    // Try the generic watchdog first (catches the common "worker never ran"
+    // case without wiping derivatives), then fall back to a hard retry which
+    // resets the doc and re-enqueues fresh.
+    const recovered = await recoverStuckPipelines();
+    let ok = (recovered?.recovered_count ?? 0) > 0;
+    if (!ok) ok = await retryPipeline(inflight.id);
+    setRetrying(false);
+    if (ok) {
+      toast({ title: "Retrying analysis", description: inflight.filename });
+      setHangSuspected(false);
+      void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
+    } else {
+      toast({
+        title: "Retry failed",
+        description: "Backend is unreachable. Refresh the page or try again in a moment.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Staged steps — labels users can recognise. Mapped to the engine's
+  // own `DocumentStatus` so the active step always matches reality.
+  // Each step shows pending / running / done so a 6-step pipeline reads
+  // as a real workflow instead of a generic spinner.
+  const STEPS: Array<{ ordinal: number; label: string; sub: string }> = [
+    { ordinal: 1, label: "Reading workbook",   sub: "Picking the right sheet" },
+    { ordinal: 2, label: "Detecting columns",  sub: "Matching synonyms · RO/EN" },
+    { ordinal: 3, label: "Mapping SKUs",       sub: "One row per product line" },
+    { ordinal: 4, label: "Calculating margins", sub: "NIV · GM · DIO when present" },
+    { ordinal: 5, label: "Classifying portfolio", sub: "anchor · scale · watch · wind-down" },
+    { ordinal: 6, label: "Generating briefing", sub: "Executive summary + actions" },
+  ];
+
   return (
-    <section className="max-w-[680px] mx-auto py-16">
-      <div data-testid="products-inflight" className="rounded-2xl border border-rule bg-surface p-7">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            {failed ? <AlertCircle size={16} className="text-alert" strokeWidth={2} /> : <Loader2 size={16} className="text-brand animate-spin" strokeWidth={2} />}
-            <span className="text-[14px] font-medium text-ink">{failed ? "Couldn't finish analysis" : "Analyzing your SKU data…"}</span>
+    <section className="max-w-[760px] mx-auto py-12 sm:py-16">
+      <div
+        data-testid="products-inflight"
+        className="
+          relative overflow-hidden rounded-3xl
+          border border-rule
+          bg-gradient-to-br from-bg-2/40 via-surface to-surface
+          ring-1 ring-inset ring-white/[0.03]
+          shadow-[0_24px_48px_-30px_rgba(0,0,0,0.25)]
+          px-6 sm:px-8 py-7 sm:py-8
+        "
+      >
+        <div aria-hidden className="pointer-events-none absolute -top-24 -right-20 h-56 w-56 rounded-full bg-brand/10 blur-3xl" />
+
+        <div className="relative flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className={`inline-flex items-center justify-center h-8 w-8 rounded-xl ${
+              failed || hangSuspected
+                ? "bg-alert/10 text-alert"
+                : "bg-brand-tint text-brand-d"
+            }`}>
+              {failed || hangSuspected
+                ? <AlertCircle size={15} strokeWidth={2} />
+                : <Loader2 size={15} strokeWidth={2.25} className="animate-spin" />}
+            </span>
+            <span className="text-[14.5px] font-semibold text-ink truncate">
+              {failed
+                ? "Couldn't finish analysis"
+                : hangSuspected
+                ? "Upload appears stuck"
+                : "Analyzing your SKU data…"}
+            </span>
           </div>
-          {!failed && <span className="text-[11.5px] text-ink-mute tabular-nums">Step {stage.ordinal} of 6</span>}
+          {!failed && !hangSuspected && (
+            <span className="text-[11px] text-ink-mute tabular-nums uppercase tracking-[0.08em]">
+              Step {Math.max(1, stage.ordinal)} of {STEPS.length}
+            </span>
+          )}
         </div>
-        <div className="text-[13px] text-ink-soft mb-3">
-          <span className="text-ink font-medium">{inflight.filename}</span> · {stage.label}
+
+        <div className="relative text-[12.5px] text-ink-soft mb-5 truncate">
+          <span className="text-ink font-medium">{inflight.filename}</span>
+          <span className="mx-1.5 text-ink-mute">·</span>
+          <span>{stage.label}</span>
         </div>
-        {!failed && (
-          <div className="h-1.5 rounded-full bg-bg-2 overflow-hidden">
-            <div className="h-full bg-brand transition-all duration-500" style={{ width: `${(stage.ordinal / 6) * 100}%` }} />
-          </div>
+
+        {!failed && !hangSuspected && (
+          <ol className="relative space-y-3" data-testid="products-inflight-steps">
+            {STEPS.map((step) => {
+              const isDone = stage.ordinal > step.ordinal;
+              const isActive = stage.ordinal === step.ordinal || (stage.ordinal === 0 && step.ordinal === 1);
+              return (
+                <li
+                  key={step.ordinal}
+                  className={`
+                    relative flex items-start gap-3
+                    transition-opacity duration-300
+                    ${isDone ? "opacity-100" : isActive ? "opacity-100" : "opacity-55"}
+                  `}
+                  data-step-state={isDone ? "done" : isActive ? "active" : "pending"}
+                >
+                  <span className={`
+                    inline-flex items-center justify-center
+                    h-6 w-6 rounded-full shrink-0
+                    transition-colors duration-200
+                    ${isDone
+                      ? "bg-brand text-paper"
+                      : isActive
+                      ? "bg-brand/15 text-brand-d ring-2 ring-brand/40"
+                      : "bg-bg-2 text-ink-mute"}
+                  `}>
+                    {isDone
+                      ? <Check size={12} strokeWidth={2.75} />
+                      : isActive
+                      ? <Loader2 size={11} strokeWidth={2.5} className="animate-spin" />
+                      : <span className="text-[10px] font-semibold tabular-nums">{step.ordinal}</span>}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={`block text-[13px] ${isDone || isActive ? "text-ink" : "text-ink-soft"} ${isActive ? "font-medium" : ""}`}>
+                      {step.label}
+                    </span>
+                    <span className="block text-[11.5px] text-ink-mute mt-0.5">{step.sub}</span>
+                  </span>
+                  {/* Connector — vertical line linking the steps. The
+                   *  last step has no connector below it. */}
+                  {step.ordinal < STEPS.length && (
+                    <span
+                      aria-hidden
+                      className="absolute left-[11px] top-7 bottom-[-12px] w-px bg-rule/70"
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         )}
         {failed && inflight.error && (
           <div className="mt-2 rounded-md border border-alert/30 bg-alert/5 px-3 py-2 text-[12px] text-alert">{inflight.error}</div>
+        )}
+        {hangSuspected && !failed && (
+          <div
+            data-testid="products-inflight-hang"
+            className="mt-2 rounded-md border border-alert/30 bg-alert/5 px-3 py-2.5 text-[12.5px] text-alert space-y-2"
+          >
+            <p>
+              The upload reached the server but analysis hasn't started for more than 60 seconds.
+              This usually means the worker thread never picked up the job (a brief backend hiccup
+              right at upload moment). Click below to re-queue it.
+            </p>
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={retrying}
+              data-testid="products-inflight-retry"
+              className="inline-flex items-center gap-1.5 rounded-md border border-alert/40 bg-surface px-3 py-1.5 text-[12px] font-medium text-alert hover:bg-alert/10 transition-colors disabled:opacity-50"
+            >
+              {retrying ? <Loader2 size={12} className="animate-spin" /> : null}
+              {retrying ? "Retrying…" : "Retry analysis"}
+            </button>
+          </div>
         )}
       </div>
     </section>
   );
 }
 
-function EmptyState({ onUploaded }: { onUploaded: () => void }) {
+// Real, enforced upload limits — kept in one place so the UI never
+// states a number the parser doesn't actually enforce. (Spec: "Accepted-
+// formats limits match the real parser/handler".)
+const PRODUCTS_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const PRODUCTS_UPLOAD_MAX_MB = 25;
+const PRODUCTS_UPLOAD_ACCEPT = ".xlsx,.xls,.csv";
+
+function EmptyState({
+  onUploaded,
+  datasets,
+}: {
+  onUploaded: () => void;
+  /** Real prior imports — drives the stats strip and recent-imports
+   *  panel. Pass an empty array on a brand-new account; the strip and
+   *  the panel render their honest empty states. NEVER fabricated. */
+  datasets: DatasetSummary[];
+}) {
   const { toast } = useToast();
+  // Pricing V3 — wraps enqueuePipeline so the 402 extra-doc dialog +
+  // 429 quota-blocked toast fire automatically.
+  const uploadEnqueue = useUploadEnqueue();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
 
   async function handleFile(file: File) {
-    if (file.size > 25 * 1024 * 1024) {
-      toast({ title: "File too large", description: `${(file.size/1_000_000).toFixed(1)} MB exceeds the 25 MB limit.`, variant: "destructive" });
+    if (file.size > PRODUCTS_UPLOAD_MAX_BYTES) {
+      toast({ title: "File too large", description: `${(file.size/1_000_000).toFixed(1)} MB exceeds the ${PRODUCTS_UPLOAD_MAX_MB} MB limit.`, variant: "destructive" });
       return;
     }
     setBusy(true);
@@ -798,63 +1344,643 @@ function EmptyState({ onUploaded }: { onUploaded: () => void }) {
       toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
       return;
     }
-    const enqueued = await enqueuePipeline(row.id);
+    const enq = await uploadEnqueue.enqueue(row.id);
     setBusy(false);
-    if (!enqueued) {
-      toast({ title: "Couldn't start analysis", description: "Backend unreachable.", variant: "destructive" });
+    if (enq.kind !== "queued") {
+      // Modal/toast already surfaced by the hook; nothing to do here.
       return;
     }
     toast({ title: "Analysis started", description: file.name });
     onUploaded();
   }
 
+  // ── Real-or-absent stats (no fabrication) ───────────────────────
+  // Every figure here is computed from `datasets` (the already-loaded
+  // /api/sales-datasets payload). When `datasets.length === 0` the
+  // strip renders an honest "Upload your first dataset…" state — never
+  // sample numbers, never "↑X% vs last import".
+  const stats = useMemo(() => buildHonestStats(datasets), [datasets]);
+  const sortedDatasets = useMemo(
+    () => [...datasets].sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()),
+    [datasets],
+  );
+
   return (
-    <section className="max-w-[720px] mx-auto py-12" data-testid="products-empty">
-      <div className="text-center mb-6">
-        <div className="mx-auto h-14 w-14 rounded-2xl bg-bg-2 text-ink-mute flex items-center justify-center mb-4">
-          <Boxes size={22} strokeWidth={1.5} />
+    <section className="max-w-[1080px] mx-auto py-10 sm:py-12" data-testid="products-empty">
+      {/* Pricing V3 — extra-doc confirm dialog mount. */}
+      {uploadEnqueue.dialog}
+      {/* ── Hero panel — glass-card with soft gradient. Headline + a
+       *  premium dropzone live in a 2-column split that stacks under lg.
+       *  The wrapper card adds the gradient + ring so the hero reads as
+       *  a single integrated surface rather than two loose blocks. */}
+      <div className="
+        relative overflow-hidden rounded-3xl
+        border border-rule
+        bg-gradient-to-br from-bg-2/40 via-surface to-surface
+        ring-1 ring-inset ring-white/[0.03]
+        shadow-[0_24px_48px_-30px_rgba(0,0,0,0.25)]
+        px-6 sm:px-8 py-8 sm:py-10
+      ">
+        {/* Decorative top-right brand glow — purely visual, no real data */}
+        <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
+
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-6 lg:gap-10 items-start relative">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+              <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+              Product intelligence
+            </div>
+            <h1 className="mt-3 text-[34px] sm:text-[42px] leading-[1.05] tracking-[-0.02em] text-ink font-semibold">
+              Upload your data. CFO AI finds what matters.
+            </h1>
+            <p className="mt-4 text-[14.5px] text-ink-soft leading-relaxed max-w-[520px]">
+              Drop a trading analysis or sales-by-SKU export. CFO AI streams every row, rolls them
+              up to the SKU, classifies into anchor / scale / watch / wind-down, and surfaces
+              loss-makers — with optional per-SKU DIO when{" "}
+              <span className="text-ink">Inventory value</span> and{" "}
+              <span className="text-ink">COGS</span> columns are included.
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+                data-testid="products-upload-choose-primary"
+                className="
+                  inline-flex items-center gap-2 h-10 px-4 rounded-lg
+                  bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
+                  shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
+                  hover:shadow-[0_10px_26px_-8px_rgba(45,191,179,0.75)]
+                  disabled:opacity-50 transition-all
+                  ring-1 ring-inset ring-white/15
+                "
+              >
+                {busy ? <Loader2 size={13} className="animate-spin" /> : <UploadCloud size={13} strokeWidth={2} />}
+                {busy ? "Uploading…" : "Upload dataset"}
+              </button>
+              <button
+                type="button"
+                onClick={() => openAskCfoAi("Help me understand what my product dataset upload should look like, and what CFO AI will do with it.")}
+                className="
+                  inline-flex items-center gap-2 h-10 px-4 rounded-lg
+                  border border-rule bg-surface/70 backdrop-blur
+                  text-[13px] font-medium text-ink
+                  hover:bg-bg-2/60 hover:border-rule-strong
+                  transition-colors
+                "
+                data-testid="products-ask-cfo-ai"
+              >
+                <Sparkles size={13} strokeWidth={2} className="text-brand-d" />
+                Ask CFO AI
+              </button>
+            </div>
+          </div>
+
+          {/* Dropzone — glass, brand-glow on drag-over */}
+          <div
+            data-testid="products-upload-dropzone"
+            onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
+            className={`
+              relative rounded-2xl border-2 border-dashed transition-all
+              ${drag
+                ? "border-brand bg-brand/[0.06] shadow-[0_0_0_4px_rgba(45,191,179,0.12)]"
+                : "border-rule/80 bg-bg-2/30 hover:bg-bg-2/50 hover:border-rule-strong"}
+              px-6 py-10 text-center
+              backdrop-blur-sm
+            `}
+          >
+            <div className="mx-auto h-12 w-12 rounded-xl bg-gradient-to-br from-brand/15 to-brand-d/15 text-brand-d flex items-center justify-center mb-3 ring-1 ring-brand/15">
+              <UploadCloud size={20} strokeWidth={1.75} />
+            </div>
+            <h3 className="text-[16px] font-semibold text-ink">Drop your dataset here</h3>
+            <p className="text-[12.5px] text-ink-soft mt-1">
+              XLSX · CSV · multi-sheet · up to {PRODUCTS_UPLOAD_MAX_MB} MB
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+              data-testid="products-upload-choose"
+              className="mt-4 inline-flex items-center gap-2 h-9 px-3.5 rounded-lg border border-rule bg-surface text-ink text-[12.5px] font-medium hover:bg-bg-2/60 transition-colors disabled:opacity-50"
+            >
+              {busy ? <Loader2 size={12} className="animate-spin" /> : <UploadCloud size={12} strokeWidth={2} />}
+              {busy ? "Uploading…" : "Choose a file"}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept={PRODUCTS_UPLOAD_ACCEPT}
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+            />
+            <p className="mt-4 text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
+              <Sparkles size={9} strokeWidth={2} className="inline mr-1 text-brand-d" />
+              Stream · roll up · classify · briefing
+            </p>
+          </div>
         </div>
-        <h1 className="font-serif text-[34px] sm:text-[40px] leading-[1.1] tracking-[-0.02em] text-ink">
-          Upload your sales dataset
-        </h1>
-        <p className="mt-4 text-[15px] text-ink-soft max-w-[520px] mx-auto">
-          Trading analysis (XLSX) or sales-by-SKU export. We extract every line, roll up to the SKU,
-          classify into anchor / scale / watch / eliminate, and surface the loss-makers.
-        </p>
       </div>
 
-      <div
-        data-testid="products-upload-dropzone"
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
-        className={`rounded-2xl border-2 border-dashed transition-colors ${drag ? "border-brand bg-brand/5" : "border-rule bg-bg-2/30"} px-6 py-10 text-center`}
-      >
-        <UploadCloud size={28} strokeWidth={1.5} className="mx-auto text-brand-d mb-3" />
-        <h3 className="font-serif text-[18px] text-ink">Drop your trading analysis</h3>
-        <p className="text-[12.5px] text-ink-soft mt-1">XLSX · CSV — multi-sheet supported.</p>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => fileRef.current?.click()}
-          className="mt-4 inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand text-paper text-[13px] font-medium hover:bg-brand-d transition-colors disabled:opacity-50"
-        >
-          {busy ? <Loader2 size={13} className="animate-spin" /> : <UploadCloud size={13} strokeWidth={2} />}
-          {busy ? "Uploading…" : "Choose a file"}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
-        />
-        <p className="mt-4 text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-          <Sparkles size={9} strokeWidth={2} className="inline mr-1" />
-          Stream rows · roll up to SKU · classify · briefing
-        </p>
+      {/* ── Contextual Ask CFO AI prompt chips ─────────────────────── */}
+      <ProductsPromptChips />
+
+      {/* ── Stats strip — REAL or absent (no fabrication) ──────────── */}
+      <ProductsStatsStrip stats={stats} hasData={datasets.length > 0} />
+
+      {/* ── What happens next (process explanation — static & accurate) ── */}
+      <ProductsProcessFlow />
+
+      {/* ── Accepted formats — limits match the real parser/handler ── */}
+      <ProductsAcceptedFormats />
+
+      {/* ── Recent imports — REAL history or honest empty state ───── */}
+      <ProductsRecentImports datasets={sortedDatasets} />
+
+      {/* ── Expected format card — preserves the columnar source-doc
+       *  example, anchor for the example download link. The card was
+       *  the original lineage/source-doc element in the pre-upload
+       *  flow; kept as-is so the existing example_products_trading.xlsx
+       *  remains accessible (Decision 4 — preserve source-doc). */}
+      <SalesAnalysisFormatHint />
+
+      {/* ── Bottom insight strip — premium CTA. Opens the Ask CFO AI
+       *  slide-over with no prefill (general entry); the prompt chips
+       *  above cover the more specific intents. */}
+      <ProductsBottomInsightStrip />
+    </section>
+  );
+}
+
+// ─── Contextual prompt chips ─────────────────────────────────────
+// Each chip dispatches `openAskCfoAi(prompt)` which AppShell receives
+// and translates into either: focus the live composer with prefill
+// (when already on /chat) or open the slide-over with the prompt
+// queued (any other route — including this Products page). The
+// prompts are real CFO-finance questions, NOT fabricated insights.
+
+const PRODUCTS_PROMPT_CHIPS: Array<{ label: string; prompt: string }> = [
+  { label: "Analyze product profitability",   prompt: "Walk me through how I should analyze product profitability across my SKU portfolio. What metrics matter most and in what order?" },
+  { label: "Which SKUs are loss-makers?",      prompt: "Once I upload my sales dataset, how do you decide which SKUs are loss-makers? Explain the classification rules CFO AI uses." },
+  { label: "What should we discontinue?",      prompt: "What framework should a CFO use to decide which products to discontinue? Include the financial AND operational signals to weigh." },
+  { label: "Where are margin leaks?",          prompt: "Where do margin leaks typically hide in a SKU portfolio? Give me the top causes and how I'd spot them in a trading analysis." },
+  { label: "Summarize latest product dataset", prompt: "Once a Products dataset is loaded, summarize it for me: top performers, loss-makers, and the most important pricing or mix actions." },
+];
+
+function ProductsPromptChips() {
+  return (
+    <section className="mt-8" data-testid="products-prompt-chips">
+      <div className="flex items-center gap-2 mb-2.5">
+        <Sparkles size={11} strokeWidth={2.25} className="text-brand-d" />
+        <span className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+          Ask CFO AI
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {PRODUCTS_PROMPT_CHIPS.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            onClick={() => openAskCfoAi(c.prompt)}
+            className="
+              group inline-flex items-center gap-2
+              h-9 px-3.5 rounded-full
+              border border-rule bg-surface
+              text-[12.5px] text-ink-soft hover:text-ink
+              hover:border-brand/30 hover:bg-brand/[0.04]
+              transition-all
+            "
+            data-testid="products-prompt-chip"
+          >
+            <Sparkles size={11} strokeWidth={2} className="text-ink-mute group-hover:text-brand-d transition-colors" />
+            {c.label}
+          </button>
+        ))}
       </div>
     </section>
+  );
+}
+
+// ─── Bottom insight strip ────────────────────────────────────────
+// Sits at the foot of the empty-state page. Premium gradient panel
+// with a single Ask CFO AI CTA. No fabricated metric — copy is a
+// product positioning line, not a claim about the user's data.
+
+function ProductsBottomInsightStrip() {
+  return (
+    <section
+      className="
+        mt-12 rounded-3xl
+        bg-surface
+        text-ink
+        px-6 sm:px-8 py-8
+        relative overflow-hidden
+        border border-rule
+        ring-1 ring-inset ring-rule-soft
+        shadow-[0_24px_48px_-30px_rgba(0,0,0,0.20)]
+      "
+      data-testid="products-bottom-insight"
+    >
+      <div aria-hidden className="pointer-events-none absolute -top-12 -right-16 h-56 w-56 rounded-full bg-brand/15 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 h-48 w-48 rounded-full bg-brand-2/10 blur-3xl" />
+
+      <div className="relative flex items-start justify-between gap-5 flex-wrap">
+        <div className="max-w-[640px]">
+          <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-soft font-semibold">
+            <Sparkles size={10} strokeWidth={2.25} className="text-brand" />
+            Clarity, on demand
+          </div>
+          <h2 className="mt-3 text-[24px] sm:text-[28px] leading-[1.15] tracking-[-0.01em] font-semibold">
+            CFO AI gives you clarity on what grows profit.
+          </h2>
+          <p className="mt-2 text-[13.5px] text-ink-soft leading-relaxed max-w-[540px]">
+            Already uploaded? Ask CFO AI about your active dataset — loss-makers, mix shifts, margin
+            outliers, or what to discontinue. Haven&rsquo;t uploaded yet? Ask anything about the
+            framework first.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => openAskCfoAi()}
+          className="
+            inline-flex items-center gap-2
+            h-10 px-4 rounded-lg
+            bg-ink text-paper text-[13px] font-medium
+            hover:bg-ink/90 transition-colors
+            shadow-1
+          "
+          data-testid="products-bottom-ask-cfo-ai"
+        >
+          <Sparkles size={13} strokeWidth={2} className="text-brand" />
+          Ask CFO AI for insights
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ─── Stats strip ─────────────────────────────────────────────────
+// Each card renders only when its backing figure exists. The 4 stats
+// the spec's reference mockup shows ("SKUs analyzed", "margin outliers",
+// "↑18.6% vs last import", "loss-makers") were AUDITED against the
+// real API: 2 of 4 needed per-dataset detail that the summary endpoint
+// doesn't provide. Rather than fabricate, we substitute 4 stats that
+// ARE backed by the already-loaded /api/sales-datasets payload.
+
+interface HonestStats {
+  datasetCount: number;
+  totalSkus: number | null;        // Σ sku_count across datasets, null when no datasets had it
+  totalLineRows: number | null;    // Σ row_count across datasets, null when none
+  latestUploadAt: string | null;   // ISO ts of the most recent import
+}
+
+function buildHonestStats(datasets: DatasetSummary[]): HonestStats {
+  let totalSkus = 0;
+  let skusKnown = false;
+  let totalLineRows = 0;
+  let rowsKnown = false;
+  let latest = 0;
+  for (const d of datasets) {
+    if (typeof d.sku_count === "number") { totalSkus += d.sku_count; skusKnown = true; }
+    if (typeof d.row_count === "number") { totalLineRows += d.row_count; rowsKnown = true; }
+    const t = new Date(d.uploaded_at).getTime();
+    if (Number.isFinite(t) && t > latest) latest = t;
+  }
+  return {
+    datasetCount: datasets.length,
+    totalSkus: skusKnown ? totalSkus : null,
+    totalLineRows: rowsKnown ? totalLineRows : null,
+    latestUploadAt: latest > 0 ? new Date(latest).toISOString() : null,
+  };
+}
+
+function ProductsStatsStrip({ stats, hasData }: { stats: HonestStats; hasData: boolean }) {
+  // True first-visit: explicit honest empty state — no numbers at all.
+  if (!hasData) {
+    return (
+      <section className="mt-10 rounded-2xl border border-rule bg-bg-2/30 px-5 py-5" data-testid="products-stats-empty">
+        <p className="text-[13px] text-ink-soft">
+          <span className="text-ink font-medium">Insights appear once data is in.</span> Upload your first dataset
+          to see SKU counts, line-rows analyzed, and roll-ups across imports — no figures are shown
+          until they reflect actual analysis.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="products-stats-strip">
+      <StatCard
+        label="Datasets analyzed"
+        value={stats.datasetCount.toLocaleString("en-GB")}
+        sub={stats.datasetCount === 1 ? "1 import on file" : `${stats.datasetCount} imports on file`}
+      />
+      {stats.totalSkus !== null && (
+        <StatCard
+          label="SKUs analyzed"
+          value={stats.totalSkus.toLocaleString("en-GB")}
+          sub="cumulative across imports"
+        />
+      )}
+      {stats.totalLineRows !== null && (
+        <StatCard
+          label="Line rows ingested"
+          value={stats.totalLineRows.toLocaleString("en-GB")}
+          sub="cumulative across imports"
+        />
+      )}
+      {stats.latestUploadAt && (
+        <StatCard
+          label="Latest import"
+          value={shortRelative(stats.latestUploadAt)}
+          sub={new Date(stats.latestUploadAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+        />
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-xl border border-rule bg-surface px-4 py-3">
+      <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{label}</div>
+      <div className="mt-1.5 text-[22px] font-semibold text-ink tabular-nums leading-none">{value}</div>
+      {sub && <div className="mt-1 text-[11px] text-ink-mute">{sub}</div>}
+    </div>
+  );
+}
+
+function shortRelative(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "—";
+  const diff = Date.now() - t;
+  if (diff < 60_000) return "just now";
+  if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))}h ago`;
+  if (diff < 7 * 24 * 60 * 60_000) return `${Math.floor(diff / (24 * 60 * 60_000))}d ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
+}
+
+// ─── Process flow ────────────────────────────────────────────────
+// Static explanatory copy about what the pipeline does. This is
+// legitimately static content (describes the flow, not data) — it is
+// NOT fabricated numbers. Each step describes a real stage of the
+// existing pipeline; nothing here is invented.
+
+function ProductsProcessFlow() {
+  const steps = [
+    { icon: UploadCloud,    title: "Upload",         body: "Drag your XLSX or CSV. We never store the raw file outside your workspace." },
+    { icon: TableProperties, title: "Map rows",       body: "Synonyms find your columns automatically — Romanian or English headers." },
+    { icon: Cpu,            title: "Analyze",        body: "Roll up to the SKU, classify, compute per-SKU DIO when inventory/COGS are present." },
+    { icon: FileText,       title: "Generate briefing", body: "A board-ready briefing with the anchor / wind-down picture and loss-maker list." },
+  ];
+  return (
+    <section className="mt-10" data-testid="products-process">
+      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-3">
+        What happens next
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {steps.map((s, i) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.title} className="rounded-xl border border-rule bg-surface px-4 py-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-brand-tint text-brand-d">
+                  <Icon size={13} strokeWidth={1.75} />
+                </span>
+                <span className="text-[11px] tabular-nums text-ink-mute font-medium">0{i + 1}</span>
+              </div>
+              <div className="text-[13.5px] font-medium text-ink">{s.title}</div>
+              <div className="mt-1 text-[12px] text-ink-soft leading-relaxed">{s.body}</div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ─── Accepted formats ────────────────────────────────────────────
+// Limits below mirror the actual handler at handleFile() above:
+// max 25 MB (enforced), .xlsx / .xls / .csv (accept= attr). The
+// multi-sheet line reflects `_pick_data_sheet()` in _sales_extract.py
+// which scans sheets and picks the YTD/Q*/first non-summary sheet.
+
+function ProductsAcceptedFormats() {
+  return (
+    <section className="mt-10 rounded-2xl border border-rule bg-surface px-5 py-5" data-testid="products-accepted-formats">
+      <div className="flex items-start gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
+            Accepted formats
+          </h2>
+          <ul className="space-y-1.5 text-[12.5px] text-ink-soft">
+            <li className="flex items-start gap-2">
+              <FileSpreadsheet size={13} strokeWidth={1.75} className="mt-0.5 text-ink-mute" />
+              <span><span className="text-ink font-medium">XLSX, XLS, CSV</span> — trading analysis or sales-by-SKU export</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Layers size={13} strokeWidth={1.75} className="mt-0.5 text-ink-mute" />
+              <span>Multi-sheet workbooks supported — the parser picks the YTD/quarterly tab automatically</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Check size={13} strokeWidth={1.75} className="mt-0.5 text-ink-mute" />
+              <span>Up to <span className="text-ink font-medium">{PRODUCTS_UPLOAD_MAX_MB} MB</span> per file (enforced)</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Recent imports ──────────────────────────────────────────────
+// Real history only — sourced from `datasets` (the same payload that
+// drives the post-upload portfolio view). Empty → honest empty card,
+// NEVER sample rows. Each row shows: real filename, real date, real
+// row count, real document_status.
+
+function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
+  if (datasets.length === 0) {
+    return (
+      <section className="mt-10 rounded-2xl border border-rule bg-surface px-5 py-6 text-center" data-testid="products-recent-empty">
+        <div className="mx-auto h-9 w-9 rounded-lg bg-bg-2 text-ink-mute flex items-center justify-center mb-2">
+          <Boxes size={15} strokeWidth={1.75} />
+        </div>
+        <p className="text-[13px] text-ink-soft">
+          <span className="text-ink font-medium">No imports yet.</span> Your uploads will appear here.
+        </p>
+      </section>
+    );
+  }
+  const rows = datasets.slice(0, 5);
+  return (
+    <section className="mt-10" data-testid="products-recent-imports">
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+          Recent imports
+        </h2>
+        {datasets.length > rows.length && (
+          <span className="text-[11px] text-ink-mute">{datasets.length - rows.length} more</span>
+        )}
+      </div>
+      <div className="rounded-xl border border-rule bg-surface overflow-hidden">
+        <div className="grid grid-cols-[1fr_140px_100px_110px] gap-3 px-4 py-2 bg-bg-2/40 border-b border-rule text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+          <div>File</div>
+          <div className="text-right">Rows</div>
+          <div className="text-right">SKUs</div>
+          <div>Status</div>
+        </div>
+        <ul>
+          {rows.map((d) => (
+            <li key={d.id} className="grid grid-cols-[1fr_140px_100px_110px] gap-3 px-4 py-2.5 border-b border-rule/60 last:border-0 items-baseline">
+              <div className="min-w-0">
+                <div className="text-[13px] text-ink truncate">{d.source_filename ?? d.label}</div>
+                <div className="text-[10.5px] text-ink-mute mt-0.5">
+                  {d.label !== (d.source_filename ?? d.label) && <span>{d.label} · </span>}
+                  {new Date(d.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                </div>
+              </div>
+              <div className="text-right text-[12.5px] tabular-nums text-ink-soft">
+                {d.row_count != null ? d.row_count.toLocaleString("en-GB") : "—"}
+              </div>
+              <div className="text-right text-[12.5px] tabular-nums text-ink-soft">
+                {d.sku_count != null ? d.sku_count.toLocaleString("en-GB") : "—"}
+              </div>
+              <div>
+                <DocumentStatusPill status={d.document_status} active={d.is_active} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function DocumentStatusPill({ status, active }: { status: DocumentStatus | null; active: boolean }) {
+  // Real status from the backend; never a placeholder.
+  const s = (status ?? "").toLowerCase();
+  let label = status ?? "unknown";
+  let cls = "border-rule text-ink-soft bg-bg-2/40";
+  if (s === "analyzed") { label = active ? "Active" : "Analyzed"; cls = "border-emerald-300/60 text-emerald-700 bg-emerald-50 dark:bg-emerald-500/10"; }
+  else if (s === "queued" || s === "extracting" || s === "ingesting") { label = "Processing"; cls = "border-amber-300/60 text-amber-800 bg-amber-50 dark:bg-amber-500/10"; }
+  else if (s === "failed") { label = "Failed"; cls = "border-red-300/60 text-red-700 bg-red-50 dark:bg-red-500/10"; }
+  return (
+    <span className={`inline-flex items-center h-5 px-2 rounded-full border text-[10.5px] font-medium uppercase tracking-[0.04em] ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+/** Structure-only example of an accepted sales-analysis file.
+ *  Columns mirror what `_sales_extract.py` synonyms accept; placeholder
+ *  rows are fictional and labeled as such.
+ *
+ *  `Inventory value` + `COGS` are NEW optional columns (added together)
+ *  that unlock per-SKU DIO and the company-level CCC roll-up. Existing
+ *  files without them upload identically; rows without inventory/COGS
+ *  show DIO as "—" rather than as 0 (no fabricated turnover). */
+function SalesAnalysisFormatHint() {
+  const headers = [
+    "Canal", "Categ_pr", "Brand", "Denumire produs",
+    "Volume (to)", "NIV (kRON)", "GM (kRON)", "GM2 pct",
+    "Inventory value", "COGS",
+  ];
+  const rows: Array<(string | number)[]> = [
+    ["RETAIL", "CATEGORY 1", "BRAND X", "EXAMPLE PRODUCT A", 100, 1500, 300, 0.20,  450, 1200],
+    ["HORECA", "CATEGORY 1", "BRAND X", "EXAMPLE PRODUCT B",  50,  800, 120, 0.15,  220,  680],
+    ["EXPORT", "CATEGORY 2", "BRAND Y", "EXAMPLE PRODUCT C", 200, 3000, 450, 0.15, "—", "—"],
+  ];
+  function fmt(v: string | number): string {
+    if (typeof v === "number") {
+      if (v < 1) return v.toFixed(2);
+      return v.toLocaleString("en-US");
+    }
+    return v;
+  }
+  return (
+    <div
+      data-testid="sales-format-hint"
+      className="mt-8 rounded-2xl border border-rule bg-surface px-5 py-5"
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div className="min-w-0">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink-soft">
+            Expected format
+          </div>
+          <h4 className="font-serif text-[18px] leading-tight text-ink mt-1">
+            Sales / trading analysis — XLSX
+          </h4>
+          <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px]">
+            One row per SKU-channel-period line. Headers below show the column
+            names the parser recognizes (Romanian and English variants both
+            accepted). Only <strong className="text-ink">Denumire produs</strong> and{" "}
+            <strong className="text-ink">NIV</strong> are required overall;{" "}
+            <strong className="text-ink">Inventory value</strong> +{" "}
+            <strong className="text-ink">COGS</strong> are optional but unlock
+            per-SKU <strong className="text-ink">DIO</strong>; the company-level{" "}
+            <strong className="text-ink">CCC</strong> roll-up additionally uses
+            the period trial balance for DSO / DPO.
+          </p>
+        </div>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <a
+            href="/examples/example_products_trading.xlsx"
+            download="example_products_trading.xlsx"
+            data-testid="download-sales-template"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-rule bg-bg-2/40 text-ink text-[12.5px] font-medium hover:bg-bg-2 transition-colors"
+          >
+            <UploadCloud size={13} strokeWidth={1.75} className="rotate-180" />
+            Download example (XLSX)
+          </a>
+          <span className="text-[10.5px] text-ink-mute italic max-w-[220px] text-right">
+            Anonymized example — match these columns; fictional data.
+          </span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto -mx-1 px-1">
+        <table className="w-full text-[12.5px] tabular-nums">
+          <thead>
+            <tr className="text-left border-b border-rule">
+              {headers.map((h) => (
+                <th
+                  key={h}
+                  className="py-1.5 pr-4 font-semibold text-[10.5px] uppercase tracking-[0.04em] text-ink-soft whitespace-nowrap"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-rule/50 last:border-0">
+                {r.map((v, j) => (
+                  <td
+                    key={j}
+                    className={`py-1.5 pr-4 whitespace-nowrap ${
+                      typeof v === "number" ? "font-mono text-ink" : "text-ink"
+                    }`}
+                  >
+                    {fmt(v)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-[11px] text-ink-mute italic">
+        Placeholder rows for illustration only &mdash; replace with your real export.
+        The third row deliberately omits Inventory value &amp; COGS to demonstrate
+        the &ldquo;DIO not available&rdquo; rendering: rows without both inputs show
+        &ldquo;&mdash;&rdquo;, never 0, and are excluded from the company DIO aggregate.
+      </p>
+    </div>
   );
 }
 

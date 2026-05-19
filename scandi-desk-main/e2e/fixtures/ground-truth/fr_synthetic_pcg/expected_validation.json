@@ -1,0 +1,64 @@
+{
+  "_status": "DRAFT — synthetic fixture; rules are correct, source.md needs balancing before CI promotion.",
+
+  "must_flag": [
+    {
+      "key": "72_excluded_from_operational_revenue",
+      "severity": "HIGH",
+      "category": "accounting_convention",
+      "title_keywords": ["capitalized own-work", "72", "production immobilisée", "excluded"],
+      "rationale": "Account 72 (production immobilisée) MUST be surfaced separately as capitalized own-work, NOT folded into operational revenue. Same logic as Romanian 722."
+    },
+    {
+      "key": "78_provision_reversal_non_recurring",
+      "severity": "MEDIUM",
+      "category": "accounting_convention",
+      "title_keywords": ["reprise", "provision reversal", "non-recurring", "78", "one-off"],
+      "rationale": "Account 78 (reprises sur amortissements/provisions) is a non-cash credit that increases reported income. MUST be flagged as non-recurring so EBITDA / net-income trend analysis isn't distorted."
+    },
+    {
+      "key": "79_cost_transfers_filtered_from_revenue",
+      "severity": "MEDIUM",
+      "category": "accounting_convention",
+      "title_keywords": ["transfert", "cost transfer", "79", "reclassification"],
+      "rationale": "Account 79 is a reclassification credit, NOT a real income event. Must be excluded from revenue."
+    },
+    {
+      "key": "subsidies_flagged_non_recurring",
+      "severity": "INFO",
+      "category": "revenue_quality",
+      "title_keywords": ["74", "subvention", "subsidy", "non-recurring", "operating grant"],
+      "rationale": "Account 74 (subventions d'exploitation) is included in revenue but flagged separately because subsidies are typically not recurring."
+    }
+  ],
+
+  "must_NOT_flag": [
+    {
+      "key": "false_615_anomaly",
+      "severity": "HIGH",
+      "rationale": "Account 615 maintenance is 89.4k / 3.5M = 2.5% of revenue — within the normal 0-5% band for industrial businesses. Pipeline must NOT raise the 615 anomaly alert for this fixture."
+    },
+    {
+      "key": "false_balance_sheet_imbalance",
+      "severity": "CRITICAL",
+      "rationale": "Once source.md is balanced, the assembled BS must tie within 1%. False BS-imbalance alert blocks launch."
+    },
+    {
+      "key": "false_overstated_revenue",
+      "severity": "HIGH",
+      "rationale": "Operational revenue MUST be 3.52M (701+706+707), NOT 3.57M+ (which would include 72)."
+    }
+  ],
+
+  "extraction_completeness": {
+    "min_accounts_extracted": 40,
+    "must_extract_codes": ["101", "12", "164", "215", "28", "401", "411", "512", "601", "641", "661", "681", "701", "72", "78"]
+  },
+
+  "totals_balance_check": {
+    "trial_balance_ytd_debit":  6539300.00,
+    "trial_balance_ytd_credit": 6539300.00,
+    "tolerance_eur": 0.01,
+    "_note": "Reflects markdown footer claim. The actual column sums differ slightly — refine source.md."
+  }
+}

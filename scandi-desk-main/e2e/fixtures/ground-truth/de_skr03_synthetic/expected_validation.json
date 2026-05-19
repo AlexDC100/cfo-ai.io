@@ -1,0 +1,50 @@
+{
+  "_status": "DRAFT — synthetic. Disambiguation rules (vs SKR 04) are the critical contract.",
+
+  "must_flag": [
+    {
+      "key": "skr03_disambiguation",
+      "severity": "INFO",
+      "category": "detection",
+      "title_keywords": ["SKR 03", "skr_03", "Saldenliste", "Datev"],
+      "rationale": "Detection MUST identify this as SKR 03, NOT SKR 04. The discriminator: revenue accounts at 8xxx (8400, 8300, 8200, 8125), bank at 1200, AR at 1400. SKR 04 would have revenue at 4xxx (4000) and bank at 1800."
+    },
+    {
+      "key": "wareneingang_classified_as_cogs",
+      "severity": "INFO",
+      "category": "mapping_consistency",
+      "title_keywords": ["3400", "3300", "Wareneingang", "purchases", "cogs"],
+      "rationale": "Accounts 3400 / 3300 (Wareneingang) MUST be classified as COGS. In SKR 03 class 3 is purchases (expense); in SKR 04 class 3 is balance-sheet liabilities. Pipeline must NOT use generic numeric prefix matching."
+    }
+  ],
+
+  "must_NOT_flag": [
+    {
+      "key": "detected_as_skr_04",
+      "severity": "CRITICAL",
+      "rationale": "Detection MUST NOT return coa_key='skr_04' for this fixture. The bank account is at 1200 (SKR 03 convention), revenue at 8400 (SKR 03 class 8). Misclassification breaks every downstream mapping."
+    },
+    {
+      "key": "8400_not_revenue",
+      "severity": "CRITICAL",
+      "rationale": "Account 8400 (Erlöse 19% USt) MUST map to revenue. If it lands in any other bucket the SKR 03 mapping is broken."
+    },
+    {
+      "key": "1576_treated_as_revenue",
+      "severity": "HIGH",
+      "rationale": "Account 1576 (Vorsteuer 19%) is input VAT recoverable — must be otherCurrentAssets, not revenue or AR or anything else."
+    }
+  ],
+
+  "extraction_completeness": {
+    "min_accounts_extracted": 45,
+    "must_extract_codes": ["0027", "0440", "0800", "0870", "1200", "1400", "1600", "1620", "3400", "4830", "8400", "8125"],
+    "_must_extract_note": "8400 is the headline revenue source (61% of total revenue). Missing it = broken pipeline."
+  },
+
+  "totals_balance_check": {
+    "trial_balance_ytd_debit":  11832900.00,
+    "trial_balance_ytd_credit": 11832900.00,
+    "tolerance_eur": 0.01
+  }
+}

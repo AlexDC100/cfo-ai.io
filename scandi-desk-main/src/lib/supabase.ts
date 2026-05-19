@@ -283,6 +283,16 @@ export async function recordDataset(input: {
 
 export type DocumentDetectedType =
   | "invoice" | "bilant" | "pl" | "trial_balance" | "annual_report"
+  // Statutory ANAF filing (Formular F30 P&L + F10 Bilanț). Distinct
+  // from `trial_balance` because the extraction is aggregate-only —
+  // no per-account drilldown, no SKU rollups, no 711 inventory memo.
+  | "statutory_f30_f10"
+  // Public-records aggregator PDF (listafirme.ro / termene.ro /
+  // firme.info / risco.ro). 6-aggregate × N-year table parsed
+  // deterministically — NOT a trial balance. Routes to /multi-year-history
+  // after analysis instead of /dashboard, since there's no period to
+  // hydrate the financial-statements view from.
+  | "public_records_summary"
   | "xlsx_workbook" | "csv" | "image" | "unknown";
 // Phase 3 pipeline: 7 stages plus 'failed'. 'queued' is the entry state
 // (replaces legacy 'uploaded'); 'analyzed' is the terminal state.
@@ -344,18 +354,44 @@ function detectFromName(filename: string, mime: string): DocumentDetectedType {
  *
  * Returns true on enqueue (HTTP 202); the actual analysis runs async.
  */
-export async function enqueuePipeline(documentId: string): Promise<boolean> {
-  if (!client) return false;
+/**
+ * Pricing V3 — typed result from `enqueuePipeline`. The legacy
+ * boolean return value couldn't distinguish "extra-doc confirmation
+ * required" (HTTP 402) from "blocked, upgrade needed" (HTTP 429) from
+ * generic transport failure. Callers now get a discriminated union so
+ * the upload flow can show the right UX for each.
+ */
+export type EnqueuePipelineResult =
+  | { kind: "queued" }
+  | {
+      kind: "extra_doc_required";
+      planKey: string;
+      docsUsed: number;
+      docsIncluded: number;
+      extraDocEur: number | null;
+      message: string;
+    }
+  | {
+      kind: "quota_blocked";
+      planKey: string;
+      docsUsed: number;
+      docsIncluded: number;
+      message: string;
+      upgradeUrl?: string;
+    }
+  | { kind: "transport_failed"; message: string };
+
+export async function enqueuePipeline(documentId: string): Promise<EnqueuePipelineResult> {
+  if (!client) return { kind: "transport_failed", message: "Supabase not configured." };
   const { data } = await client.auth.getSession();
   const token = data.session?.access_token;
   if (!token) {
     console.warn("[supabase] enqueuePipeline: no access token");
-    return false;
+    return { kind: "transport_failed", message: "Not signed in." };
   }
   // Active UI language → tells the backend's narrate stage what language to
   // reply in. The user's pick on Settings → Language wins; otherwise i18n
   // falls back to browser locale.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   let outputLanguage = "en";
   try {
     const { getActiveLanguage } = await import("@/i18n");
@@ -371,14 +407,69 @@ export async function enqueuePipeline(documentId: string): Promise<boolean> {
       },
       body: JSON.stringify({ document_id: documentId, output_language: outputLanguage }),
     });
-    if (!res.ok) {
-      console.warn("[pipeline] enqueue failed:", res.status, await res.text());
-      return false;
+    if (res.ok) return { kind: "queued" };
+
+    // Pricing V3 surface — 402 = extra-doc confirmation required.
+    if (res.status === 402) {
+      try {
+        const body = (await res.json()) as {
+          detail?: {
+            code?: string;
+            plan_key?: string;
+            docs_used?: number;
+            docs_included?: number;
+            extra_doc_eur?: number | null;
+            message?: string;
+          };
+        };
+        const d = body.detail ?? {};
+        if (d.code === "extra_doc_confirmation_required") {
+          return {
+            kind: "extra_doc_required",
+            planKey: d.plan_key ?? "starter",
+            docsUsed: d.docs_used ?? 0,
+            docsIncluded: d.docs_included ?? 0,
+            extraDocEur: d.extra_doc_eur ?? null,
+            message: d.message ?? "This will be an extra document — confirm to proceed.",
+          };
+        }
+      } catch { /* fall through to generic transport_failed below */ }
     }
-    return true;
+
+    // 429 = quota blocked (trial / intro / over-cap with no extras).
+    if (res.status === 429) {
+      try {
+        const body = (await res.json()) as {
+          detail?: {
+            code?: string;
+            plan_key?: string;
+            docs_used?: number;
+            docs_included?: number;
+            message?: string;
+            upgrade_url?: string;
+          };
+        };
+        const d = body.detail ?? {};
+        return {
+          kind: "quota_blocked",
+          planKey: d.plan_key ?? "trial",
+          docsUsed: d.docs_used ?? 0,
+          docsIncluded: d.docs_included ?? 0,
+          message: d.message ?? "You've used all your documents on this plan.",
+          upgradeUrl: d.upgrade_url ?? "/pricing",
+        };
+      } catch { /* fall through */ }
+    }
+
+    const txt = await res.text();
+    console.warn("[pipeline] enqueue failed:", res.status, txt);
+    return { kind: "transport_failed", message: `HTTP ${res.status}` };
   } catch (err) {
     console.warn("[pipeline] enqueue error:", err);
-    return false;
+    return {
+      kind: "transport_failed",
+      message: err instanceof Error ? err.message : "Network error.",
+    };
   }
 }
 
@@ -405,6 +496,44 @@ export async function retryPipeline(documentId: string): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Generic watchdog — POST /api/pipeline/recover-stuck.
+ *
+ * Asks the backend to find every doc in the caller's org sitting at
+ * status='queued' with pipeline_started_at=null and older than 5s, then
+ * re-enqueue them. Idempotent and safe to call repeatedly.
+ *
+ * Call this on mount of any page that renders an in-flight progress card
+ * (Products, FinancialStatements). It fixes the "Step 0 of 6 forever"
+ * silent hang when /api/pipeline/run failed at upload moment (env crash,
+ * backend restart during the upload→enqueue handoff, network blip).
+ *
+ * Returns recovered count + the doc records so callers can toast / log.
+ * Returns null on network failure — the page should still render.
+ */
+export async function recoverStuckPipelines(): Promise<
+  { recovered_count: number; recovered: Array<{ id: string; filename: string | null; scope: string | null }> } | null
+> {
+  if (!client) return null;
+  const { data } = await client.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return null;
+  const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+  try {
+    const res = await fetch(`${apiUrl}/api/pipeline/recover-stuck`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as {
+      recovered_count: number;
+      recovered: Array<{ id: string; filename: string | null; scope: string | null }>;
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -475,10 +604,87 @@ export async function uploadDocument(
     };
   }
 
+  // iPhone-friendly path: HEIC photos (default camera format on iOS) are
+  // neither accepted by Supabase Storage's MIME allow-list nor by the
+  // Anthropic vision API. Convert to JPEG in the browser before upload.
+  // Skipped entirely for non-HEIC files (zero cost on the hot path).
+  const lowerName = (file.name || "").toLowerCase();
+  const lowerType = (file.type || "").toLowerCase();
+  if (
+    lowerName.endsWith(".heic") || lowerName.endsWith(".heif") ||
+    lowerType === "image/heic" || lowerType === "image/heif"
+  ) {
+    try {
+      const { default: heic2any } = await import("heic2any");
+      const converted = await heic2any({
+        blob: file,
+        toType: "image/jpeg",
+        quality: 0.85,
+      });
+      const blob = Array.isArray(converted) ? converted[0] : converted;
+      const newName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
+      file = new File([blob], newName, { type: "image/jpeg", lastModified: Date.now() });
+    } catch (err) {
+      console.warn("[supabase] HEIC → JPEG conversion failed:", err);
+      return {
+        row: null,
+        error: "Couldn't read this HEIC photo. Try opening it in Photos and re-exporting as JPEG, or take the photo with 'Most Compatible' selected in Settings → Camera → Formats.",
+      };
+    }
+  }
+
   const detected = detectFromName(file.name, file.type);
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
   const documentId = crypto.randomUUID();
   const storagePath = `${orgId}/uploads/${documentId}.${ext}`;
+
+  // Content-hash dedupe — compute SHA-256 of the file bytes BEFORE uploading
+  // and check if the same content already exists in this org's documents.
+  // Gracefully degrades to "no dedupe" when the `content_hash` column
+  // hasn't been migrated yet (schema_phase6_dedupe.sql).
+  let contentHash: string | null = null;
+  let contentHashSupported = true;
+  try {
+    const buf = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buf);
+    contentHash = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const dupResp = await client
+      .from("documents")
+      .select("id,original_filename,period_id,created_at")
+      .eq("org_id", orgId)
+      .eq("content_hash", contentHash)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (dupResp.error) {
+      const msg = (dupResp.error.message || "").toLowerCase();
+      if (msg.includes("content_hash") && (msg.includes("schema cache") || msg.includes("does not exist") || msg.includes("column"))) {
+        // Migration not applied — silently skip dedupe and don't include
+        // the column on insert below.
+        contentHashSupported = false;
+        contentHash = null;
+        console.info("[supabase] content_hash column missing — dedupe disabled until schema_phase6_dedupe.sql is applied");
+      }
+    } else if (dupResp.data && dupResp.data.length > 0) {
+      const existing = dupResp.data[0] as { id: string; original_filename: string; period_id: string | null; created_at: string };
+      const ok = window.confirm(
+        `Looks like you already uploaded this exact file ("${existing.original_filename}") on ${new Date(existing.created_at).toLocaleString()}.\n\n` +
+          `Upload again anyway?\n\n` +
+          `OK = create a new analysis (will overwrite the existing period at the same date)\n` +
+          `Cancel = keep the existing one`,
+      );
+      if (!ok) {
+        return {
+          row: null,
+          error: "Duplicate upload canceled — the existing copy is unchanged.",
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[supabase] content-hash dedupe skipped:", e);
+  }
 
   const { error: upErr } = await client.storage
     .from(DOC_BUCKET)
@@ -509,6 +715,11 @@ export async function uploadDocument(
       detected_type: detected,
       status: "queued" as DocumentStatus,
       scope: options.scope ?? "financial",
+      // content_hash is added by schema_phase6_dedupe.sql. When the migration
+      // hasn't run yet, the dedupe SELECT above sets contentHashSupported=false
+      // and we skip the column here so the insert doesn't error with
+      // "Could not find the 'content_hash' column of 'documents'".
+      ...(contentHash && contentHashSupported ? { content_hash: contentHash } : {}),
     })
     .select()
     .single();

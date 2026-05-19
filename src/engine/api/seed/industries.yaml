@@ -1,0 +1,1245 @@
+# industries.yaml — Phase A seed for industry_profiles
+#
+# Schema target: supabase/schema_phase_industry_intelligence.sql → industry_profiles
+#
+# CONVENTIONS
+# ===========
+# · `key` is the canonical lookup string. Lowercase snake_case. Stable forever —
+#   downstream caen_industry_mappings, benchmark_sets, peer_candidates and
+#   company_industry_assignments all FK on this string. RENAMES = MIGRATIONS.
+# · `display_name` is English-only product copy. `display_name_ro` is the
+#   Romanian label shown inside the data layer (CAEN labels, dropdowns).
+# · `sector` is the top-level umbrella (12 sectors total). It MUST also be the
+#   key of a parent profile in this file (`parent_key: null`, `sector: <self>`).
+# · `parent_key` points at the broader industry whose benchmarks we fall back
+#   to when sub-industry coverage is missing. The four calibration cases:
+#     - packaged_canned_meat_prepared_foods  → parent food_manufacturing
+#     - automotive_retail_distribution       → parent trade_distribution_generic
+#     - real_estate_commercial_rental        → parent real_estate
+#     - employment_services                  → parent professional_services_generic
+# · `caen_codes` lists the primary CAENs that resolve TO this industry.
+#   This is a HINT for the loader to reverse-build caen_industry_mappings.yaml;
+#   the authoritative CAEN map lives in that separate file.
+# · `benchmark_depth` mirrors the spec: 'full' | 'level_1_public_summary' |
+#   'trial_balance' | 'directional'. New industries default to 'directional'.
+# · `confidence_default` is the baseline confidence we surface when an analysis
+#   resolves to this industry via CAEN alone (no further signals).
+#
+# COUNT: 90 industries across 12 sectors. See `key` index at the bottom.
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 1: food_manufacturing
+# ───────────────────────────────────────────────────────────────────────
+- key: food_manufacturing
+  display_name: Food manufacturing (general)
+  display_name_ro: Industria alimentară
+  sector: food_manufacturing
+  parent_key: null
+  caen_codes: ["10"]
+  description: General food processing — fallback when sub-industry can't be resolved.
+  benchmark_depth: full
+  confidence_default: 0.6
+
+- key: poultry_meat_processing
+  display_name: Poultry meat processing
+  display_name_ro: Procesare carne de pasăre
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1012"]
+  description: Slaughter and processing of poultry. Transavia is the calibration peer.
+  benchmark_depth: full
+  confidence_default: 0.85
+
+- key: red_meat_processing
+  display_name: Red meat processing
+  display_name_ro: Procesarea cărnii roșii
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1011"]
+  description: Slaughter and primary processing of pork, beef, lamb.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: packaged_canned_meat_prepared_foods
+  # Display name updated per app-shell cleanup decision: Scandia
+  # users see "Canned meat / meat products manufacturing" — the
+  # readable label aligned with how Romanian SMEs describe their own
+  # CAEN 1013 activity. Stable backend `key` is unchanged.
+  display_name: Canned meat / meat products manufacturing
+  display_name_ro: Conserve de carne și preparate
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1013"]
+  description: Cured meats, sausages, canned meat, ready-meals. CALIBRATION — Scandia Food. Includes CAEN 1013 "Meat products manufacturing, including poultry".
+  benchmark_depth: full
+  confidence_default: 0.9
+
+- key: fish_seafood_processing
+  display_name: Fish and seafood processing
+  display_name_ro: Procesarea peștelui
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1020"]
+  description: Fish processing and preservation.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: fruit_vegetable_processing
+  display_name: Fruit & vegetable processing
+  display_name_ro: Procesarea fructelor și legumelor
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1031", "1032", "1039"]
+  description: Frozen, canned, juiced and prepared fruit/vegetable products.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: oils_fats_manufacturing
+  display_name: Oils and fats manufacturing
+  display_name_ro: Producția de uleiuri și grăsimi
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1041", "1042"]
+  description: Vegetable oils, margarine, fats.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: dairy_processing
+  display_name: Dairy processing
+  display_name_ro: Industria lactatelor
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1051", "1052"]
+  description: Milk processing, cheese, butter, yogurt, ice cream.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: bakery_pastry
+  display_name: Bakery and pastry
+  display_name_ro: Brutărie și patiserie
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1071", "1072"]
+  description: Bread, fresh pastry, biscuits, rusks, preserved pastry.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: grain_milling_starch
+  display_name: Grain milling and starch
+  display_name_ro: Morărit și amidon
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1061", "1062"]
+  description: Flour, grain mills, starches.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: sugar_confectionery
+  display_name: Sugar and confectionery
+  display_name_ro: Zahăr și produse zaharoase
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1081", "1082"]
+  description: Sugar, chocolate, candy, cocoa.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: animal_feed
+  display_name: Animal feed
+  display_name_ro: Hrană pentru animale
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1091", "1092"]
+  description: Farm and pet animal feed.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: beverages_alcoholic
+  display_name: Alcoholic beverages
+  display_name_ro: Băuturi alcoolice
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1101", "1102", "1103", "1105"]
+  description: Distilled spirits, wine, beer, cider.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: beverages_non_alcoholic
+  display_name: Non-alcoholic beverages
+  display_name_ro: Băuturi nealcoolice
+  sector: food_manufacturing
+  parent_key: food_manufacturing
+  caen_codes: ["1107"]
+  description: Soft drinks, mineral water, bottled juices.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 2: manufacturing_generic (non-food industrial & consumer goods)
+# ───────────────────────────────────────────────────────────────────────
+- key: manufacturing_generic
+  display_name: Manufacturing (general industrial)
+  display_name_ro: Producție industrială
+  sector: manufacturing_generic
+  parent_key: null
+  caen_codes: []
+  description: Fallback for industrial manufacturing without a clearer sub-industry.
+  benchmark_depth: directional
+  confidence_default: 0.5
+
+- key: textile_manufacturing
+  display_name: Textile manufacturing
+  display_name_ro: Industria textilă
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["13"]
+  description: Textile fibers, fabrics, yarns.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: apparel_manufacturing
+  display_name: Apparel manufacturing
+  display_name_ro: Confecții îmbrăcăminte
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["14"]
+  description: Clothing manufacturing, knitwear, accessories.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: leather_footwear
+  display_name: Leather and footwear
+  display_name_ro: Pielărie și încălțăminte
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["15"]
+  description: Tanning, leather goods, footwear.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: wood_processing
+  display_name: Wood and wood products processing
+  display_name_ro: Prelucrarea lemnului
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["16"]
+  description: Sawn wood, panels, parquet, prefabricated wood structures.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: paper_pulp
+  display_name: Paper and pulp manufacturing
+  display_name_ro: Hârtie și produse din hârtie
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["17"]
+  description: Pulp, paper, paperboard, paper products.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: printing_reproduction
+  display_name: Printing and reproduction
+  display_name_ro: Tipărire și reproducere
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["18"]
+  description: Commercial printing, packaging printing, reproduction.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: chemicals_industrial
+  display_name: Industrial chemicals
+  display_name_ro: Industria chimică
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["20"]
+  description: Basic chemicals, fertilizers, plastics in primary forms, paints.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: pharmaceuticals
+  display_name: Pharmaceuticals manufacturing
+  display_name_ro: Industria farmaceutică
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["21"]
+  description: Pharmaceutical substances and preparations.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: rubber_plastics
+  display_name: Rubber and plastics products
+  display_name_ro: Cauciuc și mase plastice
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["22"]
+  description: Rubber products, plastic packaging, plastic components.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: glass_ceramics_cement
+  display_name: Glass, ceramics and cement
+  display_name_ro: Sticlă, ceramică și ciment
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["23"]
+  description: Non-metallic mineral products — glass, ceramic, cement, concrete.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: metallurgy_basic
+  display_name: Basic metallurgy
+  display_name_ro: Metalurgie de bază
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["24"]
+  description: Steel, aluminum, copper, precious metals — primary production.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: metal_products_fabrication
+  display_name: Fabricated metal products
+  display_name_ro: Produse metalice
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["25"]
+  description: Structural metal, tanks, tooling, weapons.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: electronics_computers
+  display_name: Computers and electronics manufacturing
+  display_name_ro: Calculatoare și electronice
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["26"]
+  description: Computers, peripherals, optical instruments, measurement devices.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: electrical_equipment
+  display_name: Electrical equipment manufacturing
+  display_name_ro: Echipamente electrice
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["27"]
+  description: Motors, batteries, wiring, lighting, appliances.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: machinery_industrial
+  display_name: Industrial machinery & equipment
+  display_name_ro: Mașini, utilaje și echipamente
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["28"]
+  description: General-purpose and special-purpose machinery.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: automotive_oem_assembly
+  display_name: Automotive OEM assembly
+  display_name_ro: Producție autovehicule
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["2910"]
+  description: Vehicle manufacturers (Dacia, Ford Craiova).
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: automotive_components_supplier
+  display_name: Automotive components supplier
+  display_name_ro: Componente auto
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["2932", "2931"]
+  description: Tier-1 and tier-2 automotive supply (wiring, plastics, seats, electronics).
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: other_transport_equipment
+  display_name: Other transport equipment
+  display_name_ro: Alte mijloace de transport
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["30"]
+  description: Railway, aircraft, shipbuilding.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: furniture_manufacturing
+  display_name: Furniture manufacturing
+  display_name_ro: Fabricarea mobilei
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["31"]
+  description: Office, kitchen, mattress and other furniture.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: other_manufacturing
+  display_name: Other manufacturing
+  display_name_ro: Alte activități industriale
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["32"]
+  description: Jewelry, musical instruments, sports goods, toys, medical devices.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: machinery_repair_install
+  display_name: Machinery repair and installation
+  display_name_ro: Repararea utilajelor
+  sector: manufacturing_generic
+  parent_key: manufacturing_generic
+  caen_codes: ["33"]
+  description: Industrial machinery maintenance and installation.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 3: trade_distribution_generic
+# ───────────────────────────────────────────────────────────────────────
+- key: trade_distribution_generic
+  display_name: Trade and distribution (general)
+  display_name_ro: Comerț și distribuție
+  sector: trade_distribution_generic
+  parent_key: null
+  caen_codes: []
+  description: Fallback for wholesale/retail without a clearer sub-industry.
+  benchmark_depth: full
+  confidence_default: 0.5
+
+- key: automotive_retail_distribution
+  display_name: Automotive retail and distribution
+  display_name_ro: Comerț cu autovehicule
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4511", "4519"]
+  description: Car dealers and distributors. CALIBRATION — Porsche Romania.
+  benchmark_depth: full
+  confidence_default: 0.9
+
+- key: automotive_parts_retail
+  display_name: Automotive parts retail
+  display_name_ro: Comerț piese auto
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4531", "4532"]
+  description: Aftermarket and retail of vehicle parts.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: motorcycle_trade
+  display_name: Motorcycle and parts trade
+  display_name_ro: Comerț motociclete
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4540"]
+  description: Motorcycle sales, parts and accessories.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: wholesale_agri_raw
+  display_name: Wholesale of agricultural raw materials
+  display_name_ro: Comerț angro materii prime agricole
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["462"]
+  description: Grain, live animals, raw tobacco, hides wholesale.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: wholesale_food_beverage
+  display_name: Wholesale of food and beverages
+  display_name_ro: Comerț angro alimentar
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["463"]
+  description: B2B food, beverage and tobacco distribution.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: wholesale_household_goods
+  display_name: Wholesale of household goods
+  display_name_ro: Comerț angro produse casnice
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["464"]
+  description: Textiles, electronics, furniture, appliances B2B distribution.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: wholesale_ict_equipment
+  display_name: Wholesale of ICT equipment
+  display_name_ro: Comerț angro echipamente IT
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["465"]
+  description: Computer hardware, telecom equipment wholesale.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: wholesale_machinery_industrial
+  display_name: Wholesale of industrial machinery
+  display_name_ro: Comerț angro mașini și utilaje
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["466"]
+  description: Industrial machinery, agricultural machinery wholesale.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: wholesale_construction_materials
+  display_name: Wholesale of construction materials
+  display_name_ro: Comerț angro materiale construcții
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4673", "4674"]
+  description: Building materials, hardware, plumbing wholesale.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: wholesale_pharmaceuticals
+  display_name: Wholesale of pharmaceuticals
+  display_name_ro: Comerț angro produse farmaceutice
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4646"]
+  description: Pharmaceutical and medical product distribution.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: retail_grocery_supermarket
+  display_name: Retail grocery and supermarkets
+  display_name_ro: Comerț alimentar (supermarketuri)
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4711"]
+  description: Hypermarket, supermarket and convenience grocery.
+  benchmark_depth: full
+  confidence_default: 0.85
+
+- key: retail_specialized_food
+  display_name: Retail specialized food
+  display_name_ro: Comerț specializat alimentar
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4721", "4722", "4723", "4724"]
+  description: Bakeries, butchers, fishmongers, beverage specialists.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: retail_fuel
+  display_name: Retail fuel stations
+  display_name_ro: Comerț benzină / motorină
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4730"]
+  description: Petrol stations and automotive fuel retail.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: retail_clothing_footwear
+  display_name: Retail clothing and footwear
+  display_name_ro: Comerț îmbrăcăminte / încălțăminte
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4771", "4772"]
+  description: Apparel and footwear specialty retail.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: retail_electronics
+  display_name: Retail electronics and appliances
+  display_name_ro: Comerț electronice / electrocasnice
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4741", "4742", "4743", "4754"]
+  description: Consumer electronics, computers, appliances retail.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: retail_pharmacy_cosmetics
+  display_name: Retail pharmacy and cosmetics
+  display_name_ro: Farmacii și cosmetice
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4773", "4774", "4775"]
+  description: Pharmacies, medical product retail, cosmetics shops.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: retail_dyi_construction
+  display_name: Retail DIY and construction
+  display_name_ro: Comerț bricolaj / construcții
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4752", "4753"]
+  description: Hardware, paint, glass, carpet retail.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: retail_online_marketplace
+  display_name: Retail online and marketplace
+  display_name_ro: Comerț electronic
+  sector: trade_distribution_generic
+  parent_key: trade_distribution_generic
+  caen_codes: ["4791"]
+  description: E-commerce, mail-order and online marketplace retail.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 4: real_estate
+# ───────────────────────────────────────────────────────────────────────
+- key: real_estate
+  display_name: Real estate (general)
+  display_name_ro: Imobiliare
+  sector: real_estate
+  parent_key: null
+  caen_codes: ["68"]
+  description: Fallback for real-estate activity without a clearer sub-industry.
+  benchmark_depth: full
+  confidence_default: 0.6
+
+- key: real_estate_commercial_rental
+  display_name: Commercial real estate rental
+  display_name_ro: Închiriere imobile comerciale
+  sector: real_estate
+  parent_key: real_estate
+  caen_codes: ["6820"]
+  description: Office, retail, industrial property leasing. CALIBRATION — EEI Imobiliara.
+  benchmark_depth: full
+  confidence_default: 0.9
+
+- key: real_estate_residential_dev
+  display_name: Residential real estate development
+  display_name_ro: Dezvoltare imobiliară rezidențială
+  sector: real_estate
+  parent_key: real_estate
+  caen_codes: ["6810"]
+  description: Speculative residential development; buy-and-sell of own real estate.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: real_estate_residential_rental
+  display_name: Residential real estate rental
+  display_name_ro: Închiriere imobile rezidențiale
+  sector: real_estate
+  parent_key: real_estate
+  caen_codes: ["6820"]
+  description: Residential leasing portfolios.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: real_estate_agency_brokerage
+  display_name: Real estate agency and brokerage
+  display_name_ro: Agenții imobiliare
+  sector: real_estate
+  parent_key: real_estate
+  caen_codes: ["6831"]
+  description: Brokerage on a fee/contract basis.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: real_estate_property_management
+  display_name: Property and facility management
+  display_name_ro: Administrare imobile
+  sector: real_estate
+  parent_key: real_estate
+  caen_codes: ["6832"]
+  description: Third-party property and facility management services.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: real_estate_industrial_logistics
+  display_name: Industrial and logistics real estate
+  display_name_ro: Imobile industriale și logistice
+  sector: real_estate
+  parent_key: real_estate
+  caen_codes: ["6820"]
+  description: Warehouse and logistics-park leasing.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 5: construction
+# ───────────────────────────────────────────────────────────────────────
+- key: construction
+  display_name: Construction (general)
+  display_name_ro: Construcții
+  sector: construction
+  parent_key: null
+  caen_codes: ["41", "42", "43"]
+  description: Fallback for construction without a clearer sub-industry.
+  benchmark_depth: full
+  confidence_default: 0.6
+
+- key: construction_buildings
+  display_name: Construction of buildings
+  display_name_ro: Construcții de clădiri
+  sector: construction
+  parent_key: construction
+  caen_codes: ["4120"]
+  description: Residential and non-residential building construction.
+  benchmark_depth: full
+  confidence_default: 0.8
+
+- key: construction_civil_engineering
+  display_name: Civil engineering construction
+  display_name_ro: Lucrări de geniu civil
+  sector: construction
+  parent_key: construction
+  caen_codes: ["42"]
+  description: Roads, railways, utility projects, marine and water projects.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: construction_specialized_works
+  display_name: Specialized construction works
+  display_name_ro: Lucrări speciale de construcții
+  sector: construction
+  parent_key: construction
+  caen_codes: ["43"]
+  description: Demolition, electrical installation, plumbing, finishing trades.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 6: transport_logistics
+# ───────────────────────────────────────────────────────────────────────
+- key: transport_logistics
+  display_name: Transport and logistics (general)
+  display_name_ro: Transporturi și logistică
+  sector: transport_logistics
+  parent_key: null
+  caen_codes: ["49", "50", "51", "52", "53"]
+  description: Fallback for transport/logistics without a clearer sub-industry.
+  benchmark_depth: full
+  confidence_default: 0.6
+
+- key: road_freight_transport
+  display_name: Road freight transport
+  display_name_ro: Transport rutier de marfă
+  sector: transport_logistics
+  parent_key: transport_logistics
+  caen_codes: ["4941"]
+  description: Trucking, hauling, removal services.
+  benchmark_depth: directional
+  confidence_default: 0.8
+
+- key: passenger_road_transport
+  display_name: Passenger road transport
+  display_name_ro: Transport rutier de pasageri
+  sector: transport_logistics
+  parent_key: transport_logistics
+  caen_codes: ["4931", "4932", "4939"]
+  description: Urban transit, taxi services, intercity bus.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: warehousing_storage
+  display_name: Warehousing and storage
+  display_name_ro: Depozitare
+  sector: transport_logistics
+  parent_key: transport_logistics
+  caen_codes: ["5210"]
+  description: General and refrigerated warehousing services.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: support_transport_services
+  display_name: Support activities for transport
+  display_name_ro: Servicii anexe transporturilor
+  sector: transport_logistics
+  parent_key: transport_logistics
+  caen_codes: ["5221", "5222", "5223", "5224", "5229"]
+  description: Cargo handling, freight forwarding, terminal operations.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: courier_postal
+  display_name: Courier and postal services
+  display_name_ro: Curierat și servicii poștale
+  sector: transport_logistics
+  parent_key: transport_logistics
+  caen_codes: ["5310", "5320"]
+  description: Mail, parcel and express delivery.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 7: hospitality
+# ───────────────────────────────────────────────────────────────────────
+- key: hospitality
+  display_name: Hospitality (general)
+  display_name_ro: HORECA
+  sector: hospitality
+  parent_key: null
+  caen_codes: ["55", "56"]
+  description: Fallback for hospitality without a clearer sub-industry.
+  benchmark_depth: full
+  confidence_default: 0.6
+
+- key: hospitality_hotels
+  display_name: Hotels and accommodation
+  display_name_ro: Hoteluri și facilități de cazare
+  sector: hospitality
+  parent_key: hospitality
+  caen_codes: ["5510"]
+  description: Hotels, resorts, holiday homes.
+  benchmark_depth: full
+  confidence_default: 0.8
+
+- key: hospitality_short_stay
+  display_name: Short-stay and other accommodation
+  display_name_ro: Cazare de scurtă durată
+  sector: hospitality
+  parent_key: hospitality
+  caen_codes: ["5520", "5530", "5590"]
+  description: B&B, camping, hostels.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: hospitality_restaurants
+  display_name: Restaurants and food service
+  display_name_ro: Restaurante
+  sector: hospitality
+  parent_key: hospitality
+  caen_codes: ["5610", "5621", "5629"]
+  description: Full-service restaurants and event catering.
+  benchmark_depth: full
+  confidence_default: 0.8
+
+- key: hospitality_bars_cafes
+  display_name: Bars and cafés
+  display_name_ro: Baruri și cafenele
+  sector: hospitality
+  parent_key: hospitality
+  caen_codes: ["5630"]
+  description: Drinking establishments.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 8: it_software_media
+# ───────────────────────────────────────────────────────────────────────
+- key: it_software_media
+  display_name: IT, software and media (general)
+  display_name_ro: IT, software și media
+  sector: it_software_media
+  parent_key: null
+  caen_codes: ["58", "59", "60", "61", "62", "63"]
+  description: Fallback for IT/media without a clearer sub-industry.
+  benchmark_depth: full
+  confidence_default: 0.6
+
+- key: software_publishing
+  display_name: Software publishing
+  display_name_ro: Editare software
+  sector: it_software_media
+  parent_key: it_software_media
+  caen_codes: ["5829"]
+  description: Packaged software, SaaS.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: it_services_consulting
+  display_name: IT services and consulting
+  display_name_ro: Servicii IT și consultanță
+  sector: it_software_media
+  parent_key: it_software_media
+  caen_codes: ["6201", "6202", "6203", "6209"]
+  description: Custom software development, IT consulting, managed services. Outsourcing-heavy.
+  benchmark_depth: full
+  confidence_default: 0.85
+
+- key: data_hosting_processing
+  display_name: Data hosting and processing
+  display_name_ro: Hosting și prelucrarea datelor
+  sector: it_software_media
+  parent_key: it_software_media
+  caen_codes: ["6311", "6312"]
+  description: Data centers, web hosting, web portals.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: telecommunications
+  display_name: Telecommunications
+  display_name_ro: Telecomunicații
+  sector: it_software_media
+  parent_key: it_software_media
+  caen_codes: ["6110", "6120", "6130", "6190"]
+  description: Wired, wireless and satellite telecom carriers.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: media_publishing
+  display_name: Publishing (books, press, journals)
+  display_name_ro: Editare cărți și presă
+  sector: it_software_media
+  parent_key: it_software_media
+  caen_codes: ["5811", "5813", "5814", "5819"]
+  description: Books, newspapers, magazines, directories.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: media_film_tv_production
+  display_name: Film and TV production
+  display_name_ro: Producție film și TV
+  sector: it_software_media
+  parent_key: it_software_media
+  caen_codes: ["5911", "5912", "5913", "5914", "5920"]
+  description: Motion picture, television and music production / distribution.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: media_broadcasting
+  display_name: Broadcasting (radio and TV)
+  display_name_ro: Difuzare programe radio / TV
+  sector: it_software_media
+  parent_key: it_software_media
+  caen_codes: ["6010", "6020"]
+  description: Radio and TV broadcasting.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 9: professional_services_generic
+# ───────────────────────────────────────────────────────────────────────
+- key: professional_services_generic
+  display_name: Professional services (general)
+  display_name_ro: Servicii profesionale
+  sector: professional_services_generic
+  parent_key: null
+  caen_codes: ["69", "70", "71", "72", "73", "74", "77", "78", "79", "80", "81", "82"]
+  description: Fallback for professional/admin services without a clearer sub-industry.
+  benchmark_depth: full
+  confidence_default: 0.55
+
+- key: legal_accounting
+  display_name: Legal and accounting services
+  display_name_ro: Servicii juridice și contabile
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["6910", "6920"]
+  description: Law firms, audit, accounting and tax consultancy.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: management_consulting
+  display_name: Management consulting
+  display_name_ro: Consultanță în management
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["7022"]
+  description: Strategy, operations, HR and IT consulting.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: head_office_holding_activities
+  display_name: Head office and holding activities
+  display_name_ro: Activități ale sediilor centrale / holdinguri
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["7010"]
+  description: Group management companies, holding entities.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: architecture_engineering
+  display_name: Architecture and engineering
+  display_name_ro: Arhitectură și inginerie
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["7111", "7112", "7120"]
+  description: Architectural design, engineering services, technical testing.
+  benchmark_depth: directional
+  confidence_default: 0.75
+
+- key: research_development
+  display_name: Research and development
+  display_name_ro: Cercetare-dezvoltare
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["72"]
+  description: Natural science and social-science R&D.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: advertising_market_research
+  display_name: Advertising and market research
+  display_name_ro: Publicitate și cercetare de piață
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["7311", "7312", "7320"]
+  description: Advertising agencies, media buying, market research.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: design_specialized_creative
+  display_name: Specialized design and creative services
+  display_name_ro: Design specializat și servicii creative
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["7410", "7420", "7430", "7490"]
+  description: Industrial design, photography, translation, specialized professional services.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: rental_leasing_services
+  display_name: Rental and leasing services
+  display_name_ro: Servicii de închiriere și leasing
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["77"]
+  description: Vehicle, equipment and intellectual-property leasing.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: employment_services
+  display_name: Employment and recruitment services
+  display_name_ro: Servicii de recrutare și plasare forță de muncă
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["7810", "7820", "7830"]
+  description: Recruitment, temp staffing, HR outsourcing. CALIBRATION — ELIT.
+  benchmark_depth: full
+  confidence_default: 0.9
+
+- key: travel_agency_tour_operator
+  display_name: Travel agency and tour operator
+  display_name_ro: Agenții turistice și tour operatori
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["7911", "7912", "7990"]
+  description: Travel agencies, tour operators, reservation services.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: security_investigation
+  display_name: Security and investigation
+  display_name_ro: Securitate și pază
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["80"]
+  description: Private security, guard and patrol services.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: building_facility_services
+  display_name: Building and facility services
+  display_name_ro: Servicii pentru clădiri
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["81"]
+  description: Cleaning, landscaping, integrated facility maintenance.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: office_admin_support
+  display_name: Office administrative and support services
+  display_name_ro: Servicii administrative de birou
+  sector: professional_services_generic
+  parent_key: professional_services_generic
+  caen_codes: ["82"]
+  description: Call centers, document services, packaging activities.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 10: healthcare
+# ───────────────────────────────────────────────────────────────────────
+- key: healthcare
+  display_name: Healthcare (general)
+  display_name_ro: Sănătate
+  sector: healthcare
+  parent_key: null
+  caen_codes: ["86", "87", "88"]
+  description: Fallback for healthcare without a clearer sub-industry.
+  benchmark_depth: directional
+  confidence_default: 0.6
+
+- key: hospital_activities
+  display_name: Hospital activities
+  display_name_ro: Activități spitalicești
+  sector: healthcare
+  parent_key: healthcare
+  caen_codes: ["8610"]
+  description: General and specialty hospitals.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: medical_dental_practice
+  display_name: Medical and dental practice
+  display_name_ro: Cabinete medicale și stomatologice
+  sector: healthcare
+  parent_key: healthcare
+  caen_codes: ["8621", "8622", "8623"]
+  description: GP, specialist and dental practices.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: other_human_health_activities
+  display_name: Other human health activities
+  display_name_ro: Alte activități medicale
+  sector: healthcare
+  parent_key: healthcare
+  caen_codes: ["8690"]
+  description: Diagnostic labs, ambulance, paramedical services.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: residential_social_care
+  display_name: Residential and social care
+  display_name_ro: Îngrijire rezidențială și socială
+  sector: healthcare
+  parent_key: healthcare
+  caen_codes: ["87", "88"]
+  description: Nursing homes, elderly care, child day care.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 11: agriculture
+# ───────────────────────────────────────────────────────────────────────
+- key: agriculture
+  display_name: Agriculture (general)
+  display_name_ro: Agricultură
+  sector: agriculture
+  parent_key: null
+  caen_codes: ["01", "02", "03"]
+  description: Fallback for agriculture without a clearer sub-industry.
+  benchmark_depth: directional
+  confidence_default: 0.6
+
+- key: crop_production
+  display_name: Crop production
+  display_name_ro: Cultivarea plantelor
+  sector: agriculture
+  parent_key: agriculture
+  caen_codes: ["011", "012", "013"]
+  description: Cereals, oilseeds, vegetable and fruit growing.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: animal_production
+  display_name: Animal production
+  display_name_ro: Creșterea animalelor
+  sector: agriculture
+  parent_key: agriculture
+  caen_codes: ["014"]
+  description: Livestock, poultry, dairy farming.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: mixed_farming
+  display_name: Mixed farming
+  display_name_ro: Agricultură mixtă
+  sector: agriculture
+  parent_key: agriculture
+  caen_codes: ["015"]
+  description: Combined crop and livestock farming.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: support_activities_agriculture
+  display_name: Support activities for agriculture
+  display_name_ro: Activități auxiliare agriculturii
+  sector: agriculture
+  parent_key: agriculture
+  caen_codes: ["016", "017"]
+  description: Post-harvest activities, seed treatment, hunting and trapping.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+- key: forestry_logging
+  display_name: Forestry and logging
+  display_name_ro: Silvicultură și exploatări forestiere
+  sector: agriculture
+  parent_key: agriculture
+  caen_codes: ["02"]
+  description: Forestry, logging and related services.
+  benchmark_depth: directional
+  confidence_default: 0.65
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR 12: energy_utilities
+# ───────────────────────────────────────────────────────────────────────
+- key: energy_utilities
+  display_name: Energy and utilities (general)
+  display_name_ro: Energie și utilități
+  sector: energy_utilities
+  parent_key: null
+  caen_codes: ["35", "36", "37", "38", "39"]
+  description: Fallback for energy/utilities without a clearer sub-industry.
+  benchmark_depth: directional
+  confidence_default: 0.6
+
+- key: electricity_generation_supply
+  display_name: Electricity generation and supply
+  display_name_ro: Producția și furnizarea de energie electrică
+  sector: energy_utilities
+  parent_key: energy_utilities
+  caen_codes: ["3511", "3512", "3513", "3514"]
+  description: Electricity generation, transmission, distribution and trade.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: gas_supply
+  display_name: Gas distribution and supply
+  display_name_ro: Distribuția și furnizarea de gaze
+  sector: energy_utilities
+  parent_key: energy_utilities
+  caen_codes: ["3521", "3522", "3523"]
+  description: Gas manufacture and distribution through mains.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: heat_steam_supply
+  display_name: Steam and air-conditioning supply
+  display_name_ro: Furnizare termoficare
+  sector: energy_utilities
+  parent_key: energy_utilities
+  caen_codes: ["3530"]
+  description: District heating, steam supply.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: water_supply
+  display_name: Water supply and treatment
+  display_name_ro: Captarea și distribuția apei
+  sector: energy_utilities
+  parent_key: energy_utilities
+  caen_codes: ["3600", "3700"]
+  description: Water collection, treatment and distribution; sewage.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+- key: waste_management_recycling
+  display_name: Waste management and recycling
+  display_name_ro: Deșeuri și reciclare
+  sector: energy_utilities
+  parent_key: energy_utilities
+  caen_codes: ["38", "39"]
+  description: Waste collection, treatment, disposal, recycling, decontamination.
+  benchmark_depth: directional
+  confidence_default: 0.7
+
+# ───────────────────────────────────────────────────────────────────────
+# SECTOR INDEX (informational; not loaded as a row)
+# ───────────────────────────────────────────────────────────────────────
+# 1. food_manufacturing                — 14 industries
+# 2. manufacturing_generic             — 17 industries
+# 3. trade_distribution_generic        — 17 industries
+# 4. real_estate                       —  7 industries
+# 5. construction                      —  4 industries
+# 6. transport_logistics               —  6 industries
+# 7. hospitality                       —  5 industries
+# 8. it_software_media                 —  8 industries
+# 9. professional_services_generic     — 14 industries
+# 10. healthcare                       —  5 industries
+# 11. agriculture                      —  6 industries
+# 12. energy_utilities                 —  6 industries
+# TOTAL                                = 109 industries (90+ target met)

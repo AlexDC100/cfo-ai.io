@@ -41,8 +41,8 @@ type Result =
 
 const ROUTES: { label: string; hint: string; to: string; icon: LucideIcon }[] = [
   { label: "Today",     hint: "Daily briefing",  to: "/dashboard",     icon: Sun },
-  { label: "Cash",      hint: "Working capital", to: "/cash",      icon: Coins },
-  { label: "Profit",    hint: "Real margin · ROIC", to: "/profit", icon: TrendingUp },
+  { label: "Balance sheet & P&L", hint: "Financial statements", to: "/dashboard?tab=statements", icon: Coins },
+  { label: "Cash flow", hint: "Indirect method", to: "/dashboard?tab=statements#cash-flow", icon: TrendingUp },
   { label: "Decisions", hint: "Action queue",    to: "/decisions", icon: ListChecks },
   { label: "Products",  hint: "SKU explorer",    to: "/products",  icon: Boxes },
 ];
@@ -216,7 +216,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
                       </div>
                     </div>
                     {r.kind !== "route" && "bucket" in r && (
-                      <BucketChip bucket={r.bucket as any} />
+                      <BucketChip bucket={r.bucket as import("@/lib/cfoApi").Bucket} />
                     )}
                   </button>
                 </li>

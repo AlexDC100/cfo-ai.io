@@ -1,0 +1,50 @@
+{
+  "_status": "DRAFT — synthetic.",
+  "_critical_contract": "This fixture's MAIN PURPOSE is to test SKR 03 ↔ SKR 04 disambiguation. If the pipeline ever classifies this as skr_03, the entire mapping falls apart (1200 becomes Bank instead of AR, 4000 stops being revenue, etc).",
+
+  "must_flag": [
+    {
+      "key": "skr04_disambiguation",
+      "severity": "INFO",
+      "category": "detection",
+      "title_keywords": ["SKR 04", "skr_04", "Umsatzerlöse Inland", "4000"],
+      "rationale": "Detection MUST identify this as SKR 04, NOT SKR 03. Discriminators: bank at 1800, revenue at 4000, no 8xxx revenue accounts."
+    },
+    {
+      "key": "1800_is_bank_not_loan",
+      "severity": "INFO",
+      "category": "mapping_consistency",
+      "title_keywords": ["1800", "Bank"],
+      "rationale": "In SKR 04, 1800 is Bank (asset). In SKR 03, 1800 doesn't exist as a primary account and the Bank lives at 1200. Disambiguation must succeed."
+    }
+  ],
+
+  "must_NOT_flag": [
+    {
+      "key": "detected_as_skr_03",
+      "severity": "CRITICAL",
+      "rationale": "If the detector returns skr_03, account 1200 (AR in SKR 04) would be misread as Bank (SKR 03), and 4000 (Revenue in SKR 04) would not map to revenue. EVERY downstream metric breaks."
+    },
+    {
+      "key": "8xxx_revenue_in_skr04",
+      "severity": "CRITICAL",
+      "rationale": "SKR 04 has NO 8xxx revenue accounts. If the briefing or mapping references 8400 as a revenue source, detection failed."
+    },
+    {
+      "key": "1200_treated_as_bank",
+      "severity": "CRITICAL",
+      "rationale": "In SKR 04, 1200 is Forderungen (AR). Treating it as Bank would attribute €612k to cash that's actually receivables — corrupts every liquidity ratio."
+    }
+  ],
+
+  "extraction_completeness": {
+    "min_accounts_extracted": 35,
+    "must_extract_codes": ["0480", "1200", "1800", "2900", "2980", "3300", "3160", "4000", "5300", "6010", "6220", "7600"]
+  },
+
+  "totals_balance_check": {
+    "trial_balance_ytd_debit":  5876900.00,
+    "trial_balance_ytd_credit": 5876900.00,
+    "tolerance_eur": 0.01
+  }
+}

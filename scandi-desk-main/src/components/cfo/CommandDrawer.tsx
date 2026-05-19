@@ -40,11 +40,18 @@ import {
   Hammer,
   Mail,
   Download,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import { useThresholds, writeThresholds, DEFAULTS } from "@/lib/thresholds";
+import {
+  SPECS,
+  type ThresholdSpec,
+  isAtCalibrated,
+} from "@/lib/thresholdSchema";
 
 interface Props {
   open: boolean;
@@ -188,27 +195,58 @@ function Row({
   hint,
   trailing,
   onClick,
+  comingSoon: isComingSoon,
 }: {
   icon: LucideIcon;
   title: string;
   hint?: string;
   trailing?: ReactNode;
   onClick?: () => void;
+  /** Renders the row as a visually-inactive "coming soon" placeholder.
+   *  The row is still clickable so users get a friendly explanation
+   *  toast, but the visual state communicates "not yet available —
+   *  future upgrade" rather than the previous "Not connected" framing
+   *  that implied it was a configurable feature. */
+  comingSoon?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface transition-colors"
+      className={`
+        w-full flex items-center gap-3 px-4 py-3 text-left
+        transition-colors
+        ${isComingSoon
+          ? "opacity-70 hover:opacity-100 cursor-default"
+          : "hover:bg-surface"}
+      `}
+      data-coming-soon={isComingSoon ? "true" : undefined}
     >
-      <span className="w-7 h-7 rounded-md grid place-items-center bg-surface border border-rule text-ink-soft shrink-0">
+      <span className={`
+        w-7 h-7 rounded-md grid place-items-center
+        border border-rule text-ink-soft shrink-0
+        ${isComingSoon ? "bg-bg-2/40" : "bg-surface"}
+      `}>
         <Icon size={14} strokeWidth={1.75} />
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-[13.5px] text-ink leading-tight">{title}</div>
-        {hint && <div className="text-[11.5px] text-ink-soft mt-0.5 leading-tight">{hint}</div>}
+        <div className={`text-[13.5px] leading-tight ${isComingSoon ? "text-ink-soft" : "text-ink"}`}>
+          {title}
+        </div>
+        {hint && <div className="text-[11.5px] text-ink-mute mt-0.5 leading-tight">{hint}</div>}
       </div>
       {trailing ?? (
-        <ChevronRight size={13} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+        isComingSoon ? (
+          <span className="
+            inline-flex items-center h-5 px-2 rounded-full
+            text-[9.5px] uppercase tracking-[0.1em] font-semibold
+            bg-bg-2/60 border border-rule text-ink-mute
+            shrink-0
+          ">
+            Coming soon
+          </span>
+        ) : (
+          <ChevronRight size={13} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+        )
       )}
     </button>
   );
@@ -293,7 +331,8 @@ function DataTab({ onUpload: _onUpload }: { onUpload: () => void }) {
         <Row
           icon={Plug}
           title="ERP connector"
-          hint="Not connected"
+          hint="Available in a future upgrade"
+          comingSoon
           onClick={() =>
             comingSoon(
               "ERP connectors",
@@ -330,60 +369,250 @@ function DataTab({ onUpload: _onUpload }: { onUpload: () => void }) {
 }
 
 function RulesTab() {
-  function explain(group: string, body: string) {
-    toast(group, { description: body });
-  }
+  const thresholds = useThresholds();
+  const [openGroup, setOpenGroup] = useState<"protect" | "watch" | "liquidate" | null>(null);
+
+  // Map the user's mental model to the threshold schema groups:
+  //   Protect             → SPECS.anchor      (anchor protection thresholds)
+  //   Watch · Fix · Reduce → SPECS.warning     (margin + DIO gates for non-anchors)
+  //   Liquidate · Scale   → SPECS.eliminate + SPECS.scale (the two extremes)
+  //
+  // High-volume + good/medium margin → Protect (anchor protection).
+  // Big volume + low margin          → escalates inside Watch (warningMaxVolumeT).
+  // Small volume + small margin      → Liquidate (microVolumeT + microProfitKron).
+  // Small volume + big margin        → Scale candidate (scaleHighMarginVolumeT).
+  // Big volume + big margin          → Protect/Scale (depends on volume ceiling).
+  // Live preview: each slider writes to localStorage; analytics recomputes in <100ms.
+
   return (
     <>
       <Section label="Decision rules">
-        <Row
-          icon={Settings2}
+        <RuleGroup
           title="Protect"
-          hint="Anchor thresholds"
-          onClick={() =>
-            explain(
-              "Protect",
-              "Top 20% by absolute profit · ≥5% revenue share · volume ≥50t. High-volume floor: 5% real margin.",
-            )
-          }
+          subtitle="Anchor thresholds"
+          specs={SPECS.anchor}
+          thresholds={thresholds}
+          open={openGroup === "protect"}
+          onToggle={() => setOpenGroup(openGroup === "protect" ? null : "protect")}
         />
-        <Row
-          icon={Settings2}
+        <RuleGroup
           title="Watch · Fix · Reduce"
-          hint="Margin and DIO gates"
-          onClick={() =>
-            explain(
-              "Watch · Fix · Reduce",
-              "Watch: long DIO. Fix: thin real margin (0–3%). Reduce: capital trap, throttle reorder.",
-            )
-          }
+          subtitle="Margin and DIO gates"
+          specs={SPECS.warning}
+          thresholds={thresholds}
+          open={openGroup === "watch"}
+          onToggle={() => setOpenGroup(openGroup === "watch" ? null : "watch")}
         />
-        <Row
-          icon={Settings2}
+        <RuleGroup
           title="Liquidate · Scale"
-          hint="Capital trap, scale floor"
-          onClick={() =>
-            explain(
-              "Liquidate · Scale",
-              "Liquidate: real margin <0% or micro vol+profit. Scale: real margin ≥10% with strong volume.",
-            )
-          }
+          subtitle="Capital trap, scale floor"
+          // Combine the two extremes in one panel — they're the
+          // "throw out" vs "double down" decisions and live next to each other
+          // in the user's mental model.
+          specs={[...SPECS.eliminate, ...SPECS.scale]}
+          thresholds={thresholds}
+          open={openGroup === "liquidate"}
+          onToggle={() => setOpenGroup(openGroup === "liquidate" ? null : "liquidate")}
         />
       </Section>
       <Section label="Engine">
         <Row
           icon={Activity}
           title="6 active buckets"
-          hint="Live preview on threshold change"
+          hint="Live preview · changes apply across all SKUs instantly"
           onClick={() =>
             toast("Live preview", {
               description:
-                "Tweak any threshold and the queue recomputes in <100ms across all SKUs.",
+                "Adjust any slider above — the queue recomputes in <100ms. Thresholds persist locally.",
             })
           }
         />
+        <ResetAllRow />
       </Section>
     </>
+  );
+}
+
+// ─── Rule group (expandable card with sliders) ─────────────────────────
+
+function RuleGroup({
+  title,
+  subtitle,
+  specs,
+  thresholds,
+  open,
+  onToggle,
+}: {
+  title: string;
+  subtitle: string;
+  specs: ThresholdSpec[];
+  thresholds: ReturnType<typeof useThresholds>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const driftCount = specs.filter(
+    (s) => !isAtCalibrated(s, (thresholds as Record<string, unknown>)[s.key] as number),
+  ).length;
+
+  return (
+    <div className="border-b border-rule last:border-b-0">
+      {/* Header row — same visual weight as the old static row. */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface transition-colors"
+      >
+        <span className="w-7 h-7 rounded-md grid place-items-center bg-surface border border-rule text-ink-soft shrink-0">
+          <Settings2 size={14} strokeWidth={1.75} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13.5px] text-ink leading-tight">{title}</div>
+          <div className="text-[11.5px] text-ink-soft mt-0.5 leading-tight">{subtitle}</div>
+        </div>
+        {driftCount > 0 && (
+          <span
+            className="font-mono text-[10px] uppercase tracking-[0.12em] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300 font-semibold"
+            title="Number of thresholds adjusted away from calibrated defaults"
+          >
+            {driftCount} edited
+          </span>
+        )}
+        <ChevronRight
+          size={13}
+          strokeWidth={1.75}
+          className={`text-ink-mute shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+
+      {/* Body — only renders when expanded; one Slider per spec. */}
+      {open && (
+        <div className="px-4 pb-4 pt-1 space-y-4 bg-surface/40">
+          {specs.map((spec) => (
+            <ThresholdSlider key={spec.key} spec={spec} thresholds={thresholds} />
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              // Reset just this group's specs to calibrated.
+              const next = { ...thresholds };
+              for (const s of specs) {
+                (next as Record<string, unknown>)[s.key] = s.calibrated;
+              }
+              writeThresholds(next);
+              toast.success(`${title} reset to calibrated`, {
+                description: `${specs.length} threshold${specs.length === 1 ? "" : "s"} restored to defaults.`,
+              });
+            }}
+            className="
+              inline-flex items-center gap-1.5
+              text-[11.5px] font-medium text-ink-soft hover:text-ink
+              transition-colors
+            "
+          >
+            <RotateCcw size={11} strokeWidth={2} />
+            Reset {title.toLowerCase()} to calibrated
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThresholdSlider({
+  spec,
+  thresholds,
+}: {
+  spec: ThresholdSpec;
+  thresholds: ReturnType<typeof useThresholds>;
+}) {
+  const current = ((thresholds as Record<string, unknown>)[spec.key] as number) ?? spec.calibrated;
+  const formatted = spec.format ? spec.format(current) : current.toString();
+  const calibratedFmt = spec.format ? spec.format(spec.calibrated) : spec.calibrated.toString();
+  const drifted = !isAtCalibrated(spec, current);
+
+  // Position the calibrated marker as % of the slider range so the user sees
+  // where the "anchor" default sits regardless of the current value.
+  const calibratedPct = ((spec.calibrated - spec.min) / (spec.max - spec.min)) * 100;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <label
+          htmlFor={`th-${spec.key}`}
+          className="text-[12.5px] text-ink font-medium leading-tight"
+        >
+          {spec.label}
+        </label>
+        <span
+          className={`font-mono text-[12px] tabular-nums ${drifted ? "text-brand-d" : "text-ink-soft"}`}
+        >
+          {formatted}
+        </span>
+      </div>
+      <div className="relative mt-2">
+        <input
+          id={`th-${spec.key}`}
+          type="range"
+          min={spec.min}
+          max={spec.max}
+          step={spec.step}
+          value={current}
+          onChange={(e) => {
+            const v = parseFloat(e.currentTarget.value);
+            if (!Number.isFinite(v)) return;
+            writeThresholds({ ...thresholds, [spec.key]: v });
+          }}
+          className="
+            w-full h-1.5 rounded-full appearance-none cursor-pointer
+            bg-rule
+            [&::-webkit-slider-thumb]:appearance-none
+            [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
+            [&::-webkit-slider-thumb]:rounded-full
+            [&::-webkit-slider-thumb]:bg-brand
+            [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-surface
+            [&::-webkit-slider-thumb]:shadow
+            [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4
+            [&::-moz-range-thumb]:rounded-full
+            [&::-moz-range-thumb]:bg-brand
+            [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-surface
+            [&::-moz-range-thumb]:cursor-pointer
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50
+          "
+        />
+        {/* Calibrated marker — a small tick above the slider showing where the
+            calibrated default sits. Click to snap back. */}
+        <button
+          type="button"
+          onClick={() => writeThresholds({ ...thresholds, [spec.key]: spec.calibrated })}
+          title={`Snap to calibrated (${calibratedFmt})`}
+          aria-label={`Snap ${spec.label} to calibrated ${calibratedFmt}`}
+          className="absolute -top-1 w-2 h-2 -ml-1 bg-ink-mute hover:bg-brand transition-colors rounded-full"
+          style={{ left: `${calibratedPct}%` }}
+        />
+      </div>
+      <div className="flex items-baseline justify-between mt-1.5">
+        <p className="text-[11px] text-ink-soft leading-snug max-w-[300px]">{spec.caption}</p>
+        <span className="font-mono text-[10px] text-ink-mute shrink-0 ml-2">
+          cal. {calibratedFmt}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ResetAllRow() {
+  return (
+    <Row
+      icon={RotateCcw}
+      title="Reset all thresholds"
+      hint="Restore every rule to calibrated defaults"
+      onClick={() => {
+        writeThresholds({ ...DEFAULTS });
+        toast.success("All thresholds reset", {
+          description: "Every rule is back to the calibrated default. Queue recomputed.",
+        });
+      }}
+    />
   );
 }
 

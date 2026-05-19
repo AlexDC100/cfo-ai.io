@@ -1,0 +1,75 @@
+{
+  "_status": "DRAFT — synthetic. source.md has €880k delta needing balance refinement.",
+  "currency": "EUR",
+  "period_end": "2025-12-31",
+  "tolerance_pct": 0.05,
+
+  "balance_sheet": {
+    "assets": {
+      "cash":                    187100.00,
+      "accountsReceivable":      420700.00,
+      "inventory":               286500.00,
+      "otherCurrentAssets":       53700.00,
+      "_ppe_gross":             1140000.00,
+      "_ppe_accumulated_dep":   -412300.00,
+      "propertyPlantEquipment":  727700.00,
+      "intangibles":              75800.00,
+      "otherNonCurrentAssets":    25000.00,
+      "total_assets":           1776500.00
+    },
+    "liabilities_equity": {
+      "accountsPayable":         287000.00,
+      "otherCurrentLiab":        279900.00,
+      "shortTermDebt":           120000.00,
+      "longTermDebt":            628500.00,
+      "shareCapital":             60000.00,
+      "otherEquity":             537000.00,
+      "retainedEarnings":        410900.00,
+      "total_liabilities_equity": 2323300.00,
+      "_imbalance_note": "Synthetic — assets/L+E imbalance reflects source.md's €880k delta."
+    }
+  },
+
+  "income_statement_ytd": {
+    "revenue_operational":     4037700.00,
+    "_revenue_components": {
+      "700_ventas_mercaderias":      3420000.00,
+      "701_productos_terminados":     280000.00,
+      "705_prestaciones_servicios":   480000.00,
+      "707_devoluciones":            -142300.00,
+      "_subtotal":                   4037700.00
+    },
+    "capitalized_own_work_memo":      24000.00,
+    "_capitalized_own_work_components": {"730_trabajos_inmovilizado": 24000.00},
+    "subsidies_flagged_non_recurring": {"740_subvenciones": 18500.00},
+    "cogs":                       2254300.00,
+    "_cogs_components": {
+      "600_compras_mercaderias": 2180000.00,
+      "602_otros_aprovisionamientos": 48500.00,
+      "607_trabajos_otras_empresas": 38200.00,
+      "608_devoluciones_compras":   -12400.00
+    },
+    "gross_profit":              1783400.00,
+    "operating_expenses": {
+      "62x_servicios_exteriores": 280000.00,
+      "631_otros_tributos":        12400.00,
+      "640_sueldos":              528000.00,
+      "642_seguridad_social":     142500.00,
+      "total":                    962900.00
+    },
+    "ebitda_operational":         820500.00,
+    "_ebitda_note": "Operational EBITDA margin 20.3% — strong for retail distribution (typical 8-15%). May indicate the synthetic underestimates costs.",
+    "depreciation_amortization":  100900.00,
+    "ebit":                       719600.00,
+    "interest_expense":            28400.00,
+    "interest_income":              2400.00,
+    "fx_loss":                      4200.00,
+    "fx_gain":                      3200.00,
+    "other_income":                26500.00,
+    "pretax_income":              718100.00,
+    "tax_expense":                 96400.00,
+    "net_income_computed":        621700.00,
+    "_native_check_account_129":  318500.00,
+    "_native_check_note":         "Synthetic — 129 = 318,500 understates the reconstructed P&L significantly. Source.md needs recalibration."
+  }
+}

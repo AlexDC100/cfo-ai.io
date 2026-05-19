@@ -131,7 +131,8 @@ export function paymentsAnalytics(
   asOf: Date = new Date(),
 ): PaymentsAnalytics {
   const sales = invoices.filter((i) => i.direction === "sale");
-  const totalRevenue = sales.reduce((s, i) => s + i.net_amount, 0);
+  // totalRevenue is intentionally not computed here yet — reserved for a
+  // future "% of revenue" enrichment in the returned aging buckets.
 
   // DSO — weighted average days from invoice → paid (or asOf if unpaid).
   let weightedDays = 0;
@@ -229,8 +230,6 @@ export function paymentsAnalytics(
     aging_buckets,
     forecast,
     worst_payers,
-    // Use totalRevenue once we add a "% of revenue" field — silence linter.
-    ...{ _totalRevenue: totalRevenue } as Record<string, never>,
   };
 }
 

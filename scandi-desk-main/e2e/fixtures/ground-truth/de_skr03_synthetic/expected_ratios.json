@@ -1,0 +1,41 @@
+{
+  "_status": "DRAFT — synthetic.",
+  "tolerance_pct": 0.05,
+
+  "leverage": {
+    "total_debt":               180000.00,
+    "total_debt_minus_cash":   -223400.00,
+    "_net_debt_note":          "Net cash position (cash > short-term debt). Healthy for an FMCG distributor.",
+    "debt_to_equity":            0.082,
+    "debt_to_ebitda":            0.537
+  },
+
+  "coverage": {
+    "interest_coverage_ebitda":  7.51,
+    "_interest_coverage_note":   "EBITDA 335k / interest 44.6k. Healthy."
+  },
+
+  "liquidity": {
+    "current_ratio":             1.86,
+    "_current_ratio_note":       "(Cash + AR + inventory + other CA) / (AP + other CL + short-term debt)."
+  },
+
+  "profitability": {
+    "revenue_operational":       7998400.00,
+    "gross_margin_pct":          0.215,
+    "_gross_margin_note":        "21.5% gross margin — typical for FMCG distribution (15-25%).",
+    "ebitda_margin_operational_pct": 0.042,
+    "_ebitda_margin_note":       "4.2% EBITDA margin — within FMCG distribution band (3-7%)."
+  },
+
+  "valuation_primary": {
+    "method":              "ev_ebitda_peer_multiple",
+    "industry":            "fmcg_distribution",
+    "_industry_band":      "Damodaran Food Distribution 2026 P25-P50-P75 = 6.0× - 8.5× - 11.0×",
+    "ebitda_basis":        335000.00,
+    "equity_p50_estimate": 3070000.00,
+    "_equity_p50_note":    "EBITDA 335k × P50 8.5× = EV 2.85M − net debt -223k + cash adj = equity ~3.07M.",
+    "confidence":          "medium",
+    "_confidence_note":    "EBITDA margin below 5% reduces confidence; revenue multiple cross-check at peer P50 0.5× revenue = ~4M is a useful sanity check."
+  }
+}

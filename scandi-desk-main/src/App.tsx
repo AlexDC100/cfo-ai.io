@@ -16,23 +16,33 @@ import Landing from "./pages/cfo/Landing";
 import Login from "./pages/cfo/Login";
 import Signup from "./pages/cfo/Signup";
 import Pricing from "./pages/cfo/Pricing";
+import RoadmapPage from "./pages/cfo/RoadmapPage";
+import ContactSalesPage from "./pages/cfo/ContactSalesPage";
 // Dashboard is now the unified financial-analysis surface (was
 // /dashboard). The standalone /dashboard page from the previous
 // round was deleted; its Overview content survives as Dashboard's Overview
 // tab inside FinancialStatements.tsx.
 import Dashboard from "./pages/cfo/FinancialStatements";
-import Cash from "./pages/cfo/Cash";
-import Profit from "./pages/cfo/Profit";
+// Cash + Profit are no longer standalone pages — they live as sections
+// inside the Dashboard's Financial Statements block. The /cash and /profit
+// routes below redirect to the matching anchor.
 import Decisions from "./pages/cfo/Decisions";
 import Products from "./pages/cfo/Products";
 import Alerts from "./pages/cfo/Alerts";
 import Settings from "./pages/cfo/Settings";
+import BenchmarkReport from "./pages/cfo/BenchmarkReport";
+import ComprehensiveReport from "./pages/cfo/ComprehensiveReport";
+import PeerComparisonReport from "./pages/cfo/PeerComparisonReport";
+import MultiYearHistory from "./pages/cfo/MultiYearHistory";
 import Onboarding from "./pages/cfo/Onboarding";
+import Chat from "./pages/cfo/Chat";
 import NotFound from "./pages/NotFound";
+import { PUBLIC_RECORDS_ENABLED, DECISIONS_ALERTS_ENABLED } from "./config/features";
 import { heartbeatIfIdentified } from "@/lib/identity";
 import { AuthProvider } from "@/lib/auth";
 import { AuthGuard } from "@/components/cfo/AuthGuard";
 import { ErrorBoundary } from "@/components/cfo/ErrorBoundary";
+import { LanguageSync } from "@/i18n/LanguageSync";
 
 // Single QueryClient for the whole app. Tuned for the "data was analyzed
 // once, navigate between pages instantly" workflow — once a period is
@@ -70,6 +80,12 @@ function App() {
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            {/* LanguageSync resolves the active UI language each render
+                via the auth-aware priority chain in useLanguage.ts and
+                pushes the result into i18next + <html lang="...">.
+                Must be inside <BrowserRouter> (needs URL) and
+                <AuthProvider> (needs session). */}
+            <LanguageSync />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
@@ -77,6 +93,8 @@ function App() {
               {/* /pricing is public — but signed-in users see it as the
                   upgrade picker. Used as the post-signup destination too. */}
               <Route path="/pricing" element={<Pricing />} />
+              <Route path="/roadmap" element={<RoadmapPage />} />
+              <Route path="/contact-sales" element={<ContactSalesPage />} />
 
               {/* Onboarding: industry pick + workspace name. Reached after
                   signup or when AuthGuard sees an org without industry_key. */}
@@ -90,11 +108,74 @@ function App() {
                   bookmarks / external links / onboarding redirects all land
                   on the canonical surface without a 404. */}
               <Route path="/upload" element={<RedirectPreservingQuery to="/dashboard" />} />
-              <Route path="/cash" element={<AuthGuard><Cash /></AuthGuard>} />
-              <Route path="/profit" element={<AuthGuard><Profit /></AuthGuard>} />
-              <Route path="/decisions" element={<AuthGuard><Decisions /></AuthGuard>} />
+              {/* Legacy /cash and /profit routes — Cash + Profit are now
+                  sections inside the Dashboard. Redirect preserves any
+                  external bookmarks while landing the user on the right
+                  section anchor (the Statements tab handles the actual
+                  rendering). */}
+              <Route path="/cash" element={<Navigate to="/dashboard?tab=statements#cash-flow" replace />} />
+              <Route path="/profit" element={<Navigate to="/dashboard?tab=statements#profit-loss" replace />} />
+              {/* /decisions and /alerts — gated by DECISIONS_ALERTS_ENABLED.
+                  When the flag is off (current product positioning), direct
+                  navigation to either redirects cleanly to /dashboard with
+                  ?period= preserved by RedirectPreservingQuery. The Decisions
+                  and Alerts components, their data hooks, and the underlying
+                  backend endpoints all remain functional on disk — flipping
+                  the flag to `true` restores both surfaces with zero further
+                  change. */}
+              <Route
+                path="/decisions"
+                element={
+                  DECISIONS_ALERTS_ENABLED
+                    ? <AuthGuard><Decisions /></AuthGuard>
+                    : <RedirectPreservingQuery to="/dashboard" />
+                }
+              />
               <Route path="/products" element={<AuthGuard><Products /></AuthGuard>} />
-              <Route path="/alerts" element={<AuthGuard><Alerts /></AuthGuard>} />
+              <Route
+                path="/alerts"
+                element={
+                  DECISIONS_ALERTS_ENABLED
+                    ? <AuthGuard><Alerts /></AuthGuard>
+                    : <RedirectPreservingQuery to="/dashboard" />
+                }
+              />
+              {/* /chat — Ask CFO AI universal open-domain chat. Reuses the
+                  /api/cfo/chat/llm endpoint that powers the Opus briefing
+                  and grounds responses in the active period's workspace
+                  context (statements, ratios, briefing, recommendations).
+                  No new persistence: session history lives in component
+                  state for the lifetime of the tab. */}
+              <Route path="/chat" element={<AuthGuard><Chat /></AuthGuard>} />
+              <Route path="/benchmark" element={<AuthGuard><BenchmarkReport /></AuthGuard>} />
+              {/* /report — the 8-section institutional memo (Section 1 Overview
+                  → Section 8 Recommendations + 90-day plan). Reads from the
+                  same /api/period endpoint as the dashboard, so no extra
+                  compute. Export PDF button hits /api/report/:period/pdf
+                  (WeasyPrint). */}
+              <Route path="/report" element={<AuthGuard><ComprehensiveReport /></AuthGuard>} />
+              {/* /peer-report — Transavia-style side-by-side memo. Reads the
+                  same /api/benchmarks/report payload BenchmarkReport uses, but
+                  renders as a printable institutional memo with: headline
+                  verdict, row-by-row P&L gap (with financial impact in RON),
+                  named peer landscape, why-the-leader-leads reasons, target
+                  tiers, and industry dynamics. Export PDF = browser print. */}
+              <Route path="/peer-report" element={<AuthGuard><PeerComparisonReport /></AuthGuard>} />
+              {/* /multi-year-history — listafirme.ro / termene.ro / firme.info
+                  public-records summary view. Gated behind PUBLIC_RECORDS_ENABLED.
+                  When the flag is off (current product positioning), any direct
+                  navigation here redirects to /dashboard rather than rendering
+                  the public-records view. The component remains imported and
+                  importable so flipping the flag back on restores the route
+                  with zero code change. */}
+              <Route
+                path="/multi-year-history"
+                element={
+                  PUBLIC_RECORDS_ENABLED
+                    ? <AuthGuard><MultiYearHistory /></AuthGuard>
+                    : <Navigate to="/dashboard" replace />
+                }
+              />
               <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
 
               {/* UNIFY: legacy paths redirect to /dashboard. The query string

@@ -1,0 +1,58 @@
+{
+  "_status": "DRAFT — synthetic.",
+
+  "must_flag": [
+    {
+      "key": "477_output_VAT_not_revenue",
+      "severity": "CRITICAL",
+      "category": "mapping_consistency",
+      "title_keywords": ["477", "IVA repercutido", "output VAT", "VAT payable"],
+      "rationale": "Account 477 (H.P. IVA repercutido) is output VAT — a liability. MUST be classified as ap_other/otherCurrentLiab, NEVER as revenue. The Spanish PGC trap."
+    },
+    {
+      "key": "730_capitalized_own_work_excluded",
+      "severity": "HIGH",
+      "category": "accounting_convention",
+      "title_keywords": ["730", "capitalized own-work", "trabajos realizados", "inmovilizado"],
+      "rationale": "Account 730 (Trabajos realizados para el inmovilizado intangible) is capitalized own-work — exclude from operational revenue."
+    },
+    {
+      "key": "707_devoluciones_reduces_revenue",
+      "severity": "MEDIUM",
+      "category": "revenue_quality",
+      "title_keywords": ["707", "devoluciones", "sales returns", "returns"],
+      "rationale": "Account 707 (Devoluciones de ventas) is sales returns — negative revenue. Sign-reverses from 700-series. Net revenue = 700 + 701 + 705 − 707."
+    },
+    {
+      "key": "740_subsidies_flagged_non_recurring",
+      "severity": "INFO",
+      "category": "revenue_quality",
+      "title_keywords": ["740", "subvenciones", "subsidies", "non-recurring"],
+      "rationale": "Subsidies (740) are operating income but flagged separately as non-recurring."
+    }
+  ],
+
+  "must_NOT_flag": [
+    {
+      "key": "477_classified_as_revenue",
+      "severity": "CRITICAL",
+      "rationale": "If 477 (output VAT) lands in the revenue bucket, the pipeline mapping for PGC is broken."
+    },
+    {
+      "key": "false_revenue_includes_707",
+      "severity": "HIGH",
+      "rationale": "Revenue MUST be net of 707 returns. If briefing quotes gross revenue 4.18M instead of net 4.04M, the returns handling is broken."
+    }
+  ],
+
+  "extraction_completeness": {
+    "min_accounts_extracted": 45,
+    "must_extract_codes": ["100", "129", "170", "210", "281", "400", "430", "477", "572", "600", "640", "700", "707", "730"],
+    "_critical_codes": ["477", "707", "730"]
+  },
+
+  "totals_balance_check": {
+    "_note": "source.md has known imbalance — fix before CI promotion.",
+    "tolerance_eur": 0.01
+  }
+}

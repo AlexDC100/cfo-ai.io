@@ -1,0 +1,545 @@
+{
+  "version": "2026.01-deep",
+  "last_updated": "2026-05-14",
+  "disclosure": "Peer-group data sourced from public Romanian SME filings (Ministerul Finanțelor, Termene.ro, Risco.ro) and annual reports 2022-2024. Specific peer figures are point-in-time and may not reflect current performance. Structural-reason impact estimates are calibrated on observed performance gaps between named leaders and median performers.",
+  "industries": [
+    {
+      "caen_codes": ["1012", "1013"],
+      "industry_label": "Food Manufacturing (Meat / Poultry)",
+      "leader_company": "Transavia SA",
+      "peers": [
+        {
+          "company_name": "Transavia SA",
+          "fiscal_year": 2024,
+          "revenue_mlei": 1115.5,
+          "net_profit_mlei": 277.3,
+          "net_margin_pct": 24.9,
+          "ebitda_margin_pct": 34.7,
+          "equity_ratio_pct": 93.5,
+          "debt_to_equity": 0.07,
+          "specialization": "Pui integrat (Fragedo)",
+          "tier": "leader",
+          "source": "Ministerul Finanțelor 2024 + Transavia annual report",
+          "display_order": 1
+        },
+        {
+          "company_name": "Agricola Bacău (grup consolidat)",
+          "fiscal_year": 2024,
+          "revenue_mlei": 1230.0,
+          "net_profit_mlei": 127.0,
+          "net_margin_pct": 10.3,
+          "ebitda_margin_pct": 15.5,
+          "equity_ratio_pct": 55.0,
+          "debt_to_equity": 0.62,
+          "specialization": "Pui + ouă + ready-meal",
+          "tier": "strong",
+          "source": "Risco.ro consolidated 2024",
+          "display_order": 2
+        },
+        {
+          "company_name": "Agricola International SA (entitate)",
+          "fiscal_year": 2024,
+          "revenue_mlei": 807.0,
+          "net_profit_mlei": 84.0,
+          "net_margin_pct": 10.4,
+          "ebitda_margin_pct": 14.8,
+          "equity_ratio_pct": 60.0,
+          "debt_to_equity": 0.45,
+          "specialization": "Pui (parte din grup)",
+          "tier": "strong",
+          "source": "Ministerul Finanțelor 2024",
+          "display_order": 3
+        },
+        {
+          "company_name": "Aaylex One SA (Cocorico)",
+          "fiscal_year": 2023,
+          "revenue_mlei": 1140.0,
+          "net_profit_mlei": -43.6,
+          "net_margin_pct": -3.8,
+          "ebitda_margin_pct": 2.1,
+          "equity_ratio_pct": 18.0,
+          "debt_to_equity": 1.95,
+          "specialization": "Pui (fuziune multi-entitate)",
+          "tier": "distressed",
+          "source": "Termene.ro 2023",
+          "display_order": 4
+        },
+        {
+          "company_name": "Elit SRL",
+          "fiscal_year": 2022,
+          "revenue_mlei": 742.8,
+          "net_profit_mlei": 74.2,
+          "net_margin_pct": 10.0,
+          "ebitda_margin_pct": 14.2,
+          "equity_ratio_pct": 48.0,
+          "debt_to_equity": 0.78,
+          "specialization": "Mezeluri (porc)",
+          "tier": "strong",
+          "source": "Ministerul Finanțelor 2022",
+          "display_order": 5
+        },
+        {
+          "company_name": "Cris-Tim Family Holding",
+          "fiscal_year": 2023,
+          "revenue_mlei": 850.0,
+          "net_profit_mlei": 28.0,
+          "net_margin_pct": 3.3,
+          "ebitda_margin_pct": 7.8,
+          "equity_ratio_pct": 32.0,
+          "debt_to_equity": 1.45,
+          "specialization": "Mezeluri premium",
+          "tier": "thin_margin",
+          "source": "Termene.ro 2023",
+          "display_order": 6
+        }
+      ],
+      "leader_reasons": [
+        {
+          "rank": 1,
+          "title": "Integrare verticală 100% \"de la bob la furculiță\"",
+          "description": "Eliminate marjele intermediarilor pe lanțul: cultivare cereale → producție furaje → ferme reproducție → ferme creștere → abator → procesare → distribuție. Concurența cumpără furaje/pui de la terți, plătind marja fiecărei verigi.",
+          "margin_impact_pp": 8.0,
+          "evidence_source": "Transavia annual reports 2020-2024; comparison vs Aaylex / Cris-Tim non-integrated peers"
+        },
+        {
+          "rank": 2,
+          "title": "Investiție în energie verde",
+          "description": "Peste 100M lei în panouri fotovoltaice și cogenerare. Cost energie 3.2% din CA vs media industriei 5-7%. Pe 1.1 mld lei revenue, diferența este ~30M lei/an în EBITDA suplimentar.",
+          "margin_impact_pp": 3.0,
+          "evidence_source": "Transavia ESG disclosures + industry energy benchmarks 2023"
+        },
+        {
+          "rank": 3,
+          "title": "Brand premium (Fragedo)",
+          "description": "Transavia comercializează la prețuri peste media pieței. Brandul Fragedo este consistent în top Brand Finance România pentru alimentar. Premium price = premium margin.",
+          "margin_impact_pp": 3.0,
+          "evidence_source": "Brand Finance Romania 2024; retail price audits Carrefour/Mega Image"
+        },
+        {
+          "rank": 4,
+          "title": "Disciplină a costurilor cu personalul",
+          "description": "2,240 angajați pentru 1.1 mld lei (498K RON/angajat). Concurența mai diversificată (Agricola Bacău: pui + ouă + ready-meal) are 405K RON/angajat. Eficiență mai mare pe muncă specializată.",
+          "margin_impact_pp": 3.0,
+          "evidence_source": "Public filings employee counts 2024"
+        },
+        {
+          "rank": 5,
+          "title": "Fără datorii = fără dobânzi",
+          "description": "D/E 0.065× vs media 0.5-1.0×. La 1.1 mld lei revenue, economia anuală pe dobânzi (vs un peer mediu cu 200M debt @ 7%) este 14M lei direct la net profit.",
+          "margin_impact_pp": 1.3,
+          "evidence_source": "Balance sheets 2024 + observed interest expense / debt-stock ratios"
+        }
+      ],
+      "qualitative": {
+        "target_tiers": {
+          "aspirational": {
+            "net_margin_pct": 24.0,
+            "ebitda_margin_pct": 34.0,
+            "label": "Aspirational (top quartile)",
+            "comment": "Transavia-level — necesită integrare verticală + brand premium + 10+ ani"
+          },
+          "realistic": {
+            "net_margin_pct": 10.0,
+            "ebitda_margin_pct": 13.0,
+            "label": "Realistic (median strong)",
+            "comment": "Producător RO bine condus, fără integrare completă"
+          },
+          "minimum_viable": {
+            "net_margin_pct": 3.0,
+            "ebitda_margin_pct": 7.0,
+            "label": "Minimum viable",
+            "comment": "Sub acest nivel, capitalul de lucru consumă cash; viabilitate fragilă"
+          }
+        },
+        "dynamics": {
+          "concentration": {
+            "verdict": "moderate",
+            "detail": "Top 5 ocupă ~45-55% din piața RO. Diferența între #1 (Transavia, 277M profit) și #2 (Aaylex, -43M pierdere) este uriașă — industria este fundamental divizată în 'integrați' (Transavia, Agricola) și 'non-integrați' (Aaylex, smaller players)."
+          },
+          "growth": {
+            "verdict": "stable",
+            "detail": "Creștere RO 3-6%/an cu inflație alimentară 5-8%; consum stabil"
+          },
+          "regulation": {
+            "verdict": "moderate",
+            "detail": "ANSVSA, EU food standards, ANPC. Cost compliance ~1-2% CA."
+          },
+          "barriers": {
+            "verdict": "high",
+            "detail": "Capital intensiv (200M+ pentru o operațiune integrată), licențe sanitare-veterinare complexe, brand-building care durează 10+ ani."
+          }
+        },
+        "success_patterns": [
+          "Integrare verticală selectivă pe input-ul cu pondere maximă în cost",
+          "Brand premium prin investiție susținută în marketing (3-5% CA pe 5+ ani)",
+          "Energy autonomy (PV + cogenerare) — payback 3-4 ani",
+          "Long-term contracts cu Key Account-uri (Carrefour, Mega Image, Auchan, Kaufland, Lidl, Penny)",
+          "Export 20-40% din producție — diversificare valutară + scale",
+          "Producție modernizată: 1 angajat la 400-500K RON revenue"
+        ],
+        "failure_modes": [
+          "Aaylex pattern: fuziune multiplă necontrolată consumând capital de lucru",
+          "Key Account dependency >40% revenue — pierdere unic client = colaps",
+          "Materii prime necontrolate: 60%+ din CA fără hedging = volatilitate margină",
+          "Capex below depreciation pe 5+ ani — asset base imbătrânit, productivitate scade",
+          "Brand neglijat — drop la private label = margin compression 5-8pp"
+        ],
+        "market_context": "Piața RO food manufacturing creşte 4-6%/an în volum, peste 6-8%/an în valoare. Consumul de carne pui în RO este ~28kg/cap/an (sub UE-27 media 23kg). Concurența pe import e crescândă (Polonia, Ungaria). Subvenții AFIR/PNRR sunt disponibile pentru investiții — Transavia a accesat ~80M lei în 2020-2024. Standardele EU pe welfare animal (cage-free 2027) vor presa costurile +5-8% pentru toți operatorii non-integrați."
+      }
+    },
+    {
+      "caen_codes": ["6820"],
+      "industry_label": "Real Estate — Property Rental (Commercial)",
+      "leader_company": "NEPI Rockcastle (RO portfolio)",
+      "peers": [
+        {
+          "company_name": "NEPI Rockcastle (RO portfolio)",
+          "fiscal_year": 2024,
+          "revenue_mlei": 1850.0,
+          "net_profit_mlei": 740.0,
+          "net_margin_pct": 40.0,
+          "ebitda_margin_pct": 72.0,
+          "equity_ratio_pct": 55.0,
+          "debt_to_equity": 0.78,
+          "specialization": "Shopping centers (Promenada, Mega Mall etc.)",
+          "tier": "leader",
+          "source": "NEPI Rockcastle annual report 2024",
+          "display_order": 1
+        },
+        {
+          "company_name": "Globalworth Real Estate (RO)",
+          "fiscal_year": 2024,
+          "revenue_mlei": 1100.0,
+          "net_profit_mlei": 220.0,
+          "net_margin_pct": 20.0,
+          "ebitda_margin_pct": 63.0,
+          "equity_ratio_pct": 40.0,
+          "debt_to_equity": 1.20,
+          "specialization": "Office towers Bucharest (Globalworth Tower etc.)",
+          "tier": "strong",
+          "source": "Globalworth FY2024 report",
+          "display_order": 2
+        },
+        {
+          "company_name": "AFI Europe Romania",
+          "fiscal_year": 2024,
+          "revenue_mlei": 480.0,
+          "net_profit_mlei": 110.0,
+          "net_margin_pct": 22.9,
+          "ebitda_margin_pct": 66.0,
+          "equity_ratio_pct": 38.0,
+          "debt_to_equity": 1.45,
+          "specialization": "Mixed-use (AFI Cotroceni, AFI Tech Park)",
+          "tier": "strong",
+          "source": "AFI Europe 2024 disclosures",
+          "display_order": 3
+        },
+        {
+          "company_name": "Iulius Group",
+          "fiscal_year": 2023,
+          "revenue_mlei": 720.0,
+          "net_profit_mlei": 95.0,
+          "net_margin_pct": 13.2,
+          "ebitda_margin_pct": 55.0,
+          "equity_ratio_pct": 32.0,
+          "debt_to_equity": 1.85,
+          "specialization": "Mixed-use (Palas Iași, Iulius Town Timișoara)",
+          "tier": "strong",
+          "source": "Termene.ro 2023",
+          "display_order": 4
+        },
+        {
+          "company_name": "Atterbury Europe (RO)",
+          "fiscal_year": 2023,
+          "revenue_mlei": 290.0,
+          "net_profit_mlei": -45.0,
+          "net_margin_pct": -15.5,
+          "ebitda_margin_pct": 18.0,
+          "equity_ratio_pct": 22.0,
+          "debt_to_equity": 2.80,
+          "specialization": "Retail park development (post-investment cycle)",
+          "tier": "thin_margin",
+          "source": "Ministerul Finanțelor 2023",
+          "display_order": 5
+        },
+        {
+          "company_name": "ImmoChan / Ceetrus (RO)",
+          "fiscal_year": 2022,
+          "revenue_mlei": 150.0,
+          "net_profit_mlei": -25.0,
+          "net_margin_pct": -16.7,
+          "ebitda_margin_pct": 22.0,
+          "equity_ratio_pct": 18.0,
+          "debt_to_equity": 3.10,
+          "specialization": "Auchan-anchored retail parks (refinancing pressure)",
+          "tier": "distressed",
+          "source": "Termene.ro 2022",
+          "display_order": 6
+        }
+      ],
+      "leader_reasons": [
+        {
+          "rank": 1,
+          "title": "Scale + dominant tenant relationships",
+          "description": "NEPI's RO portfolio is 9 prime shopping centers anchoring major cities. Tenant mix (Carrefour, Mega Image, Inditex, H&M, MediaGalaxy) is locked under 10-15 year leases with CPI escalators. Smaller landlords face renegotiation risk every 3-5 years.",
+          "margin_impact_pp": 10.0,
+          "evidence_source": "NEPI tenant disclosures + retail anchor public filings"
+        },
+        {
+          "rank": 2,
+          "title": "Low cost of capital (€-denominated, listed access)",
+          "description": "NEPI raises EUR debt at 3.5-4.5% (vs RO SME mortgage 7-9%). On a 60% LTV portfolio worth €4B+, the spread is ~€100M/yr in interest savings vs comparable RON-funded smaller landlords.",
+          "margin_impact_pp": 6.0,
+          "evidence_source": "NEPI bond prospectuses 2022-2024; JSE/BVB listings"
+        },
+        {
+          "rank": 3,
+          "title": "Operational scale (centralized facility management)",
+          "description": "1 facility manager per €40M of GLA vs SME landlords running 1 per €5-10M. Cost of building operations drops to 8-10% of rental income vs 15-20% for smaller players.",
+          "margin_impact_pp": 5.0,
+          "evidence_source": "Property management benchmarks RICS Romania 2024"
+        },
+        {
+          "rank": 4,
+          "title": "Tenant pre-leasing on new builds (capex risk transfer)",
+          "description": "60-80% pre-let before construction starts means rental cash flow begins month 0 post-completion. Smaller speculative developers carry 18-24 month vacancy risk during stabilization.",
+          "margin_impact_pp": 4.5,
+          "evidence_source": "Cushman & Wakefield Romania 2024 retail report"
+        },
+        {
+          "rank": 5,
+          "title": "Tax efficiency via REIT-style holding structures",
+          "description": "Hybrid Luxembourg-South Africa-Romania holding optimizes corporate income tax to ~5-8% effective vs the 16% RO statutory rate domestic SMEs pay.",
+          "margin_impact_pp": 2.5,
+          "evidence_source": "NEPI annual report tax disclosures"
+        }
+      ],
+      "qualitative": {
+        "target_tiers": {
+          "aspirational": {
+            "net_margin_pct": 35.0,
+            "ebitda_margin_pct": 70.0,
+            "label": "Aspirational (top quartile)",
+            "comment": "NEPI-level — necesită portofoliu prime > €1B, listare, leases CPI-indexed pe 10+ ani"
+          },
+          "realistic": {
+            "net_margin_pct": 20.0,
+            "ebitda_margin_pct": 60.0,
+            "label": "Realistic (median strong)",
+            "comment": "Operator regional bine condus cu 2-5 active stabilizate, ocupare > 90%"
+          },
+          "minimum_viable": {
+            "net_margin_pct": 5.0,
+            "ebitda_margin_pct": 40.0,
+            "label": "Minimum viable",
+            "comment": "Sub acest nivel, debt service depășește NOI net; refinanțare obligatorie"
+          }
+        },
+        "dynamics": {
+          "concentration": {
+            "verdict": "high",
+            "detail": "Top 4 (NEPI, Globalworth, AFI, Iulius) controlează ~60% din suprafața comercială prime RO. Smaller operators competează doar pe nișe (B-grade office, retail parks secundare)."
+          },
+          "growth": {
+            "verdict": "moderate-slowing",
+            "detail": "Rental income RO crește 5-8%/an în nominal (CPI pass-through). Volume de tranzacții imobiliare au scăzut 20% YoY în 2024 din cauza ratelor dobânzii."
+          },
+          "regulation": {
+            "verdict": "moderate",
+            "detail": "Cod fiscal RO, autorizații PUG/PUZ, regim de proprietate intabulată. Cost compliance ~0.5-1.5% NOI. ESG/EPBD pune presiune pe retrofit (€50-150/sqm)."
+          },
+          "barriers": {
+            "verdict": "very_high",
+            "detail": "Capital intensiv extrem (€50M+ pentru un proiect mid-size), licențe de construcție 2-4 ani, expertiză de leasing. Brand recognition la nivel tenant durează 10-15 ani."
+          }
+        },
+        "success_patterns": [
+          "Prime location > average yield — focus pe locații AAA (București zona 0-1, capitale regionale)",
+          "Long-term anchor tenant contracts (Carrefour, Inditex, IKEA) pe 10-15 ani cu CPI escalators",
+          "Diversificare retail / office / logistics — evită concentrarea pe un singur asset class",
+          "Pre-leasing 60-80% înainte de start construcție",
+          "Asset rotation: vinde mature stabilized, reinvestește în dezvoltare nouă",
+          "ESG retrofit (BREEAM Excellent, EPC A) — premium chirie 5-10% + acces capital ESG"
+        ],
+        "failure_modes": [
+          "Single-asset concentration — re-leasing risk la sfârșit de contract = colaps NOI",
+          "FX mismatch: chirii EUR-denominate dar credit RON (sau invers) la +20% volatilitate",
+          "Construction overruns 30%+ pe proiecte mid-size — exemplu Atterbury",
+          "Over-leverage: LTV > 70% într-un mediu cu rate crescătoare = cash flow trap",
+          "Refuz tenant blueprint upgrade — chirie sub-piață, pierdere către landlord competitor"
+        ],
+        "market_context": "Piața RO real estate comercial este de ~€55B GAV (2024). Office stock București ~3.5M sqm, retail prime ~2.8M sqm, logistics ~6.5M sqm (cea mai mare creștere, ~+15%/an). Yields prime 6.5-7.5% office, 7.0-8.0% retail, 7.5-9.0% logistics. Banking sector RO finanțează LTV max 60-65% pe asset stabilizat; pre-development senior limita la 50% LTV. Cushman, Colliers, JLL, CBRE sunt brokerage majoritar; advisory fees 1.0-1.5% pe tranzacții. Standardele EU pe energy performance (EPBD recast) cer toate clădirile non-residential să atingă EPC A până în 2030 — presiune capex 80-200 €/sqm pe portofoliu vechi."
+      }
+    },
+    {
+      "caen_codes": ["6201"],
+      "industry_label": "IT Services — Custom Software Development",
+      "leader_company": "Endava plc (RO operations)",
+      "peers": [
+        {
+          "company_name": "Endava plc (RO operations)",
+          "fiscal_year": 2024,
+          "revenue_mlei": 2800.0,
+          "net_profit_mlei": 280.0,
+          "net_margin_pct": 10.0,
+          "ebitda_margin_pct": 17.0,
+          "equity_ratio_pct": 70.0,
+          "debt_to_equity": 0.15,
+          "specialization": "Digital transformation, fintech, payments (UK-listed)",
+          "tier": "leader",
+          "source": "Endava plc FY2024 (RO segment estimate)",
+          "display_order": 1
+        },
+        {
+          "company_name": "Bitdefender SRL",
+          "fiscal_year": 2024,
+          "revenue_mlei": 1100.0,
+          "net_profit_mlei": 280.0,
+          "net_margin_pct": 25.5,
+          "ebitda_margin_pct": 32.0,
+          "equity_ratio_pct": 75.0,
+          "debt_to_equity": 0.10,
+          "specialization": "Cybersecurity SaaS (product IP, not services)",
+          "tier": "leader",
+          "source": "Ministerul Finanțelor 2024",
+          "display_order": 2
+        },
+        {
+          "company_name": "Softelligence SA",
+          "fiscal_year": 2023,
+          "revenue_mlei": 285.0,
+          "net_profit_mlei": 31.0,
+          "net_margin_pct": 10.9,
+          "ebitda_margin_pct": 16.0,
+          "equity_ratio_pct": 55.0,
+          "debt_to_equity": 0.40,
+          "specialization": "Banking + insurance software (Salesforce / SAP partner)",
+          "tier": "strong",
+          "source": "Termene.ro 2023",
+          "display_order": 3
+        },
+        {
+          "company_name": "Pentalog SA (RO ops)",
+          "fiscal_year": 2023,
+          "revenue_mlei": 220.0,
+          "net_profit_mlei": 18.0,
+          "net_margin_pct": 8.2,
+          "ebitda_margin_pct": 12.5,
+          "equity_ratio_pct": 45.0,
+          "debt_to_equity": 0.55,
+          "specialization": "Outsourcing factory model (FR clients)",
+          "tier": "strong",
+          "source": "Risco.ro 2023",
+          "display_order": 4
+        },
+        {
+          "company_name": "Crystal System SRL",
+          "fiscal_year": 2023,
+          "revenue_mlei": 85.0,
+          "net_profit_mlei": 4.5,
+          "net_margin_pct": 5.3,
+          "ebitda_margin_pct": 9.0,
+          "equity_ratio_pct": 35.0,
+          "debt_to_equity": 0.75,
+          "specialization": "Mid-market custom software (RO + EU SMB)",
+          "tier": "thin_margin",
+          "source": "Ministerul Finanțelor 2023",
+          "display_order": 5
+        }
+      ],
+      "leader_reasons": [
+        {
+          "rank": 1,
+          "title": "Product / IP-based revenue (Bitdefender model)",
+          "description": "Bitdefender vinde licențe SaaS recurente (ARR), nu hours-billed. Marja produsului > 80% gross; revenue per engineer ~€450K/yr vs ~€90K pentru un dezvoltator de outsourcing — 5× efficiency.",
+          "margin_impact_pp": 12.0,
+          "evidence_source": "Bitdefender FY2024 + comparable SaaS industry margins"
+        },
+        {
+          "rank": 2,
+          "title": "Premium client base (Endava model)",
+          "description": "Endava factura $90-120/h pentru senior developers (US/UK banking clients) vs $35-50/h tipici pentru RO outsourcing convențional. Aceeași resursă, 2.5× tariful = direct margin uplift.",
+          "margin_impact_pp": 5.0,
+          "evidence_source": "Endava 10-K disclosures; industry rate cards 2024"
+        },
+        {
+          "rank": 3,
+          "title": "Scale on bench utilization (engineering capacity management)",
+          "description": "Top players target 80%+ billable hours pe FTE. SME-uri RO operează la 60-65% — restul 15-20pp e cost direct fix care nu generează revenue. Pe 100 angajați, gap-ul valorează ~€2M/yr.",
+          "margin_impact_pp": 4.0,
+          "evidence_source": "Industry HR benchmarks + observed bench rates"
+        },
+        {
+          "rank": 4,
+          "title": "Long-term contracts cu Fortune 500",
+          "description": "Endava 5-7 ani master service agreements cu JPMorgan, Mastercard, Aviva. Renewal rate >90%. SME-urile concurate pe project-by-project bid au revenue volatility 30-50% YoY.",
+          "margin_impact_pp": 3.0,
+          "evidence_source": "Endava client retention metrics 2024"
+        },
+        {
+          "rank": 5,
+          "title": "Tax incentive: scutire impozit pe venit IT (RO)",
+          "description": "Programatorii RO sunt scutiți de impozit pe venit (16%) dacă ≥75% din timp scriu cod. Pentru un developer cu salariu brut 12K RON, scutirea = ~24K RON/an păstrat de companie ca margine sau ofertă competitivă.",
+          "margin_impact_pp": 3.5,
+          "evidence_source": "Codul fiscal RO art. 60(2); HR cost models"
+        }
+      ],
+      "qualitative": {
+        "target_tiers": {
+          "aspirational": {
+            "net_margin_pct": 25.0,
+            "ebitda_margin_pct": 32.0,
+            "label": "Aspirational (top quartile)",
+            "comment": "Bitdefender / Endava-level — produs IP sau client portfolio premium global"
+          },
+          "realistic": {
+            "net_margin_pct": 10.0,
+            "ebitda_margin_pct": 15.0,
+            "label": "Realistic (median strong)",
+            "comment": "Outsourcing house solid, 100-300 angajați, niche specialization"
+          },
+          "minimum_viable": {
+            "net_margin_pct": 4.0,
+            "ebitda_margin_pct": 8.0,
+            "label": "Minimum viable",
+            "comment": "Sub acest nivel, salary inflation (8-12%/yr în RO) erodează viabilitatea în 2-3 ani"
+          }
+        },
+        "dynamics": {
+          "concentration": {
+            "verdict": "fragmented",
+            "detail": "Top 10 ocupă ~30% din piață. Long tail de boutique-uri (50-200 angajați). M&A roll-up activ — Cognizant, Capgemini, Globant achiziționează RO firms regulat."
+          },
+          "growth": {
+            "verdict": "strong",
+            "detail": "RO IT services creste 15-20%/an în EUR (deși decelerare 2024). Salary inflation 8-12%/yr presează marja netă. AI/ML demand explosion adaugă headcount-uri specializate."
+          },
+          "regulation": {
+            "verdict": "low",
+            "detail": "GDPR, NIS2, codul fiscal IT (scutire impozit venit). Cost compliance ~0.5% CA. Eligibilitate scutire necesită monitorizare tight (HR documentation)."
+          },
+          "barriers": {
+            "verdict": "moderate",
+            "detail": "Capital scăzut (laptops + birou), dar war for talent este extrem. Recruiters costă 15-25% annual salary. Brand recognition + delivery track record durează 3-5 ani."
+          }
+        },
+        "success_patterns": [
+          "Vertical specialization (banking, healthcare, automotive) — premium pricing 30-50% vs generic",
+          "Nearshore positioning pentru US/UK clients — premium $80-120/h vs offshore $25-40/h",
+          "Investment în training intern (Bootcamp, certificări AWS/Azure) — reduces dependency pe piața de recrutare",
+          "Product side-bets: agentic AI, vertical SaaS — diversificare către IP recurent",
+          "Diaspora hubs (Cluj, Iași, Timișoara) — costuri 20-30% sub București",
+          "Long-term contracts cu break clauses și ramp-up garantat"
+        ],
+        "failure_modes": [
+          "Customer concentration > 40% revenue pe un client — fenomen 'glass cliff' la pivot strategic al clientului",
+          "Salary inflation neabsorbită: contractele rate-card fixe pe 3 ani consumă marja",
+          "Bench-rate > 35% — overhead structural devine net loss",
+          "Pierderea statutului de scutire impozit IT — corecție bruscă de marjă 4-6pp",
+          "Failed product pivot: investiție 12-18 luni într-un produs care nu găsește market fit"
+        ],
+        "market_context": "Piața RO IT services ~€8-10B (2024), creștere 12-15%/yr. Salariul mediu developer senior 18-22K RON brut (Cluj/Iași) vs 22-28K București. Endava (RO ~6,500 angajați), Bitdefender (~1,200), Pentalog (~500), Cognizant România (~1,800) sunt top employers. Scutirea de impozit pe venit pentru IT este criticulă — o eliminare ar reduce salariile nete cu 16% sau crește costurile angajatorului cu 19%. Talent gap rămâne acut: 30,000+ posturi de programatori deschise în RO, doar 7,000 absolvenți IT/yr."
+      }
+    }
+  ]
+}

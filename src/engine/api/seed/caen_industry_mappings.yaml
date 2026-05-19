@@ -1,0 +1,2013 @@
+# caen_industry_mappings.yaml — Phase A seed for caen_industry_mappings
+#
+# Schema target: supabase/schema_phase_industry_intelligence.sql → caen_industry_mappings
+#
+# WHAT THIS FILE DOES
+# ===================
+# Maps each 4-digit Romanian CAEN code to ONE canonical industry_key from
+# industries.yaml. This is the resolver path: when a company's CAEN comes
+# in (from registry lookup or user input), we look it up here to derive
+# both the precise industry and its parent industry (for benchmark fallback).
+#
+# match_quality FIELD
+# ===================
+# · 'exact'             — CAEN maps unambiguously to this industry
+#                         (e.g. 1013 → packaged_canned_meat_prepared_foods).
+#                         Confidence ≥ 0.85.
+# · 'close'             — CAEN is a near-neighbor of the industry (e.g.
+#                         4791 → retail_online_marketplace; covers all
+#                         non-store retail, not just online).
+#                         Confidence 0.65–0.80.
+# · 'sector_fallback'   — CAEN is mapped to the sector parent because we
+#                         don't have a sub-industry yet. Used for less
+#                         common 4-digit codes. Confidence 0.40–0.55.
+#                         These should be the FIRST candidates for upgrade
+#                         to 'close' or 'exact' when sub-industries land.
+#
+# THE FOUR CALIBRATION ROWS (must be present after loader runs):
+#   · 1013 → packaged_canned_meat_prepared_foods  (Scandia)
+#   · 4511 → automotive_retail_distribution       (Porsche Romania)
+#   · 6820 → real_estate_commercial_rental        (EEI Imobiliara)
+#   · 7830 → employment_services                  (ELIT)
+#
+# CAEN_LABELS_RO are the official ANAF Romanian descriptions (truncated to
+# ~80 chars where appropriate; the full label can be retrieved from the
+# CAEN registry).
+
+# ──────────────── 01-03 Agriculture / forestry / fishing ────────────────
+- caen_code: "0111"
+  caen_label_en: "Growing of cereals (except rice), leguminous crops and oilseeds"
+  caen_label_ro: "Cultivarea cerealelor, plantelor leguminoase și oleaginoase"
+  industry_key: crop_production
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0113"
+  caen_label_en: "Growing of vegetables and melons, roots and tubers"
+  caen_label_ro: "Cultivarea legumelor, pepenilor, rădăcinoaselor"
+  industry_key: crop_production
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0121"
+  caen_label_en: "Growing of grapes"
+  caen_label_ro: "Cultivarea strugurilor"
+  industry_key: crop_production
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0125"
+  caen_label_en: "Growing of other tree and bush fruits and nuts"
+  caen_label_ro: "Cultivarea fructelor (alte specii pomicole)"
+  industry_key: crop_production
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0141"
+  caen_label_en: "Raising of dairy cattle"
+  caen_label_ro: "Creșterea bovinelor de lapte"
+  industry_key: animal_production
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0146"
+  caen_label_en: "Raising of swine/pigs"
+  caen_label_ro: "Creșterea porcinelor"
+  industry_key: animal_production
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0147"
+  caen_label_en: "Raising of poultry"
+  caen_label_ro: "Creșterea păsărilor"
+  industry_key: animal_production
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0150"
+  caen_label_en: "Mixed farming"
+  caen_label_ro: "Activități în ferme mixte"
+  industry_key: mixed_farming
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0161"
+  caen_label_en: "Support activities for crop production"
+  caen_label_ro: "Activități auxiliare pentru producția vegetală"
+  industry_key: support_activities_agriculture
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0162"
+  caen_label_en: "Support activities for animal production"
+  caen_label_ro: "Activități auxiliare pentru creșterea animalelor"
+  industry_key: support_activities_agriculture
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0210"
+  caen_label_en: "Silviculture and other forestry activities"
+  caen_label_ro: "Silvicultură și alte activități forestiere"
+  industry_key: forestry_logging
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0220"
+  caen_label_en: "Logging"
+  caen_label_ro: "Exploatare forestieră"
+  industry_key: forestry_logging
+  parent_industry_key: agriculture
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "0311"
+  caen_label_en: "Marine fishing"
+  caen_label_ro: "Pescuit marin"
+  industry_key: agriculture
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.5
+- caen_code: "0321"
+  caen_label_en: "Marine aquaculture"
+  caen_label_ro: "Acvacultură marină"
+  industry_key: agriculture
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.5
+
+# ─────────────────────── 10 — Food manufacturing ────────────────────────
+- caen_code: "1011"
+  caen_label_en: "Processing and preserving of meat"
+  caen_label_ro: "Producția și conservarea cărnii"
+  industry_key: red_meat_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "1012"
+  caen_label_en: "Processing and preserving of poultry meat"
+  caen_label_ro: "Producția și conservarea cărnii de pasăre"
+  industry_key: poultry_meat_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "1013"
+  caen_label_en: "Meat products manufacturing, including poultry"
+  caen_label_ro: "Producția de produse din carne (inclusiv carne de pasăre)"
+  industry_key: packaged_canned_meat_prepared_foods
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.95
+  notes: "CALIBRATION ROW — Scandia Food maps here."
+- caen_code: "1020"
+  caen_label_en: "Processing and preserving of fish, crustaceans and molluscs"
+  caen_label_ro: "Prelucrarea și conservarea peștelui"
+  industry_key: fish_seafood_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1031"
+  caen_label_en: "Processing and preserving of potatoes"
+  caen_label_ro: "Prelucrarea și conservarea cartofilor"
+  industry_key: fruit_vegetable_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1032"
+  caen_label_en: "Manufacture of fruit and vegetable juice"
+  caen_label_ro: "Fabricarea sucurilor de fructe și legume"
+  industry_key: fruit_vegetable_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1039"
+  caen_label_en: "Other processing and preserving of fruit and vegetables"
+  caen_label_ro: "Alte prelucrări fructe și legume"
+  industry_key: fruit_vegetable_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1041"
+  caen_label_en: "Manufacture of oils and fats"
+  caen_label_ro: "Fabricarea uleiurilor și grăsimilor"
+  industry_key: oils_fats_manufacturing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1042"
+  caen_label_en: "Manufacture of margarine and similar edible fats"
+  caen_label_ro: "Fabricarea margarinei și altor produse comestibile similare"
+  industry_key: oils_fats_manufacturing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1051"
+  caen_label_en: "Operation of dairies and cheese making"
+  caen_label_ro: "Fabricarea produselor lactate și a brânzeturilor"
+  industry_key: dairy_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "1052"
+  caen_label_en: "Manufacture of ice cream"
+  caen_label_ro: "Fabricarea înghețatei"
+  industry_key: dairy_processing
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1061"
+  caen_label_en: "Manufacture of grain mill products"
+  caen_label_ro: "Fabricarea produselor de morărit"
+  industry_key: grain_milling_starch
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1062"
+  caen_label_en: "Manufacture of starches and starch products"
+  caen_label_ro: "Fabricarea amidonului și a produselor din amidon"
+  industry_key: grain_milling_starch
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1071"
+  caen_label_en: "Manufacture of bread; fresh pastry and cakes"
+  caen_label_ro: "Fabricarea pâinii; produse proaspete de patiserie"
+  industry_key: bakery_pastry
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "1072"
+  caen_label_en: "Manufacture of rusks, biscuits, preserved pastry"
+  caen_label_ro: "Fabricarea biscuiților, prăjiturilor (conserva)"
+  industry_key: bakery_pastry
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1081"
+  caen_label_en: "Manufacture of sugar"
+  caen_label_ro: "Fabricarea zahărului"
+  industry_key: sugar_confectionery
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1082"
+  caen_label_en: "Manufacture of cocoa, chocolate and sugar confectionery"
+  caen_label_ro: "Fabricarea ciocolatei și a produselor zaharoase"
+  industry_key: sugar_confectionery
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1083"
+  caen_label_en: "Processing of tea and coffee"
+  caen_label_ro: "Prelucrarea ceaiului și a cafelei"
+  industry_key: food_manufacturing
+  parent_industry_key: null
+  match_quality: close
+  confidence: 0.7
+- caen_code: "1084"
+  caen_label_en: "Manufacture of condiments and seasonings"
+  caen_label_ro: "Fabricarea condimentelor"
+  industry_key: food_manufacturing
+  parent_industry_key: null
+  match_quality: close
+  confidence: 0.7
+- caen_code: "1085"
+  caen_label_en: "Manufacture of prepared meals and dishes"
+  caen_label_ro: "Fabricarea mâncărurilor preparate"
+  industry_key: packaged_canned_meat_prepared_foods
+  parent_industry_key: food_manufacturing
+  match_quality: close
+  confidence: 0.8
+- caen_code: "1086"
+  caen_label_en: "Manufacture of dietetic and homogenized foods"
+  caen_label_ro: "Fabricarea alimentelor dietetice"
+  industry_key: food_manufacturing
+  parent_industry_key: null
+  match_quality: close
+  confidence: 0.7
+- caen_code: "1089"
+  caen_label_en: "Manufacture of other food products n.e.c."
+  caen_label_ro: "Fabricarea altor produse alimentare"
+  industry_key: food_manufacturing
+  parent_industry_key: null
+  match_quality: close
+  confidence: 0.6
+- caen_code: "1091"
+  caen_label_en: "Manufacture of prepared feeds for farm animals"
+  caen_label_ro: "Fabricarea hranei pentru animale de fermă"
+  industry_key: animal_feed
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1092"
+  caen_label_en: "Manufacture of prepared pet foods"
+  caen_label_ro: "Fabricarea hranei pentru animale de companie"
+  industry_key: animal_feed
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1101"
+  caen_label_en: "Distilling, rectifying and blending of spirits"
+  caen_label_ro: "Distilarea, rafinarea și blendarea băuturilor alcoolice"
+  industry_key: beverages_alcoholic
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1102"
+  caen_label_en: "Manufacture of wine from grape"
+  caen_label_ro: "Fabricarea vinurilor din struguri"
+  industry_key: beverages_alcoholic
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1105"
+  caen_label_en: "Manufacture of beer"
+  caen_label_ro: "Fabricarea berii"
+  industry_key: beverages_alcoholic
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1107"
+  caen_label_en: "Manufacture of soft drinks; production of mineral waters"
+  caen_label_ro: "Producția de băuturi răcoritoare nealcoolice"
+  industry_key: beverages_non_alcoholic
+  parent_industry_key: food_manufacturing
+  match_quality: exact
+  confidence: 0.9
+
+# ──────────────────── 13-15 Textiles, apparel, leather ───────────────────
+- caen_code: "1310"
+  caen_label_en: "Preparation and spinning of textile fibres"
+  caen_label_ro: "Pregătirea și filarea fibrelor textile"
+  industry_key: textile_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1320"
+  caen_label_en: "Weaving of textiles"
+  caen_label_ro: "Țesături"
+  industry_key: textile_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1392"
+  caen_label_en: "Manufacture of made-up textile articles"
+  caen_label_ro: "Fabricarea articolelor textile confecționate"
+  industry_key: textile_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1411"
+  caen_label_en: "Manufacture of leather clothes"
+  caen_label_ro: "Fabricarea articolelor de îmbrăcăminte din piele"
+  industry_key: apparel_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1413"
+  caen_label_en: "Manufacture of other outerwear"
+  caen_label_ro: "Fabricarea altor articole de îmbrăcăminte"
+  industry_key: apparel_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1431"
+  caen_label_en: "Manufacture of knitted and crocheted hosiery"
+  caen_label_ro: "Fabricarea articolelor de îmbrăcăminte din tricotaje"
+  industry_key: apparel_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1511"
+  caen_label_en: "Tanning and dressing of leather"
+  caen_label_ro: "Tăbăcirea și finisarea pieilor"
+  industry_key: leather_footwear
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1512"
+  caen_label_en: "Manufacture of luggage, handbags, saddlery"
+  caen_label_ro: "Fabricarea articolelor de voiaj, marochinărie"
+  industry_key: leather_footwear
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1520"
+  caen_label_en: "Manufacture of footwear"
+  caen_label_ro: "Fabricarea încălțămintei"
+  industry_key: leather_footwear
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.95
+
+# ───────────────────── 16-18 Wood, paper, printing ──────────────────────
+- caen_code: "1610"
+  caen_label_en: "Sawmilling and planing of wood"
+  caen_label_ro: "Tăierea și rindeluirea lemnului"
+  industry_key: wood_processing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1621"
+  caen_label_en: "Manufacture of veneer sheets and wood-based panels"
+  caen_label_ro: "Fabricarea de furnir și a panourilor din lemn"
+  industry_key: wood_processing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1623"
+  caen_label_en: "Manufacture of other builders' carpentry and joinery"
+  caen_label_ro: "Fabricarea tâmplăriei pentru construcții"
+  industry_key: wood_processing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1629"
+  caen_label_en: "Manufacture of other wood products"
+  caen_label_ro: "Fabricarea altor produse din lemn"
+  industry_key: wood_processing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1711"
+  caen_label_en: "Manufacture of pulp"
+  caen_label_ro: "Fabricarea pastei de hârtie"
+  industry_key: paper_pulp
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1721"
+  caen_label_en: "Manufacture of corrugated paper / paperboard and containers"
+  caen_label_ro: "Fabricarea hârtiei și cartonului ondulat și a ambalajelor"
+  industry_key: paper_pulp
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1812"
+  caen_label_en: "Other printing"
+  caen_label_ro: "Alte activități de tipărire"
+  industry_key: printing_reproduction
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "1813"
+  caen_label_en: "Pre-press and pre-media services"
+  caen_label_ro: "Servicii pregătitoare pentru tipărire"
+  industry_key: printing_reproduction
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+
+# ────────────────────── 19-23 Chemicals, materials ──────────────────────
+- caen_code: "1920"
+  caen_label_en: "Manufacture of refined petroleum products"
+  caen_label_ro: "Fabricarea produselor obținute prin rafinarea petrolului"
+  industry_key: chemicals_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: close
+  confidence: 0.7
+- caen_code: "2011"
+  caen_label_en: "Manufacture of industrial gases"
+  caen_label_ro: "Fabricarea gazelor industriale"
+  industry_key: chemicals_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2014"
+  caen_label_en: "Manufacture of other organic basic chemicals"
+  caen_label_ro: "Fabricarea altor produse chimice organice de bază"
+  industry_key: chemicals_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2030"
+  caen_label_en: "Manufacture of paints, varnishes, printing ink"
+  caen_label_ro: "Fabricarea vopselelor, lacurilor, cernelurilor"
+  industry_key: chemicals_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2041"
+  caen_label_en: "Manufacture of soap, detergents, cleaning preparations"
+  caen_label_ro: "Fabricarea săpunurilor, detergenților"
+  industry_key: chemicals_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2042"
+  caen_label_en: "Manufacture of perfumes and toilet preparations"
+  caen_label_ro: "Fabricarea parfumurilor și produselor de toaletă"
+  industry_key: chemicals_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: close
+  confidence: 0.7
+- caen_code: "2110"
+  caen_label_en: "Manufacture of basic pharmaceutical products"
+  caen_label_ro: "Fabricarea produselor farmaceutice de bază"
+  industry_key: pharmaceuticals
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2120"
+  caen_label_en: "Manufacture of pharmaceutical preparations"
+  caen_label_ro: "Fabricarea preparatelor farmaceutice"
+  industry_key: pharmaceuticals
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "2211"
+  caen_label_en: "Manufacture of rubber tyres and tubes"
+  caen_label_ro: "Fabricarea anvelopelor și camerelor din cauciuc"
+  industry_key: rubber_plastics
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2221"
+  caen_label_en: "Manufacture of plastic plates, sheets, tubes"
+  caen_label_ro: "Fabricarea plăcilor, foliilor, tuburilor din plastic"
+  industry_key: rubber_plastics
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2222"
+  caen_label_en: "Manufacture of plastic packaging goods"
+  caen_label_ro: "Fabricarea articolelor de ambalaj din plastic"
+  industry_key: rubber_plastics
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2229"
+  caen_label_en: "Manufacture of other plastic products"
+  caen_label_ro: "Fabricarea altor produse din plastic"
+  industry_key: rubber_plastics
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2311"
+  caen_label_en: "Manufacture of flat glass"
+  caen_label_ro: "Fabricarea sticlei plate"
+  industry_key: glass_ceramics_cement
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2351"
+  caen_label_en: "Manufacture of cement"
+  caen_label_ro: "Fabricarea cimentului"
+  industry_key: glass_ceramics_cement
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2361"
+  caen_label_en: "Manufacture of concrete products for construction"
+  caen_label_ro: "Fabricarea produselor din beton pentru construcții"
+  industry_key: glass_ceramics_cement
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2363"
+  caen_label_en: "Manufacture of ready-mixed concrete"
+  caen_label_ro: "Fabricarea betonului"
+  industry_key: glass_ceramics_cement
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+
+# ─────────────────── 24-25 Metallurgy & fabricated metal ────────────────
+- caen_code: "2410"
+  caen_label_en: "Manufacture of basic iron and steel"
+  caen_label_ro: "Producția de metale feroase de bază"
+  industry_key: metallurgy_basic
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2444"
+  caen_label_en: "Copper production"
+  caen_label_ro: "Producția cuprului"
+  industry_key: metallurgy_basic
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2511"
+  caen_label_en: "Manufacture of metal structures and parts"
+  caen_label_ro: "Fabricarea de construcții metalice"
+  industry_key: metal_products_fabrication
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2521"
+  caen_label_en: "Manufacture of central heating radiators and boilers"
+  caen_label_ro: "Producția de radiatoare și cazane pentru încălzire centrală"
+  industry_key: metal_products_fabrication
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2562"
+  caen_label_en: "Machining"
+  caen_label_ro: "Operațiuni de mecanică generală"
+  industry_key: metal_products_fabrication
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2599"
+  caen_label_en: "Manufacture of other fabricated metal products n.e.c."
+  caen_label_ro: "Fabricarea altor produse din metal"
+  industry_key: metal_products_fabrication
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+
+# ────────────────── 26-28 Electronics, electrical, machinery ─────────────
+- caen_code: "2611"
+  caen_label_en: "Manufacture of electronic components"
+  caen_label_ro: "Fabricarea componentelor electronice"
+  industry_key: electronics_computers
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2620"
+  caen_label_en: "Manufacture of computers and peripheral equipment"
+  caen_label_ro: "Fabricarea calculatoarelor și echipamentelor periferice"
+  industry_key: electronics_computers
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "2630"
+  caen_label_en: "Manufacture of communication equipment"
+  caen_label_ro: "Fabricarea echipamentelor de comunicații"
+  industry_key: electronics_computers
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2651"
+  caen_label_en: "Manufacture of instruments for measuring, testing"
+  caen_label_ro: "Fabricarea instrumentelor de măsură și control"
+  industry_key: electronics_computers
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2711"
+  caen_label_en: "Manufacture of electric motors, generators, transformers"
+  caen_label_ro: "Fabricarea motoarelor, generatoarelor, transformatoarelor"
+  industry_key: electrical_equipment
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2731"
+  caen_label_en: "Manufacture of fibre optic cables"
+  caen_label_ro: "Fabricarea cablurilor cu fibră optică"
+  industry_key: electrical_equipment
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2733"
+  caen_label_en: "Manufacture of wiring devices"
+  caen_label_ro: "Fabricarea dispozitivelor de conectare"
+  industry_key: electrical_equipment
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2740"
+  caen_label_en: "Manufacture of electric lighting equipment"
+  caen_label_ro: "Fabricarea echipamentelor de iluminat"
+  industry_key: electrical_equipment
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2751"
+  caen_label_en: "Manufacture of electric domestic appliances"
+  caen_label_ro: "Fabricarea aparatelor electrocasnice"
+  industry_key: electrical_equipment
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2811"
+  caen_label_en: "Manufacture of engines and turbines"
+  caen_label_ro: "Fabricarea motoarelor și turbinelor"
+  industry_key: machinery_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2822"
+  caen_label_en: "Manufacture of lifting and handling equipment"
+  caen_label_ro: "Fabricarea echipamentelor de ridicat și manipulat"
+  industry_key: machinery_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2841"
+  caen_label_en: "Manufacture of metal forming machinery"
+  caen_label_ro: "Fabricarea utilajelor pentru prelucrarea metalului"
+  industry_key: machinery_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "2893"
+  caen_label_en: "Manufacture of machinery for food, beverage, tobacco"
+  caen_label_ro: "Fabricarea utilajelor pentru industria alimentară"
+  industry_key: machinery_industrial
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+
+# ──────────────────── 29-30 Vehicles & transport equip. ─────────────────
+- caen_code: "2910"
+  caen_label_en: "Manufacture of motor vehicles"
+  caen_label_ro: "Fabricarea autovehiculelor"
+  industry_key: automotive_oem_assembly
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "2920"
+  caen_label_en: "Manufacture of bodies (coachwork) for motor vehicles"
+  caen_label_ro: "Fabricarea caroseriilor pentru autovehicule"
+  industry_key: automotive_components_supplier
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "2931"
+  caen_label_en: "Manufacture of electrical and electronic equipment for motor vehicles"
+  caen_label_ro: "Fabricarea echipamentelor electrice și electronice pentru autovehicule"
+  industry_key: automotive_components_supplier
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "2932"
+  caen_label_en: "Manufacture of other parts and accessories for motor vehicles"
+  caen_label_ro: "Fabricarea altor piese și accesorii pentru autovehicule"
+  industry_key: automotive_components_supplier
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "3020"
+  caen_label_en: "Manufacture of railway locomotives and rolling stock"
+  caen_label_ro: "Fabricarea materialului rulant"
+  industry_key: other_transport_equipment
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "3030"
+  caen_label_en: "Manufacture of air and spacecraft"
+  caen_label_ro: "Fabricarea aeronavelor și astronavelor"
+  industry_key: other_transport_equipment
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+
+# ──────────────────── 31-33 Furniture & other manuf. ────────────────────
+- caen_code: "3101"
+  caen_label_en: "Manufacture of office and shop furniture"
+  caen_label_ro: "Fabricarea mobilei pentru birouri și magazine"
+  industry_key: furniture_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3102"
+  caen_label_en: "Manufacture of kitchen furniture"
+  caen_label_ro: "Fabricarea mobilei de bucătărie"
+  industry_key: furniture_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3109"
+  caen_label_en: "Manufacture of other furniture"
+  caen_label_ro: "Fabricarea altor articole de mobilier"
+  industry_key: furniture_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3220"
+  caen_label_en: "Manufacture of musical instruments"
+  caen_label_ro: "Fabricarea instrumentelor muzicale"
+  industry_key: other_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "3250"
+  caen_label_en: "Manufacture of medical and dental instruments"
+  caen_label_ro: "Fabricarea instrumentelor medicale și stomatologice"
+  industry_key: other_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: close
+  confidence: 0.75
+- caen_code: "3299"
+  caen_label_en: "Other manufacturing n.e.c."
+  caen_label_ro: "Alte activități industriale"
+  industry_key: other_manufacturing
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.7
+- caen_code: "3311"
+  caen_label_en: "Repair of fabricated metal products"
+  caen_label_ro: "Repararea produselor metalice"
+  industry_key: machinery_repair_install
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "3312"
+  caen_label_en: "Repair of machinery"
+  caen_label_ro: "Repararea utilajelor"
+  industry_key: machinery_repair_install
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3320"
+  caen_label_en: "Installation of industrial machinery and equipment"
+  caen_label_ro: "Instalarea mașinilor și echipamentelor industriale"
+  industry_key: machinery_repair_install
+  parent_industry_key: manufacturing_generic
+  match_quality: exact
+  confidence: 0.9
+
+# ──────────────────── 35-39 Energy & utilities ─────────────────────────
+- caen_code: "3511"
+  caen_label_en: "Production of electricity"
+  caen_label_ro: "Producția de energie electrică"
+  industry_key: electricity_generation_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3512"
+  caen_label_en: "Transmission of electricity"
+  caen_label_ro: "Transportul energiei electrice"
+  industry_key: electricity_generation_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3513"
+  caen_label_en: "Distribution of electricity"
+  caen_label_ro: "Distribuția energiei electrice"
+  industry_key: electricity_generation_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3514"
+  caen_label_en: "Trade of electricity"
+  caen_label_ro: "Comercializarea energiei electrice"
+  industry_key: electricity_generation_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3521"
+  caen_label_en: "Manufacture of gas"
+  caen_label_ro: "Producția gazelor"
+  industry_key: gas_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3522"
+  caen_label_en: "Distribution of gaseous fuels through mains"
+  caen_label_ro: "Distribuția combustibililor gazoși prin conducte"
+  industry_key: gas_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3530"
+  caen_label_en: "Steam and air conditioning supply"
+  caen_label_ro: "Furnizarea de abur și aer condiționat"
+  industry_key: heat_steam_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3600"
+  caen_label_en: "Water collection, treatment and supply"
+  caen_label_ro: "Captarea, tratarea și distribuția apei"
+  industry_key: water_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3700"
+  caen_label_en: "Sewerage"
+  caen_label_ro: "Colectarea și epurarea apelor uzate"
+  industry_key: water_supply
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3811"
+  caen_label_en: "Collection of non-hazardous waste"
+  caen_label_ro: "Colectarea deșeurilor nepericuloase"
+  industry_key: waste_management_recycling
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3821"
+  caen_label_en: "Treatment and disposal of non-hazardous waste"
+  caen_label_ro: "Tratarea deșeurilor nepericuloase"
+  industry_key: waste_management_recycling
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "3832"
+  caen_label_en: "Recovery of sorted materials"
+  caen_label_ro: "Recuperarea materialelor reciclabile sortate"
+  industry_key: waste_management_recycling
+  parent_industry_key: energy_utilities
+  match_quality: exact
+  confidence: 0.9
+
+# ───────────────────── 41-43 Construction ──────────────────────────────
+- caen_code: "4110"
+  caen_label_en: "Development of building projects"
+  caen_label_ro: "Dezvoltarea (promovarea) imobiliară"
+  industry_key: real_estate_residential_dev
+  parent_industry_key: real_estate
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4120"
+  caen_label_en: "Construction of residential and non-residential buildings"
+  caen_label_ro: "Lucrări de construcții a clădirilor"
+  industry_key: construction_buildings
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4211"
+  caen_label_en: "Construction of roads and motorways"
+  caen_label_ro: "Lucrări de construcții drumuri și autostrăzi"
+  industry_key: construction_civil_engineering
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4221"
+  caen_label_en: "Construction of utility projects for fluids"
+  caen_label_ro: "Lucrări de construcții pentru proiecte utilitare (fluide)"
+  industry_key: construction_civil_engineering
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4222"
+  caen_label_en: "Construction of utility projects for electricity and telecoms"
+  caen_label_ro: "Lucrări de construcții pentru proiecte utilitare (electricitate și telecom)"
+  industry_key: construction_civil_engineering
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4291"
+  caen_label_en: "Construction of water projects"
+  caen_label_ro: "Construcții hidrotehnice"
+  industry_key: construction_civil_engineering
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4311"
+  caen_label_en: "Demolition"
+  caen_label_ro: "Lucrări de demolare"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4321"
+  caen_label_en: "Electrical installation"
+  caen_label_ro: "Lucrări de instalații electrice"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4322"
+  caen_label_en: "Plumbing, heat and air-conditioning installation"
+  caen_label_ro: "Lucrări de instalații sanitare, încălzire, aer condiționat"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4331"
+  caen_label_en: "Plastering"
+  caen_label_ro: "Lucrări de ipsoserie"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4332"
+  caen_label_en: "Joinery installation"
+  caen_label_ro: "Lucrări de tâmplărie"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4333"
+  caen_label_en: "Floor and wall covering"
+  caen_label_ro: "Lucrări de pardoseli și placări"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4339"
+  caen_label_en: "Other building completion and finishing"
+  caen_label_ro: "Alte lucrări de finisare"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4399"
+  caen_label_en: "Other specialised construction activities n.e.c."
+  caen_label_ro: "Alte lucrări speciale de construcții"
+  industry_key: construction_specialized_works
+  parent_industry_key: construction
+  match_quality: exact
+  confidence: 0.85
+
+# ──────────────── 45-47 Trade (auto, wholesale, retail) ────────────────
+- caen_code: "4511"
+  caen_label_en: "Sale of cars and light motor vehicles"
+  caen_label_ro: "Comerțul cu autoturisme și autovehicule ușoare"
+  industry_key: automotive_retail_distribution
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+  notes: "CALIBRATION ROW — Porsche Romania maps here."
+- caen_code: "4519"
+  caen_label_en: "Sale of other motor vehicles"
+  caen_label_ro: "Comerțul cu alte autovehicule"
+  industry_key: automotive_retail_distribution
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4520"
+  caen_label_en: "Maintenance and repair of motor vehicles"
+  caen_label_ro: "Întreținerea și repararea autovehiculelor"
+  industry_key: automotive_parts_retail
+  parent_industry_key: trade_distribution_generic
+  match_quality: close
+  confidence: 0.75
+- caen_code: "4531"
+  caen_label_en: "Wholesale trade of motor vehicle parts and accessories"
+  caen_label_ro: "Comerț cu ridicata de piese și accesorii auto"
+  industry_key: automotive_parts_retail
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4532"
+  caen_label_en: "Retail trade of motor vehicle parts and accessories"
+  caen_label_ro: "Comerț cu amănuntul de piese și accesorii auto"
+  industry_key: automotive_parts_retail
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4540"
+  caen_label_en: "Sale, maintenance and repair of motorcycles"
+  caen_label_ro: "Comerț, întreținere și reparații motociclete"
+  industry_key: motorcycle_trade
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4621"
+  caen_label_en: "Wholesale of grain, unmanufactured tobacco, seeds, animal feed"
+  caen_label_ro: "Comerț angro cereale, semințe, hrană pentru animale"
+  industry_key: wholesale_agri_raw
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4631"
+  caen_label_en: "Wholesale of fruit and vegetables"
+  caen_label_ro: "Comerț angro fructe și legume"
+  industry_key: wholesale_food_beverage
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4632"
+  caen_label_en: "Wholesale of meat and meat products"
+  caen_label_ro: "Comerț angro carne și produse din carne"
+  industry_key: wholesale_food_beverage
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4639"
+  caen_label_en: "Non-specialised wholesale of food, beverages and tobacco"
+  caen_label_ro: "Comerț angro nespecializat alimentar și băuturi"
+  industry_key: wholesale_food_beverage
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4641"
+  caen_label_en: "Wholesale of textiles"
+  caen_label_ro: "Comerț angro produse textile"
+  industry_key: wholesale_household_goods
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4642"
+  caen_label_en: "Wholesale of clothing and footwear"
+  caen_label_ro: "Comerț angro îmbrăcăminte și încălțăminte"
+  industry_key: wholesale_household_goods
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4643"
+  caen_label_en: "Wholesale of electrical household appliances"
+  caen_label_ro: "Comerț angro electrocasnice"
+  industry_key: wholesale_household_goods
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4646"
+  caen_label_en: "Wholesale of pharmaceutical goods"
+  caen_label_ro: "Comerț angro produse farmaceutice"
+  industry_key: wholesale_pharmaceuticals
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4651"
+  caen_label_en: "Wholesale of computers, peripheral equipment and software"
+  caen_label_ro: "Comerț angro calculatoare, echipamente și software"
+  industry_key: wholesale_ict_equipment
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4652"
+  caen_label_en: "Wholesale of electronic and telecommunications equipment"
+  caen_label_ro: "Comerț angro echipamente electronice și telecom"
+  industry_key: wholesale_ict_equipment
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4661"
+  caen_label_en: "Wholesale of agricultural machinery, equipment and supplies"
+  caen_label_ro: "Comerț angro utilaje agricole"
+  industry_key: wholesale_machinery_industrial
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4669"
+  caen_label_en: "Wholesale of other machinery and equipment"
+  caen_label_ro: "Comerț angro alte mașini și utilaje"
+  industry_key: wholesale_machinery_industrial
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4671"
+  caen_label_en: "Wholesale of solid, liquid and gaseous fuels"
+  caen_label_ro: "Comerț angro combustibili solizi, lichizi și gazoși"
+  industry_key: trade_distribution_generic
+  parent_industry_key: null
+  match_quality: close
+  confidence: 0.7
+- caen_code: "4673"
+  caen_label_en: "Wholesale of wood, construction materials and sanitary equipment"
+  caen_label_ro: "Comerț angro materiale construcții și sanitare"
+  industry_key: wholesale_construction_materials
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4674"
+  caen_label_en: "Wholesale of hardware, plumbing and heating equipment"
+  caen_label_ro: "Comerț angro echipamente sanitare și de încălzire"
+  industry_key: wholesale_construction_materials
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4690"
+  caen_label_en: "Non-specialised wholesale trade"
+  caen_label_ro: "Comerț angro nespecializat"
+  industry_key: trade_distribution_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.55
+- caen_code: "4711"
+  caen_label_en: "Retail sale in non-specialised stores with food, beverages, tobacco"
+  caen_label_ro: "Comerț cu amănuntul nespecializat alimentar"
+  industry_key: retail_grocery_supermarket
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4719"
+  caen_label_en: "Other retail sale in non-specialised stores"
+  caen_label_ro: "Alt comerț cu amănuntul nespecializat"
+  industry_key: retail_grocery_supermarket
+  parent_industry_key: trade_distribution_generic
+  match_quality: close
+  confidence: 0.75
+- caen_code: "4721"
+  caen_label_en: "Retail sale of fruit and vegetables in specialised stores"
+  caen_label_ro: "Comerț amănuntul fructe și legume"
+  industry_key: retail_specialized_food
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4722"
+  caen_label_en: "Retail sale of meat and meat products"
+  caen_label_ro: "Comerț amănuntul carne și produse din carne"
+  industry_key: retail_specialized_food
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4724"
+  caen_label_en: "Retail sale of bread, cakes, flour confectionery"
+  caen_label_ro: "Comerț amănuntul pâine, produse de patiserie"
+  industry_key: retail_specialized_food
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4730"
+  caen_label_en: "Retail sale of automotive fuel in specialised stores"
+  caen_label_ro: "Comerț amănuntul carburanți"
+  industry_key: retail_fuel
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4741"
+  caen_label_en: "Retail sale of computers, peripheral units"
+  caen_label_ro: "Comerț amănuntul calculatoare"
+  industry_key: retail_electronics
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4742"
+  caen_label_en: "Retail sale of telecommunications equipment"
+  caen_label_ro: "Comerț amănuntul echipamente telecom"
+  industry_key: retail_electronics
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4743"
+  caen_label_en: "Retail sale of audio and video equipment"
+  caen_label_ro: "Comerț amănuntul echipamente audio-video"
+  industry_key: retail_electronics
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4752"
+  caen_label_en: "Retail sale of hardware, paints and glass"
+  caen_label_ro: "Comerț amănuntul materiale de construcții"
+  industry_key: retail_dyi_construction
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4753"
+  caen_label_en: "Retail sale of carpets, rugs, wall and floor coverings"
+  caen_label_ro: "Comerț amănuntul covoare, materiale pentru pardoseli"
+  industry_key: retail_dyi_construction
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4754"
+  caen_label_en: "Retail sale of electrical household appliances"
+  caen_label_ro: "Comerț amănuntul electrocasnice"
+  industry_key: retail_electronics
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4759"
+  caen_label_en: "Retail sale of furniture, lighting and other household articles"
+  caen_label_ro: "Comerț amănuntul mobilă, iluminat, articole gospodărești"
+  industry_key: trade_distribution_generic
+  parent_industry_key: null
+  match_quality: close
+  confidence: 0.7
+- caen_code: "4771"
+  caen_label_en: "Retail sale of clothing"
+  caen_label_ro: "Comerț amănuntul îmbrăcăminte"
+  industry_key: retail_clothing_footwear
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4772"
+  caen_label_en: "Retail sale of footwear and leather goods"
+  caen_label_ro: "Comerț amănuntul încălțăminte"
+  industry_key: retail_clothing_footwear
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4773"
+  caen_label_en: "Dispensing chemist in specialised stores"
+  caen_label_ro: "Farmacii"
+  industry_key: retail_pharmacy_cosmetics
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4774"
+  caen_label_en: "Retail sale of medical and orthopaedic goods"
+  caen_label_ro: "Comerț amănuntul produse medicale și ortopedice"
+  industry_key: retail_pharmacy_cosmetics
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4775"
+  caen_label_en: "Retail sale of cosmetic and toilet articles"
+  caen_label_ro: "Comerț amănuntul cosmetice"
+  industry_key: retail_pharmacy_cosmetics
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4791"
+  caen_label_en: "Retail sale via mail order houses or via the Internet"
+  caen_label_ro: "Comerț amănuntul prin internet sau prin corespondență"
+  industry_key: retail_online_marketplace
+  parent_industry_key: trade_distribution_generic
+  match_quality: exact
+  confidence: 0.95
+
+# ──────────────────── 49-53 Transport & logistics ──────────────────────
+- caen_code: "4910"
+  caen_label_en: "Passenger rail transport, interurban"
+  caen_label_ro: "Transport feroviar de pasageri"
+  industry_key: transport_logistics
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.55
+- caen_code: "4920"
+  caen_label_en: "Freight rail transport"
+  caen_label_ro: "Transport feroviar de marfă"
+  industry_key: transport_logistics
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.55
+- caen_code: "4931"
+  caen_label_en: "Urban and suburban passenger land transport"
+  caen_label_ro: "Transport urban și suburban de pasageri"
+  industry_key: passenger_road_transport
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4932"
+  caen_label_en: "Taxi operation"
+  caen_label_ro: "Transport cu taxi-uri"
+  industry_key: passenger_road_transport
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "4939"
+  caen_label_en: "Other passenger land transport n.e.c."
+  caen_label_ro: "Alte transporturi terestre de pasageri"
+  industry_key: passenger_road_transport
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "4941"
+  caen_label_en: "Freight transport by road"
+  caen_label_ro: "Transport rutier de marfă"
+  industry_key: road_freight_transport
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "4942"
+  caen_label_en: "Removal services"
+  caen_label_ro: "Mutări"
+  industry_key: road_freight_transport
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "5210"
+  caen_label_en: "Warehousing and storage"
+  caen_label_ro: "Depozitări"
+  industry_key: warehousing_storage
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "5221"
+  caen_label_en: "Service activities incidental to land transportation"
+  caen_label_ro: "Activități anexe transporturilor terestre"
+  industry_key: support_transport_services
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5224"
+  caen_label_en: "Cargo handling"
+  caen_label_ro: "Manipulări"
+  industry_key: support_transport_services
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5229"
+  caen_label_en: "Other transportation support activities (freight forwarding)"
+  caen_label_ro: "Alte activități anexe transporturilor (expediții)"
+  industry_key: support_transport_services
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5310"
+  caen_label_en: "Postal activities under universal service obligation"
+  caen_label_ro: "Activități poștale (universale)"
+  industry_key: courier_postal
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5320"
+  caen_label_en: "Other postal and courier activities"
+  caen_label_ro: "Alte activități poștale și de curier"
+  industry_key: courier_postal
+  parent_industry_key: transport_logistics
+  match_quality: exact
+  confidence: 0.95
+
+# ───────────────────── 55-56 Hospitality ───────────────────────────────
+- caen_code: "5510"
+  caen_label_en: "Hotels and similar accommodation"
+  caen_label_ro: "Hoteluri și alte facilități de cazare"
+  industry_key: hospitality_hotels
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "5520"
+  caen_label_en: "Holiday and other short-stay accommodation"
+  caen_label_ro: "Facilități de cazare de scurtă durată"
+  industry_key: hospitality_short_stay
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5530"
+  caen_label_en: "Camping grounds, recreational vehicle parks and trailer parks"
+  caen_label_ro: "Parcuri pentru rulote, campinguri"
+  industry_key: hospitality_short_stay
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "5590"
+  caen_label_en: "Other accommodation"
+  caen_label_ro: "Alte facilități de cazare"
+  industry_key: hospitality_short_stay
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "5610"
+  caen_label_en: "Restaurants and mobile food service activities"
+  caen_label_ro: "Restaurante"
+  industry_key: hospitality_restaurants
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "5621"
+  caen_label_en: "Event catering activities"
+  caen_label_ro: "Activități de alimentație pentru evenimente"
+  industry_key: hospitality_restaurants
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5629"
+  caen_label_en: "Other food service activities"
+  caen_label_ro: "Alte activități de alimentație"
+  industry_key: hospitality_restaurants
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "5630"
+  caen_label_en: "Beverage serving activities"
+  caen_label_ro: "Baruri și alte activități de servire a băuturilor"
+  industry_key: hospitality_bars_cafes
+  parent_industry_key: hospitality
+  match_quality: exact
+  confidence: 0.9
+
+# ────────────────── 58-63 Publishing, IT, telecom, media ───────────────
+- caen_code: "5811"
+  caen_label_en: "Book publishing"
+  caen_label_ro: "Editarea cărților"
+  industry_key: media_publishing
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5813"
+  caen_label_en: "Publishing of newspapers"
+  caen_label_ro: "Editarea ziarelor"
+  industry_key: media_publishing
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5814"
+  caen_label_en: "Publishing of journals and periodicals"
+  caen_label_ro: "Editarea revistelor și periodicelor"
+  industry_key: media_publishing
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5829"
+  caen_label_en: "Other software publishing"
+  caen_label_ro: "Editarea altor produse software"
+  industry_key: software_publishing
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "5911"
+  caen_label_en: "Motion picture, video and television programme production"
+  caen_label_ro: "Producția de filme, video și programe TV"
+  industry_key: media_film_tv_production
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "5912"
+  caen_label_en: "Motion picture, video and television programme post-production"
+  caen_label_ro: "Post-producție audio-video"
+  industry_key: media_film_tv_production
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "5920"
+  caen_label_en: "Sound recording and music publishing activities"
+  caen_label_ro: "Înregistrări audio și editare muzicală"
+  industry_key: media_film_tv_production
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "6010"
+  caen_label_en: "Radio broadcasting"
+  caen_label_ro: "Activități de difuzare a programelor de radio"
+  industry_key: media_broadcasting
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "6020"
+  caen_label_en: "Television programming and broadcasting activities"
+  caen_label_ro: "Activități de difuzare a programelor de TV"
+  industry_key: media_broadcasting
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "6110"
+  caen_label_en: "Wired telecommunications activities"
+  caen_label_ro: "Telecomunicații prin rețele cu cablu"
+  industry_key: telecommunications
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "6120"
+  caen_label_en: "Wireless telecommunications activities"
+  caen_label_ro: "Telecomunicații prin rețele fără cablu"
+  industry_key: telecommunications
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "6201"
+  caen_label_en: "Computer programming activities"
+  caen_label_ro: "Activități de realizare a soft-ului la comandă"
+  industry_key: it_services_consulting
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "6202"
+  caen_label_en: "Computer consultancy activities"
+  caen_label_ro: "Activități de consultanță în tehnologia informației"
+  industry_key: it_services_consulting
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "6203"
+  caen_label_en: "Computer facilities management activities"
+  caen_label_ro: "Activități de management al echipamentelor IT"
+  industry_key: it_services_consulting
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "6209"
+  caen_label_en: "Other information technology and computer service activities"
+  caen_label_ro: "Alte activități de servicii IT"
+  industry_key: it_services_consulting
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "6311"
+  caen_label_en: "Data processing, hosting and related activities"
+  caen_label_ro: "Prelucrarea datelor, găzduire (hosting)"
+  industry_key: data_hosting_processing
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "6312"
+  caen_label_en: "Web portals"
+  caen_label_ro: "Activități ale portalurilor web"
+  industry_key: data_hosting_processing
+  parent_industry_key: it_software_media
+  match_quality: exact
+  confidence: 0.85
+
+# ───────────────────── 64-66 Financial services ─────────────────────────
+# Note: financial services aren't in the industries.yaml sector list; map
+# to the closest professional_services_generic fallback so analyses don't
+# 404. Upgrade to a dedicated financial_services sector in a later phase.
+- caen_code: "6419"
+  caen_label_en: "Other monetary intermediation (banks)"
+  caen_label_ro: "Alte activități de intermediere monetară (bănci)"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "6420"
+  caen_label_en: "Activities of holding companies"
+  caen_label_ro: "Activități ale holdingurilor"
+  industry_key: head_office_holding_activities
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "6492"
+  caen_label_en: "Other credit granting"
+  caen_label_ro: "Alte activități de creditare"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "6512"
+  caen_label_en: "Non-life insurance"
+  caen_label_ro: "Asigurări generale"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "6630"
+  caen_label_en: "Fund management activities"
+  caen_label_ro: "Administrarea fondurilor"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.45
+
+# ───────────────────── 68 Real estate ──────────────────────────────────
+- caen_code: "6810"
+  caen_label_en: "Buying and selling of own real estate"
+  caen_label_ro: "Cumpărarea și vânzarea de bunuri imobiliare proprii"
+  industry_key: real_estate_residential_dev
+  parent_industry_key: real_estate
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "6820"
+  caen_label_en: "Renting and operating of own or leased real estate"
+  caen_label_ro: "Închirierea și subînchirierea bunurilor imobiliare proprii sau închiriate"
+  industry_key: real_estate_commercial_rental
+  parent_industry_key: real_estate
+  match_quality: exact
+  confidence: 0.95
+  notes: "CALIBRATION ROW — EEI Imobiliara maps here."
+- caen_code: "6831"
+  caen_label_en: "Real estate agencies"
+  caen_label_ro: "Agenții imobiliare"
+  industry_key: real_estate_agency_brokerage
+  parent_industry_key: real_estate
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "6832"
+  caen_label_en: "Management of real estate on a fee or contract basis"
+  caen_label_ro: "Administrarea imobilelor pe bază de comision sau contract"
+  industry_key: real_estate_property_management
+  parent_industry_key: real_estate
+  match_quality: exact
+  confidence: 0.95
+
+# ────────────────── 69-75 Professional, scientific, technical ───────────
+- caen_code: "6910"
+  caen_label_en: "Legal activities"
+  caen_label_ro: "Activități juridice"
+  industry_key: legal_accounting
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "6920"
+  caen_label_en: "Accounting, bookkeeping, auditing, tax consultancy"
+  caen_label_ro: "Activități de contabilitate, audit financiar, consultanță în domeniul fiscal"
+  industry_key: legal_accounting
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7010"
+  caen_label_en: "Activities of head offices"
+  caen_label_ro: "Activități ale sediilor centrale"
+  industry_key: head_office_holding_activities
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7022"
+  caen_label_en: "Business and other management consultancy activities"
+  caen_label_ro: "Activități de consultanță în afaceri și management"
+  industry_key: management_consulting
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7111"
+  caen_label_en: "Architectural activities"
+  caen_label_ro: "Activități de arhitectură"
+  industry_key: architecture_engineering
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7112"
+  caen_label_en: "Engineering activities and related technical consultancy"
+  caen_label_ro: "Activități de inginerie și consultanță tehnică"
+  industry_key: architecture_engineering
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7120"
+  caen_label_en: "Technical testing and analysis"
+  caen_label_ro: "Activități de testări și analize tehnice"
+  industry_key: architecture_engineering
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7211"
+  caen_label_en: "R&D on biotechnology"
+  caen_label_ro: "Cercetare-dezvoltare în biotehnologie"
+  industry_key: research_development
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7219"
+  caen_label_en: "Other research and experimental development on natural sciences and engineering"
+  caen_label_ro: "Cercetare-dezvoltare în alte științe naturale și inginerie"
+  industry_key: research_development
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7311"
+  caen_label_en: "Advertising agencies"
+  caen_label_ro: "Activități ale agențiilor de publicitate"
+  industry_key: advertising_market_research
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7312"
+  caen_label_en: "Media representation"
+  caen_label_ro: "Servicii de reprezentare media"
+  industry_key: advertising_market_research
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7320"
+  caen_label_en: "Market research and public opinion polling"
+  caen_label_ro: "Cercetare de piață"
+  industry_key: advertising_market_research
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7410"
+  caen_label_en: "Specialised design activities"
+  caen_label_ro: "Activități de design specializat"
+  industry_key: design_specialized_creative
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7420"
+  caen_label_en: "Photographic activities"
+  caen_label_ro: "Activități fotografice"
+  industry_key: design_specialized_creative
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7430"
+  caen_label_en: "Translation and interpretation activities"
+  caen_label_ro: "Traduceri și servicii de interpretariat"
+  industry_key: design_specialized_creative
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+
+# ─────────── 77-82 Administrative & support services ────────────────────
+- caen_code: "7711"
+  caen_label_en: "Renting and leasing of cars and light motor vehicles"
+  caen_label_ro: "Închirierea autoturismelor"
+  industry_key: rental_leasing_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7712"
+  caen_label_en: "Renting and leasing of trucks"
+  caen_label_ro: "Închirierea camioanelor"
+  industry_key: rental_leasing_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7732"
+  caen_label_en: "Renting and leasing of construction and civil engineering machinery"
+  caen_label_ro: "Închirierea utilajelor de construcții"
+  industry_key: rental_leasing_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "7740"
+  caen_label_en: "Leasing of intellectual property and similar products"
+  caen_label_ro: "Leasing de proprietate intelectuală"
+  industry_key: rental_leasing_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "7810"
+  caen_label_en: "Activities of employment placement agencies"
+  caen_label_ro: "Activități ale agențiilor de plasare a forței de muncă"
+  industry_key: employment_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7820"
+  caen_label_en: "Temporary employment agency activities"
+  caen_label_ro: "Activități de contractare, pe baze temporare, a personalului"
+  industry_key: employment_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7830"
+  caen_label_en: "Other human resources provision"
+  caen_label_ro: "Servicii de furnizare și management al forței de muncă"
+  industry_key: employment_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+  notes: "CALIBRATION ROW — ELIT maps here."
+- caen_code: "7911"
+  caen_label_en: "Travel agency activities"
+  caen_label_ro: "Activități ale agențiilor turistice"
+  industry_key: travel_agency_tour_operator
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7912"
+  caen_label_en: "Tour operator activities"
+  caen_label_ro: "Activități ale tur-operatorilor"
+  industry_key: travel_agency_tour_operator
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "7990"
+  caen_label_en: "Other reservation service and related activities"
+  caen_label_ro: "Alte servicii de rezervare"
+  industry_key: travel_agency_tour_operator
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "8010"
+  caen_label_en: "Private security activities"
+  caen_label_ro: "Activități de protecție și gardă"
+  industry_key: security_investigation
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "8020"
+  caen_label_en: "Security systems service activities"
+  caen_label_ro: "Servicii pentru sisteme de securitate"
+  industry_key: security_investigation
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "8110"
+  caen_label_en: "Combined facilities support activities"
+  caen_label_ro: "Activități combinate de suport pentru clădiri"
+  industry_key: building_facility_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "8121"
+  caen_label_en: "General cleaning of buildings"
+  caen_label_ro: "Activități generale de curățenie a clădirilor"
+  industry_key: building_facility_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "8130"
+  caen_label_en: "Landscape service activities"
+  caen_label_ro: "Activități de întreținere peisagistică"
+  industry_key: building_facility_services
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "8211"
+  caen_label_en: "Combined office administrative service activities"
+  caen_label_ro: "Activități combinate de secretariat"
+  industry_key: office_admin_support
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "8220"
+  caen_label_en: "Activities of call centres"
+  caen_label_ro: "Activități ale centrelor de intermediere telefonică"
+  industry_key: office_admin_support
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "8291"
+  caen_label_en: "Activities of collection agencies and credit bureaus"
+  caen_label_ro: "Activități ale agențiilor de colectare debite"
+  industry_key: office_admin_support
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.85
+- caen_code: "8299"
+  caen_label_en: "Other business support service activities n.e.c."
+  caen_label_ro: "Alte servicii suport pentru întreprinderi"
+  industry_key: office_admin_support
+  parent_industry_key: professional_services_generic
+  match_quality: exact
+  confidence: 0.7
+
+# ──────────────────── 85-88 Education / health / social ─────────────────
+- caen_code: "8510"
+  caen_label_en: "Pre-primary education"
+  caen_label_ro: "Învățământ preșcolar"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "8531"
+  caen_label_en: "General secondary education"
+  caen_label_ro: "Învățământ secundar general"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "8559"
+  caen_label_en: "Other education n.e.c."
+  caen_label_ro: "Alte forme de învățământ"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "8610"
+  caen_label_en: "Hospital activities"
+  caen_label_ro: "Activități spitalicești"
+  industry_key: hospital_activities
+  parent_industry_key: healthcare
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "8621"
+  caen_label_en: "General medical practice activities"
+  caen_label_ro: "Activități de asistență medicală generală"
+  industry_key: medical_dental_practice
+  parent_industry_key: healthcare
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "8622"
+  caen_label_en: "Specialist medical practice activities"
+  caen_label_ro: "Activități de asistență medicală specializată"
+  industry_key: medical_dental_practice
+  parent_industry_key: healthcare
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "8623"
+  caen_label_en: "Dental practice activities"
+  caen_label_ro: "Activități de asistență stomatologică"
+  industry_key: medical_dental_practice
+  parent_industry_key: healthcare
+  match_quality: exact
+  confidence: 0.95
+- caen_code: "8690"
+  caen_label_en: "Other human health activities"
+  caen_label_ro: "Alte activități referitoare la sănătatea umană"
+  industry_key: other_human_health_activities
+  parent_industry_key: healthcare
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "8710"
+  caen_label_en: "Residential nursing care activities"
+  caen_label_ro: "Activități de îngrijire rezidențială"
+  industry_key: residential_social_care
+  parent_industry_key: healthcare
+  match_quality: exact
+  confidence: 0.9
+- caen_code: "8810"
+  caen_label_en: "Social work activities without accommodation for the elderly and disabled"
+  caen_label_ro: "Asistență socială fără cazare, pentru bătrâni și persoane cu dizabilități"
+  industry_key: residential_social_care
+  parent_industry_key: healthcare
+  match_quality: exact
+  confidence: 0.85
+
+# ─────────────────── 90-96 Arts, entertainment, other ──────────────────
+- caen_code: "9001"
+  caen_label_en: "Performing arts"
+  caen_label_ro: "Activități de interpretare artistică"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.45
+- caen_code: "9311"
+  caen_label_en: "Operation of sports facilities"
+  caen_label_ro: "Activități ale bazelor sportive"
+  industry_key: hospitality
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.45
+- caen_code: "9319"
+  caen_label_en: "Other sports activities"
+  caen_label_ro: "Alte activități sportive"
+  industry_key: hospitality
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "9329"
+  caen_label_en: "Other amusement and recreation activities"
+  caen_label_ro: "Alte activități recreative"
+  industry_key: hospitality
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+- caen_code: "9521"
+  caen_label_en: "Repair of consumer electronics"
+  caen_label_ro: "Repararea echipamentelor electronice de uz casnic"
+  industry_key: machinery_repair_install
+  parent_industry_key: manufacturing_generic
+  match_quality: close
+  confidence: 0.6
+- caen_code: "9529"
+  caen_label_en: "Repair of other personal and household goods"
+  caen_label_ro: "Repararea altor bunuri personale și gospodărești"
+  industry_key: machinery_repair_install
+  parent_industry_key: manufacturing_generic
+  match_quality: close
+  confidence: 0.55
+- caen_code: "9602"
+  caen_label_en: "Hairdressing and other beauty treatment"
+  caen_label_ro: "Coafură și alte activități de înfrumusețare"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.45
+- caen_code: "9609"
+  caen_label_en: "Other personal service activities n.e.c."
+  caen_label_ro: "Alte activități de servicii"
+  industry_key: professional_services_generic
+  parent_industry_key: null
+  match_quality: sector_fallback
+  confidence: 0.4
+
+# ───────────────────────────────────────────────────────────────────────
+# COUNT (informational): 209 CAEN rows
+# ───────────────────────────────────────────────────────────────────────

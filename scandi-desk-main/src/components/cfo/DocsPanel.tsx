@@ -42,14 +42,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ToastAction } from "@/components/ui/toast";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
+import { periodQueryKey } from "@/lib/activePeriod";
 import {
-  enqueuePipeline,
   getSupabase,
   retryPipeline,
   signedDocumentUrl,
+  subscribeToDocumentStatus,
+  uploadDocument,
 } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 
 interface DocRow {
   id: string;
@@ -82,6 +86,11 @@ interface DeletedRow {
   display_name: string;
   deleted_at: string;
   restorable_until: string;
+  /** "financial" | "sku" — used by the dashboard's recently-deleted
+   *  section to keep ONLY financial docs (trial balances / statutory /
+   *  public-records). SKU trading-analysis deletes belong to
+   *  /products → DatasetsPanel, not here. */
+  scope?: string | null;
 }
 
 interface ApiResponse {
@@ -101,7 +110,17 @@ async function fetchPanelData(): Promise<ApiResponse | null> {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return null;
-  return (await res.json()) as ApiResponse;
+  const payload = (await res.json()) as ApiResponse;
+  // Domain isolation: keep ONLY financial docs in recently_deleted.
+  // Backend returns financial + sku as a union (DatasetsPanel filters
+  // for scope === 'sku' symmetrically). Without this filter, the
+  // dashboard's deleted shelf would surface deleted SKU trading-
+  // analysis files that belong to /products.
+  const all = payload.recently_deleted ?? [];
+  return {
+    ...payload,
+    recently_deleted: all.filter((row) => !row.scope || row.scope === "financial"),
+  };
 }
 
 async function restoreDoc(id: string): Promise<boolean> {
@@ -112,8 +131,56 @@ async function softDeleteDoc(id: string): Promise<boolean> {
   return await callDocEndpoint(`/api/documents/${id}`, "DELETE");
 }
 
+// Hard-delete: only works on already-soft-deleted documents. Backend
+// rejects (400) if `deleted_at` is null — that asymmetry is intentional
+// so accidental destruction of a live doc isn't possible from this path.
+async function permanentDeleteDoc(id: string): Promise<boolean> {
+  return await callDocEndpoint(`/api/documents/${id}/permanent`, "DELETE");
+}
+
+// Wipe every soft-deleted document in the user's org. Backend uses the
+// admin client after a per-user RLS scope check so other orgs' rows
+// can't be touched. Returns true on 2xx.
+async function clearAllRecentlyDeletedDocs(): Promise<boolean> {
+  return await callDocEndpoint(`/api/documents/clear-deleted`, "DELETE");
+}
+
 async function patchDoc(id: string, body: { display_name?: string; is_active?: boolean }): Promise<boolean> {
   return await callDocEndpoint(`/api/documents/${id}`, "PATCH", body);
+}
+
+/** Human-readable "5 days ago" without pulling in date-fns just for this. */
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "—";
+  const diffMs = Date.now() - then;
+  const sec = Math.round(diffMs / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  const day = Math.round(hr / 24);
+  if (day < 14) return `${day} ${day === 1 ? "day" : "days"} ago`;
+  const wk = Math.round(day / 7);
+  if (wk < 8) return `${wk} ${wk === 1 ? "week" : "weeks"} ago`;
+  const mo = Math.round(day / 30);
+  if (mo < 12) return `${mo} ${mo === 1 ? "month" : "months"} ago`;
+  const yr = Math.round(day / 365);
+  return `${yr} ${yr === 1 ? "year" : "years"} ago`;
+}
+
+/** Soft-delete every live document on a period. Returns the deleted-doc ids
+ *  so the caller can offer an undo (POST /restore on each). */
+async function softDeletePeriodDocs(period: PeriodRow): Promise<string[]> {
+  const liveIds = period.documents.filter((d) => !!d.is_active).map((d) => d.id);
+  if (liveIds.length === 0) return [];
+  await Promise.all(liveIds.map((id) => softDeleteDoc(id)));
+  return liveIds;
+}
+
+async function restoreMany(ids: string[]): Promise<void> {
+  await Promise.all(ids.map((id) => restoreDoc(id)));
 }
 
 async function callDocEndpoint(path: string, method: "POST" | "DELETE" | "PATCH", body?: object): Promise<boolean> {
@@ -164,31 +231,103 @@ export function DocsToggle({ count }: { count: number | null }) {
 }
 
 /** Returns the document-count for the header pill (active period's docs).
- *  Returns null while loading so the pill renders without flashing "(0)".  */
+ *  Returns null while loading so the pill renders without flashing "(0)".
+ *  Defensively filters empty periods — Step 5 of the docs-panel fix
+ *  guarantees the backend doesn't return them either, but belt-and-suspenders. */
 export function useDocsCount(): number | null {
   const { data, isLoading } = useQuery({
     queryKey: ["periods-with-documents"],
     queryFn: fetchPanelData,
   });
   if (isLoading || !data) return null;
-  const active = data.periods.find((p) => p.is_active);
+  const active = data.periods.find(
+    (p) => p.is_active && p.documents.length > 0,
+  );
   return active?.documents.length ?? 0;
 }
 
 // ─── The panel itself ──────────────────────────────────────────────────────
 
+const SHOW_OLDER_KEY = "cfo.docsPanel.showOlder";
+const SHOW_DELETED_KEY = "cfo.docsPanel.showDeleted";
+const OTHER_PERIODS_VISIBLE_DEFAULT = 3;
+
+function readBoolFlag(key: string, fallback = false): boolean {
+  try { return localStorage.getItem(key) === "1"; } catch { return fallback; }
+}
+function writeBoolFlag(key: string, value: boolean): void {
+  try { localStorage.setItem(key, value ? "1" : "0"); } catch { /* quota */ }
+}
+
 export function DocsPanel() {
   const [open, setOpen] = useDocsPanelOpen();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const { toast } = useToast();
+  // Pricing V3 — extra-doc confirm modal hook. Reused at every upload
+  // call site in the app via this hook so 402/429 behaviour is consistent.
+  const uploadEnqueue = useUploadEnqueue();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingName, setUploadingName] = useState<string | null>(null);
+  const [showOlder, setShowOlder] = useState<boolean>(() => readBoolFlag(SHOW_OLDER_KEY));
+  const [showDeleted, setShowDeleted] = useState<boolean>(() => readBoolFlag(SHOW_DELETED_KEY));
 
   const { data, isLoading } = useQuery({
     queryKey: ["periods-with-documents"],
     queryFn: fetchPanelData,
     enabled: open,
   });
+
+  async function handleFileChosen(file: File) {
+    const MAX_BYTES = 25 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast({
+        title: "File too large",
+        description: `${(file.size / 1_000_000).toFixed(1)} MB exceeds the 25 MB limit.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setUploadingName(file.name);
+    const { row, error } = await uploadDocument(file);
+    if (!row) {
+      setUploadingName(null);
+      toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
+      return;
+    }
+    // Pricing V3 — hook handles 402 (extra-doc dialog) + 429 (quota
+    // blocked) internally. Only `queued` proceeds to status streaming.
+    const enq = await uploadEnqueue.enqueue(row.id);
+    if (enq.kind !== "queued") {
+      setUploadingName(null);
+      return;
+    }
+    // Stream status until analyzed / failed. Auto-switch the active period
+    // and refresh the panel when analysis lands so the new doc appears.
+    const unsub = subscribeToDocumentStatus(row.id, (next) => {
+      if (next.status === "analyzed") {
+        unsub();
+        setUploadingName(null);
+        toast({ title: "Analysis ready", description: `${file.name} loaded.` });
+        void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+        if (next.period_id) {
+          const sp = new URLSearchParams(params);
+          sp.set("period", next.period_id);
+          setSearchParams(sp, { replace: true });
+        }
+      }
+      if (next.status === "failed") {
+        unsub();
+        setUploadingName(null);
+        toast({
+          title: "Analysis failed",
+          description: next.error ?? "Unknown error.",
+          variant: "destructive",
+        });
+      }
+    });
+  }
 
   // Esc closes the panel — matches the Cmd+D toggle and the X button.
   useEffect(() => {
@@ -199,6 +338,24 @@ export function DocsPanel() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
+
+  // ── ALL HOOKS ABOVE THE EARLY RETURN (rules of hooks) ─────────────────
+  // Permanent-delete confirmation state for the Recently Deleted section.
+  // Two modes: "single" deletes one soft-deleted doc; "all" wipes the
+  // entire bucket. Both require explicit confirmation — no toast undo
+  // (this is irreversible, opposite of the soft delete's 6-second
+  // optimistic undo).
+  //
+  // CRITICAL: this `useState` MUST live above the `if (!open) return null`
+  // below. Previously placed after the early return, it produced
+  // "Rendered fewer/more hooks than expected" the first time the panel
+  // toggled open — the closed render skipped the hook and the open
+  // render included it.
+  const [confirmPermanent, setConfirmPermanent] = useState<
+    | { mode: "single"; id: string; name: string }
+    | { mode: "all"; count: number }
+    | null
+  >(null);
 
   if (!open) return null;
 
@@ -225,8 +382,31 @@ export function DocsPanel() {
     }
   }
 
+  async function handlePermanentDelete(id: string) {
+    const ok = await permanentDeleteDoc(id);
+    if (ok) {
+      toast({ title: "Permanently deleted" });
+      void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+    } else {
+      toast({ title: "Couldn't delete permanently", variant: "destructive" });
+    }
+  }
+
+  async function handleClearAllDeleted() {
+    const ok = await clearAllRecentlyDeletedDocs();
+    if (ok) {
+      toast({ title: "Recently deleted cleared" });
+      void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+    } else {
+      toast({ title: "Couldn't clear", variant: "destructive" });
+    }
+  }
+
   return (
     <>
+      {/* Pricing V3 — extra-doc confirm dialog mounts inside the panel
+          tree so the modal stacks correctly above the docs slide-out. */}
+      {uploadEnqueue.dialog}
       {/* Narrow viewport (<1280px): backdrop overlay. Click closes.
           Wider viewports: backdrop is invisible/no-op, content reflows
           via the .lg:ml-[360px] class on the page wrapper.            */}
@@ -272,8 +452,10 @@ export function DocsPanel() {
             </div>
           )}
 
-          {/* Active period — sticky so it stays in view as the user scrolls others */}
-          {activePeriod && (
+          {/* Active period — hero card. Sticky so it stays in view as the
+              user scrolls older periods. Filter to non-empty periods only
+              (Step 5 defense — empty periods should never reach the UI). */}
+          {activePeriod && activePeriod.documents.length > 0 && (
             <section data-testid="docs-panel-section-active" className="sticky top-0 z-10 -mx-3 px-3 pb-3 bg-surface">
               <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">Active period</div>
               <PeriodCard
@@ -284,81 +466,247 @@ export function DocsPanel() {
             </section>
           )}
 
-          {/* Other periods */}
-          {otherPeriods.length > 0 && (
+          {/* Other periods — compact one-liner cards, collapsible after 3 */}
+          {otherPeriods.filter((p) => p.documents.length > 0).length > 0 && (
             <section data-testid="docs-panel-section-others">
               <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">
-                Other periods ({otherPeriods.length})
+                Other periods
               </div>
               <div className="space-y-2">
-                {otherPeriods.map((p) => (
-                  <PeriodCard
-                    key={p.period_id}
-                    period={p}
-                    isActive={false}
-                    isCurrent={currentPeriodInUrl === p.period_id}
-                    onSwitch={() => switchTo(p.period_id)}
-                  />
-                ))}
+                {otherPeriods
+                  .filter((p) => p.documents.length > 0)
+                  .slice(0, showOlder ? undefined : OTHER_PERIODS_VISIBLE_DEFAULT)
+                  .map((p) => (
+                    <OtherPeriodRow
+                      key={p.period_id}
+                      period={p}
+                      isCurrent={currentPeriodInUrl === p.period_id}
+                      onSwitch={() => switchTo(p.period_id)}
+                      onQuickDelete={async () => {
+                        const ids = await softDeletePeriodDocs(p);
+                        if (ids.length === 0) return;
+                        void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+                        toast({
+                          title: `Deleted ${p.period_end ? new Date(p.period_end).toLocaleDateString("en-GB", { dateStyle: "medium" }) : "period"}`,
+                          description: `${ids.length} ${ids.length === 1 ? "document" : "documents"} moved to Recently deleted.`,
+                          duration: 6_000,
+                          action: (
+                            <ToastAction
+                              altText="Undo delete"
+                              data-testid="undo-toast-action"
+                              onClick={async () => {
+                                await restoreMany(ids);
+                                void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+                                toast({ title: "Restored" });
+                              }}
+                            >
+                              Undo
+                            </ToastAction>
+                          ),
+                        });
+                      }}
+                    />
+                  ))}
               </div>
+              {otherPeriods.filter((p) => p.documents.length > 0).length > OTHER_PERIODS_VISIBLE_DEFAULT && (
+                <button
+                  type="button"
+                  data-testid="docs-panel-show-older"
+                  onClick={() => {
+                    const next = !showOlder;
+                    setShowOlder(next);
+                    writeBoolFlag(SHOW_OLDER_KEY, next);
+                  }}
+                  className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink"
+                >
+                  <ChevronRight
+                    size={11}
+                    strokeWidth={2}
+                    className={`transition-transform ${showOlder ? "rotate-90" : ""}`}
+                  />
+                  {showOlder
+                    ? `Hide ${otherPeriods.filter((p) => p.documents.length > 0).length - OTHER_PERIODS_VISIBLE_DEFAULT} older periods`
+                    : `Show ${otherPeriods.filter((p) => p.documents.length > 0).length - OTHER_PERIODS_VISIBLE_DEFAULT} older periods`}
+                </button>
+              )}
             </section>
           )}
 
-          {/* Recently deleted */}
+          {/* Recently deleted — collapsed by default, tap to expand. */}
           {recentlyDeleted.length > 0 && (
             <section data-testid="docs-panel-section-deleted">
-              <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">
-                Recently deleted ({recentlyDeleted.length})
-              </div>
-              <ul className="space-y-1.5">
-                {recentlyDeleted.map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <button
+                  type="button"
+                  data-testid="recently-deleted-toggle"
+                  onClick={() => {
+                    const next = !showDeleted;
+                    setShowDeleted(next);
+                    writeBoolFlag(SHOW_DELETED_KEY, next);
+                  }}
+                  className="flex-1 flex items-center justify-between text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium hover:text-ink"
+                >
+                  <span>Recently deleted ({recentlyDeleted.length}) · auto-delete in 28 days</span>
+                  <ChevronRight
+                    size={11}
+                    strokeWidth={2}
+                    className={`transition-transform ${showDeleted ? "rotate-90" : ""}`}
+                  />
+                </button>
+                {showDeleted && (
+                  <button
+                    type="button"
+                    data-testid="recently-deleted-clear-all"
+                    onClick={() => setConfirmPermanent({ mode: "all", count: recentlyDeleted.length })}
+                    className="text-[10.5px] font-medium text-[hsl(var(--alert))] hover:text-[hsl(var(--alert-d,var(--alert)))] hover:bg-alert-tint px-2 py-1 rounded transition-colors"
                   >
-                    <div className="min-w-0">
-                      <div className="text-[12.5px] text-ink truncate">{d.display_name}</div>
-                      <div className="text-[10.5px] text-ink-mute">
-                        Deleted {new Date(d.deleted_at).toLocaleDateString("en-GB", { dateStyle: "medium" })}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleRestore(d.id)}
-                      className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-d hover:text-brand"
+                    Clear all
+                  </button>
+                )}
+              </div>
+              {showDeleted && (
+                <ul data-testid="recently-deleted-list" className="space-y-1.5">
+                  {recentlyDeleted.map((d) => (
+                    <li
+                      key={d.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
                     >
-                      <RotateCcw size={11} strokeWidth={1.75} />
-                      Restore
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      <div className="min-w-0">
+                        <div className="text-[12.5px] text-ink truncate">{d.display_name}</div>
+                        <div className="text-[10.5px] text-ink-mute">
+                          Deleted {new Date(d.deleted_at).toLocaleDateString("en-GB", { dateStyle: "medium" })}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          aria-label={`Restore ${d.display_name}`}
+                          title="Restore"
+                          onClick={() => void handleRestore(d.id)}
+                          className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-d hover:text-brand hover:bg-bg-2 px-2 py-1 rounded transition-colors"
+                        >
+                          <RotateCcw size={12} strokeWidth={1.75} />
+                          <span>Restore</span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete ${d.display_name} permanently`}
+                          title="Delete permanently — cannot be undone"
+                          data-testid={`recently-deleted-permanent-${d.id}`}
+                          onClick={() =>
+                            setConfirmPermanent({ mode: "single", id: d.id, name: d.display_name })
+                          }
+                          className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[hsl(var(--alert))] hover:text-[hsl(var(--alert-d,var(--alert)))] hover:bg-alert-tint px-2 py-1 rounded transition-colors"
+                        >
+                          <Trash2 size={12} strokeWidth={1.75} />
+                          <span>Delete forever</span>
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 
-          {data && !activePeriod && otherPeriods.length === 0 && (
-            <div className="text-center py-12">
-              <FileText size={28} className="mx-auto text-ink-mute mb-2" strokeWidth={1.5} />
-              <p className="text-[13px] text-ink-soft">No documents yet.</p>
-              <p className="text-[11.5px] text-ink-mute mt-1">Drop a trial balance on the dashboard to begin.</p>
-            </div>
-          )}
+          {/* Confirmation dialog for permanent delete (single OR clear-all).
+              Destructive tone: confirm button is red, no toast undo, the
+              action removes the underlying storage blob + DB row. */}
+          <AlertDialog
+            open={confirmPermanent !== null}
+            onOpenChange={(open) => { if (!open) setConfirmPermanent(null); }}
+          >
+            <AlertDialogContent data-testid="permanent-delete-dialog">
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {confirmPermanent?.mode === "single"
+                    ? "Delete this file permanently?"
+                    : confirmPermanent?.mode === "all"
+                      ? `Permanently delete all ${confirmPermanent.count} file${confirmPermanent.count === 1 ? "" : "s"}?`
+                      : "Delete permanently?"}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {confirmPermanent?.mode === "single" ? (
+                    <>
+                      "<span className="font-medium text-ink">{confirmPermanent.name}</span>" will be permanently deleted. This cannot be undone.
+                    </>
+                  ) : confirmPermanent?.mode === "all" ? (
+                    <>
+                      All {confirmPermanent.count} file{confirmPermanent.count === 1 ? "" : "s"} in Recently Deleted will be permanently removed from storage. This cannot be undone.
+                    </>
+                  ) : null}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setConfirmPermanent(null)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  data-testid="permanent-delete-confirm"
+                  onClick={async () => {
+                    const state = confirmPermanent;
+                    setConfirmPermanent(null);
+                    if (!state) return;
+                    if (state.mode === "single") {
+                      await handlePermanentDelete(state.id);
+                    } else {
+                      await handleClearAllDeleted();
+                    }
+                  }}
+                  className="bg-red-500 hover:bg-red-600 text-white"
+                >
+                  {confirmPermanent?.mode === "single" ? "Delete forever" : "Delete all forever"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {data &&
+            (!activePeriod || activePeriod.documents.length === 0) &&
+            otherPeriods.filter((p) => p.documents.length > 0).length === 0 && (
+              <div className="text-center py-12">
+                <FileText size={28} className="mx-auto text-ink-mute mb-2" strokeWidth={1.5} />
+                <p className="text-[13px] text-ink-soft">No documents yet.</p>
+                <p className="text-[11.5px] text-ink-mute mt-1">Upload one from the button below.</p>
+              </div>
+            )}
         </div>
 
         <footer className="px-3 py-3 border-t border-rule">
+          {/* Hidden file picker — the visible button below triggers it.
+              Same component used everywhere uploads start: Dashboard
+              empty state, header Replace dropdown, and this panel
+              (the three entry points that drifted apart before the
+              docs-panel fix). */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.xlsx,.csv,.jpg,.jpeg,.png,.xml"
+            className="hidden"
+            data-testid="docs-panel-upload-input"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              // Reset so the same file picks again next time.
+              e.currentTarget.value = "";
+              if (f) void handleFileChosen(f);
+            }}
+          />
           <button
             type="button"
-            onClick={() => {
-              setOpen(false);
-              // The dashboard's empty-state dropzone is the canonical upload
-              // surface; the panel doesn't duplicate it. Close + scroll to top.
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!!uploadingName}
             data-testid="docs-panel-upload"
-            className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-lg border border-dashed border-rule text-[12.5px] font-medium text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2 transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-lg border border-dashed border-rule text-[12.5px] font-medium text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
-            <Upload size={13} strokeWidth={1.75} />
-            Upload document
+            {uploadingName ? (
+              <>
+                <Loader2 size={13} className="animate-spin" strokeWidth={1.75} />
+                Uploading {uploadingName.slice(0, 28)}…
+              </>
+            ) : (
+              <>
+                <Upload size={13} strokeWidth={1.75} />
+                Upload document
+              </>
+            )}
           </button>
         </footer>
       </aside>
@@ -401,7 +749,7 @@ function PeriodCard({
               </span>
             )}
             {isActive && !isCurrent && (
-              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.06em] font-semibold text-emerald-700 px-1.5 py-0.5 rounded-full bg-emerald-50">
+              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.06em] font-semibold text-[hsl(var(--success))] px-1.5 py-0.5 rounded-full bg-success-tint">
                 Active
               </span>
             )}
@@ -430,6 +778,75 @@ function PeriodCard({
         </button>
       )}
     </article>
+  );
+}
+
+// ─── OtherPeriodRow — compact one-liner for non-active periods ──────────
+
+function OtherPeriodRow({
+  period,
+  isCurrent,
+  onSwitch,
+  onQuickDelete,
+}: {
+  period: PeriodRow;
+  isCurrent: boolean;
+  onSwitch: () => void;
+  onQuickDelete: () => void;
+}) {
+  const label = period.period_end
+    ? new Date(period.period_end).toLocaleDateString("en-GB", { dateStyle: "medium" })
+    : period.period_label;
+  const topDoc = period.documents.find((d) => d.is_active) ?? period.documents[0];
+  const ring = isCurrent
+    ? "border-brand bg-brand/[0.06]"
+    : "border-rule bg-bg-2/30 hover:border-rule-strong hover:bg-bg-2/70";
+
+  return (
+    <div
+      data-testid="other-period-card"
+      className={`group relative rounded-xl border ${ring} transition-colors`}
+    >
+      {/* Quick delete — visible on hover/focus. Single click → soft-delete +
+          undo toast. No confirmation dialog (Apple "Move to Bin" pattern). */}
+      <button
+        type="button"
+        data-testid="quick-delete"
+        aria-label={`Delete ${label}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onQuickDelete();
+        }}
+        className="absolute top-1.5 right-1.5 p-1 rounded-md text-ink-mute opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-red-700 hover:bg-bg-2 transition-opacity"
+      >
+        <Trash2 size={11} strokeWidth={1.75} />
+      </button>
+
+      {/* Whole-card click switches periods. The visible "Switch →" is the
+          affordance, but the user doesn't need to hit it exactly. */}
+      <button
+        type="button"
+        onClick={onSwitch}
+        data-testid="any-period-card"
+        className="w-full text-left px-3.5 py-2.5"
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-serif text-[13.5px] text-ink leading-tight">{label}</span>
+        </div>
+        <div className="mt-0.5 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex items-center gap-1.5 text-[11px] text-ink-mute">
+            <FileText size={10} strokeWidth={1.75} className="shrink-0" />
+            <span className="truncate">{topDoc?.display_name ?? topDoc?.original_filename ?? "—"}</span>
+            {topDoc && (
+              <span className="shrink-0 text-ink-mute/80">· {relativeTime(topDoc.uploaded_at)}</span>
+            )}
+          </div>
+          <span className="shrink-0 text-[11px] text-ink-soft group-hover:text-ink transition-colors">
+            Switch →
+          </span>
+        </div>
+      </button>
+    </div>
   );
 }
 

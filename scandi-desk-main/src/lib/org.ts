@@ -56,16 +56,27 @@ async function fetchOrgsForUser(): Promise<Organization[]> {
     console.warn("[org] fetchOrgsForUser failed:", error.message);
     return [];
   }
-  return (data ?? []).map((row) => {
-    const org = (row as { organizations: { id: string; name: string; industry_key: string | null; industry_display_name: string | null; default_currency: string | null } }).organizations;
-    return {
+  // Supabase types the inner-join relation as an array even when cardinality
+  // is 1:1 — coerce the first element. Returning null-shape rows are
+  // filtered out below.
+  type OrgRow = {
+    role: Organization["role"];
+    organizations:
+      | { id: string; name: string; industry_key: string | null; industry_display_name: string | null; default_currency: string | null }
+      | Array<{ id: string; name: string; industry_key: string | null; industry_display_name: string | null; default_currency: string | null }>;
+  };
+  const rows = (data ?? []) as unknown as OrgRow[];
+  return rows.flatMap((row) => {
+    const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
+    if (!org) return [];
+    return [{
       id: org.id,
       name: org.name,
       industry_key: org.industry_key ?? null,
       industry_display_name: org.industry_display_name ?? null,
       default_currency: org.default_currency ?? null,
-      role: (row as { role: Organization["role"] }).role,
-    };
+      role: row.role,
+    }];
   });
 }
 

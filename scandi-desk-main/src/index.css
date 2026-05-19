@@ -1,3 +1,17 @@
+/* Typography — Inter Variable (UI / body) + Instrument Serif (hero numbers,
+   page H1, big eyebrows). The serif/sans pairing is the foundation of the
+   visual lift; sans for data legibility, serif for presence. UPRIGHT only —
+   italic 400 is intentionally NOT loaded so we can't accidentally render it. */
+@import "@fontsource-variable/inter";
+@import "@fontsource/instrument-serif/400.css";
+
+/* Marketing surface tokens — `--m-*` namespace; scoped via `.marketing-surface`. */
+@import "./styles/marketing-tokens.css";
+
+/* EEI Board-grade dashboard tokens — `--eei-*` namespace; opt in via
+ * the `.eei-scope` wrapper on the analyzed-company dashboard surface. */
+@import "./styles/eeiBoard.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,6 +24,121 @@
   `.dark` (data-theme via next-themes' class strategy). Components consume
   tokens through Tailwind aliases — never inline hex.
 */
+
+/* Gradient accent system — used on hero numbers, primary CTAs, active
+   indicators, and confidence glyphs. Never on data surfaces.
+   These are raw CSS custom properties (no HSL token wrapping) because they
+   carry their own composed colors. */
+:root {
+  /* Default (light mode) — DEEPER, more saturated stops so the gradient
+     reads with high contrast when clipped to thin Instrument Serif strokes
+     on the warm cream surface. The bright 500-series stops looked washed
+     out in light mode; these 700-series stops keep the same hue sweep but
+     stay legible against #FAFAF7. The .dark block below restores the
+     bright variant for the navy background. */
+  --grad-from: #4338CA;    /* indigo-700 */
+  --grad-via:  #7E22CE;    /* purple-700 */
+  --grad-to:   #BE185D;    /* pink-700 */
+  --grad-hero: linear-gradient(135deg, var(--grad-from) 0%, var(--grad-via) 50%, var(--grad-to) 100%);
+  --grad-warm: linear-gradient(135deg, #B45309 0%, #BE185D 100%);
+  --grad-cool: linear-gradient(135deg, #4338CA 0%, #0E7490 100%);
+  --grad-money: linear-gradient(135deg, #047857 0%, #059669 50%, #10B981 100%);
+  /* CFO brand-aligned hero gradient — bridges the platform's teal CTA color
+     into the indigo/violet/pink sweep. Light-mode stops are 700-series so
+     thin serif strokes still read against cream. */
+  --grad-cfo: linear-gradient(135deg, #0F766E 0%, #155E75 25%, #3730A3 55%, #6B21A8 80%, #9D174D 100%);
+}
+.dark {
+  /* Dark-mode override — bright 500-series colors that pop on the #05070A
+     navy background. Same hue sequence as light, just brighter. */
+  --grad-from: #6366F1;
+  --grad-via:  #8B5CF6;
+  --grad-to:   #EC4899;
+  --grad-hero: linear-gradient(135deg, var(--grad-from) 0%, var(--grad-via) 50%, var(--grad-to) 100%);
+  --grad-warm: linear-gradient(135deg, #F59E0B 0%, #EC4899 100%);
+  --grad-cool: linear-gradient(135deg, #6366F1 0%, #06B6D4 100%);
+  --grad-money: linear-gradient(135deg, #10B981 0%, #34D399 50%, #6EE7B7 100%);
+  --grad-cfo: linear-gradient(135deg, #2ED3C6 0%, #06B6D4 25%, #6366F1 55%, #8B5CF6 80%, #EC4899 100%);
+}
+.dark {
+  /* Gradients render at the same hex; perceived saturation lifts on dark
+     surfaces. The CTAs / hero numbers benefit; no token change needed. */
+}
+
+/* Reusable atomic classes for hero-number / gradient-CTA treatments.
+   Components apply these instead of inlining the gradient. */
+@layer utilities {
+  .text-gradient-hero {
+    background: var(--grad-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .bg-gradient-hero { background: var(--grad-hero); }
+  .bg-gradient-warm { background: var(--grad-warm); }
+  .bg-gradient-cool { background: var(--grad-cool); }
+  .bg-gradient-money { background: var(--grad-money); }
+  .bg-gradient-cfo  { background: var(--grad-cfo); }
+  .text-gradient-cfo {
+    background: var(--grad-cfo);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .text-gradient-money {
+    background: var(--grad-money);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .text-gradient-warm {
+    background: var(--grad-warm);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Big-number serif treatment — UPRIGHT Instrument Serif. The earlier
+     italic experiment is removed: italic is reserved for editorial pull-
+     quotes only, never for numerals or headlines (the B2B refinement). */
+  .num-hero {
+    font-family: '"Instrument Serif"', "Cormorant Garamond", ui-serif, Georgia, serif;
+    font-style: normal;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  /* Subtle animated breathing — for confidence dots, gradient spinners.
+     2s loop, opacity + scale, GPU-cheap. */
+  @keyframes cfo-breathe {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(0.95); }
+  }
+  .animate-breathe { animation: cfo-breathe 2s ease-in-out infinite; }
+
+  /* Shimmer sweep — used by Skeleton via a ::before pseudo. The element
+     is 100% wide and starts translated -100%; this keyframe slides it
+     to +100% so a soft light bar sweeps across. */
+  @keyframes cfo-shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%);  }
+  }
+
+  /* Spring-style scale-in entrance — used by toast variants and small
+     interactive surfaces that benefit from a touch of bounce. */
+  @keyframes cfo-pop-in {
+    0%   { opacity: 0; transform: scale(0.95) translateY(4px); }
+    60%  { opacity: 1; transform: scale(1.02) translateY(0); }
+    100% { transform: scale(1); }
+  }
+  .animate-pop-in { animation: cfo-pop-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+}
 
 @layer base {
   :root {
@@ -226,10 +355,16 @@
     --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--info)) 100%);
     --grad-hero:   linear-gradient(135deg, hsl(174 67% 51%) 0%, hsl(189 95% 55%) 50%, hsl(210 100% 62%) 100%);
     --grad-gold:   linear-gradient(135deg, hsl(40 62% 57%) 0%, hsl(44 82% 67%) 100%);
+    /* Dark-mode mesh — Cleo "lit room at night" feel. Brand teal in the
+       upper-left, indigo bleed top-right, violet glow center-low, and a
+       pink whisper bottom-right. Opacities stay ≤8% so data surfaces never
+       have to fight the ambient. */
     --grad-mesh:
-      radial-gradient(at 18% 18%, hsl(var(--brand) / 0.10) 0px, transparent 55%),
-      radial-gradient(at 82% 10%, hsl(var(--info) / 0.08)  0px, transparent 60%),
-      radial-gradient(at 50% 92%, hsl(var(--brand-2) / 0.06) 0px, transparent 60%);
+      radial-gradient(at 12% 14%, hsl(var(--brand) / 0.12) 0px, transparent 50%),
+      radial-gradient(at 88% 8%,  hsl(217 91% 60% / 0.10) 0px, transparent 55%),
+      radial-gradient(at 50% 90%, hsl(258 90% 66% / 0.10) 0px, transparent 55%),
+      radial-gradient(at 95% 80%, hsl(330 90% 65% / 0.06) 0px, transparent 55%),
+      radial-gradient(at 8% 70%,  hsl(189 95% 55% / 0.06) 0px, transparent 55%);
   }
 }
 
@@ -262,7 +397,8 @@
   }
 
   /* Mesh gradient applied to a fixed pseudo-element so children don't
-     recompute it on scroll. */
+     recompute it on scroll. Hidden on the marketing surface where the
+     warm cream tokens own the background entirely. */
   body::before {
     content: "";
     position: fixed;
@@ -271,6 +407,7 @@
     pointer-events: none;
     z-index: -1;
   }
+  body:has(.marketing-surface)::before { display: none; }
 
   .tnum,
   table,
@@ -420,5 +557,57 @@
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;                    /* Chromium / WebKit */
+  }
+}
+
+/* ── Print rules — Comprehensive Report export to PDF ───────────────────────
+   The /report page calls window.print() and relies on these rules to
+   hide chrome that doesn't belong in a printed CFO memo: sidebar,
+   top-header, command palette, hover states, toasts, the section nav
+   bar, and the Export buttons themselves. Tailwind's `print:hidden`
+   utility handles per-element hides; these rules handle the global
+   structural pieces.
+
+   Page setup: A4 portrait, 12mm margins (institutional memo standard).
+   Sections are not allowed to break across pages; tables stay together
+   where possible (page-break-inside: avoid).                                */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  /* Strip app chrome */
+  [data-testid="cfo-sidebar"],
+  [data-testid="top-header"],
+  [data-testid="command-drawer"],
+  [data-testid="floating-ai-button"],
+  [data-testid="chat-copilot"],
+  [data-testid="toast-region"],
+  nav.print-hidden,
+  .print\:hidden {
+    display: none !important;
+  }
+  /* Force full-width body for print */
+  body, .app-shell, [data-testid="comprehensive-report"] {
+    background: white !important;
+    color: #1a1a1a !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* Section page-break hints */
+  [data-testid^="report-section-"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* Tables shouldn't split mid-row */
+  table { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  tr   { page-break-inside: avoid; }
+  /* Higher contrast for the navy header card on white paper */
+  [data-testid="comprehensive-report"] header[style*="linear-gradient"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: white !important;
   }
 }

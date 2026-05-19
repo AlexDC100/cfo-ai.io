@@ -1,0 +1,140 @@
+{
+  "version": "2026.01",
+  "last_updated": "2026-01-15",
+  "disclosure": "Industry benchmarks are estimates derived from publicly available Romanian SME filings (Ministerul Finanțelor, Termene.ro samples), Eurostat Structural Business Statistics, and sector-specific public reports. Estimates reflect typical mid-size Romanian companies in each CAEN code, FY2023-2024. Individual companies vary materially — use these as directional context, not as absolute targets. For audit-grade benchmarks, consider licensed providers (Bisnode, KeysFin).",
+  "industries": [
+    {
+      "caen_code": "1012",
+      "caen_label": "Prelucrarea cărnii de pasăre",
+      "industry_category": "manufacturing_consumer",
+      "source": "Eurostat SBS NACE C10.12 RO 2023 + Transavia/Aaylex/Agricola public filings 2023-24",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25": 45.0, "p50": 50.0, "p75": 55.0, "unit": "pct", "notes": "Materii prime — dominat de furaje/pui" },
+        { "name": "opex_energy_pct_revenue",         "p25":  4.0, "p50":  6.0, "p75":  8.0, "unit": "pct" },
+        { "name": "opex_personnel_pct_revenue",      "p25": 12.0, "p50": 15.0, "p75": 18.0, "unit": "pct" },
+        { "name": "opex_external_services_pct_revenue", "p25": 4.0, "p50": 6.0, "p75":  8.0, "unit": "pct" },
+        { "name": "depreciation_pct_revenue",        "p25":  3.0, "p50":  4.0, "p75":  7.0, "unit": "pct" },
+        { "name": "ebitda_margin",                   "p25":  8.0, "p50": 12.0, "p75": 18.0, "unit": "pct", "notes": "Integrated outliers like Transavia: 25-35%" },
+        { "name": "net_margin",                      "p25":  2.0, "p50":  6.0, "p75": 10.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  1.5, "p50":  3.0, "p75":  5.0, "unit": "ratio" },
+        { "name": "equity_ratio",                    "p25": 25.0, "p50": 40.0, "p75": 60.0, "unit": "pct", "notes": "% equity / total assets" }
+      ]
+    },
+    {
+      "caen_code": "1013",
+      "caen_label": "Producția de produse din carne (inclusiv pasăre)",
+      "industry_category": "manufacturing_consumer",
+      "source": "Eurostat SBS NACE C10.13 RO 2023 + Scandia/Cris-Tim/Elit public filings",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25": 50.0, "p50": 58.0, "p75": 65.0, "unit": "pct" },
+        { "name": "opex_energy_pct_revenue",         "p25":  3.0, "p50":  5.0, "p75":  7.0, "unit": "pct" },
+        { "name": "opex_personnel_pct_revenue",      "p25": 10.0, "p50": 13.0, "p75": 16.0, "unit": "pct" },
+        { "name": "opex_external_services_pct_revenue", "p25": 5.0, "p50": 8.0, "p75": 12.0, "unit": "pct" },
+        { "name": "depreciation_pct_revenue",        "p25":  2.5, "p50":  4.0, "p75":  6.0, "unit": "pct" },
+        { "name": "ebitda_margin",                   "p25":  6.0, "p50": 10.0, "p75": 15.0, "unit": "pct" },
+        { "name": "net_margin",                      "p25":  1.0, "p50":  4.0, "p75":  8.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  2.0, "p50":  3.5, "p75":  5.5, "unit": "ratio" },
+        { "name": "equity_ratio",                    "p25": 20.0, "p50": 35.0, "p75": 55.0, "unit": "pct" }
+      ]
+    },
+    {
+      "caen_code": "6820",
+      "caen_label": "Închirierea și subînchirierea bunurilor imobiliare proprii sau închiriate",
+      "industry_category": "real_estate_commercial",
+      "source": "Eurostat SBS NACE L68.20 RO 2023 + Romanian CRE public filings",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25":  0.0, "p50":  0.0, "p75":  5.0, "unit": "pct", "notes": "CRE has minimal COGS" },
+        { "name": "opex_personnel_pct_revenue",      "p25":  5.0, "p50": 10.0, "p75": 18.0, "unit": "pct" },
+        { "name": "opex_external_services_pct_revenue", "p25": 8.0, "p50": 15.0, "p75": 25.0, "unit": "pct", "notes": "Property mgmt + maintenance" },
+        { "name": "depreciation_pct_revenue",        "p25": 15.0, "p50": 25.0, "p75": 40.0, "unit": "pct", "notes": "High due to building depreciation" },
+        { "name": "ebitda_margin",                   "p25": 50.0, "p50": 65.0, "p75": 80.0, "unit": "pct", "notes": "High due to passive income model" },
+        { "name": "net_margin",                      "p25": 10.0, "p50": 25.0, "p75": 45.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  3.0, "p50":  6.0, "p75": 10.0, "unit": "ratio", "notes": "CRE typically uses leverage" },
+        { "name": "equity_ratio",                    "p25": 15.0, "p50": 30.0, "p75": 50.0, "unit": "pct" }
+      ]
+    },
+    {
+      "caen_code": "4711",
+      "caen_label": "Comerț cu amănuntul în magazine nespecializate (alimente)",
+      "industry_category": "retail_grocery",
+      "source": "Eurostat SBS NACE G47.11 RO 2023 + Mega/Profi/Carrefour RO public filings",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25": 70.0, "p50": 75.0, "p75": 80.0, "unit": "pct" },
+        { "name": "opex_personnel_pct_revenue",      "p25":  7.0, "p50":  9.0, "p75": 12.0, "unit": "pct" },
+        { "name": "opex_external_services_pct_revenue", "p25": 4.0, "p50":  6.0, "p75":  9.0, "unit": "pct" },
+        { "name": "opex_energy_pct_revenue",         "p25":  1.5, "p50":  2.5, "p75":  4.0, "unit": "pct" },
+        { "name": "depreciation_pct_revenue",        "p25":  1.0, "p50":  2.0, "p75":  3.5, "unit": "pct" },
+        { "name": "ebitda_margin",                   "p25":  3.0, "p50":  5.0, "p75":  8.0, "unit": "pct" },
+        { "name": "net_margin",                      "p25":  0.5, "p50":  2.0, "p75":  4.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  1.0, "p50":  2.5, "p75":  4.0, "unit": "ratio" },
+        { "name": "equity_ratio",                    "p25": 15.0, "p50": 25.0, "p75": 40.0, "unit": "pct" }
+      ]
+    },
+    {
+      "caen_code": "4719",
+      "caen_label": "Comerț cu amănuntul în magazine nespecializate (nealimentare)",
+      "industry_category": "retail_general",
+      "source": "Eurostat SBS NACE G47.19 RO 2023",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25": 55.0, "p50": 62.0, "p75": 70.0, "unit": "pct" },
+        { "name": "opex_personnel_pct_revenue",      "p25":  8.0, "p50": 12.0, "p75": 16.0, "unit": "pct" },
+        { "name": "opex_external_services_pct_revenue", "p25": 5.0, "p50":  8.0, "p75": 12.0, "unit": "pct" },
+        { "name": "opex_energy_pct_revenue",         "p25":  1.5, "p50":  2.5, "p75":  4.0, "unit": "pct" },
+        { "name": "depreciation_pct_revenue",        "p25":  1.5, "p50":  3.0, "p75":  5.0, "unit": "pct" },
+        { "name": "ebitda_margin",                   "p25":  5.0, "p50":  8.0, "p75": 14.0, "unit": "pct" },
+        { "name": "net_margin",                      "p25":  1.0, "p50":  3.5, "p75":  7.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  1.0, "p50":  2.5, "p75":  4.5, "unit": "ratio" },
+        { "name": "equity_ratio",                    "p25": 20.0, "p50": 35.0, "p75": 55.0, "unit": "pct" }
+      ]
+    },
+    {
+      "caen_code": "4120",
+      "caen_label": "Construcții de clădiri rezidențiale și nerezidențiale",
+      "industry_category": "construction",
+      "source": "Eurostat SBS NACE F41.20 RO 2023 + ANAF public filings sample",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25": 65.0, "p50": 72.0, "p75": 80.0, "unit": "pct" },
+        { "name": "opex_personnel_pct_revenue",      "p25":  8.0, "p50": 12.0, "p75": 18.0, "unit": "pct" },
+        { "name": "opex_external_services_pct_revenue", "p25": 4.0, "p50":  7.0, "p75": 12.0, "unit": "pct" },
+        { "name": "depreciation_pct_revenue",        "p25":  1.5, "p50":  3.0, "p75":  5.0, "unit": "pct" },
+        { "name": "ebitda_margin",                   "p25":  4.0, "p50":  8.0, "p75": 14.0, "unit": "pct" },
+        { "name": "net_margin",                      "p25":  1.0, "p50":  4.0, "p75":  8.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  1.5, "p50":  3.5, "p75":  6.0, "unit": "ratio" },
+        { "name": "equity_ratio",                    "p25": 15.0, "p50": 25.0, "p75": 45.0, "unit": "pct" }
+      ]
+    },
+    {
+      "caen_code": "5610",
+      "caen_label": "Restaurante",
+      "industry_category": "hospitality_restaurant",
+      "source": "Eurostat SBS NACE I56.10 RO 2023",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25": 28.0, "p50": 32.0, "p75": 38.0, "unit": "pct" },
+        { "name": "opex_personnel_pct_revenue",      "p25": 25.0, "p50": 32.0, "p75": 40.0, "unit": "pct" },
+        { "name": "opex_rent_pct_revenue",           "p25":  6.0, "p50": 10.0, "p75": 15.0, "unit": "pct" },
+        { "name": "opex_external_services_pct_revenue", "p25": 5.0, "p50":  8.0, "p75": 12.0, "unit": "pct" },
+        { "name": "opex_energy_pct_revenue",         "p25":  3.0, "p50":  5.0, "p75":  8.0, "unit": "pct" },
+        { "name": "ebitda_margin",                   "p25":  5.0, "p50": 10.0, "p75": 18.0, "unit": "pct" },
+        { "name": "net_margin",                      "p25":  1.0, "p50":  4.0, "p75":  9.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  1.0, "p50":  2.5, "p75":  4.5, "unit": "ratio" },
+        { "name": "equity_ratio",                    "p25": 10.0, "p50": 25.0, "p75": 45.0, "unit": "pct" }
+      ]
+    },
+    {
+      "caen_code": "6201",
+      "caen_label": "Activități de realizare a software-ului la comandă",
+      "industry_category": "services_it",
+      "source": "Eurostat SBS NACE J62.01 RO 2023 + Romanian IT services public filings",
+      "metrics": [
+        { "name": "cogs_pct_revenue",                "p25":  0.0, "p50":  5.0, "p75": 15.0, "unit": "pct", "notes": "Services — minimal COGS" },
+        { "name": "opex_personnel_pct_revenue",      "p25": 50.0, "p50": 65.0, "p75": 75.0, "unit": "pct", "notes": "Dominant cost line" },
+        { "name": "opex_external_services_pct_revenue", "p25": 5.0, "p50": 10.0, "p75": 18.0, "unit": "pct" },
+        { "name": "depreciation_pct_revenue",        "p25":  0.5, "p50":  1.5, "p75":  3.0, "unit": "pct" },
+        { "name": "ebitda_margin",                   "p25": 12.0, "p50": 20.0, "p75": 30.0, "unit": "pct" },
+        { "name": "net_margin",                      "p25":  8.0, "p50": 15.0, "p75": 25.0, "unit": "pct" },
+        { "name": "debt_to_ebitda",                  "p25":  0.0, "p50":  0.5, "p75":  1.5, "unit": "ratio", "notes": "IT typically low debt" },
+        { "name": "equity_ratio",                    "p25": 40.0, "p50": 60.0, "p75": 80.0, "unit": "pct" }
+      ]
+    }
+  ]
+}

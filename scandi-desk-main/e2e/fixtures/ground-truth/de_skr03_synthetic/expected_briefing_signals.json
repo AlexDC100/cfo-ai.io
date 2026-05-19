@@ -1,0 +1,59 @@
+{
+  "_status": "DRAFT — synthetic, SKR 03 trading company.",
+
+  "must_contain_any_of_each_group": [
+    {
+      "group": "company_identification",
+      "examples": ["Hansen", "GmbH", "Großhandel", "trading", "distribution", "wholesale", "FMCG"]
+    },
+    {
+      "group": "operational_revenue",
+      "examples": [
+        "8,000,000", "8M", "EUR 8M", "8.0M",
+        "Umsatzerlöse", "Erlöse",
+        "8400", "8300"
+      ]
+    },
+    {
+      "group": "leverage_or_liquidity",
+      "examples": [
+        "180,000", "180K", "0.18M",
+        "Bankkredite", "credit institutions",
+        "Debt/EBITDA", "current ratio", "liquidity"
+      ]
+    },
+    {
+      "group": "profitability_thin_margin",
+      "examples": [
+        "EBITDA", "4.2%", "335,000", "335K", "0.34M",
+        "margin", "thin", "distribution"
+      ]
+    }
+  ],
+
+  "optional_groups_observed": [
+    {"group": "skr03_specific", "examples": ["SKR 03", "Datev", "Saldenliste"]},
+    {"group": "vat_handling", "examples": ["19%", "Vorsteuer", "Umsatzsteuer", "input VAT", "output VAT"]},
+    {"group": "intercompany", "examples": ["1410", "verbundene Unternehmen", "intercompany"]},
+    {"group": "depreciation", "examples": ["4830", "Abschreibung", "depreciation", "198,700"]}
+  ],
+
+  "must_NOT_contain": [
+    {
+      "key": "wrong_revenue_from_4000",
+      "value_patterns": ["account 4000", "Umsatzerlöse Inland 4000"],
+      "rationale": "4000 is SKR 04's revenue account, not SKR 03. If the briefing references 4000 as the revenue source, detection misclassified."
+    },
+    {
+      "key": "wrong_bank_at_1800",
+      "value_patterns": ["bank at 1800", "1800 bank"],
+      "rationale": "SKR 03 uses 1200 for Bank; 1800 would be SKR 04."
+    }
+  ],
+
+  "structural_requirements": {
+    "min_length_chars": 350,
+    "must_use_markdown_headers": false,
+    "must_have_followups": true
+  }
+}

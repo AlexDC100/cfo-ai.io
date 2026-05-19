@@ -1,0 +1,40 @@
+{
+  "_status": "DRAFT — values derived from balanced reconstruction. Refine source.md first; then these auto-recompute.",
+  "tolerance_pct": 0.05,
+
+  "leverage": {
+    "total_debt":              620000.00,
+    "total_debt_minus_cash":   433250.00,
+    "net_debt_to_ebitda_operational": 1.02,
+    "_net_debt_to_ebitda_note": "Net debt 433k / operational EBITDA 426k. Healthy industrial leverage.",
+    "debt_to_equity":          0.72
+  },
+
+  "coverage": {
+    "interest_coverage_ebitda": 12.35,
+    "_interest_coverage_note": "EBITDA 426k / interest 34.5k. Comfortable industrial coverage."
+  },
+
+  "liquidity": {
+    "current_ratio":           1.78,
+    "_current_ratio_components": "Current assets (cash + AR + inventory + other-CA) / current liabilities (AP + other-CL)."
+  },
+
+  "profitability": {
+    "revenue_operational":     3517000.00,
+    "gross_margin_pct":        0.488,
+    "_gross_margin_note":      "(Revenue - COGS) / Revenue = 1.716M / 3.517M = 48.8% — typical for light-industrial with vertical integration.",
+    "ebitda_margin_operational_pct": 0.121,
+    "_ebitda_margin_note":     "Operational EBITDA margin 12.1% — within typical light-industrial band (8-15%)."
+  },
+
+  "valuation_primary": {
+    "method":              "ev_ebitda_peer_multiple",
+    "industry":            "industrial_manufacturing",
+    "_industry_band":      "Damodaran Machinery 2026 P25-P50-P75 = 6.0× - 9.0× - 13.0×",
+    "ebitda_basis":        426100.00,
+    "equity_p50_estimate": 3635000.00,
+    "_equity_p50_note":    "EBITDA 426k × P50 9.0× = EV 3.83M − net debt 433k + cash 187k = equity ~3.58M. Round.",
+    "confidence":          "high"
+  }
+}

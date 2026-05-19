@@ -23,7 +23,7 @@ import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 
 const KEY = "cfoai_subscription";
 
-export type SubscriptionStatus = "trial" | "active" | "past_due" | "canceled" | "incomplete" | "demo";
+export type SubscriptionStatus = "trial" | "founding_trial" | "active" | "past_due" | "canceled" | "incomplete" | "expired" | "demo";
 
 /** What the rest of the app reads. Mirrors the DB row plus a couple of
  *  computed fields the UI needs (days left, trial flag). */
@@ -347,7 +347,9 @@ function useSubscriptionInternal(local: Subscription | null) {
 
 /** Days remaining in the trial — 0 once expired or non-trial. */
 export function trialDaysLeft(sub: Subscription | null): number {
-  if (!sub || sub.status !== "trial" || !sub.trialEnd) return 0;
+  if (!sub) return 0;
+  if (sub.status !== "trial" && sub.status !== "founding_trial") return 0;
+  if (!sub.trialEnd) return 0;
   const ms = new Date(sub.trialEnd).getTime() - Date.now();
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }
@@ -355,7 +357,7 @@ export function trialDaysLeft(sub: Subscription | null): number {
 /** True when the user has paying access right now (active or in trial). */
 export function isSubscriptionEntitled(sub: Subscription | null): boolean {
   if (!sub) return false;
-  if (sub.status === "trial") return trialDaysLeft(sub) > 0;
+  if (sub.status === "trial" || sub.status === "founding_trial") return trialDaysLeft(sub) > 0;
   return sub.status === "active";
 }
 

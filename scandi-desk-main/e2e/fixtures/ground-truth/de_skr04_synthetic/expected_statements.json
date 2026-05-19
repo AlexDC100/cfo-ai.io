@@ -1,0 +1,70 @@
+{
+  "_status": "DRAFT — synthetic SKR 04 services firm.",
+  "currency": "EUR",
+  "period_end": "2025-12-31",
+  "tolerance_pct": 0.02,
+
+  "balance_sheet": {
+    "assets": {
+      "cash":                   339900.00,
+      "accountsReceivable":     652600.00,
+      "inventory":               12500.00,
+      "otherCurrentAssets":      80900.00,
+      "propertyPlantEquipment": 286000.00,
+      "intangibles":             24000.00,
+      "otherNonCurrentAssets":   25000.00,
+      "total_assets":          1420900.00
+    },
+    "liabilities_equity": {
+      "accountsPayable":         184500.00,
+      "otherCurrentLiab":        236400.00,
+      "longTermDebt":            350000.00,
+      "shareCapital":            100000.00,
+      "otherEquity":             180000.00,
+      "retainedEarnings":        840100.00,
+      "total_liabilities_equity": 1891000.00,
+      "_imbalance_note": "Synthetic — refine source.md to balance assets/L+E."
+    }
+  },
+
+  "income_statement_ytd": {
+    "revenue_operational":      4960000.00,
+    "_revenue_components": {
+      "4000_umsatzerlose_inland":  4380000.00,
+      "4100_inland_19_USt":         412000.00,
+      "4200_innergem_exports":      168000.00,
+      "_subtotal":                 4960000.00
+    },
+    "other_operating_income":      24500.00,
+    "cogs":                      1604000.00,
+    "_cogs_components": {
+      "5100_RHB":               184000.00,
+      "5300_bezogene_leistungen": 1420000.00
+    },
+    "gross_profit":              3356000.00,
+    "operating_expenses": {
+      "6010_gehalter":         1480000.00,
+      "6020_soz":               312000.00,
+      "6100_freiwillig_soz":     18500.00,
+      "6200_miete":             142000.00,
+      "6300_reparaturen":        18400.00,
+      "6400_kfz":                24500.00,
+      "6500_werbung":            38500.00,
+      "6600_reisekosten":        22400.00,
+      "6800_rechts_beratung":    48500.00,
+      "6900_sonstige":           62300.00,
+      "total":                 2167100.00
+    },
+    "ebitda_operational":        1213400.00,
+    "_ebitda_note": "Operational EBITDA margin 24.5% — high for a services firm; reflects the low-cogs nature.",
+    "depreciation_amortization":   83200.00,
+    "ebit":                      1130200.00,
+    "interest_expense":            22700.00,
+    "interest_income":              2400.00,
+    "pretax_income":             1109900.00,
+    "tax_expense":                164500.00,
+    "net_income_computed":        945400.00,
+    "_native_check_account_2980": 412300.00,
+    "_native_check_note":         "Synthetic — 2980 (412k) significantly understates computed net income; opex/cogs ratios need calibration before this fixture is CI-ready."
+  }
+}

@@ -64,6 +64,27 @@ COLUMN_SYNONYMS: Dict[str, List[str]] = {
         r"^profit$",
     ],
     "gm_pct": [r"^gm2[\s_]?pct$", r"^gm[\s_]?pct$", r"^gm[\s_]?%$", r"^%\s*gm$"],
+    # Inventory value + COGS — OPTIONAL columns introduced for per-SKU/
+    # per-category DIO and the company-level CCC roll-up. Backward
+    # compatible: existing files without these columns parse identically
+    # and yield `null` DIO (rendered honestly as "not available" in the
+    # UI, never as 0). Romanian variants accepted to match the rest of
+    # the parser's tolerance.
+    "inventory_value": [
+        r"^inventory[\s_]?value$",
+        r"^inventory$",
+        r"^stock[\s_]?value$",
+        r"^valoare[\s_]?stoc$",
+        r"^stoc[\s_]?valoare$",
+        r"^stocuri[\s_]?valoare$",
+    ],
+    "cogs": [
+        r"^cogs$",
+        r"^cost[\s_]?of[\s_]?goods[\s_]?sold$",
+        r"^cost[\s_]?marfuri[\s_]?vandute$",
+        r"^cmv$",
+        r"^cost[\s_]?marfa$",
+    ],
 }
 
 
@@ -249,6 +270,16 @@ class _Agg:
     volume_tons: float = 0.0
     niv_krn: float = 0.0
     gm_krn: float = 0.0
+    # Optional new fields — DIO inputs. Tracked as Optional sums so that
+    # a product with NO inventory/COGS data anywhere across its lines
+    # stays `None` (→ DIO not-available) rather than collapsing to 0
+    # (which would be a fabricated "perfect inventory turnover" reading).
+    # Any line with a value bumps these to a concrete float; lines
+    # without a value are left out of the sum.
+    inventory_krn: Optional[float] = None
+    cogs_krn: Optional[float] = None
+    inventory_lines_with_data: int = 0
+    cogs_lines_with_data: int = 0
     line_row_count: int = 0
     channels: set = None  # type: ignore[assignment]
     clients: set = None  # type: ignore[assignment]
@@ -263,7 +294,17 @@ class _Agg:
 def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Roll lines up to one row per product_name. Returns list of dicts
     ready for insertion into sku_aggregates (without dataset_id / org_id —
-    the caller stamps those)."""
+    the caller stamps those).
+
+    DIO (Days Inventory Outstanding) is emitted ONLY when BOTH inventory
+    value and COGS are present and COGS > 0. When either is missing the
+    output dict gets `inventory_value_krn = None` and
+    `days_inventory_on_hand = None` — the FE renders these as an
+    explicit "not available — inventory/COGS not provided" rather than
+    as 0 (which would dishonestly read as "perfect inventory turnover").
+    Per the no-fabrication rule, an absent DIO is always better than a
+    falsely-good one.
+    """
     bucket: Dict[str, _Agg] = {}
     for line in lines:
         name = (line.get("product_name") or "").strip()
@@ -276,6 +317,24 @@ def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         agg.volume_tons += line.get("volume_tons") or 0.0
         agg.niv_krn += line.get("niv_krn") or 0.0
         agg.gm_krn += line.get("gm_krn") or 0.0
+        # Inventory & COGS — only accumulate when the line actually has
+        # a value. A None on either side keeps that side's sum at None
+        # (preserves "not provided" semantics) unless and until some
+        # later line for this product provides a real number.
+        inv = line.get("inventory_value")
+        if inv is not None:
+            try:
+                agg.inventory_krn = (agg.inventory_krn or 0.0) + float(inv)
+                agg.inventory_lines_with_data += 1
+            except (TypeError, ValueError):
+                pass
+        cog = line.get("cogs")
+        if cog is not None:
+            try:
+                agg.cogs_krn = (agg.cogs_krn or 0.0) + float(cog)
+                agg.cogs_lines_with_data += 1
+            except (TypeError, ValueError):
+                pass
         agg.line_row_count += 1
         ch = line.get("channel")
         if ch:
@@ -291,6 +350,19 @@ def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for a in bucket.values():
         gm_pct = (a.gm_krn / a.niv_krn) if a.niv_krn else 0.0
+        # DIO = (Inventory ÷ COGS) × 365 — only when BOTH inputs are
+        # concretely non-null AND COGS > 0. Anything else stays None
+        # (graceful-missing rule).
+        dio: Optional[float] = None
+        if (
+            a.inventory_krn is not None
+            and a.cogs_krn is not None
+            and a.cogs_krn > 0
+        ):
+            try:
+                dio = round((a.inventory_krn / a.cogs_krn) * 365.0, 2)
+            except (TypeError, ValueError, ZeroDivisionError):
+                dio = None
         rows.append({
             "product_name": a.product_name,
             "brand": a.brand,
@@ -299,6 +371,17 @@ def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "niv_krn": round(a.niv_krn, 2),
             "gm_krn": round(a.gm_krn, 2),
             "gm_pct": round(gm_pct, 6),
+            # DIO inputs + output. Persisted alongside the existing
+            # aggregates so the FE can render per-SKU DIO without a
+            # second roundtrip and roll up category/company aggregates
+            # honestly (covered rows only).
+            "inventory_value_krn": (
+                round(a.inventory_krn, 2) if a.inventory_krn is not None else None
+            ),
+            "cogs_krn": (
+                round(a.cogs_krn, 2) if a.cogs_krn is not None else None
+            ),
+            "days_inventory_on_hand": dio,
             "line_row_count": a.line_row_count,
             "channels_present": sorted(a.channels),
             "clients_present": sorted(a.clients),

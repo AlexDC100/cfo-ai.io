@@ -196,15 +196,15 @@ export const ALL_SPECS: ThresholdSpec[] = GROUPS.flatMap((g) => SPECS[g.key]);
 export function clampThresholds(t: Thresholds): Thresholds {
   const out: Thresholds = { ...t };
   for (const spec of ALL_SPECS) {
-    const v = (t as any)[spec.key];
+    const v = (t as Record<string, unknown>)[spec.key];
     if (typeof v !== "number" || !Number.isFinite(v)) {
-      (out as any)[spec.key] = spec.calibrated;
+      (out as Record<string, unknown>)[spec.key] = spec.calibrated;
       continue;
     }
     const clamped = Math.min(spec.max, Math.max(spec.min, v));
     // Round to step from min — same rule as the slider thumb.
     const stepped = Math.round((clamped - spec.min) / spec.step) * spec.step + spec.min;
-    (out as any)[spec.key] = +stepped.toFixed(4);
+    (out as Record<string, unknown>)[spec.key] = +stepped.toFixed(4);
   }
   // Display tab fields are not in SPECS; clamp those manually.
   out.gmDisplayMaxPct = Math.min(100, Math.max(20, t.gmDisplayMaxPct ?? DEFAULTS.gmDisplayMaxPct));
@@ -219,5 +219,5 @@ export function isAtCalibrated(spec: ThresholdSpec, value: number): boolean {
 
 /** True when *any* engine threshold differs from calibrated. */
 export function hasDriftFromCalibrated(t: Thresholds): boolean {
-  return ALL_SPECS.some((s) => !isAtCalibrated(s, (t as any)[s.key] as number));
+  return ALL_SPECS.some((s) => !isAtCalibrated(s, (t as Record<string, unknown>)[s.key] as number));
 }

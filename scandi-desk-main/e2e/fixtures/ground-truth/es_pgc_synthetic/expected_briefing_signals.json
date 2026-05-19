@@ -1,0 +1,57 @@
+{
+  "_status": "DRAFT — synthetic Spanish PGC retail SL.",
+
+  "must_contain_any_of_each_group": [
+    {
+      "group": "company_identification",
+      "examples": ["Distribuciones", "Ibérica", "SL", "Spain", "Spanish", "retail", "distribution"]
+    },
+    {
+      "group": "operational_revenue_corrected",
+      "examples": [
+        "4,037,700", "4.04M", "4M", "EUR 4M",
+        "Ventas", "Prestaciones",
+        "700", "705"
+      ],
+      "_note": "Briefing MUST quote net revenue (700+701+705 − 707), NOT gross 4.18M and NOT inflated 4.20M including 730."
+    },
+    {
+      "group": "leverage_or_liquidity",
+      "examples": [
+        "748,500", "0.75M", "EUR 0.75M",
+        "Deudas", "loans", "Debt/EBITDA", "leverage"
+      ]
+    },
+    {
+      "group": "ebitda_or_profitability",
+      "examples": [
+        "EBITDA", "820,500", "0.82M", "20%", "margin"
+      ]
+    }
+  ],
+
+  "optional_groups_observed": [
+    {"group": "477_vat_handling", "examples": ["477", "IVA repercutido", "output VAT"]},
+    {"group": "707_returns", "examples": ["707", "devoluciones", "sales returns"]},
+    {"group": "730_capitalized_work", "examples": ["730", "trabajos realizados", "capitalized own-work"]},
+    {"group": "740_subsidies", "examples": ["740", "subvenciones", "subsidies"]}
+  ],
+
+  "must_NOT_contain": [
+    {
+      "key": "477_quoted_as_revenue",
+      "value_patterns": ["IVA repercutido revenue", "477 revenue"],
+      "rationale": "If 477 is treated as revenue the briefing will overstate by ~84k."
+    },
+    {
+      "key": "gross_revenue_without_707",
+      "value_patterns": ["4,180,000", "4.18M revenue"],
+      "rationale": "Net revenue must subtract 707 returns (142k). Gross 4.18M signals returns handling broken."
+    }
+  ],
+
+  "structural_requirements": {
+    "min_length_chars": 350,
+    "must_have_followups": true
+  }
+}

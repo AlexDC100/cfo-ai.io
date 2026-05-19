@@ -50,6 +50,15 @@ export interface IncomeStatement {
   /** Non-operating financial expense (excluding interest) — FX revaluation,
    *  bank fees, etc. Sits below EBIT. Optional for simple samples. */
   financialExpense?: number;
+  /** RAS account 711 (Variația stocurilor) — non-cash inventory variation
+   *  memo. Carved out by `/api/period/{id}` rebuild so cash EBITDA can
+   *  exclude it. When present, `deriveTotals` subtracts this from
+   *  `otherIncome` for ratio math (defensive fallback against stale
+   *  payloads that bundle 711 into `otherIncome`). */
+  inventoryVariationMemo?: number;
+  /** Capitalized own-work (RAS 722) memo — surfaced for transparency
+   *  but EXCLUDED from cash EBITDA. */
+  capitalizedOwnWork?: number;
 }
 
 export interface SupplementaryData {
@@ -103,6 +112,14 @@ export interface Statements {
   prior?: PriorPeriod;
   /** Optional multi-year history (oldest → newest, NOT including current). */
   historicalPeriods?: PriorPeriod[];
+  /** Canonical period_facts views — single source of truth across DCF,
+   *  Graham, Valuation tab, Alerts, briefing. Populated by the backend
+   *  /api/period response from `assembled_pl_canonical` /
+   *  `assembled_bs_canonical` / `assembled_cf_canonical`. When present,
+   *  every downstream consumer reads from here. */
+  assembled_pl?: Record<string, number>;
+  assembled_bs?: Record<string, number>;
+  assembled_cf?: Record<string, number>;
 }
 
 // ─── Derived totals ─────────────────────────────────────────────────────────
@@ -145,6 +162,13 @@ export function deriveTotals(s: Statements): DerivedTotals {
   const totalEquity = bs.shareCapital + bs.retainedEarnings + bs.otherEquity;
 
   const grossProfit = is.revenue - is.costOfGoodsSold;
+  // Cash-view EBITDA — `is.otherIncome` must contain ONLY genuine
+  // other operating income (758/740). The BE's /api/period rebuild
+  // now carves account 711 (Variația stocurilor — non-cash inventory
+  // accrual) out of the otherIncome bucket and surfaces it on the
+  // separate `inventoryVariationMemo` field. Without that BE-side
+  // split, Scandia FY2025 reported EBITDA = 684M (165% margin)
+  // instead of the correct 54.4M (13.2% margin).
   const ebitda = grossProfit - is.operatingExpenses + is.otherIncome;
   const ebit = ebitda - is.depreciationAmortization;
   const finIn = is.financialIncome ?? 0;
@@ -263,9 +287,18 @@ export function computeRatios(s: Statements): RatioBundle {
     : dscr;
 
   // Efficiency ───────────────────────────────────────────────────────────────
+  // DIO / DPO denominator: TOTAL operating expense (COGS + OpEx + D&A), not
+  // narrow COGS. Per the methodology calibration (reference/financial_analysis.py
+  // lines 543-548, 581): in a manufacturer, inventory absorbs all production
+  // costs — materials + labor + utilities + overhead — not just raw-material
+  // class-6 accounts (601/602/607). Industry convention uses total operating
+  // expense as the DIO/DPO denominator. Using narrow `is.costOfGoodsSold`
+  // here inflated Scandia's DIO from the correct ~53d to ~95d.
+  const totalOperatingExpense =
+    is.costOfGoodsSold + is.operatingExpenses + is.depreciationAmortization;
   const dso = safeDiv(bs.accountsReceivable, is.revenue) * days;
-  const dio = safeDiv(bs.inventory, is.costOfGoodsSold) * days;
-  const dpo = safeDiv(bs.accountsPayable, is.costOfGoodsSold) * days;
+  const dio = safeDiv(bs.inventory, totalOperatingExpense) * days;
+  const dpo = safeDiv(bs.accountsPayable, totalOperatingExpense) * days;
   const ccc = dso + dio - dpo;
   const assetTurnover = safeDiv(is.revenue, t.totalAssets);
 
@@ -555,156 +588,165 @@ export interface Recommendation {
   estimatedImpact?: number;
 }
 
+// Inline import avoids the periodFacts ↔ financialReport circular
+// dependency. detectConditions consumes a PeriodFacts-shaped object;
+// we build a minimal one in-place from canonical statement fields when
+// they're present, falling back to legacy derivation only as a safety
+// net. The function NEVER goes through deriveTotals(s).ebitda directly
+// — that's the operational view that produced the 3 false-alarm cards.
+import { detectConditions, severityRank } from "./recommendationRules";
+
 export function generateRecommendations(
   s: Statements,
-  ratios?: RatioBundle,
+  _ratios?: RatioBundle,
 ): Recommendation[] {
-  const r = ratios ?? computeRatios(s);
+  // ── DELEGATING IMPLEMENTATION ────────────────────────────────────────
+  // The previous in-place rule logic read `t.ebitda` and `t.netIncome`
+  // from `deriveTotals(s)` — the OPERATIONAL view (excludes 722). For a
+  // healthy CRE company like EEI that produced 3 damaging false alarms:
+  //   • "Restore debt service coverage" (DSCR −0.05 on operational EBITDA)
+  //   • "Stabilize against distress signals" (Altman Z' 0.53, wrong variant)
+  //   • "Restore operating profitability" (EBITDA margin −1.3%, SKU language)
+  //
+  // The function now delegates to `detectConditions(...)` from the
+  // canonical rule registry. Every rule reads STATUTORY values
+  // explicitly; every rule has an industry filter; every "true_*"
+  // distress rule stays silent unless the underlying condition is
+  // genuinely present.
   const t = deriveTotals(s);
-  const out: Recommendation[] = [];
-
-  // Helper to fetch ratio by key across all groups.
-  const get = (key: string): Ratio | undefined => {
-    for (const group of Object.values(r))
-      for (const x of group) if (x.key === key) return x;
-    return undefined;
+  const ap = (s as Statements & { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
+  const ab = (s as Statements & { assembled_bs?: Record<string, number> }).assembled_bs ?? {};
+  const ac = (s as Statements & { assembled_cf?: Record<string, number> }).assembled_cf ?? {};
+  const pick = (canon: number | undefined, legacy: number): number =>
+    typeof canon === "number" ? canon : legacy;
+  // Build the minimal PeriodFacts the rule registry reads. We populate
+  // every field the rules touch — extra fields they don't read are fine
+  // to omit. STATUTORY values come from `assembled_*` when present.
+  const ebitdaStatutory = pick(ap.ebitda_statutory, t.ebitda);
+  const niStatutory = pick(ap.net_income_statutory, t.netIncome);
+  const cfo = pick(ac.cash_from_operating, niStatutory + pick(ap.depreciation, s.incomeStatement.depreciationAmortization));
+  const capexReal = pick(ac.capex_real, -(ap.capitalized_own_work_memo ?? 0));
+  const bankDebt = pick(ab.total_debt, t.totalDebt);
+  const totalAssets = pick(ab.total_assets, t.totalAssets);
+  const totalEquity = pick(ab.total_equity, t.totalEquity);
+  const cash = pick(ab.cash, s.balanceSheet.cash);
+  const apDividends = pick(ab.ap_dividends, 0);
+  const intercompany = pick(ab.intercompany_loans, 0);
+  const investmentProp = pick(ab.ppe_net, s.balanceSheet.propertyPlantEquipment);
+  const interest = pick(ap.interest_expense, s.incomeStatement.interestExpense);
+  const depreciation = pick(ap.depreciation, s.incomeStatement.depreciationAmortization);
+  const tax = pick(ap.tax, s.incomeStatement.taxExpense);
+  const rentalRevenue = pick(ap.revenue, s.incomeStatement.revenue);
+  const capitalized = pick(ap.capitalized_own_work_memo, 0);
+  const principalProxy = bankDebt * 0.1;
+  const dscr = ebitdaStatutory > 0
+    ? ebitdaStatutory / Math.max(interest + Math.max(principalProxy, depreciation), 1)
+    : 0;
+  const dteAdj = bankDebt > 0 && ebitdaStatutory > 0
+    ? bankDebt / (ebitdaStatutory + pick(ap.financial_income_other, 0))
+    : 0;
+  const safeFacts = {
+    period_id: "legacy",
+    entity: s.companyName ?? "Entity",
+    industry: (s.industry ?? null) as string | null,
+    currency: s.currency,
+    computed_at: new Date().toISOString(),
+    pipeline_version: "legacy",
+    pl: {
+      rental_revenue: rentalRevenue,
+      capitalized_own_work_memo: capitalized,
+      revenue: pick(ap.total_operating_revenue, rentalRevenue + capitalized),
+      ebitda: ebitdaStatutory,
+      ebitda_excl_capitalized: ebitdaStatutory - capitalized,
+      depreciation,
+      ebit: pick(ap.operating_ebit, ebitdaStatutory - depreciation),
+      interest_expense: interest,
+      fx_result: 0,
+      dividend_income: pick(ap.financial_income_other, 0),
+      net_financial_result: 0,
+      profit_before_tax: pick(ap.pretax, ebitdaStatutory - depreciation - interest),
+      tax,
+      net_profit: niStatutory,
+    },
+    bs: {
+      cash,
+      cash_fx_component: 0,
+      ar_net: s.balanceSheet.accountsReceivable,
+      intercompany_loans: intercompany,
+      prepayments: 0,
+      current_assets: t.totalCurrentAssets,
+      investment_property_net: investmentProp,
+      ppe_net: investmentProp,
+      non_current_assets: t.totalNonCurrentAssets,
+      total_assets: totalAssets,
+      suppliers: s.balanceSheet.accountsPayable,
+      dividends_payable: apDividends,
+      bank_debt_total: bankDebt,
+      short_term_liabilities: t.totalCurrentLiabilities,
+      total_liabilities: pick(ab.total_liabilities, t.totalLiabilities),
+      share_capital: s.balanceSheet.shareCapital,
+      revaluation_reserves: 0,
+      retained_earnings: pick(ab.retained_earnings, s.balanceSheet.retainedEarnings),
+      current_year_pnl: niStatutory,
+      total_equity: totalEquity,
+      bs_balance_check: 0,
+      // Concentration heuristics — fed by the periodFacts builder when
+      // it has line items. Without them (legacy entry-point), default
+      // to undefined; the rules then stay silent rather than guessing.
+      lender_concentration_pct: undefined as number | undefined,
+      tenant_concentration_pct: undefined as number | undefined,
+    },
+    cf: {
+      cash_from_operating: cfo,
+      cash_used_in_investing: capexReal,
+      cash_used_in_financing: 0,
+      net_change_in_cash: cfo + capexReal,
+      opening_cash: 0,
+      closing_cash: cash,
+      drift: 0,
+      dividends_declared_but_unpaid: apDividends > 1000,
+    },
+    ratios: {
+      current_ratio: 0, quick_ratio: 0, cash_ratio: 0,
+      debt_to_equity: 0, debt_to_assets: 0, equity_ratio: 0,
+      interest_coverage_ebit: 0,
+      ebitda_to_interest: interest > 0 ? ebitdaStatutory / interest : 0,
+      dscr,
+      debt_to_ebitda: ebitdaStatutory > 0 ? bankDebt / ebitdaStatutory : 0,
+      debt_to_ebitda_adjusted: dteAdj,
+      ebitda_margin_gross: 0, ebitda_margin_clean: 0, net_margin: 0,
+      roe: 0, roa: 0, property_yield: 0,
+    },
+    valuation: {
+      primary_method: "asset_based", primary_value: 0, confidence: "low" as const,
+      industry_key: s.industry ?? null, ev_ebitda_p50: null,
+    },
+    audit: { bs_balance_check: 0, has_line_items: false, industry_classified: !!s.industry },
   };
+  const conditions = detectConditions(safeFacts as never).sort(
+    (a, b) => severityRank(a.severity) - severityRank(b.severity),
+  );
 
-  // Liquidity -----------------------------------------------------------------
-  const cur = get("current_ratio")!;
-  if (cur.value < 1) {
-    out.push({
-      id: "liquidity_critical",
-      priority: "critical",
-      title: "Address near-term liquidity gap",
-      rationale: `Current ratio of ${cur.value.toFixed(2)}× means current liabilities exceed current assets by ${formatCurrency(Math.abs(t.workingCapital), s.currency)}.`,
-      action:
-        "Negotiate extended supplier terms (target 60+ days), accelerate receivables via early-pay discounts, and arrange a working capital facility before quarter end.",
-      estimatedImpact: Math.abs(t.workingCapital) * 0.3,
-    });
-  } else if (cur.value < 1.5) {
-    out.push({
-      id: "liquidity_watch",
-      priority: "high",
-      title: "Strengthen working capital cushion",
-      rationale: `Current ratio of ${cur.value.toFixed(2)}× is positive but provides limited buffer.`,
-      action:
-        "Build cash reserve to 60 days of operating expenses through targeted DSO reduction and inventory rationalization.",
-    });
-  }
+  // ── DetectedCondition → Recommendation mapping ───────────────────────
+  const severityToPriority: Record<string, RecommendationPriority> = {
+    critical: "critical",
+    attention: "high",
+    info: "info",
+  };
+  const out: Recommendation[] = conditions.map((c) => ({
+    id: c.ruleKey,
+    priority: severityToPriority[c.severity] ?? "medium",
+    title: c.title,
+    rationale: c.rationaleFallback,
+    action: c.actionsFallback.join(" "),
+    estimatedImpact:
+      typeof c.factsCited.interest_savings_if_repaid === "number"
+        ? c.factsCited.interest_savings_if_repaid
+        : typeof c.factsCited.potential_savings_per_50bps === "number"
+          ? c.factsCited.potential_savings_per_50bps
+          : undefined,
+  }));
 
-  // Cash conversion cycle ----------------------------------------------------
-  const ccc = get("ccc")!;
-  if (ccc.value > 90) {
-    out.push({
-      id: "ccc_high",
-      priority: "high",
-      title: `Compress cash conversion cycle (${ccc.value.toFixed(0)} days)`,
-      rationale:
-        "Long CCC ties up working capital that could fund growth or reduce debt.",
-      action:
-        "Target 20-day reduction: tighten credit terms on slowest-paying customers, run an inventory cleanse on dead stock, extend supplier payment cycles where relationship allows.",
-      estimatedImpact: (s.incomeStatement.revenue / 365) * 20,
-    });
-  }
-
-  // Leverage -----------------------------------------------------------------
-  const dte = get("debt_to_ebitda")!;
-  if (dte.value > 4.5) {
-    out.push({
-      id: "leverage_critical",
-      priority: "critical",
-      title: "Reduce structural leverage",
-      rationale: `Debt/EBITDA of ${dte.value.toFixed(2)}× is well above prudent threshold (≤ 3.0×). Refinancing and covenant risk is elevated.`,
-      action:
-        "Initiate covenant-relief discussions with primary lender, accelerate debt amortization with surplus cash flow, and consider non-core asset disposal to crystallize equity.",
-    });
-  } else if (dte.value > 3) {
-    out.push({
-      id: "leverage_watch",
-      priority: "high",
-      title: "De-lever toward target ratio",
-      rationale: `Debt/EBITDA of ${dte.value.toFixed(2)}× exceeds the 3.0× healthy benchmark.`,
-      action:
-        "Apply 60% of free cash flow to debt repayment until ratio falls below 3.0×. Defer discretionary capex.",
-    });
-  }
-
-  // Coverage -----------------------------------------------------------------
-  const dscr = get("dscr")!;
-  if (dscr.value < 1.25) {
-    out.push({
-      id: "dscr_critical",
-      priority: "critical",
-      title: "Restore debt service coverage",
-      rationale: `DSCR of ${dscr.value.toFixed(2)}× is below the 1.25× covenant-typical threshold.`,
-      action:
-        "Restructure debt to lengthen amortization, apply for covenant waiver in advance, and protect EBITDA via discretionary cost reductions.",
-    });
-  }
-
-  // Profitability ------------------------------------------------------------
-  const em = get("ebitda_margin")!;
-  if (em.value < 8) {
-    out.push({
-      id: "ebitda_low",
-      priority: "high",
-      title: "Restore operating profitability",
-      rationale: `EBITDA margin of ${em.value.toFixed(1)}% sits below sustainable threshold for the industry.`,
-      action:
-        "Run a top-down opex review on SG&A line items > 2% of revenue, renegotiate top 5 supplier contracts, and exit unprofitable SKUs/customers.",
-      estimatedImpact: s.incomeStatement.revenue * 0.03,
-    });
-  }
-
-  const gm = get("gross_margin")!;
-  if (gm.value < 20) {
-    out.push({
-      id: "gm_low",
-      priority: "high",
-      title: "Improve gross margin",
-      rationale: `${gm.value.toFixed(1)}% gross margin leaves little operating headroom.`,
-      action:
-        "Re-price the bottom-quartile SKU portfolio, consolidate suppliers for volume discounts, and pass through input-cost inflation explicitly to customers.",
-    });
-  }
-
-  // Bankruptcy risk ----------------------------------------------------------
-  const z = get("altman_z")!;
-  if (z.value < 1.8) {
-    out.push({
-      id: "altman_distress",
-      priority: "critical",
-      title: "Stabilize against distress signals",
-      rationale: `Altman Z of ${z.value.toFixed(2)} sits in the distress zone (< 1.8).`,
-      action:
-        "Convene board financial review. Engage restructuring advisor. Build 13-week cash forecast with weekly variance tracking.",
-    });
-  } else if (z.value < 2.6) {
-    out.push({
-      id: "altman_grey",
-      priority: "medium",
-      title: "Move out of grey-zone risk",
-      rationale: `Altman Z of ${z.value.toFixed(2)} is in the grey zone (1.8–2.6) — not distress, but not safe either.`,
-      action:
-        "Build retained earnings (limit dividends), reduce debt, or improve working capital to strengthen score.",
-    });
-  }
-
-  // LTV (real estate / asset-heavy) ------------------------------------------
-  const ltv = get("ltv")!;
-  if (ltv.value > 80) {
-    out.push({
-      id: "ltv_high",
-      priority: "high",
-      title: "Reduce loan-to-value exposure",
-      rationale: `LTV of ${ltv.value.toFixed(0)}% leaves limited equity buffer against asset-value movements.`,
-      action:
-        "Apply surplus cash to principal reduction. If property revaluation is overdue, consider an updated valuation to refresh the LTV calculation.",
-    });
-  }
-
-  // If everything is healthy — give them an info note rather than silence.
   if (out.length === 0) {
     out.push({
       id: "all_healthy",
@@ -789,161 +831,442 @@ export function renderReportHtml(s: Statements): string {
   const r = computeRatios(s);
   const recs = generateRecommendations(s, r);
 
-  // ─ Style block ─ board-pack visual language: navy headers, neutral body,
-  // semantic callout boxes.
+  // Statutory-canonical pick (same pattern as `generateRecommendations` at line
+  // 617-621). The standalone HTML report previously read only `is.revenue`,
+  // `t.ebitda`, and `t.netIncome` — all the OPERATIONAL view, which excludes
+  // account 722 (capitalized own work). For asset-heavy entities like EEI
+  // Imobiliara that produced Revenue 2.73M / EBITDA −37k where the engine's
+  // canonical statutory view is Revenue 4.89M / EBITDA +2.13M, and the in-app
+  // `ComprehensiveReport.tsx` already shows the correct statutory figures.
+  // The engine surfaces these on `assembled_pl` — read them here and fall back
+  // to the operational legacy fields when they aren't populated (older
+  // pipeline payloads).
+  const ap = (s as Statements & { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
+  const pick = (canon: number | undefined, legacy: number): number =>
+    typeof canon === "number" ? canon : legacy;
+  const capOwnWork = pick(ap.capitalized_own_work_memo, s.incomeStatement.capitalizedOwnWork ?? 0);
+  const operatingRevenue = pick(ap.total_operating_revenue, s.incomeStatement.revenue + capOwnWork);
+  const ebitdaStatutory = pick(ap.ebitda_statutory, t.ebitda);
+  const ebitdaCash = pick(ap.ebitda_cash, t.ebitda);
+  const netIncomeStatutory = pick(ap.net_income_statutory, t.netIncome);
+  const ebitStatutory = pick(ap.operating_ebit, ebitdaStatutory - s.incomeStatement.depreciationAmortization);
+  const pretaxStatutory = pick(ap.pretax, ebitStatutory - s.incomeStatement.interestExpense + (s.incomeStatement.financialIncome ?? 0) - (s.incomeStatement.financialExpense ?? 0));
+  const has722 = Math.abs(capOwnWork) > 1;
+
+  // ─ Style block ─ Lender-grade institutional document.
+  // Restrained palette (ink + accent + greys), serif headlines + sans body,
+  // tabular lining figures everywhere, hairline tables, A4 print-correct.
   const css = `
-    @page { size: A4; margin: 18mm 16mm; }
+    @page {
+      size: A4;
+      margin: 22mm 18mm 24mm 18mm;
+      @bottom-center {
+        content: "Financial Analysis · Page " counter(page) " of " counter(pages);
+        font-family: 'Inter', -apple-system, sans-serif;
+        font-size: 8.5pt;
+        color: #6b7280;
+        letter-spacing: 0.04em;
+      }
+    }
+
+    :root {
+      --ink: #0B2A4A;
+      --ink-soft: #3D4D63;
+      --ink-mute: #6B7280;
+      --accent: #3F6E8E;
+      --rule: #C9CDD2;
+      --rule-soft: #E5E7EB;
+      --paper: #FFFFFF;
+      --bg-soft: #F7F8FA;
+      --serif: 'Source Serif Pro', 'Source Serif 4', 'Source Serif', Charter, 'Iowan Old Style', 'Hoefler Text', Georgia, 'Times New Roman', serif;
+      --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Helvetica Neue', Arial, sans-serif;
+    }
+
     * { box-sizing: border-box; }
+    html, body { background: var(--paper); }
+
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 11pt;
-      line-height: 1.55;
-      color: #1f2937;
-      margin: 0;
-      padding: 24px;
-      background: #ffffff;
-      max-width: 980px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 28pt;
-      color: #003366;
-      margin: 0 0 8px;
-      border-bottom: 3px solid #003366;
-      padding-bottom: 12px;
-    }
-    h2 {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 14pt;
-      background: #003366;
-      color: #ffffff;
-      padding: 10px 14px;
-      margin: 32px 0 16px;
-      border-radius: 2px;
-    }
-    h3 {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 12pt;
-      color: #003366;
-      margin: 24px 0 12px;
-      border-bottom: 1px solid #e5e7eb;
-      padding-bottom: 6px;
-    }
-    .header-info {
-      background: #f7f9fc;
-      border-left: 4px solid #003366;
-      padding: 12px 16px;
-      margin: 12px 0 24px;
+      font-family: var(--sans);
       font-size: 10.5pt;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      margin: 0 auto;
+      padding: 48px 56px 64px;
+      max-width: 880px;
+      background: var(--paper);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
     }
-    .header-info p { margin: 4px 0; }
-    .grid { display: grid; gap: 12px; }
+
+    /* Tabular lining figures for every numeric cell */
+    .num,
+    .ratio-card .value,
+    .rec .impact,
+    table.fin td.num,
+    table.fin th.num {
+      font-variant-numeric: tabular-nums lining-nums;
+      font-feature-settings: "tnum" 1, "lnum" 1, "kern" 1;
+    }
+
+    /* Running header — one quiet line on top */
+    .running-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--rule);
+      font-family: var(--sans);
+      font-size: 8.5pt;
+      color: var(--ink-mute);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    .running-header .org { color: var(--ink); font-weight: 600; }
+
+    h1 {
+      font-family: var(--serif);
+      font-size: 26pt;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0 0 4px;
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+      border: none;
+      padding: 0;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-family: var(--serif);
+      font-size: 15pt;
+      font-weight: 600;
+      color: var(--ink);
+      background: none;
+      padding: 0 0 6px;
+      margin: 34px 0 14px;
+      border-bottom: 1px solid var(--ink);
+      border-radius: 0;
+      letter-spacing: -0.005em;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-family: var(--sans);
+      font-size: 9.5pt;
+      font-weight: 600;
+      color: var(--ink);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin: 22px 0 10px;
+      padding: 0;
+      border: none;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    p { margin: 8px 0; }
+
+    /* Brief header block — quiet, no fill */
+    .header-info {
+      background: none;
+      border: none;
+      border-left: 2px solid var(--accent);
+      padding: 2px 14px;
+      margin: 8px 0 26px;
+      font-size: 9.5pt;
+      color: var(--ink-soft);
+    }
+    .header-info p { margin: 3px 0; }
+    .header-info strong { color: var(--ink); font-weight: 600; }
+
+    /* Layout grid */
+    .grid { display: grid; gap: 24px 28px; }
     .grid-2 { grid-template-columns: 1fr 1fr; }
     .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
     .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+    /* Metric / ratio card — flat, hairline-separated, no heavy boxes */
     .ratio-card {
-      background: #f7f9fc;
-      padding: 14px 16px;
-      border-left: 4px solid #003366;
-      border-radius: 2px;
+      background: none;
+      padding: 12px 0 2px;
+      border-left: none;
+      border-top: 1px solid var(--rule-soft);
+      border-radius: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .ratio-card .label {
-      font-size: 9pt;
-      color: #6b7280;
+      font-family: var(--sans);
+      font-size: 8.5pt;
+      color: var(--ink-mute);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.10em;
       margin-bottom: 6px;
+      font-weight: 500;
     }
     .ratio-card .value {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 20pt;
-      color: #003366;
+      font-family: var(--serif);
+      font-size: 19pt;
       font-weight: 600;
+      color: var(--ink);
       line-height: 1.1;
+      letter-spacing: -0.01em;
     }
-    .ratio-card .meta { font-size: 9pt; color: #6b7280; margin-top: 6px; }
+    .ratio-card .meta {
+      font-size: 8.75pt;
+      color: var(--ink-mute);
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+
+    /* Verdict badge — restrained institutional tones */
     .badge {
       display: inline-block;
-      font-size: 8.5pt;
+      font-family: var(--sans);
+      font-size: 7.5pt;
       font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 9999px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    .commentary { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 12px 0; font-size: 10.5pt; }
-    .risk       { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 12px 0; font-size: 10.5pt; }
-    .action     { background: #f0fdf4; border-left: 4px solid #16a34a; padding: 12px 16px; margin: 12px 0; font-size: 10.5pt; }
-    .insight    { background: #003366; color: #ffffff; padding: 16px 20px; margin: 16px 0; border-left: 4px solid #fbbf24; }
-    .insight strong { color: #fbbf24; }
-    .savings-box {
-      background: #003366;
-      color: #ffffff;
-      padding: 18px 22px;
-      margin: 16px 0;
-      text-align: center;
+      padding: 1px 7px;
       border-radius: 2px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      border: 1px solid;
+      vertical-align: 1px;
+    }
+    .badge.v-strong   { background: #EEF4F0; color: #1E5C3F; border-color: #C4D7C8; }
+    .badge.v-healthy  { background: #EDF1F6; color: #1E3A5F; border-color: #B7C5D6; }
+    .badge.v-watch    { background: #F6EFE2; color: #6F5400; border-color: #D9C189; }
+    .badge.v-critical { background: #F4E8E8; color: #7A1F1F; border-color: #C7A6A6; }
+
+    /* Callouts — minimal hairline, no fill */
+    .commentary, .risk, .action {
+      padding: 10px 14px;
+      margin: 10px 0;
+      font-size: 9.5pt;
+      background: none;
+      border-left: 2px solid var(--rule);
+      color: var(--ink-soft);
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .commentary { border-left-color: #B98F30; }
+    .risk       { border-left-color: #8B1A1A; }
+    .action     { border-left-color: #1E5C3F; }
+    .commentary strong, .risk strong, .action strong { color: var(--ink); font-weight: 600; }
+
+    /* Executive verdict band — rule-bracketed, not a coloured block */
+    .insight {
+      background: none;
+      color: var(--ink);
+      padding: 14px 0;
+      margin: 12px 0 18px;
+      border: none;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--ink);
+      font-size: 11pt;
+      font-family: var(--serif);
+      line-height: 1.45;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .insight strong {
+      font-family: var(--sans);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-size: 8.5pt;
+      color: var(--accent);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .savings-box {
+      background: var(--bg-soft);
+      color: var(--ink);
+      padding: 14px 18px;
+      margin: 14px 0;
+      text-align: left;
+      border-radius: 0;
+      border-left: 2px solid var(--accent);
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .savings-box .number {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 26pt;
-      font-weight: 700;
+      font-family: var(--serif);
+      font-size: 22pt;
+      font-weight: 600;
       display: block;
       margin: 4px 0;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums lining-nums;
+      font-feature-settings: "tnum" 1, "lnum" 1;
     }
+
+    /* Financial statement tables — hairline horizontal rules only, no zebra */
     table.fin {
       width: 100%;
       border-collapse: collapse;
-      margin: 12px 0;
-      font-size: 10.5pt;
+      margin: 12px 0 24px;
+      font-size: 10pt;
     }
+    table.fin thead { display: table-header-group; }
+    table.fin tfoot { display: table-footer-group; }
     table.fin th, table.fin td {
-      padding: 8px 12px;
+      padding: 6.5px 0;
       text-align: left;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid var(--rule-soft);
+      vertical-align: baseline;
     }
     table.fin th {
-      background: #f7f9fc;
-      color: #003366;
+      background: none;
+      color: var(--ink);
+      font-family: var(--sans);
       font-weight: 600;
-      font-size: 9.5pt;
+      font-size: 9pt;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.10em;
+      border-bottom: 1px solid var(--ink);
+      padding-bottom: 9px;
     }
-    table.fin td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    table.fin tr.total td { font-weight: 700; border-top: 2px solid #003366; border-bottom: 2px solid #003366; }
-    table.fin tr.subtotal td { font-weight: 600; background: #f7f9fc; }
-    table.fin tr.indent td:first-child { padding-left: 28px; color: #6b7280; }
+    table.fin th.num, table.fin td.num {
+      text-align: right;
+      white-space: nowrap;
+      padding-left: 18px;
+    }
+    table.fin tr.subtotal td {
+      font-weight: 600;
+      background: none;
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule-soft);
+      color: var(--ink);
+      padding-top: 8px;
+    }
+    table.fin tr.total td {
+      font-weight: 700;
+      border-top: 1px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      padding-top: 9px;
+      padding-bottom: 9px;
+      color: var(--ink);
+    }
+    table.fin tr.indent td:first-child {
+      padding-left: 22px;
+      color: var(--ink-soft);
+      font-weight: 400;
+    }
+    table.fin tbody tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Priority pills — restrained, bordered chips */
     .priority-pill {
       display: inline-block;
-      font-size: 8.5pt;
+      font-family: var(--sans);
+      font-size: 7.5pt;
       font-weight: 600;
-      padding: 3px 10px;
-      border-radius: 4px;
+      padding: 1.5px 8px;
+      border-radius: 2px;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-right: 8px;
+      letter-spacing: 0.10em;
+      margin-right: 10px;
+      vertical-align: 2px;
+      border: 1px solid;
     }
-    .priority-critical { background: #dc2626; color: #ffffff; }
-    .priority-high     { background: #f59e0b; color: #ffffff; }
-    .priority-medium   { background: #2563eb; color: #ffffff; }
-    .priority-info     { background: #6b7280; color: #ffffff; }
+    .priority-critical { background: #FAF1F1; color: #7A1F1F; border-color: #C7A6A6; }
+    .priority-high     { background: #FAF3E5; color: #6F5400; border-color: #D9C189; }
+    .priority-medium   { background: #EDF1F6; color: #1E3A5F; border-color: #B7C5D6; }
+    .priority-info     { background: #F1F2F4; color: #4B5563; border-color: #C7CCD3; }
+
+    /* Recommendations — hairline-separated, no card boxes */
     .rec {
-      border: 1px solid #e5e7eb;
-      border-radius: 4px;
-      padding: 16px 18px;
-      margin: 12px 0;
-      background: #ffffff;
+      border: none;
+      border-top: 1px solid var(--rule-soft);
+      border-radius: 0;
+      padding: 16px 0 8px;
+      margin: 0;
+      background: none;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
-    .rec h4 { margin: 0 0 8px; font-family: 'Playfair Display', Georgia, serif; font-size: 12pt; color: #003366; }
-    .rec p { margin: 6px 0; font-size: 10.5pt; }
-    .rec .impact { background: #f0fdf4; color: #166534; font-size: 10pt; padding: 6px 12px; border-radius: 4px; display: inline-block; margin-top: 8px; }
-    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 9pt; color: #6b7280; text-align: center; }
+    .rec:first-of-type { border-top: 1px solid var(--ink); }
+    .rec h4 {
+      margin: 0 0 8px;
+      font-family: var(--serif);
+      font-size: 11.5pt;
+      color: var(--ink);
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .rec p { margin: 4px 0; font-size: 9.75pt; color: var(--ink-soft); line-height: 1.5; }
+    .rec p strong { color: var(--ink); font-weight: 600; }
+    .rec .impact {
+      background: none;
+      color: var(--ink);
+      font-size: 9pt;
+      padding: 5px 10px 5px 12px;
+      border-radius: 0;
+      border-left: 2px solid var(--accent);
+      display: inline-block;
+      margin-top: 8px;
+      letter-spacing: 0.01em;
+    }
+
+    /* Footnoted basis-of-preparation block */
+    .basis-note {
+      margin-top: 36px;
+      padding: 14px 0 0;
+      border-top: 1px solid var(--rule);
+      font-size: 8.75pt;
+      color: var(--ink-mute);
+      line-height: 1.55;
+    }
+    .basis-note strong {
+      color: var(--ink-soft);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-size: 8pt;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* Document footer — appears once on screen; print uses @page footer */
+    .footer {
+      margin-top: 18px;
+      padding-top: 12px;
+      border-top: 1px solid var(--rule-soft);
+      font-size: 8.5pt;
+      color: var(--ink-mute);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      letter-spacing: 0.04em;
+    }
+    .footer .lhs strong { color: var(--ink-soft); font-weight: 600; }
+
     @media print {
-      body { padding: 0; }
-      h2 { page-break-after: avoid; }
-      .rec, .ratio-card, .insight, .savings-box { page-break-inside: avoid; }
+      html, body {
+        background: white;
+        color: black;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      body {
+        padding: 0;
+        max-width: none;
+        font-size: 10pt;
+      }
+      .running-header { margin-bottom: 16px; }
+      h1 { font-size: 22pt; }
+      h2 { font-size: 13pt; margin-top: 26px; break-after: avoid; page-break-after: avoid; }
+      h3 { font-size: 9pt; break-after: avoid; page-break-after: avoid; }
+      .rec, .ratio-card, .insight, .savings-box, .commentary, .risk, .action,
+      table.fin tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .footer { display: none; }  /* superseded by @page bottom-center */
     }
   `;
 
@@ -964,21 +1287,19 @@ export function renderReportHtml(s: Statements): string {
         : "Financials in healthy range across all dimensions.";
 
   // ─ Per-section renderers ──────────────────────────────────────────────────
-  const ratioCard = (rt: Ratio): string => {
-    const colors = verdictColor(rt.verdict);
-    return `
+  // Verdict is rendered via scoped `.badge.v-<verdict>` class (CSS-driven)
+  // rather than the shared `verdictColor()` palette — keeps the report's
+  // restrained institutional tones independent of the live UI's colours.
+  const ratioCard = (rt: Ratio): string => `
       <div class="ratio-card">
         <div class="label">${escapeHtml(rt.label)}</div>
         <div class="value">${escapeHtml(formatRatio(rt))}</div>
         <div class="meta">
-          <span class="badge" style="background:${colors.bg};color:${colors.text}">
-            ${escapeHtml(verdictLabel(rt.verdict))}
-          </span>
+          <span class="badge v-${rt.verdict}">${escapeHtml(verdictLabel(rt.verdict))}</span>
           &nbsp;${escapeHtml(rt.benchmark)}
         </div>
       </div>
     `;
-  };
 
   const ratioGroup = (title: string, group: Ratio[]): string => `
     <h3>${escapeHtml(title)}</h3>
@@ -1031,6 +1352,14 @@ export function renderReportHtml(s: Statements): string {
 
   const incomeStatementTable = (): string => {
     const is = s.incomeStatement;
+    // 722 (capitalized own work) and the statutory EBITDA / Net Income views
+    // are sourced from the engine's canonical `assembled_pl` block at the top
+    // of this function. When the entity has no 722 activity (e.g. Scandia food
+    // manufacturer), `has722` is false and the row is suppressed — the table
+    // looks identical to the pre-fix output. When 722 is material (EEI CRE),
+    // the row appears between Other income and EBITDA, and the EBITDA /
+    // EBIT / PBT / Net Income lines use the statutory canonical values
+    // (which include 722) so the headline ties to account 121.
     return `
       <table class="fin">
         <thead><tr><th>Profit & Loss</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>
@@ -1040,13 +1369,15 @@ export function renderReportHtml(s: Statements): string {
           <tr class="subtotal"><td>Gross Profit</td><td class="num">${money(t.grossProfit, s.currency)}</td></tr>
           <tr class="indent"><td>Operating expenses</td><td class="num">(${money(is.operatingExpenses, s.currency)})</td></tr>
           <tr class="indent"><td>Other income</td><td class="num">${money(is.otherIncome, s.currency)}</td></tr>
-          <tr class="subtotal"><td>EBITDA</td><td class="num">${money(t.ebitda, s.currency)}</td></tr>
+          ${has722 ? `<tr class="indent"><td>Capitalized own work (722, non-cash memo)</td><td class="num">${money(capOwnWork, s.currency)}</td></tr>` : ""}
+          <tr class="subtotal"><td>EBITDA${has722 ? " (statutory)" : ""}</td><td class="num">${money(ebitdaStatutory, s.currency)}</td></tr>
+          ${has722 ? `<tr class="indent"><td>EBITDA (cash view, excl. 722)</td><td class="num">${money(ebitdaCash, s.currency)}</td></tr>` : ""}
           <tr class="indent"><td>Depreciation & amortization</td><td class="num">(${money(is.depreciationAmortization, s.currency)})</td></tr>
-          <tr class="subtotal"><td>EBIT</td><td class="num">${money(t.ebit, s.currency)}</td></tr>
+          <tr class="subtotal"><td>EBIT</td><td class="num">${money(ebitStatutory, s.currency)}</td></tr>
           <tr class="indent"><td>Interest expense</td><td class="num">(${money(is.interestExpense, s.currency)})</td></tr>
-          <tr class="subtotal"><td>Profit Before Tax</td><td class="num">${money(t.pbt, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Profit Before Tax</td><td class="num">${money(pretaxStatutory, s.currency)}</td></tr>
           <tr class="indent"><td>Tax expense</td><td class="num">(${money(is.taxExpense, s.currency)})</td></tr>
-          <tr class="total"><td>Net Income</td><td class="num">${money(t.netIncome, s.currency)}</td></tr>
+          <tr class="total"><td>Net Income${has722 ? " (statutory, ties to acct 121)" : ""}</td><td class="num">${money(netIncomeStatutory, s.currency)}</td></tr>
         </tbody>
       </table>
     `;
@@ -1075,10 +1406,15 @@ export function renderReportHtml(s: Statements): string {
   <title>${escapeHtml(s.companyName)} — Financial Analysis ${escapeHtml(s.periodLabel)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>${css}</style>
 </head>
 <body>
+  <div class="running-header">
+    <span class="org">${escapeHtml(s.companyName)}</span>
+    <span class="meta">Financial Analysis &nbsp;·&nbsp; ${escapeHtml(s.periodLabel)}</span>
+  </div>
+
   <h1>${escapeHtml(s.companyName)}</h1>
   <div class="header-info">
     <p><strong>Comprehensive Financial Analysis</strong></p>
@@ -1092,23 +1428,24 @@ export function renderReportHtml(s: Statements): string {
   </div>
   <div class="grid grid-4">
     <div class="ratio-card">
-      <div class="label">Revenue</div>
-      <div class="value">${money(s.incomeStatement.revenue, s.currency)}</div>
+      <div class="label">Operating revenue</div>
+      <div class="value">${money(operatingRevenue, s.currency)}</div>
+      ${has722 ? `<div class="meta">incl. 722 ${money(capOwnWork, s.currency)}</div>` : ""}
     </div>
     <div class="ratio-card">
-      <div class="label">EBITDA</div>
-      <div class="value">${money(t.ebitda, s.currency)}</div>
-      <div class="meta">${(safeDiv(t.ebitda, s.incomeStatement.revenue) * 100).toFixed(1)}% margin</div>
+      <div class="label">EBITDA${has722 ? " (statutory)" : ""}</div>
+      <div class="value">${money(ebitdaStatutory, s.currency)}</div>
+      <div class="meta">${(safeDiv(ebitdaStatutory, operatingRevenue) * 100).toFixed(1)}% margin</div>
     </div>
     <div class="ratio-card">
-      <div class="label">Net Income</div>
-      <div class="value">${money(t.netIncome, s.currency)}</div>
-      <div class="meta">${(safeDiv(t.netIncome, s.incomeStatement.revenue) * 100).toFixed(1)}% margin</div>
+      <div class="label">Net Income${has722 ? " (statutory)" : ""}</div>
+      <div class="value">${money(netIncomeStatutory, s.currency)}</div>
+      <div class="meta">${(safeDiv(netIncomeStatutory, operatingRevenue) * 100).toFixed(1)}% margin</div>
     </div>
     <div class="ratio-card">
       <div class="label">Total Debt</div>
       <div class="value">${money(t.totalDebt, s.currency)}</div>
-      <div class="meta">${safeDiv(t.totalDebt, t.ebitda).toFixed(2)}× EBITDA</div>
+      <div class="meta">${ebitdaStatutory > 0 ? `${safeDiv(t.totalDebt, ebitdaStatutory).toFixed(2)}× EBITDA` : "EBITDA ≤ 0"}</div>
     </div>
   </div>
 
@@ -1133,10 +1470,15 @@ export function renderReportHtml(s: Statements): string {
   <h2>Recommendations</h2>
   ${recs.map(recommendationCard).join("")}
 
-  <div class="footer">
-    Generated by CFO AI · Financial Statement Intelligence · ${escapeHtml(today)}<br/>
-    AI-assisted analysis. Final decisions remain with management.
-  </div>
+  <aside class="basis-note">
+    <strong>Basis of preparation</strong>
+    Figures reflect the period&rsquo;s statutory financial statements as ingested by the CFO AI engine. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. This document is AI-assisted; final analytical judgement and any onward decisions remain with management.
+  </aside>
+
+  <footer class="footer">
+    <span class="lhs"><strong>CFO AI</strong> &nbsp;·&nbsp; Financial Statement Intelligence</span>
+    <span class="rhs">Generated ${escapeHtml(today)} &nbsp;·&nbsp; Confidential &mdash; for internal use only</span>
+  </footer>
 </body>
 </html>`;
 }

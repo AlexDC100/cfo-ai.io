@@ -12,7 +12,7 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Check, FileText, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, FileText, ShieldCheck, X } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod } from "@/lib/activePeriod";
 import {
@@ -22,6 +22,7 @@ import {
   type Recommendation,
   type RecommendationPriority,
 } from "@/lib/financialReport";
+import { formatRON } from "@/lib/formatRon";
 
 type Severity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -94,6 +95,17 @@ function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeo
   // source of truth. We coerce them into the Recommendation shape this page
   // already knows how to render. For samples, fall back to the client-side
   // generator so the dev preview keeps working.
+  // Server-generated alerts carry the canonical `facts_cited` payload
+  // (every number traced back to period_facts). We thread it through to
+  // the card via a sidecar map keyed by recommendation id, so the card's
+  // "Facts backing this alert" expander shows the exact JSON values.
+  const factsByAlertId = useMemo(() => {
+    const m = new Map<string, { facts: Record<string, number>; ruleKey?: string }>();
+    for (const a of period.alerts) {
+      if (a.facts_cited) m.set(a.id, { facts: a.facts_cited, ruleKey: a.rule_key });
+    }
+    return m;
+  }, [period.alerts]);
   const recommendations = useMemo<Recommendation[]>(() => {
     if (period.alerts.length > 0) {
       const sevToPriority: Record<string, RecommendationPriority> = {
@@ -188,6 +200,7 @@ function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeo
               rec={rec}
               severity={severity}
               currency={cur}
+              factsBacking={factsByAlertId.get(rec.id)}
               isResolved={resolved.has(rec.id)}
               onResolve={() =>
                 setResolved((s) => {
@@ -210,6 +223,7 @@ function AlertCard({
   rec,
   severity,
   currency,
+  factsBacking,
   isResolved,
   onResolve,
   onDismiss,
@@ -217,11 +231,13 @@ function AlertCard({
   rec: Recommendation;
   severity: Severity;
   currency: string;
+  factsBacking?: { facts: Record<string, number>; ruleKey?: string };
   isResolved: boolean;
   onResolve: () => void;
   onDismiss: () => void;
 }) {
   const tone = SEVERITY_TONE[severity];
+  const [factsOpen, setFactsOpen] = useState(false);
   return (
     <li
       data-testid="alert-card"
@@ -231,12 +247,49 @@ function AlertCard({
         <span className={`inline-flex items-center text-[10.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border ${tone}`}>
           {severity}
         </span>
+        {factsBacking?.ruleKey && (
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-ink-mute">
+            {factsBacking.ruleKey}
+          </span>
+        )}
         <h3 className={`font-serif text-[17px] text-ink leading-tight ${isResolved ? "line-through" : ""}`}>{rec.title}</h3>
       </div>
       <p className="text-[13px] text-ink-soft leading-snug mt-2">{rec.rationale}</p>
       {rec.estimatedImpact && (
         <div className="mt-2 inline-flex items-center text-[11.5px] font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
           Estimated impact: ~{formatCurrency(rec.estimatedImpact, currency)} / year
+        </div>
+      )}
+      {factsBacking?.facts && Object.keys(factsBacking.facts).length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setFactsOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 text-[12px] text-ink-soft hover:text-ink transition-colors"
+            data-testid="alert-facts-toggle"
+          >
+            <ChevronRight
+              size={12}
+              strokeWidth={2}
+              className={`transition-transform ${factsOpen ? "rotate-90" : ""}`}
+            />
+            Facts backing this alert
+          </button>
+          {factsOpen && (
+            <div className="mt-2 rounded-lg border border-rule bg-bg-2/40 p-3 font-mono text-[11.5px] leading-relaxed">
+              {Object.entries(factsBacking.facts).map(([k, v]) => (
+                <div
+                  key={k}
+                  className="flex items-baseline justify-between py-0.5 border-b border-rule/40 last:border-0"
+                >
+                  <span className="text-ink-soft">{k}</span>
+                  <span className="text-ink tabular-nums">
+                    {typeof v === "number" && Math.abs(v) > 1 ? formatRON(v) : String(v)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       <div className="mt-4 flex items-center gap-2">

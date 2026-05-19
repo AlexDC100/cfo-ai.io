@@ -45,10 +45,96 @@ export interface PeriodRecommendation {
 export interface PeriodAlertItem {
   id: string;
   alert_key: string;
+  rule_key?: string;
   severity: "critical" | "high" | "medium" | "low" | "info";
   category: string;
   title: string;
   body: string | null;
+  /** Exact numbers from period_facts backing this alert. Rendered in
+   *  the "Facts backing this alert" expander on the alert card. */
+  facts_cited?: Record<string, number> | null;
+  industry?: string | null;
+}
+
+export interface ValuationFootballRow {
+  method: string;
+  primary: boolean;
+  low: number | null;
+  mid: number | null;
+  high: number | null;
+  subtitle: string | null;
+}
+
+export interface PeriodValuation {
+  primary_method: "ev_ebitda" | "asset_based" | string;
+  primary_label?: string;
+  primary_equity_value?: number | null;
+  primary_equity_low?: number | null;
+  primary_equity_high?: number | null;
+  method_warnings?: string[];
+  // FCF breakdown — Valuation tab tiles read from here verbatim. Real
+  // CapEx (CIP additions), NOT D&A. Statutory net income (positive).
+  fcf_breakdown?: {
+    net_income: number;
+    depreciation: number;
+    net_wc_change: number;
+    cash_from_operating: number;
+    capex_real: number;
+    free_cash_flow: number;
+    is_development_phase: boolean;
+    stabilized_fcf: number;
+  } | null;
+  // Three EBITDA views — so the user can audit which one EV/EBITDA used.
+  ebitda_statutory?: number | null;
+  ebitda_operational?: number | null;
+  ebitda_operating_view?: number | null;
+  confidence: "high" | "medium" | "low" | null;
+  multiples_source: string | null;
+  multiples_as_of_date: string | null;
+  formula_text: string;
+  inputs: {
+    ebitda_used: number | null;
+    revenue_used: number | null;
+    total_debt_used: number | null;
+    cash_used: number | null;
+  };
+  primary: {
+    method: string;
+    multiple_p25: number | null;
+    multiple_p50: number | null;
+    multiple_p75: number | null;
+    ev_p25: number | null;
+    ev_p50: number | null;
+    ev_p75: number | null;
+    equity_p25: number | null;
+    equity_p50: number | null;
+    equity_p75: number | null;
+  };
+  cross_checks: {
+    revenue_multiple: {
+      multiple_p25: number | null;
+      multiple_p50: number | null;
+      multiple_p75: number | null;
+      equity_p25: number | null;
+      equity_p50: number | null;
+      equity_p75: number | null;
+    };
+    dcf: {
+      wacc: number | null;
+      terminal_growth: number | null;
+      enterprise_value: number | null;
+      equity_value: number | null;
+      sensitivity_low: number | null;
+      sensitivity_high: number | null;
+    };
+  };
+  football_field: ValuationFootballRow[];
+  user_assumptions: {
+    ebitda_used: number | null;
+    multiple_used: number | null;
+    debt_used: number | null;
+    cash_used: number | null;
+  } | null;
 }
 
 export interface ActivePeriod {
@@ -78,6 +164,33 @@ export interface ActivePeriod {
   isLoading: boolean;
   /** Source kind — distinguishes a fictional sample from a real upload. */
   source: "sample" | "upload" | null;
+  /** Valuation payload — EBITDA-multiple primary + DCF + EV/Revenue cross-checks. */
+  valuation: PeriodValuation | null;
+  /** Per-account line items from the assembled statements — drives the
+   *  reference-format P&L renderer with account-code drill-down. Empty
+   *  when this period is a sample or has no extracted accounts. */
+  lineItems: PeriodLineItem[];
+  /** Source-document type as detected at ingestion. `"statutory_f30_f10"`
+   *  triggers the aggregate-only banner; `"trial_balance"` is the
+   *  full-granularity path; null when unknown. */
+  detectedType: string | null;
+  /** True when the URL referenced a period id (UUID) that the backend
+   *  could not resolve (HTTP 404). The most common cause is a stale URL
+   *  whose underlying period row was hard-deleted by
+   *  `_maybe_drop_empty_period` after every linked document was
+   *  permanent-deleted. Callers should distinguish this from
+   *  "no period selected" — the former needs a redirect or banner,
+   *  the latter is just the empty state. */
+  notFound: boolean;
+}
+
+export interface PeriodLineItem {
+  statement: "BS" | "PL" | "IGNORED";
+  bucket: string;
+  ro_account_code: string;
+  ro_account_name?: string;
+  amount: number;
+  is_derived?: boolean;
 }
 
 const EMPTY: ActivePeriod = {
@@ -94,6 +207,10 @@ const EMPTY: ActivePeriod = {
   isLoaded: false,
   isLoading: false,
   source: null,
+  valuation: null,
+  lineItems: [],
+  detectedType: null,
+  notFound: false,
 };
 
 // ─── Resolvers ──────────────────────────────────────────────────────────────
@@ -108,34 +225,72 @@ function isUuid(s: string): boolean {
 }
 
 interface PeriodApiResponse {
-  period: { id: string; period_end: string; currency: string };
+  period: {
+    id: string;
+    period_end: string;
+    currency: string;
+    /** Source document metadata — carries the detected document type
+     *  so the FE can render limitation banners for aggregate-only
+     *  inputs (statutory F30+F10) vs the full trial-balance path. */
+    source_document?: {
+      id: string;
+      filename: string;
+      status: string;
+      detected_type: string | null;
+    } | null;
+  };
   organization: { id: string; name: string; industry_display_name: string | null } | null;
   statements: Statements;
   metrics: PeriodMetric[];
   briefing: { body: string; language: string; model: string | null } | null;
   recommendations: PeriodRecommendation[];
   alerts: PeriodAlertItem[];
+  valuation: PeriodValuation | null;
+  /** Per-account line items — drives the reference-format P&L drill-down. */
+  line_items?: PeriodLineItem[];
 }
 
-async function fetchPeriodFromApi(periodId: string): Promise<PeriodApiResponse | null> {
+/**
+ * Result of a period fetch. The previous shape collapsed "404" and
+ * "network error" into a single `null` return, which made the
+ * stale-URL case look identical to "backend down". The discriminated
+ * variants below let `useActivePeriod` surface a `notFound` flag so
+ * the UI can render a stale-URL banner instead of a perpetual loading
+ * spinner. See diagnostics/SET_INDUSTRY_PERIOD_NOT_FOUND_2026-05-18.md
+ * for the root cause this fixes.
+ */
+type PeriodFetchResult =
+  | { kind: "ok"; data: PeriodApiResponse }
+  | { kind: "not_found" }
+  | { kind: "error" };
+
+async function fetchPeriodFromApi(periodId: string): Promise<PeriodFetchResult> {
   const supabase = getSupabase();
-  if (!supabase) return null;
+  if (!supabase) return { kind: "error" };
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return null;
+  if (!token) return { kind: "error" };
   const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
   try {
     const res = await fetch(`${apiUrl}/api/period/${periodId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (res.status === 404) {
+      // The period referenced in the URL doesn't exist (anymore). The
+      // most common cause is `_maybe_drop_empty_period` cascading after
+      // a permanent-delete. Surface this distinctly so the picker can
+      // render a redirect-to-dashboard banner instead of an empty
+      // detection card.
+      return { kind: "not_found" };
+    }
     if (!res.ok) {
       console.warn("[activePeriod] /api/period failed:", res.status);
-      return null;
+      return { kind: "error" };
     }
-    return (await res.json()) as PeriodApiResponse;
+    return { kind: "ok", data: (await res.json()) as PeriodApiResponse };
   } catch (err) {
     console.warn("[activePeriod] /api/period error:", err);
-    return null;
+    return { kind: "error" };
   }
 }
 
@@ -166,21 +321,44 @@ export function useActivePeriod(): ActivePeriod {
 
     // Server-side period (uuid + API response)
     if (isUuid(periodId)) {
+      // The query is still in flight — keep the existing
+      // "isLoading + id known" payload so the page can render its
+      // skeleton.
       if (!remote) return { ...EMPTY, id: periodId, isLoading: loading };
+
+      // Stale URL — the backend returned 404 for this period id.
+      // Surface `notFound: true` so route guards / pickers can render
+      // a "this analysis no longer exists" banner instead of treating
+      // it as an empty state. See diagnostics/
+      // SET_INDUSTRY_PERIOD_NOT_FOUND_2026-05-18.md (defect D1).
+      if (remote.kind === "not_found") {
+        return { ...EMPTY, id: periodId, notFound: true, isLoading: false };
+      }
+      // Transport error (network, auth) — leave EMPTY so the UI doesn't
+      // commit to the wrong story. `isLoading` stays false; a soft retry
+      // is the caller's job.
+      if (remote.kind === "error") {
+        return { ...EMPTY, id: periodId, isLoading: false };
+      }
+      const payload = remote.data;
       return {
-        id: remote.period.id,
-        label: remote.statements.companyName ?? remote.organization?.name ?? null,
-        industry: remote.organization?.industry_display_name ?? null,
-        statements: remote.statements,
+        id: payload.period.id,
+        label: payload.statements.companyName ?? payload.organization?.name ?? null,
+        industry: payload.organization?.industry_display_name ?? null,
+        statements: payload.statements,
         invoices: null,
-        metrics: remote.metrics,
-        recommendations: remote.recommendations,
-        alerts: remote.alerts,
-        briefing: remote.briefing?.body ?? null,
+        metrics: payload.metrics,
+        recommendations: payload.recommendations,
+        alerts: payload.alerts,
+        briefing: payload.briefing?.body ?? null,
         availableTypes: ["bilant", "pl"] as DocumentType[],
         isLoaded: true,
         isLoading: false,
         source: "upload",
+        valuation: payload.valuation ?? null,
+        lineItems: payload.line_items ?? [],
+        detectedType: payload.period.source_document?.detected_type ?? null,
+        notFound: false,
       };
     }
 
@@ -201,6 +379,9 @@ export function useActivePeriod(): ActivePeriod {
       isLoaded: true,
       isLoading: false,
       source: "sample",
+      valuation: null,
+      lineItems: [],
+      detectedType: null,
     };
   }, [periodId, remote, loading]);
 }

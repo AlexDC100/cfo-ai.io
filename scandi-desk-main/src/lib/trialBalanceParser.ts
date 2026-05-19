@@ -190,7 +190,7 @@ export interface ParseResult {
   totals: Record<Bucket, number>;
 }
 
-const numberToken = /-?[0-9]{1,3}(?:[.,\s ][0-9]{3})*(?:[.,][0-9]{1,2})?/g;
+const numberToken = /-?[0-9]{1,3}(?:[.,\s\u00A0][0-9]{3})*(?:[.,][0-9]{1,2})?/g;
 
 /** Parse a single line: "201 Cheltuieli de constituire   12,500.00   12,500.00" */
 function parseLine(line: string): ParsedLine | null {
@@ -224,7 +224,7 @@ function parseLine(line: string): ParsedLine | null {
 /** Romanian numbers use either `.` or `,` as decimal separator with `.` or
  *  space thousand grouping. Try both and pick the parse that's plausible. */
 function parseRoNumber(raw: string): number {
-  const cleaned = raw.replace(/[\s ]/g, "");
+  const cleaned = raw.replace(/[\s\u00A0]/g, "");
   // Cases: 1.234,56 (RO) | 1,234.56 (EN) | 1234.56 | 1234,56 | 1234
   const lastComma = cleaned.lastIndexOf(",");
   const lastDot = cleaned.lastIndexOf(".");

@@ -1,0 +1,76 @@
+{
+  "_status": "DRAFT — source.md has small balancing inconsistencies (totals page says 6,539,300 but column sums to 6,631,900 / 6,244,600 = delta 387k). Refine before CI promotion. Values below derived as if source were balanced; intended as the directional contract for the FR pipeline.",
+  "currency": "EUR",
+  "period_end": "2025-12-31",
+  "tolerance_pct": 0.05,
+  "_tolerance_note": "Generous synthetic-fixture tolerance until source.md is fully balanced.",
+
+  "balance_sheet": {
+    "assets": {
+      "cash":                   186750.00,
+      "accountsReceivable":     427100.00,
+      "inventory":              231500.00,
+      "otherCurrentAssets":      38200.00,
+      "_ppe_gross":           2316000.00,
+      "_ppe_accumulated_dep":  -712400.00,
+      "propertyPlantEquipment": 1603600.00,
+      "intangibles":             22950.00,
+      "otherNonCurrentAssets":   50000.00,
+      "total_assets":          2560100.00
+    },
+    "liabilities_equity": {
+      "accountsPayable":         218700.00,
+      "otherCurrentLiab":        204900.00,
+      "longTermDebt":            620000.00,
+      "shareCapital":             50000.00,
+      "otherEquity":             380000.00,
+      "retainedEarnings":        145200.00,
+      "_pl_net_to_be_added_via_close": 287450.00,
+      "total_liabilities_equity_with_12": 1906250.00
+    },
+    "_balance_check_note": "Standardized BS does not yet balance with the operational P&L roll because synthetic source has minor inconsistencies. Refine source.md."
+  },
+
+  "income_statement_ytd": {
+    "revenue_operational":           3517000.00,
+    "_revenue_components": {
+      "701_ventes_produits_finis":   2780000.00,
+      "706_prestations_services":     425000.00,
+      "707_ventes_marchandises":      312000.00
+    },
+    "capitalized_own_work_memo":       48000.00,
+    "_capitalized_own_work_components": {
+      "72_production_immobilisee":     48000.00
+    },
+    "_one_off_excluded_from_operational": {
+      "78_reprises_provisions":        14800.00,
+      "79_transferts_de_charges":       7300.00,
+      "_note": "78 and 79 surface as memo but flagged non-recurring; per the FR mapping these go to otherIncome and are visible in alerts, NOT inflated as headline revenue."
+    },
+    "cogs":                          1800500.00,
+    "gross_profit":                  1716500.00,
+    "operating_expenses": {
+      "611_sous_traitance":             78200.00,
+      "615_maintenance":                89400.00,
+      "616_insurance":                  24800.00,
+      "62x_services_exterieurs":       176400.00,
+      "63x_non_income_taxes":           52800.00,
+      "64x_payroll":                   860400.00,
+      "67x_exceptional_keep_visible":    8400.00,
+      "total":                        1290400.00
+    },
+    "ebitda_operational":             426100.00,
+    "_ebitda_note": "Excludes 72 (capitalized own-work), 74 (subsidies — surfaced as memo), 78 (reprises), 79 (cost transfers). Margin ≈ 12% — within typical light-industrial band.",
+    "depreciation_amortization":      142600.00,
+    "ebit":                           283500.00,
+    "financial_income":                 4950.00,
+    "financial_expense":               38700.00,
+    "other_income":                    74700.00,
+    "_other_income_note": "Includes 74 subsidies (18.5k) + 78 reprises (14.8k) + 79 transferts (7.3k) + 758 misc (6.2k) + 771 exceptional (9.2k). Flagged separately so the EBIT reader can normalize.",
+    "pretax_income":                  324450.00,
+    "tax_expense":                     96200.00,
+    "net_income_computed":            228250.00,
+    "_native_check_account_12":       287450.00,
+    "_native_check_note": "Native account 12 = 287,450 — synthetic source overstates net income vs the operational reconstruction by ~59k. Either source.md has unaccounted-for items or the markdown's 12 value is illustrative."
+  }
+}

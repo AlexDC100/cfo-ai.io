@@ -1,103 +1,142 @@
-// /settings — Profile, Workspace, Subscription, Security, Integrations.
+// /settings — Profile, Language, Workspace, Billing, Data, Security.
 //
-// All sections live on a single page so the operator can scan their account
-// at a glance. Subscription card is the centrepiece — shows trial countdown,
-// renewal date, cancel-at-period-end status, and routes to /pricing for
-// upgrade/downgrade. Cancel + reactivate live inline.
+// Settings IA after the May-2026 cleanup pass: five real-feature sections,
+// in a single column, with one obvious action per row. Removed: the
+// duplicate "Subscription" section (covered by Billing → BillingSection)
+// and the "Integrations" section (IntegrationsStub was an ERP/Slack/email
+// teaser with no functional backend). Both removed components remain on
+// disk so the change is fully reversible.
 
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
-import {
-  isSubscriptionEntitled,
-  planFor,
-  trialDaysLeft,
-  useSubscription,
-} from "@/lib/billing";
-import { getSupabase, supabaseEnabled } from "@/lib/supabase";
+// useSubscription/isSubscriptionEntitled/planFor/trialDaysLeft + supabaseEnabled
+// were used by the removed `Subscription` section; <BillingSection /> now
+// owns that surface internally. Re-import here if/when the standalone
+// Subscription section is restored.
+import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertTriangle,
   Check,
   ExternalLink,
+  Loader2,
   Lock,
   LogOut,
   Mail,
   Settings as SettingsIcon,
   Shield,
   Sparkle,
+  Trash2,
+  type LucideIcon,
 } from "lucide-react";
+import { BillingSection } from "@/components/cfo/BillingSection";
+import {
+  IndustryAuditTrail,
+  IndustryBadge,
+  IndustryPicker,
+} from "@/components/cfo/industry";
+// FinancialAssumptionsCard + DataRulesCard imports removed from Settings;
+// DataRulesCard now lives inside Command Center → Data (imported there).
+// PlanUsageCard import dropped — Plan & usage section was removed per
+// operator directive. The component file stays on disk; restore the
+// import + JSX call to bring the section back (see comment near the
+// removed JSX below).
+import { useActivePeriod } from "@/lib/activePeriod";
 
 export default function Settings() {
-  const { user, displayName, companyName, signOut } = useAuth();
-  const { subscription, loading, cancel, reactivate, refresh } = useSubscription();
+  const { t } = useTranslation();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const plan = planFor(subscription);
-  const entitled = isSubscriptionEntitled(subscription);
-  const trialLeft = trialDaysLeft(subscription);
+  // useSubscription / planFor / etc. were used by the removed standalone
+  // `Subscription` section; <BillingSection/> manages its own state, so
+  // the page-level subscription hook is no longer needed here.
 
   return (
     <AppShell>
       <header className="mb-7">
-        <div className="label-eyebrow">Settings</div>
+        <div className="label-eyebrow">{t("sidebar.settings")}</div>
         <h1 className="mt-2 font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">
-          Account
+          {t("settings.title")}
         </h1>
         <p className="mt-3 text-[15px] text-ink-soft max-w-[640px]">
-          Manage your profile, workspace, subscription, and security in one place.
+          {t("settings.subtitle")}
         </p>
       </header>
 
+      {/*
+        Settings IA, after cleanup:
+          · Account     — profile (Profile + Language)
+          · Plan & usage — Pricing V2 surface
+          · Billing     — Stripe-backed subscription (one surface, was two)
+          · Data        — clear-my-uploads (safe soft-delete; new)
+          · Security    — sign-out
+        Removed (preserved on disk for revert):
+          · `Subscription` (duplicated `Billing`)
+          · `Integrations` (non-functional stub)
+          · `Workspace` (org-rename input — the workspace label only
+                         affects the header chip; not worth a Settings slot)
+          · `Industry classification` (per-period field; the picker
+                         lives at the top of the Benchmark report and on
+                         each period view, so a Settings entry was a
+                         confused second seat — operator directive)
+      */}
       <div className="space-y-6 max-w-[860px]">
         <ProfileCard />
         <LanguageCard />
-        <WorkspaceCard />
 
-        {/* Subscription — the centrepiece. */}
-        <Section title="Subscription" subtitle="Plan, trial, and renewal — all in one place.">
-          {!supabaseEnabled ? (
-            <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
-              Authentication isn't configured on this build (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY).
-            </div>
-          ) : loading ? (
-            <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-6 text-[13px] text-ink-mute">
-              Loading subscription…
-            </div>
-          ) : !subscription || !plan ? (
-            <div className="rounded-xl border border-caution/30 bg-caution-tint px-4 py-4 text-[13px] text-caution">
-              We couldn't find a subscription on your account.{" "}
-              <Link to="/pricing" className="underline-offset-2 hover:underline">Pick a plan →</Link>
-            </div>
-          ) : (
-            <SubscriptionCard
-              planName={plan.name}
-              status={subscription.status}
-              entitled={entitled}
-              billingCycle={subscription.billingCycle}
-              trialDaysLeft={trialLeft}
-              renewsAt={subscription.currentPeriodEnd}
-              cancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
-              onUpgrade={() => navigate("/pricing")}
-              onCancel={async () => {
-                const next = await cancel();
-                if (next) toast({ title: "Cancellation scheduled", description: "Access continues until the end of the current period." });
-                else toast({ title: "Couldn't cancel", variant: "destructive" });
-              }}
-              onReactivate={async () => {
-                const next = await reactivate();
-                if (next) toast({ title: "Subscription reactivated" });
-                else toast({ title: "Couldn't reactivate", variant: "destructive" });
-              }}
-              onRefresh={refresh}
-            />
-          )}
+        {/* Workspace + Industry classification sections were removed per
+            operator directive. Function defs kept on disk
+            (`WorkspaceCard()` + `IndustrySection()` below). The industry
+            picker lives at the top of the Benchmark report and on each
+            period view; the workspace label only affects the header chip
+            and didn't warrant its own Settings slot. */}
+
+        {/* Financial Assumptions + Data Rules sections were removed
+            from Settings per the operator's directive. Financial
+            Assumptions was three read-only labels that didn't earn
+            their slot; Data Rules belongs in Command Center → Data
+            where the threshold sliders sit alongside the other data
+            controls. Both component files
+            (`FinancialAssumptionsCard.tsx` + `DataRulesCard.tsx`)
+            stay on disk for revert; the DataRulesCard import below
+            stays only so Command Center → Data can render it. */}
+
+        {/* Plan & usage section removed per operator directive
+            (May 2026). The same surface lives in three other
+            authenticated places — keeping it in Settings was the third
+            seat at the same table:
+              · /pricing — UsageThisMonth + status strip (full picture)
+              · AccountMenu — docs-this-month + progress bar (glanceable)
+              · Settings → Billing — current plan + price + email
+            `PlanUsageCard` component file stays on disk for revert. */}
+
+        {/* Billing — simplified per operator directive (May 2026): just
+            Current plan + Billing email + Manage subscription. The
+            subtitle was dropped because the card is now self-evident.
+            Prices come from /api/plan/state (server config). */}
+        <Section title={t("settings.billing_title")}>
+          <BillingSection />
         </Section>
 
-        <Section title="Security" subtitle="Password, sign out, two-factor.">
+        {/* Data — workspace housekeeping. Only one control today: a safe
+            soft-delete sweep for the caller's own uploads. Reuses the
+            existing `deleted_at` mechanism via a new thin batch endpoint
+            (POST /api/documents/clear-mine) that intentionally does NOT
+            invoke _maybe_drop_empty_period — orphaned empty periods are
+            Bug A's domain and are left alone here. */}
+        <Section
+          title="Data"
+          subtitle="Manage the documents and analyses in your workspace."
+        >
+          <DataSection />
+        </Section>
+
+        <Section title={t("settings.security_title")} subtitle={t("settings.security_subtitle")}>
           <SecurityCard
             email={user?.email ?? null}
             onSignOut={async () => {
@@ -112,11 +151,75 @@ export default function Settings() {
           />
         </Section>
 
-        <Section title="Integrations" subtitle="Connect your ERP, Slack, and email so CFO AI plugs into your stack.">
-          <IntegrationsStub />
-        </Section>
+        {/*
+          REMOVED (still on disk for reversibility):
+            · <Section title="Subscription"> + <SubscriptionCard> —
+              duplicated `<BillingSection />` above. Function def kept.
+            · <Section title="Integrations"> + <IntegrationsStub> —
+              ERP/Slack/email teaser, no working backend. Function def kept.
+            · <WorkspaceCard /> — org-rename input. The workspace label
+              only affects the header chip and didn't earn a Settings
+              slot. Function def kept.
+            · <Section title="Industry classification"> + <IndustrySection /> —
+              per-period field. The picker lives at the top of the
+              Benchmark report and on each period view, so a Settings
+              entry was a confused second seat. Function def kept.
+        */}
       </div>
     </AppShell>
+  );
+}
+
+/* ───────── Industry section (Phase E) ──────────────────────────────────── */
+
+/**
+ * IndustrySection — the workspace-level view of the per-period industry
+ * assignment. Reads `?period=<id>` from the URL via useActivePeriod so the
+ * Settings page can be deep-linked to a specific period
+ * (e.g. /settings?period=<uuid>). When no period is set, the section
+ * surfaces an "Open a period first" empty state — Settings has no way to
+ * pick a period itself.
+ */
+function IndustrySection() {
+  const { id: periodId } = useActivePeriod();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  if (!periodId) {
+    return (
+      <div
+        data-testid="settings-industry-empty"
+        className="rounded-lg border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-mute"
+      >
+        Open any period (Dashboard, Cash, Profit…) and come back here to
+        review or change its industry classification. The picker also lives
+        at the top of the Benchmark report.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <IndustryBadge
+        periodId={periodId}
+        variant="full"
+        onClickChange={() => setPickerOpen(true)}
+      />
+      <details className="group">
+        <summary className="cursor-pointer text-[12.5px] text-ink-soft hover:text-ink select-none">
+          View change history
+        </summary>
+        <div className="mt-3">
+          <IndustryAuditTrail periodId={periodId} limit={20} />
+        </div>
+      </details>
+      {pickerOpen && (
+        <IndustryPicker
+          periodId={periodId}
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -130,9 +233,10 @@ interface Profile {
 }
 
 function ProfileCard() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
@@ -150,9 +254,13 @@ function ProfileCard() {
         .maybeSingle();
       const p = (data ?? {}) as Profile;
       setProfile(p);
-      setName(p.full_name ?? p.display_name ?? "");
-      setCompany(p.company_name ?? "");
-      setRole(p.role ?? "");
+      // Fall back to user_metadata for first-time users who haven't saved
+      // a profile row yet (signUp seeds display_name + company_name into
+      // user_metadata but doesn't always backfill the profiles table).
+      const meta = (user.user_metadata ?? {}) as Record<string, string | undefined>;
+      setName(p.full_name ?? p.display_name ?? meta.display_name ?? "");
+      setCompany(p.company_name ?? meta.company_name ?? "");
+      setRole(p.role ?? "member");
     })();
   }, [user]);
 
@@ -160,11 +268,25 @@ function ProfileCard() {
     const sb = getSupabase();
     if (!sb || !user) return;
     setBusy(true);
-    const { error } = await sb
+    // UPSERT, not UPDATE — first-time users won't have a profile row yet
+    // because the auth-trigger that seeds it can lag behind signUp by a few
+    // seconds. UPDATE with no matching row silently succeeds with 0 affected
+    // rows, the user clicks Save, sees the toast, but nothing persists.
+    // The upsert with `id` as the conflict target fixes both cases.
+    const { error: pErr } = await sb
       .from("profiles")
-      .update({ full_name: name, company_name: company, role })
-      .eq("id", user.id);
+      .upsert(
+        { id: user.id, full_name: name, company_name: company, role, email: user.email },
+        { onConflict: "id" },
+      );
+    // Also mirror into user_metadata so `useAuth().displayName` /
+    // `companyName` / `workspaceLabel` reflect the change without a full
+    // session refresh (those memo'd values read from user_metadata).
+    const { error: aErr } = await sb.auth.updateUser({
+      data: { display_name: name, company_name: company },
+    });
     setBusy(false);
+    const error = pErr ?? aErr;
     if (error) toast({ title: "Couldn't save profile", description: error.message, variant: "destructive" });
     else toast({ title: "Profile saved" });
   }
@@ -180,25 +302,25 @@ function ProfileCard() {
   }
 
   return (
-    <Section title="Profile" subtitle="How CFO AI introduces you across the app.">
+    <Section title={t("settings.profile_title")} subtitle={t("settings.profile_subtitle")}>
       <div className="rounded-2xl border border-rule bg-surface px-5 py-5 space-y-4">
-        <Field label="Full name">
+        <Field label={t("settings.full_name")}>
           <Input value={name} onChange={setName} placeholder="Alex Maier" />
         </Field>
-        <Field label="Company">
+        <Field label={t("settings.company")}>
           <Input value={company} onChange={setCompany} placeholder="Acme Romania SRL" />
         </Field>
-        <Field label="Role">
+        <Field label={t("settings.role")}>
           <Input value={role} onChange={setRole} placeholder="CFO" />
         </Field>
         <div className="flex items-center justify-between pt-1">
-          <p className="text-[11px] text-ink-mute">Email <span className="text-ink-soft">{user.email}</span></p>
+          <p className="text-[11px] text-ink-mute">{t("settings.email")} <span className="text-ink-soft">{user.email}</span></p>
           <button
             onClick={save}
             disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-md bg-brand text-paper px-3.5 py-1.5 text-[12.5px] font-medium hover:bg-brand/90 disabled:opacity-50 transition-colors"
           >
-            {busy ? "Saving…" : "Save profile"}
+            {busy ? t("settings.saving") : t("settings.save_profile")}
           </button>
         </div>
       </div>
@@ -210,6 +332,36 @@ function ProfileCard() {
 
 function LanguageCard() {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  async function pickLanguage(code: string) {
+    // 1. Local — i18next changeLanguage + localStorage persist.
+    setLanguage(code);
+    // 2. Backend — mirror to profiles.language so the choice survives a
+    // browser cache clear or a sign-in on a new device. Best-effort; if
+    // the column doesn't exist (migration not yet applied) we still keep
+    // the local change.
+    if (user) {
+      const sb = getSupabase();
+      if (sb) {
+        try {
+          await sb.from("profiles").update({ language: code }).eq("id", user.id);
+        } catch {
+          /* `language` column may not exist yet — non-fatal */
+        }
+        // Also stash in auth metadata as a fallback persistence layer.
+        try {
+          await sb.auth.updateUser({ data: { language: code } });
+        } catch { /* non-fatal */ }
+      }
+    }
+    // Visible feedback so the user knows the switch happened even if their
+    // current page's labels happen to be hardcoded strings.
+    const langName = SUPPORTED_LANGUAGES.find((l) => l.code === code)?.label ?? code;
+    toast({ title: `Language: ${langName}` });
+  }
+
   return (
     <div className="rounded-2xl border border-rule bg-surface px-5 py-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -226,7 +378,7 @@ function LanguageCard() {
               <button
                 key={lang.code}
                 type="button"
-                onClick={() => setLanguage(lang.code)}
+                onClick={() => void pickLanguage(lang.code)}
                 data-testid={`lang-${lang.code}`}
                 className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12.5px] transition-colors ${
                   active
@@ -248,6 +400,7 @@ function LanguageCard() {
 /* ───────── Workspace card ──────────────────────────────────────────────── */
 
 function WorkspaceCard() {
+  const { t } = useTranslation();
   const { user, workspaceLabel } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState(workspaceLabel ?? "");
@@ -258,14 +411,30 @@ function WorkspaceCard() {
     const sb = getSupabase();
     if (!sb) return;
     void (async () => {
-      const { data } = await sb
-        .from("workspaces")
-        .select("name")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (data?.name) setName(data.name);
+      // Source of truth for the workspace name shown in the header is the
+      // user's primary `organizations` row (where CAEN code, industry, etc.
+      // also live). The legacy `workspaces` table is empty for most users
+      // — reading from it alone produced a stale empty input and the
+      // previous Save handler silently no-op'd because UPDATE matched 0
+      // rows. Now we hydrate from the org name (joined via memberships).
+      try {
+        const { data: m } = await sb
+          .from("memberships")
+          .select("org_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+        const orgId = m?.org_id as string | undefined;
+        if (!orgId) return;
+        const { data: org } = await sb
+          .from("organizations")
+          .select("name")
+          .eq("id", orgId)
+          .maybeSingle();
+        if (org?.name) setName(org.name);
+      } catch {
+        /* fallback to workspaceLabel from useAuth */
+      }
     })();
   }, [user]);
 
@@ -273,18 +442,49 @@ function WorkspaceCard() {
     const sb = getSupabase();
     if (!sb || !user) return;
     setBusy(true);
-    const { error } = await sb.from("workspaces").update({ name }).eq("owner_id", user.id);
+    // Save to the user's primary organization — that's what powers the
+    // header label + every benchmark report. We resolve the org via the
+    // user's membership rather than a hard-coded owner_id (orgs are
+    // multi-tenant; one user can be a member of many).
+    let error: { message?: string } | null = null;
+    try {
+      const { data: m, error: memErr } = await sb
+        .from("memberships")
+        .select("org_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (memErr) {
+        error = memErr;
+      } else if (m?.org_id) {
+        const { error: orgErr } = await sb
+          .from("organizations")
+          .update({ name })
+          .eq("id", m.org_id);
+        if (orgErr) error = orgErr;
+      } else {
+        error = { message: "No organization membership found for this user." };
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      error = { message: msg };
+    }
+    // Mirror into auth metadata so the header / workspaceLabel updates
+    // immediately without waiting for a session refresh round-trip.
+    if (!error) {
+      await sb.auth.updateUser({ data: { company_name: name } });
+    }
     setBusy(false);
-    if (error) toast({ title: "Couldn't save workspace", description: error.message, variant: "destructive" });
+    if (error) toast({ title: "Couldn't save workspace", description: error.message ?? "Unknown error", variant: "destructive" });
     else toast({ title: "Workspace renamed" });
   }
 
   if (!user) return null;
 
   return (
-    <Section title="Workspace" subtitle="The label that appears in the top header.">
+    <Section title={t("settings.workspace_title")} subtitle={t("settings.workspace_subtitle")}>
       <div className="rounded-2xl border border-rule bg-surface px-5 py-5 space-y-4">
-        <Field label="Workspace name">
+        <Field label={t("settings.workspace_name")}>
           <Input value={name} onChange={setName} placeholder="My company" />
         </Field>
         <div className="flex justify-end pt-1">
@@ -293,7 +493,7 @@ function WorkspaceCard() {
             disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-md bg-brand text-paper px-3.5 py-1.5 text-[12.5px] font-medium hover:bg-brand/90 disabled:opacity-50 transition-colors"
           >
-            {busy ? "Saving…" : "Save workspace"}
+            {busy ? t("settings.saving") : t("settings.save_workspace")}
           </button>
         </div>
       </div>
@@ -426,6 +626,7 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 /* ───────── Security card ───────────────────────────────────────────────── */
 
 function SecurityCard({ email, onSignOut }: { email: string | null; onSignOut: () => void | Promise<void> }) {
+  const { t } = useTranslation();
   const sb = getSupabase();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -441,26 +642,23 @@ function SecurityCard({ email, onSignOut }: { email: string | null; onSignOut: (
 
   return (
     <div className="rounded-2xl border border-rule bg-surface px-5 py-5 space-y-3">
-      <Row icon={Lock} title="Password">
+      <Row icon={Lock} title={t("settings.password")}>
         <button
           onClick={sendPasswordReset}
           disabled={busy || !email}
           className="text-[12px] text-ink-soft hover:text-ink transition-colors disabled:opacity-50"
         >
-          {busy ? "Sending…" : "Send reset email"}
+          {busy ? t("settings.sending") : t("settings.send_reset_email")}
         </button>
       </Row>
-      <Row icon={Shield} title="Two-factor authentication">
-        <span className="text-[12px] text-ink-mute">Coming soon</span>
+      <Row icon={Shield} title={t("settings.2fa")}>
+        <span className="text-[12px] text-ink-mute">{t("settings.coming_soon")}</span>
       </Row>
-      <Row icon={LogOut} title="Sign out">
-        <button
-          onClick={onSignOut}
-          className="text-[12px] text-alert hover:text-alert/80 transition-colors"
-        >
-          Sign out of this device
-        </button>
-      </Row>
+      {/* Sign-out row removed (May 2026 redesign) — the THE single
+          sign-out lives in the top-right account dropdown
+          (`<AccountMenu/>`, data-testid="account-menu-sign-out"). The
+          `onSignOut` prop above stays wired so this is a one-line JSX
+          restore if ever needed. */}
     </div>
   );
 }
@@ -486,6 +684,134 @@ function IntegrationsStub() {
       <div className="px-5 py-3 text-[11.5px] text-ink-mute flex items-center gap-2">
         <AlertTriangle size={12} strokeWidth={1.75} />
         Integrations are part of the Professional and Enterprise plans.
+      </div>
+    </div>
+  );
+}
+
+/* ───────── Data section — safe "Clear my uploads" ───────────────────────
+ *
+ * Single control: a destructive-looking button that, on confirm, calls
+ * POST /api/documents/clear-mine. That endpoint sets `deleted_at = now()`
+ * on every live document in the caller's org via ONE PostgREST UPDATE.
+ * It intentionally does NOT trigger `_maybe_drop_empty_period` (the Bug A
+ * cascade). Orphaned empty periods left behind are Bug A's domain and
+ * are NOT cleaned here.
+ *
+ * UX:
+ *   · Two-step gate: first click opens an inline confirm row; the user
+ *     must explicitly click "Yes, clear them" to proceed. No type-to-
+ *     confirm because the action is reversible at the row level
+ *     (deleted_at can be cleared if support intervenes).
+ *   · While in flight, both buttons disable + the primary shows a spinner.
+ *   · On success: toast with the count + page-reload signal via
+ *     `window.location.assign('/dashboard')` so DocumentSwitcher / quick
+ *     cards re-fetch and the empty state appears.
+ */
+function DataSection() {
+  const { toast } = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function clearMyUploads() {
+    setBusy(true);
+    try {
+      const sb = getSupabase();
+      const { data: session } = sb
+        ? await sb.auth.getSession()
+        : { data: { session: null } };
+      const token = session?.session?.access_token;
+      if (!token) {
+        toast({
+          title: "Not signed in",
+          description: "Sign in to manage your uploads.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const apiUrl =
+        (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+      const r = await fetch(`${apiUrl}/api/documents/clear-mine`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) {
+        const body = await r.text().catch(() => "");
+        throw new Error(body || `HTTP ${r.status}`);
+      }
+      const { deleted_count } = (await r.json()) as { deleted_count: number };
+      toast({
+        title: deleted_count === 0
+          ? "No uploads to clear"
+          : `Cleared ${deleted_count} upload${deleted_count === 1 ? "" : "s"}`,
+        description: deleted_count === 0
+          ? "Your workspace is already empty."
+          : "Documents are hidden from the dashboard. Contact support if you need them restored within 30 days.",
+      });
+      setConfirming(false);
+      // Bounce to the dashboard so every active query re-reads the fresh
+      // state (DocumentSwitcher, PublicRecordsQuickCard, etc.).
+      if (deleted_count > 0) {
+        window.location.assign("/dashboard");
+      }
+    } catch (e) {
+      toast({
+        title: "Couldn't clear uploads",
+        description: e instanceof Error ? e.message : "Unexpected error.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-rule bg-bg-2/30 px-5 py-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[13.5px] font-semibold text-ink">
+            <Trash2 size={14} strokeWidth={1.75} className="text-ink-soft" />
+            Clear all my uploaded documents
+          </div>
+          <p className="mt-1.5 text-[12.5px] text-ink-soft leading-relaxed max-w-[520px]">
+            Hides every document (and its analysis) you've uploaded to this workspace.
+            Reversible by support for 30 days. Does not affect other organizations or
+            other users' uploads.
+          </p>
+        </div>
+        {!confirming ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            data-testid="settings-clear-uploads"
+            className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors"
+          >
+            <Trash2 size={13} strokeWidth={1.75} />
+            Clear uploads…
+          </button>
+        ) : (
+          <div className="shrink-0 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+              className="inline-flex items-center h-9 px-3 rounded-lg border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => { void clearMyUploads(); }}
+              data-testid="settings-confirm-clear"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
+            >
+              {busy
+                ? <><Loader2 size={13} className="animate-spin" />Clearing…</>
+                : <><Trash2 size={13} strokeWidth={1.75} />Yes, clear them</>}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -533,7 +859,7 @@ function Input({
 function Row({
   icon: Icon, title, description, children,
 }: {
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  icon: LucideIcon;
   title: string;
   description?: string;
   children: React.ReactNode;

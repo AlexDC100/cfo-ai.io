@@ -30,8 +30,8 @@ test.describe(REAL ? "docs panel (real)" : "docs panel (skipped — set E2E_REAL
     // Sign in
     await page.goto("/login");
     await page.getByPlaceholder(/you@company\.com/i).fill(TEST_EMAIL);
-    await page.getByPlaceholder(/at least 6 characters|password/i).fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: /^sign in$/i }).first().click();
+    await page.locator('input[type="password"]').first().fill(TEST_PASSWORD);
+    await page.locator('button[type="submit"]').first().click();
     await expect(page).toHaveURL(/\/dashboard|\/onboarding/, { timeout: 10_000 });
 
     // If onboarding intercepts, finish it once so subsequent runs go
@@ -213,5 +213,112 @@ test.describe(REAL ? "docs panel (real)" : "docs panel (skipped — set E2E_REAL
       if (scroller) scroller.scrollTop = scroller.scrollHeight;
     });
     await expect(activeCard).toBeInViewport();
+  });
+
+  // ─── Apple-style redesign ratchet ─────────────────────────────────────
+  //
+  // Locks down the fixes from the "docs panel: upload bug + duplicate periods
+  // + Apple-style UX" prompt. Anything below would have caught the bug class
+  // we just fixed if it had existed before.
+
+  test("no duplicate periods + no 'No documents' rows", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.goto("/dashboard");
+    await page.getByTestId("docs-toggle").click();
+    const panel = page.getByTestId("docs-panel");
+    await expect(panel).toBeVisible();
+
+    // No "No documents" copy anywhere — the panel must filter empty periods
+    // out before render. The bug used to ship orphan rows from the buggy
+    // delete flow.
+    await expect(panel.getByText(/no documents/i)).toHaveCount(0);
+
+    // No two period cards with the same date. The duplicate-period DB bug
+    // produced 10 rows with identical period_end; the unique constraint
+    // + lookup-or-create pipeline ensures at most one card per period_end.
+    const cards = panel.locator(
+      "[data-testid='other-period-card'], [data-testid='docs-panel-section-active']",
+    );
+    const labels = await cards.evaluateAll((nodes) =>
+      nodes.map((n) => (n.textContent ?? "").trim()),
+    );
+    const dateMatches = labels
+      .map((s) => s.match(/\d{1,2}\s+\w+\s+\d{4}|\d{4}-\d{2}-\d{2}/))
+      .filter(Boolean)
+      .map((m) => m![0]);
+    const unique = new Set(dateMatches);
+    expect(unique.size).toBe(dateMatches.length);
+  });
+
+  test("upload-while-active opens picker from the panel", async ({ page }) => {
+    test.setTimeout(30_000);
+    await page.goto("/dashboard");
+    await page.getByTestId("docs-toggle").click();
+
+    const upload = page.getByTestId("docs-panel-upload");
+    await expect(upload).toBeVisible();
+    await expect(upload).toContainText(/upload document/i);
+
+    // The hidden input is the actual file picker entry point. Confirm it's
+    // wired (the broken pre-fix version had the button just close the panel
+    // and scroll to top without opening a picker).
+    const input = page.getByTestId("docs-panel-upload-input");
+    await expect(input).toBeAttached();
+    await expect(input).toHaveAttribute("type", "file");
+  });
+
+  test("quick delete + undo toast (no confirmation dialog)", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.goto("/dashboard");
+    await page.getByTestId("docs-toggle").click();
+
+    const others = page.getByTestId("other-period-card");
+    const hasOthers = (await others.count()) > 0;
+    test.skip(!hasOthers, "Need ≥2 periods (active + at least one other) for this test.");
+
+    const first = others.first();
+    const labelBefore = (await first.innerText()).split("\n")[0];
+
+    // Hover reveals the quick-delete icon
+    await first.hover();
+    const quickDelete = first.getByTestId("quick-delete");
+    await expect(quickDelete).toBeVisible();
+
+    // Single click → soft-delete. No AlertDialog/confirmation should appear.
+    await quickDelete.click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+
+    // Undo button appears in a toast for 6 seconds
+    const undo = page.getByTestId("undo-toast-action");
+    await expect(undo).toBeVisible({ timeout: 3_000 });
+    await undo.click();
+
+    // The period returns
+    await expect(page.getByText(labelBefore)).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("recently-deleted section is collapsed by default", async ({ page }) => {
+    test.setTimeout(30_000);
+    await page.goto("/dashboard");
+    await page.getByTestId("docs-toggle").click();
+
+    const deletedSection = page.getByTestId("docs-panel-section-deleted");
+    if ((await deletedSection.count()) === 0) {
+      test.skip(true, "No recently-deleted items on this account.");
+    }
+
+    // The toggle header is visible but the list itself isn't (unless the
+    // user previously expanded it; localStorage persists per browser).
+    const toggle = page.getByTestId("recently-deleted-toggle");
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toContainText(/recently deleted/i);
+
+    // Click expands the list
+    const list = page.getByTestId("recently-deleted-list");
+    const initialState = await list.count();
+    if (initialState === 0) {
+      await toggle.click();
+      await expect(list).toBeVisible();
+    }
   });
 });

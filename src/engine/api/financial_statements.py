@@ -96,13 +96,32 @@ CRITICAL RULES — read these before extracting:
 1. Output STRICT JSON matching <schema>. No prose, no preamble, no markdown
    fences. The first character of your reply must be '{'.
 
-2. For each account on the trial balance, emit ONE entry with the CLOSING
-   BALANCE (sold final). If the document shows separate "sold debitor" and
-   "sold creditor" columns:
-   - Class 1, 4 (passive), 5 (passive bank), 7 (income): take credit balance, emit POSITIVE.
-   - Class 2 (active fixed), 3, 4 (active receivables), 5 (active cash), 6 (expense): take debit balance, emit POSITIVE.
-   - For accounts where both sides have non-zero, emit the larger; the sign
-     follows the side that is larger.
+2. For each account on a Romanian balanță de verificare, emit ONE entry
+   with the YEAR-END CLOSING BALANCE — read directly from the "Solduri
+   finale" columns (the rightmost columns of the trial balance).
+
+   This is the AUDITED convention: it's what Romanian statutory
+   financial statements report, what banks measure covenants against,
+   and what published annual reports show. It corresponds to the
+   company's position at the balance-sheet date (e.g. 31 Dec 2025).
+
+   For accounts with separate "Solduri finale Debitoare" and "Solduri
+   finale Creditoare" columns:
+   - Class 1, 4-passive, 5-passive-bank, 7-income, plus contra-asset
+     classes 28x/29x/491: take the credit balance, emit POSITIVE.
+   - Class 2-current, 3, 4-active, 5-cash, 6-expense: take the debit
+     balance, emit POSITIVE.
+   - If both sides have non-zero values, emit the larger; the
+     direction follows the side with the larger balance.
+
+   For P&L accounts (Class 6, 7), use the YTD movement total (Sume
+   totale Cr for revenue accounts; Sume totale Dr for expenses). These
+   accounts close to zero on Solduri finale at year-end so the YTD
+   movement is what represents the period's activity.
+
+   Always emit the closing-balance number as POSITIVE. The pipeline's
+   `sign='reverse'` rule in the canonical OMFP-1802 mapping handles
+   direction in the standardized model.
 
 3. Romanian numbers use either '.' or ',' as decimal separator with '.' or
    space thousand grouping. Always emit clean decimal numbers in your JSON
@@ -197,7 +216,11 @@ def build_router() -> APIRouter:
         except ImportError:
             raise HTTPException(503, "anthropic SDK is not installed on the backend.")
 
-        client = Anthropic(api_key=key)
+        # SDK default max_retries is 2 — not enough during sustained Opus
+        # overload. Bumping to 5 gives us ~6 attempts with exponential
+        # backoff (roughly 1s → 2s → 4s → 8s → 16s), which typically
+        # clears a transient 529 without the user ever seeing an error.
+        client = Anthropic(api_key=key, max_retries=5, timeout=180.0)
         pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("ascii")
 
         # ── Call Claude with the PDF as a document content block ───────────
@@ -239,6 +262,25 @@ def build_router() -> APIRouter:
                 output_config={"effort": "high"},
             )
         except Exception as e:  # noqa: BLE001
+            # User-friendly framing for the most common transient class:
+            # Anthropic 529 (overloaded). Status code lives on either the
+            # SDK's APIStatusError.status_code or in the stringified error.
+            status = getattr(e, "status_code", None)
+            err_str = str(e)
+            is_overloaded = status == 529 or "overloaded_error" in err_str or "529" in err_str
+            is_rate_limited = status == 429 or "rate_limit" in err_str
+            if is_overloaded:
+                raise HTTPException(
+                    503,
+                    "Claude is temporarily overloaded after multiple retries. "
+                    "This is a transient capacity issue on Anthropic's side — your "
+                    "document is fine. Try again in 1-2 minutes.",
+                )
+            if is_rate_limited:
+                raise HTTPException(
+                    429,
+                    "Rate limit reached on the Claude API. Try again in a minute.",
+                )
             raise HTTPException(502, f"Claude extraction failed: {e}")
 
         text = "".join(

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -12,8 +13,12 @@ export default {
     },
     extend: {
       fontFamily: {
-        serif: ["Fraunces", "ui-serif", "Georgia", "serif"],
-        sans: ["Geist", "Söhne", "Inter Display", "ui-sans-serif", "system-ui", "sans-serif"],
+        // Hero numbers, page H1, big eyebrows — Instrument Serif italic is
+        // the signature of the Cleo-caliber visual lift. Falls back to
+        // Fraunces (already loaded) for older browsers.
+        serif: ['"Instrument Serif"', "Fraunces", "ui-serif", "Georgia", "serif"],
+        // Body, UI, tables, numbers — Inter Variable.
+        sans: ['"Inter Variable"', "Inter", "Geist", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       colors: {
@@ -145,5 +150,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

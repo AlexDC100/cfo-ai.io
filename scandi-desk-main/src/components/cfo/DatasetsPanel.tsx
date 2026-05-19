@@ -71,6 +71,9 @@ interface DeletedRow {
   id: string;
   display_name: string;
   deleted_at: string;
+  /** "financial" | "sku" — drives the per-panel scope filter so
+   *  DatasetsPanel never shows trial-balance / public-records deletes. */
+  scope?: string | null;
 }
 
 // ─── API helpers ────────────────────────────────────────────────────────────
@@ -94,14 +97,19 @@ async function fetchDatasets(): Promise<DatasetsListPayload | null> {
 }
 
 async function fetchDeletedDatasets(): Promise<DeletedRow[]> {
-  // Reuses the documents-with-soft-deletes endpoint; we filter to
-  // sku-scope rows on the client.
+  // Reuses the shared documents-with-soft-deletes endpoint and FILTERS
+  // to sku-scope rows on the client (the endpoint returns financial +
+  // sku as a union for backwards-compat with DocsPanel). Without this
+  // filter, the Products panel would surface every deleted trial
+  // balance / public-records PDF the dashboard ever soft-deleted — the
+  // exact cross-domain bleed this prompt isolates.
   const h = await authHeader();
   if (!h) return [];
   const r = await fetch(`${apiBase()}/api/org/periods-with-documents`, { headers: h });
   if (!r.ok) return [];
   const j = await r.json() as { recently_deleted: DeletedRow[] };
-  return j.recently_deleted ?? [];
+  const all = j.recently_deleted ?? [];
+  return all.filter((row) => row.scope === "sku");
 }
 
 async function patchDataset(id: string, body: { label?: string }): Promise<boolean> {
@@ -130,6 +138,30 @@ async function restoreDataset(docId: string): Promise<boolean> {
   if (!h) return false;
   const r = await fetch(`${apiBase()}/api/documents/${docId}/restore`, {
     method: "POST",
+    headers: h,
+  });
+  return r.ok;
+}
+
+// Hard-delete a soft-deleted document. Backend rejects with 400 if the
+// document hasn't been soft-deleted first — so accidental destruction of
+// a live row is structurally impossible from this path.
+async function permanentDeleteDataset(docId: string): Promise<boolean> {
+  const h = await authHeader();
+  if (!h) return false;
+  const r = await fetch(`${apiBase()}/api/documents/${docId}/permanent`, {
+    method: "DELETE",
+    headers: h,
+  });
+  return r.ok;
+}
+
+// Wipe the entire Recently Deleted bucket for the caller's org.
+async function clearAllRecentlyDeletedDatasets(): Promise<boolean> {
+  const h = await authHeader();
+  if (!h) return false;
+  const r = await fetch(`${apiBase()}/api/documents/clear-deleted`, {
+    method: "DELETE",
     headers: h,
   });
   return r.ok;
@@ -206,6 +238,23 @@ export function DatasetsPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
+  // ── ALL HOOKS ABOVE THE EARLY RETURN (rules of hooks) ─────────────────
+  // Permanent-delete state for the Recently Deleted section. The
+  // confirmation dialog has destructive tone; there is NO undo toast
+  // (the action is irreversible — opposite of the soft delete's
+  // optimistic 6-second undo pattern).
+  //
+  // CRITICAL: this `useState` MUST live above the `if (!open) return null`
+  // below. Previously placed after the early return, it produced
+  // "Rendered fewer/more hooks than expected" the first time the panel
+  // toggled open — because the closed-state render skipped the hook
+  // and the open-state render included it.
+  const [confirmPermanent, setConfirmPermanent] = useState<
+    | { mode: "single"; id: string; name: string }
+    | { mode: "all"; count: number }
+    | null
+  >(null);
+
   if (!open) return null;
 
   const currentInUrl = params.get("dataset");
@@ -236,6 +285,17 @@ export function DatasetsPanel() {
     const ok = await restoreDataset(docId);
     if (ok) { toast({ title: "Dataset restored" }); invalidate(); }
     else { toast({ title: "Couldn't restore", variant: "destructive" }); }
+  }
+
+  async function handlePermanentDelete(docId: string) {
+    const ok = await permanentDeleteDataset(docId);
+    if (ok) { toast({ title: "Permanently deleted" }); invalidate(); }
+    else { toast({ title: "Couldn't delete permanently", variant: "destructive" }); }
+  }
+  async function handleClearAllDeleted() {
+    const ok = await clearAllRecentlyDeletedDatasets();
+    if (ok) { toast({ title: "Recently deleted cleared" }); invalidate(); }
+    else { toast({ title: "Couldn't clear", variant: "destructive" }); }
   }
 
   return (
@@ -354,8 +414,18 @@ export function DatasetsPanel() {
 
           {(deleted ?? []).length > 0 && (
             <section data-testid="datasets-panel-section-deleted">
-              <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">
-                Recently deleted ({(deleted ?? []).length})
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+                  Recently deleted ({(deleted ?? []).length})
+                </div>
+                <button
+                  type="button"
+                  data-testid="datasets-recently-deleted-clear-all"
+                  onClick={() => setConfirmPermanent({ mode: "all", count: (deleted ?? []).length })}
+                  className="text-[10.5px] font-medium text-[hsl(var(--alert))] hover:text-[hsl(var(--alert-d,var(--alert)))] hover:bg-alert-tint px-2 py-1 rounded transition-colors"
+                >
+                  Clear all
+                </button>
               </div>
               <ul className="space-y-1.5">
                 {(deleted ?? []).map((d) => (
@@ -366,19 +436,86 @@ export function DatasetsPanel() {
                         Deleted {new Date(d.deleted_at).toLocaleDateString("en-GB", { dateStyle: "medium" })}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleRestore(d.id)}
-                      className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-d hover:text-brand"
-                    >
-                      <RotateCcw size={11} strokeWidth={1.75} />
-                      Restore
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        aria-label={`Restore ${d.display_name}`}
+                        title="Restore"
+                        onClick={() => void handleRestore(d.id)}
+                        className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-d hover:text-brand hover:bg-bg-2 px-2 py-1 rounded transition-colors"
+                      >
+                        <RotateCcw size={11} strokeWidth={1.75} />
+                        <span>Restore</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete ${d.display_name} permanently`}
+                        title="Delete permanently — cannot be undone"
+                        data-testid={`datasets-recently-deleted-permanent-${d.id}`}
+                        onClick={() =>
+                          setConfirmPermanent({ mode: "single", id: d.id, name: d.display_name })
+                        }
+                        className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[hsl(var(--alert))] hover:text-[hsl(var(--alert-d,var(--alert)))] hover:bg-alert-tint px-2 py-1 rounded transition-colors"
+                      >
+                        <Trash2 size={11} strokeWidth={1.75} />
+                        <span>Delete forever</span>
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
             </section>
           )}
+
+          {/* Confirmation dialog for permanent delete (single OR clear-all).
+              Destructive tone: confirm button is red. Storage blob + DB
+              row are removed. No undo. */}
+          <AlertDialog
+            open={confirmPermanent !== null}
+            onOpenChange={(open) => { if (!open) setConfirmPermanent(null); }}
+          >
+            <AlertDialogContent data-testid="datasets-permanent-delete-dialog">
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {confirmPermanent?.mode === "single"
+                    ? "Delete this file permanently?"
+                    : confirmPermanent?.mode === "all"
+                      ? `Permanently delete all ${confirmPermanent.count} file${confirmPermanent.count === 1 ? "" : "s"}?`
+                      : "Delete permanently?"}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {confirmPermanent?.mode === "single" ? (
+                    <>
+                      "<span className="font-medium text-ink">{confirmPermanent.name}</span>" will be permanently deleted. This cannot be undone.
+                    </>
+                  ) : confirmPermanent?.mode === "all" ? (
+                    <>
+                      All {confirmPermanent.count} file{confirmPermanent.count === 1 ? "" : "s"} in Recently Deleted will be permanently removed from storage. This cannot be undone.
+                    </>
+                  ) : null}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setConfirmPermanent(null)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  data-testid="datasets-permanent-delete-confirm"
+                  onClick={async () => {
+                    const state = confirmPermanent;
+                    setConfirmPermanent(null);
+                    if (!state) return;
+                    if (state.mode === "single") {
+                      await handlePermanentDelete(state.id);
+                    } else {
+                      await handleClearAllDeleted();
+                    }
+                  }}
+                  className="bg-red-500 hover:bg-red-600 text-white"
+                >
+                  {confirmPermanent?.mode === "single" ? "Delete forever" : "Delete all forever"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {data && datasets.length === 0 && (
             <div className="text-center py-12">

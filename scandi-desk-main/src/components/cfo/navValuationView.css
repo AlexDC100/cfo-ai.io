@@ -1,0 +1,315 @@
+/* EPRA NAV cascade renderer — visual rules.
+ *
+ * Aligns with PLStatementView / BSStatementView aesthetic: monospace
+ * numbers, tabular-nums, double-line borders around the hero. Primary
+ * layer card (NNNAV) is highlighted in the dashboard's brand palette;
+ * cap-rate / Graham cross-methods sit alongside; EV/EBITDA shown
+ * dimmed with a "caveat" tag. */
+
+.nav-valuation-view {
+  font-family: "Inter Variable", Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: hsl(var(--ink));
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+/* ── Hero block ─────────────────────────────────────────────────────── */
+
+.nav-hero {
+  background: linear-gradient(135deg, hsl(var(--ink)) 0%, hsl(var(--brand-d)) 100%);
+  color: hsl(var(--paper));
+  padding: 28px 32px;
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 28px;
+  align-items: center;
+  margin: 0 0 24px 0;
+}
+.nav-hero-central { text-align: center; }
+.nav-hero-num {
+  font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.nav-hero-unit {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-top: 6px;
+}
+.nav-hero-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  opacity: 0.7;
+  margin-top: 14px;
+}
+.nav-hero-text { font-size: 13.5px; line-height: 1.6; }
+.nav-hero-text strong { color: hsl(var(--brand-tint)); }
+.nav-hero-text p { margin: 0 0 8px 0; }
+.nav-hero-convergence { color: hsl(var(--brand-tint)); font-weight: 500; }
+
+/* ── Methodology explainer (details/summary) ─────────────────────────── */
+
+.nav-methodology {
+  background: hsl(var(--info-tint) / 0.35);
+  border-left: 3px solid hsl(var(--info));
+  padding: 14px 20px;
+  border-radius: 8px;
+  margin: 0 0 24px 0;
+  font-size: 13.5px;
+}
+.nav-methodology summary {
+  cursor: pointer;
+  font-size: 13.5px;
+  color: hsl(var(--ink));
+  list-style: none;
+}
+.nav-methodology summary::before {
+  content: "▸ ";
+  color: hsl(var(--info));
+}
+.nav-methodology[open] summary::before { content: "▾ "; }
+.nav-methodology p { margin: 10px 0 8px 0; }
+.nav-methodology ul { margin: 8px 0 4px 18px; padding: 0; }
+.nav-methodology li { margin: 6px 0; }
+
+/* ── Section headings ───────────────────────────────────────────────── */
+
+.nav-valuation-view section { margin: 28px 0; }
+.nav-valuation-view h3 {
+  font-family: "Inter Variable", Inter, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: hsl(var(--ink));
+  margin: 0 0 12px 0;
+}
+
+/* ── Layer cascade grid ─────────────────────────────────────────────── */
+
+.nav-layers .nav-layer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.nav-layer-card {
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 10px;
+  padding: 18px 20px;
+  position: relative;
+}
+.nav-layer-card.is-primary {
+  border-color: hsl(var(--brand));
+  background: linear-gradient(180deg, hsl(var(--brand-tint) / 0.22), hsl(var(--surface)));
+  box-shadow: 0 2px 8px hsl(var(--brand) / 0.08);
+}
+.nav-primary-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  color: hsl(var(--brand-d));
+  background: hsl(var(--brand-tint));
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.nav-layer-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: hsl(var(--ink-mute));
+  font-weight: 500;
+}
+.nav-layer-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: hsl(var(--ink));
+  margin-top: 2px;
+}
+.nav-layer-value {
+  font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 10px 0;
+  font-variant-numeric: tabular-nums;
+}
+.nav-layer-card.is-primary .nav-layer-value { color: hsl(var(--brand-d)); }
+.nav-layer-ccy {
+  font-size: 13px;
+  font-weight: 400;
+  color: hsl(var(--ink-mute));
+  margin-left: 4px;
+}
+.nav-layer-description {
+  font-size: 12.5px;
+  color: hsl(var(--ink-soft));
+  line-height: 1.5;
+}
+.nav-layer-use-cases {
+  font-size: 11.5px;
+  color: hsl(var(--ink-mute));
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid hsl(var(--rule) / 0.6);
+}
+.nav-layer-caption {
+  font-size: 12px;
+  color: hsl(var(--ink-mute));
+  margin-top: 10px;
+}
+
+/* ── Tables (adjustment ladder, sensitivity, convergence, use cases) ──── */
+
+.nav-table-wrap {
+  border: 1px solid hsl(var(--rule));
+  border-radius: 8px;
+  overflow: hidden;
+  background: hsl(var(--surface));
+}
+.nav-valuation-view table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.nav-valuation-view thead tr {
+  background: hsl(var(--bg-2) / 0.4);
+}
+.nav-valuation-view th {
+  text-align: left;
+  padding: 9px 12px;
+  font-weight: 500;
+  color: hsl(var(--ink-mute));
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.nav-valuation-view th.num,
+.nav-valuation-view td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+.nav-valuation-view td {
+  padding: 8px 12px;
+  border-top: 1px solid hsl(var(--rule));
+  color: hsl(var(--ink));
+}
+
+/* Adjustment table specifics */
+.nav-adjustment-table .code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  color: hsl(var(--ink-mute));
+  font-weight: 500;
+}
+.nav-adjustment-table .acct { color: hsl(var(--ink)); }
+.nav-adjustment-table .method {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--ink-soft));
+  font-family: "JetBrains Mono", monospace;
+}
+.nav-adjustment-table .notes {
+  font-size: 11.5px;
+  color: hsl(var(--ink-soft));
+  max-width: 280px;
+}
+.nav-adjustment-table .pos { color: hsl(var(--accent-sage, 142 36% 36%)); font-weight: 500; }
+.nav-adjustment-table .neg { color: hsl(var(--alert)); font-weight: 500; }
+.nav-adjustment-table .total-row {
+  background: hsl(var(--bg-2) / 0.6);
+  font-weight: 600;
+  border-top: 2px solid hsl(var(--ink) / 0.3);
+}
+
+/* Sensitivity matrix */
+.nav-sensitivity-table tbody th {
+  background: hsl(var(--bg-2) / 0.4);
+  font-weight: 500;
+  color: hsl(var(--ink));
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+}
+.nav-sensitivity-table td.central {
+  background: hsl(var(--brand-tint) / 0.5);
+  color: hsl(var(--brand-d));
+  font-weight: 700;
+}
+
+/* Convergence */
+.nav-convergence-table .primary-row td {
+  background: hsl(var(--brand-tint) / 0.25);
+}
+.nav-convergence-table .convergence-row td {
+  background: hsl(var(--bg-2) / 0.6);
+  border-top: 2px solid hsl(var(--ink) / 0.3);
+}
+.nav-convergence-table .secondary td { opacity: 0.65; }
+.nav-caveat-tag {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  background: hsl(var(--caution-tint));
+  color: hsl(var(--caution));
+  border-radius: 999px;
+  margin-left: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.nav-caveat-text {
+  font-size: 12px;
+  color: hsl(var(--ink-mute));
+  font-style: italic;
+  margin-top: 10px;
+}
+
+/* Use case table */
+.nav-use-case-table .rationale {
+  font-size: 11.5px;
+  color: hsl(var(--ink-soft));
+  max-width: 360px;
+}
+
+/* Captions / notes / assumptions */
+.nav-caption {
+  font-size: 11.5px;
+  color: hsl(var(--ink-mute));
+  margin-top: 8px;
+}
+.nav-assumptions ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 18px;
+  font-size: 12.5px;
+}
+.nav-assumptions li {
+  padding: 6px 0;
+  border-bottom: 1px dotted hsl(var(--rule));
+}
+
+/* Hidden items */
+.nav-hidden-items ul { list-style: none; padding: 0; }
+.nav-hidden-item {
+  padding: 10px 14px;
+  margin: 6px 0;
+  border-left: 3px solid hsl(var(--info));
+  background: hsl(var(--surface));
+  font-size: 12.5px;
+}
+.nav-hidden-asset { border-left-color: hsl(var(--accent-sage, 142 36% 36%)); }
+.nav-hidden-liability { border-left-color: hsl(var(--alert)); }
+.nav-confidence { font-size: 11px; color: hsl(var(--ink-mute)); }
+.nav-evidence { font-size: 11.5px; color: hsl(var(--ink-soft)); margin-top: 4px; }

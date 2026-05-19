@@ -120,7 +120,8 @@ def claude_analysis(
     except ImportError:
         return None
 
-    client = Anthropic(api_key=key)
+    # max_retries=5 covers transient Opus 529 overloads.
+    client = Anthropic(api_key=key, max_retries=5, timeout=120.0)
 
     # Trim SKU candidates to the top ~30 worst — keep prompt focused.
     candidates_compact = [
