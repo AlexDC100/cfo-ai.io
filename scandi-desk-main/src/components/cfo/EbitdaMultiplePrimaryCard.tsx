@@ -22,6 +22,7 @@ import { Calculator, Info, Sparkles, ChevronDown } from "lucide-react";
 import type { CanonicalMetrics } from "@/lib/canonicalMetrics";
 import { formatCanonicalFull, formatCanonicalCompact } from "@/lib/canonicalMetrics";
 import type { PeriodValuation } from "@/lib/activePeriod";
+import { TraceableNumber } from "./TraceableNumber";
 
 interface Props {
   /** Canonical metric object — the single source of truth for Core
@@ -160,15 +161,39 @@ export function EbitdaMultiplePrimaryCard({
       </div>
 
       {/* ── Formula line ───────────────────────────────────────────── */}
+      {/*  Phase C: every constituent of the equity equation is now a
+       *  <TraceableNumber>. Core EBITDA jumps to the boxed EBITDA row
+       *  on the P&L tab. Net debt jumps to LT bank loans on the BS
+       *  (the largest debt component; hint explains the broader scope).
+       *  Multiple stays the slider — not a source row. The final
+       *  Equity figure stays as inert text — it's computed, not
+       *  sourced, so there's nowhere meaningful to link it to. */}
       <div
         data-testid="ebitda-multiple-formula"
         className="relative mt-5 rounded-lg bg-bg-2/40 border border-rule px-4 py-3 font-mono text-[12.5px] text-ink-soft"
       >
         Equity = Core EBITDA
-        <span className="mx-1 text-ink">({currency} {formatCanonicalFull(coreEbitda)})</span>
+        <span className="mx-1 text-ink">
+          ({currency}{" "}
+          <TraceableNumber
+            value={coreEbitda}
+            format="currency"
+            source={{ statement: "pl", bucket: "ebitda", hint: "Core EBITDA — boxed row on the P&L tab (Reported less 758 / 781 adjustments)" }}
+          />
+          )
+        </span>
         × Multiple <span className="text-ink">({multiple.toFixed(2)}×)</span>
         {" − "}
-        Net debt <span className="text-ink">({currency} {formatCanonicalFull(netDebt)})</span>
+        Net debt
+        <span className="mx-1 text-ink">
+          ({currency}{" "}
+          <TraceableNumber
+            value={netDebt}
+            format="currency"
+            source={{ statement: "bs", bucket: "longTermDebt", hint: "Net debt = total debt − cash. Click jumps to LT bank loans (largest debt component)." }}
+          />
+          )
+        </span>
         {" = "}
         <span className="text-ink font-semibold">{currency} {formatCanonicalFull(equity)}</span>
       </div>

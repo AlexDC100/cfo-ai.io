@@ -347,7 +347,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     { accountCode: "4091", label: "Supplier advances — stocks",   opening: sup4091.opening, closing: sup4091.closing, style: "item" },
     { accountCode: "4092", label: "Supplier advances — services", opening: sup4092.opening, closing: sup4092.closing, style: "item" },
     { accountCode: "4093", label: "Advances for fixed assets",    opening: adv4093.opening, closing: adv4093.closing, style: "item" },
-    { accountCode: "4111", label: "Trade receivables",            opening: ar4111.opening,  closing: ar4111.closing,  style: "item" },
+    { accountCode: "4111", label: "Trade receivables",            opening: ar4111.opening,  closing: ar4111.closing,  style: "item", bucket: "accountsReceivable" },
     {
       accountCode: "4118-491",
       label: "Doubtful receivables net",
@@ -368,6 +368,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
       opening: cashTotalOpening,
       closing: cashTotalClosing,
       style: "item",
+      bucket: "cash",
     },
   ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
 
@@ -381,6 +382,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     subtotalOpening: totalCurrentOpening,
     subtotalClosing: totalCurrentClosing,
     subtotalDelta: totalCurrentClosing - totalCurrentOpening,
+    subtotalBucket: "totalCurrentAssets",
   };
 
   const totalAssetsClosing = totalNonCurrentClosing + totalCurrentClosing;
@@ -416,6 +418,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
       opening: 0,
       closing: currentYearNP,
       style: "item",
+      bucket: "currentYearNetProfit",
     },
   ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
 
@@ -429,6 +432,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     subtotalOpening: totalEquityOpening,
     subtotalClosing: totalEquityClosing,
     subtotalDelta: totalEquityClosing - totalEquityOpening,
+    subtotalBucket: "totalEquity",
   };
 
   // ── NON-CURRENT LIABILITIES ──────────────────────────────────────────
@@ -444,7 +448,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
   const subsidies475 = both("475");
   const grants478 = both("478");
   const nonCurrentLiabLines: BSLine[] = [
-    { accountCode: "1621", label: "LT bank loans", opening: ltDebt.opening, closing: ltDebt.closing, style: "item" },
+    { accountCode: "1621", label: "LT bank loans", opening: ltDebt.opening, closing: ltDebt.closing, style: "item", bucket: "longTermDebt" },
     { accountCode: "167",  label: "Leasing obligations", opening: leasing167.opening, closing: leasing167.closing, style: "item" },
     { accountCode: "168",  label: "Accrued LT interest", opening: ltInterest168.opening, closing: ltInterest168.closing, style: "item" },
     { accountCode: "15x",  label: "Provisions (litigation, decommissioning)", opening: provisions15.opening, closing: provisions15.closing, style: "item" },
@@ -464,6 +468,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     subtotalOpening: totalNonCurrentLiabOpening,
     subtotalClosing: totalNonCurrentLiabClosing,
     subtotalDelta: totalNonCurrentLiabClosing - totalNonCurrentLiabOpening,
+    subtotalBucket: "totalNonCurrentLiabilities",
   };
 
   // ── CURRENT LIABILITIES ──────────────────────────────────────────────
@@ -493,8 +498,8 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
   const deferredRev472 = both("472");
 
   const currentLiabLines: BSLine[] = [
-    { accountCode: "519",  label: "Short-term bank credit",      opening: stBank519.opening, closing: stBank519.closing, style: "item" },
-    { accountCode: "401",  label: "Trade payables",              opening: ap401.opening, closing: ap401.closing, style: "item" },
+    { accountCode: "519",  label: "Short-term bank credit",      opening: stBank519.opening, closing: stBank519.closing, style: "item", bucket: "shortTermDebt" },
+    { accountCode: "401",  label: "Trade payables",              opening: ap401.opening, closing: ap401.closing, style: "item", bucket: "accountsPayable" },
     { accountCode: "403",  label: "Notes payable",               opening: notesPayable403.opening, closing: notesPayable403.closing, style: "item" },
     { accountCode: "405",  label: "Fixed-asset payables",        opening: faPayable405.opening, closing: faPayable405.closing, style: "item" },
     { accountCode: "408",  label: "Invoices not received",       opening: ap408.opening, closing: ap408.closing, style: "item" },
@@ -524,6 +529,7 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     subtotalOpening: totalCurrentLiabOpening,
     subtotalClosing: totalCurrentLiabClosing,
     subtotalDelta: totalCurrentLiabClosing - totalCurrentLiabOpening,
+    subtotalBucket: "totalCurrentLiabilities",
   };
 
   // ── TOTALS ───────────────────────────────────────────────────────────

@@ -81,25 +81,28 @@ export function AccountMenu() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
+        {/* May 2026 — simplified to a clean initials circle (no trailing
+         *  name text). Matches the reference layout: just the avatar
+         *  bubble; the "Ask CFO AI" pill sits immediately to the left
+         *  of it in TopHeader. `displayName` still drives the dropdown
+         *  contents (the inner menu shows the full name + email); the
+         *  trigger itself stays compact. */}
         <button
           type="button"
-          aria-label="Account menu"
+          aria-label={`Account menu · ${displayName ?? user.email}`}
+          title={displayName ?? user.email ?? "Account"}
           data-testid="account-menu-trigger"
           className="
             ml-1 inline-flex items-center justify-center
-            h-9 px-2.5 rounded-full
-            bg-brand-tint text-brand-d
-            hover:bg-brand-tint/80
-            gap-1.5 text-[12px] font-medium
+            h-9 w-9 rounded-full
+            bg-brand text-paper
+            text-[12px] font-semibold tracking-tight
+            hover:bg-brand-d
             transition-colors
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
           "
         >
-          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-brand text-paper text-[10.5px] font-semibold tracking-tight">
-            {initials ?? <UserIcon size={12} strokeWidth={1.75} />}
-          </span>
-          <span className="hidden sm:inline max-w-[120px] truncate">
-            {displayName ?? user.email}
-          </span>
+          {initials ?? <UserIcon size={14} strokeWidth={1.75} />}
         </button>
       </DropdownMenuTrigger>
 

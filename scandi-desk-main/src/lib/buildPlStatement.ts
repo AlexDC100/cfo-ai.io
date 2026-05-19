@@ -126,6 +126,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     lines: operatingRevenueLines,
     subtotalLabel: "Total operating revenue",
     subtotalAmount: totalOperatingRevenue,
+    subtotalBucket: "revenue",
   };
 
   // ── OTHER OPERATING INCOME (758) ─────────────────────────────────────
@@ -177,10 +178,11 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const depreciationSection: PLSection = {
     header: "",
     lines: depreciation
-      ? [{ accountCode: "6811", label: labelFor("6811"), amount: depreciation, style: "item" }]
+      ? [{ accountCode: "6811", label: labelFor("6811"), amount: depreciation, style: "item", bucket: "depreciationAmortization" }]
       : [],
     subtotalLabel: "EBIT",
     subtotalAmount: ebitda - depreciation,
+    subtotalBucket: "ebit",
   };
 
   const ebit = ebitda - depreciation;
@@ -253,6 +255,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     // a competing total).
     subtotalLabel: "Net profit — operational (excl. 722)",
     subtotalAmount: netProfit,
+    subtotalBucket: "netIncomeOperational",
   };
 
   // ── KEY MARGINS ──────────────────────────────────────────────────────
@@ -419,6 +422,7 @@ export function buildPLStatementFromAggregates(statements: Statements): PLStatem
     lines: operatingRevenueLines,
     subtotalLabel: "Total operating revenue",
     subtotalAmount: totalOperatingRevenue,
+    subtotalBucket: "revenue",
   };
 
   // ── OTHER OPERATING INCOME (758) ─────────────────────────────────────

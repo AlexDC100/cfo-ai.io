@@ -23,6 +23,13 @@ export interface BSLine {
   /** Contra-asset (accumulated depreciation) — render in parens, treat as negative */
   isContra?: boolean;
   indent?: number;
+  /** Stable Traceable bucket key — populated for rows that any ratio,
+   *  valuation tile, or KPI on another tab might link back to. The
+   *  BSStatementView renderer emits this as `data-traceable-target=`
+   *  on the row so `useHighlightFromUrl()` can scroll+pulse it when
+   *  a `<TraceableNumber>` click lands here. See
+   *  src/lib/traceableSource.ts for the bucket taxonomy. */
+  bucket?: string;
 }
 
 export interface BSSection {
@@ -33,6 +40,11 @@ export interface BSSection {
   subtotalOpening?: number;
   subtotalClosing?: number;
   subtotalDelta?: number;
+  /** Stable Traceable bucket key for the section subtotal row — e.g.
+   *  "totalCurrentAssets", "totalCurrentLiabilities". Renderer emits
+   *  this on the subtotal row so cross-page TraceableNumber clicks
+   *  can land here. */
+  subtotalBucket?: string;
 }
 
 export interface BSStatement {

@@ -1005,7 +1005,7 @@ export default function FinancialStatements() {
         {/* RATIOS ──────────────────────────────────────────────────────── */}
         {enabled.ratios && ratios && (
           <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
-            <RatiosTabContent ratios={ratios} />
+            <RatiosTabContent ratios={ratios} statements={statements} />
           </TabsContent>
         )}
 
@@ -2706,7 +2706,7 @@ function DocGuideCard({ title, format, shows, where, tone }: {
 // state and renders the premium explainer drawer. Owning state here
 // keeps the Ratios surface self-contained — no upstream prop drilling,
 // no global store for an interaction that's scoped to this tab.
-function RatiosTabContent({ ratios }: { ratios: RatioBundle }) {
+function RatiosTabContent({ ratios, statements }: { ratios: RatioBundle; statements: Statements | null }) {
   const [selected, setSelected] = useState<Ratio | null>(null);
   return (
     <>
@@ -2726,6 +2726,7 @@ function RatiosTabContent({ ratios }: { ratios: RatioBundle }) {
       <RatioDetailDrawer
         ratio={selected}
         bundle={ratios}
+        statements={statements}
         onClose={() => setSelected(null)}
         onPickRelated={setSelected}
       />

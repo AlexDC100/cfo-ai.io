@@ -1,27 +1,38 @@
-// StatementNotes — shared notes/recommendations block for the P&L,
-// Balance Sheet, and Cash Flow statement tabs.
+// StatementNotes — Apple-style notes & recommendations panel.
 //
-// Reads server-emitted, period-keyed recommendations and alerts from
-// `useActivePeriod()` (same period UUID the rest of the tab uses).
-// Renders them as a compact, integrated block at the foot of each
-// statement view. NEVER fabricates filler — when the engine produced
-// no notes for the loaded period, an explicit honest empty-state
-// renders: "No notes generated for this period."
+// Rendered at the foot of every statement tab (P&L, Balance Sheet,
+// Cash Flow). The pre-redesign version was a flat unordered list that
+// could grow to 80+ rows when an engine re-run wrote duplicate alerts.
+// D-quick (Phase D-quick) added FE-side dedup at render. THIS file
+// (Phase Notes-Redesign) replaces the layout entirely:
 //
-// Filtering by `relevantTo`:
-//   · "pl" — surfaces items whose category/title suggests P&L
-//     relevance (profitability, margin, EBITDA, revenue, cost).
-//   · "bs" — surfaces items related to balance-sheet topics
-//     (leverage, liquidity, equity, debt, working capital).
-//   · "cf" — cash-flow / working-capital / liquidity.
-//   · undefined — all items.
-// Items that fail the filter still appear under "Other notes on file"
-// so nothing the engine produced is hidden — empty-honest is the
-// rule, suppression is also dishonest.
+//   · Severity filter pills at the top — Critical / Watch / Info /
+//     Recommendations / All — with counts, click to focus.
+//   · Card per item (not flat <li>): severity-colored left rule,
+//     icon, single-line title with × N dedup pill, 1-2 line body
+//     where any recognised RON figure is wrapped in TraceableNumber
+//     so a click jumps to its source row on the relevant statement.
+//   · Default-collapsed: first 5 items by severity rank shown; the
+//     rest hidden behind "Show N more". Critical items always
+//     count toward the visible cap so a quiet "watch" alert never
+//     pushes a critical one off-screen.
+//   · Honest empty state: "No notes generated for this period." —
+//     never filler.
+//
+// All inputs (PeriodAlertItem, PeriodRecommendation) and the dedup
+// pass (dedupeAlerts / dedupeRecommendations from D-quick) are kept.
+// This file is a layout swap only — the data layer is intact.
 
-import { useMemo } from "react";
-import { AlertTriangle, Info, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, Info, AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
 import type { PeriodRecommendation, PeriodAlertItem } from "@/lib/activePeriod";
+import {
+  dedupeAlerts,
+  dedupeRecommendations,
+  type DedupedAlert,
+  type DedupedRecommendation,
+} from "@/lib/dedupeNotes";
+import { linkifyAlertBody } from "@/lib/linkifyAlertBody";
 
 export type StatementNotesScope = "pl" | "bs" | "cf";
 
@@ -34,47 +45,62 @@ interface Props {
 }
 
 const RELEVANCE_KEYWORDS: Record<StatementNotesScope, RegExp> = {
-  // P&L: margin, profit, revenue, expense, EBITDA
   pl: /\b(margin|profit|profitab|revenue|sales|opex|cost|ebitda|ebit|gross|operating)\b/i,
-  // BS: assets, equity, debt, leverage, capital, liquidity ratios
   bs: /\b(asset|equity|debt|leverage|capital|solvenc|gearing|altman|piotroski|provision|inventor|receivab|payable)\b/i,
-  // CF: cash, working capital, dscr, liquidity
   cf: /\b(cash|liquidit|working\s*capital|dscr|coverage|conversion|ccc|dio|dso|dpo)\b/i,
 };
 
+/** Visible-by-default ceiling. The first N items in severity order
+ *  show; the rest are hidden behind "Show all". Tuned to keep the
+ *  fold (panel header → "Show all" button) under ~half a screen
+ *  on a typical 1440×900 viewport. */
+const DEFAULT_VISIBLE = 5;
+
+type SeverityFilter = "all" | "critical" | "watch" | "info" | "recommendations";
+
 export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
-  // Bucket items into "relevant" vs "other on file". Each item is
-  // matched on its title/explanation/category against the scope's
-  // keyword set. Items that don't match still render under "other"
-  // so suppression never happens — the user sees everything the
-  // engine produced for this period.
-  const { relevantRecs, otherRecs, relevantAlerts, otherAlerts } = useMemo(() => {
+  const [filter, setFilter] = useState<SeverityFilter>("all");
+  const [expanded, setExpanded] = useState(false);
+
+  const { relevantAlerts, otherAlerts, relevantRecs, otherRecs, counts } = useMemo(() => {
+    const dedupedAlerts = dedupeAlerts(alerts);
+    const dedupedRecs = dedupeRecommendations(recommendations);
     const re = RELEVANCE_KEYWORDS[relevantTo];
-    const recsRel: PeriodRecommendation[] = [];
-    const recsOther: PeriodRecommendation[] = [];
-    for (const r of recommendations) {
-      const hay = `${r.title} ${r.explanation ?? ""}`;
-      (re.test(hay) ? recsRel : recsOther).push(r);
+
+    const recsRel: DedupedRecommendation[] = [];
+    const recsOther: DedupedRecommendation[] = [];
+    for (const dr of dedupedRecs) {
+      const hay = `${dr.rec.title} ${dr.rec.explanation ?? ""}`;
+      (re.test(hay) ? recsRel : recsOther).push(dr);
     }
-    const alertsRel: PeriodAlertItem[] = [];
-    const alertsOther: PeriodAlertItem[] = [];
-    for (const a of alerts) {
-      const hay = `${a.title} ${a.body ?? ""} ${a.category ?? ""}`;
-      (re.test(hay) ? alertsRel : alertsOther).push(a);
+    const alertsRel: DedupedAlert[] = [];
+    const alertsOther: DedupedAlert[] = [];
+    for (const da of dedupedAlerts) {
+      const hay = `${da.alert.title} ${da.alert.body ?? ""} ${da.alert.category ?? ""}`;
+      (re.test(hay) ? alertsRel : alertsOther).push(da);
     }
+
+    // Counts for the severity pill badges — drives the filter UI.
+    const counts: Record<SeverityFilter, number> = {
+      all: dedupedAlerts.length + dedupedRecs.length,
+      critical: dedupedAlerts.filter((d) => d.alert.severity === "critical" || d.alert.severity === "high").length,
+      watch:    dedupedAlerts.filter((d) => d.alert.severity === "medium").length,
+      info:     dedupedAlerts.filter((d) => d.alert.severity === "low" || d.alert.severity === "info").length,
+      recommendations: dedupedRecs.length,
+    };
+
     return {
-      relevantRecs: recsRel,
-      otherRecs: recsOther,
       relevantAlerts: alertsRel,
       otherAlerts: alertsOther,
+      relevantRecs: recsRel,
+      otherRecs: recsOther,
+      counts,
     };
   }, [recommendations, alerts, relevantTo]);
 
-  const totalCount =
-    recommendations.length + alerts.length;
+  const totalCount = counts.all;
 
-  // Honest empty-state: the engine did not generate anything for THIS
-  // loaded period. Never fabricate.
+  // Honest empty state. Never fabricate filler.
   if (totalCount === 0) {
     return (
       <section
@@ -96,121 +122,276 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
     );
   }
 
+  // Severity-rank for ordering inside the visible bucket. Critical
+  // items appear first; recommendations land last unless explicitly
+  // filtered to.
+  const SEVERITY_RANK: Record<string, number> = {
+    critical: 0, high: 1, medium: 2, low: 3, info: 4,
+  };
+
+  // Apply severity filter, sort, then split visible vs. hidden.
+  const visibleAlerts = useMemo(() => {
+    const all = [...relevantAlerts, ...otherAlerts];
+    const filtered =
+      filter === "all" ? all
+      : filter === "critical" ? all.filter((d) => d.alert.severity === "critical" || d.alert.severity === "high")
+      : filter === "watch"    ? all.filter((d) => d.alert.severity === "medium")
+      : filter === "info"     ? all.filter((d) => d.alert.severity === "low" || d.alert.severity === "info")
+      : []; // "recommendations" filter → no alerts visible
+    return [...filtered].sort(
+      (a, b) =>
+        (SEVERITY_RANK[a.alert.severity] ?? 9) - (SEVERITY_RANK[b.alert.severity] ?? 9),
+    );
+  }, [filter, relevantAlerts, otherAlerts]);
+
+  const visibleRecs = useMemo(() => {
+    const all = [...relevantRecs, ...otherRecs];
+    return filter === "all" || filter === "recommendations" ? all : [];
+  }, [filter, relevantRecs, otherRecs]);
+
+  const allVisible = [
+    ...visibleAlerts.map((a) => ({ kind: "alert" as const, deduped: a })),
+    ...visibleRecs.map((r) => ({ kind: "rec" as const, deduped: r })),
+  ];
+
+  const shown = expanded ? allVisible : allVisible.slice(0, DEFAULT_VISIBLE);
+  const hiddenCount = allVisible.length - shown.length;
+
   return (
     <section
       className="mt-8 pt-6 border-t border-rule"
       data-testid={`statement-notes-${relevantTo}`}
       aria-labelledby={`notes-heading-${relevantTo}`}
     >
-      <h3
-        id={`notes-heading-${relevantTo}`}
-        className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-3"
-      >
-        Notes & recommendations
-        <span className="ml-2 text-ink-mute font-normal normal-case tracking-normal">
-          ({totalCount} on file for this period)
+      {/* Header + total badge ──────────────────────────────────── */}
+      <div className="flex items-baseline gap-2 mb-3">
+        <h3
+          id={`notes-heading-${relevantTo}`}
+          className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold"
+        >
+          Notes & recommendations
+        </h3>
+        <span className="text-[11.5px] text-ink-mute">
+          {totalCount} unique
         </span>
-      </h3>
+      </div>
 
-      {/* Alerts — relevant first, then other-on-file */}
-      {(relevantAlerts.length > 0 || otherAlerts.length > 0) && (
-        <div className="mb-4">
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
-            Alerts
-          </div>
-          <ul className="space-y-1.5">
-            {relevantAlerts.map((a) => <AlertItem key={a.id} alert={a} />)}
-            {otherAlerts.length > 0 && (
-              <>
-                {relevantAlerts.length > 0 && (
-                  <li className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute pt-1.5">
-                    Other alerts on file
-                  </li>
-                )}
-                {otherAlerts.map((a) => <AlertItem key={a.id} alert={a} muted />)}
-              </>
-            )}
-          </ul>
-        </div>
+      {/* Severity filter pills ─────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
+        <FilterPill label="All"             count={counts.all}             active={filter === "all"}             onClick={() => { setFilter("all"); setExpanded(false); }} />
+        <FilterPill label="Critical"        count={counts.critical}        active={filter === "critical"}        onClick={() => { setFilter("critical"); setExpanded(false); }} tone="critical" />
+        <FilterPill label="Watch"           count={counts.watch}           active={filter === "watch"}           onClick={() => { setFilter("watch"); setExpanded(false); }} tone="watch" />
+        <FilterPill label="Info"            count={counts.info}            active={filter === "info"}            onClick={() => { setFilter("info"); setExpanded(false); }} tone="info" />
+        <FilterPill label="Recommendations" count={counts.recommendations} active={filter === "recommendations"} onClick={() => { setFilter("recommendations"); setExpanded(false); }} tone="rec" />
+      </div>
+
+      {/* Card list ────────────────────────────────────────────── */}
+      <ul className="space-y-2">
+        {shown.length === 0 && (
+          <li className="rounded-lg border border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink-soft">
+            No items in this filter.
+          </li>
+        )}
+        {shown.map((entry) =>
+          entry.kind === "alert" ? (
+            <AlertCard key={entry.deduped.alert.id} deduped={entry.deduped} />
+          ) : (
+            <RecCard key={entry.deduped.rec.id} deduped={entry.deduped} />
+          ),
+        )}
+      </ul>
+
+      {/* Show-more / show-less toggle ──────────────────────────── */}
+      {hiddenCount > 0 && !expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="
+            mt-3 inline-flex items-center gap-1.5
+            h-8 px-3.5 rounded-full
+            text-[12.5px] font-medium text-ink-soft hover:text-ink
+            hover:bg-bg-2/60
+            transition-colors
+          "
+          data-testid="notes-show-more"
+        >
+          Show {hiddenCount} more
+          <ChevronDown size={12} strokeWidth={1.75} />
+        </button>
       )}
-
-      {/* Recommendations — relevant first, then other-on-file */}
-      {(relevantRecs.length > 0 || otherRecs.length > 0) && (
-        <div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
-            Recommendations
-          </div>
-          <ul className="space-y-1.5">
-            {relevantRecs.map((r) => <RecItem key={r.id} rec={r} />)}
-            {otherRecs.length > 0 && (
-              <>
-                {relevantRecs.length > 0 && (
-                  <li className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute pt-1.5">
-                    Other recommendations on file
-                  </li>
-                )}
-                {otherRecs.map((r) => <RecItem key={r.id} rec={r} muted />)}
-              </>
-            )}
-          </ul>
-        </div>
+      {expanded && allVisible.length > DEFAULT_VISIBLE && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="
+            mt-3 inline-flex items-center gap-1.5
+            h-8 px-3.5 rounded-full
+            text-[12.5px] font-medium text-ink-soft hover:text-ink
+            hover:bg-bg-2/60
+            transition-colors
+          "
+          data-testid="notes-show-less"
+        >
+          Show less
+          <ChevronDown size={12} strokeWidth={1.75} className="rotate-180" />
+        </button>
       )}
     </section>
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────
+// ─── Filter pill ─────────────────────────────────────────────────
+function FilterPill({
+  label, count, active, onClick, tone,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  tone?: "critical" | "watch" | "info" | "rec";
+}) {
+  const toneStyles =
+    tone === "critical" ? "data-[active=true]:bg-red-100 data-[active=true]:text-red-800 dark:data-[active=true]:bg-red-500/[0.18] dark:data-[active=true]:text-red-300"
+    : tone === "watch"  ? "data-[active=true]:bg-amber-100 data-[active=true]:text-amber-900 dark:data-[active=true]:bg-amber-500/[0.18] dark:data-[active=true]:text-amber-200"
+    : tone === "info"   ? "data-[active=true]:bg-blue-100 data-[active=true]:text-blue-800 dark:data-[active=true]:bg-blue-500/[0.18] dark:data-[active=true]:text-blue-300"
+    : tone === "rec"    ? "data-[active=true]:bg-emerald-100 data-[active=true]:text-emerald-800 dark:data-[active=true]:bg-emerald-500/[0.18] dark:data-[active=true]:text-emerald-300"
+    :                     "data-[active=true]:bg-ink/[0.08] data-[active=true]:text-ink";
 
-function AlertItem({ alert, muted = false }: { alert: PeriodAlertItem; muted?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-active={active}
+      className={`
+        inline-flex items-center gap-1.5
+        h-7 px-2.5 rounded-full
+        text-[11.5px] font-medium
+        border border-rule
+        text-ink-soft hover:text-ink hover:bg-bg-2/60
+        ${toneStyles}
+        transition-colors
+      `}
+    >
+      <span>{label}</span>
+      <span className="text-ink-mute tabular-nums">{count}</span>
+    </button>
+  );
+}
+
+// ─── Alert card ─────────────────────────────────────────────────
+function AlertCard({ deduped }: { deduped: DedupedAlert }) {
+  const alert = deduped.alert;
   const Icon =
     alert.severity === "critical" || alert.severity === "high"
       ? AlertCircle
       : alert.severity === "medium"
       ? AlertTriangle
       : Info;
+
+  const severityRule =
+    alert.severity === "critical" ? "border-l-red-500"
+    : alert.severity === "high"   ? "border-l-red-400"
+    : alert.severity === "medium" ? "border-l-amber-500"
+    : alert.severity === "low"    ? "border-l-blue-400"
+    :                                "border-l-ink-mute";
+
   const iconColor =
-    alert.severity === "critical"
-      ? "text-red-600"
-      : alert.severity === "high"
-      ? "text-red-500"
-      : alert.severity === "medium"
-      ? "text-amber-600"
-      : "text-ink-mute";
+    alert.severity === "critical" ? "text-red-600"
+    : alert.severity === "high"   ? "text-red-500"
+    : alert.severity === "medium" ? "text-amber-600"
+    : alert.severity === "low"    ? "text-blue-600"
+    :                                "text-ink-mute";
+
   return (
-    <li className={`flex items-start gap-2 text-[12.5px] leading-snug ${muted ? "opacity-65" : ""}`}>
-      <Icon size={14} className={`flex-shrink-0 mt-0.5 ${iconColor}`} />
-      <div>
-        <span className="text-ink font-medium">{alert.title}</span>
-        {alert.body && (
-          <span className="text-ink-soft"> — {alert.body}</span>
-        )}
+    <li
+      className={`
+        relative rounded-lg border border-rule border-l-[3px] ${severityRule}
+        bg-surface
+        px-3.5 py-2.5
+        transition-colors
+      `}
+    >
+      <div className="flex items-start gap-2.5">
+        <Icon size={14} className={`flex-shrink-0 mt-[3px] ${iconColor}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-[13px] text-ink font-medium leading-snug">
+              {alert.title}
+            </span>
+            <DuplicateCountPill count={deduped.duplicateCount} sourceIds={deduped.sourceIds} />
+          </div>
+          {alert.body && (
+            <div className="mt-1 text-[12.5px] text-ink-soft leading-relaxed">
+              {linkifyAlertBody(alert.body, alert.facts_cited)}
+            </div>
+          )}
+        </div>
       </div>
     </li>
   );
 }
 
-function RecItem({ rec, muted = false }: { rec: PeriodRecommendation; muted?: boolean }) {
-  const isCritical = rec.urgency === "critical" || rec.urgency === "high";
+// ─── Recommendation card ────────────────────────────────────────
+function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
+  const rec = deduped.rec;
   const isDone = (rec.status ?? "").toLowerCase() === "done";
-  const Icon = isDone ? CheckCircle2 : isCritical ? AlertCircle : Info;
-  const iconColor = isDone
-    ? "text-emerald-600"
-    : rec.urgency === "critical"
-    ? "text-red-600"
-    : rec.urgency === "high"
-    ? "text-red-500"
-    : rec.urgency === "medium"
-    ? "text-amber-600"
-    : "text-ink-mute";
+  const Icon = isDone ? CheckCircle2 : Info;
+
+  const ruleColor =
+    isDone                   ? "border-l-emerald-500"
+    : rec.urgency === "critical" ? "border-l-red-500"
+    : rec.urgency === "high"     ? "border-l-red-400"
+    : rec.urgency === "medium"   ? "border-l-amber-500"
+    :                              "border-l-emerald-400";
+
+  const iconColor =
+    isDone                       ? "text-emerald-600"
+    : rec.urgency === "critical" ? "text-red-600"
+    : rec.urgency === "high"     ? "text-red-500"
+    : rec.urgency === "medium"   ? "text-amber-600"
+    :                              "text-emerald-600";
+
   return (
-    <li className={`flex items-start gap-2 text-[12.5px] leading-snug ${muted ? "opacity-65" : ""}`}>
-      <Icon size={14} className={`flex-shrink-0 mt-0.5 ${iconColor}`} />
-      <div>
-        <span className="text-ink font-medium">{rec.title}</span>
-        {rec.explanation && (
-          <span className="text-ink-soft"> — {rec.explanation}</span>
-        )}
+    <li
+      className={`
+        relative rounded-lg border border-rule border-l-[3px] ${ruleColor}
+        bg-surface
+        px-3.5 py-2.5
+      `}
+    >
+      <div className="flex items-start gap-2.5">
+        <Icon size={14} className={`flex-shrink-0 mt-[3px] ${iconColor}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-[10px] uppercase tracking-[0.1em] text-emerald-700 dark:text-emerald-400 font-semibold">
+              Recommendation
+            </span>
+            <span className="text-[13px] text-ink font-medium leading-snug">
+              {rec.title}
+            </span>
+            <DuplicateCountPill count={deduped.duplicateCount} sourceIds={deduped.sourceIds} />
+          </div>
+          {rec.explanation && (
+            <div className="mt-1 text-[12.5px] text-ink-soft leading-relaxed">
+              {linkifyAlertBody(rec.explanation, null /* recs don't carry facts_cited today */)}
+            </div>
+          )}
+        </div>
       </div>
     </li>
+  );
+}
+
+// ─── Duplicate count pill (carried over from D-quick) ──────────
+function DuplicateCountPill({ count, sourceIds }: { count: number; sourceIds: string[] }) {
+  if (count <= 1) return null;
+  return (
+    <span
+      className="inline-flex items-center rounded-full bg-ink-mute/15 px-1.5 py-px text-[10px] font-medium text-ink-mute tabular-nums"
+      title={`Fired ${count}× this period. Source row ids: ${sourceIds.slice(0, 8).join(", ")}${sourceIds.length > 8 ? `, +${sourceIds.length - 8} more` : ""}`}
+      aria-label={`This alert was emitted ${count} times in this period — collapsed.`}
+    >
+      ×{count}
+    </span>
   );
 }

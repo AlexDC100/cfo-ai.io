@@ -24,6 +24,12 @@ export interface PLLine {
   sign?: LineSign;
   /** Optional indent level (0 = section, 1 = item, 2 = sub-item). */
   indent?: number;
+  /** Stable Traceable bucket key (Phase C) — populated for rows any
+   *  ratio / valuation tile on another tab might link back to via a
+   *  `<TraceableNumber>` click. PLStatementView emits this as
+   *  `data-traceable-target=` so `useHighlightFromUrl()` can scroll +
+   *  pulse it. See src/lib/traceableSource.ts for the taxonomy. */
+  bucket?: string;
 }
 
 export interface PLSection {
@@ -35,6 +41,10 @@ export interface PLSection {
   subtotalLabel?: string;
   /** Optional subtotal amount paired with subtotalLabel. */
   subtotalAmount?: number;
+  /** Stable Traceable bucket key for the section subtotal — e.g.
+   *  "revenue" (= Total operating revenue), "ebit", "pretax", "netIncome".
+   *  PLStatementView emits this on the subtotal row. */
+  subtotalBucket?: string;
 }
 
 export interface PLKeyMargin {

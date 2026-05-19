@@ -12,6 +12,12 @@
  * the `.eei-scope` wrapper on the analyzed-company dashboard surface. */
 @import "./styles/eeiBoard.css";
 
+/* Phase A foundation — one-shot pulse animation applied by
+ * useHighlightFromUrl() when a TraceableNumber click lands on its
+ * source row. Scoped via the `.traceable-pulse` class; no other side
+ * effects on the global stylesheet. */
+@import "./components/cfo/traceablePulse.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

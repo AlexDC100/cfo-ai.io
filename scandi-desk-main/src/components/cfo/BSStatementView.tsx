@@ -10,6 +10,8 @@
 
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
 import { formatRON } from "@/lib/formatRon";
+import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
+import { useHighlightFromUrl } from "./useHighlightFromUrl";
 import "./bsStatementView.css";
 
 interface Props {
@@ -17,6 +19,13 @@ interface Props {
 }
 
 export function BSStatementView({ statement }: Props) {
+  // Phase A foundation: when a TraceableNumber elsewhere routes here
+  // with `?highlight=<bucket>` the hook scrolls the matching row into
+  // view and pulses it for ~1500ms. The matching row is whichever
+  // BSLine / subtotal / grand-total carries `[data-traceable-target=
+  // <bucket>]` (see bs-statement-builder + bsStructure types).
+  useHighlightFromUrl();
+
   return (
     <div className="bs-statement" data-testid="bs-statement">
       <div className="bs-header">
@@ -36,7 +45,7 @@ export function BSStatementView({ statement }: Props) {
       {statement.assetSections.map((section, i) => (
         <BSSectionView key={`a-${i}`} section={section} />
       ))}
-      <div className="bs-total-row">
+      <div className="bs-total-row" {...{ [TRACEABLE_TARGET_ATTR]: "totalAssets" }}>
         <span className="bs-total-label">TOTAL ASSETS</span>
         <span className="bs-amount">{formatRON(statement.totalAssets.opening)}</span>
         <span className="bs-amount">{formatRON(statement.totalAssets.closing)}</span>
@@ -48,7 +57,7 @@ export function BSStatementView({ statement }: Props) {
       {statement.equityLiabSections.map((section, i) => (
         <BSSectionView key={`el-${i}`} section={section} />
       ))}
-      <div className="bs-total-row">
+      <div className="bs-total-row" {...{ [TRACEABLE_TARGET_ATTR]: "totalLiabilitiesAndEquity" }}>
         <span className="bs-total-label">TOTAL EQUITY &amp; LIABILITIES</span>
         <span className="bs-amount">{formatRON(statement.totalEquityLiab.opening)}</span>
         <span className="bs-amount">{formatRON(statement.totalEquityLiab.closing)}</span>
@@ -74,6 +83,14 @@ export function BSStatementView({ statement }: Props) {
 
 function BSSectionView({ section }: { section: BSSection }) {
   if (section.lines.length === 0 && !section.subtotalLabel) return null;
+  // Spread the traceable-target data attribute onto the subtotal row
+  // when the section declares a `subtotalBucket`. This is the landing
+  // point for TraceableNumber clicks that reference subtotals like
+  // "Total current liabilities" — the denominator of every liquidity
+  // ratio.
+  const subtotalAttrs = section.subtotalBucket
+    ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
+    : {};
   return (
     <div className="bs-section">
       {section.header && <div className="bs-section-header">{section.header}</div>}
@@ -83,7 +100,7 @@ function BSSectionView({ section }: { section: BSSection }) {
       {section.subtotalLabel && (
         <>
           <div className="bs-subtotal-rule" />
-          <div className="bs-row bs-subtotal">
+          <div className="bs-row bs-subtotal" {...subtotalAttrs}>
             <span className="bs-label">{section.subtotalLabel}</span>
             <span className="bs-amount">{formatRON(section.subtotalOpening)}</span>
             <span className="bs-amount">{formatRON(section.subtotalClosing)}</span>
@@ -96,12 +113,18 @@ function BSSectionView({ section }: { section: BSSection }) {
 }
 
 function BSLineView({ line }: { line: BSLine }) {
+  // Attach data-traceable-target whenever the line carries a stable
+  // bucket. This makes the row the scroll-target for cross-page
+  // TraceableNumber clicks. Lines without a bucket render exactly as
+  // before — zero regression on the visual output.
+  const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
+
   if (line.style === "subtotal") {
     // Inline mid-section subtotal (e.g. "Net fixed assets")
     return (
       <>
         <div className="bs-subtotal-rule" />
-        <div className="bs-row bs-subtotal">
+        <div className="bs-row bs-subtotal" {...lineAttrs}>
           <span className="bs-label">{line.label}</span>
           <span className="bs-amount">{formatRON(line.opening)}</span>
           <span className="bs-amount">{formatRON(line.closing)}</span>
@@ -122,7 +145,7 @@ function BSLineView({ line }: { line: BSLine }) {
   const deltaValue = line.delta ?? (line.closing ?? 0) - (line.opening ?? 0);
 
   return (
-    <div className={`bs-row bs-row-item ${line.isContra ? "bs-contra" : ""}`}>
+    <div className={`bs-row bs-row-item ${line.isContra ? "bs-contra" : ""}`} {...lineAttrs}>
       <span className="bs-label">
         {line.label}{" "}
         {line.accountCode && <span className="bs-code">({line.accountCode})</span>}

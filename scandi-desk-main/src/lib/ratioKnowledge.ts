@@ -18,12 +18,64 @@
 // Keys mirror the ones emitted in `src/lib/financialReport.ts:computeRatios()`.
 
 import type { Ratio } from "./financialReport";
+import type { TraceableSource } from "./traceableSource";
+
+/** Resolver keys — each value identifies a numeric field the drawer
+ *  pulls live from `Totals` or `Statements.balanceSheet` /
+ *  `incomeStatement`. Adding a new key means extending
+ *  `resolveFormulaInput()` to handle it. */
+export type FormulaValueKey =
+  // Balance Sheet
+  | "cash"
+  | "accountsReceivable"
+  | "inventory"
+  | "totalCurrentAssets"
+  | "totalAssets"
+  | "accountsPayable"
+  | "shortTermDebt"
+  | "totalCurrentLiabilities"
+  | "longTermDebt"
+  | "totalLiabilities"
+  | "totalEquity"
+  | "totalDebt"
+  | "netDebt"
+  // P&L (Phase C)
+  | "revenue"
+  | "costOfGoodsSold"
+  | "operatingExpenses"
+  | "depreciationAmortization"
+  | "ebitda"
+  | "ebit"
+  | "interestExpense"
+  | "netIncome";
+
+/** A single piece of the rendered formula. Either inert text ("(",
+ *  " + ", " ÷ ") or a live numeric value that the drawer renders as a
+ *  `<TraceableNumber>` linking to its source row. */
+export type FormulaPart =
+  | { kind: "text"; value: string }
+  | {
+      kind: "value";
+      /** Short label rendered next to the number — e.g. "Cash", "AR". */
+      label: string;
+      /** Live-value resolver key — see `FormulaValueKey`. */
+      valueKey: FormulaValueKey;
+      /** Where this number lives in the statements. */
+      source: TraceableSource;
+    };
 
 export interface RatioKnowledge {
   /** Plain-English definition. */
   definition: string;
-  /** How the ratio is computed — math expression as a string. */
+  /** How the ratio is computed — math expression as a string.
+   *  Kept as a static fallback for ratios that don't yet have
+   *  structured `formulaParts`. */
   formula: string;
+  /** Structured formula with live, clickable source numbers. When
+   *  present, the drawer renders this in place of the plain `formula`
+   *  string. Each `kind: "value"` part becomes a `<TraceableNumber>`
+   *  pulling the actual figure from the company's statements. */
+  formulaParts?: FormulaPart[];
   /** Why a CFO should care. */
   whyItMatters: string;
   /** Generic "good" range — context-free guidance, NOT a personalised
@@ -46,6 +98,13 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     definition:
       "How many times the company's current assets cover its short-term obligations.",
     formula: "Current assets ÷ Current liabilities",
+    formulaParts: [
+      { kind: "value", label: "Current assets", valueKey: "totalCurrentAssets",
+        source: { statement: "bs", bucket: "totalCurrentAssets", hint: "Total current — section subtotal on the Balance Sheet" } },
+      { kind: "text",  value: " ÷ " },
+      { kind: "value", label: "Current liab", valueKey: "totalCurrentLiabilities",
+        source: { statement: "bs", bucket: "totalCurrentLiabilities", hint: "Total current liabilities — section subtotal" } },
+    ],
     whyItMatters:
       "First lens lenders and auditors use to gauge short-term solvency. A ratio below 1.0 means current assets cannot cover the next 12 months of obligations without raising cash, selling inventory, or accelerating collections.",
     goodRange: "≥ 1.5× healthy · ≥ 2.0× strong · < 1.0× tight",
@@ -62,6 +121,17 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     definition:
       "Like the current ratio, but excludes inventory — measures coverage with the most liquid assets only.",
     formula: "(Cash + receivables) ÷ Current liabilities",
+    formulaParts: [
+      { kind: "text",  value: "( " },
+      { kind: "value", label: "Cash", valueKey: "cash",
+        source: { statement: "bs", bucket: "cash", hint: "Cash & equivalents (5121 + 5124 + 5311)" } },
+      { kind: "text",  value: " + " },
+      { kind: "value", label: "AR", valueKey: "accountsReceivable",
+        source: { statement: "bs", bucket: "accountsReceivable", hint: "Trade receivables (4111)" } },
+      { kind: "text",  value: " ) ÷ " },
+      { kind: "value", label: "Current liab", valueKey: "totalCurrentLiabilities",
+        source: { statement: "bs", bucket: "totalCurrentLiabilities", hint: "Total current liabilities — section subtotal" } },
+    ],
     whyItMatters:
       "Strips out the assumption that inventory can be sold quickly. For commodity or slow-turnover businesses this is the more honest read.",
     goodRange: "≥ 1.0× healthy · < 0.7× watch",
@@ -77,6 +147,13 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     definition:
       "Pure-cash coverage of current liabilities — the most conservative liquidity measure.",
     formula: "Cash & equivalents ÷ Current liabilities",
+    formulaParts: [
+      { kind: "value", label: "Cash", valueKey: "cash",
+        source: { statement: "bs", bucket: "cash", hint: "Cash & equivalents (5121 + 5124 + 5311)" } },
+      { kind: "text",  value: " ÷ " },
+      { kind: "value", label: "Current liab", valueKey: "totalCurrentLiabilities",
+        source: { statement: "bs", bucket: "totalCurrentLiabilities", hint: "Total current liabilities — section subtotal" } },
+    ],
     whyItMatters:
       "Tells you what happens if revenue stops tomorrow. Boards and lenders use this for stress-testing.",
     goodRange: "≥ 0.20× comfortable · < 0.10× exposed",
@@ -188,6 +265,13 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     definition:
       "Debt funding relative to equity funding — a structural capital-stack read.",
     formula: "Total debt ÷ Total equity",
+    formulaParts: [
+      { kind: "value", label: "Total debt", valueKey: "totalDebt",
+        source: { statement: "bs", bucket: "longTermDebt", hint: "Total debt = ST bank credit (519) + LT bank loans (1621). Click jumps to LT bank loans." } },
+      { kind: "text",  value: " ÷ " },
+      { kind: "value", label: "Total equity", valueKey: "totalEquity",
+        source: { statement: "bs", bucket: "totalEquity", hint: "Total equity — section subtotal" } },
+    ],
     whyItMatters:
       "Above 1× means creditors fund more of the asset base than owners. Increases volatility of returns to equity.",
     goodRange: "≤ 1.0× healthy",
@@ -203,6 +287,13 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     definition:
       "Share of total assets funded by equity — the inverse of leverage intensity.",
     formula: "Total equity ÷ Total assets",
+    formulaParts: [
+      { kind: "value", label: "Total equity", valueKey: "totalEquity",
+        source: { statement: "bs", bucket: "totalEquity", hint: "Total equity — section subtotal" } },
+      { kind: "text",  value: " ÷ " },
+      { kind: "value", label: "Total assets", valueKey: "totalAssets",
+        source: { statement: "bs", bucket: "totalAssets", hint: "Total assets — Balance Sheet grand total" } },
+    ],
     whyItMatters:
       "Romanian Law 31/1990 art 153^24 obligates capital reconstitution when equity falls below 50% of share capital — track this carefully.",
     goodRange: "≥ 30% healthy · ≥ 50% conservative",

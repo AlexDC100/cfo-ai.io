@@ -490,7 +490,7 @@ export default function BenchmarkReportPage() {
       <section className="space-y-6 max-w-[1200px]">
         <header data-testid="benchmark-header" className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0 flex-1">
-            <div className="label-eyebrow">Benchmark vs industrie</div>
+            <div className="label-eyebrow">Industry benchmark · your company</div>
             <h1 className="mt-2 font-serif text-[34px] sm:text-[40px] leading-[1.05] tracking-[-0.02em] text-ink">
               {r.caen_label}
             </h1>

@@ -10,7 +10,7 @@
 // demo mode — replaces the static "Financial Intelligence" brand line.
 
 import { useNavigate } from "react-router-dom";
-import { Menu } from "lucide-react";
+import { Menu, Sparkles } from "lucide-react";
 import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
 import { useAuth } from "@/lib/auth";
@@ -23,12 +23,11 @@ interface Props {
 
 export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
   // May 2026 redesign — the inline dropdown was replaced by <AccountMenu/>
-  // which carries the THE single sign-out (sign-out moved here from the
-  // Sidebar System group). The `onOpenAi` prop is unused at runtime today
-  // (the TopHeader Ask CFO AI pill was removed earlier per directive) but
-  // kept on the interface so a future re-introduction is a one-line JSX
-  // restore, not a propagating type change.
-  void onOpenAi;
+  // which carries THE single sign-out. The "Ask CFO AI" pill is restored
+  // here per the operator's directive (May 2026 follow-up): it sits
+  // immediately to the left of the avatar, matching the reference image
+  // (an "Ask AI" pill + a small AC initials circle). Clicking it fires
+  // the same OPEN_ASK_CFO_AI_EVENT path that AppShell wires today.
   const { status, user, workspaceLabel } = useAuth();
   const navigate = useNavigate();
 
@@ -67,34 +66,40 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
 
         <div className="flex-1" />
 
-        {/* Ask CFO AI pill removed from TopHeader per the operator's
-            directive. The contextual launchers remain:
-              · Command Center → Workspace tab → Quick actions
-              · In-page chips (e.g. /benchmark, /financials) that fire
-                the OPEN_ASK_CFO_AI_EVENT and AppShell catches it
-              · The /chat page is still reachable directly
-            The `onOpenAi` prop is kept on TopHeader so future reverts
-            are a one-line JSX restore. AppShell still passes a real
-            handler today. */}
-
-        {/* Bell removed per the operator's directive. The previous
-            implementation was a visible-but-dead control (no onClick,
-            no popover, no badge) — a trust killer for a CFO product.
-            A real Notification Center is a future scoped task. Until
-            then, no bell at all is better than a placebo bell.
-            See diagnostics-trail / the header-cleanup brief. */}
-
-        {/* Command Center trigger was removed from the top-right header.
-            It now lives in the sidebar's System group, directly below
-            Settings (`data-testid="sidebar-command-center"`). Single
-            entry point per the relocation directive. */}
+        {/* Ask CFO AI pill — restored May 2026 follow-up. Sits to the
+            LEFT of the avatar, mirroring the reference image (pill →
+            avatar circle). Uses the brand-tint pill styling so it reads
+            as a primary action without dominating the header. Fires the
+            same OPEN_ASK_CFO_AI_EVENT path that the in-page chips and
+            Command Center use, so behavior is consistent across launch
+            surfaces. Only rendered when the user is signed in — there's
+            no AI to ask without an authenticated session. */}
+        {status === "signed_in" && user && (
+          <button
+            type="button"
+            onClick={onOpenAi}
+            data-testid="topheader-ask-cfo-ai"
+            aria-label="Ask CFO AI"
+            className="
+              inline-flex items-center gap-1.5
+              h-9 px-3 rounded-full
+              bg-brand-tint text-brand-d
+              hover:bg-brand-tint/80
+              text-[12.5px] font-medium
+              transition-colors
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
+            "
+          >
+            <Sparkles size={13} strokeWidth={1.75} />
+            <span className="hidden sm:inline">Ask CFO AI</span>
+          </button>
+        )}
 
         {/* Account menu — single source of truth for sign-out (May 2026
-            redesign). All the prior inline dropdown items moved into
-            <AccountMenu/> together with the plan status chip, usage
-            preview, theme toggle, and a Privacy entry marked
-            "Coming soon" until a Privacy route ships. Unauthed visitors
-            still see a plain "Sign in" link below. */}
+            redesign). The trigger is a compact initials circle (no
+            trailing name text); the full name + email live inside the
+            dropdown. Unauthed visitors still see a plain "Sign in"
+            link below. */}
         {status === "signed_in" && user ? (
           <AccountMenu />
         ) : (

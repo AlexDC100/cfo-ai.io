@@ -10,6 +10,8 @@
 
 import type { PLStatement, PLSection, PLLine } from "@/lib/plStructure";
 import { formatRON, formatRONSigned, formatPercent } from "@/lib/formatRon";
+import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
+import { useHighlightFromUrl } from "./useHighlightFromUrl";
 import "./plStatementView.css";
 
 interface Props {
@@ -19,6 +21,13 @@ interface Props {
 }
 
 export function PLStatementView({ statement, showFootnote = true }: Props) {
+  // Phase A foundation: when a TraceableNumber elsewhere routes here
+  // with `?highlight=<bucket>` the hook scrolls the matching row into
+  // view and pulses it. Matching rows carry `data-traceable-target=`
+  // — see PLSection.subtotalBucket and PLLine.bucket plus the boxed
+  // EBITDA row below (hardcoded "ebitda").
+  useHighlightFromUrl();
+
   const [operatingRevenue, operatingExpenses, depreciationSection, financialItems, closingSection] =
     statement.sections;
 
@@ -37,8 +46,9 @@ export function PLStatementView({ statement, showFootnote = true }: Props) {
         {/* OPERATING EXPENSES */}
         <PLSectionView section={operatingExpenses} />
 
-        {/* EBITDA — boxed off with double borders */}
-        <div className="pl-ebitda-box">
+        {/* EBITDA — boxed off with double borders. Hardcoded bucket so
+         *  Valuation page / ratios linking to `ebitda` land here. */}
+        <div className="pl-ebitda-box" {...{ [TRACEABLE_TARGET_ATTR]: "ebitda" }}>
           <div className="pl-row pl-total">
             <span className="pl-code" />
             <span className="pl-label">EBITDA</span>
@@ -94,6 +104,12 @@ export function PLStatementView({ statement, showFootnote = true }: Props) {
 
 function PLSectionView({ section }: { section: PLSection }) {
   if (section.lines.length === 0 && !section.subtotalLabel) return null;
+  // Subtotal-row traceability: when section declares a subtotalBucket
+  // (e.g. "revenue", "ebit", "netIncomeOperational"), emit the data
+  // attribute so cross-page TraceableNumber clicks can land here.
+  const subtotalAttrs = section.subtotalBucket
+    ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
+    : {};
   return (
     <div className="pl-section">
       {section.header && <div className="pl-section-header">{section.header}</div>}
@@ -105,7 +121,7 @@ function PLSectionView({ section }: { section: PLSection }) {
       {section.subtotalLabel && (
         <>
           <div className="pl-subtotal-rule" />
-          <div className="pl-row pl-subtotal">
+          <div className="pl-row pl-subtotal" {...subtotalAttrs}>
             <span className="pl-code" />
             <span className="pl-label">{section.subtotalLabel}</span>
             <span className="pl-amount">{formatRON(section.subtotalAmount)}</span>
@@ -117,9 +133,14 @@ function PLSectionView({ section }: { section: PLSection }) {
 }
 
 function PLLineView({ line }: { line: PLLine }) {
+  // Line-level traceability: bucket-tagged lines become scroll-targets
+  // for incoming `?highlight=<bucket>` URLs. Untagged lines render
+  // exactly as before — zero visual regression.
+  const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
+
   if (line.style === "subtotal" && !line.accountCode) {
     return (
-      <div className="pl-row pl-subtotal">
+      <div className="pl-row pl-subtotal" {...lineAttrs}>
         <span className="pl-code" />
         <span className="pl-label">{line.label}</span>
         <span className="pl-amount">{formatRON(line.amount)}</span>
@@ -134,7 +155,7 @@ function PLLineView({ line }: { line: PLLine }) {
     line.sign === "negative" ? "pl-neg" : line.sign === "positive" ? "pl-pos" : "";
 
   return (
-    <div className={`pl-row pl-row-item ${line.style}`}>
+    <div className={`pl-row pl-row-item ${line.style}`} {...lineAttrs}>
       <span className="pl-code">{line.accountCode ?? ""}</span>
       <span className="pl-label">{line.label}</span>
       <span className={`pl-amount ${amountClass}`}>{amount}</span>
