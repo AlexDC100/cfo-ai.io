@@ -2027,8 +2027,18 @@ def stage_persist_narrative(
             returning=False,
         )
 
-        # Recommendations — wipe per-document, re-insert
-        admin_client.delete("recommendations", filters={"org_id": f"eq.{org_id}"})
+        # Recommendations — wipe per-PERIOD, re-insert with period_id.
+        #
+        # Phase D-backend: the prior `delete WHERE org_id = ?` wiped EVERY
+        # period's recommendations on every re-run, then re-inserted only
+        # the current period's. Result: only the most-recently-analysed
+        # period had recs; every other period's were silently wiped on
+        # the next upload. The new scope is `WHERE period_id = ?` so a
+        # re-run only replaces THIS period's recs; sibling periods are
+        # untouched. The schema migration at
+        # supabase/schema_phase_notes_period_scope.sql adds the period_id
+        # column + index this query depends on.
+        admin_client.delete("recommendations", filters={"period_id": f"eq.{period_id}"})
         recs = []
         for r in narrate["recommendations"]:
             actions = r.get("actions") or []
@@ -2037,6 +2047,7 @@ def stage_persist_narrative(
             severity = (r.get("severity") or "medium").lower()
             recs.append({
                 "org_id": org_id,
+                "period_id": period_id,
                 "target_type": "dataset",
                 "target_id": str(period_id),
                 "title": r.get("title", "Untitled recommendation"),
@@ -2055,11 +2066,23 @@ def stage_persist_narrative(
         # `stage_validate` is now the single source — each rule has a
         # unique rule_key, structurally deduped before this step.
         #
-        # Wipe alerts tied to this document so re-runs replace the whole
-        # set cleanly (no stale rows from older rule definitions that no
-        # longer fire, and no LLM-generated rows from before the dedup
-        # refactor).
-        admin_client.delete("alerts", filters={"document_id": f"eq.{document_id}"})
+        # Phase D-backend: dedup scope is now (period_id, alert_key), not
+        # (org_id, alert_key). The pre-D-backend setup had alerts as
+        # org-scoped rows — `/api/period/:id` then returned the union of
+        # every period's alerts on every period view, producing the
+        # "80 on file" duplicate pile the user reported. Now:
+        #
+        #   1. DELETE every alert for THIS period_id before inserting
+        #      (covers re-runs and old document_ids that previously
+        #      attached to this period via documents.period_id).
+        #   2. INSERT the deduped set with period_id stamped on each
+        #      row, with a (period_id, alert_key) unique constraint
+        #      enforcing idempotency at the DB level.
+        #
+        # The schema migration that adds `period_id` + the new unique
+        # is at supabase/schema_phase_notes_period_scope.sql — both
+        # must ship together.
+        admin_client.delete("alerts", filters={"period_id": f"eq.{period_id}"})
 
         rows: List[Dict[str, Any]] = []
         seen_keys: set[str] = set()
@@ -2087,6 +2110,7 @@ def stage_persist_narrative(
             # FE's "Facts backing this alert" expander.
             rows.append({
                 "org_id": org_id,
+                "period_id": period_id,
                 "alert_key": key,
                 "severity": severity,
                 "category": category,
@@ -2100,7 +2124,7 @@ def stage_persist_narrative(
                 },
             })
         if rows:
-            admin_client.upsert("alerts", rows, on_conflict="org_id,alert_key", returning=False)
+            admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
 
 
 # ─── Orchestrator ───────────────────────────────────────────────────────────
@@ -4301,15 +4325,28 @@ def build_router() -> APIRouter:
             doc = doc_rows[0] if doc_rows else None
             org_id = period["org_id"]
 
+            # Phase D-backend: scope alerts + recommendations to this
+            # period_id rather than the whole org. Pre-fix this query
+            # returned every alert/rec in the org on every period view,
+            # which is why a single period showed "(80 on file)" — that
+            # was 5 periods' worth of rules + stale rows from old
+            # document_ids accumulated in one list.
+            #
+            # Backward compat: legacy rows have period_id IS NULL (the
+            # migration backfills via documents.period_id when possible
+            # but can't attribute every historic row). Those legacy
+            # NULL rows are intentionally excluded here — the FE never
+            # surfaces them. They remain in the table for audit until
+            # someone wants to garbage-collect.
             recs = client.select(
                 "recommendations",
-                filters={"org_id": f"eq.{org_id}"},
+                filters={"period_id": f"eq.{period_id}"},
                 order="urgency.desc,created_at.desc",
             )
             alerts = client.select(
                 "alerts",
                 filters={
-                    "org_id": f"eq.{org_id}",
+                    "period_id": f"eq.{period_id}",
                     "resolved_at": "is.null",
                 },
             )
