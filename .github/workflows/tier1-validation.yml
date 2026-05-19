@@ -1,0 +1,143 @@
+# Tier-1 launch validation — runs the fixture suite against the live pipeline
+# on every PR and on every push to main. Currently exercises the Romanian EEI
+# fixture (the launch country); FR / DE-SKR03 / DE-SKR04 / ES fixtures join
+# this job as their expected_*.json files land.
+#
+# Required GitHub repo secrets:
+#   SUPABASE_URL              ───┐
+#   SUPABASE_SERVICE_ROLE_KEY    │  point at the QA/CI Supabase project
+#   SUPABASE_ANON_KEY         ───┘  (a separate project from prod is safest)
+#   ANTHROPIC_API_KEY              for the narrate stage
+#   MISTRAL_API_KEY                (optional) PDF OCR fallback
+#
+# The job uploads the fixture PDF (or text), triggers the pipeline, polls
+# until analysis completes, then runs scripts/compare_to_fixture.py for
+# each Tier-1 fixture and exits non-zero on any failure.
+
+name: tier1-validation
+
+on:
+  pull_request:
+    paths:
+      - "src/engine/**"
+      - "scandi-desk-main/e2e/fixtures/ground-truth/**"
+      - "scripts/compare_to_fixture.py"
+      - "scripts/run_tier1_validation.py"
+      - ".github/workflows/tier1-validation.yml"
+  push:
+    branches: [main]
+
+jobs:
+  # ─── Fast unit-style canonical check (no Supabase / no LLM call) ─────
+  # Runs in <10s and locks every EEI Dec 2025 canonical balance to the
+  # rupee. Any future commit that breaks the OMFP-1802 mapping or the
+  # canonical assembled_bs / assembled_pl shape fails this job before the
+  # expensive integration jobs run.
+  eei-canonical-numbers:
+    name: EEI canonical numbers (mapping + assembly)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run canonical EEI validation
+        run: python3 scripts/validate_eei_canonical.py
+
+  romania-eei:
+    needs: [eei-canonical-numbers]
+    name: RO / OMFP 1802 — EEI Dec 2025 (real)
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL:           ${{ secrets.SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY:      ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY:   ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ANTHROPIC_API_KEY:           ${{ secrets.ANTHROPIC_API_KEY }}
+      MISTRAL_API_KEY:             ${{ secrets.MISTRAL_API_KEY }}
+      ENGINE_API_TOKEN:            "ci-token"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python deps
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install --upgrade pip
+          ./.venv/bin/pip install -e .
+          ./.venv/bin/pip install anthropic httpx fastapi uvicorn pydantic sqlalchemy openpyxl
+
+      - name: Boot backend on :8000
+        run: |
+          ./.venv/bin/python -m engine serve \
+            --config config.yaml \
+            --host 127.0.0.1 --port 8000 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 2
+            curl -sf http://127.0.0.1:8000/health && break
+          done
+
+      - name: Run EEI fixture validation
+        run: |
+          ./.venv/bin/python scripts/run_tier1_validation.py \
+            --fixture ro_eei_dec_2025 \
+            --period-id "${{ vars.CI_RO_EEI_PERIOD_ID }}" \
+            --strict
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier1-romania-report
+          path: ./out/tier1_report.json
+          retention-days: 30
+
+  # ─── Tier-1 stubs (enabled as each fixture's expected_*.json lands) ────
+  france-pcg:
+    name: FR / PCG 2014 (synthetic)
+    runs-on: ubuntu-latest
+    if: ${{ false }}  # flip to true when expected_*.json is built (Phase B.1)
+    steps:
+      - run: echo "France fixture pending Phase B.1"
+
+  germany-skr03:
+    name: DE / SKR 03 (synthetic)
+    runs-on: ubuntu-latest
+    if: ${{ false }}  # flip to true when expected_*.json is built (Phase B.2)
+    steps:
+      - run: echo "DE SKR 03 fixture pending Phase B.2"
+
+  germany-skr04:
+    name: DE / SKR 04 (synthetic)
+    runs-on: ubuntu-latest
+    if: ${{ false }}  # flip to true when expected_*.json is built (Phase B.3)
+    steps:
+      - run: echo "DE SKR 04 fixture pending Phase B.3"
+
+  spain-pgc:
+    name: ES / PGC 2007 (synthetic)
+    runs-on: ubuntu-latest
+    if: ${{ false }}  # flip to true when expected_*.json is built (Phase B.4)
+    steps:
+      - run: echo "Spain fixture pending Phase B.4"
+
+  # ─── Aggregate gate — all Tier-1 fixtures green = launch claim defensible ────
+  tier1-aggregate:
+    name: Tier-1 launch gate
+    runs-on: ubuntu-latest
+    needs: [romania-eei]   # add france-pcg, germany-skr03, germany-skr04, spain-pgc as they enable
+    if: always()
+    steps:
+      - name: Check all Tier-1 jobs green
+        run: |
+          if [ "${{ needs.romania-eei.result }}" != "success" ]; then
+            echo "::error::Romania (EEI) fixture FAILED. Launch claim cannot include Romania until this is green."
+            exit 1
+          fi
+          echo "Tier-1 launch gate: PASS"

@@ -1,0 +1,57 @@
+# /etc/systemd/system/cfo-ai-api.service
+#
+# FastAPI backend (uvicorn) for CFO AI.
+# Runs as the `cfoai` user out of /var/www/cfo-ai/api, reading secrets
+# from /etc/cfo-ai/api.env (mode 600, owned by cfoai). Listens only on
+# 127.0.0.1:8000 — nginx (api.cfo-ai.finance) reverse-proxies it.
+#
+# After creating the unit file and the env file:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cfo-ai-api
+#   systemctl status cfo-ai-api
+#   journalctl -u cfo-ai-api -f      # tail logs
+
+[Unit]
+Description=CFO AI FastAPI backend (uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=cfoai
+Group=cfoai
+WorkingDirectory=/var/www/cfo-ai/api
+
+# All production secrets — Supabase service-role key, Stripe secret +
+# webhook, Anthropic API key, CORS_ORIGINS, etc. — live in this file.
+# It is mode 600 and owned by `cfoai`, NEVER world-readable.
+EnvironmentFile=/etc/cfo-ai/api.env
+
+# Use the project's venv (created at /var/www/cfo-ai/api/.venv during
+# initial deploy). `engine serve` is the project's own CLI wrapper —
+# see src/engine/__main__.py.
+ExecStart=/var/www/cfo-ai/api/.venv/bin/python -m engine serve \
+    --config /var/www/cfo-ai/api/config.yaml \
+    --host 127.0.0.1 \
+    --port 8000
+
+# Restart policy — exponential backoff on crash. Should never need it
+# in steady state.
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=5
+
+# Logging — let journald collect stdout/stderr.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cfo-ai-api
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/www/cfo-ai/api /var/log/cfo-ai
+
+[Install]
+WantedBy=multi-user.target

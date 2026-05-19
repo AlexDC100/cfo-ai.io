@@ -149,7 +149,7 @@ function Kpi({ testId, label, value, sub }: { testId: string; label: string; val
   return (
     <div className="rounded-xl border border-rule bg-surface px-4 py-3" data-testid={testId}>
       <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{label}</div>
-      <div className="mt-1.5 font-serif text-[22px] text-ink leading-tight">{value}</div>
+      <div className="mt-2 num-hero text-[30px] text-ink leading-none">{value}</div>
       {sub && <div className="mt-0.5 text-[11.5px] text-ink-soft">{sub}</div>}
     </div>
   );

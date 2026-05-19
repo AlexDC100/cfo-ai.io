@@ -1,0 +1,147 @@
+# /opt/scandia/Caddyfile
+#
+# UPDATED 2026-05-18 — added CFO AI site block at the BOTTOM. All other
+# blocks are byte-identical to the previous version, so reload is safe:
+# scandia / vitalis / longivity / IP-catch-all behavior is unchanged.
+#
+# Caddy serves the stack at TWO addresses:
+#
+#   1. http://187.124.0.37        — works the moment containers come up (no DNS, no cert).
+#                                    Use this for first-boot smoke testing.
+#   2. https://scandiafood-sku.online — auto-HTTPS via Let's Encrypt. Works as soon as
+#                                    DNS A records point at this VPS.
+#
+# Caddy keeps trying to obtain the cert in the background, so you can deploy
+# before DNS is ready, and HTTPS lights up when the records propagate.
+
+# ─── Apex domain (auto-HTTPS) ─────────────────────────────────────────────
+scandiafood-sku.online {
+    encode gzip zstd
+
+    @api path /api/* /health /run-daily /decisions/*
+    handle @api {
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}
+
+# ─── www → apex redirect ──────────────────────────────────────────────────
+www.scandiafood-sku.online {
+    redir https://scandiafood-sku.online{uri} permanent
+}
+
+# ─── Raw HTTP catch-all (covers the IP and any host before DNS resolves) ──
+# Plain HTTP only — browsers will warn but the team can verify the deploy
+# is alive while you fix DNS / mint the cert.
+:80 {
+    encode gzip zstd
+
+    @api path /api/* /health /run-daily /decisions/*
+    handle @api {
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        reverse_proxy frontend:80
+    }
+}
+
+# ─── Vitalis (vitalisai.life) — added 2026-05-17 to persist what was
+# previously only in the Admin API in-memory config. Reverse-proxies to
+# the Vitalis Bun backend running as systemd unit vitalis-backend.service
+# on the host at :3001. Long timeouts (600s) cover Anthropic streaming
+# calls; flush_interval -1 keeps SSE chunks unbuffered for chat streaming.
+vitalisai.life, www.vitalisai.life {
+    encode gzip zstd
+    reverse_proxy host.docker.internal:3001 {
+        flush_interval -1
+        transport http {
+            dial_timeout 10s
+            read_timeout 600s
+            write_timeout 600s
+        }
+    }
+}
+
+# ─── Longivity (longivity.io) — additive, added 2026-05-17.
+# Mirrors the vitalisai.life block byte-for-byte. Both domains
+# reverse-proxy to the same Vitalis Bun backend on host:3001.
+# vitalisai.life is unchanged and remains the original canonical
+# domain; this is an additive launch, not a redirect. When DNS for
+# longivity.io points at this VPS, Caddy will auto-provision a
+# Let's Encrypt cert for it on first HTTPS hit. Until DNS
+# propagates, ACME for this host will fail with NXDOMAIN — that
+# failure is isolated to longivity.io and does NOT affect the
+# existing vitalisai.life or scandiafood-sku.online certs.
+longivity.io, www.longivity.io {
+    encode gzip zstd
+    reverse_proxy host.docker.internal:3001 {
+        flush_interval -1
+        transport http {
+            dial_timeout 10s
+            read_timeout 600s
+            write_timeout 600s
+        }
+    }
+}
+
+# ─── CFO AI (cfo-ai.finance) — added 2026-05-18, additive.
+# Reverse-proxies to the cfo-ai-frontend / cfo-ai-backend containers
+# in /opt/cfo-ai/docker-compose.yml (joined to scandia_default via
+# external network — see that compose). Routing matches the scandia
+# block: /api/* + /health → backend, everything else → frontend.
+#
+# Long timeouts on the API path because Ask CFO AI streams Anthropic
+# SSE responses; flush_interval -1 keeps tokens unbuffered.
+#
+# www.cfo-ai.finance is a CNAME to the apex (set in Hostinger DNS);
+# Caddy auto-issues a Let's Encrypt cert for both on first HTTPS hit.
+cfo-ai.finance, www.cfo-ai.finance {
+    encode gzip zstd
+
+    @api path /api/* /health
+    handle @api {
+        reverse_proxy cfo-ai-backend:8000 {
+            flush_interval -1
+            transport http {
+                dial_timeout 10s
+                read_timeout 600s
+                write_timeout 600s
+            }
+        }
+    }
+
+    handle {
+        reverse_proxy cfo-ai-frontend:80
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}
+
+# ─── CFO AI API subdomain (api.cfo-ai.finance) — additive.
+# Optional split-origin entry point. The CFO AI frontend uses relative
+# /api URLs and DOES NOT need this; it's here only so external scripts /
+# webhooks / Stripe can hit a clean `api.` host. Same backend, no
+# frontend handler. DNS A record exists (added 2026-05-18).
+api.cfo-ai.finance {
+    encode gzip zstd
+    reverse_proxy cfo-ai-backend:8000 {
+        flush_interval -1
+        transport http {
+            dial_timeout 10s
+            read_timeout 600s
+            write_timeout 600s
+        }
+    }
+}
