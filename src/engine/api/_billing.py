@@ -19,13 +19,14 @@ billing endpoints return a clear "Stripe not configured" error in that case.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel
 
 from . import _pricing_tiers, _supabase
@@ -115,12 +116,101 @@ def _user_email(user_id: str) -> Optional[str]:
 
 
 class CheckoutStartRequest(BaseModel):
-    plan: str  # 'founder' | 'standard'
+    # STRIPE-1 (May 2026) — accepts both legacy plans ('founder' /
+    # 'standard') and the active simple-tier model ('intro' / 'starter'
+    # / 'pro'). The FE PricingTableV2 uses the simple tiers; the legacy
+    # org-scoped checkout is retained for migration windows.
+    plan: str
     locale: Optional[str] = "en"
 
 
 class CheckoutStartResponse(BaseModel):
     url: str
+
+
+# STRIPE-1 — tier → (env var, mode, metadata-shape) lookup for the
+# simple-tier model rendered by PricingTableV2. Used by both POST and
+# GET handlers below so the routing logic stays in one place.
+#
+# `mode` is the Stripe Checkout Session mode:
+#   · "payment"      — one-off charge (Intro €0.99 unlock)
+#   · "subscription" — recurring (Starter €14.99/mo, Pro €39.99/mo)
+#
+# When the env var is unset, the endpoint returns 503 with a clear
+# message naming the missing var. This lets the operator spot
+# configuration drift instantly.
+_SIMPLE_TIER_CONFIG: Dict[str, Dict[str, str]] = {
+    "intro":   {"env": "STRIPE_PRICE_INTRO",   "mode": "payment"},
+    "starter": {"env": "STRIPE_PRICE_STARTER", "mode": "subscription"},
+    "pro":     {"env": "STRIPE_PRICE_PRO",     "mode": "subscription"},
+}
+
+
+def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
+                                org_id: Optional[str], email: str,
+                                app_url: str) -> Any:
+    """Create a Stripe Checkout Session for the intro/starter/pro tier.
+
+    Shared by both POST `/api/checkout/start` (legacy contract) and
+    GET `/api/checkout/start?tier=…` (new redirect-style entry point
+    matching the FE's `<a href>` navigation pattern). Returns the
+    Stripe Session object; caller decides JSON-vs-redirect response.
+    """
+    config = _SIMPLE_TIER_CONFIG[tier]
+    price = os.environ.get(config["env"])
+    if not price:
+        raise HTTPException(503, f"{config['env']} not set on the backend.")
+
+    # Reuse Stripe customer per user when available so the billing
+    # portal sees prior cards / invoices. Falls back to fresh customer
+    # if no subscription row exists yet.
+    #
+    # NOTE: the tier model (intro/starter/pro) keys `subscriptions` by
+    # `user_id` (see `_upsert_tier_subscription_from_stripe` →
+    # `on_conflict="user_id"`), NOT by `org_id` — that's the legacy
+    # founder/standard surface. Always look up by user_id here; org_id
+    # is kept only for metadata on the Stripe Customer/session for
+    # downstream analytics.
+    customer_id: Optional[str] = None
+    with _supabase.admin() as client:
+        sub_rows = client.select(
+            "subscriptions",
+            filters={"user_id": f"eq.{user_id}"},
+            single=True,
+        )
+        existing = sub_rows[0] if sub_rows else None
+        if existing:
+            customer_id = existing.get("stripe_customer_id")
+    if not customer_id:
+        customer = stripe.Customer.create(
+            email=email or "",
+            metadata={"user_id": user_id, **({"org_id": org_id} if org_id else {})},
+        )
+        customer_id = customer["id"]
+
+    session_kwargs: Dict[str, Any] = {
+        "customer": customer_id,
+        "mode": config["mode"],
+        "line_items": [{"price": price, "quantity": 1}],
+        "payment_method_collection": "always",
+        "success_url": f"{app_url}/dashboard?welcome=1&tier={tier}",
+        "cancel_url": f"{app_url}/pricing?canceled=1",
+        "locale": "auto",
+    }
+    if config["mode"] == "subscription":
+        session_kwargs["subscription_data"] = {
+            "metadata": {
+                "tier": tier, "user_id": user_id,
+                **({"org_id": org_id} if org_id else {}),
+            },
+        }
+    else:
+        # mode=payment — metadata goes on the session itself (no sub)
+        session_kwargs["metadata"] = {
+            "tier": tier, "user_id": user_id,
+            **({"org_id": org_id} if org_id else {}),
+        }
+    return stripe.checkout.Session.create(**session_kwargs)
 
 
 # ─── Subscription Schedule setup (founder phase 1 → phase 2) ───────────────
@@ -180,10 +270,18 @@ def _upsert_subscription_from_stripe(sub: Dict[str, Any]) -> Optional[Dict[str, 
         )
         existing = existing_rows[0] if existing_rows else None
 
+        # Stripe API 2026-03-25.dahlia moved current_period_start/end from the
+        # Subscription object onto each Subscription Item. Read from the first
+        # item with the top-level field as a fallback for older API versions.
+        items = ((sub.get("items") or {}).get("data") or [])
+        first_item = items[0] if items else {}
+        current_period_start = sub.get("current_period_start") or first_item.get("current_period_start")
+        current_period_end = sub.get("current_period_end") or first_item.get("current_period_end")
+
         is_founder = plan == "founder"
         founder_renewal_at: Optional[str] = None
         if is_founder and not (existing and existing.get("stripe_subscription_id")):
-            founder_renewal_at = _ts_to_iso(sub.get("current_period_end"))
+            founder_renewal_at = _ts_to_iso(current_period_end)
 
         row = {
             "org_id": org_id,
@@ -191,8 +289,8 @@ def _upsert_subscription_from_stripe(sub: Dict[str, Any]) -> Optional[Dict[str, 
             "stripe_subscription_id": sub.get("id"),
             "status": sub.get("status"),
             "plan_key": plan,
-            "current_period_start": _ts_to_iso(sub.get("current_period_start")),
-            "current_period_end": _ts_to_iso(sub.get("current_period_end")),
+            "current_period_start": _ts_to_iso(current_period_start),
+            "current_period_end": _ts_to_iso(current_period_end),
             "trial_end": _ts_to_iso(sub.get("trial_end")),
             "cancel_at_period_end": bool(sub.get("cancel_at_period_end", False)),
             "is_founder": is_founder,
@@ -260,6 +358,14 @@ def _upsert_tier_subscription_from_stripe(sub: Dict[str, Any]) -> None:
         except Exception:  # noqa: BLE001
             logger.exception("[billing] claim_founding_seat failed")
 
+    # Stripe API 2026-03-25.dahlia moved current_period_start/end from the
+    # Subscription object onto each Subscription Item. Read from the first item
+    # with the top-level field as a fallback for older API versions.
+    items = ((sub.get("items") or {}).get("data") or [])
+    first_item = items[0] if items else {}
+    current_period_start = sub.get("current_period_start") or first_item.get("current_period_start")
+    current_period_end = sub.get("current_period_end") or first_item.get("current_period_end")
+
     row = {
         "user_id": user_id,
         "tier": tier,
@@ -268,10 +374,58 @@ def _upsert_tier_subscription_from_stripe(sub: Dict[str, Any]) -> None:
         "is_founding_member": is_founding,
         "stripe_customer_id": sub.get("customer"),
         "stripe_subscription_id": sub.get("id"),
-        "current_period_start": _ts_to_iso(sub.get("current_period_start")),
-        "current_period_end": _ts_to_iso(sub.get("current_period_end")),
+        "current_period_start": _ts_to_iso(current_period_start),
+        "current_period_end": _ts_to_iso(current_period_end),
         "trial_end": _ts_to_iso(sub.get("trial_end")),
         "cancel_at_period_end": bool(sub.get("cancel_at_period_end", False)),
+        "updated_at": _now_iso(),
+    }
+    with _supabase.admin() as client:
+        client.upsert("subscriptions", row, on_conflict="user_id")
+
+
+def _grant_intro_entitlement(session: Dict[str, Any]) -> None:
+    """One-time €0.99 intro purchase — Stripe Checkout runs in mode=payment,
+    so no Subscription object is created and customer.subscription.created/
+    updated never fires. Persist the 7-day entitlement directly from the
+    session metadata. Outer `_process_event` handles idempotency via the
+    `billing_events` insert.
+
+    Writes both `tier='intro'` (so `_pricing_config.plan_for` resolves the
+    intro plan) and `intro_unlock_expiry` (the column `_plan_state` reads
+    to gate the 7-day window).
+    """
+    from datetime import timedelta
+
+    metadata = session.get("metadata") or {}
+    user_id = metadata.get("user_id")
+    if not user_id:
+        logger.warning(
+            "[billing] intro session missing user_id metadata: %s",
+            session.get("id"),
+        )
+        return
+
+    created_ts = session.get("created")
+    if created_ts:
+        period_start = datetime.fromtimestamp(created_ts, tz=timezone.utc)
+    else:
+        period_start = datetime.now(timezone.utc)
+    period_end = period_start + timedelta(days=7)
+
+    row = {
+        "user_id": user_id,
+        "tier": "intro",
+        "billing_cycle": "monthly",
+        "status": "active",
+        "is_founding_member": False,
+        "stripe_customer_id": session.get("customer"),
+        "stripe_subscription_id": None,
+        "current_period_start": period_start.isoformat(),
+        "current_period_end": period_end.isoformat(),
+        "intro_unlock_expiry": period_end.isoformat(),
+        "trial_end": None,
+        "cancel_at_period_end": True,
         "updated_at": _now_iso(),
     }
     with _supabase.admin() as client:
@@ -299,13 +453,19 @@ def _process_event(event: Dict[str, Any]) -> None:
             pass
 
         try:
+            # JSON-roundtrip with `default=str` to coerce any non-JSON-native
+            # types (Decimal from Stripe API amounts, datetime, etc.) before
+            # passing through httpx → json_dumps. Without this, json.dumps
+            # raises `TypeError: Object of type Decimal is not JSON serializable`
+            # and the idempotency record is never written.
+            payload_safe = json.loads(json.dumps(event, default=str))
             client.insert(
                 "billing_events",
                 {
                     "org_id": org_id,
                     "stripe_event_id": event_id,
                     "event_type": event_type,
-                    "payload": event,
+                    "payload": payload_safe,
                 },
                 returning=False,
             )
@@ -346,6 +506,12 @@ def _process_event(event: Dict[str, Any]) -> None:
             _upsert_tier_subscription_from_stripe(obj)
             return
         _upsert_subscription_from_stripe(obj)
+    elif event_type == "checkout.session.completed":
+        # One-time intro purchase — mode=payment, no subscription created.
+        # Persist the entitlement directly from the session metadata.
+        metadata = obj.get("metadata") or {}
+        if metadata.get("tier") == "intro" and obj.get("mode") == "payment":
+            _grant_intro_entitlement(obj)
     elif event_type == "invoice.payment_succeeded":
         # The subscription.updated event that follows will refresh state;
         # nothing to do here besides log.
@@ -442,8 +608,31 @@ def build_router() -> APIRouter:
     @router.post("/api/checkout/start", response_model=CheckoutStartResponse)
     def checkout_start(req: CheckoutStartRequest, authorization: Optional[str] = Header(None)) -> Any:
         plan = req.plan.lower().strip()
+        # STRIPE-1 — fan-out: simple-tier model (intro / starter / pro)
+        # delegates to the shared session builder. Legacy org-scoped
+        # founder/standard preserves the original behavior unchanged.
+        if plan in _SIMPLE_TIER_CONFIG:
+            jwt = _require_jwt(authorization)
+            user_id = _user_id_from_jwt(jwt)
+            org = _primary_org_for_user(user_id)
+            stripe = _stripe_or_none()
+            if not stripe:
+                raise HTTPException(503, "Stripe is not configured on the backend.")
+            app_url = os.environ.get("APP_URL", "http://localhost:5173").rstrip("/")
+            session = _create_simple_tier_session(
+                stripe, plan, user_id,
+                org["id"] if org else None,
+                _user_email(user_id) or "",
+                app_url,
+            )
+            return CheckoutStartResponse(url=session.url)
+
         if plan not in ("founder", "standard"):
-            raise HTTPException(400, "plan must be 'founder' or 'standard'.")
+            raise HTTPException(
+                400,
+                "plan must be one of: 'intro', 'starter', 'pro', "
+                "'founder', 'standard'.",
+            )
 
         jwt = _require_jwt(authorization)
         user_id = _user_id_from_jwt(jwt)
@@ -521,32 +710,111 @@ def build_router() -> APIRouter:
 
         return CheckoutStartResponse(url=session.url)
 
-    @router.post("/api/billing/portal")
-    def billing_portal(authorization: Optional[str] = Header(None)) -> Any:
-        jwt = _require_jwt(authorization)
-        user_id = _user_id_from_jwt(jwt)
-        org = _primary_org_for_user(user_id)
-        if not org:
-            raise HTTPException(403, "No organization found for this user.")
+    # STRIPE-1 (May 2026) — GET variant for the simple-tier model.
+    # The FE PricingTableV2 renders plan CTAs as anchor links (so the
+    # operator can right-click → "Open in new tab" and so middle-click
+    # works), which means the browser does a top-level GET navigation
+    # to this endpoint. We accept the navigation, create the Stripe
+    # Checkout Session, and respond with a 303 redirect to the
+    # session URL so the browser lands directly on Stripe Checkout.
+    #
+    # Authentication: anchor navigation can't send custom Authorization
+    # headers, so this endpoint reads the JWT from the `auth_token`
+    # query param (set by the FE wrapper when it knows the user is
+    # signed in). When no token is present (anonymous visitor), the
+    # endpoint redirects to /signup?plan=<tier>&intent=checkout so the
+    # signup flow can complete the checkout after account creation.
+    @router.get("/api/checkout/start")
+    def checkout_start_get(
+        tier: str = Query(..., description="intro | starter | pro"),
+        auth_token: Optional[str] = Query(None, description="JWT bearer; required for authed checkout"),
+    ) -> Any:
+        tier = (tier or "").lower().strip()
+        if tier not in _SIMPLE_TIER_CONFIG:
+            raise HTTPException(
+                400,
+                f"tier must be one of: {sorted(_SIMPLE_TIER_CONFIG)}",
+            )
+        app_url = os.environ.get("APP_URL", "http://localhost:5173").rstrip("/")
 
+        if not auth_token:
+            # Anonymous visitor — push them through signup with the
+            # intended plan threaded via query string. The signup flow
+            # handler reads `?plan=...&intent=checkout` and re-triggers
+            # this endpoint with auth_token after the account is created.
+            return RedirectResponse(
+                url=f"{app_url}/signup?plan={tier}&intent=checkout",
+                status_code=303,
+            )
+
+        try:
+            user_id = _user_id_from_jwt(f"Bearer {auth_token}")
+        except HTTPException:
+            return RedirectResponse(
+                url=f"{app_url}/signup?plan={tier}&intent=checkout",
+                status_code=303,
+            )
+
+        org = _primary_org_for_user(user_id)
+        stripe = _stripe_or_none()
+        if not stripe:
+            raise HTTPException(503, "Stripe is not configured on the backend.")
+        session = _create_simple_tier_session(
+            stripe, tier, user_id,
+            org["id"] if org else None,
+            _user_email(user_id) or "",
+            app_url,
+        )
+        return RedirectResponse(url=session.url, status_code=303)
+
+    def _find_subscription_for_user(user_id: str) -> Optional[Dict[str, Any]]:
+        """Resolve the caller's `subscriptions` row.
+
+        Tier model (intro/starter/pro, Phase 5+) keys rows by `user_id`;
+        legacy founder/standard rows key by `org_id`. Try user_id first,
+        fall back to org_id so portal/cancel keep working for both
+        cohorts during the transition window."""
         with _supabase.admin() as client:
-            sub_rows = client.select(
+            rows = client.select(
                 "subscriptions",
-                filters={"org_id": f"eq.{org['id']}"},
+                filters={"user_id": f"eq.{user_id}"},
                 single=True,
             )
-            existing = sub_rows[0] if sub_rows else None
+            if rows:
+                return rows[0]
+            org = _primary_org_for_user(user_id)
+            if org:
+                legacy = client.select(
+                    "subscriptions",
+                    filters={"org_id": f"eq.{org['id']}"},
+                    single=True,
+                )
+                if legacy:
+                    return legacy[0]
+        return None
+
+    @router.post("/api/billing/portal")
+    def billing_portal(authorization: Optional[str] = Header(None)) -> Any:
+        """Return a Stripe Customer Portal session URL for the caller."""
+        jwt = _require_jwt(authorization)
+        user_id = _user_id_from_jwt(jwt)
+
+        existing = _find_subscription_for_user(user_id)
         if not existing or not existing.get("stripe_customer_id"):
-            raise HTTPException(404, "No subscription found for this organization.")
+            raise HTTPException(404, "No active subscription found for this user.")
 
         stripe = _stripe_or_none()
         if not stripe:
             raise HTTPException(503, "Stripe is not configured on the backend.")
 
         app_url = os.environ.get("APP_URL", "http://localhost:5173").rstrip("/")
+        # Portal session ends → land back on /settings where BillingSection
+        # is rendered. We don't have a dedicated /settings/billing route
+        # today; the page-level Settings surface is the single billing
+        # entry point.
         session = stripe.billing_portal.Session.create(
             customer=existing["stripe_customer_id"],
-            return_url=f"{app_url}/settings/billing",
+            return_url=f"{app_url}/settings",
         )
         return {"url": session.url}
 
@@ -557,18 +825,11 @@ def build_router() -> APIRouter:
         this means they're never charged €99."""
         jwt = _require_jwt(authorization)
         user_id = _user_id_from_jwt(jwt)
-        org = _primary_org_for_user(user_id)
-        if not org:
-            raise HTTPException(403, "No organization found for this user.")
-        with _supabase.admin() as client:
-            sub_rows = client.select(
-                "subscriptions",
-                filters={"org_id": f"eq.{org['id']}"},
-                single=True,
-            )
-        existing = sub_rows[0] if sub_rows else None
+
+        existing = _find_subscription_for_user(user_id)
         if not existing or not existing.get("stripe_subscription_id"):
-            raise HTTPException(404, "No subscription found.")
+            raise HTTPException(404, "No active subscription found.")
+
         stripe = _stripe_or_none()
         if not stripe:
             raise HTTPException(503, "Stripe is not configured on the backend.")
@@ -599,8 +860,17 @@ def build_router() -> APIRouter:
             logger.warning("[billing] webhook signature error: %s", e)
             raise HTTPException(400, f"Invalid signature: {e}")
 
+        # Stripe SDK >=15 returns `Event` as a `StripeObject` that no longer
+        # inherits from `dict` — calling `.get()` on it raises KeyError via
+        # __getattr__ fallback. `_process_event` walks the payload with
+        # dict-style access, so flatten to a plain (recursive) dict here.
         try:
-            _process_event(event)
+            event_payload = event.to_dict() if hasattr(event, "to_dict") else dict(event)
+        except Exception:  # noqa: BLE001
+            event_payload = event  # last-ditch — let _process_event surface
+
+        try:
+            _process_event(event_payload)
         except Exception:  # noqa: BLE001
             logger.exception("[billing] event processing failed")
             # Return 500 so Stripe retries — better than silently dropping.
@@ -610,21 +880,34 @@ def build_router() -> APIRouter:
 
     @router.get("/api/billing/subscription")
     def get_subscription(authorization: Optional[str] = Header(None)) -> Any:
-        """Read-only view of the caller's subscription. Used by /settings/billing."""
+        """Read-only view of the caller's subscription. Used by /settings/billing.
+
+        Resolves the row via the same user_id-primary / org_id-fallback
+        pattern used by portal/cancel, so it works for both the new tier
+        model (intro/starter/pro) and the legacy founder/standard cohort.
+        Returns both `tier` (new pricing v2) and `plan` (legacy) so the FE
+        can display whichever is populated."""
         jwt = _require_jwt(authorization)
-        with _supabase.per_user(jwt) as client:
-            rows = client.select("subscriptions")
-        if not rows:
+        user_id = _user_id_from_jwt(jwt)
+        sub = _find_subscription_for_user(user_id)
+        if not sub:
             return {"subscription": None}
-        sub = rows[0]
         return {
             "subscription": {
-                "plan_key": sub.get("plan_key"),
+                # New 4-tier model
+                "tier": sub.get("tier"),
+                "billing_cycle": sub.get("billing_cycle"),
+                # Legacy Phase 3 columns (kept for FE backward compat)
+                "plan": sub.get("plan"),
+                "plan_key": sub.get("tier") or sub.get("plan"),
                 "status": sub.get("status"),
                 "current_period_end": sub.get("current_period_end"),
+                "current_period_start": sub.get("current_period_start"),
                 "trial_end": sub.get("trial_end"),
-                "cancel_at_period_end": sub.get("cancel_at_period_end"),
-                "is_founder": sub.get("is_founder"),
+                "cancel_at_period_end": bool(sub.get("cancel_at_period_end")),
+                "is_founding_member": bool(sub.get("is_founding_member")),
+                # Legacy founder-cohort fields (Phase 3)
+                "is_founder": bool(sub.get("is_founder")),
                 "founder_renewal_at": sub.get("founder_renewal_at"),
                 "founder_renewal_price_eur": sub.get("founder_renewal_price_eur"),
             }
