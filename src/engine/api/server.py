@@ -33,12 +33,25 @@ from .ask import build_router as create_ask_router
 from ._benchmarks import build_router as create_benchmarks_router
 from ._billing import build_router as create_billing_router
 from ._features import build_router as create_features_router
+from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
 from ._pricing_routes import build_router as create_pricing_router
 from .cfo_ai import create_cfo_router
 from .financial_statements import build_router as create_financial_statements_router
 from .frontend import create_frontend_router
 from .pipeline import build_router as create_pipeline_router
+# NASDAQ-6 — public-company surface (/api/public/*). Wraps Sharadar SF1
+# + DAILY + TICKERS via engine.public.NasdaqAdapter. Independent of the
+# RO trial-balance pipeline; shares only the assembled_canonical_v1
+# output shape so FE renderers consume both source types unchanged.
+from ..public.routes import build_router as create_public_company_router
+# AI Intelligence layer (Phase A). Mounted alongside the public-company
+# router. Provides /api/public/intelligence/* endpoints — risk-radar,
+# macro-signals, supply-chain, per-ticker risk-score/exposure/signals/ai-market-read,
+# manual-signal upload, cache refresh. Decoupled from the Sharadar SF1
+# pipeline and from the trial-balance engine. See
+# docs/PUBLIC-COMPANY-AI-INTELLIGENCE-PLAN.md.
+from ..public.intelligence.routes import build_router as create_intelligence_router
 
 
 # ─────────── Request / response shapes ───────────
@@ -86,10 +99,30 @@ def create_app(
     `canonical_excel` (optional) seeds the frontend `/api/canonical-categories`
     DIO/CCC lookup. Without it, uploads must carry their own DIO data.
     """
+    # WS4 — fail-fast on missing Supabase trio + log Stripe mode banner.
+    # Optional gaps are warned, not raised. Tests / dev set
+    # CFO_AI_SKIP_BOOT_VERIFY=1 to bypass.
+    from ..boot_verify import verify_config_safe
+    verify_config_safe()
+
     cfg = load_config(config_path)
     engine: Engine = create_engine_from_url(db_url or "sqlite:///:memory:")
     adapter = PostgresAdapter(engine)
     adapter.create_all()
+
+    # F3.1e startup gate: refuse to come up if no country accounting
+    # pack registered. The `engine.country_packs.ro_romania` import at
+    # module top of `engine.api.pipeline` already triggers the pack's
+    # self-registration; here we just sanity-check the registry.
+    from engine.core.country_pack_registry import (  # local import to avoid shadowing local var `engine`
+        assert_at_least_one_registered,
+        registered_country_codes,
+    )
+    assert_at_least_one_registered()
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "F3.1 country packs registered: %s", registered_country_codes()
+    )
 
     app = FastAPI(
         title="SKU Decision Engine",
@@ -139,6 +172,19 @@ def create_app(
     # `GET /api/plan/state` drives the Settings usage card; admin
     # endpoint surfaces the below-COGS warnings.
     app.include_router(create_pricing_router())
+    # NASDAQ-6 — public-company routes (/api/public/search,
+    # /api/public/companies/:ticker, /api/public/companies/:ticker/sync,
+    # /api/public/health). Requires NASDAQ_API_KEY in env for full
+    # functionality; the /health route stays callable without the key.
+    app.include_router(create_public_company_router())
+    # AI Intelligence layer — risk radar, exposure, scoring, signals,
+    # market-read narrative. /api/public/intelligence/*.
+    app.include_router(create_intelligence_router())
+    # WS4 — deep diagnostic endpoint. /health stays as the simple
+    # liveness probe (Caddy / docker healthcheck); /api/health pings DB
+    # + Stripe + FX, returns 503 if DB is down so deploy.sh fails the
+    # smoke test instead of marking a broken deploy green.
+    app.include_router(create_health_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)
