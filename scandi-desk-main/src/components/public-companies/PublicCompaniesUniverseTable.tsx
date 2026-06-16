@@ -103,11 +103,20 @@ export function PublicCompaniesUniverseTable({
       out = out.filter((r) => (r.sector ?? "Unknown") === sector);
     }
     if (search.trim()) {
-      const q = search.trim().toUpperCase();
+      // BVB Phase 2 (2026-06-01) — Romanian company names carry
+      // diacritics (Națională, Hidroelectrica, Societatea …). A user
+      // typing the ASCII form ("nationala", "societatea") should still
+      // match. We Unicode-fold (NFKD + strip combining marks) on both
+      // query and corpus, mirroring the BE _fold_diacritics() helper
+      // in src/engine/public/universe_service.py — same algorithm
+      // applied client-side so it doesn't depend on a server round-trip.
+      const fold = (s: string) =>
+        s.normalize("NFKD").replace(/\p{M}/gu, "").toUpperCase();
+      const q = fold(search.trim());
       out = out.filter(
         (r) =>
-          r.ticker.toUpperCase().includes(q) ||
-          r.companyName.toUpperCase().includes(q),
+          fold(r.ticker).includes(q) ||
+          fold(r.companyName).includes(q),
       );
     }
     const dir = sortDir === "asc" ? 1 : -1;

@@ -24,6 +24,9 @@ import { RotateCcw, Info } from "lucide-react";
 import type { PeriodValuation } from "@/lib/activePeriod";
 import { periodQueryKey } from "@/lib/activePeriod";
 import { getSupabase } from "@/lib/supabase";
+import { useCurrency } from "@/stores/currency";
+import { convertFromTo } from "@/lib/money";
+import type { Currency } from "@/lib/rates";
 
 interface Props {
   valuation: PeriodValuation;
@@ -31,13 +34,23 @@ interface Props {
   currency: string;
 }
 
-function fmtMoney(n: number | null | undefined, currency: string): string {
-  if (n === null || n === undefined) return "—";
-  const sign = n < 0 ? "-" : "";
-  const a = Math.abs(n);
-  if (a >= 1_000_000) return `${sign}${(a / 1_000_000).toFixed(2)}M ${currency}`;
-  if (a >= 1_000) return `${sign}${(a / 1_000).toFixed(0)}K ${currency}`;
-  return `${sign}${a.toFixed(0)} ${currency}`;
+/** Currency-aware money formatter. Converts the source-currency value
+ *  through the global currency switcher (RON → EUR → USD) before
+ *  rendering, so every call site flips currency when the user toggles
+ *  the top bar. Used in JSX where we need a string (KpiTile values,
+ *  slider labels, formula lines). */
+function useFmtMoney() {
+  const { display, rates } = useCurrency();
+  return (n: number | null | undefined, sourceCurrency: string): string => {
+    if (n === null || n === undefined) return "—";
+    const src = (sourceCurrency || "RON") as Currency;
+    const converted = convertFromTo(n, src, display, rates.rates);
+    const sign = converted < 0 ? "-" : "";
+    const a = Math.abs(converted);
+    if (a >= 1_000_000) return `${sign}${(a / 1_000_000).toFixed(2)}M ${display}`;
+    if (a >= 1_000) return `${sign}${(a / 1_000).toFixed(0)}K ${display}`;
+    return `${sign}${a.toFixed(0)} ${display}`;
+  };
 }
 
 function fmtMultiple(n: number | null | undefined): string {
@@ -84,6 +97,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
   const qc = useQueryClient();
   const conf = confidenceTone(valuation.confidence);
   const hasUserOverrides = !!valuation.user_assumptions;
+  const fmtMoney = useFmtMoney();
 
   // Local-edit state for the four inputs. Initialized from server values;
   // PUT calls fire on blur (for pills) or after a 300ms debounce (slider).
@@ -377,6 +391,7 @@ interface FootballRowProps {
 }
 
 function FootballRow({ row, currency, fieldPos }: FootballRowProps) {
+  const fmtMoney = useFmtMoney();
   if (row.low === null || row.high === null) return null;
   const leftPct = fieldPos(row.low);
   const rightPct = fieldPos(row.high);
@@ -427,6 +442,7 @@ interface PillProps {
 }
 
 function EditablePill({ label, currency, value, onCommit, testId }: PillProps) {
+  const fmtMoney = useFmtMoney();
   const [draft, setDraft] = useState<string>(String(value));
   const [editing, setEditing] = useState(false);
 

@@ -8,10 +8,17 @@
 // around TOTAL ASSETS and TOTAL EQUITY & LIABILITIES, contra-asset rows
 // (accumulated depreciation) in parens.
 
+import { useTranslation } from "react-i18next";
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
-import { formatRON } from "@/lib/formatRon";
+import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
 import { useHighlightFromUrl } from "./useHighlightFromUrl";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
+import { bucketToConcept } from "@/lib/learning/bucketToConcept";
+import { GuideMeButton } from "@/components/learning/GuideMeButton";
+import { BalanceSheetMap } from "@/components/learning/BalanceSheetMap";
+import { BALANCE_SHEET_GUIDE } from "@/components/learning/balanceSheetGuide";
 import "./bsStatementView.css";
 
 interface Props {
@@ -19,18 +26,29 @@ interface Props {
 }
 
 export function BSStatementView({ statement }: Props) {
-  // Phase A foundation: when a TraceableNumber elsewhere routes here
-  // with `?highlight=<bucket>` the hook scrolls the matching row into
-  // view and pulses it for ~1500ms. The matching row is whichever
-  // BSLine / subtotal / grand-total carries `[data-traceable-target=
-  // <bucket>]` (see bs-statement-builder + bsStructure types).
   useHighlightFromUrl();
+  const { t } = useTranslation();
+  // 2026-05-24 — currency-aware formatting. `fmt(value)` converts the
+  // value from statement.currency to the user's current display currency
+  // and formats in the appropriate locale (no symbol — header chip
+  // already shows it). `display` is the active display currency code
+  // for the header.
+  const fmt = useAmountFormatter(statement.currency);
+  const display = useDisplayCurrency();
 
   return (
     <div className="bs-statement" data-testid="bs-statement">
-      <div className="bs-header">
-        BALANCE SHEET — {statement.entity} ({statement.currency})
+      <div className="bs-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <span>{t("statements.bs.title")} — {statement.entity} ({display})</span>
+        <GuideMeButton
+          pageId="balance-sheet"
+          title="Balance Sheet"
+          steps={BALANCE_SHEET_GUIDE}
+        />
       </div>
+
+      {/* F5.0 Wave 3 — Balance Sheet Map: compact learning rail above the table. */}
+      <BalanceSheetMap />
 
       {/* Column header row */}
       <div className="bs-col-header">
@@ -41,70 +59,140 @@ export function BSStatementView({ statement }: Props) {
       </div>
 
       {/* ASSETS */}
-      <div className="bs-section-title">ASSETS</div>
+      <div className="bs-section-title" data-guide="bs-assets">{t("statements.bs.assets")}</div>
       {statement.assetSections.map((section, i) => (
-        <BSSectionView key={`a-${i}`} section={section} />
+        <BSSectionView key={`a-${i}`} section={section} currency={statement.currency} />
       ))}
-      <div className="bs-total-row" {...{ [TRACEABLE_TARGET_ATTR]: "totalAssets" }}>
-        <span className="bs-total-label">TOTAL ASSETS</span>
-        <span className="bs-amount">{formatRON(statement.totalAssets.opening)}</span>
-        <span className="bs-amount">{formatRON(statement.totalAssets.closing)}</span>
-        <span className="bs-delta">{formatDelta(statement.totalAssets.delta)}</span>
+      <div
+        className="bs-total-row"
+        data-guide="bs-total-assets"
+        data-learnable-row="true"
+        {...{ [TRACEABLE_TARGET_ATTR]: "totalAssets" }}
+      >
+        <span className="bs-total-label">
+          <LearnableRowLabel
+            conceptKey="total_assets"
+            value={statement.totalAssets.closing}
+            data-testid="bs-total-assets-label"
+          >
+            {t("statements.bs.totalAssets")}
+          </LearnableRowLabel>
+        </span>
+        <LearnableNumber conceptKey="total_assets" value={statement.totalAssets.opening} className="bs-amount" block>
+          {fmt(statement.totalAssets.opening)}
+        </LearnableNumber>
+        <LearnableNumber conceptKey="total_assets" value={statement.totalAssets.closing} className="bs-amount" block>
+          {fmt(statement.totalAssets.closing)}
+        </LearnableNumber>
+        <span className="bs-delta">{formatDelta(statement.totalAssets.delta, fmt)}</span>
       </div>
 
       {/* EQUITY & LIABILITIES */}
-      <div className="bs-section-title">EQUITY &amp; LIABILITIES</div>
+      <div className="bs-section-title" data-guide="bs-equity">{t("statements.bs.equityLiab")}</div>
+      <div data-guide="bs-liabilities" />
       {statement.equityLiabSections.map((section, i) => (
-        <BSSectionView key={`el-${i}`} section={section} />
+        <BSSectionView key={`el-${i}`} section={section} currency={statement.currency} />
       ))}
-      <div className="bs-total-row" {...{ [TRACEABLE_TARGET_ATTR]: "totalLiabilitiesAndEquity" }}>
-        <span className="bs-total-label">TOTAL EQUITY &amp; LIABILITIES</span>
-        <span className="bs-amount">{formatRON(statement.totalEquityLiab.opening)}</span>
-        <span className="bs-amount">{formatRON(statement.totalEquityLiab.closing)}</span>
-        <span className="bs-delta">{formatDelta(statement.totalEquityLiab.delta)}</span>
+      <div
+        className="bs-total-row"
+        data-learnable-row="true"
+        {...{ [TRACEABLE_TARGET_ATTR]: "totalLiabilitiesAndEquity" }}
+      >
+        <span className="bs-total-label">
+          <LearnableRowLabel
+            conceptKey="total_equity_liab"
+            value={statement.totalEquityLiab.closing}
+            data-testid="bs-total-equity-liab-label"
+          >
+            {t("statements.bs.totalEquityLiab")}
+          </LearnableRowLabel>
+        </span>
+        <LearnableNumber conceptKey="total_equity_liab" value={statement.totalEquityLiab.opening} className="bs-amount" block>
+          {fmt(statement.totalEquityLiab.opening)}
+        </LearnableNumber>
+        <LearnableNumber conceptKey="total_equity_liab" value={statement.totalEquityLiab.closing} className="bs-amount" block>
+          {fmt(statement.totalEquityLiab.closing)}
+        </LearnableNumber>
+        <span className="bs-delta">{formatDelta(statement.totalEquityLiab.delta, fmt)}</span>
       </div>
 
       {/* Balance check */}
       {Math.abs(statement.balanceCheck) > 1 && (
         <div className="bs-imbalance-warning">
-          ⚠ Balance sheet drift: RON {formatRON(statement.balanceCheck)} between assets and equity+liabilities.
+          ⚠ {t("statements.bs.drift")}: {display} {fmt(statement.balanceCheck)}.
         </div>
       )}
 
       {/* Note (dividends declared but not paid, etc.) */}
       {statement.note && (
         <div className="bs-note">
-          <strong>Note.</strong> {statement.note}
+          <strong>{t("statements.bs.note")}.</strong> {statement.note}
         </div>
       )}
     </div>
   );
 }
 
-function BSSectionView({ section }: { section: BSSection }) {
+function BSSectionView({ section, currency }: { section: BSSection; currency: string }) {
   if (section.lines.length === 0 && !section.subtotalLabel) return null;
-  // Spread the traceable-target data attribute onto the subtotal row
-  // when the section declares a `subtotalBucket`. This is the landing
-  // point for TraceableNumber clicks that reference subtotals like
-  // "Total current liabilities" — the denominator of every liquidity
-  // ratio.
+  const fmt = useAmountFormatter(currency);
   const subtotalAttrs = section.subtotalBucket
     ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
     : {};
+  const subtotalConceptKey = bucketToConcept(section.subtotalBucket);
   return (
     <div className="bs-section">
       {section.header && <div className="bs-section-header">{section.header}</div>}
       {section.lines.map((line, i) => (
-        <BSLineView key={i} line={line} />
+        <BSLineView key={i} line={line} currency={currency} />
       ))}
       {section.subtotalLabel && (
         <>
           <div className="bs-subtotal-rule" />
-          <div className="bs-row bs-subtotal" {...subtotalAttrs}>
-            <span className="bs-label">{section.subtotalLabel}</span>
-            <span className="bs-amount">{formatRON(section.subtotalOpening)}</span>
-            <span className="bs-amount">{formatRON(section.subtotalClosing)}</span>
-            <span className="bs-delta">{formatDelta(section.subtotalDelta ?? 0)}</span>
+          <div
+            className="bs-row bs-subtotal"
+            {...subtotalAttrs}
+            {...(subtotalConceptKey ? { "data-learnable-row": "true" } : {})}
+          >
+            <span className="bs-label">
+              {subtotalConceptKey ? (
+                <LearnableRowLabel
+                  conceptKey={subtotalConceptKey}
+                  value={section.subtotalClosing ?? 0}
+                  data-testid={`bs-subtotal-label-${subtotalConceptKey}`}
+                >
+                  {section.subtotalLabel}
+                </LearnableRowLabel>
+              ) : (
+                section.subtotalLabel
+              )}
+            </span>
+            {subtotalConceptKey ? (
+              <>
+                <LearnableNumber
+                  conceptKey={subtotalConceptKey}
+                  value={section.subtotalOpening ?? 0}
+                  className="bs-amount"
+                  block
+                >
+                  {fmt(section.subtotalOpening)}
+                </LearnableNumber>
+                <LearnableNumber
+                  conceptKey={subtotalConceptKey}
+                  value={section.subtotalClosing ?? 0}
+                  className="bs-amount"
+                  block
+                >
+                  {fmt(section.subtotalClosing)}
+                </LearnableNumber>
+              </>
+            ) : (
+              <>
+                <span className="bs-amount">{fmt(section.subtotalOpening)}</span>
+                <span className="bs-amount">{fmt(section.subtotalClosing)}</span>
+              </>
+            )}
+            <span className="bs-delta">{formatDelta(section.subtotalDelta ?? 0, fmt)}</span>
           </div>
         </>
       )}
@@ -112,54 +200,132 @@ function BSSectionView({ section }: { section: BSSection }) {
   );
 }
 
-function BSLineView({ line }: { line: BSLine }) {
-  // Attach data-traceable-target whenever the line carries a stable
-  // bucket. This makes the row the scroll-target for cross-page
-  // TraceableNumber clicks. Lines without a bucket render exactly as
-  // before — zero regression on the visual output.
+function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
+  const fmt = useAmountFormatter(currency);
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
+  const conceptKey = bucketToConcept(line.bucket);
 
   if (line.style === "subtotal") {
-    // Inline mid-section subtotal (e.g. "Net fixed assets")
     return (
       <>
         <div className="bs-subtotal-rule" />
-        <div className="bs-row bs-subtotal" {...lineAttrs}>
-          <span className="bs-label">{line.label}</span>
-          <span className="bs-amount">{formatRON(line.opening)}</span>
-          <span className="bs-amount">{formatRON(line.closing)}</span>
+        <div
+          className="bs-row bs-subtotal"
+          {...lineAttrs}
+          {...(conceptKey ? { "data-learnable-row": "true" } : {})}
+        >
+          <span className="bs-label">
+            {conceptKey ? (
+              <LearnableRowLabel
+                conceptKey={conceptKey}
+                value={line.closing ?? 0}
+                data-testid={`bs-subtotal-line-${conceptKey}`}
+              >
+                {line.label}
+              </LearnableRowLabel>
+            ) : (
+              line.label
+            )}
+          </span>
+          {conceptKey ? (
+            <>
+              <LearnableNumber
+                conceptKey={conceptKey}
+                value={line.opening ?? 0}
+                className="bs-amount"
+                block
+              >
+                {fmt(line.opening)}
+              </LearnableNumber>
+              <LearnableNumber
+                conceptKey={conceptKey}
+                value={line.closing ?? 0}
+                className="bs-amount"
+                block
+              >
+                {fmt(line.closing)}
+              </LearnableNumber>
+            </>
+          ) : (
+            <>
+              <span className="bs-amount">{fmt(line.opening)}</span>
+              <span className="bs-amount">{fmt(line.closing)}</span>
+            </>
+          )}
           <span className="bs-delta">
-            {formatDelta((line.closing ?? 0) - (line.opening ?? 0))}
+            {formatDelta((line.closing ?? 0) - (line.opening ?? 0), fmt)}
           </span>
         </div>
       </>
     );
   }
 
+  // Contra-asset rows (accumulated depreciation, etc.) render in parens.
+  // Use the formatter's `paren` opt for negatives; for absolute values
+  // wrap manually since the source data may carry the negative pre-applied.
   const openingFmt = line.isContra
-    ? `(${formatRON(Math.abs(line.opening ?? 0))})`
-    : formatRON(line.opening);
+    ? `(${fmt(Math.abs(line.opening ?? 0))})`
+    : fmt(line.opening);
   const closingFmt = line.isContra
-    ? `(${formatRON(Math.abs(line.closing ?? 0))})`
-    : formatRON(line.closing);
+    ? `(${fmt(Math.abs(line.closing ?? 0))})`
+    : fmt(line.closing);
   const deltaValue = line.delta ?? (line.closing ?? 0) - (line.opening ?? 0);
 
   return (
-    <div className={`bs-row bs-row-item ${line.isContra ? "bs-contra" : ""}`} {...lineAttrs}>
+    <div
+      className={`bs-row bs-row-item ${line.isContra ? "bs-contra" : ""}`}
+      {...lineAttrs}
+      {...(conceptKey ? { "data-learnable-row": "true" } : {})}
+    >
       <span className="bs-label">
-        {line.label}{" "}
+        {conceptKey ? (
+          <LearnableRowLabel
+            conceptKey={conceptKey}
+            value={line.closing ?? 0}
+            data-testid={`bs-row-label-${conceptKey}`}
+          >
+            {line.label}
+          </LearnableRowLabel>
+        ) : (
+          line.label
+        )}{" "}
         {line.accountCode && <span className="bs-code">({line.accountCode})</span>}
       </span>
-      <span className="bs-amount">{openingFmt}</span>
-      <span className="bs-amount">{closingFmt}</span>
-      <span className="bs-delta">{formatDelta(deltaValue)}</span>
+      {conceptKey ? (
+        <>
+          <LearnableNumber
+            conceptKey={conceptKey}
+            value={line.opening ?? 0}
+            className="bs-amount"
+            block
+          >
+            {openingFmt}
+          </LearnableNumber>
+          <LearnableNumber
+            conceptKey={conceptKey}
+            value={line.closing ?? 0}
+            className="bs-amount"
+            block
+          >
+            {closingFmt}
+          </LearnableNumber>
+        </>
+      ) : (
+        <>
+          <span className="bs-amount">{openingFmt}</span>
+          <span className="bs-amount">{closingFmt}</span>
+        </>
+      )}
+      <span className="bs-delta">{formatDelta(deltaValue, fmt)}</span>
     </div>
   );
 }
 
-function formatDelta(value: number): string {
+/** Delta column formatter. Δ shows the change in display currency, no
+ *  decimals (deltas are coarse-grained). Uses the same fmt() to ensure
+ *  the converted value uses the user's display currency. */
+function formatDelta(value: number, fmt: (v: number | null | undefined, o?: { signed?: boolean; sign?: "positive" | "negative"; paren?: boolean }) => string): string {
   if (!Number.isFinite(value) || Math.abs(value) < 0.5) return "0";
-  const abs = Math.abs(value);
-  const formatted = abs.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  return value > 0 ? `+${formatted}` : `−${formatted}`;
+  // Use signed mode to force +/−, the formatter handles currency conversion
+  return fmt(value, { sign: value > 0 ? "positive" : "negative" });
 }

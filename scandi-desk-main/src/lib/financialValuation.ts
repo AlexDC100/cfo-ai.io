@@ -627,22 +627,25 @@ export function runPiotroski(s: Statements): PiotroskiResult {
   return { score, band, checks, passCount, failCount, uncertainCount };
 }
 
-// ─── Altman Z-Score — industry-aware variant routing ──────────────────────
+// ─── Altman Z-Score — single canonical variant (F2.2) ────────────────────
 //
-// Z   (original, 1968)  — public manufacturing companies. Includes sales/assets.
-// Z'  (1983)            — private manufacturing. Modified coefficients.
-// Z"  (1995)            — non-manufacturing, services, real-estate,
-//                          emerging markets. DROPS the sales/assets term that
-//                          systematically penalizes asset-heavy rental
-//                          businesses (where assets >> annual revenue by
-//                          definition). Coefficients re-fitted on a broader
-//                          sample.
+// F2.2 — The previous Z / Z' / Z" industry-switch path is DELETED. Single
+// canonical variant: Z" (1995 EM). Engine emits `altman_z_score` as Z" for
+// every period per SPEC §10 (Romanian SME market, RAS-based books).
+// Industry-switch logic and Z' (1983 private mfg) branch removed entirely.
 //
-// EEI is CRE — the original Z would falsely flag distress (0.53 in the
-// screenshot) because rental income is small relative to the property book.
-// Z" is the right variant; thresholds shift to safe > 2.60, distress < 1.10.
+// Z" (1995) uses 4 components (no sales/assets X5 term that systematically
+// penalizes asset-heavy rental businesses), coefficients refit on a broader
+// cross-industry sample. Thresholds: > 2.60 safe, 1.10–2.60 grey, < 1.10
+// distress.
+//
+// AltmanVariant type retained as `"Z\""` literal (the only value F2.2 emits)
+// for downstream consumers (computeCreditScore in this file, the
+// Comprehensive Report's credit card display) that branch on variant
+// string. The variant FIELD stays in AltmanResult so the type contract is
+// stable — F2.4 consumers don't need to change.
 
-export type AltmanVariant = "Z" | "Z'" | "Z\"";
+export type AltmanVariant = "Z\"";
 
 export interface AltmanResult {
   variant: AltmanVariant;
@@ -651,7 +654,7 @@ export interface AltmanResult {
     x2_re_to_assets: number;
     x3_ebit_to_assets: number;
     x4_equity_to_liabilities: number;
-    x5_sales_to_assets?: number; // only present for Z and Z'
+    x5_sales_to_assets?: number; // F2.2 — no longer populated; kept on type for back-compat
   };
   weightedComponents: Array<{ label: string; coefficient: number; value: number; weighted: number }>;
   score: number;
@@ -660,39 +663,69 @@ export interface AltmanResult {
   methodologyNote: string;
 }
 
-const _Z_DOUBLE_PRIME_INDUSTRIES = new Set([
-  "real_estate_commercial",
-  "real_estate_residential",
-  "real_estate",
-  "real_estate_office",
-  "real_estate_retail",
-  "real_estate_industrial",
-  "real_estate_logistics",
-  "real_estate_mixed",
-  "professional_services",
-  "consulting",
-  "saas",
-  "b2b_saas",
-  "energy_utilities",
-  "transport_logistics",
-]);
+export function altmanZScore(
+  s: Statements,
+  // F2.2 — Optional engine-canonical metric map. When supplied AND
+  // `altman_z_score` is present, the function becomes a thin reader of
+  // engine canonical: score + X1-X4 + zone all sourced from
+  // `calculated_metrics`. FE arithmetic stays as a fallback ONLY when
+  // engine row is absent (pre-v2.1 cached periods) — and that fallback
+  // computes Z" inline (single variant; no industry switch).
+  metricsByName?: Record<string, number | null>,
+): AltmanResult {
+  const m = (name: string): number | null => {
+    if (!metricsByName) return null;
+    const v = metricsByName[name];
+    return typeof v === "number" ? v : null;
+  };
 
-const _Z_PRIME_INDUSTRIES = new Set([
-  "manufacturing",
-  "wholesale_distribution",
-  "fmcg",
-  "fmcg_food",
-  "fmcg_beverage",
-  "retail",
-  "e_commerce",
-]);
+  // Z" thresholds (locked — single variant).
+  const Z_DOUBLE_PRIME_THRESHOLDS = { safe: 2.6, distress: 1.1 };
+  const Z_DOUBLE_PRIME_METHODOLOGY =
+    `Altman Z" (1995) is the variant designed for non-manufacturing companies — real estate, ` +
+    `services, SaaS, and emerging markets. It drops the sales/total-assets term that ` +
+    `systematically penalizes asset-heavy rental businesses (where the property book is large ` +
+    `relative to annual rental income by definition). Coefficients refit on a broader cross-` +
+    `industry sample. Thresholds: > 2.60 safe, 1.10–2.60 grey, < 1.10 distress. ` +
+    `Engine emits this as the canonical variant for all RAS-based fixtures (F2.2).`;
 
-export function altmanZScore(s: Statements): AltmanResult {
+  // F2.2 — Engine canonical path (preferred).
+  const engineScore = m("altman_z_score");
+  if (engineScore !== null) {
+    const x1 = m("altman_x1") ?? 0;
+    const x2 = m("altman_x2") ?? 0;
+    const x3 = m("altman_x3") ?? 0;
+    const x4 = m("altman_x4") ?? 0;
+    const weighted = [
+      { label: "Working capital / Total assets", coefficient: 6.56, value: x1, weighted: 6.56 * x1 },
+      { label: "(Retained earnings + Current NP) / Total assets", coefficient: 3.26, value: x2, weighted: 3.26 * x2 },
+      { label: "EBIT / Total assets", coefficient: 6.72, value: x3, weighted: 6.72 * x3 },
+      { label: "Book equity / Total liabilities", coefficient: 1.05, value: x4, weighted: 1.05 * x4 },
+    ];
+    return {
+      variant: 'Z"',
+      components: {
+        x1_wc_to_assets: x1,
+        x2_re_to_assets: x2,
+        x3_ebit_to_assets: x3,
+        x4_equity_to_liabilities: x4,
+      },
+      weightedComponents: weighted,
+      score: engineScore,
+      zone:
+        engineScore > Z_DOUBLE_PRIME_THRESHOLDS.safe
+          ? "safe"
+          : engineScore > Z_DOUBLE_PRIME_THRESHOLDS.distress
+            ? "grey"
+            : "distress",
+      thresholds: Z_DOUBLE_PRIME_THRESHOLDS,
+      methodologyNote: Z_DOUBLE_PRIME_METHODOLOGY,
+    };
+  }
+
+  // F2.2 — FE fallback: compute Z" inline (single variant, no industry
+  // switch). Used only when engine row is absent.
   const c = canonical(s);
-  const industry = (s.industry ?? "").toLowerCase();
-  const useDoublePrime =
-    !industry || _Z_DOUBLE_PRIME_INDUSTRIES.has(industry) || !_Z_PRIME_INDUSTRIES.has(industry);
-
   const x1 = safeDiv(c.workingCapital, c.totalAssets);
   // Z" uses (retained earnings + current-year P&L) / total assets — the
   // cumulative book of retained profits, not just the carry-forward
@@ -700,56 +733,36 @@ export function altmanZScore(s: Statements): AltmanResult {
   const x2 = safeDiv(c.retainedEarningsPlusCurrent, c.totalAssets);
   const x3 = safeDiv(c.ebitStatutory, c.totalAssets); // STATUTORY EBIT — never operational
   const x4 = safeDiv(c.totalEquity, c.totalLiabilities); // book equity / total liab for Z"
-  const x5 = safeDiv(c.revenue, c.totalAssets);
 
-  if (useDoublePrime) {
-    // Altman Z" (1995) — non-manufacturing / services / RE / EM
-    const weighted = [
-      { label: "Working capital / Total assets", coefficient: 6.56, value: x1, weighted: 6.56 * x1 },
-      { label: "(Retained earnings + Current NP) / Total assets", coefficient: 3.26, value: x2, weighted: 3.26 * x2 },
-      { label: "EBIT / Total assets", coefficient: 6.72, value: x3, weighted: 6.72 * x3 },
-      { label: "Book equity / Total liabilities", coefficient: 1.05, value: x4, weighted: 1.05 * x4 },
-    ];
-    const score = weighted.reduce((s, c) => s + c.weighted, 0);
-    return {
-      variant: 'Z"',
-      components: { x1_wc_to_assets: x1, x2_re_to_assets: x2, x3_ebit_to_assets: x3, x4_equity_to_liabilities: x4 },
-      weightedComponents: weighted,
-      score,
-      zone: score > 2.6 ? "safe" : score > 1.1 ? "grey" : "distress",
-      thresholds: { safe: 2.6, distress: 1.1 },
-      methodologyNote:
-        `Altman Z" (1995) is the variant designed for non-manufacturing companies — real estate, ` +
-        `services, SaaS, and emerging markets. It drops the sales/total-assets term that ` +
-        `systematically penalizes asset-heavy rental businesses (where the property book is large ` +
-        `relative to annual rental income by definition). Coefficients refit on a broader cross-` +
-        `industry sample. Thresholds: > 2.60 safe, 1.10–2.60 grey, < 1.10 distress.`,
-    };
-  }
-
-  // Altman Z' (1983) — private manufacturing. Coefficients differ from
-  // the original Z; thresholds: > 2.90 safe, 1.23–2.90 grey, < 1.23 distress.
   const weighted = [
-    { label: "Working capital / Total assets", coefficient: 0.717, value: x1, weighted: 0.717 * x1 },
-    { label: "Retained earnings / Total assets", coefficient: 0.847, value: x2, weighted: 0.847 * x2 },
-    { label: "EBIT / Total assets", coefficient: 3.107, value: x3, weighted: 3.107 * x3 },
-    { label: "Book equity / Total liabilities", coefficient: 0.42, value: x4, weighted: 0.42 * x4 },
-    { label: "Sales / Total assets", coefficient: 0.998, value: x5, weighted: 0.998 * x5 },
+    { label: "Working capital / Total assets", coefficient: 6.56, value: x1, weighted: 6.56 * x1 },
+    { label: "(Retained earnings + Current NP) / Total assets", coefficient: 3.26, value: x2, weighted: 3.26 * x2 },
+    { label: "EBIT / Total assets", coefficient: 6.72, value: x3, weighted: 6.72 * x3 },
+    { label: "Book equity / Total liabilities", coefficient: 1.05, value: x4, weighted: 1.05 * x4 },
   ];
   const score = weighted.reduce((s, c) => s + c.weighted, 0);
   return {
-    variant: "Z'",
-    components: { x1_wc_to_assets: x1, x2_re_to_assets: x2, x3_ebit_to_assets: x3, x4_equity_to_liabilities: x4, x5_sales_to_assets: x5 },
+    variant: 'Z"',
+    components: { x1_wc_to_assets: x1, x2_re_to_assets: x2, x3_ebit_to_assets: x3, x4_equity_to_liabilities: x4 },
     weightedComponents: weighted,
     score,
-    zone: score > 2.9 ? "safe" : score > 1.23 ? "grey" : "distress",
-    thresholds: { safe: 2.9, distress: 1.23 },
-    methodologyNote:
-      `Altman Z' (1983) is the private-manufacturing variant. Includes the sales / total-assets ` +
-      `term — appropriate for capital-light operating businesses where revenue scales with the ` +
-      `asset base. Thresholds: > 2.90 safe, 1.23–2.90 grey, < 1.23 distress.`,
+    zone:
+      score > Z_DOUBLE_PRIME_THRESHOLDS.safe
+        ? "safe"
+        : score > Z_DOUBLE_PRIME_THRESHOLDS.distress
+          ? "grey"
+          : "distress",
+    thresholds: Z_DOUBLE_PRIME_THRESHOLDS,
+    methodologyNote: Z_DOUBLE_PRIME_METHODOLOGY,
   };
 }
+
+// F2.2 — Deleted: Z'(1983) private-manufacturing branch + industry-switch
+// routing. The two Sets `_Z_DOUBLE_PRIME_INDUSTRIES` and
+// `_Z_PRIME_INDUSTRIES` are removed. Single canonical variant. The
+// historical Z' code (with 0.717 / 0.847 / 3.107 / 0.42 / 0.998
+// coefficients and 2.90 / 1.23 thresholds) is preserved in git history
+// for retrospective; future regression prevented by architecture.
 
 // ─── Composite credit score ────────────────────────────────────────────────
 //
@@ -772,7 +785,166 @@ export interface CreditScoreResult {
   caveat: string;
 }
 
-export function computeCreditScore(s: Statements): CreditScoreResult {
+// F2.4 — Engine assembled_metrics envelope shape (subset consumed here).
+// When supplied, computeCreditScore becomes a thin reader of the engine
+// canonical (composite_score, letter_grade, subscores, composite_weights,
+// altman_*). The parallel FE system (RATING_BANDS + 40/20/15/10/10/5
+// weights + FE Piotroski + "investment strong" descriptors) is bypassed
+// entirely on the engine-canonical path.
+export interface CreditEnvelope {
+  composite_score?: number;
+  letter_grade?: string;
+  letter_grade_bands?: Array<{ min: number; grade: string }>;
+  altman_z_score?: number;
+  altman_variant?: string;
+  altman_components?: { x1?: number; x2?: number; x3?: number; x4?: number };
+  composite_weights?: {
+    altman?: number; profitability?: number; leverage?: number;
+    coverage?: number; dscr?: number; liquidity?: number; equity?: number;
+  };
+  subscores?: {
+    altman?: number; profitability?: number; leverage?: number;
+    coverage?: number; dscr?: number; liquidity?: number; equity?: number;
+  };
+}
+export interface PiotroskiEnvelope {
+  score?: number;
+  score_max?: number;
+  has_prior_period?: boolean;
+  checks?: Array<{ key: string; label: string; result: "pass" | "fail" | "uncertain"; detail?: string }>;
+  disclosure?: string;
+}
+
+// F2.4 — Build a FE-shaped PiotroskiResult from the engine's assembled_piotroski.
+// Preserves the CreditScoreResult.piotroski contract so RisksPanel renders
+// without changes to its render code.
+function piotroskiFromEngine(env: PiotroskiEnvelope): PiotroskiResult {
+  const checks: PiotroskiCheck[] = (env.checks ?? []).map((c) => ({
+    key: c.key,
+    label: c.label,
+    result: c.result,
+    pass: c.result === "pass",
+    detail: c.detail ?? "",
+    requiresPriorPeriod: !env.has_prior_period && c.result === "uncertain",
+  }));
+  const passCount = checks.filter((c) => c.result === "pass").length;
+  const failCount = checks.filter((c) => c.result === "fail").length;
+  const uncertainCount = checks.filter((c) => c.result === "uncertain").length;
+  const score = env.score ?? passCount;
+  const band: PiotroskiResult["band"] =
+    score >= 8 ? "Strong (8–9)" :
+    score >= 6 ? "Solid (6–7)" :
+    score >= 3 ? "Weak (3–5)" :
+    "Distressed (0–2)";
+  return { score, band, checks, uncertainCount, passCount, failCount };
+}
+
+// F2.4 — Generate a one-line "read" for a subscore value (0-100).
+function readForSubscore(label: string, value: number): string {
+  if (!Number.isFinite(value)) return `${label}: not computable`;
+  if (value >= 75) return `${label} component: strong`;
+  if (value >= 50) return `${label} component: adequate`;
+  if (value >= 25) return `${label} component: watch zone`;
+  return `${label} component: weak`;
+}
+
+export function computeCreditScore(
+  s: Statements,
+  // F2.4 — Engine canonical envelopes. When both supplied, computeCreditScore
+  // returns engine canonical (30/20/15/10/10/10/5 weights, engine letter_grade,
+  // engine subscores, engine Piotroski). FE arithmetic fallback below is
+  // preserved for sample data without an engine envelope.
+  creditEnvelope?: CreditEnvelope,
+  piotroskiEnvelope?: PiotroskiEnvelope,
+  metricsByName?: Record<string, number | null>,
+): CreditScoreResult {
+  // ── F2.4 ENGINE-CANONICAL PATH ──────────────────────────────────────
+  if (creditEnvelope && piotroskiEnvelope && typeof creditEnvelope.composite_score === "number") {
+    const e = creditEnvelope;
+    const piotroski = piotroskiFromEngine(piotroskiEnvelope);
+    const altman = altmanZScore(s, metricsByName);
+    const subs = e.subscores ?? {};
+    const weights = e.composite_weights ?? {};
+
+    // 7-component breakdown matching the engine's 30/20/15/10/10/10/5 weights.
+    // (Was 6 components on the parallel system with 40/20/15/10/10/5.)
+    const components: CreditScoreResult["components"] = [
+      {
+        label: `Altman ${altman.variant}-Score`,
+        value: e.altman_z_score ?? altman.score,
+        weight: weights.altman ?? 0.30,
+        contribution: (subs.altman ?? 0) * (weights.altman ?? 0.30),
+        read:
+          altman.zone === "safe"
+            ? `Safe zone (${altman.thresholds.safe}+ threshold, score ${(e.altman_z_score ?? altman.score).toFixed(2)})`
+            : altman.zone === "grey"
+              ? `Grey zone — elevated bankruptcy risk`
+              : `Distress zone — immediate action required`,
+      },
+      {
+        label: "Profitability (ROE + Net Margin)",
+        value: subs.profitability ?? 0,
+        weight: weights.profitability ?? 0.20,
+        contribution: (subs.profitability ?? 0) * (weights.profitability ?? 0.20),
+        read: readForSubscore("Profitability", subs.profitability ?? 0),
+      },
+      {
+        label: "Leverage (Net Debt / EBITDA)",
+        value: subs.leverage ?? 0,
+        weight: weights.leverage ?? 0.15,
+        contribution: (subs.leverage ?? 0) * (weights.leverage ?? 0.15),
+        read: readForSubscore("Leverage", subs.leverage ?? 0),
+      },
+      {
+        label: "Interest Coverage (EBIT / Interest)",
+        value: subs.coverage ?? 0,
+        weight: weights.coverage ?? 0.10,
+        contribution: (subs.coverage ?? 0) * (weights.coverage ?? 0.10),
+        read: readForSubscore("Interest coverage", subs.coverage ?? 0),
+      },
+      {
+        label: "DSCR (EBITDA / debt service)",
+        value: subs.dscr ?? 0,
+        weight: weights.dscr ?? 0.10,
+        contribution: (subs.dscr ?? 0) * (weights.dscr ?? 0.10),
+        read: readForSubscore("DSCR", subs.dscr ?? 0),
+      },
+      {
+        label: "Liquidity (Current + Quick + Cash blend)",
+        value: subs.liquidity ?? 0,
+        weight: weights.liquidity ?? 0.10,
+        contribution: (subs.liquidity ?? 0) * (weights.liquidity ?? 0.10),
+        read: readForSubscore("Liquidity", subs.liquidity ?? 0),
+      },
+      {
+        label: "Equity ratio",
+        value: subs.equity ?? 0,
+        weight: weights.equity ?? 0.05,
+        contribution: (subs.equity ?? 0) * (weights.equity ?? 0.05),
+        read: readForSubscore("Equity ratio", subs.equity ?? 0),
+      },
+    ];
+
+    return {
+      score: e.composite_score,
+      rating: e.letter_grade ?? "—",
+      // F2.4 — `grade` becomes a mirror of letter_grade (no separate tier
+      // descriptor — "investment_strong" / "speculative" disappear per
+      // F2 kickoff Decision). RisksPanel's `gradeLabel` render will show
+      // the letter; the visible "· investment strong" phrase is gone.
+      grade: e.letter_grade ?? "—",
+      components,
+      altman,
+      piotroski,
+      caveat:
+        "Engine canonical credit score (Romanian SME calibration). 30/20/15/10/10/10/5 weights with Altman Z″ as the dominant signal. The letter grade follows the locked F1.h ladder (AAA ≥ 90, AA ≥ 80, A ≥ 70, BBB ≥ 60, BB ≥ 50, B ≥ 40, CCC ≥ 25, CC < 25). Not a regulated rating — defensible analytical anchor for lender conversations.",
+    };
+  }
+
+  // ── FE FALLBACK PATH (legacy, for pre-v2.1 sample data) ────────────
+  // The block below was F2.4's deletion target. Retained as a back-compat
+  // safety net for sample fixtures that lack the engine envelope. Engine-
+  // canonical periods bypass it entirely via the early-return above.
   const c = canonical(s);
   const industry = (s.industry ?? "").toLowerCase();
   const isCre = industry.startsWith("real_estate");

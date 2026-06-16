@@ -13,6 +13,10 @@ import { useNavigate } from "react-router-dom";
 import { Menu, Sparkles } from "lucide-react";
 import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
+import { DocumentChip } from "./DocumentChip";
+import { CurrencyToggle } from "./CurrencyToggle";
+import { LanguageToggle } from "./LanguageToggle";
+import { LearningHubMenu } from "@/components/learning/LearningHubMenu";
 import { useAuth } from "@/lib/auth";
 
 interface Props {
@@ -39,15 +43,20 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
         backdrop-blur-md
         border-b border-rule
       "
+      style={{
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
+        paddingTop: "env(safe-area-inset-top)",
+      }}
     >
-      <div className="h-full px-4 sm:px-6 flex items-center gap-3">
-        {/* Mobile hamburger */}
+      <div className="h-full px-3 sm:px-6 flex items-center gap-2 sm:gap-3">
+        {/* Mobile hamburger — 44px touch target per Apple HIG */}
         <button
           onClick={onOpenSidebar}
           aria-label="Open navigation"
-          className="lg:hidden inline-flex items-center justify-center h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors"
+          className="lg:hidden inline-flex items-center justify-center h-11 w-11 -ml-2 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 active:bg-bg-2/60 transition-colors"
         >
-          <Menu size={17} strokeWidth={1.75} />
+          <Menu size={20} strokeWidth={1.75} />
         </button>
 
         {/* Brand + workspace label */}
@@ -66,6 +75,13 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
 
         <div className="flex-1" />
 
+        {/* Active-document chip — visible across all pages so the user
+            always knows which document is being analysed / has been
+            analysed. Reads from the global uploadStore so the chip
+            survives navigation and page refresh. Renders nothing when
+            no upload is in flight. */}
+        {status === "signed_in" && user && <DocumentChip />}
+
         {/* Ask CFO AI pill — restored May 2026 follow-up. Sits to the
             LEFT of the avatar, mirroring the reference image (pill →
             avatar circle). Uses the brand-tint pill styling so it reads
@@ -81,16 +97,16 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
             data-testid="topheader-ask-cfo-ai"
             aria-label="Ask CFO AI"
             className="
-              inline-flex items-center gap-1.5
-              h-9 px-3 rounded-full
+              inline-flex items-center justify-center gap-1.5
+              h-10 sm:h-9 min-w-[40px] sm:min-w-0 px-3 rounded-full
               bg-brand-tint text-brand-d
-              hover:bg-brand-tint/80
+              hover:bg-brand-tint/80 active:bg-brand-tint/70
               text-[12.5px] font-medium
               transition-colors
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
             "
           >
-            <Sparkles size={13} strokeWidth={1.75} />
+            <Sparkles size={14} strokeWidth={1.75} />
             <span className="hidden sm:inline">Ask CFO AI</span>
           </button>
         )}
@@ -100,6 +116,33 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
             trailing name text); the full name + email live inside the
             dropdown. Unauthed visitors still see a plain "Sign in"
             link below. */}
+        {/* LEARN-FIX-4 (2026-06-14) — Apple-2026 Learning hub menu.
+            Replaces the standalone Glossary pill. Same Glossary action
+            lives inside the dropdown alongside the Learning-mode picker
+            (Guided / Subtle / Off), which used to be Settings-only. */}
+        {status === "signed_in" && user && <LearningHubMenu />}
+
+        {/* Currency display toggle — sits between Ask CFO AI + AccountMenu.
+            Affects all <Money> + <MoneyValue> instances globally. Hidden
+            for unauthed visitors (no analyst surfaces to convert). */}
+        {status === "signed_in" && user && (
+          <div className="hidden sm:inline-flex">
+            <CurrencyToggle />
+          </div>
+        )}
+
+        {/* Language toggle — compact dropdown next to CurrencyToggle.
+            Sidebar's Globe popover stays as a secondary surface (and is
+            the primary one on mobile where this hides via the same
+            `hidden sm:inline-flex` pattern). pickLanguageWithProfileSync
+            inside the toggle mirrors the choice to Supabase so the
+            useLanguage() priority chain doesn't override the click. */}
+        {status === "signed_in" && user && (
+          <div className="hidden sm:inline-flex">
+            <LanguageToggle />
+          </div>
+        )}
+
         {status === "signed_in" && user ? (
           <AccountMenu />
         ) : (

@@ -174,6 +174,12 @@ export interface ActivePeriod {
    *  triggers the aggregate-only banner; `"trial_balance"` is the
    *  full-granularity path; null when unknown. */
   detectedType: string | null;
+  /** Filename of the source document that produced this period (e.g.
+   *  "Carniprod Trial Balance 2025.xlsx"). Surfaced for the dashboard's
+   *  "Extracted from" banner so it shows the actual uploaded file, not
+   *  the workspace or org label. Null for sample periods or when the
+   *  backend payload omits source_document. */
+  sourceDocumentFilename: string | null;
   /** True when the URL referenced a period id (UUID) that the backend
    *  could not resolve (HTTP 404). The most common cause is a stale URL
    *  whose underlying period row was hard-deleted by
@@ -182,6 +188,10 @@ export interface ActivePeriod {
    *  "no period selected" — the former needs a redirect or banner,
    *  the latter is just the empty state. */
   notFound: boolean;
+  /** F1.i envelope — canonical metrics bundle (PL/BS/CF/ratios/credit/
+   *  piotroski/bands). F2.4 reads .credit + .piotroski for the Risks
+   *  panel; F2.6 will read .valuation. */
+  assembled_metrics: Record<string, unknown> | null;
 }
 
 export interface PeriodLineItem {
@@ -210,7 +220,9 @@ const EMPTY: ActivePeriod = {
   valuation: null,
   lineItems: [],
   detectedType: null,
+  sourceDocumentFilename: null,
   notFound: false,
+  assembled_metrics: null,
 };
 
 // ─── Resolvers ──────────────────────────────────────────────────────────────
@@ -248,6 +260,11 @@ interface PeriodApiResponse {
   valuation: PeriodValuation | null;
   /** Per-account line items — drives the reference-format P&L drill-down. */
   line_items?: PeriodLineItem[];
+  /** F1.i envelope — canonical metrics bundle. F2.4 consumes
+   *  assembled_metrics.credit + .piotroski for the Risks panel. */
+  assembled_metrics?: Record<string, unknown>;
+  /** F1.k — canonical version stamp ("v2.0", "v2.1", ...). */
+  canonical_version?: string;
 }
 
 /**
@@ -358,7 +375,12 @@ export function useActivePeriod(): ActivePeriod {
         valuation: payload.valuation ?? null,
         lineItems: payload.line_items ?? [],
         detectedType: payload.period.source_document?.detected_type ?? null,
+        sourceDocumentFilename: payload.period.source_document?.filename ?? null,
         notFound: false,
+        // F2.4 — Surface the F1.i canonical envelope. RisksPanel reads
+        // .credit + .piotroski for engine-canonical credit scoring;
+        // F2.6 will read .valuation.
+        assembled_metrics: payload.assembled_metrics ?? null,
       };
     }
 
@@ -382,6 +404,9 @@ export function useActivePeriod(): ActivePeriod {
       valuation: null,
       lineItems: [],
       detectedType: null,
+  sourceDocumentFilename: null,
+      notFound: false,
+      assembled_metrics: null,
     };
   }, [periodId, remote, loading]);
 }

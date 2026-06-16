@@ -23,6 +23,10 @@ import type { CanonicalMetrics } from "@/lib/canonicalMetrics";
 import { formatCanonicalFull, formatCanonicalCompact } from "@/lib/canonicalMetrics";
 import type { PeriodValuation } from "@/lib/activePeriod";
 import { TraceableNumber } from "./TraceableNumber";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { GuideMeButton } from "@/components/learning/GuideMeButton";
+import { VALUATION_GUIDE } from "@/components/learning/valuationGuide";
+import { LearnableValuationBridge } from "@/components/valuation/LearnableValuationBridge";
 
 interface Props {
   /** Canonical metric object — the single source of truth for Core
@@ -56,6 +60,10 @@ export function EbitdaMultiplePrimaryCard({
   const { ebitda, balance, provenance } = metrics;
   const coreEbitda = ebitda.core;
   const netDebt = balance.net_debt;
+  // F5.0 Wave 3 — gross debt + cash for the learning bridge. CanonicalBalance
+  // already carries both directly; we don't need to reconstruct anything.
+  const grossDebt = balance.total_debt;
+  const cashOnHand = balance.cash;
 
   // Default multiple — industry-benchmark P50 from the engine, clamped
   // into the bounded band. Falls back to 7× when no benchmark on file.
@@ -123,6 +131,13 @@ export function EbitdaMultiplePrimaryCard({
             earnings, not one-off provision reversals.
           </p>
         </div>
+        {/* F5.0 Step 4 — Valuation page guide trigger. Auto-opens for
+            first-time Guided-mode users; always-available CTA otherwise. */}
+        <GuideMeButton
+          pageId="valuation"
+          title="Valuation"
+          steps={VALUATION_GUIDE}
+        />
       </div>
 
       {/* ── Headline equity number ─────────────────────────────────── */}
@@ -135,7 +150,9 @@ export function EbitdaMultiplePrimaryCard({
             data-testid="ebitda-multiple-equity"
             className="mt-1 text-[36px] sm:text-[42px] font-semibold tabular-nums tracking-[-0.01em] text-ink leading-none"
           >
-            {currency} {formatCanonicalFull(equity)}
+            <LearnableNumber conceptKey="equity_value" value={equity}>
+              {currency} {formatCanonicalFull(equity)}
+            </LearnableNumber>
           </div>
           <div className="mt-1 text-[12px] text-ink-soft">
             Range{" "}
@@ -155,7 +172,9 @@ export function EbitdaMultiplePrimaryCard({
             data-testid="ebitda-multiple-ev"
             className="mt-1 text-[20px] font-semibold tabular-nums text-ink-soft leading-none"
           >
-            {currency} {formatCanonicalFull(ev)}
+            <LearnableNumber conceptKey="enterprise_value" value={ev}>
+              {currency} {formatCanonicalFull(ev)}
+            </LearnableNumber>
           </div>
         </div>
       </div>
@@ -175,27 +194,53 @@ export function EbitdaMultiplePrimaryCard({
         Equity = Core EBITDA
         <span className="mx-1 text-ink">
           ({currency}{" "}
-          <TraceableNumber
-            value={coreEbitda}
-            format="currency"
-            source={{ statement: "pl", bucket: "ebitda", hint: "Core EBITDA — boxed row on the P&L tab (Reported less 758 / 781 adjustments)" }}
-          />
+          <LearnableNumber conceptKey="ebitda" value={coreEbitda}>
+            <TraceableNumber
+              value={coreEbitda}
+              format="currency"
+              source={{ statement: "pl", bucket: "ebitda", hint: "Core EBITDA — boxed row on the P&L tab (Reported less 758 / 781 adjustments)" }}
+            />
+          </LearnableNumber>
           )
         </span>
-        × Multiple <span className="text-ink">({multiple.toFixed(2)}×)</span>
+        × Multiple <span className="text-ink">
+          <LearnableNumber conceptKey="ev_ebitda_multiple" value={multiple}>
+            ({multiple.toFixed(2)}×)
+          </LearnableNumber>
+        </span>
         {" − "}
         Net debt
         <span className="mx-1 text-ink">
           ({currency}{" "}
-          <TraceableNumber
-            value={netDebt}
-            format="currency"
-            source={{ statement: "bs", bucket: "longTermDebt", hint: "Net debt = total debt − cash. Click jumps to LT bank loans (largest debt component)." }}
-          />
+          <LearnableNumber conceptKey="total_debt" value={netDebt}>
+            <TraceableNumber
+              value={netDebt}
+              format="currency"
+              source={{ statement: "bs", bucket: "longTermDebt", hint: "Net debt = total debt − cash. Click jumps to LT bank loans (largest debt component)." }}
+            />
+          </LearnableNumber>
           )
         </span>
         {" = "}
         <span className="text-ink font-semibold">{currency} {formatCanonicalFull(equity)}</span>
+      </div>
+
+      {/* ── F5.0 Wave 3: Learnable valuation bridge ────────────────────
+       *  Replaces the implicit one-line `EV − Net Debt = Equity` reading
+       *  with an explicit two-stage bridge. Every component is tappable
+       *  (Core EBITDA / Multiple / EV / Gross Debt / Cash / Equity), so
+       *  a user can drill any cell down to source accounts. The cash
+       *  add-back is visible, not hidden inside `Net Debt`. */}
+      <div className="relative mt-5">
+        <LearnableValuationBridge
+          coreEbitda={coreEbitda}
+          multiple={multiple}
+          ev={ev}
+          grossDebt={grossDebt}
+          cash={cashOnHand}
+          equityValue={equity}
+          currency={currency}
+        />
       </div>
 
       {/* ── Slider + synced numeric input ──────────────────────────── */}

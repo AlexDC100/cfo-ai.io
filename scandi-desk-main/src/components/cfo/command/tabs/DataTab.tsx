@@ -28,17 +28,18 @@
 //   not clickable).
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 // Activity / Database / FileBarChart2 / History / RefreshCw /
 // ShoppingBag / UploadCloud were the row icons for the removed
 // Upload + Processing sections. Drop them here to keep the bundle
 // honest; re-add when the rows come back.
 import {
-  ChevronDown,
+  ChevronRight,
   Plug,
   Settings2,
 } from "lucide-react";
 
-import { DataRulesCard } from "@/components/cfo/settings/DataRulesCard";
+import { DecisionRulesModal } from "@/components/cfo/command/DecisionRulesModal";
 
 import { Row } from "../Row";
 import { Section } from "../Section";
@@ -67,12 +68,12 @@ export function DataTab({ onClose: _onClose, onOpenUpload: _onOpenUpload }: Prop
 
   return (
     <>
-      {/* Decision rules promoted above Integrations per the operator's
-          directive — it's the only actionable Data-tab content today
-          (Integrations are all coming_soon), so it earns the top slot
-          where the eye lands first. Collapsed by default so the tab
-          stays scannable; one click expands the full threshold panel. */}
-      <RulesDisclosure />
+      {/* Decision rules — promoted above Integrations as the only
+          actionable Data-tab content today. Click opens the full-size
+          modal (DecisionRulesModal). The modal's two-handle slider
+          drives the same threshold store the Products page reads from,
+          so the table re-categorises live as the user drags. */}
+      <RulesTrigger />
 
       <Section label="Integrations">
         <Row
@@ -101,14 +102,16 @@ export function DataTab({ onClose: _onClose, onOpenUpload: _onOpenUpload }: Prop
   );
 }
 
-function RulesDisclosure() {
+function RulesTrigger() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
-    <section className="mb-5" data-testid="cmd-data-rules-disclosure">
+    <section className="mb-5" data-testid="cmd-data-rules-trigger">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        data-testid="cmd-data-rules-open"
         className="
           w-full flex items-center gap-3 rounded-xl border border-rule
           bg-bg-2 px-4 py-3 hover:bg-bg-2/70 transition-colors
@@ -119,23 +122,22 @@ function RulesDisclosure() {
         </span>
         <div className="flex-1 text-left min-w-0">
           <div className="text-[13.5px] text-ink leading-tight">
-            Decision rules
+            {t("decision_rules.title", "Decision rules")}
           </div>
           <div className="text-[11.5px] text-ink-soft mt-0.5 leading-tight">
-            Bucket thresholds (Protect / Watch / Liquidate). Local to this browser.
+            {t(
+              "decision_rules.trigger_subtitle",
+              "Bucket thresholds (Protect / Watch / Wind down). Saved to this browser.",
+            )}
           </div>
         </div>
-        <ChevronDown
+        <ChevronRight
           size={13}
           strokeWidth={1.75}
-          className={`text-ink-mute shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
+          className="text-ink-mute shrink-0"
         />
       </button>
-      {open && (
-        <div className="mt-3">
-          <DataRulesCard />
-        </div>
-      )}
+      <DecisionRulesModal open={open} onOpenChange={setOpen} />
     </section>
   );
 }

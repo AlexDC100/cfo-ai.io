@@ -250,22 +250,10 @@ test.describe(REAL ? "docs panel (real)" : "docs panel (skipped — set E2E_REAL
     expect(unique.size).toBe(dateMatches.length);
   });
 
-  test("upload-while-active opens picker from the panel", async ({ page }) => {
-    test.setTimeout(30_000);
-    await page.goto("/dashboard");
-    await page.getByTestId("docs-toggle").click();
-
-    const upload = page.getByTestId("docs-panel-upload");
-    await expect(upload).toBeVisible();
-    await expect(upload).toContainText(/upload document/i);
-
-    // The hidden input is the actual file picker entry point. Confirm it's
-    // wired (the broken pre-fix version had the button just close the panel
-    // and scroll to top without opening a picker).
-    const input = page.getByTestId("docs-panel-upload-input");
-    await expect(input).toBeAttached();
-    await expect(input).toHaveAttribute("type", "file");
-  });
+  // The "upload-while-active" test was removed when DocsPanel's upload
+  // button + hidden file input were taken out. Uploads now happen only
+  // from the dashboard empty state + header Replace dropdown; the panel
+  // is intentionally review/switch-only.
 
   test("quick delete + undo toast (no confirmation dialog)", async ({ page }) => {
     test.setTimeout(60_000);

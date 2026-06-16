@@ -18,11 +18,15 @@
 import { useEffect, useMemo, useRef } from "react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod, type PeriodMetric } from "@/lib/activePeriod";
+import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { CFOChatShell, type CFOChatShellHandle } from "@/components/cfo/chat/CFOChatShell";
 import { setChatShellRef } from "@/components/cfo/chat/sharedShellRef";
 import { buildCanonicalMetrics } from "@/lib/canonicalMetrics";
 
 export default function Chat() {
+  // 2026-05-24 — auto-resolve active period so the chat has workspace
+  // context when opened directly via sidebar (no ?period= preserved).
+  useActivePeriodFallback();
   const period = useActivePeriod();
   const ref = useRef<CFOChatShellHandle | null>(null);
 
@@ -33,6 +37,39 @@ export default function Chat() {
     setChatShellRef(ref.current);
     return () => setChatShellRef(null);
   });
+
+  // F5.0 Phase 1.6 — Read a "preload" prompt left by a LearnableNumber
+  // popover's "Ask CFO AI" action. The popover writes the question +
+  // concept context to sessionStorage just before navigating here; we
+  // pre-fill the composer + focus it so the user lands with the
+  // question ready to send (or edit). One-shot — we consume + clear.
+  useEffect(() => {
+    if (!ref.current) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem("cfo-chat-preload");
+    } catch {
+      raw = null;
+    }
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { prompt?: string };
+      if (parsed?.prompt && typeof parsed.prompt === "string") {
+        ref.current.setComposer(parsed.prompt);
+        ref.current.focusComposer();
+      }
+    } catch {
+      /* malformed — ignore */
+    } finally {
+      try {
+        sessionStorage.removeItem("cfo-chat-preload");
+      } catch {
+        /* ignore */
+      }
+    }
+    // Run on mount only — the preload is a hand-off, not a subscription.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const workspaceSnapshot = useMemo(() => buildWorkspaceSnapshot(period), [period]);
   const companyName = period.statements?.companyName ?? null;
@@ -45,7 +82,7 @@ export default function Chat() {
       <div className="
         -mx-5 sm:-mx-8 lg:-mx-10
         -my-8 sm:-my-10 lg:-my-12
-        h-[calc(100vh-4rem)]
+        h-[calc(100dvh-4rem)]
         flex
       ">
         <CFOChatShell

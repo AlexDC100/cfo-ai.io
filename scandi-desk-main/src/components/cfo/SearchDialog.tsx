@@ -23,11 +23,16 @@ import {
   TrendingUp,
   ListChecks,
   Boxes,
+  BookOpen,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { useDailyRun } from "@/lib/runStore";
 import { flattenSkus } from "@/lib/cfoDerive";
 import { BucketChip } from "./BucketChip";
+import { openGlossary } from "@/components/learning/MetricGlossaryDrawer";
+import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
+import { CONCEPTS_BY_KEY, type Concept } from "@/lib/learning/concepts";
 
 interface Props {
   open: boolean;
@@ -37,7 +42,9 @@ interface Props {
 type Result =
   | { kind: "route"; label: string; hint: string; to: string; icon: LucideIcon }
   | { kind: "sku"; label: string; hint: string; bucket: string }
-  | { kind: "category"; label: string; hint: string; bucket: string };
+  | { kind: "category"; label: string; hint: string; bucket: string }
+  | { kind: "glossary"; label: string; hint: string; icon: LucideIcon }
+  | { kind: "concept"; label: string; hint: string; conceptKey: string };
 
 const ROUTES: { label: string; hint: string; to: string; icon: LucideIcon }[] = [
   { label: "Today",     hint: "Daily briefing",  to: "/dashboard",     icon: Sun },
@@ -47,9 +54,14 @@ const ROUTES: { label: string; hint: string; to: string; icon: LucideIcon }[] = 
   { label: "Products",  hint: "SKU explorer",    to: "/products",  icon: Boxes },
 ];
 
+// F5.0: snapshot of the concept catalog. Built once per module load — the
+// registry never mutates at runtime, so this is safe.
+const ALL_CONCEPTS: Concept[] = Object.values(CONCEPTS_BY_KEY);
+
 export function SearchDialog({ open, onOpenChange }: Props) {
   const nav = useNavigate();
   const run = useDailyRun();
+  const popoverStack = usePopoverStack();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -85,6 +97,16 @@ export function SearchDialog({ open, onOpenChange }: Props) {
       }
     }
 
+    // Glossary entry — always visible on empty query; matches q on word stems
+    if (!q || "glossary".includes(q) || "metrics".includes(q) || "learn".includes(q)) {
+      out.push({
+        kind: "glossary",
+        label: "Browse glossary",
+        hint: "Every concept CFO AI knows",
+        icon: BookOpen,
+      });
+    }
+
     if (q.length >= 1) {
       // Categories
       for (const c of categories) {
@@ -113,8 +135,23 @@ export function SearchDialog({ open, onOpenChange }: Props) {
           if (out.length > 80) break;
         }
       }
+      // Concepts (F5.0 — opens popover directly)
+      for (const c of ALL_CONCEPTS) {
+        const nameEn = c.name.en.toLowerCase();
+        const nameRo = c.name.ro?.toLowerCase() ?? "";
+        const key = c.key.toLowerCase();
+        if (nameEn.includes(q) || nameRo.includes(q) || key.includes(q)) {
+          out.push({
+            kind: "concept",
+            label: c.name.en,
+            hint: c.category ?? "Concept",
+            conceptKey: c.key,
+          });
+          if (out.length > 80) break;
+        }
+      }
     }
-    return out.slice(0, 12);
+    return out.slice(0, 16);
   }, [query, skus, categories]);
 
   // Reset activeIdx when results change (keeps it in bounds)
@@ -129,6 +166,27 @@ export function SearchDialog({ open, onOpenChange }: Props) {
       nav("/products?search=" + encodeURIComponent(r.label));
     } else if (r.kind === "category") {
       nav("/products?search=" + encodeURIComponent(r.label));
+    } else if (r.kind === "glossary") {
+      openGlossary();
+    } else if (r.kind === "concept") {
+      // F5.0: push concept onto the global popover stack with center-screen rect.
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      popoverStack.push({
+        conceptKey: r.conceptKey,
+        value: 0,
+        triggerRect: {
+          top: cy - 20,
+          left: cx - 100,
+          right: cx + 100,
+          bottom: cy + 20,
+          width: 200,
+          height: 40,
+          x: cx - 100,
+          y: cy - 20,
+          toJSON: () => ({}),
+        } as DOMRect,
+      });
     }
     onOpenChange(false);
   }
@@ -151,12 +209,15 @@ export function SearchDialog({ open, onOpenChange }: Props) {
       <DialogContent
         className="
           p-0 overflow-hidden
-          max-w-[560px]
           bg-surface dark:bg-bg-2
           border border-rule
           shadow-4
-          rounded-2xl
           [&>button.absolute]:hidden
+          inset-x-2 top-2 bottom-auto translate-x-0 translate-y-0
+          w-auto max-w-[calc(100vw-1rem)] rounded-2xl
+          sm:inset-auto sm:top-1/2 sm:left-1/2
+          sm:-translate-x-1/2 sm:-translate-y-1/2
+          sm:w-full sm:max-w-[560px]
         "
       >
         <DialogTitle className="sr-only">Search</DialogTitle>
@@ -175,7 +236,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
               placeholder:text-ink-mute outline-none
             "
           />
-          <kbd className="text-[10.5px] text-ink-mute font-mono px-1.5 py-0.5 rounded border border-rule bg-bg-2 dark:bg-surface-hi">
+          <kbd className="hidden sm:inline-block text-[10.5px] text-ink-mute font-mono px-1.5 py-0.5 rounded border border-rule bg-bg-2 dark:bg-surface-hi">
             esc
           </kbd>
         </div>
@@ -204,6 +265,14 @@ export function SearchDialog({ open, onOpenChange }: Props) {
                       <span className="w-7 h-7 rounded-md bg-bg-2 dark:bg-surface grid place-items-center shrink-0 text-ink-soft">
                         <r.icon size={14} strokeWidth={1.75} />
                       </span>
+                    ) : r.kind === "glossary" ? (
+                      <span className="w-7 h-7 rounded-md bg-[hsl(165,75%,55%)]/15 grid place-items-center shrink-0 text-[hsl(165,75%,55%)]">
+                        <r.icon size={14} strokeWidth={1.75} />
+                      </span>
+                    ) : r.kind === "concept" ? (
+                      <span className="w-7 h-7 rounded-md bg-[hsl(165,75%,55%)]/10 grid place-items-center shrink-0 text-[hsl(165,75%,55%)]">
+                        <Sparkles size={14} strokeWidth={1.75} />
+                      </span>
                     ) : (
                       <span className="w-7 h-7 rounded-md grid place-items-center shrink-0 text-[10px] font-medium uppercase tracking-wider text-ink-mute">
                         {r.kind === "sku" ? "SKU" : "CAT"}
@@ -217,6 +286,11 @@ export function SearchDialog({ open, onOpenChange }: Props) {
                     </div>
                     {r.kind !== "route" && "bucket" in r && (
                       <BucketChip bucket={r.bucket as import("@/lib/cfoApi").Bucket} />
+                    )}
+                    {r.kind === "concept" && (
+                      <span className="text-[10px] uppercase tracking-[0.12em] text-[hsl(165,75%,55%)]/70 font-medium shrink-0">
+                        Learn
+                      </span>
                     )}
                   </button>
                 </li>

@@ -38,17 +38,96 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import _detect
-from . import _ro_coa
 from . import _supabase
 from . import _usage_limits
 from . import _valuation
-from ._ro_coa import assemble_statements
+
+# F3.1c — Country-pack dispatch. The pack is reached via the registry
+# rather than direct module imports so country-specific behaviour
+# (account-code mapping, parsing, industry classification) can be
+# swapped at runtime in F3.3+. Importing the ro_romania subpackage as
+# a side-effect registers the Romania pack with the registry.
+import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers RomaniaPack
+# F4.5 — Hungary pack (SKELETON / UNCALIBRATED). Registered so F4.4 fan-out
+# routing can exercise multi-pack logic. detect_from_content() returns 0.0
+# confidence so the RO pack always wins on RO uploads.
+try:
+    import engine.country_packs.hu_hungary  # noqa: F401
+except Exception:  # noqa: BLE001
+    # Skeleton may not be deployed in every environment; non-fatal.
+    pass
+
+
+# F4.6 — deprecated fields list (static, cheap to re-emit per request).
+# Imported once at module load; returned in /api/period responses to give
+# consumers migration targets before the 2Q sunset.
+def _deprecated_fields_for_response() -> List[Dict[str, Any]]:
+    try:
+        from .deprecated_fields import deprecated_fields_list
+        return deprecated_fields_list()
+    except Exception:  # noqa: BLE001
+        return []
+from engine.core.country_pack_registry import get_pack as _get_country_pack
+
+
+def _ro_pack():
+    """Lazy resolver for the Romania country pack. Cached on first
+    call; raises a clear error if the pack failed to register (which
+    indicates an import-time failure inside the pack module, not a
+    routine missing-country case)."""
+    pack = _get_country_pack("RO")
+    if pack is None:
+        raise RuntimeError(
+            "Romania country pack not registered. Check that "
+            "engine.country_packs.ro_romania imported cleanly."
+        )
+    return pack
 
 
 logger = logging.getLogger(__name__)
+
+
+# ── Loud-failure state for the DIO-columns-missing fallback ──────────
+# When sku_aggregates lacks days_inventory_on_hand / inventory_value_krn
+# / cogs_krn, the insert retry path silently drops those values to keep
+# the upload alive. Without this tracker the warning log scrolled past
+# unnoticed for weeks. We capture: when it last fired, how many rows were
+# affected, and the dataset_id, so /api/health can surface the degraded
+# state and the FE can render a "schema migration pending" banner.
+_DIO_DROP_STATE: Dict[str, Any] = {
+    "degraded": False,
+    "last_drop_at": None,
+    "last_dataset_id": None,
+    "total_rows_dropped": 0,
+    "drop_event_count": 0,
+    "first_error_sample": None,
+}
+
+
+def _record_dio_drop(*, dataset_id: str, rows_dropped: int, first_error: str) -> None:
+    """Mark DIO persistence as degraded. Reset by the next clean upload."""
+    _DIO_DROP_STATE["degraded"] = True
+    _DIO_DROP_STATE["last_drop_at"] = _now_iso() if "_now_iso" in globals() else None
+    _DIO_DROP_STATE["last_dataset_id"] = dataset_id
+    _DIO_DROP_STATE["total_rows_dropped"] += rows_dropped
+    _DIO_DROP_STATE["drop_event_count"] += 1
+    if not _DIO_DROP_STATE.get("first_error_sample"):
+        _DIO_DROP_STATE["first_error_sample"] = first_error
+
+
+def get_dio_persistence_state() -> Dict[str, Any]:
+    """Read-only snapshot for /api/health. Public — imported by _health.py."""
+    return dict(_DIO_DROP_STATE)
+
+
+def reset_dio_persistence_state() -> None:
+    """Clear the degraded flag — called after a clean upload that
+    succeeds without hitting the column-missing fallback. Operator can
+    also clear via a one-shot admin endpoint if needed."""
+    _DIO_DROP_STATE["degraded"] = False
 
 
 class PublicRecordsUnparseableError(Exception):
@@ -70,6 +149,20 @@ class PublicRecordsUnparseableError(Exception):
 
 
 def _require_jwt(authorization: Optional[str]) -> str:
+    # PUBLIC_TEST_MODE bypass — see `_test_mode.py`. When the env flag is
+    # on, every request is treated as authenticated as the shared test
+    # user (id from TEST_USER_ID). Real customer orgs remain isolated
+    # because the test user has membership only in TEST_ORG_ID.
+    from . import _test_mode
+    if _test_mode.is_test_mode():
+        # Mint (and cache) a real Supabase access_token for the synthetic
+        # test user — keeps RLS active (scoped to test org via the test
+        # user's membership). See _test_mode.get_test_user_jwt().
+        try:
+            return _test_mode.get_test_user_jwt()
+        except Exception:  # noqa: BLE001
+            logger.exception("[test_mode] JWT mint failed; falling back to placeholder.")
+            return _test_mode.JWT_BYPASS_PLACEHOLDER
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Missing Bearer token.")
     return authorization.split(" ", 1)[1].strip()
@@ -160,6 +253,10 @@ def _verify_user_owns_document(jwt: str, document_id: str) -> Dict[str, Any]:
 def _user_id_from_jwt(jwt: str) -> str:
     """Resolve the calling user's id from the JWT (same pattern as _billing).
     Raises 401 if the JWT is malformed."""
+    # PUBLIC_TEST_MODE bypass — return the shared test user_id.
+    from . import _test_mode
+    if _test_mode.is_bypass_token(jwt):
+        return _test_mode.test_user_id()
     with _supabase.per_user(jwt) as client:
         user = client.get_user(jwt)
     user_id = user.get("id") if user else None
@@ -406,11 +503,10 @@ def _xlsx_to_text(spreadsheet_bytes: bytes, *, max_chars: int = 200_000) -> str:
     # Trial-balance fast-path. Best-effort: any failure here just falls
     # through to the legacy raw-render. Never raise from this branch.
     try:
-        from . import _trial_balance_parser as _tb
-
-        accounts = _tb.parse_trial_balance_file(spreadsheet_bytes)
+        pack = _ro_pack()
+        accounts = pack.parse_trial_balance(spreadsheet_bytes, "")
         if accounts:
-            canonical = _tb.accounts_to_canonical_tsv(accounts)
+            canonical = pack.accounts_to_canonical_tsv(accounts)
             preamble = (
                 "Trial balance pre-parsed into canonical layout "
                 f"({len(accounts)} accounts). Columns are explicit; no "
@@ -596,6 +692,61 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 f"years_found={_pr_unparseable['years_found']}]"
             )
 
+        # ── F3.8c — Deterministic PDF trial-balance fast-path ───────
+        # Romanian RAS PDF trial balances (WinMENTOR / SAGA / Ciel /
+        # generic-RAS) parse cleanly via the PyMuPDF position-based
+        # ingester landed in F3.8a. When the parser yields a non-
+        # empty account list AND captures the account-121 statutory
+        # anchor, skip Claude entirely and feed the structured output
+        # straight into the mapper — same fast-path the XLSX kind
+        # has used since the F3.1 country-pack refactor.
+        #
+        # If the PDF doesn't parse cleanly (rare layouts, scanned
+        # pages, non-RAS PDFs), fall through to the existing
+        # Claude-based extractor in financial_statements.parse_document.
+        try:
+            pack = _ro_pack()
+            tb_rows = pack.parse_trial_balance(
+                _pdf_bytes, doc.get("original_filename") or "",
+            )
+            if tb_rows:
+                shaped = pack.accounts_to_assemble_shape(tb_rows)
+                statutory_anchor = pack.compute_statutory_net_profit_anchor(tb_rows)
+                # F3.9 / F3.11 — source-data quality telemetry. Computed
+                # from raw tb_rows (sf_d/sf_c) before any engine routing
+                # so the operator can see source-data fault vs engine
+                # fault on the WARN badge. Threaded through parsed →
+                # stage_map → assemble_statements → API response.
+                source_quality = pack.compute_source_imbalance(tb_rows)
+                if shaped and (statutory_anchor or len(shaped) >= 50):
+                    logger.info(
+                        "[stage_extract] deterministic PDF TB path: "
+                        "%d raw rows → %d mapped accounts "
+                        "(ct 121 anchor = %s RON, source imbalance %.4f%% %s)",
+                        len(tb_rows), len(shaped),
+                        f"{statutory_anchor:,.0f}" if statutory_anchor else "n/a",
+                        float(source_quality.get("raw_imbalance_pct") or 0),
+                        "WARN" if source_quality.get("warn") else "ok",
+                    )
+                    return {
+                        "company_name": (doc.get("original_filename") or "Imported entity").rsplit(".", 1)[0],
+                        "period_label": "Imported period",
+                        "period_end": _detect_period_end_from_filename(doc.get("original_filename")),
+                        "currency": "RON",
+                        "confidence": 0.95,
+                        "detected_type": "trial_balance",
+                        "accounts": shaped,
+                        "warnings": [],
+                        "statutory_net_profit_anchor": statutory_anchor,
+                        "source_data_quality": source_quality,
+                    }
+        except Exception as e:  # noqa: BLE001
+            logger.info(
+                "[stage_extract] PDF TB fast-path skipped (%s) — "
+                "falling back to Claude/statements parser",
+                type(e).__name__,
+            )
+
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url("documents", storage_path, expires_in=300)
         from .financial_statements import (  # type: ignore
@@ -719,24 +870,29 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     # dropping minor accounts and inflating downstream EBITDA).
     if kind == "xlsx":
         try:
-            from . import _trial_balance_parser as _tb
-            tb_rows = _tb.parse_trial_balance_file(
+            pack = _ro_pack()
+            tb_rows = pack.parse_trial_balance(
                 file_bytes, doc.get("original_filename") or "",
             )
             if tb_rows:
-                shaped = _tb.accounts_to_assemble_shape(tb_rows)
+                shaped = pack.accounts_to_assemble_shape(tb_rows)
                 # Account 121 closing balance = the statutory net profit
                 # anchor (the legally filed figure on Romanian books).
                 # Threaded through parsed → stage_compute so the platform
                 # cites the SAME number the user sees on their own account
                 # 121 instead of a reconstructed approximation that's off
                 # by 1-6% on real data.
-                statutory_anchor = _tb.compute_statutory_net_profit_anchor(tb_rows)
+                statutory_anchor = pack.compute_statutory_net_profit_anchor(tb_rows)
+                # F3.9 / F3.11 — source-data quality telemetry. See PDF
+                # fast-path above for the rationale.
+                source_quality = pack.compute_source_imbalance(tb_rows)
                 logger.info(
                     "[stage_extract] deterministic TB path: %d raw rows → %d mapped accounts "
-                    "(ct 121 anchor = %s RON)",
+                    "(ct 121 anchor = %s RON, source imbalance %.4f%% %s)",
                     len(tb_rows), len(shaped),
                     f"{statutory_anchor:,.0f}" if statutory_anchor else "n/a",
+                    float(source_quality.get("raw_imbalance_pct") or 0),
+                    "WARN" if source_quality.get("warn") else "ok",
                 )
                 return {
                     "company_name": (doc.get("original_filename") or "Imported entity").rsplit(".", 1)[0],
@@ -747,6 +903,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                     "detected_type": "trial_balance",
                     "accounts": shaped,
                     "warnings": [],
+                    "source_data_quality": source_quality,
                     "statutory_net_profit_anchor": statutory_anchor,
                 }
         except Exception as e:  # noqa: BLE001
@@ -862,17 +1019,69 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
             data["warnings"].append(f"Dropped malformed account row: {raw}")
     data["accounts"] = cleaned
 
+    # F3.16-3b.2 Path X (Path B variant) — synthesize the statutory
+    # 121 anchor from Claude's cleaned accounts so the kwarg in
+    # `stage_map`'s call to `assemble_statements` can fire the
+    # net-income override even when the TB fast-path was bypassed.
+    # Claude usually emits account 121 as a regular row; when it
+    # does, sum every 121-prefixed code's amount. When Claude omits
+    # 121 entirely (some periods), this stays None and the in-loop
+    # capture inside `assemble_statements` is the only safety net
+    # (and since Claude doesn't set bucket metadata, the in-loop
+    # capture also yields None — fallback to reconstruction). This is
+    # best-effort: it makes Claude path PARITY with TB fast-path when
+    # Claude surfaces 121; otherwise the period gets reconstruction-
+    # only behavior, which is what it had before this fix anyway.
+    _claude_121_amounts = [
+        float(a.get("amount") or 0)
+        for a in cleaned
+        if str(a.get("code") or "").strip().startswith("121")
+    ]
+    if _claude_121_amounts:
+        _synth_anchor = sum(_claude_121_amounts)
+        logger.info(
+            "[stage_extract] Claude path: synthesized statutory_net_profit_anchor"
+            "=%s RON from %d 121-prefixed rows (Path X / Path B)",
+            f"{_synth_anchor:,.0f}", len(_claude_121_amounts),
+        )
+        data["statutory_net_profit_anchor"] = _synth_anchor
+    else:
+        data.setdefault("statutory_net_profit_anchor", None)
+
     return data
 
 
 def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[str]) -> Dict[str, Any]:
-    """Roll accounts into BS/PL buckets via the RO-COA mapper."""
-    return assemble_statements(
+    """Roll accounts into BS/PL buckets via the country pack's mapper.
+    Pre-F3.1c this called `_ro_coa.assemble_statements` directly; now
+    dispatched through the Romania pack so the same call site will
+    transparently work for other country packs once they're added.
+
+    F3.11 — `source_data_quality` (when computed upstream in
+    stage_extract and stored in `parsed`) is forwarded through so the
+    engine envelope surfaces source-imbalance telemetry to the FE.
+    Default None preserves byte-identical for paths that don't set it
+    (Claude-extracted fallback, statutory F30/F10).
+    """
+    # F3.16-3b.2 Path X — thread the 121-anchor through. `stage_extract`
+    # captures `statutory_net_profit_anchor` from raw TB rows BEFORE any
+    # preprocessing that might drop the 121 line item (Path A: TB fast-
+    # path via `compute_statutory_net_profit_anchor`; Path B: Claude
+    # path via the post-parse 121-prefix sum). When neither path
+    # surfaced an anchor, the kwarg is None and `assemble_statements`
+    # falls back to its in-loop capture, preserving byte-identical
+    # behavior on the fixture path and on any caller that doesn't ship
+    # the anchor in `parsed`. See chart_of_accounts.py:1796-1804 for
+    # the F3.16 forbidden-pattern marker explaining why this kwarg
+    # exists (and why a comment-without-test was the original bug).
+    return _ro_pack().assemble_statements(
         parsed.get("accounts") or [],
         company_name=parsed.get("company_name") or "Imported entity",
         currency=parsed.get("currency") or "RON",
         period_label=parsed.get("period_label") or "Imported period",
         industry=industry,
+        source_data_quality=parsed.get("source_data_quality"),
+        account_121_anchor_override=parsed.get("statutory_net_profit_anchor"),
     )
 
 
@@ -1011,7 +1220,62 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             for i in range(0, len(rows), 500):
                 admin_client.insert("statement_line_items", rows[i:i+500], returning=False)
 
+        # 5. F4.1e — persist the canonical envelope to the JSONB column on
+        #    financial_periods. Best-effort: any failure here doesn't break
+        #    the pipeline (assembled_bs/pl/cf and line items already landed).
+        #    The read path also recomputes canonical on-the-fly via
+        #    assemble_statements, so a NULL persisted value doesn't block
+        #    consumers — DB persistence is for archive + offline analytics +
+        #    audit (matches the comment on the column).
+        #
+        #    Note: only writes when the engine actually emitted a canonical
+        #    envelope. Old engine builds without F4.1c return assembled
+        #    without the key, in which case we leave the column NULL rather
+        #    than UPDATE to NULL (which would overwrite any prior canonical
+        #    captured by a newer engine — preserving the most-recent envelope).
+        canonical = assembled.get("assembled_canonical_v1")
+        if isinstance(canonical, dict):
+            try:
+                admin_client.update(
+                    "financial_periods",
+                    {"assembled_canonical_v1": canonical},
+                    filters={"id": f"eq.{period_id}"},
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "[stage_persist] failed to persist assembled_canonical_v1 "
+                    "for period %s (non-fatal; read path still recomputes)",
+                    period_id,
+                )
+
     return period_id
+
+
+# ── F1.h — composite-score → letter grade mapping (locked per SPEC §10). ──
+# Single source of truth for both stage_compute (logging path) AND the
+# get_period endpoint's `assembled_metrics.credit.letter_grade` emission.
+# The FE's `compositeToGrade()` in `CreditScoreCard.tsx` MUST mirror these
+# exact bands; mirror by the band-table comment block below, not by reading
+# from a remote source (FE has no network access at component-render time).
+#
+#   Score        Grade
+#   ≥ 90         AAA
+#   80 – 89      AA      (NEW — the AA notch added by F1.h re-banding)
+#   70 – 79      A
+#   60 – 69      BBB
+#   50 – 59      BB
+#   40 – 49      B
+#   25 – 39      CCC
+#   < 25         CC
+def _composite_to_letter_grade(composite: float) -> str:
+    if composite >= 90: return "AAA"
+    if composite >= 80: return "AA"
+    if composite >= 70: return "A"
+    if composite >= 60: return "BBB"
+    if composite >= 50: return "BB"
+    if composite >= 40: return "B"
+    if composite >= 25: return "CCC"
+    return "CC"
 
 
 def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str) -> List[Dict[str, Any]]:
@@ -1117,8 +1381,139 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
         {"name": "free_cash_flow",     "value": round(net_income + depreciation, 2),"unit": "RON",  "direction": "higher"},
     ]
 
+    # F3.11 — F3.9 source-data quality telemetry. Persisted as numeric
+    # metrics so the FE can pick them up via remotePeriod.metrics without
+    # a DB-schema migration (financial_periods has no metadata JSONB).
+    # Two metrics — pct + abs — plus the warn flag derived FE-side from
+    # pct > 2.0. Only emitted when the upstream stage_extract attached
+    # source_data_quality (TB fast-paths; Claude-extracted path falls back
+    # to None and skips these metrics entirely — `assembled.get(...) or {}`
+    # makes the absence safe). See chart_of_accounts.assemble_statements
+    # and pack.compute_source_imbalance for the upstream wiring.
+    # F3.14 (3b) — Adjusted EBITDA + reconciliation components, read from
+    # canonical assembled_pl (where the engine already computed them per
+    # ADR_F3_14_DEFERRED_ITEMS.md). Operating EBITDA stays the headline;
+    # adjusted_ebitda sits next to it on the dashboard with the two
+    # subtracted lines (758 + 781) shown as the reconciliation bridge.
+    pl_canonical_for_adj = s.get("assembled_pl") or {}
+    if isinstance(pl_canonical_for_adj, dict):
+        adj_ebitda_val = pl_canonical_for_adj.get("adjusted_ebitda")
+        oi_758_val = pl_canonical_for_adj.get("other_income_758", 0) or 0
+        oi_781_val = pl_canonical_for_adj.get("other_income_781_reversals", 0) or 0
+        if adj_ebitda_val is None:
+            # Fallback: compute from `ebitda` (cash view) − 758 − 781 if
+            # canonical hasn't surfaced it yet (older cached fixtures).
+            adj_ebitda_val = ebitda - float(oi_758_val) - float(oi_781_val)
+        metrics.extend([
+            {"name": "adjusted_ebitda",               "value": round(float(adj_ebitda_val), 2),
+             "unit": "RON",   "direction": "higher"},
+            {"name": "other_income_758",              "value": round(float(oi_758_val), 2),
+             "unit": "RON",   "direction": "neutral"},
+            {"name": "other_income_781_reversals",    "value": round(float(oi_781_val), 2),
+             "unit": "RON",   "direction": "neutral"},
+        ])
+
+    sq = assembled.get("source_data_quality") or {}
+    if sq:
+        metrics.extend([
+            {"name": "source_imbalance_pct", "value": round(float(sq.get("raw_imbalance_pct") or 0.0), 4),
+             "unit": "ratio", "direction": "lower"},
+            {"name": "source_imbalance_abs", "value": round(float(sq.get("raw_imbalance_abs") or 0.0), 2),
+             "unit": "RON", "direction": "lower"},
+            {"name": "source_closing_debit_sum",  "value": round(float(sq.get("sum_closing_debit") or 0.0), 2),
+             "unit": "RON", "direction": "neutral"},
+            {"name": "source_closing_credit_sum", "value": round(float(sq.get("sum_closing_credit") or 0.0), 2),
+             "unit": "RON", "direction": "neutral"},
+        ])
+
+    # ── F1.d additions (SPEC §3) — every ratio the FE displays, emitted
+    # once here so the Tier-1 FE recompute sites in
+    # AUDIT_FE_CANONICAL_CONFORMANCE.md can become pure readers (F3).
+    # Each row consumes values that are now on assembled_pl / assembled_bs
+    # (F1.a / F1.b), or that are already in scope as locals from the
+    # stage_compute body. No new math; every field is either a ratio of
+    # existing canonical values or a direct alias.
+    ar = bs.get("accountsReceivable", 0.0)
+    inventory = bs.get("inventory", 0.0)
+    ap = bs.get("accountsPayable", 0.0)
+    st_debt = bs.get("shortTermDebt", 0.0)
+    lt_debt = bs.get("longTermDebt", 0.0)
+    # `total_operating_expense` per the B1 closure: full opex (cogs + opex
+    # + D&A), NOT narrow COGS. Mirrors the same value emitted on
+    # assembled_pl in F1.a.
+    total_operating_expense = cogs + pl.get("operatingExpenses", 0.0) + depreciation
+    # F3.15 Chunk 1 — `core_ebitda` is now READ from the canonical
+    # `assembled_pl.core_ebitda` field, NOT recomputed locally. The
+    # canonical definition (chart_of_accounts.py:1418) is `ebitda_statutory
+    # − 758 − 781` (per-account from line_items). The prior local
+    # redefinition `ebitda_statutory − pl["otherIncome"]` quietly diverged
+    # whenever otherIncome contained items beyond 758/781 (e.g., F3.10
+    # semantic-fallback-routed accounts named "venituri din subventii"
+    # → otherIncome, or any 74/75/77/78 catchall hits from F3.8). The
+    # two definitions agreed when otherIncome ≡ {758, 781}, drifted
+    # otherwise. F3.15 fix: canonical chart_of_accounts is the single
+    # source of truth; pipeline becomes a reader. Fall back to the
+    # local arithmetic only when the canonical field is missing (pre-
+    # F3.14 cached re-assemblies that bypass the F1.a code path).
+    pl_canonical_for_core = s.get("assembled_pl") or {}
+    if isinstance(pl_canonical_for_core, dict) and "core_ebitda" in pl_canonical_for_core:
+        core_ebitda = float(pl_canonical_for_core.get("core_ebitda") or 0.0)
+    else:
+        # Fallback: narrow definition matching chart_of_accounts.py:1418
+        # exactly (the two named-account sums), so even the fallback path
+        # agrees with the canonical answer.
+        oi_758_fb = float(pl_canonical_for_core.get("other_income_758", 0.0) if isinstance(pl_canonical_for_core, dict) else 0.0)
+        oi_781_fb = float(pl_canonical_for_core.get("other_income_781_reversals", 0.0) if isinstance(pl_canonical_for_core, dict) else 0.0)
+        core_ebitda = ebitda_statutory - oi_758_fb - oi_781_fb
+    net_debt = total_debt - bs.get("cash", 0.0)
+
+    metrics.extend([
+        # Liquidity
+        {"name": "quick_ratio",          "value": safe(bs.get("cash", 0.0) + ar, current_liab),       "unit": "ratio", "direction": "higher"},
+        {"name": "cash_ratio",           "value": safe(bs.get("cash", 0.0), current_liab),            "unit": "ratio", "direction": "higher"},
+        {"name": "working_capital",      "value": round(current_assets - current_liab, 2),            "unit": "RON",   "direction": "higher"},
+        {"name": "net_debt",             "value": round(net_debt, 2),                                 "unit": "RON",   "direction": "lower"},
+        {"name": "net_debt_to_ebitda",   "value": safe(net_debt, ebitda_statutory),                   "unit": "ratio", "direction": "lower"},
+        # Leverage
+        {"name": "equity_ratio",         "value": safe(total_equity, total_assets),                   "unit": "ratio", "direction": "higher"},
+        {"name": "debt_to_assets",       "value": safe(total_debt, total_assets),                     "unit": "ratio", "direction": "lower"},
+        {"name": "lt_debt_to_equity",    "value": safe(lt_debt, total_equity),                        "unit": "ratio", "direction": "lower"},
+        # Coverage
+        {"name": "ebitda_to_interest",   "value": safe(ebitda_statutory, interest),                   "unit": "ratio", "direction": "higher"},
+        {"name": "dscr",                 "value": safe(ebitda_statutory, interest + st_debt),         "unit": "ratio", "direction": "higher"},
+        # 8-year amortization proxy for LT principal — methodology cheat
+        # sheet calls this the "DSCR with LT principal" view.
+        {"name": "dscr_with_lt_principal","value": safe(ebitda_statutory, interest + lt_debt / 8.0),   "unit": "ratio", "direction": "higher"},
+        # Efficiency
+        {"name": "asset_turnover",       "value": safe(revenue, total_assets),                        "unit": "ratio", "direction": "higher"},
+        {"name": "dso",                  "value": safe(ar * 365, revenue),                            "unit": "days",  "direction": "lower"},
+        {"name": "dio",                  "value": safe(inventory * 365, total_operating_expense),     "unit": "days",  "direction": "lower"},
+        {"name": "dpo",                  "value": safe(ap * 365, total_operating_expense),            "unit": "days",  "direction": "higher"},
+        # CCC composes the three above. None-safe in the FE; here we
+        # surface only when all three components are computable.
+        {"name": "ccc",                  "value": (
+            None if (current_liab == 0 or revenue == 0 or total_operating_expense == 0)
+            else round(
+                (ar * 365 / revenue)
+                + (inventory * 365 / total_operating_expense)
+                - (ap * 365 / total_operating_expense),
+                4,
+            )
+        ), "unit": "days", "direction": "lower"},
+        {"name": "inventory_turnover",   "value": safe(total_operating_expense, inventory),           "unit": "ratio", "direction": "higher"},
+        # Margins — operating_margin (operational EBIT) + core_ebitda_margin.
+        # `operating_margin` here uses `operating_profit` (= OPERATIONAL
+        # EBIT, 722-excluded). The statutory operating margin would use
+        # `ebit_statutory` if we surfaced it; not in this batch.
+        {"name": "operating_margin",     "value": safe(operating_profit, revenue),                    "unit": "ratio", "direction": "higher"},
+        {"name": "core_ebitda_margin",   "value": safe(core_ebitda, revenue),                         "unit": "ratio", "direction": "higher"},
+        # Core EBITDA itself — surfaced as a RON figure so the FE can
+        # render the dual-basis card without recomputing.
+        {"name": "core_ebitda",          "value": round(core_ebitda, 2),                              "unit": "RON",   "direction": "higher"},
+    ])
+
     # ── Altman Z″ score (emerging-markets variant) + composite credit ──
-    # Ported from reference/financial_analysis.py build_credit_score().
+    # Ported from archive/calibration_toolkit/financial_analysis.py build_credit_score().
     # The Z″ formula uses BOOK retained earnings (not net income), so this
     # is robust against a single-year loss; the composite score blends Z″
     # with profitability, leverage, coverage, DSCR, liquidity, and equity
@@ -1213,14 +1608,7 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
             + 0.05 * eq_subscore
         )
 
-        # Letter grade mapping.
-        if composite >= 90: letter_grade = "AAA"
-        elif composite >= 80: letter_grade = "A"
-        elif composite >= 70: letter_grade = "BBB"
-        elif composite >= 60: letter_grade = "BB"
-        elif composite >= 50: letter_grade = "B"
-        elif composite >= 40: letter_grade = "CCC"
-        else: letter_grade = "CC"
+        letter_grade = _composite_to_letter_grade(composite)
 
         # Surface Altman + composite + sub-scores as calculated_metrics so the
         # CreditScoreCard renders without a separate DB query.
@@ -1526,7 +1914,7 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
         )
 
     # ── RISK INVENTORY — 5-8 named risks per analysis ───────────────────
-    # Ported from reference/financial_analysis.py build_risk_inventory().
+    # Ported from archive/calibration_toolkit/financial_analysis.py build_risk_inventory().
     # These are the structural risks a CFO scans for when reading a deal
     # memo: receivables-allowance quality, liquidity tightness, raw-material
     # exposure, affiliate-income dependency, asset maturity, and leverage.
@@ -1654,10 +2042,69 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     return deduped
 
 
+def _convert_currency(
+    value: Any,
+    source_currency: str,
+    display_currency: str,
+    fx_rates: Optional[Dict[str, float]],
+) -> Any:
+    """Convert a monetary value from source to display currency.
+
+    `fx_rates` follows the BNR shape from `fx_rates.get_fx_rates()` —
+    EUR-base, where rates["RON"]=4.97 means 1 EUR ≈ 4.97 RON. Conversion
+    formula: `amount_dst = amount_src * (rates[dst] / rates[src])`.
+    Non-numeric inputs pass through unchanged; mismatched/missing rates
+    return the source value so the briefing never silently shows garbage.
+    """
+    if value is None or not isinstance(value, (int, float)):
+        return value
+    src = (source_currency or "RON").upper()
+    dst = (display_currency or src).upper()
+    if dst == src or not fx_rates:
+        return value
+    src_rate = fx_rates.get(src)
+    dst_rate = fx_rates.get(dst)
+    if not src_rate or not dst_rate:
+        return value
+    return value * (dst_rate / src_rate)
+
+
+def _convert_briefing_facts(
+    facts: Dict[str, Any],
+    source_currency: str,
+    display_currency: str,
+    fx_rates: Optional[Dict[str, float]],
+) -> Dict[str, Any]:
+    """Walk briefing_facts and convert every monetary field. Ratios + pct
+    fields (anything ending in `_pct`, `_margin`, `_ratio`, `_pct_*`, or
+    inside the `ratios` sub-dict that isn't itself a money amount) stay
+    untouched — they're dimensionless and don't change with FX."""
+    if display_currency == source_currency or not fx_rates:
+        return facts
+    out: Dict[str, Any] = {}
+    for k, v in facts.items():
+        if k == "ratios" and isinstance(v, dict):
+            # Sub-dict: only `net_debt` is currency-denominated; ratios are dimensionless.
+            sub: Dict[str, Any] = {}
+            for rk, rv in v.items():
+                if rk == "net_debt":
+                    sub[rk] = _convert_currency(rv, source_currency, display_currency, fx_rates)
+                else:
+                    sub[rk] = rv
+            out[k] = sub
+        elif isinstance(v, (int, float)):
+            out[k] = _convert_currency(v, source_currency, display_currency, fx_rates)
+        else:
+            out[k] = v
+    return out
+
+
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
                   org: Dict[str, Any], period_id: str,
                   parsed: Optional[Dict[str, Any]] = None,
-                  valuation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                  valuation: Optional[Dict[str, Any]] = None,
+                  display_currency: Optional[str] = None,
+                  fx_rates: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
     """Call Opus 4.7 with the metrics + industry context. Returns:
        { briefing: str, recommendations: [...], alerts: [...] }
 
@@ -1706,14 +2153,25 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "pl": "Odpowiedz po polsku.",
     }
     lang_instruction = language_instructions.get(output_language, language_instructions["en"])
-    # Currency formatting hint — locale conventions follow the language.
-    currency_hint = {
-        "en": "Numbers and currency in English locale (1,234,567 RON).",
-        "ro": "Numere și monedă în format românesc (1.234.567 RON).",
-        "de": "Zahlen und Währung im deutschen Format (1.234.567 €).",
-        "fr": "Nombres et monnaie au format français (1 234 567 €).",
-        "es": "Números y moneda en formato español (1.234.567 €).",
-    }.get(output_language, "")
+
+    # ── Display currency — drives both the FX-converted numbers in
+    # briefing_facts AND the currency suffix the LLM uses in prose. The
+    # source currency comes from the statements; display defaults to it
+    # unless the regenerate endpoint passes an explicit override from
+    # the user's TopHeader currency toggle (RON/EUR/USD).
+    source_currency = (assembled["statements"].get("currency") or "RON").upper()
+    effective_display = (display_currency or source_currency).upper()
+    # Currency formatting hint — uses the display currency code, with
+    # locale-appropriate thousand/decimal separators per the output language.
+    _example_amount = "1,234,567" if output_language in ("en",) else (
+        "1 234 567" if output_language == "fr" else "1.234.567"
+    )
+    currency_hint = (
+        f"Numbers in {output_language.upper()} locale; cite currency as "
+        f"'{effective_display}' (e.g. '{_example_amount} {effective_display}'). "
+        f"Every monetary figure in `briefing_facts` is pre-converted to "
+        f"{effective_display} — do NOT re-convert."
+    )
 
     if is_financial:
         system = (
@@ -1741,6 +2199,24 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             " - Total debt → `briefing_facts.total_debt`\n"
             " - Equity → `briefing_facts.total_equity`\n"
             " - Cash → `briefing_facts.cash`\n\n"
+            # ── F3.16-3b.6 EBITDA RULE — binding constraint on prose ─────
+            # Closes the Carniprod −6.87M briefing-prose problem (the LLM
+            # combined PL line items to produce an EBITDA value that
+            # appeared nowhere in the engine's canonical fields). Per
+            # docs/F3.16-3b6-f42-hardening-plan.md §4 — the engine is the
+            # source of truth; LLM prose may reference canonical fields
+            # by name but MUST NOT compute new values.
+            "EBITDA RULE — EBITDA values referenced in the briefing MUST come\n"
+            "from the canonical fields in the input dict. Specifically: use\n"
+            "`briefing_facts.operating_ebitda` (equivalent to\n"
+            "`methodology.ebitda.reported`) for headline statements;\n"
+            "reference `methodology.ebitda.strict` / `cash` / `adjusted` by\n"
+            "name when comparing methodologies. DO NOT compute new EBITDA\n"
+            "values in prose. Do NOT sum or transform PL line items to\n"
+            "produce a different EBITDA. If a methodology variant you want\n"
+            "to reference is missing from the input, say so explicitly\n"
+            "(\"cash-view EBITDA was not computed for this period\") rather\n"
+            "than approximating one.\n\n"
             "If `briefing_facts.operating_ebitda > 0` you MUST NOT describe\n"
             "the company as posting an operating loss. The operational-view\n"
             "EBITDA (excluding 722) can be negative even when the\n"
@@ -1845,7 +2321,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     cash_val = bs_canonical.get("cash", 0.0)
     ebitda_for_ratios = operating_ebitda if operating_ebitda else 1e-9
 
-    briefing_facts = {
+    briefing_facts_raw = {
         # P&L — operating view (matches the frontend P&L tab + KPI tiles).
         "total_operating_revenue": total_operating_revenue,
         "operating_ebitda": operating_ebitda,
@@ -1888,13 +2364,29 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "net_debt": round(total_debt - cash_val, 2),
         },
     }
+    # ── FX conversion ─────────────────────────────────────────────────
+    # Convert every monetary value in briefing_facts from the source
+    # currency (the trial balance's native currency, almost always RON)
+    # to the user's display currency. Ratios + percentages stay as-is —
+    # they're dimensionless. The LLM then narrates in the converted
+    # currency, so toggling RON → EUR in the top bar produces a
+    # regenerated briefing that says "€1,634,000 revenue" instead of
+    # "8,121,590 RON revenue".
+    briefing_facts = _convert_briefing_facts(
+        briefing_facts_raw, source_currency, effective_display, fx_rates
+    )
 
     user_payload = {
         "company": {
             "name": assembled["statements"].get("companyName"),
             "industry_key": industry_key,
             "industry_display_name": industry_display,
-            "currency": assembled["statements"].get("currency", "RON"),
+            # `currency` is the DISPLAY currency the briefing should cite
+            # — already applied to every number in `briefing_facts`. The
+            # original source currency is kept on `source_currency` for
+            # auditability (e.g. "company filed in RON; report displays in EUR").
+            "currency": effective_display,
+            "source_currency": source_currency,
             "period_label": assembled["statements"].get("periodLabel"),
         },
         "document": {
@@ -2140,7 +2632,13 @@ def _run_sales_dataset_pipeline(doc: Dict[str, Any]) -> Optional[str]:
     shaped (caller falls back to the generic LLM-summary path).
     """
     from . import _supabase
-    from ._sales_extract import is_sales_dataset, stream_sales_rows, aggregate_sku_lines
+    from ._sales_extract import (
+        aggregate_sku_lines,
+        extract_category_dio,
+        extract_category_dio_from_analysis_sheet,
+        is_sales_dataset,
+        stream_sales_rows,
+    )
     from ._sku_classify import classify_portfolio
 
     # Mint a signed URL + download the bytes so openpyxl can read them.
@@ -2239,7 +2737,31 @@ def _run_sales_dataset_pipeline(doc: Dict[str, Any]) -> Optional[str]:
         logger.info("[sales] inserted %d/%d sku_lines into dataset %s", inserted, len(line_rows), dataset_id)
 
         # 3. Aggregate + classify.
-        agg_rows = aggregate_sku_lines(lines)
+        # Per-category DIO is read from TWO possible sources, preferring
+        # the operator-set targets in the Analysis sheet over the
+        # computed actuals in the standalone DIO sheet's Region 2:
+        #
+        #   1. Analysis sheet (cols 60-63 in Trading_analysis_*.xlsx) —
+        #      operator-chosen realistic targets like LEGUME=60d,
+        #      JELEURI=180d. Built by the analyst when reasoning about
+        #      working capital, so they reflect business reality.
+        #   2. DIO sheet Region 2 — naive (inventory ÷ COGS × 365)
+        #      computations that can produce extreme outliers
+        #      (JELEURI=1001.7d ≈ 3 years), useful only when the
+        #      Analysis sheet doesn't carry a value for that category.
+        #
+        # The dicts are merged with Analysis winning per-key; DIO sheet
+        # entries fill in any categories the Analysis sheet missed.
+        # Both downstream paths (aggregate_sku_lines fallback chain,
+        # FE category-card display) just see one merged dict.
+        analysis_dio_map = extract_category_dio_from_analysis_sheet(xlsx_bytes)
+        dio_sheet_map = extract_category_dio(xlsx_bytes)
+        category_dio_map = {**dio_sheet_map, **analysis_dio_map}
+        logger.info(
+            "[sales] category DIO sourced: analysis_sheet=%d cats, dio_sheet=%d cats, merged=%d cats",
+            len(analysis_dio_map), len(dio_sheet_map), len(category_dio_map),
+        )
+        agg_rows = aggregate_sku_lines(lines, category_dio=category_dio_map)
         # classify_portfolio expects 'sku' + 'revenue' keys; bridge to its API.
         for a in agg_rows:
             a["sku"] = a["product_name"]
@@ -2278,6 +2800,7 @@ def _run_sales_dataset_pipeline(doc: Dict[str, Any]) -> Optional[str]:
             "channels_present": c.get("channels_present") or [],
             "clients_present": c.get("clients_present") or [],
         } for c in classified]
+        any_dio_drops_this_upload = False
         for i in range(0, len(agg_inserts), 400):
             try:
                 ac.insert("sku_aggregates", agg_inserts[i:i+400], returning=False)
@@ -2304,16 +2827,38 @@ def _run_sales_dataset_pipeline(doc: Dict[str, Any]) -> Optional[str]:
                         for row in agg_inserts[i:i+400]
                     ]
                     ac.insert("sku_aggregates", fallback, returning=False)
-                    logger.warning(
-                        "[sales] DIO columns absent from sku_aggregates; "
-                        "inserted %d rows without them (add the columns to "
-                        "persist DIO).", len(fallback),
+                    # 2026-05-26 — loud-failure plumbing. The defensive
+                    # retry preserved the upload but silently dropped
+                    # every DIO value, and the warning scrolled past in
+                    # the log noise for weeks. Now we ALSO mark the
+                    # service as degraded so /api/health surfaces it
+                    # and the FE shows a banner. Operator runs the SQL
+                    # migration → flag clears on the next clean upload.
+                    any_dio_drops_this_upload = True
+                    _record_dio_drop(
+                        dataset_id=dataset_id,
+                        rows_dropped=len(fallback),
+                        first_error=str(e)[:300],
+                    )
+                    logger.error(
+                        "[sales] DIO PERSISTENCE DEGRADED — sku_aggregates "
+                        "is missing days_inventory_on_hand / inventory_value_krn / "
+                        "cogs_krn columns. Inserted %d rows WITHOUT DIO. "
+                        "Run supabase/schema_phase_sku_dio_columns.sql to fix. "
+                        "Dataset=%s. PostgREST error: %s",
+                        len(fallback), dataset_id, str(e)[:300],
                     )
                 else:
                     raise
 
         ac.update("sales_datasets", {"sku_count": len(agg_inserts)},
                   filters={"id": f"eq.{dataset_id}"})
+
+        # Clean upload — clears the degraded flag so /api/health flips
+        # back to ok and the FE banner disappears on next poll. Operator
+        # has run the schema migration; the silent-drop path is gone.
+        if not any_dio_drops_this_upload:
+            reset_dio_persistence_state()
 
     return dataset_id
 
@@ -2426,6 +2971,39 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         was_extra = bool(row.get("metered_extra"))
         if success:
             _ug.commit_document(user_id, was_extra=was_extra)
+            # WS2 — when the doc succeeded AND was flagged as a paid extra,
+            # record one usage unit against the user's Stripe metered item.
+            # Idempotency key = document_id so any retry of this commit
+            # path (e.g. orchestrator restart between commit + return) is
+            # a no-op on the Stripe side. Best-effort: errors are logged
+            # but don't propagate — the local quota was already committed
+            # and the operator can reconcile from billing logs.
+            if was_extra:
+                try:
+                    from . import _billing
+                    result = _billing.record_metered_extra_doc(
+                        user_id=user_id,
+                        reservation_id=document_id,
+                    )
+                    if not result.get("ok"):
+                        logger.error(
+                            "[pipeline] record_metered_extra_doc returned non-ok for "
+                            "doc=%s user=%s — manual reconciliation may be needed. "
+                            "Result: %s",
+                            document_id, user_id, result,
+                        )
+                    elif not result.get("billed"):
+                        logger.info(
+                            "[pipeline] metered extra-doc not billed (doc=%s reason=%s)",
+                            document_id, result.get("reason"),
+                        )
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "[pipeline] record_metered_extra_doc raised — local "
+                        "extras_billed_period already bumped, Stripe side missed "
+                        "this charge. doc=%s user=%s",
+                        document_id, user_id,
+                    )
         else:
             _ug.release_document(user_id, was_extra=was_extra)
     except Exception:
@@ -2673,7 +3251,7 @@ def _run_pipeline_sync(document_id: str) -> None:
             # account 215 (investment property) and account 706 (rental income)
             # dominance, which gates the valuation method choice below.
             stored_industry_key = (org.get("industry_key") or "").lower().strip() or None
-            classification = _ro_coa.detect_industry(assembled)
+            classification = _ro_pack().classify_industry({"assembled": assembled})
             detected_industry_key = classification.get("industry_key") if classification.get("confidence", 0) >= 0.5 else None
             effective_industry_key = stored_industry_key if stored_industry_key and stored_industry_key != "generic" else (detected_industry_key or stored_industry_key)
             if classification.get("confidence", 0) >= 0.5:
@@ -2717,12 +3295,50 @@ def _run_pipeline_sync(document_id: str) -> None:
 
         # Persist the assembled statements blob on financial_periods so the
         # period read endpoint can return it without re-deriving.
-        with _supabase.admin() as admin_client:
-            admin_client.update(
-                "financial_periods",
-                {"updated_at": _now_iso()},  # touch to bust cache
-                filters={"id": f"eq.{period_id}"},
+        # F4.3 — also persist the detection envelope (country/standard/
+        # doc_type/industry detection + methodology pin) per
+        # CANONICAL_SCHEMA_V1.md §7. Best-effort: if the JSONB column
+        # doesn't exist yet (pre-F4.3 migration), the UPDATE fails and
+        # we log + continue.
+        envelope_payload: Dict[str, Any] = {}
+        try:
+            from engine.detection import build_detection_envelope  # type: ignore
+            envelope = build_detection_envelope(
+                classification=None,  # full upload classification only available in read path
+                assembled=assembled,
+                methodology_id="ro_ras_2025_v1",
+                industry_key=effective_industry_key,
+                period_start=parsed.get("period_end"),
+                period_end=parsed.get("period_end"),
+                currency=parsed.get("currency") or "RON",
             )
+            envelope_payload = {
+                "detection_envelope": envelope,
+                "methodology_version": envelope.get("methodology_version") or "",
+            }
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "[pipeline] detection envelope build failed (non-fatal); "
+                "read path will recompute"
+            )
+        with _supabase.admin() as admin_client:
+            try:
+                admin_client.update(
+                    "financial_periods",
+                    {"updated_at": _now_iso(), **envelope_payload},  # touch to bust cache + persist envelope
+                    filters={"id": f"eq.{period_id}"},
+                )
+            except Exception:  # noqa: BLE001
+                # F4.3 column may not exist yet on this DB — retry without it.
+                logger.exception(
+                    "[pipeline] period UPDATE with envelope failed; "
+                    "retrying without envelope columns"
+                )
+                admin_client.update(
+                    "financial_periods",
+                    {"updated_at": _now_iso()},
+                    filters={"id": f"eq.{period_id}"},
+                )
 
         _admin_set_status(
             document_id,
@@ -2785,6 +3401,160 @@ def _rebuild_assembled(line_items: List[Dict[str, Any]]) -> Dict[str, Any]:
         elif bucket in pl_buckets:
             pl[pl_buckets[bucket]] += amount
     return {"balanceSheet": bs, "incomeStatement": pl}
+
+
+def _rebuild_assembled_for_briefing(
+    line_items: List[Dict[str, Any]],
+    period: Dict[str, Any],
+    org: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Rebuild the FULL canonical-shaped `assembled` envelope the way
+    /api/period/{period_id} does — i.e. with `statements.assembled_pl`,
+    `assembled_bs`, `assembled_cf`, `companyName`, `currency`,
+    `periodLabel` populated — so `stage_narrate` can read its
+    `briefing_facts` from operating-view canonical values rather than
+    the coarse bucket sums returned by `_rebuild_assembled`.
+
+    Mirrors the canonical-reassembly block in `/api/period/{period_id}`
+    (search "canonical re-assembly" in this file). Used by the F2.8
+    `POST /api/period/{period_id}/briefing/regenerate` endpoint so the
+    regenerated briefing cites the same numbers the dashboard renders.
+    """
+    # F3.1c: dispatch via the Romania country pack rather than direct
+    # `_ro_coa` import. `_coa_mod` alias preserved so the call sites
+    # below read identically — the alias now points at the pack.
+    _coa_mod = _ro_pack()
+
+    # ── Legacy bucket aggregates (same map as _rebuild_assembled and
+    # the /api/period reconstruction). Needed so the response carries
+    # balanceSheet + incomeStatement alongside the canonical views.
+    bs_buckets = {
+        "cash": "cash", "ar": "accountsReceivable", "inventory": "inventory",
+        "otherCurrentAssets": "otherCurrentAssets",
+        "ppe": "propertyPlantEquipment", "intangibles": "intangibles",
+        "otherNonCurrentAssets": "otherNonCurrentAssets",
+        "ap": "accountsPayable", "stDebt": "shortTermDebt",
+        "otherCurrentLiab": "otherCurrentLiabilities",
+        "ltDebt": "longTermDebt",
+        "otherNonCurrentLiab": "otherNonCurrentLiabilities",
+        "shareCapital": "shareCapital",
+        "retainedEarnings": "retainedEarnings",
+        "otherEquity": "otherEquity",
+    }
+    pl_buckets = {
+        "revenue": "revenue", "cogs": "costOfGoodsSold",
+        "operatingExpenses": "operatingExpenses",
+        "depreciation": "depreciationAmortization",
+        "interestExpense": "interestExpense",
+        "otherIncome": "otherIncome",
+        "financialIncome": "financialIncome",
+        "financialExpense": "financialExpense",
+        "taxExpense": "taxExpense",
+    }
+    bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
+    pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
+    inv_var_memo = 0.0
+    for item in line_items:
+        bucket = item["bucket"]
+        amount = float(item["amount"] or 0)
+        code = (item.get("ro_account_code") or "").strip()
+        if bucket in bs_buckets:
+            bs[bs_buckets[bucket]] += amount
+        elif bucket in pl_buckets:
+            if bucket == "otherIncome" and code.startswith("711"):
+                inv_var_memo += amount
+            else:
+                pl[pl_buckets[bucket]] += amount
+
+    statements: Dict[str, Any] = {
+        "companyName": (org or {}).get("name") if org else None,
+        "industry": (org or {}).get("industry_display_name") if org else None,
+        "currency": period.get("currency", "RON"),
+        "periodLabel": period.get("period_end"),
+        "balanceSheet": {k: round(v, 2) for k, v in bs.items()},
+        "incomeStatement": {
+            **{k: round(v, 2) for k, v in pl.items()},
+            "inventoryVariationMemo": round(inv_var_memo, 2),
+        },
+        "supplementary": {"periodDays": 365},
+    }
+
+    # ── Canonical reassembly via assemble_statements ─────────────────
+    # Same flow as /api/period: rebuild `recovered_accounts` from
+    # line_items (preserving bucket_override for side-flipped rows),
+    # re-apply sign for rule.sign==-1, then call assemble_statements.
+    try:
+        recovered_accounts: List[Dict[str, Any]] = []
+        for li in (line_items or []):
+            code = li.get("ro_account_code") or ""
+            if not code:
+                continue
+            stored_bucket = li.get("bucket") or li.get("canonical_bucket") or ""
+            rule = _coa_mod.bucket_for(code)
+            bucket_override = None
+            if rule and stored_bucket and stored_bucket != rule.bucket:
+                legacy = _coa_mod.persistence_bucket(rule.bucket)
+                if stored_bucket != legacy:
+                    bucket_override = stored_bucket
+            row = {
+                "code": code,
+                "name": li.get("ro_account_name") or "",
+                "amount": float(li.get("amount") or 0),
+            }
+            if bucket_override:
+                row["bucket_override"] = bucket_override
+            recovered_accounts.append(row)
+        # Re-apply sign so assemble_statements sees the raw input.
+        for acct in recovered_accounts:
+            rule = _coa_mod.bucket_for(acct["code"])
+            if rule and rule.sign == -1:
+                acct["amount"] = -acct["amount"]
+        assembled_full = _coa_mod.assemble_statements(
+            recovered_accounts,
+            company_name=statements["companyName"] or "Entity",
+            currency=statements["currency"],
+            period_label=str(statements["periodLabel"]) if statements["periodLabel"] else "Period",
+            industry=(org or {}).get("industry_key") if org else None,
+        )
+        statements["assembled_bs"] = assembled_full["statements"].get("assembled_bs")
+        statements["assembled_pl"] = assembled_full["statements"].get("assembled_pl")
+        statements["assembled_cf"] = assembled_full["statements"].get("assembled_cf")
+        statements["assembled_bands"] = assembled_full["statements"].get("assembled_bands")
+        statements["assembled_piotroski"] = assembled_full["statements"].get("assembled_piotroski")
+        statements["subAggregates"] = assembled_full["statements"].get("subAggregates")
+        # F4.1e — surface the country-agnostic canonical envelope on the
+        # response statements. Lives at top level of `assembled_full`
+        # (sibling of `statements`), NOT under statements.assembled_*.
+        # Source: chart_of_accounts.assemble_statements line ~1817.
+        statements["assembled_canonical_v1"] = assembled_full.get("assembled_canonical_v1")
+        # F4.3 — surface the detection envelope (country/standard/doc_type/
+        # industry + methodology pin per CANONICAL_SCHEMA_V1.md §7).
+        try:
+            from engine.detection import build_detection_envelope as _bde  # type: ignore
+            statements["detection_envelope"] = _bde(
+                classification=None, assembled=assembled_full,
+                methodology_id="ro_ras_2025_v1",
+                industry_key=(org or {}).get("industry_key") if org else None,
+                currency=statements.get("currency"),
+                period_end=str(statements.get("periodLabel") or ""),
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("[briefing/regenerate] detection envelope build failed (non-fatal)")
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "[briefing/regenerate] canonical re-assembly failed (non-fatal); "
+            "falling back to bucket aggregates only"
+        )
+
+    # F4.6 — surface deprecated-field warnings on the response so
+    # consumers can migrate ahead of the 2Q sunset (~Nov 2026).
+    payload = {"statements": statements}
+    try:
+        from .deprecated_fields import attach_deprecated_fields
+        attach_deprecated_fields(payload)
+    except Exception:  # noqa: BLE001
+        logger.exception("[briefing/regenerate] deprecated_fields attach failed (non-fatal)")
+    return payload
 
 
 def _serialize_valuation(valuation: Optional[Dict[str, Any]],
@@ -3061,60 +3831,41 @@ class RunResponse(BaseModel):
     status: str
 
 
-class PasteTrialBalanceRequest(BaseModel):
-    text: str
+class ReviewReanalyzeRequest(BaseModel):
+    """F3.4 — Body for POST /api/period/{id}/review/reanalyze.
 
-
-class PasteTrialBalanceResponse(BaseModel):
-    accounts_parsed: int
-    canonical_tsv: str
-    sample_accounts: List[Dict[str, Any]]
+    Carries the user's per-session bucket overrides (`account_buckets`),
+    their confirmation of country / accounting standard, and the
+    `propose_as_calibration_rules` flag that promotes the overrides
+    to `org_coa_mappings_overrides` (org-wide).
+    """
+    account_buckets: Dict[str, str] = Field(default_factory=dict)
+    confirmed_country_code: Optional[str] = None
+    confirmed_standard: Optional[str] = None
+    notes: str = ""
+    propose_as_calibration_rules: bool = False
 
 
 def build_router() -> APIRouter:
     router = APIRouter(tags=["pipeline"])
 
-    @router.post("/api/paste-trial-balance", response_model=PasteTrialBalanceResponse)
-    def paste_trial_balance(
-        req: PasteTrialBalanceRequest,
-        authorization: Optional[str] = Header(None),
-    ) -> PasteTrialBalanceResponse:
-        """Deterministic parse of pasted trial-balance text.
+    # ── FX rates endpoint (currency toggle, BNR proxy) ────────────────
+    # Returns {base, rates, source, as_of, fetched_at, stale}. Backend
+    # proxy avoids browser CORS on bnr.ro + caches 24h across all FE clients.
+    @router.get("/api/fx-rates")
+    def get_fx_rates_endpoint(refresh: bool = False) -> Dict[str, Any]:
+        from .fx_rates import get_fx_rates
+        return get_fx_rates(force_refresh=refresh)
 
-        Doesn't touch storage / database / Claude — just validates the
-        input and returns parsed accounts + a canonical TSV the FE can
-        wrap as a synthetic File and feed into the normal upload flow.
-
-        Routing this through a backend endpoint (vs. parsing in the FE)
-        lets us share the same parser with file uploads and the same
-        error catalogue."""
-        jwt = _require_jwt(authorization)
-        # JWT validity only — no quota deduction here; the actual analysis
-        # cost is on /api/pipeline/run downstream.
-        _ = _user_id_from_jwt(jwt)
-
-        from . import _trial_balance_parser as _tb
-
-        try:
-            accounts = _tb.parse_pasted_trial_balance(req.text)
-        except _tb.ParseError as e:
-            logger.info("[paste-trial-balance] parse failed: %s", e.technical_detail)
-            raise HTTPException(status_code=400, detail=e.user_message)
-        if not accounts:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Pasted text was readable but didn't contain any numeric "
-                    "account rows. Are you sure this is a trial balance?"
-                ),
-            )
-
-        canonical = _tb.accounts_to_canonical_tsv(accounts)
-        return PasteTrialBalanceResponse(
-            accounts_parsed=len(accounts),
-            canonical_tsv=canonical,
-            sample_accounts=accounts[:5],
-        )
+    # F3-UX-2 follow-up: /api/paste-trial-balance endpoint removed after the
+    # FE Paste-Trial-Balance UI was deleted (no remaining FE caller; no
+    # external integrations found via grep). The request/response Pydantic
+    # models and the handler block were deleted together. If a third-party
+    # integration needs deterministic paste-parsing later, restore via:
+    #   1. Pydantic models PasteTrialBalanceRequest / PasteTrialBalanceResponse
+    #   2. Handler body — calls pack.parse_pasted_trial_balance + accounts_to_canonical_tsv
+    # The country-pack methods themselves (parse_pasted_trial_balance,
+    # accounts_to_canonical_tsv) remain available in the Romania pack.
 
     @router.post("/api/pipeline/run", response_model=RunResponse, status_code=202)
     def run_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
@@ -3414,21 +4165,114 @@ def build_router() -> APIRouter:
             })
 
         # Most recent analyzed period = the dashboard default.
+        #
+        # F3.15 Chunk 2 — prefer periods with meaningful data so a fresh
+        # dashboard load lands on the operator's most recent USEFUL
+        # analysis, not an empty SKU-misuploaded period that happens to
+        # be the newest. The data-status check needs the per-period
+        # has_meaningful_data computed below, so we do a quick pre-pass
+        # here using the same logic (total_assets metric + sku_analyses
+        # existence) — duplicates a few lines but avoids restructuring
+        # the whole function. Falls back to the legacy newest-with-docs
+        # rule if every period is empty (so the dashboard still has
+        # SOMETHING to show on edge accounts).
+        pre_period_ids = [pp["id"] for pp in periods if docs_by_period.get(pp["id"])]
+        pre_doc_ids = [dd["id"] for plist in docs_by_period.values() for dd in plist]
+        with _supabase.admin() as ac_pre:
+            pre_metrics = ac_pre.select(
+                "calculated_metrics",
+                filters={
+                    "period_id": "in.(" + ",".join(pre_period_ids) + ")",
+                    "name": "eq.total_assets",
+                },
+            ) if pre_period_ids else []
+            pre_sku = ac_pre.select(
+                "sku_analyses",
+                filters={"document_id": "in.(" + ",".join(pre_doc_ids) + ")"} if pre_doc_ids else {},
+            ) if pre_doc_ids else []
+        pre_ta_by_period: Dict[str, float] = {}
+        for mm in (pre_metrics or []):
+            try:
+                pre_ta_by_period[mm["period_id"]] = float(mm.get("value") or 0)
+            except (TypeError, ValueError):
+                continue
+        pre_sku_doc_ids = {ss.get("document_id") for ss in (pre_sku or []) if ss.get("document_id")}
+
+        def _period_has_data(pp: Dict[str, Any]) -> bool:
+            dlist = docs_by_period.get(pp["id"], [])
+            if not dlist:
+                return False
+            status = (dlist[0].get("status") or "").lower()
+            if status != "analyzed":
+                # In-flight uploads count as "has data" (don't skip them).
+                return True
+            return pre_ta_by_period.get(pp["id"], 0.0) > 0 or any(d["id"] in pre_sku_doc_ids for d in dlist)
+
         active_period_id = next(
-            (p["id"] for p in periods if docs_by_period.get(p["id"])),
+            (p["id"] for p in periods if _period_has_data(p)),
             None,
         )
+        # Final fallback — if every period is empty, still pick the
+        # newest-with-docs so the dashboard isn't completely blank.
+        if active_period_id is None:
+            active_period_id = next(
+                (p["id"] for p in periods if docs_by_period.get(p["id"])),
+                None,
+            )
 
         # Skip periods with zero live documents. The pipeline's `stage_persist`
         # always attaches a document on insert, so a doc-less period can only
         # appear when (a) every attached doc was soft-deleted or (b) a row
         # leaked through pre-fix code paths. Either way the UI never wants to
         # render them. (Step 5 of the docs-panel fix.)
+        #
+        # F3.15 Chunk 2 — `has_meaningful_data` per period. Bulk-load the
+        # total_assets metric for every period in one query (no N+1 risk
+        # even with hundreds of periods) plus an existence check on
+        # sku_analyses for the period's documents. The FE filters by this
+        # flag by default and shows "N empty periods hidden · show" at
+        # the picker's bottom for one-click reveal. The `status` guard
+        # keeps in-flight uploads visible: only `analyzed` periods with
+        # zero TB output AND no SKU output are flagged as empty.
+        period_ids = [p["id"] for p in periods if docs_by_period.get(p["id"])]
+        all_doc_ids = [d["id"] for plist in docs_by_period.values() for d in plist]
+        with _supabase.admin() as ac_bulk:
+            metric_rows = ac_bulk.select(
+                "calculated_metrics",
+                filters={
+                    "period_id": "in.(" + ",".join(period_ids) + ")",
+                    "name": "eq.total_assets",
+                },
+            ) if period_ids else []
+            sku_rows = ac_bulk.select(
+                "sku_analyses",
+                filters={"document_id": "in.(" + ",".join(all_doc_ids) + ")"} if all_doc_ids else {},
+            ) if all_doc_ids else []
+        total_assets_by_period: Dict[str, float] = {}
+        for m in (metric_rows or []):
+            try:
+                total_assets_by_period[m["period_id"]] = float(m.get("value") or 0)
+            except (TypeError, ValueError):
+                continue
+        sku_doc_ids = {s.get("document_id") for s in (sku_rows or []) if s.get("document_id")}
+
         period_rows = []
         for p in periods:
             doc_list = docs_by_period.get(p["id"], [])
             if not doc_list:
                 continue
+            # has_meaningful_data: True unless ALL these hold:
+            #   1. The primary doc is in 'analyzed' status (in-flight stays visible)
+            #   2. total_assets is zero/missing on this period
+            #   3. None of the period's docs have an sku_analyses row
+            # Conservative default: show. Hide only on proven emptiness.
+            primary_doc_status = (doc_list[0].get("status") or "").lower()
+            ta = total_assets_by_period.get(p["id"], 0.0)
+            has_sku = any(d["id"] in sku_doc_ids for d in doc_list)
+            if primary_doc_status == "analyzed" and ta == 0 and not has_sku:
+                has_data = False
+            else:
+                has_data = True
             period_rows.append({
                 "period_id": p["id"],
                 "period_label": p.get("period_end") or "Imported period",
@@ -3438,6 +4282,7 @@ def build_router() -> APIRouter:
                 "currency": p.get("currency"),
                 "documents": doc_list,
                 "extraction_confidence": p.get("extraction_confidence"),
+                "has_meaningful_data": has_data,
             })
 
         # Soft-delete window is 30 days — surface deleted docs that fall
@@ -3843,20 +4688,101 @@ def build_router() -> APIRouter:
 
     @router.post("/api/sales-datasets/{dataset_id}/rerun")
     def rerun_sales_dataset(dataset_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
-        """Re-classify a dataset without re-uploading. Useful after engine
-        rule changes — wipes sku_aggregates classifications, recomputes."""
+        """Re-classify a dataset AND re-extract DIO from the source XLSX.
+        Useful after engine rule changes OR parser upgrades.
+
+        2026-05-26 — extended from re-classify-only. Originally this
+        endpoint just re-ran `classify_portfolio` on existing aggregates,
+        so any improvement to the upload-time parsers (e.g. the new
+        Analysis-sheet DIO extraction) was invisible to existing
+        datasets — users had to re-upload from scratch to see new
+        category DIO values. That's unintuitive: "rerun" should mean
+        "run the pipeline again", not "re-color the existing buckets".
+        Now: fetch the original XLSX → re-extract the DIO map (Analysis
+        sheet preferred, DIO sheet fallback) → update each SKU row's
+        `days_inventory_on_hand` from the category map → reclassify.
+        """
+        from ._sales_extract import (
+            extract_category_dio,
+            extract_category_dio_from_analysis_sheet,
+            _normalize_category,
+        )
         from ._sku_classify import classify_portfolio
+        import re as _re
 
         jwt = _require_jwt(authorization)
         with _supabase.per_user(jwt) as client:
             ds = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             if not ds:
                 raise HTTPException(404, "Dataset not found.")
+            ds_row = ds[0]
 
         with _supabase.admin() as ac:
             aggs = ac.select("sku_aggregates", filters={"dataset_id": f"eq.{dataset_id}"})
             if not aggs:
                 return {"reclassified": 0}
+
+            # ── DIO re-extraction pass ────────────────────────────
+            # The dataset row carries `document_id` linking to the
+            # original upload. If we can fetch the storage_path we
+            # can re-run the modern DIO parsers on the source bytes
+            # and refresh the per-SKU `days_inventory_on_hand` column.
+            dio_updated = 0
+            try:
+                doc_id = ds_row.get("document_id")
+                if doc_id:
+                    docs = ac.select("documents", filters={"id": f"eq.{doc_id}"}, single=True)
+                    if docs:
+                        storage_path = docs[0].get("storage_path")
+                        if storage_path:
+                            signed = ac.signed_url("documents", storage_path, expires_in=300)
+                            r = httpx.get(signed, timeout=60.0)
+                            r.raise_for_status()
+                            xlsx_bytes = r.content
+                            analysis_map = extract_category_dio_from_analysis_sheet(xlsx_bytes)
+                            dio_sheet_map = extract_category_dio(xlsx_bytes)
+                            cat_dio_map = {**dio_sheet_map, **analysis_map}
+                            logger.info(
+                                "[rerun] dataset=%s re-extracted category DIO: "
+                                "analysis=%d, dio_sheet=%d, merged=%d",
+                                dataset_id, len(analysis_map), len(dio_sheet_map),
+                                len(cat_dio_map),
+                            )
+                            # Apply per-aggregate, mirroring aggregate_sku_lines
+                            # fallback order: explicit DIO (kept as-is) >
+                            # computed inv/cogs (kept as-is) > category map.
+                            # We only OVERWRITE when the existing value is
+                            # null — preserves any per-SKU DIO that was
+                            # already correct from a richer-shaped workbook.
+                            for a in aggs:
+                                if a.get("days_inventory_on_hand") is not None:
+                                    continue
+                                cat = _normalize_category(a.get("category") or "")
+                                dio = None
+                                if cat and cat in cat_dio_map:
+                                    dio = cat_dio_map[cat]
+                                elif cat:
+                                    base = _re.sub(r"\s+FILE$", "", cat).strip()
+                                    if base and base in cat_dio_map:
+                                        dio = cat_dio_map[base]
+                                if dio is not None:
+                                    ac.update(
+                                        "sku_aggregates",
+                                        {"days_inventory_on_hand": round(float(dio), 2)},
+                                        filters={"id": f"eq.{a['id']}"},
+                                    )
+                                    a["days_inventory_on_hand"] = round(float(dio), 2)
+                                    dio_updated += 1
+                            logger.info(
+                                "[rerun] dataset=%s applied category DIO to %d SKU rows",
+                                dataset_id, dio_updated,
+                            )
+            except Exception:  # noqa: BLE001
+                # DIO refresh is best-effort — don't fail the reclassify
+                # if the source workbook is unreadable. Log and continue.
+                logger.exception("[rerun] DIO re-extraction failed; reclassify only")
+
+            # ── Reclassify pass (existing behaviour) ──────────────
             # Bridge column names: classifier expects 'sku' + 'revenue'.
             for a in aggs:
                 a["sku"] = a["product_name"]
@@ -3874,7 +4800,10 @@ def build_router() -> APIRouter:
                     },
                     filters={"id": f"eq.{c['id']}"},
                 )
-            return {"reclassified": len(classified)}
+            return {
+                "reclassified": len(classified),
+                "dio_refreshed": dio_updated,
+            }
 
     @router.get("/api/sales-datasets/compare")
     def compare_sales_datasets(
@@ -4447,7 +5376,10 @@ def build_router() -> APIRouter:
         # per-account `line_items` so the page-load response carries the
         # same canonical facts the pipeline computed at write time.
         try:
-            from . import _ro_coa as _coa_mod  # local import — keeps cold-start cheap
+            # F3.1c: dispatch via the country pack rather than direct
+            # `_ro_coa` import. `_coa_mod` alias preserved so the call
+            # sites below read identically.
+            _coa_mod = _ro_pack()
             recovered_accounts = []
             for li in (line_items or []):
                 code = li.get("ro_account_code") or ""
@@ -4468,7 +5400,7 @@ def build_router() -> APIRouter:
                 if rule and stored_bucket and stored_bucket != rule.bucket:
                     # Also tolerate the legacy-bucket bridge (e.g. canonical
                     # `ar_intercompany` persists as `otherCurrentAssets`).
-                    legacy = _coa_mod._persistence_bucket(rule.bucket)
+                    legacy = _coa_mod.persistence_bucket(rule.bucket)
                     if stored_bucket != legacy:
                         bucket_override = stored_bucket
                 row = {
@@ -4499,11 +5431,266 @@ def build_router() -> APIRouter:
             statements["assembled_bs"] = assembled_full["statements"].get("assembled_bs")
             statements["assembled_pl"] = assembled_full["statements"].get("assembled_pl")
             statements["assembled_cf"] = assembled_full["statements"].get("assembled_cf")
+            # F1.f / F1.g — bands + Piotroski live on the re-assembled
+            # canonical view; carry them through to the response.
+            statements["assembled_bands"] = assembled_full["statements"].get("assembled_bands")
+            statements["assembled_piotroski"] = assembled_full["statements"].get("assembled_piotroski")
             statements["subAggregates"] = assembled_full["statements"].get("subAggregates")
+            # F4.1e — surface the country-agnostic canonical envelope on the
+            # response statements. Lives at top level of `assembled_full`
+            # (sibling of `statements`), NOT under statements.assembled_*.
+            # Source: chart_of_accounts.assemble_statements line ~1817.
+            statements["assembled_canonical_v1"] = assembled_full.get("assembled_canonical_v1")
+
+            # F3.27-DRIFT-TRANSFORMATION-GLUE — Fix A1.
+            # The re-assembled `statements["assembled_bs"]["bs_balance_delta"]`
+            # above comes from `_coa_mod.assemble_statements(recovered_accounts)`.
+            # Because `recovered_accounts` is reconstructed from persisted
+            # `statement_line_items` — which omits _IGNORE_BUCKETS accounts
+            # (121, 581) and loses semantic-fallback routing context — the
+            # round-trip produces a different bs_balance_delta than the engine
+            # emitted at write time. `scripts/measure_bs_drift_roundtrip.py`
+            # proves this round-trip discrepancy ranges from 0.44% (Frozen) to
+            # 35.47% (RealEstate) across the 8 prod fixtures, and confirms
+            # that subtracting `methodology.totals` from the canonical
+            # envelope reproduces the engine's authoritative bs_balance_delta
+            # to the cent on every fixture. Override the round-tripped value
+            # with the envelope-true value so the FE consumes the engine's
+            # emission rather than a re-assembly artifact. All other
+            # re-assembled assembled_bs.* fields (totals, sub-aggregates,
+            # breakouts) are preserved unchanged.
+            # CRITICAL: read from the PERSISTED envelope (`period[...]`,
+            # the DB row written at upload time), NOT `assembled_full[...]`
+            # (the re-assembled output of the same lossy round-trip we are
+            # trying to override). `assembled_full["assembled_canonical_v1"]`
+            # carries RE-COMPUTED totals from `recovered_accounts`, which by
+            # definition reproduce the same round-trip delta we want to
+            # replace. The PERSISTED envelope at `period["assembled_canonical_v1"]`
+            # carries the engine's WRITE-TIME totals — those are what the
+            # F-A3.1 canary measures, and the only correct source for the
+            # override. (Browser-verified: reading from assembled_full
+            # gave 3.49% drift identical to the bug; reading from period
+            # gives the engine truth of 0.0125%.)
+            try:
+                _env = period.get("assembled_canonical_v1") or {}
+                _methodology = _env.get("methodology") or {}
+                _totals = _methodology.get("totals") or {}
+                if all(k in _totals for k in ("total_assets", "total_liabilities", "total_equity")):
+                    _ta = float(_totals["total_assets"])
+                    _tl = float(_totals["total_liabilities"])
+                    _te = float(_totals["total_equity"])
+                    _a_bs = statements.get("assembled_bs") or {}
+                    _a_bs["bs_balance_delta"] = round(_ta - (_tl + _te), 2)
+                    statements["assembled_bs"] = _a_bs
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "[/api/period] Fix A1 bs_balance_delta override failed (non-fatal)"
+                )
+
+            # F4.3 — surface the detection envelope (country/standard/doc_type/
+            # industry + methodology pin per CANONICAL_SCHEMA_V1.md §7).
+            try:
+                from engine.detection import build_detection_envelope as _bde  # type: ignore
+                statements["detection_envelope"] = _bde(
+                    classification=None, assembled=assembled_full,
+                    methodology_id="ro_ras_2025_v1",
+                    industry_key=(org or {}).get("industry_key") if org else None,
+                    currency=statements.get("currency"),
+                    period_end=str(statements.get("periodLabel") or ""),
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("[/api/period] detection envelope build failed (non-fatal)")
         except Exception:  # noqa: BLE001
             logger.exception("[/api/period] canonical re-assembly failed (non-fatal)")
 
+        # ── F3.3 — Per-upload confidence report ─────────────────────
+        # Surface the country-detection / layout / reconciliation /
+        # Review-Mode-trigger envelope on every analysis page. Uses
+        # the assembled output (already produced above) plus a
+        # synthesised content blob (line-items code+name concat) for
+        # detection — the original document bytes aren't always
+        # available at read time, but the line-items carry enough RAS
+        # signal for the pack's detect_from_content() to score
+        # confidently.
+        confidence_dict: Optional[Dict[str, Any]] = None
+        try:
+            from engine.core.upload_classifier import classify_upload
+            from engine.core.confidence_engine import (
+                build_confidence_report,
+                confidence_report_to_dict,
+            )
+            # Synthesise a content blob from line items + period
+            # metadata so the pack's existing text-pattern detector
+            # has something to scan. This is sufficient for high-
+            # confidence Romanian detection (account codes alone
+            # carry 0.30 weight, language labels 0.25). Real
+            # uploads at write time will use the original document
+            # bytes (future enhancement once we plumb them through).
+            synth_lines = []
+            for li in (line_items or [])[:200]:
+                code = li.get("ro_account_code") or ""
+                name = li.get("ro_account_name") or ""
+                synth_lines.append(f"{code} {name}")
+            synth_lines.append(f"Moneda: {period.get('currency', 'RON')}")
+            synth_lines.append("Sume totale credit  Sold final debitor")  # SAGA header marker
+            synth = "\n".join(synth_lines).encode("utf-8", errors="ignore")
+            fn_hint = (doc or {}).get("original_filename") or "balanta.xlsx"
+            classification = classify_upload(synth, fn_hint)
+            report = build_confidence_report(classification, assembled_full)
+            confidence_dict = confidence_report_to_dict(report)
+            # F4.4-int — run fan-out routing on top of the classification
+            # so the detection envelope's routing_decision field gets
+            # populated. With one pack registered, fan-out collapses to
+            # fast_path; with multiple, the highest-coverage pack is
+            # auto-picked. Either way we rebuild the detection envelope
+            # with full classification + routing_decision attached
+            # (the earlier build at line ~5078 used classification=None).
+            try:
+                from engine.routing import route_with_fan_out as _route, routing_decision_dict as _rdd
+                from engine.detection import build_detection_envelope as _bde2
+                _routing_result = _route(
+                    classification, synth, fn_hint,
+                    company_name=statements.get("companyName") or "Entity",
+                    currency=statements.get("currency") or "RON",
+                    period_label=str(statements.get("periodLabel") or ""),
+                    industry=(org or {}).get("industry_key") if org else None,
+                )
+                statements["detection_envelope"] = _bde2(
+                    classification=classification,
+                    assembled=assembled_full,
+                    methodology_id="ro_ras_2025_v1",
+                    industry_key=(org or {}).get("industry_key") if org else None,
+                    currency=statements.get("currency"),
+                    period_end=str(statements.get("periodLabel") or ""),
+                    routing_decision=_rdd(_routing_result),
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("[/api/period] fan-out routing integration failed (non-fatal)")
+        except Exception:  # noqa: BLE001
+            logger.exception("[/api/period] confidence report build failed (non-fatal)")
+
+        # ── F1.i — typed `assembled_metrics` envelope. Single bundled
+        # object the FE imports + reads; eliminates string lookups
+        # against `metrics[]` and removes the case-by-case fallback
+        # chains the canonical-conformance audit catalogued. Composed
+        # here at read time from data already on the response (no new
+        # math, no new persistence).
+        _m_by_name = {m["name"]: m for m in (metrics or [])}
+        def _m(name: str) -> Optional[float]:
+            row = _m_by_name.get(name)
+            return None if row is None else row.get("value")
+        assembled_metrics_envelope = {
+            "pl": statements.get("assembled_pl") or {},
+            "bs": statements.get("assembled_bs") or {},
+            "cf": statements.get("assembled_cf") or {},
+            "ratios": {
+                "liquidity": {
+                    "current_ratio":         _m("current_ratio"),
+                    "quick_ratio":           _m("quick_ratio"),
+                    "cash_ratio":            _m("cash_ratio"),
+                    "working_capital":       _m("working_capital"),
+                    "net_debt":              _m("net_debt"),
+                    "net_debt_to_ebitda":    _m("net_debt_to_ebitda"),
+                },
+                "leverage": {
+                    "equity_ratio":          _m("equity_ratio"),
+                    "debt_to_assets":        _m("debt_to_assets"),
+                    "debt_to_equity":        _m("debt_to_equity"),
+                    "debt_to_ebitda":        _m("debt_to_ebitda"),
+                    "lt_debt_to_equity":     _m("lt_debt_to_equity"),
+                },
+                "coverage": {
+                    "interest_coverage":     _m("interest_coverage"),
+                    "ebitda_to_interest":    _m("ebitda_to_interest"),
+                    "dscr":                  _m("dscr"),
+                    "dscr_with_lt_principal":_m("dscr_with_lt_principal"),
+                },
+                "profitability": {
+                    "gross_margin":          _m("gross_margin"),
+                    "operating_margin":      _m("operating_margin"),
+                    "ebitda_margin":         _m("ebitda_margin"),
+                    "core_ebitda_margin":    _m("core_ebitda_margin"),
+                    "net_margin":            _m("net_margin"),
+                    "roa":                   _m("roa"),
+                    "roe":                   _m("roe"),
+                    "roic":                  _m("roic"),
+                },
+                "efficiency": {
+                    "asset_turnover":        _m("asset_turnover"),
+                    "dso":                   _m("dso"),
+                    "dio":                   _m("dio"),
+                    "dpo":                   _m("dpo"),
+                    "ccc":                   _m("ccc"),
+                    "inventory_turnover":    _m("inventory_turnover"),
+                },
+            },
+            "bands": statements.get("assembled_bands"),
+            "credit": {
+                "altman_z_score":            _m("altman_z_score"),
+                "altman_variant":            "Z\"",
+                "altman_components": {
+                    "x1": _m("altman_x1"),
+                    "x2": _m("altman_x2"),
+                    "x3": _m("altman_x3"),
+                    "x4": _m("altman_x4"),
+                },
+                "composite_score":           _m("credit_composite"),
+                # F1.h — letter grade emitted as a canonical field on the
+                # envelope so the FE can be a pure reader (no FE-side
+                # mapping). Uses the same _composite_to_letter_grade helper
+                # as stage_compute, so engine logging and envelope agree.
+                "letter_grade": (
+                    None if _m("credit_composite") is None
+                    else _composite_to_letter_grade(float(_m("credit_composite")))
+                ),
+                "letter_grade_bands": [
+                    {"min": 90, "grade": "AAA"},
+                    {"min": 80, "grade": "AA"},
+                    {"min": 70, "grade": "A"},
+                    {"min": 60, "grade": "BBB"},
+                    {"min": 50, "grade": "BB"},
+                    {"min": 40, "grade": "B"},
+                    {"min": 25, "grade": "CCC"},
+                    {"min": 0,  "grade": "CC"},
+                ],
+                "composite_weights": {
+                    "altman":        0.30,
+                    "profitability": 0.20,
+                    "leverage":      0.15,
+                    "coverage":      0.10,
+                    "dscr":          0.10,
+                    "liquidity":     0.10,
+                    "equity":        0.05,
+                },
+                "subscores": {
+                    "altman":        _m("credit_subscore_altman"),
+                    "profitability": _m("credit_subscore_profitability"),
+                    "leverage":      _m("credit_subscore_leverage"),
+                    "coverage":      _m("credit_subscore_coverage"),
+                    "dscr":          _m("credit_subscore_dscr"),
+                    "liquidity":     _m("credit_subscore_liquidity"),
+                    "equity":        _m("credit_subscore_equity"),
+                },
+            },
+            "piotroski": statements.get("assembled_piotroski"),
+            # `valuation` is deferred to F1.j (new override endpoint) —
+            # the existing `valuation` key on the response carries the
+            # current data the FE can read meanwhile.
+        }
+
         return {
+            # F1.k — canonical_version stamp. v2.0 = the F1 contract
+            # extensions (assembled_metrics envelope, ratio expansion,
+            # bands, piotroski, F1.a/b/c canonical extras). v2.1 = F1.e
+            # (FE source switch on ebitda_margin / net_margin). FE readers
+            # can branch on this if v1 / v2 differ; the cache integrity
+            # check in _benchmarks.py uses an analogous gate.
+            "canonical_version": "v2.1",
+            "assembled_metrics": assembled_metrics_envelope,
+            # F3.3 — per-upload country-detection + confidence engine.
+            # Drives the Confidence Indicator badge on every FE
+            # analysis page and the Review Mode trigger (F3.4).
+            "confidence": confidence_dict,
             "period": {
                 "id": period["id"],
                 "period_end": period["period_end"],
@@ -4590,6 +5777,10 @@ def build_router() -> APIRouter:
                 for a in alerts
             ],
             "valuation": _serialize_valuation(valuation, user_assumptions, statements),
+            # F4.6 — list of legacy fields slated for removal at the 2Q
+            # deprecation horizon (~Nov 2026 per F3.15 §3e). Consumers
+            # should switch to the canonical replacements before sunset.
+            "deprecated_fields": _deprecated_fields_for_response(),
         }
 
     @router.put("/api/period/{period_id}/valuation-assumptions")
@@ -4716,6 +5907,779 @@ def build_router() -> APIRouter:
         except Exception:  # noqa: BLE001
             logger.exception("[pipeline] valuation reset recompute failed (non-fatal)")
         return {"ok": True}
+
+    @router.post("/api/period/{period_id}/valuation/recompute")
+    def recompute_valuation(
+        period_id: str,
+        body: Dict[str, Any],
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F1.j — Stateless interactive DCF recompute (SPEC §11).
+
+        Accepts the spec'd override body:
+          {
+            forecast_years?:        number,   // default 5
+            forecast_growth?:       number,   // default 0.035
+            terminal_growth?:       number,   // default 0.030
+            beta?:                  number,   // default 1.0
+            equity_risk_premium?:   number,   // default 0.075
+            rf?:                    number,   // default 0.0675 (extension)
+            property_market_value?: number,   // schema-only, round-tripped
+            annual_lease_expense?:  number,   // schema-only, round-tripped
+            shares_outstanding?:    number,   // schema-only, round-tripped
+          }
+
+        Auth: same JWT + ownership check as GET /api/period/:id. RLS on
+        financial_periods scopes the row to the caller's org.
+
+        Response shape: the SAME `assembled_metrics.valuation` envelope
+        that GET /api/period/:id emits — so the FE can swap the rendered
+        result for the recomputed one with no shape translation.
+
+        Stateless: this endpoint does NOT persist. The
+        `user_valuation_assumptions` table is only written by
+        PUT /api/period/{id}/valuation-assumptions (the dedicated
+        save-overrides endpoint). The recompute endpoint is the
+        what-if calculator.
+        """
+        jwt = _require_jwt(authorization)
+        # Whitelist + type-coerce the body so the FE can't sneak unexpected
+        # keys into compute_valuation. Anything else is ignored silently.
+        ALLOWED_OVERRIDES = {
+            "forecast_years",
+            "forecast_growth",
+            "terminal_growth",
+            "beta",
+            "equity_risk_premium",
+            "rf",
+            "property_market_value",
+            "annual_lease_expense",
+            "shares_outstanding",
+        }
+        overrides: Dict[str, Any] = {}
+        for k in ALLOWED_OVERRIDES:
+            v = (body or {}).get(k)
+            if v is None:
+                continue
+            try:
+                # forecast_years is an int; everything else is a float.
+                overrides[k] = int(v) if k == "forecast_years" else float(v)
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    400, f"valuation/recompute: '{k}' must be numeric (got {v!r})."
+                )
+
+        with _supabase.per_user(jwt) as client:
+            periods = client.select(
+                "financial_periods",
+                filters={"id": f"eq.{period_id}"},
+                single=True,
+            )
+            if not periods:
+                raise HTTPException(404, "Period not found.")
+            period = periods[0]
+
+        with _supabase.admin() as admin_client:
+            org_rows = admin_client.select(
+                "organizations",
+                filters={"id": f"eq.{period['org_id']}"},
+                single=True,
+            )
+            org = org_rows[0] if org_rows else {}
+            line_items = admin_client.select(
+                "statement_line_items",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            assembled = _rebuild_assembled(line_items)
+
+            # Layer the user's saved EBITDA/multiple/debt/cash overrides
+            # underneath the recompute's DCF overrides — same precedence
+            # the GET endpoint uses, so toggling DCF inputs doesn't
+            # silently revert the user's persisted EBITDA choice.
+            ua_rows = admin_client.select(
+                "user_valuation_assumptions",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            user_assumptions = None
+            if ua_rows:
+                ua = ua_rows[0]
+                user_assumptions = {
+                    "ebitda_used":   ua.get("ebitda_used"),
+                    "multiple_used": ua.get("multiple_used"),
+                    "debt_used":     ua.get("debt_used"),
+                    "cash_used":     ua.get("cash_used"),
+                }
+
+            try:
+                result = _valuation.compute_valuation(
+                    industry_key=org.get("industry_key"),
+                    statements=assembled,
+                    user_assumptions=user_assumptions,
+                    dcf_overrides=overrides,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "[/api/period/{id}/valuation/recompute] compute failed"
+                )
+                raise HTTPException(
+                    500, f"Valuation recompute failed: {type(exc).__name__}"
+                ) from exc
+
+        return {
+            "valuation": result,
+            "overrides_applied": result.get("overrides_applied"),
+        }
+
+    @router.post("/api/period/{period_id}/briefing/regenerate")
+    def regenerate_briefing(
+        period_id: str,
+        currency: Optional[str] = None,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F2.8 — Regenerate the LLM CFO Briefing for an existing period
+        against the current canonical statements + metrics. Used after the
+        F1.e basis decisions (cash vs statutory EBITDA, statutory ct.121
+        net profit, Z″ Altman) shifted the canonical numbers — cached
+        briefings still cite the pre-F1.e values until regenerated.
+
+        `currency` (optional query param): RON/EUR/USD. When provided,
+        every monetary number in `briefing_facts` is FX-converted to that
+        currency before the LLM sees them, and the prompt asks the LLM
+        to cite the converted currency. Defaults to the period's source
+        currency (typically RON). Wired from the FE TopHeader currency
+        toggle so the briefing prose follows RON ↔ EUR ↔ USD switches.
+
+        Calls `stage_narrate` against the rebuilt assembled statements +
+        the period's `calculated_metrics` rows, then upserts the resulting
+        briefing body on the `briefings` table. Recommendations + alerts
+        are NOT touched (those have their own deterministic generation
+        path via `stage_validate`).
+        """
+        jwt = _require_jwt(authorization)
+        # Ownership check via RLS.
+        with _supabase.per_user(jwt) as client:
+            periods = client.select(
+                "financial_periods",
+                filters={"id": f"eq.{period_id}"},
+                single=True,
+            )
+            if not periods:
+                raise HTTPException(404, "Period not found.")
+            period = periods[0]
+
+        with _supabase.admin() as admin_client:
+            org_rows = admin_client.select(
+                "organizations",
+                filters={"id": f"eq.{period['org_id']}"},
+                single=True,
+            )
+            org = org_rows[0] if org_rows else {}
+            line_items = admin_client.select(
+                "statement_line_items",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            metric_rows = admin_client.select(
+                "calculated_metrics",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            # calculated_metrics columns are name/value/unit/direction
+            # (NOT metric_name/metric_value — the earlier shape was an F2.8
+            # transcription error against the live schema, caught by the
+            # post-deploy KeyError on the first regenerate call).
+            metrics = [
+                {
+                    "name": m["name"],
+                    "value": m["value"],
+                    "unit": m.get("unit"),
+                    "direction": m.get("direction"),
+                }
+                for m in metric_rows
+            ]
+            valuation_rows = admin_client.select(
+                "valuations",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            valuation = valuation_rows[0] if valuation_rows else None
+            doc_rows = admin_client.select(
+                "documents",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            doc = doc_rows[0] if doc_rows else {
+                "id": "regenerate",
+                "org_id": period["org_id"],
+                "language": "en",
+            }
+            # F2.8 fix: stage_narrate reads from `assembled["statements"]
+            # .assembled_pl` etc., not the bucket-only shape that
+            # `_rebuild_assembled` returns. Use the canonical-shaped
+            # rebuilder so the regenerated briefing cites
+            # operating-view EBITDA, statutory net income, and the
+            # rest of the briefing_facts envelope.
+            assembled = _rebuild_assembled_for_briefing(line_items, period, org)
+
+            # FX rates for currency conversion. Skip the fetch when the
+            # caller wants the period's native currency (the no-op case).
+            display_currency = (currency or "").upper() or None
+            fx_payload: Optional[Dict[str, Any]] = None
+            if display_currency and display_currency not in ("", "RON"):
+                try:
+                    from .fx_rates import get_fx_rates as _get_fx_rates
+                    fx_payload = _get_fx_rates()
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "[/api/period/{id}/briefing/regenerate] fx_rates fetch failed; "
+                        "falling back to source currency"
+                    )
+            fx_rates_map = (fx_payload or {}).get("rates") if fx_payload else None
+
+            try:
+                narrative = stage_narrate(
+                    doc, assembled, metrics, org, period_id,
+                    parsed=None, valuation=valuation,
+                    display_currency=display_currency,
+                    fx_rates=fx_rates_map,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "[/api/period/{id}/briefing/regenerate] stage_narrate failed"
+                )
+                raise HTTPException(
+                    500, f"Briefing regeneration failed: {type(exc).__name__}"
+                ) from exc
+
+            # Upsert briefing only; do NOT touch recommendations/alerts
+            # (deterministic rules own those — regen would create
+            # duplicates and disagree with the validation pipeline).
+            #
+            # Currency-conversion regenerations (display_currency != source)
+            # are NOT persisted — the DB row stays the canonical
+            # source-currency briefing. If a user toggles RON → EUR, the
+            # EUR briefing is returned in the response only; on next
+            # session load they'd see RON again until they toggle. This
+            # avoids the alternative-currency briefing becoming "sticky"
+            # and confusing users who later toggle back.
+            should_persist = not display_currency or display_currency.upper() == "RON"
+            if should_persist:
+                admin_client.upsert(
+                    "briefings",
+                    {
+                        "period_id": period_id,
+                        "org_id": period["org_id"],
+                        "body": narrative.get("briefing", ""),
+                        "language": "en",
+                        "model": "claude-opus-4-7",
+                    },
+                    on_conflict="period_id",
+                    returning=False,
+                )
+                admin_client.update(
+                    "financial_periods",
+                    {"updated_at": _now_iso()},
+                    filters={"id": f"eq.{period_id}"},
+                )
+
+        return {
+            "ok": True,
+            "period_id": period_id,
+            "briefing_length": len(narrative.get("briefing", "")),
+            "briefing": narrative.get("briefing", ""),
+            "currency": display_currency or "RON",
+        }
+
+    # ── F3.4 — Review Mode ─────────────────────────────────────────
+    # `ReviewReanalyzeRequest` lives at module level (see above);
+    # nested-class Pydantic bodies don't resolve correctly through
+    # FastAPI's type inspector.
+
+    @router.get("/api/period/{period_id}/review")
+    def get_review_state(
+        period_id: str,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F3.4 — return the Review Mode state for a period.
+
+        Surfaces:
+          - `unmapped_accounts` — accounts the pack's chart-of-
+            accounts couldn't bucket. These are what the user
+            assigns manually in Review Mode.
+          - `org_overrides` — any persisted org-wide overrides
+            (`org_coa_mappings_overrides`) that already apply to
+            this org's uploads.
+
+        Romanian fixtures should return `unmapped_accounts: []`.
+        """
+        jwt = _require_jwt(authorization)
+        from engine.core import review_mode as _rm
+        from engine.core.country_pack_registry import get_pack
+
+        with _supabase.per_user(jwt) as client:
+            periods = client.select(
+                "financial_periods",
+                filters={"id": f"eq.{period_id}"},
+                single=True,
+            )
+            if not periods:
+                raise HTTPException(404, "Period not found.")
+            period = periods[0]
+
+        with _supabase.admin() as ac:
+            line_items = ac.select(
+                "statement_line_items",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            # Load any org-level overrides previously saved.
+            try:
+                org_overrides_rows = ac.select(
+                    "org_coa_mappings_overrides",
+                    filters={"org_id": f"eq.{period['org_id']}"},
+                )
+            except Exception:  # noqa: BLE001
+                org_overrides_rows = []
+
+        pack = get_pack("RO")  # F3.7+ will dispatch the active pack
+        accounts_for_unmapped = []
+        for li in (line_items or []):
+            code = (li.get("ro_account_code") or "").strip()
+            if not code:
+                continue
+            accounts_for_unmapped.append({
+                "code": code,
+                "name": li.get("ro_account_name") or "",
+                "amount": float(li.get("amount") or 0),
+            })
+        unmapped = _rm.collect_unmapped_accounts(pack, accounts_for_unmapped) if pack else []
+
+        return {
+            "period_id": period_id,
+            "unmapped_accounts": unmapped,
+            "org_overrides": [
+                {
+                    "account_code": r["account_code"],
+                    "standardized_bucket": r["standardized_bucket"],
+                    "sign": r.get("sign", 1),
+                    "coa_key": r.get("coa_key"),
+                }
+                for r in (org_overrides_rows or [])
+            ],
+            "review_state_version": "f3.4",
+        }
+
+    @router.post("/api/period/{period_id}/review/reanalyze")
+    def reanalyze_with_overrides(
+        period_id: str,
+        payload: ReviewReanalyzeRequest,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F3.4 — Rerun assemble_statements with user-supplied
+        overrides applied. Overrides come in the request body
+        (transient per-session); when `propose_as_calibration_rules`
+        is True they are ALSO upserted to org_coa_mappings_overrides
+        for future uploads.
+
+        Returns the post-reanalysis confidence report so the FE can
+        show "Review Mode trigger went from True → False" once the
+        residuals are within tolerance.
+        """
+        jwt = _require_jwt(authorization)
+        from engine.core import review_mode as _rm
+        from engine.core.country_pack_registry import get_pack
+        from engine.core.upload_classifier import classify_upload
+        from engine.core.confidence_engine import (
+            build_confidence_report, confidence_report_to_dict,
+        )
+
+        with _supabase.per_user(jwt) as client:
+            periods = client.select(
+                "financial_periods",
+                filters={"id": f"eq.{period_id}"},
+                single=True,
+            )
+            if not periods:
+                raise HTTPException(404, "Period not found.")
+            period = periods[0]
+
+        overrides = _rm.ReviewOverrides(
+            period_id=period_id,
+            account_buckets=payload.account_buckets,
+            confirmed_country_code=payload.confirmed_country_code,
+            confirmed_standard=payload.confirmed_standard,
+            notes=payload.notes,
+            propose_as_calibration_rules=payload.propose_as_calibration_rules,
+        )
+
+        with _supabase.admin() as ac:
+            line_items = ac.select(
+                "statement_line_items",
+                filters={"period_id": f"eq.{period_id}"},
+            )
+            if not line_items:
+                raise HTTPException(400, "Period has no line items to reanalyse.")
+            org_rows = ac.select(
+                "organizations",
+                filters={"id": f"eq.{period['org_id']}"},
+                single=True,
+            )
+            org = org_rows[0] if org_rows else {}
+
+            pack_country = overrides.confirmed_country_code or "RO"
+            pack = get_pack(pack_country)
+            if pack is None:
+                raise HTTPException(
+                    400,
+                    f"No country pack registered for {pack_country!r}.",
+                )
+
+            # ── Merge org-level overrides on top of user input ─────
+            # This lets users layer a Review session on top of
+            # previously-saved org defaults.
+            merged_overrides = dict(overrides.account_buckets)
+            try:
+                org_overrides_rows = ac.select(
+                    "org_coa_mappings_overrides",
+                    filters={"org_id": f"eq.{period['org_id']}"},
+                )
+                for r in (org_overrides_rows or []):
+                    code = r["account_code"]
+                    if code not in merged_overrides:
+                        merged_overrides[code] = r["standardized_bucket"]
+            except Exception:  # noqa: BLE001
+                pass
+            merged = _rm.ReviewOverrides(
+                period_id=period_id,
+                account_buckets=merged_overrides,
+                confirmed_country_code=overrides.confirmed_country_code,
+                confirmed_standard=overrides.confirmed_standard,
+                notes=overrides.notes,
+            )
+            override_bucket_for = _rm.apply_overrides(pack, merged)
+
+            recovered_accounts: List[Dict[str, Any]] = []
+            for li in line_items:
+                code = (li.get("ro_account_code") or "").strip()
+                if not code:
+                    continue
+                stored_bucket = li.get("bucket") or ""
+                rule = override_bucket_for(code)
+                bucket_override = None
+                if rule and stored_bucket and stored_bucket != rule.bucket:
+                    legacy = pack.persistence_bucket(rule.bucket)
+                    if stored_bucket != legacy:
+                        bucket_override = stored_bucket
+                row = {
+                    "code": code,
+                    "name": li.get("ro_account_name") or "",
+                    "amount": float(li.get("amount") or 0),
+                }
+                if bucket_override:
+                    row["bucket_override"] = bucket_override
+                recovered_accounts.append(row)
+            for acct in recovered_accounts:
+                rule = override_bucket_for(acct["code"])
+                if rule and rule.sign == -1:
+                    acct["amount"] = -acct["amount"]
+
+            original_bucket_for = pack.bucket_for
+            pack.bucket_for = override_bucket_for  # type: ignore[assignment]
+            try:
+                assembled_full = pack.assemble_statements(
+                    recovered_accounts,
+                    company_name=org.get("name") or "Entity",
+                    currency=period.get("currency", "RON"),
+                    period_label=str(period.get("period_end")) or "Period",
+                    industry=(org or {}).get("industry_key"),
+                )
+            finally:
+                pack.bucket_for = original_bucket_for  # type: ignore[assignment]
+
+            synth = "\n".join(
+                f"{a['code']} {a.get('name', '')}" for a in recovered_accounts[:200]
+            )
+            synth += f"\nMoneda: {period.get('currency', 'RON')}\n"
+            synth_bytes = synth.encode("utf-8", errors="ignore")
+            fn_hint = period.get("period_end") or ""
+            classification = classify_upload(synth_bytes, fn_hint)
+            report = build_confidence_report(classification, assembled_full)
+            confidence_dict = confidence_report_to_dict(report)
+            # F4.4-int — run fan-out routing + rebuild detection envelope
+            # with full classification + routing_decision (mirrors site A).
+            try:
+                from engine.routing import route_with_fan_out as _route, routing_decision_dict as _rdd
+                from engine.detection import build_detection_envelope as _bde2
+                _routing_result = _route(
+                    classification, synth_bytes, fn_hint,
+                    company_name=org.get("name") or "Entity",
+                    currency=period.get("currency", "RON"),
+                    period_label=str(period.get("period_end")) or "Period",
+                    industry=(org or {}).get("industry_key"),
+                )
+                # Reanalyze path doesn't populate `statements` the same way;
+                # attach routing_decision to the response payload below.
+                confidence_dict = confidence_dict or {}
+                confidence_dict["routing_decision"] = _rdd(_routing_result)
+            except Exception:  # noqa: BLE001
+                logger.exception("[/api/period reanalyze] fan-out routing integration failed (non-fatal)")
+
+            # ── F3.5 hand-off: propose as calibration rules ────────
+            # Insert into `calibration_rules` with status='pending'.
+            # Admin approves via /api/admin/calibration/rules/{id}/
+            # approve, which copies to org_coa_mappings_overrides
+            # (the engine's actual read source).
+            calibration_rules_proposed = 0
+            if payload.propose_as_calibration_rules and overrides.account_buckets:
+                rows_to_insert: List[Dict[str, Any]] = []
+                for code, bucket in overrides.account_buckets.items():
+                    rows_to_insert.append({
+                        "org_id": period["org_id"],
+                        "coa_key": "omfp_1802",  # F3.7+ will reflect pack
+                        "account_code": code,
+                        "standardized_bucket": bucket,
+                        "sign": 1,
+                        "source": "review_mode",
+                        "status": "pending",
+                        "period_id": period_id,
+                        "notes": overrides.notes,
+                    })
+                try:
+                    ac.insert(
+                        "calibration_rules",
+                        rows_to_insert,
+                        returning=False,
+                    )
+                    calibration_rules_proposed = len(rows_to_insert)
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "[review/reanalyze] proposing to calibration_rules "
+                        "failed (table may not be migrated yet): %s",
+                        rows_to_insert[0] if rows_to_insert else None,
+                    )
+
+        return {
+            "ok": True,
+            "period_id": period_id,
+            "overrides_applied": len(overrides.account_buckets),
+            "merged_overrides_applied": len(merged_overrides),
+            "calibration_rules_proposed": calibration_rules_proposed,
+            "post_reanalysis_confidence": confidence_dict,
+        }
+
+    # ── F3.5 / F3.6 — Calibration store + admin dashboard ──────────
+
+    def _require_engine_admin(authorization: Optional[str]) -> None:
+        """Gate admin endpoints behind the ENGINE_API_TOKEN.
+        Mirrors the pattern used by billing's cron endpoints — admin
+        endpoints are scheduler/operator-only, never user-callable.
+        """
+        token = os.environ.get("ENGINE_API_TOKEN")
+        if not token:
+            # No token configured → no admin endpoints accessible.
+            raise HTTPException(503, "Admin endpoints disabled (ENGINE_API_TOKEN unset).")
+        provided = _require_jwt(authorization)
+        if provided != token:
+            raise HTTPException(401, "Invalid admin token.")
+
+    @router.get("/api/admin/calibration/coverage")
+    def admin_calibration_coverage(
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F3.6 — Coverage matrix for the admin dashboard.
+
+        Returns, per country pack:
+          - calibration_tier (from the pack's metadata)
+          - fixture count (from `calibration_fixtures`)
+          - pending-rule count (from `calibration_rules` where
+            status='pending')
+          - last F-A3.1 verdict (from `calibration_results`)
+        """
+        _require_engine_admin(authorization)
+        from engine.core.country_pack_registry import all_packs
+
+        rows: List[Dict[str, Any]] = []
+        with _supabase.admin() as ac:
+            # Per-pack counts — tolerate missing tables.
+            for pack in all_packs():
+                fixture_count = 0
+                pending_count = 0
+                approved_count = 0
+                latest_result: Optional[Dict[str, Any]] = None
+                try:
+                    fixtures = ac.select(
+                        "calibration_fixtures",
+                        filters={"country_code": f"eq.{pack.country_code}"},
+                    )
+                    fixture_count = len(fixtures or [])
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    pending = ac.select(
+                        "calibration_rules",
+                        filters={"coa_key": f"eq.omfp_1802", "status": "eq.pending"},
+                    )
+                    pending_count = len(pending or [])
+                    approved = ac.select(
+                        "calibration_rules",
+                        filters={"coa_key": f"eq.omfp_1802", "status": "eq.approved"},
+                    )
+                    approved_count = len(approved or [])
+                except Exception:  # noqa: BLE001
+                    pass
+                rows.append({
+                    "country_code": pack.country_code,
+                    "country_name": pack.country_name,
+                    "accounting_standard": pack.accounting_standard,
+                    "pack_version": pack.pack_version,
+                    "calibration_tier": pack.calibration_tier.value,
+                    "fixture_count": fixture_count,
+                    "pending_rule_count": pending_count,
+                    "approved_rule_count": approved_count,
+                    "regression_fixtures_declared": list(pack.regression_fixtures),
+                })
+        return {
+            "packs": rows,
+            "summary": {
+                "total_packs": len(rows),
+                "deeply_calibrated": sum(1 for r in rows if r["calibration_tier"] == "deeply_calibrated"),
+                "partially_calibrated": sum(1 for r in rows if r["calibration_tier"] == "partially_calibrated"),
+                "experimental": sum(1 for r in rows if r["calibration_tier"] == "experimental"),
+            },
+        }
+
+    @router.get("/api/admin/calibration/rules")
+    def admin_list_calibration_rules(
+        status: Optional[str] = None,
+        coa_key: Optional[str] = None,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F3.6 — List calibration rules. Supports `status` filter
+        (pending / approved / rejected) and `coa_key` filter.
+        """
+        _require_engine_admin(authorization)
+        filters: Dict[str, str] = {}
+        if status:
+            filters["status"] = f"eq.{status}"
+        if coa_key:
+            filters["coa_key"] = f"eq.{coa_key}"
+        try:
+            with _supabase.admin() as ac:
+                rows = ac.select(
+                    "calibration_rules",
+                    filters=filters,
+                    order="created_at.desc",
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[admin/calibration/rules] table miss: %s", e)
+            return {"rules": [], "error": "calibration_rules table not migrated yet"}
+        return {"rules": rows or []}
+
+    @router.post("/api/admin/calibration/rules/{rule_id}/approve")
+    def admin_approve_calibration_rule(
+        rule_id: str,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F3.6 — Approve a pending calibration rule. Side effects:
+          1. Mark `calibration_rules.status='approved'`.
+          2. Upsert the rule into `org_coa_mappings_overrides` so the
+             engine picks it up on future uploads.
+        """
+        _require_engine_admin(authorization)
+        try:
+            with _supabase.admin() as ac:
+                rows = ac.select(
+                    "calibration_rules",
+                    filters={"id": f"eq.{rule_id}"},
+                    single=True,
+                )
+                if not rows:
+                    raise HTTPException(404, f"Calibration rule {rule_id} not found.")
+                rule = rows[0]
+                if rule["status"] != "pending":
+                    raise HTTPException(
+                        400,
+                        f"Rule status is {rule['status']!r}; only pending rules can be approved.",
+                    )
+                # Mark approved.
+                ac.update(
+                    "calibration_rules",
+                    {
+                        "status": "approved",
+                        "approved_at": _now_iso(),
+                        "updated_at": _now_iso(),
+                    },
+                    filters={"id": f"eq.{rule_id}"},
+                )
+                # Apply to org_coa_mappings_overrides — this is what
+                # the engine actually reads.
+                if rule.get("org_id"):
+                    ac.upsert(
+                        "org_coa_mappings_overrides",
+                        {
+                            "org_id": rule["org_id"],
+                            "coa_key": rule["coa_key"],
+                            "account_code": rule["account_code"],
+                            "standardized_bucket": rule["standardized_bucket"],
+                            "sign": rule.get("sign", 1),
+                        },
+                        on_conflict="org_id,coa_key,account_code",
+                        returning=False,
+                    )
+                return {
+                    "ok": True,
+                    "rule_id": rule_id,
+                    "applied_to_org": rule.get("org_id"),
+                    "account_code": rule["account_code"],
+                    "standardized_bucket": rule["standardized_bucket"],
+                }
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.exception("[admin/calibration/rules/approve] failed")
+            raise HTTPException(500, f"Approval failed: {type(e).__name__}")
+
+    @router.post("/api/admin/calibration/rules/{rule_id}/reject")
+    def admin_reject_calibration_rule(
+        rule_id: str,
+        reason: Optional[str] = None,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F3.6 — Reject a pending calibration rule."""
+        _require_engine_admin(authorization)
+        try:
+            with _supabase.admin() as ac:
+                ac.update(
+                    "calibration_rules",
+                    {
+                        "status": "rejected",
+                        "rejection_reason": reason or "",
+                        "updated_at": _now_iso(),
+                    },
+                    filters={"id": f"eq.{rule_id}", "status": "eq.pending"},
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.exception("[admin/calibration/rules/reject] failed")
+            raise HTTPException(500, f"Rejection failed: {type(e).__name__}")
+        return {"ok": True, "rule_id": rule_id, "status": "rejected"}
+
+    @router.get("/api/admin/calibration/fixtures")
+    def admin_list_fixtures(
+        country_code: Optional[str] = None,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """F3.6 — List calibration fixtures. Optional country_code
+        filter (e.g. 'RO' → only Romanian fixtures)."""
+        _require_engine_admin(authorization)
+        filters: Dict[str, str] = {}
+        if country_code:
+            filters["country_code"] = f"eq.{country_code}"
+        try:
+            with _supabase.admin() as ac:
+                rows = ac.select(
+                    "calibration_fixtures",
+                    filters=filters,
+                    order="created_at.desc",
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[admin/calibration/fixtures] table miss: %s", e)
+            return {"fixtures": [], "error": "calibration_fixtures table not migrated yet"}
+        return {"fixtures": rows or []}
 
     @router.delete("/api/period/{period_id}")
     def delete_period(

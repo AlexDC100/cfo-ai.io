@@ -10,6 +10,20 @@ import { clampThresholds } from "@/lib/thresholdSchema";
 export const STORAGE_KEY = "aicfo.thresholds.v1";
 
 export const DEFAULTS = {
+  // 3-bucket decision rules — single-axis (gross profit in RON) cutoffs
+  // that drive the Protect / Watch / Wind down classification surfaced
+  // on the Products page. These are the *only* knobs the user-facing
+  // Decision-rules modal exposes; the fine-grained thresholds below
+  // remain for the advanced "Data rules" page.
+  //   simpleLowerCutoffKrn: products at or below this → Wind down
+  //   simpleUpperCutoffKrn: products at or above this → Protect
+  //   between the two → Watch
+  // Defaults picked so loss-makers + zero-margin SKUs land in Wind down
+  // and only sustained-profit SKUs (>50k RON gross profit / period)
+  // land in Protect — the operator tunes both live in the modal.
+  simpleLowerCutoffKrn: 0,
+  simpleUpperCutoffKrn: 50_000,
+
   // Financial
   costOfCapitalPct: 6.5,
   fxEurRon: 4.97,

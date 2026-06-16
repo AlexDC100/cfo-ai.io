@@ -20,6 +20,9 @@ import { useToast } from "@/hooks/use-toast";
 import { DataDepthBanner } from "@/components/cfo/DataDepthBanner";
 import { DocumentSwitcher } from "@/components/cfo/DocumentSwitcher";
 import { DEPTH_PUBLIC_SUMMARY } from "@/lib/dataDepth";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { GuideMeButton } from "@/components/learning/GuideMeButton";
+import { MULTIYEAR_GUIDE } from "@/components/learning/pageGuides";
 
 const apiBase = (): string =>
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -57,6 +60,9 @@ export default function MultiYearHistory() {
   const { toast } = useToast();
   const [extract, setExtract] = useState<Extract | null>(null);
   const [loading, setLoading] = useState(true);
+  // CUR-FIX — every fmtRON(...) call below this point should use `fmtCur(...)`
+  // instead. RON-source ANAF data converts to the user's TopHeader currency.
+  const fmtCur = useFmtCur();
 
   useEffect(() => {
     let cancelled = false;
@@ -131,12 +137,15 @@ export default function MultiYearHistory() {
         {/* Header card matching the institutional-memo pattern */}
         <header className="rounded-2xl px-6 py-6 mb-6 text-white"
                 style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
+          {/* 2026-05-26 (mobile fix): stack vertically on mobile so
+              the 32px serif company name doesn't get column-stacked
+              by the Print/Save PDF button cluster on iPhone widths. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.14em] opacity-80">
                 Multi-year financial history
               </div>
-              <h1 className="mt-1 font-serif text-[32px] leading-tight">
+              <h1 className="mt-1 font-serif text-[26px] sm:text-[32px] leading-tight">
                 {extract.company_name ?? "Public records summary"}
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] opacity-90">
@@ -146,7 +155,8 @@ export default function MultiYearHistory() {
                 {extract.source_site && <span><Globe size={11} className="inline mr-1" />{extract.source_site}</span>}
               </div>
             </div>
-            <div className="flex items-center gap-2 print:hidden">
+            <div className="flex items-center gap-2 flex-wrap sm:shrink-0 print:hidden">
+              <GuideMeButton pageId="multi-year-history" title="Multi-year history" steps={MULTIYEAR_GUIDE} />
               <button
                 onClick={() => window.print()}
                 data-testid="multiyear-print"
@@ -163,7 +173,7 @@ export default function MultiYearHistory() {
           <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <KpiTile
               label={`Revenue ${latest.year}`}
-              value={fmtRON(latest.cifra_afaceri)}
+              value={<LearnableNumber conceptKey="operating_revenue" value={latest.cifra_afaceri}>{fmtCur(latest.cifra_afaceri)}</LearnableNumber>}
               sub={(() => {
                 const prev = years[1];
                 if (!prev || prev.cifra_afaceri <= 0) return "";
@@ -178,13 +188,13 @@ export default function MultiYearHistory() {
             />
             <KpiTile
               label="Net profit"
-              value={fmtRON(latest.profit_net)}
+              value={<LearnableNumber conceptKey="net_profit" value={latest.profit_net}>{fmtCur(latest.profit_net)}</LearnableNumber>}
               sub={latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}% net margin` : ""}
               positive={latest.profit_net > 0}
             />
             <KpiTile
               label="Total debt"
-              value={fmtRON(latest.datorii_totale)}
+              value={<LearnableNumber conceptKey="total_debt" value={latest.datorii_totale}>{fmtCur(latest.datorii_totale)}</LearnableNumber>}
               sub={latest.capitaluri_proprii > 0 ? `D/E ${(latest.datorii_totale/latest.capitaluri_proprii).toFixed(2)}×` : ""}
               positive={true}
               neutral
@@ -236,7 +246,7 @@ export default function MultiYearHistory() {
                   <tr key={y.year} className={`border-t border-rule/40 ${lossYear ? "bg-red-50/30 dark:bg-red-500/[0.04]" : ""}`}>
                     <td className="px-3 py-2 font-medium text-ink tabular-nums">{y.year}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {fmtRON(y.cifra_afaceri)}
+                      {fmtCur(y.cifra_afaceri)}
                       {revGrowth != null && (
                         <span className={`ml-1 text-[10px] ${revGrowth >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                           {revGrowth >= 0 ? "+" : ""}{revGrowth.toFixed(0)}%
@@ -244,14 +254,14 @@ export default function MultiYearHistory() {
                       )}
                     </td>
                     <td className={`px-3 py-2 text-right tabular-nums ${lossYear ? "text-red-700" : ""}`}>
-                      {fmtRON(y.profit_net)}
+                      {fmtCur(y.profit_net)}
                     </td>
                     <td className={`px-3 py-2 text-right tabular-nums ${lossYear ? "text-red-700" : "text-ink-soft"}`}>
                       {y.net_margin_pct != null ? `${y.net_margin_pct.toFixed(1)}%` : "—"}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-ink-soft">{fmtRON(y.total_assets)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-ink-soft">{fmtRON(y.datorii_totale)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmtRON(y.capitaluri_proprii)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink-soft">{fmtCur(y.total_assets)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink-soft">{fmtCur(y.datorii_totale)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtCur(y.capitaluri_proprii)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-ink-mute">{y.salariati ?? "—"}</td>
                   </tr>
                 );
@@ -277,6 +287,13 @@ export default function MultiYearHistory() {
   );
 }
 
+// CUR-FIX — ANAF / ONRC public-records data is always filed in RON. The
+// `fmtRON` helper used to assume RON for display too; we now route the
+// value through the global currency switcher so toggling EUR/USD in
+// TopHeader updates this page along with the rest of the surfaces.
+import { useCurrency } from "@/stores/currency";
+import { convertFromTo } from "@/lib/money";
+
 function fmtRON(n: number): string {
   if (n == null || !Number.isFinite(n)) return "—";
   const abs = Math.abs(n);
@@ -284,6 +301,17 @@ function fmtRON(n: number): string {
   if (abs >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)} M`;
   if (abs >= 1_000)         return `${(n / 1_000).toFixed(0)} K`;
   return n.toFixed(0);
+}
+
+/** CUR-FIX — `fmtCur(n)` is the currency-aware drop-in replacement for
+ *  `fmtRON(n)`. Source RON → display currency, then compact format. */
+function useFmtCur() {
+  const { display, rates } = useCurrency();
+  return (n: number | null | undefined): string => {
+    if (n == null || !Number.isFinite(n)) return "—";
+    const converted = convertFromTo(n, "RON", display, rates.rates);
+    return fmtRON(converted);
+  };
 }
 
 function KpiTile({ label, value, sub, positive, neutral }: {
@@ -318,6 +346,8 @@ function KpiTile({ label, value, sub, positive, neutral }: {
 // report's executive-summary style. No LLM call — every number is
 // computed directly from the data, so output is audit-able.
 function InsightsSection({ years, company }: { years: YearRow[]; company: string }) {
+  // CUR-FIX — currency-aware compact formatter for in-prose money mentions.
+  const fmtCur = useFmtCur();
   // years arrives newest→oldest; build the analysis from oldest→newest
   // (chronological) since CAGR / trends read more naturally that way.
   const sorted = [...years].sort((a, b) => a.year - b.year);
@@ -376,7 +406,7 @@ function InsightsSection({ years, company }: { years: YearRow[]; company: string
   const bullets: string[] = [];
   if (cagr != null) {
     const verb = cagr >= 0 ? "grew" : "declined";
-    bullets.push(`Revenue ${verb} from ${fmtRON(first.cifra_afaceri)} (${first.year}) to ${fmtRON(latest.cifra_afaceri)} (${latest.year}) — ${cagr >= 0 ? "+" : ""}${cagr.toFixed(1)}% CAGR over ${n - 1} years.`);
+    bullets.push(`Revenue ${verb} from ${fmtCur(first.cifra_afaceri)} (${first.year}) to ${fmtCur(latest.cifra_afaceri)} (${latest.year}) — ${cagr >= 0 ? "+" : ""}${cagr.toFixed(1)}% CAGR over ${n - 1} years.`);
   }
   if (lossYears > 0 && lossYears < n) {
     bullets.push(`${profitYears}/${n} years profitable; loss years: ${lossYearsList.join(", ")}.`);
@@ -384,7 +414,7 @@ function InsightsSection({ years, company }: { years: YearRow[]; company: string
     bullets.push(`All ${n} reporting years posted a net profit — no recorded loss in the window.`);
   }
   if (bestYear && worstYear && bestYear !== worstYear) {
-    bullets.push(`Peak profit: ${fmtRON(bestYear.profit_net)} in ${bestYear.year}; trough: ${fmtRON(worstYear.profit_net)} in ${worstYear.year}.`);
+    bullets.push(`Peak profit: ${fmtCur(bestYear.profit_net)} in ${bestYear.year}; trough: ${fmtCur(worstYear.profit_net)} in ${worstYear.year}.`);
   }
   if (empGrowth != null && empGrowthPct != null) {
     const verb = empGrowth >= 0 ? "grew" : "shrunk";
@@ -424,6 +454,12 @@ function TrendChart({ years }: { years: YearRow[] }) {
   // Pure-SVG dual-line chart: revenue (blue) + net profit (emerald).
   // We don't import recharts because the rest of the app uses inline SVG
   // for trend renders and we want this page to feel consistent.
+  //
+  // Y-axis labels are currency-converted (formerly hardcoded `fmtRON`) so
+  // toggling EUR/USD in the top bar repaints the chart axis too. SVG
+  // <text> can't host a React component — we use the same `useFmtCur()`
+  // helper as the rest of this file.
+  const fmtCur = useFmtCur();
   if (years.length < 2) return null;
   const w = 1100;
   const h = 220;
@@ -466,9 +502,9 @@ function TrendChart({ years }: { years: YearRow[] }) {
           )
         ))}
         {/* Y-axis ticks — min, 0, max */}
-        <text x={padL - 6} y={yScale(yMax) + 4} textAnchor="end" fontSize="10" fill="#6b7280">{fmtRON(yMax)}</text>
+        <text x={padL - 6} y={yScale(yMax) + 4} textAnchor="end" fontSize="10" fill="#6b7280">{fmtCur(yMax)}</text>
         {yMin < 0 && <text x={padL - 6} y={zeroY + 4} textAnchor="end" fontSize="10" fill="#6b7280">0</text>}
-        <text x={padL - 6} y={yScale(yMin) + 4} textAnchor="end" fontSize="10" fill="#6b7280">{fmtRON(yMin)}</text>
+        <text x={padL - 6} y={yScale(yMin) + 4} textAnchor="end" fontSize="10" fill="#6b7280">{fmtCur(yMin)}</text>
       </svg>
     </section>
   );

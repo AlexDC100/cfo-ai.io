@@ -12,8 +12,18 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { useActiveOrg } from "@/lib/org";
+import { isPublicTestMode } from "@/lib/testMode";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
+  // PUBLIC_TEST_MODE — open-access posture. Every gated route renders
+  // for any visitor without checking session state. AuthProvider injects
+  // a synthetic test user so downstream `useAuth()` consumers see a
+  // signed-in identity. The real Supabase session for FE → Supabase
+  // calls is set up by <TestModeSessionBoot /> in App.tsx.
+  if (isPublicTestMode) {
+    return <>{children}</>;
+  }
+
   const { status, isAuthenticated } = useAuth();
   const { org, loading: orgLoading, needsOnboarding } = useActiveOrg();
   const location = useLocation();

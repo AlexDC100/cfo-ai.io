@@ -260,6 +260,27 @@ def check_doc_quota(user_id: str) -> DocQuotaDecision:
             extra_doc_eur=None, message="",
         )
 
+    # PUBLIC_TEST_MODE — billing is disabled wholesale; every visitor
+    # shares the synthetic test user and the concept of "quota" doesn't
+    # apply. Short-circuit before any Stripe / subscriptions table read.
+    # (Late-import keeps test-mode module out of the hot path when the
+    # flag is off and avoids a circular import at module load.)
+    try:
+        from . import _test_mode
+        if _test_mode.is_test_mode():
+            return DocQuotaDecision(
+                kind="allowed",
+                plan_key="test_mode",
+                docs_used=0,
+                docs_included=999_999,
+                extra_doc_eur=None,
+                message="",
+            )
+    except Exception:
+        # _test_mode is optional; if the file is missing on a build that
+        # doesn't ship test-mode, behave exactly as before.
+        pass
+
     state = get_plan_state(user_id)
     plan = state.plan
 
@@ -312,6 +333,15 @@ def record_doc_consumed(user_id: str, *, billed_extra: bool) -> None:
     """
     if not enforcement_enabled():
         return
+
+    # PUBLIC_TEST_MODE — no counter to bump; the synthetic test user
+    # has no subscription row and quota is unbounded by design.
+    try:
+        from . import _test_mode
+        if _test_mode.is_test_mode():
+            return
+    except Exception:
+        pass
 
     # Reuse the existing RPC for the monthly counter.
     try:
@@ -369,6 +399,20 @@ def check_chat_cap(user_id: str) -> ChatCapDecision:
             message="",
         )
 
+    # PUBLIC_TEST_MODE — Ask CFO AI is open for every visitor sharing the
+    # synthetic test user. Skip plan + counter reads entirely.
+    try:
+        from . import _test_mode
+        if _test_mode.is_test_mode():
+            return ChatCapDecision(
+                kind="allowed", plan_key="test_mode",
+                daily_used=0, daily_cap=None,
+                monthly_used=0, monthly_cap=None,
+                message="",
+            )
+    except Exception:
+        pass
+
     state = get_plan_state(user_id)
     plan = state.plan
 
@@ -423,6 +467,14 @@ def record_chat_used(user_id: str) -> None:
     under-counted toward their cap, never over-counted."""
     if not enforcement_enabled():
         return
+
+    # PUBLIC_TEST_MODE — no per-user counters; nothing to bump.
+    try:
+        from . import _test_mode
+        if _test_mode.is_test_mode():
+            return
+    except Exception:
+        pass
 
     # Monthly counter — reuse the existing RPC (`increment_user_usage`).
     try:

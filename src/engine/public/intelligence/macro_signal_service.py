@@ -14,13 +14,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from .adapters import ManualSignalAdapter, SignalAdapter
-# Phase B + Phase C — real adapters for 4 providers. Geopolitical
-# remains a stub until GDELT/equivalent is wired.
+# Phase B + Phase C — real adapters for all 5 providers.
 from .adapters.news_signal_adapter import NewsSignalAdapter        # Phase B
-from .adapters.rss_signal_adapter import RssSignalAdapter           # Phase B
+from .adapters.rss_signal_adapter import RssSignalAdapter           # Phase B (now w/ Romanian NFKD)
 from .adapters.rates_signal_adapter import RatesSignalAdapter       # Phase B
 from .adapters.commodity_signal_adapter import CommoditySignalAdapter  # Phase C
-from .adapters.stubs import GeopoliticalSignalAdapter
+from .adapters.gdelt_adapter import GdeltSignalAdapter               # Phase C (replaces the stub)
 from .adapters.base import AdapterHealth
 from .models import IntelligenceSignal
 
@@ -46,7 +45,10 @@ class MacroSignalService:
         self.rss = rss_adapter or RssSignalAdapter()
         self.commodity = commodity_adapter or CommoditySignalAdapter()
         self.rates = rates_adapter or RatesSignalAdapter()
-        self.geopolitical = geopolitical_adapter or GeopoliticalSignalAdapter()
+        # `name = "geopolitical"` claims the same slot the stub used to fill,
+        # so the route-level health endpoint shape is unchanged. Default off
+        # (GDELT_ENABLED unset → configured=False, same as the prior stub).
+        self.geopolitical = geopolitical_adapter or GdeltSignalAdapter()
 
     @property
     def adapters(self) -> list[SignalAdapter]:

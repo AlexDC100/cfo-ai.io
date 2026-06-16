@@ -15,10 +15,16 @@
 //   for prices, included docs, extra-doc prices, and chat caps.
 //
 // WIRING
-//   Plan CTAs route to `/api/checkout/start?tier=<key>` (existing
-//   Stripe checkout). New tier price_ids are wired via env vars; until
-//   that ships the endpoint returns a 501-style stub and the FE shows
-//   a "Billing not connected" toast (caught at the page level).
+//   Plan CTAs are <button onClick={handlePick}> — NOT links. Two paths:
+//     · Unauthed → navigate("/signup?plan=<key>&intent=checkout"); the
+//       intent is also persisted to localStorage["cfo.intent.plan"] so
+//       AuthCard can echo + post-signup resume the checkout.
+//     · Authed   → POST /api/checkout/start with `Authorization: Bearer
+//       <Supabase JWT>` and `{ plan: <key>, locale }`; the backend
+//       resolves the per-tier Stripe Price ID from STRIPE_PRICE_<TIER>
+//       env vars and returns `{ url }`; we navigate there.
+//   A 503 from the backend (price_id env unset, or Stripe SDK missing)
+//   surfaces as a "Billing not connected" toast.
 //
 // COPY RULES
 //   · €0.99 intro is a one-time 7-day unlock — never "/month".
@@ -26,8 +32,9 @@
 //   · Starter gets "Best for owners" badge.
 //   · Free trial is messaged as a smaller link, not a 4th card.
 
+import { useState } from "react";
 import { Check, Sparkles, Zap } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { IntroUnlockCallout } from "./pricing/IntroUnlockCallout";
 import {
@@ -36,6 +43,45 @@ import {
   formatEur,
   usePricingConfig,
 } from "@/lib/pricingConfig";
+import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { getSupabase } from "@/lib/supabase";
+
+const API_URL =
+  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+
+/** POST /api/checkout/start with the user's Supabase JWT.
+ *  Returns the Stripe Checkout session URL on success, null on auth/network
+ *  failure, or "BILLING_NOT_CONNECTED" when the backend reports the tier's
+ *  Stripe price_id env var is unset or Stripe SDK is missing (503 from
+ *  `_create_simple_tier_session` / `_stripe_or_none`). The caller decides
+ *  how to surface each case to the user. */
+async function startCheckoutFor(plan: PlanKey): Promise<string | null | "BILLING_NOT_CONNECTED"> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data: session } = await supabase.auth.getSession();
+  const token = session.session?.access_token;
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API_URL}/api/checkout/start`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan,
+        locale: (navigator.language || "en").slice(0, 2),
+      }),
+    });
+    if (res.status === 503) return "BILLING_NOT_CONNECTED";
+    if (!res.ok) return null;
+    const body = await res.json();
+    return (body.url as string) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 interface Props {
   /** Optional — when provided, the "Start Starter / Start Pro" CTA flips
@@ -52,6 +98,50 @@ interface Props {
 
 export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) {
   const { config, loading } = usePricingConfig();
+  const { status } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState<PlanKey | null>(null);
+
+  /** Single click pathway for ALL plan CTAs (Starter, Pro, Intro Unlock).
+   *  Unauthed users go through /signup; the persisted intent + ?plan param
+   *  lets AuthCard echo the choice and the post-signup redirect resume the
+   *  checkout. Authed users POST directly to /api/checkout/start with their
+   *  Supabase JWT and land on the Stripe session URL on success. */
+  async function handlePick(plan: PlanKey) {
+    if (status !== "signed_in") {
+      try {
+        localStorage.setItem("cfo.intent.plan", plan);
+      } catch {
+        /* private mode — non-fatal */
+      }
+      navigate(`/signup?plan=${plan}&intent=checkout`);
+      return;
+    }
+
+    setSubmitting(plan);
+    const result = await startCheckoutFor(plan);
+    setSubmitting(null);
+
+    if (result === "BILLING_NOT_CONNECTED") {
+      toast({
+        title: "Billing not connected yet",
+        description:
+          "Stripe price IDs aren't wired for this tier yet. Please try again shortly.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!result) {
+      toast({
+        title: "Couldn't start checkout",
+        description: "Please try again, or contact support if this persists.",
+        variant: "destructive",
+      });
+      return;
+    }
+    window.location.href = result;
+  }
 
   if (loading || !config) {
     return (
@@ -81,6 +171,8 @@ export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) 
             features={STARTER_FEATURES}
             ctaLabel="Start Starter"
             extraDocCopy={`€${(starter.extra_doc_eur ?? 0).toFixed(2)} per extra document, shown and confirmed before processing`}
+            onPick={() => handlePick("starter")}
+            submitting={submitting === "starter"}
           />
         )}
         {pro && (
@@ -92,6 +184,8 @@ export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) 
             features={PRO_FEATURES}
             ctaLabel="Start Pro"
             extraDocCopy={`€${(pro.extra_doc_eur ?? 0).toFixed(2)} per extra document, shown and confirmed before processing`}
+            onPick={() => handlePick("pro")}
+            submitting={submitting === "pro"}
           />
         )}
       </div>
@@ -103,12 +197,7 @@ export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) 
         <div className="mt-6">
           <IntroUnlockCallout
             plan={intro}
-            onUnlock={
-              onUnlockIntro ??
-              (() => {
-                window.location.href = "/api/checkout/start?tier=intro";
-              })
-            }
+            onUnlock={onUnlockIntro ?? (() => handlePick("intro"))}
           />
         </div>
       )}
@@ -168,6 +257,8 @@ function PlanCard({
   features,
   ctaLabel,
   extraDocCopy,
+  onPick,
+  submitting,
 }: {
   plan: PlanConfig;
   badge: string;
@@ -176,8 +267,9 @@ function PlanCard({
   features: string[];
   ctaLabel: string;
   extraDocCopy: string;
+  onPick: () => void;
+  submitting: boolean;
 }) {
-  const ctaHref = `/api/checkout/start?tier=${plan.key}`;
   return (
     <article
       data-testid={`pricing-plan-${plan.key}`}
@@ -274,19 +366,22 @@ function PlanCard({
               Current plan
             </button>
           ) : (
-            <a
-              href={ctaHref}
+            <button
+              type="button"
+              onClick={onPick}
+              disabled={submitting}
               data-testid={`pricing-plan-${plan.key}-cta`}
               className={`
                 inline-flex items-center justify-center w-full h-11 rounded-xl
                 text-[13.5px] font-medium transition-colors
+                disabled:opacity-60 disabled:cursor-wait
                 ${highlight
                   ? "bg-brand text-paper hover:bg-brand-d shadow-[0_8px_18px_-8px_rgba(45,191,179,0.6)]"
                   : "bg-ink text-paper hover:bg-ink/90"}
               `}
             >
-              {ctaLabel}
-            </a>
+              {submitting ? "Opening checkout…" : ctaLabel}
+            </button>
           )}
         </div>
       </div>

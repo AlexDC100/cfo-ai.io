@@ -92,6 +92,29 @@
 
 .bs-row-item { padding-left: 0; }
 
+/* ── F5.0 Wave 3: subtle hover on rows that map to a learnable concept.
+ *  The row-label is the actual click target (LearnableRowLabel button);
+ *  this just hints at the row being interactive without flashing the
+ *  whole grid. Works with the global learning-mode CSS — `subtle` mode
+ *  hides the underline-on-hover until the user discovers the row. */
+.bs-row[data-learnable-row="true"],
+.bs-total-row[data-learnable-row="true"] {
+  border-radius: 4px;
+  margin-left: -8px;
+  margin-right: -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  transition: background-color 120ms ease;
+}
+.bs-row[data-learnable-row="true"]:hover,
+.bs-total-row[data-learnable-row="true"]:hover {
+  background: hsl(165 75% 55% / 0.04);
+}
+:root[data-learning-mode="off"] .bs-row[data-learnable-row="true"]:hover,
+:root[data-learning-mode="off"] .bs-total-row[data-learnable-row="true"]:hover {
+  background: transparent;
+}
+
 .bs-label {
   text-align: left;
   color: hsl(var(--ink));
@@ -190,6 +213,78 @@
 }
 
 .bs-note strong { color: hsl(var(--ink)); font-weight: 600; }
+
+/* ── Mobile (<640px) ────────────────────────────────────────────────────
+   The desktop 4-col grid (1fr 160 160 120 = 440+px fixed) overflows on
+   any sub-440px viewport. iPhone SE is 375px. We collapse to a single
+   column where label sits on top and the three amount cells flow into
+   a sub-grid below.
+
+   Each amount cell carries its own column-header label (auto-injected
+   via CSS ::before content from data-attrs would require markup churn;
+   instead we use grid-area names + visually-hidden headers when needed).
+   For now: bare numeric cells with a sub-grid; the header row stays
+   visible at the top of the section so the user can map columns
+   visually.
+
+   Pair with useAmountFormatter's auto-compact-on-mobile (2026-06-02) —
+   numbers like "10.922.666,19" render as "10,9 mil." and fit cleanly
+   in the narrower cells. */
+@media (max-width: 639px) {
+  .bs-col-header {
+    /* Header columns shrink-fit. Hide the placeholder first-col span
+       (was the label column header — irrelevant in the stacked layout). */
+    grid-template-columns: 1fr 1fr 0.7fr;
+    gap: 6px;
+    font-size: 9.5px;
+    padding-left: 0;
+  }
+  .bs-col-header span:first-child {
+    display: none;
+  }
+
+  .bs-row,
+  .bs-total-row {
+    /* Stack: label spans full width on row 1; amounts share row 2. */
+    grid-template-columns: 1fr 1fr 0.7fr;
+    grid-template-areas:
+      "label label label"
+      "open close delta";
+    row-gap: 4px;
+    column-gap: 6px;
+    padding: 6px 0;
+  }
+  .bs-label {
+    grid-area: label;
+    font-size: 12.5px;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* The 3 amount spans don't have IDs we can target individually, but
+     they map to grid auto-flow once we override grid-template-areas. */
+  .bs-row > .bs-amount:nth-of-type(1),
+  .bs-total-row > .bs-amount:nth-of-type(1) { grid-area: open; }
+  .bs-row > .bs-amount:nth-of-type(2),
+  .bs-total-row > .bs-amount:nth-of-type(2) { grid-area: close; }
+  .bs-row > .bs-delta,
+  .bs-total-row > .bs-delta { grid-area: delta; }
+
+  .bs-amount, .bs-delta {
+    font-size: 12px;
+    /* Allow the compact-format string ("10,9 mil.") to truncate rather
+       than push the grid wider than viewport. tabular-nums + truncate
+       is OK because compact format keeps strings to 8-10 chars max. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .bs-subtotal-rule {
+    grid-template-columns: 1fr;
+    margin-top: 4px;
+  }
+}
 
 /* ── Print ──────────────────────────────────────────────────────────── */
 @media print {

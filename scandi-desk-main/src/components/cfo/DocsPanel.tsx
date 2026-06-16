@@ -1,8 +1,12 @@
 // DocsPanel — right-anchored slide-out for switching between uploaded
 // periods. Apple-Mail-style: opens via a header pill or Cmd/Ctrl+D,
 // closes with the same toggle. Active period sticky at top; other
-// periods listed below; recently-deleted shelf at the bottom; upload
-// CTA closes the loop.
+// periods listed below; recently-deleted shelf at the bottom.
+//
+// Review/switch only — uploads happen elsewhere (Dashboard empty state
+// + header Replace dropdown). This panel intentionally omits an upload
+// button so the user can't accidentally drop a file into the wrong
+// surface; the user-facing model is "browse and switch", not "upload".
 //
 // Switching periods uses `router.replace`, not push — period switching
 // is substitution, not navigation. The user's back button stays clean.
@@ -22,7 +26,6 @@ import {
   RefreshCcw,
   RotateCcw,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import {
@@ -49,11 +52,8 @@ import {
   getSupabase,
   retryPipeline,
   signedDocumentUrl,
-  subscribeToDocumentStatus,
-  uploadDocument,
 } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 
 interface DocRow {
   id: string;
@@ -265,11 +265,6 @@ export function DocsPanel() {
   const [params, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const { toast } = useToast();
-  // Pricing V3 — extra-doc confirm modal hook. Reused at every upload
-  // call site in the app via this hook so 402/429 behaviour is consistent.
-  const uploadEnqueue = useUploadEnqueue();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingName, setUploadingName] = useState<string | null>(null);
   const [showOlder, setShowOlder] = useState<boolean>(() => readBoolFlag(SHOW_OLDER_KEY));
   const [showDeleted, setShowDeleted] = useState<boolean>(() => readBoolFlag(SHOW_DELETED_KEY));
 
@@ -278,56 +273,6 @@ export function DocsPanel() {
     queryFn: fetchPanelData,
     enabled: open,
   });
-
-  async function handleFileChosen(file: File) {
-    const MAX_BYTES = 25 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      toast({
-        title: "File too large",
-        description: `${(file.size / 1_000_000).toFixed(1)} MB exceeds the 25 MB limit.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    setUploadingName(file.name);
-    const { row, error } = await uploadDocument(file);
-    if (!row) {
-      setUploadingName(null);
-      toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
-      return;
-    }
-    // Pricing V3 — hook handles 402 (extra-doc dialog) + 429 (quota
-    // blocked) internally. Only `queued` proceeds to status streaming.
-    const enq = await uploadEnqueue.enqueue(row.id);
-    if (enq.kind !== "queued") {
-      setUploadingName(null);
-      return;
-    }
-    // Stream status until analyzed / failed. Auto-switch the active period
-    // and refresh the panel when analysis lands so the new doc appears.
-    const unsub = subscribeToDocumentStatus(row.id, (next) => {
-      if (next.status === "analyzed") {
-        unsub();
-        setUploadingName(null);
-        toast({ title: "Analysis ready", description: `${file.name} loaded.` });
-        void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
-        if (next.period_id) {
-          const sp = new URLSearchParams(params);
-          sp.set("period", next.period_id);
-          setSearchParams(sp, { replace: true });
-        }
-      }
-      if (next.status === "failed") {
-        unsub();
-        setUploadingName(null);
-        toast({
-          title: "Analysis failed",
-          description: next.error ?? "Unknown error.",
-          variant: "destructive",
-        });
-      }
-    });
-  }
 
   // Esc closes the panel — matches the Cmd+D toggle and the X button.
   useEffect(() => {
@@ -404,9 +349,6 @@ export function DocsPanel() {
 
   return (
     <>
-      {/* Pricing V3 — extra-doc confirm dialog mounts inside the panel
-          tree so the modal stacks correctly above the docs slide-out. */}
-      {uploadEnqueue.dialog}
       {/* Narrow viewport (<1280px): backdrop overlay. Click closes.
           Wider viewports: backdrop is invisible/no-op, content reflows
           via the .lg:ml-[360px] class on the page wrapper.            */}
@@ -428,6 +370,7 @@ export function DocsPanel() {
           motion-safe:animate-in motion-safe:slide-in-from-right
           motion-safe:duration-200 motion-safe:ease-out
         "
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-rule">
           <div>
@@ -444,7 +387,7 @@ export function DocsPanel() {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-5">
           {isLoading && (
             <div className="text-center py-8 text-[12px] text-ink-mute">
               <Loader2 size={14} className="inline animate-spin mr-1" />
@@ -665,50 +608,12 @@ export function DocsPanel() {
               <div className="text-center py-12">
                 <FileText size={28} className="mx-auto text-ink-mute mb-2" strokeWidth={1.5} />
                 <p className="text-[13px] text-ink-soft">No documents yet.</p>
-                <p className="text-[11.5px] text-ink-mute mt-1">Upload one from the button below.</p>
+                <p className="text-[11.5px] text-ink-mute mt-1">
+                  Upload from the dashboard to populate this list.
+                </p>
               </div>
             )}
         </div>
-
-        <footer className="px-3 py-3 border-t border-rule">
-          {/* Hidden file picker — the visible button below triggers it.
-              Same component used everywhere uploads start: Dashboard
-              empty state, header Replace dropdown, and this panel
-              (the three entry points that drifted apart before the
-              docs-panel fix). */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.xlsx,.csv,.jpg,.jpeg,.png,.xml"
-            className="hidden"
-            data-testid="docs-panel-upload-input"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              // Reset so the same file picks again next time.
-              e.currentTarget.value = "";
-              if (f) void handleFileChosen(f);
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!!uploadingName}
-            data-testid="docs-panel-upload"
-            className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-lg border border-dashed border-rule text-[12.5px] font-medium text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            {uploadingName ? (
-              <>
-                <Loader2 size={13} className="animate-spin" strokeWidth={1.75} />
-                Uploading {uploadingName.slice(0, 28)}…
-              </>
-            ) : (
-              <>
-                <Upload size={13} strokeWidth={1.75} />
-                Upload document
-              </>
-            )}
-          </button>
-        </footer>
       </aside>
     </>
   );

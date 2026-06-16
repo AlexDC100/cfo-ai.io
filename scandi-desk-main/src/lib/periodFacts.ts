@@ -17,7 +17,9 @@ import type { Statements } from "./financialReport";
 import type { ApiLineItem } from "./plStructure";
 import type { PeriodValuation } from "./activePeriod";
 import { pickPLBuilder } from "./buildPlStatement";
-import { buildBSStatement } from "./buildBsStatement";
+// F2.1 — buildBSStatement import removed alongside the dead local at
+// line ~173. The only consumer of buildBSStatement is now
+// FinancialStatements.tsx (BS tab render).
 import { deriveTotals } from "./financialReport";
 
 // ─── Fact blob shape ────────────────────────────────────────────────────
@@ -150,6 +152,10 @@ interface BuildFactsArgs {
   lineItems: ApiLineItem[];
   valuation: PeriodValuation | null;
   industry: string | null;
+  /** F2.7 — Engine canonical metrics map (calculated_metrics rows keyed by
+   *  name). When supplied, every ratio that has a direct engine equivalent
+   *  is sourced from this map instead of recomputed FE-side. */
+  metricsByName?: Record<string, number | null>;
 }
 
 export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
@@ -169,18 +175,12 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     statements,
   );
 
-  // Build BS using per-account when available (opening is 0 without prior period)
-  const bs =
-    lineItems && lineItems.length > 0
-      ? buildBSStatement({
-          lineItems,
-          entity: statements.companyName ?? "Entity",
-          asOf: statements.periodLabel,
-          comparativeDate: "Opening",
-          currency: statements.currency,
-          currentYearNetProfit: pl.netProfit,
-        })
-      : null;
+  // F2.1 — Removed dead `const bs = buildBSStatement(...)` local. The
+  // returned BSStatement was never referenced downstream in this function
+  // (`facts.bs.*` reads point to `bsFacts: BSFacts`, not the BSStatement).
+  // The BS-tab display path in `FinancialStatements.tsx` is the only
+  // surviving consumer of `buildBSStatement`. Hygiene cleanup that the
+  // F2.1 BS-tab rewrite makes obsolete.
 
   const totals = deriveTotals(statements);
   const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
@@ -374,25 +374,38 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // (negative for EEI). Adjusted view adds dividend income from
   // participations — the leverage view CRE lenders use when an SPV draws
   // material dividends.
+  // F2.7 — RatioFacts prefers engine canonical (calculated_metrics) over
+  // FE arithmetic when supplied. Same canonical-first pattern as F2.2
+  // computeRatios. The engine emits matching rows; FE arithmetic stays
+  // as fallback for sample data without canonical metrics.
   const ebitdaStatutory = plFacts.ebitda;
   const ebitdaAdjusted = ebitdaStatutory + plFacts.dividend_income;
+  const m = (name: string): number | null => {
+    if (!args.metricsByName) return null;
+    const v = args.metricsByName[name];
+    return typeof v === "number" ? v : null;
+  };
+  const mOr = (name: string, fb: number): number => {
+    const v = m(name);
+    return v === null ? fb : v;
+  };
   const ratioFacts: RatioFacts = {
-    current_ratio: safeDiv(totals.totalCurrentAssets, totals.totalCurrentLiabilities),
-    quick_ratio: safeDiv(totals.totalCurrentAssets - bsFacts.prepayments, totals.totalCurrentLiabilities),
-    cash_ratio: safeDiv(bsFacts.cash, totals.totalCurrentLiabilities),
-    debt_to_equity: safeDiv(bsFacts.bank_debt_total, bsFacts.total_equity),
-    debt_to_assets: safeDiv(bsFacts.bank_debt_total, bsFacts.total_assets),
-    equity_ratio: safeDiv(bsFacts.total_equity, bsFacts.total_assets),
-    interest_coverage_ebit: safeDiv(plFacts.ebit, plFacts.interest_expense),
-    ebitda_to_interest: safeDiv(ebitdaStatutory, plFacts.interest_expense),
-    dscr: safeDiv(ebitdaStatutory, plFacts.interest_expense + Math.max(773894.83, plFacts.depreciation)),
-    debt_to_ebitda: ebitdaStatutory > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaStatutory) : 0,
+    current_ratio: mOr("current_ratio", safeDiv(totals.totalCurrentAssets, totals.totalCurrentLiabilities)),
+    quick_ratio: mOr("quick_ratio", safeDiv(totals.totalCurrentAssets - bsFacts.prepayments, totals.totalCurrentLiabilities)),
+    cash_ratio: mOr("cash_ratio", safeDiv(bsFacts.cash, totals.totalCurrentLiabilities)),
+    debt_to_equity: mOr("debt_to_equity", safeDiv(bsFacts.bank_debt_total, bsFacts.total_equity)),
+    debt_to_assets: mOr("debt_to_assets", safeDiv(bsFacts.bank_debt_total, bsFacts.total_assets)),
+    equity_ratio: mOr("equity_ratio", safeDiv(bsFacts.total_equity, bsFacts.total_assets)),
+    interest_coverage_ebit: mOr("interest_coverage", safeDiv(plFacts.ebit, plFacts.interest_expense)),
+    ebitda_to_interest: mOr("ebitda_to_interest", safeDiv(ebitdaStatutory, plFacts.interest_expense)),
+    dscr: mOr("dscr", safeDiv(ebitdaStatutory, plFacts.interest_expense + Math.max(773894.83, plFacts.depreciation))),
+    debt_to_ebitda: mOr("debt_to_ebitda", ebitdaStatutory > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaStatutory) : 0),
     debt_to_ebitda_adjusted: ebitdaAdjusted > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaAdjusted) : 0,
-    ebitda_margin_gross: safeDiv(ebitdaStatutory, plFacts.revenue),
+    ebitda_margin_gross: m("ebitda_margin") !== null ? (m("ebitda_margin") as number) : safeDiv(ebitdaStatutory, plFacts.revenue),
     ebitda_margin_clean: safeDiv(ebitdaStatutory - plFacts.capitalized_own_work_memo, plFacts.rental_revenue),
-    net_margin: safeDiv(plFacts.net_profit, plFacts.revenue),
-    roe: safeDiv(plFacts.net_profit, bsFacts.total_equity),
-    roa: safeDiv(plFacts.net_profit, bsFacts.total_assets),
+    net_margin: m("net_margin") !== null ? (m("net_margin") as number) : safeDiv(plFacts.net_profit, plFacts.revenue),
+    roe: mOr("roe", safeDiv(plFacts.net_profit, bsFacts.total_equity)),
+    roa: mOr("roa", safeDiv(plFacts.net_profit, bsFacts.total_assets)),
     property_yield: safeDiv(plFacts.rental_revenue, bsFacts.investment_property_net),
   };
 
@@ -442,14 +455,20 @@ export function usePeriodFacts(): PeriodFacts | null {
   const period = useActivePeriod();
   return useMemo(() => {
     if (!period.isLoaded || !period.statements || !period.id) return null;
+    // F2.7 — Engine canonical metrics map for the ratio sourcing path.
+    const metricsByName: Record<string, number | null> = {};
+    for (const mt of period.metrics) {
+      metricsByName[mt.name] = typeof mt.value === "number" ? mt.value : null;
+    }
     return buildPeriodFacts({
       periodId: period.id,
       statements: period.statements,
       lineItems: period.lineItems ?? [],
       valuation: period.valuation,
       industry: period.industry,
+      metricsByName,
     });
-  }, [period.id, period.statements, period.lineItems, period.valuation, period.industry, period.isLoaded]);
+  }, [period.id, period.statements, period.lineItems, period.valuation, period.industry, period.isLoaded, period.metrics]);
 }
 
 // ─── Cross-view consistency check ───────────────────────────────────────

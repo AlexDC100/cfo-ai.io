@@ -8,10 +8,16 @@
 //
 // All visual conventions live in the .pl-* classes — see plStatementView.css.
 
+import { useTranslation } from "react-i18next";
 import type { PLStatement, PLSection, PLLine } from "@/lib/plStructure";
-import { formatRON, formatRONSigned, formatPercent } from "@/lib/formatRon";
+import { formatPercent } from "@/lib/formatRon";
+import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
 import { useHighlightFromUrl } from "./useHighlightFromUrl";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { bucketToConcept } from "@/lib/learning/bucketToConcept";
+import { GuideMeButton } from "@/components/learning/GuideMeButton";
+import { PL_GUIDE } from "@/components/learning/pageGuides";
 import "./plStatementView.css";
 
 interface Props {
@@ -21,55 +27,58 @@ interface Props {
 }
 
 export function PLStatementView({ statement, showFootnote = true }: Props) {
-  // Phase A foundation: when a TraceableNumber elsewhere routes here
-  // with `?highlight=<bucket>` the hook scrolls the matching row into
-  // view and pulses it. Matching rows carry `data-traceable-target=`
-  // — see PLSection.subtotalBucket and PLLine.bucket plus the boxed
-  // EBITDA row below (hardcoded "ebitda").
   useHighlightFromUrl();
+  const { t } = useTranslation();
+  const fmt = useAmountFormatter(statement.currency);
+  const display = useDisplayCurrency();
 
   const [operatingRevenue, operatingExpenses, depreciationSection, financialItems, closingSection] =
     statement.sections;
 
   return (
     <div className="pl-statement" data-testid="pl-statement">
-      <div className="pl-header">
+      <div className="pl-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <h2>
-          P&amp;L — {statement.entity} — {statement.period} ({statement.currency})
+          {t("statements.pl.title")} — {statement.entity} — {statement.period} ({display})
         </h2>
+        <GuideMeButton pageId="pnl" title="P&L" steps={PL_GUIDE} />
       </div>
 
       <div className="pl-body">
         {/* OPERATING REVENUE */}
-        <PLSectionView section={operatingRevenue} />
+        <div data-guide="pl-revenue">
+          <PLSectionView section={operatingRevenue} currency={statement.currency} />
+        </div>
 
         {/* OPERATING EXPENSES */}
-        <PLSectionView section={operatingExpenses} />
+        <PLSectionView section={operatingExpenses} currency={statement.currency} />
 
-        {/* EBITDA — boxed off with double borders. Hardcoded bucket so
-         *  Valuation page / ratios linking to `ebitda` land here. */}
-        <div className="pl-ebitda-box" {...{ [TRACEABLE_TARGET_ATTR]: "ebitda" }}>
+        {/* EBITDA — boxed off with double borders. */}
+        <div
+          className="pl-ebitda-box"
+          data-guide="pl-ebitda"
+          {...{ [TRACEABLE_TARGET_ATTR]: "ebitda" }}
+        >
           <div className="pl-row pl-total">
             <span className="pl-code" />
-            <span className="pl-label">EBITDA</span>
-            <span className="pl-amount">{formatRON(statement.ebitda)}</span>
+            <span className="pl-label">{t("statements.pl.ebitda")}</span>
+            <LearnableNumber conceptKey="ebitda" value={statement.ebitda} className="pl-amount" block>
+              {fmt(statement.ebitda)}
+            </LearnableNumber>
           </div>
         </div>
 
         {/* D&A → EBIT */}
-        <PLSectionView section={depreciationSection} />
+        <PLSectionView section={depreciationSection} currency={statement.currency} />
 
         {/* FINANCIAL ITEMS */}
-        <PLSectionView section={financialItems} />
+        <PLSectionView section={financialItems} currency={statement.currency} />
 
         {/* PBT → NET PROFIT (operational headline) */}
-        <PLSectionView section={closingSection} />
+        <div data-guide="pl-net-profit">
+          <PLSectionView section={closingSection} currency={statement.currency} />
+        </div>
 
-        {/* 722 reconciliation bridge — operational → +722 → statutory ct-121.
-         *  Operational stays the visual headline (above); statutory is the
-         *  reconciled total here, deliberately subordinated. Only shown when
-         *  capitalized own-work is materially non-zero. No new computation:
-         *  both values come from the engine via buildPLStatement. */}
         {statement.capitalizedOwnWorkMemo != null &&
           Math.abs(statement.capitalizedOwnWorkMemo) > 1 &&
           statement.netProfitStatutory != null && (
@@ -77,13 +86,14 @@ export function PLStatementView({ statement, showFootnote = true }: Props) {
               operational={statement.netProfit}
               capitalizedOwnWork={statement.capitalizedOwnWorkMemo}
               statutory={statement.netProfitStatutory}
+              currency={statement.currency}
             />
           )}
       </div>
 
       {/* KEY MARGINS */}
       <div className="pl-key-margins">
-        <h3>Key margins</h3>
+        <h3>{t("statements.pl.keyMargins")}</h3>
         <ul>
           {statement.keyMargins.map((m, i) => (
             <li key={i}>
@@ -102,20 +112,19 @@ export function PLStatementView({ statement, showFootnote = true }: Props) {
   );
 }
 
-function PLSectionView({ section }: { section: PLSection }) {
+function PLSectionView({ section, currency }: { section: PLSection; currency: string }) {
   if (section.lines.length === 0 && !section.subtotalLabel) return null;
-  // Subtotal-row traceability: when section declares a subtotalBucket
-  // (e.g. "revenue", "ebit", "netIncomeOperational"), emit the data
-  // attribute so cross-page TraceableNumber clicks can land here.
+  const fmt = useAmountFormatter(currency);
   const subtotalAttrs = section.subtotalBucket
     ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
     : {};
+  const subtotalConceptKey = bucketToConcept(section.subtotalBucket);
   return (
     <div className="pl-section">
       {section.header && <div className="pl-section-header">{section.header}</div>}
 
       {section.lines.map((line, i) => (
-        <PLLineView key={`${line.accountCode ?? "x"}-${i}`} line={line} />
+        <PLLineView key={`${line.accountCode ?? "x"}-${i}`} line={line} currency={currency} />
       ))}
 
       {section.subtotalLabel && (
@@ -124,7 +133,18 @@ function PLSectionView({ section }: { section: PLSection }) {
           <div className="pl-row pl-subtotal" {...subtotalAttrs}>
             <span className="pl-code" />
             <span className="pl-label">{section.subtotalLabel}</span>
-            <span className="pl-amount">{formatRON(section.subtotalAmount)}</span>
+            {subtotalConceptKey ? (
+              <LearnableNumber
+                conceptKey={subtotalConceptKey}
+                value={section.subtotalAmount ?? 0}
+                className="pl-amount"
+                block
+              >
+                {fmt(section.subtotalAmount)}
+              </LearnableNumber>
+            ) : (
+              <span className="pl-amount">{fmt(section.subtotalAmount)}</span>
+            )}
           </div>
         </>
       )}
@@ -132,25 +152,33 @@ function PLSectionView({ section }: { section: PLSection }) {
   );
 }
 
-function PLLineView({ line }: { line: PLLine }) {
-  // Line-level traceability: bucket-tagged lines become scroll-targets
-  // for incoming `?highlight=<bucket>` URLs. Untagged lines render
-  // exactly as before — zero visual regression.
+function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
+  const fmt = useAmountFormatter(currency);
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
+  const conceptKey = bucketToConcept(line.bucket);
 
   if (line.style === "subtotal" && !line.accountCode) {
     return (
       <div className="pl-row pl-subtotal" {...lineAttrs}>
         <span className="pl-code" />
         <span className="pl-label">{line.label}</span>
-        <span className="pl-amount">{formatRON(line.amount)}</span>
+        {conceptKey ? (
+          <LearnableNumber
+            conceptKey={conceptKey}
+            value={line.amount ?? 0}
+            className="pl-amount"
+            block
+          >
+            {fmt(line.amount)}
+          </LearnableNumber>
+        ) : (
+          <span className="pl-amount">{fmt(line.amount)}</span>
+        )}
       </div>
     );
   }
 
-  const amount = line.sign
-    ? formatRONSigned(line.amount ?? 0, line.sign)
-    : formatRON(line.amount);
+  const amount = line.sign ? fmt(line.amount ?? 0, { sign: line.sign }) : fmt(line.amount);
   const amountClass =
     line.sign === "negative" ? "pl-neg" : line.sign === "positive" ? "pl-pos" : "";
 
@@ -158,7 +186,18 @@ function PLLineView({ line }: { line: PLLine }) {
     <div className={`pl-row pl-row-item ${line.style}`} {...lineAttrs}>
       <span className="pl-code">{line.accountCode ?? ""}</span>
       <span className="pl-label">{line.label}</span>
-      <span className={`pl-amount ${amountClass}`}>{amount}</span>
+      {conceptKey ? (
+        <LearnableNumber
+          conceptKey={conceptKey}
+          value={line.amount ?? 0}
+          className={`pl-amount ${amountClass}`}
+          block
+        >
+          {amount}
+        </LearnableNumber>
+      ) : (
+        <span className={`pl-amount ${amountClass}`}>{amount}</span>
+      )}
     </div>
   );
 }
@@ -183,28 +222,35 @@ function PLReconciliationBridge({
   operational,
   capitalizedOwnWork,
   statutory,
+  currency,
 }: {
   operational: number;
   capitalizedOwnWork: number;
   statutory: number;
+  currency: string;
 }) {
+  const { t } = useTranslation();
+  const fmt = useAmountFormatter(currency);
+  const display = useDisplayCurrency();
   return (
     <div className="pl-recon-bridge" data-testid="pl-recon-bridge" role="group" aria-label="Net profit reconciliation">
       <div className="pl-recon-head">
-        Reconciliation to statutory ct&nbsp;121
+        {t("statements.pl.recon.heading")}
       </div>
       <div className="pl-row pl-row-item pl-recon-line">
         <span className="pl-code">722</span>
-        <span className="pl-label">+ Capitalized own work</span>
-        <span className="pl-amount">{formatRON(capitalizedOwnWork)}</span>
+        <span className="pl-label">{t("statements.pl.recon.capitalizedOwnWork")}</span>
+        <span className="pl-amount">{fmt(capitalizedOwnWork)}</span>
       </div>
       <div className="pl-row pl-recon-total">
         <span className="pl-code" />
-        <span className="pl-label">= Net profit — statutory (ct&nbsp;121)</span>
-        <span className="pl-amount">{formatRON(statutory)}</span>
+        <span className="pl-label">{t("statements.pl.recon.statutoryTotal")}</span>
+        <LearnableNumber conceptKey="net_profit" value={statutory} className="pl-amount" block>
+          {fmt(statutory)}
+        </LearnableNumber>
       </div>
       <div className="pl-recon-note">
-        Operational net profit ({formatRON(operational)} RON) is the headline figure across this report.
+        Operational net profit ({fmt(operational)} {display}) is the headline figure across this report.
         Account 722 is a non-cash credit that capitalizes internally-incurred costs into CIP (account 231);
         the offsetting cost sits inside account 628 (third-party services). Net P&amp;L effect of the 722/628
         wash is ~zero; statutory ct&nbsp;121 is shown above as the reconciled total — not as a competing
@@ -219,9 +265,10 @@ function PLReconciliationBridge({
 // ────────────────────────────────────────────────────────────────────────
 
 function PLFootnote({ statement }: { statement: PLStatement }) {
+  const fmt = useAmountFormatter(statement.currency);
+  const display = useDisplayCurrency();
   const ownWork = statement.capitalizedOwnWorkMemo ?? 0;
   const ext628 = statement.extServOther ?? 0;
-  // Rental + discounts gives "real cash-generative" revenue baseline
   const rentalOnly =
     (statement.sections[0]?.lines.find((l) => l.accountCode === "706")?.amount ?? 0) +
     (statement.sections[0]?.lines.find((l) => l.accountCode === "767")?.amount ?? 0);
@@ -234,20 +281,20 @@ function PLFootnote({ statement }: { statement: PLStatement }) {
       <ol>
         <li>
           <strong>
-            Account 722 (Capitalized own work) — {formatRON(ownWork)} RON is not external
+            Account 722 (Capitalized own work) — {fmt(ownWork)} {display} is not external
             revenue.
           </strong>{" "}
           It is the credit-side offset that capitalizes internally-incurred construction costs
           into CIP (account 231 — YTD movement matches 722 exactly). The corresponding cost is
-          sitting inside <strong>628 Other third-party services ({formatRON(ext628)})</strong>.
+          sitting inside <strong>628 Other third-party services ({fmt(ext628)})</strong>.
           Net P&amp;L effect: ~zero. For a "clean" operating view, strip both: revenue drops to
-          ~{formatRON(rentalOnly)}, opex drops to ~{formatRON(opexExcl628)}, clean EBITDA ≈{" "}
-          {formatRON(rentalOnly - opexExcl628)}.
+          ~{fmt(rentalOnly)}, opex drops to ~{fmt(opexExcl628)}, clean EBITDA ≈{" "}
+          {fmt(rentalOnly - opexExcl628)}.
         </li>
         <li>
           <strong>
             Real cash-generative operating revenue is essentially just rental income (706):{" "}
-            {formatRON(rentalOnly)} RON.
+            {fmt(rentalOnly)} {display}.
           </strong>{" "}
           Against that base, the underlying property-management EBITDA is the more meaningful
           number.

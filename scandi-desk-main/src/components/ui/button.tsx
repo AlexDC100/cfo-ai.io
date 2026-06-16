@@ -71,10 +71,11 @@ const buttonVariants = cva(
         link: "text-burgundy underline-offset-[3px] hover:underline",
       },
       size: {
-        default: "h-9 px-4",     // 36px tall
-        sm: "h-8 px-3 text-[14px]",
-        lg: "h-11 px-6 text-[15px]",  // 44px CTA
-        icon: "h-9 w-9",
+        // Default bumps to 44px on mobile (Apple HIG touch target), 36px on sm+
+        default: "h-11 sm:h-9 px-4",
+        sm: "h-10 sm:h-8 px-3 text-[14px]",
+        lg: "h-12 sm:h-11 px-6 text-[15px]",  // 48px → 44px CTA
+        icon: "h-11 w-11 sm:h-9 sm:w-9",
       },
     },
     defaultVariants: { variant: "primary", size: "default" },

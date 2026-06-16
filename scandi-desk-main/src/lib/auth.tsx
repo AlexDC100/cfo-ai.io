@@ -18,6 +18,14 @@ import {
 } from "react";
 import type { Session, User, AuthError } from "@supabase/supabase-js";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase";
+import { queryClient } from "@/lib/queryClient";
+import {
+  isPublicTestMode,
+  TEST_USER_ID,
+  TEST_USER_EMAIL,
+  TEST_DISPLAY_NAME,
+  TEST_WORKSPACE_LABEL,
+} from "@/lib/testMode";
 
 type AuthStatus = "loading" | "signed_out" | "signed_in" | "disabled";
 
@@ -58,6 +66,63 @@ export interface AuthActions {
 const AuthContext = createContext<(AuthState & AuthActions) | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // PUBLIC_TEST_MODE — open-access posture. Return a synthetic test user
+  // immediately; never touch Supabase. Downstream components see a
+  // signed-in identity (`isAuthenticated=true`, `user.id=TEST_USER_ID`,
+  // `workspaceLabel="Test workspace"`) and behave as if a real user is
+  // signed in. The BE sees the same TEST_USER_ID via its own bypass
+  // (see `src/engine/api/_test_mode.py`). See `src/lib/testMode.ts`.
+  //
+  // Critically: we early-return BEFORE calling `useState` for the
+  // session-tracking machinery, because in test mode we never receive
+  // an `onAuthStateChange` event from Supabase (we never initialize
+  // the client). The synthetic identity below is static for the
+  // session — the test user doesn't sign in or out at runtime.
+  if (isPublicTestMode) {
+    // Synthetic identity for the test workspace. The real Supabase
+    // session — needed for direct FE → Supabase calls (Storage uploads,
+    // INSERT into documents, RLS-scoped selects) — is set up
+    // asynchronously by <TestModeSessionBoot /> mounted in App.tsx.
+    // It calls `supabase.auth.setSession(...)` with the JWT minted by
+    // the BE's GET /api/test-mode/session endpoint.
+    //
+    // Critically: we early-return BEFORE calling any hooks so this
+    // block has zero hook calls. The conditional-hooks pattern is
+    // technically OK with a build-time constant but trips React's
+    // runtime hooks counter in some edge cases (Strict Mode double
+    // render, Suspense fallback unmount/remount). Keeping this block
+    // hooks-free sidesteps the whole problem.
+    const testUser = {
+      id: TEST_USER_ID,
+      email: TEST_USER_EMAIL,
+      user_metadata: {
+        display_name: TEST_DISPLAY_NAME,
+        company_name: TEST_WORKSPACE_LABEL,
+      },
+      app_metadata: {},
+      aud: "authenticated",
+      created_at: new Date(0).toISOString(),
+    } as unknown as User;
+
+    const value: AuthState & AuthActions = {
+      status: "signed_in",
+      session: null,
+      user: testUser,
+      displayName: TEST_DISPLAY_NAME,
+      initials: "TM",
+      workspaceLabel: TEST_WORKSPACE_LABEL,
+      companyName: TEST_WORKSPACE_LABEL,
+      demoActive: false,
+      isAuthenticated: true,
+      signUp: async () => ({ error: testModeUnavailable(), needsConfirmation: false }),
+      signIn: async () => ({ error: testModeUnavailable() }),
+      signOut: async () => ({ error: null }),
+      enterDemo: () => { /* test mode IS the demo */ },
+      exitDemo: () => { /* no-op */ },
+    };
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  }
+
   const supabase = getSupabase();
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<AuthStatus>(
@@ -73,7 +138,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setStatus(data.session ? "signed_in" : "signed_out");
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    // Track the prior auth identity so we can detect *transitions* (signOut,
+    // user-switch) and clear the query cache exactly when ownership changes.
+    // Without this guard, every onAuthStateChange tick would clear the cache —
+    // including TOKEN_REFRESHED + USER_UPDATED which fire periodically and
+    // would invalidate the user's perfectly good cached data mid-session.
+    let priorUserId: string | null = null;
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      const nextUserId = s?.user?.id ?? null;
+
+      // B-H5: clear the react-query cache when ownership changes hands.
+      // Three transitions matter:
+      //   · signed-in → signed-out: prevent leaking the previous user's
+      //     dashboard data to the next person on this device.
+      //   · signed-in user A → signed-in user B: same risk; user-switch
+      //     on shared devices is rare but real.
+      //   · SIGNED_OUT event with no prior user: no-op (first-ever boot).
+      // The narrow `priorUserId !== nextUserId` check makes us a no-op on
+      // TOKEN_REFRESHED + USER_UPDATED + INITIAL_SESSION (same user across
+      // those events), so a long-running tab doesn't dump its cache every
+      // hour when Supabase rotates the access_token.
+      if (priorUserId !== null && priorUserId !== nextUserId) {
+        queryClient.clear();
+      } else if (event === "SIGNED_OUT" && priorUserId !== null) {
+        // Defensive belt-and-braces: SIGNED_OUT with a prior user id should
+        // always clear, even if the user-id-equality check somehow missed.
+        queryClient.clear();
+      }
+      priorUserId = nextUserId;
+
       setSession(s);
       setStatus(s ? "signed_in" : "signed_out");
     });
@@ -108,12 +201,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (industryKey) meta.pending_industry_key = industryKey;
     if (industryDisplayName) meta.pending_industry_display = industryDisplayName;
+    // emailRedirectTo MUST match a route that:
+    //   (a) is reachable on the deployed origin (whitelisted under Supabase
+    //       → Auth → URL Configuration → Redirect URLs), and
+    //   (b) actually completes the SDK's token exchange instead of leaving
+    //       the user on a generic landing page with a long token-laden URL.
+    // /auth/callback satisfies both — see src/pages/cfo/AuthCallback.tsx.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: Object.keys(meta).length > 0 ? meta : undefined,
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
     // Mirror the workspace label into localStorage so the app shell can
@@ -187,6 +286,18 @@ function disabledError(): AuthError {
   return {
     name: "AuthError",
     message: "Sign-in is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.",
+    status: 0,
+  } as AuthError;
+}
+
+function testModeUnavailable(): AuthError {
+  // Returned by signUp/signIn when the app is in PUBLIC_TEST_MODE.
+  // Should never reach the user — login/signup routes redirect to
+  // /dashboard before any form submission happens — but provides a
+  // safe fallback if a caller bypasses the redirect.
+  return {
+    name: "AuthError",
+    message: "This deployment is in TEST MODE. Sign-in is disabled; everyone shares the test workspace.",
     status: 0,
   } as AuthError;
 }

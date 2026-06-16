@@ -22,6 +22,7 @@
 11. The non-goals
 12. When you finish each session
 13. The bottom line
+14. Engine deploy protocol (no `docker cp` for engine code)
 
 **Part 2 — Reference (read once, refer back as needed):**
 - 📘 **Appendix A** — Full Financial Analysis Methodology (the 705-line methodology doc)
@@ -368,6 +369,93 @@ Before the conversation ends, if you produced a deliverable:
 You're not building a model from scratch each time. You're applying a tested framework consistently. The toolkit is the model; you're the orchestrator. Speed and consistency matter more than cleverness — the user wants the same analysis structure every time, with the numbers changing.
 
 If you do this right, the user can hand you any Romanian SME trial balance and get back a defensible CFO-grade analysis in under 5 minutes of conversation. That's the bar.
+
+---
+
+## 14. Engine deploy protocol (locked from F1.r forward)
+
+**Rule:** No `docker cp` hot patches into running containers for engine code. Ever.
+
+**Context:** F1.f / F1.g were deployed via `docker cp _ro_coa.py cfo-ai-backend:/app/...` directly into the running container without syncing to the host source at `/opt/cfo-ai/src/engine/api/_ro_coa.py`. F1.j subsequently did `docker compose build backend`, which reads from the host source — silently dropping the F1.f / F1.g additions because they had never been written to host disk. The envelope structure remained (probes for `canonical_version` and envelope keys all passed) but `assembled_piotroski` and `assembled_bands` returned `null` on every period since F1.j shipped. The regression went silent for weeks until F2.4's pre-deploy capture needed the fields and found them empty.
+
+**The shortcut is retired.** Any deploy that touches engine source files must follow this exact sequence:
+
+1. **`scp` or `rsync` source to `/opt/cfo-ai/src/` on the VPS host.** The host source is the source of truth, not the running container.
+
+   **Rsync discipline (locked from F3.14 forward, after a near-miss).** When rsyncing multiple files to a target tree, **use one rsync per (source, destination) pair when source filenames differ from destination basenames**. Never:
+
+   ```
+   rsync -av path/a/file_a.py path/b/file_b.py root@vps:/opt/cfo-ai/src/engine/   # WRONG
+   ```
+
+   Both files land in `/opt/cfo-ai/src/engine/`, and any file in that destination dir whose basename collides with one of the sources gets **silently overwritten with wrong-tree content**. F3.14 hit this: an `engine/api/pipeline.py` rsync collided with the existing `engine/pipeline.py` (different file, same basename), the legacy entry point's content was clobbered, and the backend went into restart loop with a misleading `ImportError`. Recovery took 5 minutes; the bug would have been invisible without the import error.
+
+   Correct forms:
+   - **Explicit per-file destinations** (preferred when ≤5 files):
+     ```
+     rsync -av path/a/file_a.py root@vps:/opt/cfo-ai/src/path/a/file_a.py
+     rsync -av path/b/file_b.py root@vps:/opt/cfo-ai/src/path/b/file_b.py
+     ```
+   - **Staging + tree-mirror sync** (preferred for bulk changes): rsync the entire `src/` tree from a clean local repo to `/opt/cfo-ai/src/` with `rsync -av --delete src/ root@vps:/opt/cfo-ai/src/`. Use `--dry-run` first to preview deletions.
+   - **Per-directory grouping** (acceptable for small groups when all files do belong in the same destination dir): `rsync -av dir/file1 dir/file2 dir/file3 root@vps:/opt/cfo-ai/dir/` is fine if and only if all three source basenames match what should be at that destination.
+
+   The cheap defensive check before any multi-file rsync: read the destination dir listing once (`ls /opt/cfo-ai/path/`) and confirm no source basename collides with a file that doesn't belong to the same logical location.
+
+2. **`docker compose build backend && docker compose up -d backend`.** The image is built from host source; the running container is replaced.
+3. **Verify the change is visible in the running container.** Probe the relevant function or endpoint — e.g., `docker exec cfo-ai-backend python3 -c "from engine.api import _ro_coa; print(hasattr(_ro_coa, '_new_helper'))"` or hit the affected API path.
+4. **Run F-A3.1** to confirm BS-correctness has not regressed: `docker exec cfo-ai-backend python3 /app/scripts/measure_bs_drift.py`. Both fixtures must stay GREEN (EEI 0.0000%, Scandia 0.3698%).
+
+**The deploy is not "in the container only."** It is "on the host source first, then rebuilt." `docker cp` to a running container is acceptable ONLY for temporary diagnostic helpers that don't need to persist across rebuilds — and even then must be re-applied after any rebuild, because they will be wiped.
+
+**Engine code changes go through host source, always.** No exceptions, including small one-line fixes, including "I'll sync to host later," including "the rebuild is far enough in the future that it doesn't matter." The whole point of the rule is that the future rebuild always comes eventually and the regression always goes silent in between.
+
+FE code (Vite-bundled, served by `cfo-ai-frontend`) does not have the same risk because every FE change requires `docker compose build frontend` — there is no `docker cp` shortcut path that bypasses the host source. The rule is specifically for engine code.
+
+---
+
+### Schema-migration discipline (locked from F3.24 forward, 2026-05-26; tightened 2026-05-26 post-Bug-#4)
+
+**Rule:** Every `supabase/schema_phase_*.sql` migration that adds, drops, or modifies a column / table / index / constraint MUST end with:
+
+```sql
+NOTIFY pgrst, 'reload schema';
+```
+
+AND the operator runbook for applying the migration MUST include a deterministic Dashboard step (see below). **The NOTIFY alone is insufficient on Supabase managed infrastructure** — this was learned the hard way during F3.16-3b.5.
+
+**Two-step deploy protocol for schema migrations (locked):**
+
+1. **Run the SQL in Supabase Studio** — includes the NOTIFY line at the bottom (vanilla PostgREST honors this; harmless on Supabase if it doesn't).
+2. **Immediately click "Reload schema cache"** in **Supabase Dashboard → Settings → API**. This is the **required step on Supabase managed infrastructure** — the NOTIFY is optimistic, the Dashboard click is the deterministic action.
+
+**Context — F3.16-3b.5 hit this exactly:** the migration ran cleanly, `pg_catalog` confirmed both expected rows (column + index), but every subsequent API call returned 400 Bad Request for explicit selects and `select=*` silently dropped the new column. The orchestrator's `_verify_snapshot_column` correctly halted before writing — saving ~3 periods of partial-capture data corruption.
+
+**Root cause:** PostgREST caches the column list at startup and on schema-change events. The `ALTER TABLE` update to `pg_catalog` does NOT automatically fire the schema-reload event PostgREST listens on. Three signals can refresh it:
+
+1. `NOTIFY pgrst, 'reload schema';` — **optimistic only on Supabase**. Vanilla PostgREST subscribes; Supabase's managed PostgREST may not.
+2. Dashboard "Reload schema cache" button — **most reliable on Supabase, ~5 s effect**.
+3. Toggle any API setting (e.g. Max Rows) to force PostgREST worker restart — **escalation when the button doesn't take**.
+
+**Bug #4 escalation pattern (added 2026-05-26):** if all three signals fail to flip the cache (verified by `verify_pgrst_visibility` helper rejecting writes), the case is `[F3.25-SUPABASE-POSTGREST-CACHE-PERSISTENT-STALENESS]`. Escalation:
+
+- **Pause the orchestrator immediately.** Do NOT push through. Halt protocol stays enforced.
+- **Open a Supabase support ticket** with the evidence trail: migration applied to pg_catalog (verified), three reload signals exhausted (NOTIFY + Dashboard reload + Settings toggle), column actively rejected as 400 Bad Request by the REST API.
+- **Expected resolution: 24-48 h.** Sprint pauses for that long. Carniprod canary stays held, F-A3.1 / F-A3.2 baselines preserved, no prod data touched.
+- **F3.16 (or whichever sprint) closure delays by the same window.** Independent sprint work (e.g. F3.16-3b.6 F4.2 hardening) can proceed in parallel — it doesn't depend on the schema cache being live.
+
+**Pre-flight check (locked):** before any orchestrator script writes data to a newly-added column, the script MUST call:
+
+```python
+from _pgrst_visibility import verify_pgrst_visibility
+
+with _supabase.admin() as ac:
+    verify_pgrst_visibility(ac, "<table>", "<new_column>")
+    # writes below here are safe
+```
+
+The helper lives in `scripts/_pgrst_visibility.py` (extracted from `run_3b5_backfill.py::_verify_snapshot_column` on 2026-05-26). It performs two probes — wildcard select + explicit column select — and raises SystemExit with the operator runbook embedded in the message when either fails. Any future column-add orchestrator that doesn't call this helper is a bug.
+
+**Backfilled into existing migrations on 2026-05-26.** All 12 existing `supabase/schema_phase_*.sql` files now end with the NOTIFY line so re-running them after a Postgres restore or fresh-environment setup stays safe. Idempotent: `ALTER TABLE ... IF NOT EXISTS` + harmless `NOTIFY` = no-op on already-applied migrations. The NOTIFY is not the deterministic fix — it's the optimistic-path complement to the Dashboard click that IS the deterministic fix.
 
 ---
 

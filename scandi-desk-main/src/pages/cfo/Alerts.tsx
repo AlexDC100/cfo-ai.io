@@ -15,14 +15,17 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Check, ChevronRight, FileText, ShieldCheck, X } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod } from "@/lib/activePeriod";
+import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import {
   computeRatios,
   generateRecommendations,
-  formatCurrency,
   type Recommendation,
   type RecommendationPriority,
 } from "@/lib/financialReport";
-import { formatRON } from "@/lib/formatRon";
+import { Money } from "@/components/ui/Money";
+import { useAmountFormatter } from "@/stores/currency";
+import type { Currency } from "@/lib/rates";
+import { linkifyAlertBody } from "@/lib/linkifyAlertBody";
 
 type Severity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -49,6 +52,10 @@ const TABS: { id: "all" | Severity; label: string }[] = [
 ];
 
 export default function Alerts() {
+  // 2026-05-24 — auto-resolve active period when URL lacks ?period=.
+  // Same pattern as Dashboard / Benchmark / Products. Without this,
+  // landing on /alerts from sidebar shows AlertsEmptyState even with docs.
+  useActivePeriodFallback();
   const period = useActivePeriod();
   if (!period.isLoaded || !period.statements) {
     return (
@@ -90,7 +97,19 @@ function AlertsEmptyState() {
 
 function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeof useActivePeriod>["statements"]> }) {
   const period = useActivePeriod();
-  const ratios = useMemo(() => computeRatios(statements), [statements]);
+  // F2.2 — Engine-canonical metrics map so alert thresholds fire against
+  // canonical ratio values (matching the dashboard's Ratios tab).
+  const metricsByName = useMemo(() => {
+    const out: Record<string, number | null> = {};
+    for (const mt of period.metrics) {
+      out[mt.name] = typeof mt.value === "number" ? mt.value : null;
+    }
+    return out;
+  }, [period.metrics]);
+  const ratios = useMemo(
+    () => computeRatios(statements, undefined, metricsByName),
+    [statements, metricsByName],
+  );
   // For uploads, server-generated alerts (Opus 4.7 + validation) are the
   // source of truth. We coerce them into the Recommendation shape this page
   // already knows how to render. For samples, fall back to the client-side
@@ -238,6 +257,9 @@ function AlertCard({
 }) {
   const tone = SEVERITY_TONE[severity];
   const [factsOpen, setFactsOpen] = useState(false);
+  // Currency-aware formatter for the per-key facts table (numeric values
+  // get converted to display currency; non-numeric values pass through).
+  const fmt = useAmountFormatter(currency);
   return (
     <li
       data-testid="alert-card"
@@ -252,12 +274,22 @@ function AlertCard({
             {factsBacking.ruleKey}
           </span>
         )}
-        <h3 className={`font-serif text-[17px] text-ink leading-tight ${isResolved ? "line-through" : ""}`}>{rec.title}</h3>
+        {/* CUR-FIX — pipe titles + rationale through `linkifyAlertBody` so any
+            "RON X,XXX,XXX" string emitted by the rules engine (which writes
+            in source RON) is replaced with a <TraceableNumber> that converts
+            live when the user toggles EUR/USD in TopHeader. Without this,
+            titles like "Refinance window: ... RON 14M debt" stayed in RON
+            forever even after the toggle flipped. */}
+        <h3 className={`font-serif text-[17px] text-ink leading-tight ${isResolved ? "line-through" : ""}`}>
+          {linkifyAlertBody(rec.title, factsBacking?.facts)}
+        </h3>
       </div>
-      <p className="text-[13px] text-ink-soft leading-snug mt-2">{rec.rationale}</p>
+      <p className="text-[13px] text-ink-soft leading-snug mt-2">
+        {linkifyAlertBody(rec.rationale, factsBacking?.facts)}
+      </p>
       {rec.estimatedImpact && (
         <div className="mt-2 inline-flex items-center text-[11.5px] font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
-          Estimated impact: ~{formatCurrency(rec.estimatedImpact, currency)} / year
+          Estimated impact: ~<Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / year
         </div>
       )}
       {factsBacking?.facts && Object.keys(factsBacking.facts).length > 0 && (
@@ -284,7 +316,7 @@ function AlertCard({
                 >
                   <span className="text-ink-soft">{k}</span>
                   <span className="text-ink tabular-nums">
-                    {typeof v === "number" && Math.abs(v) > 1 ? formatRON(v) : String(v)}
+                    {typeof v === "number" && Math.abs(v) > 1 ? fmt(v) : String(v)}
                   </span>
                 </div>
               ))}

@@ -1,0 +1,323 @@
+src/_removed/Cash.tsx:108:            <Row label="Accounts receivable" value={bs.accountsReceivable} cur={cur} kind="add" />
+src/_removed/Cash.tsx:109:            <Row label="Inventory" value={bs.inventory} cur={cur} kind="add" />
+src/_removed/Cash.tsx:110:            <Row label="Accounts payable" value={-bs.accountsPayable} cur={cur} kind="sub" />
+src/_removed/Cash.tsx:118:        <CycleTile label="DSO" subtitle="Days sales outstanding" value={dso ? `${dso.value.toFixed(0)} days` : "—"} commentary={dso?.commentary} />
+src/_removed/Cash.tsx:119:        <CycleTile label="DIO" subtitle="Days inventory outstanding" value={dio ? `${dio.value.toFixed(0)} days` : "—"} commentary={dio?.commentary} />
+src/_removed/Cash.tsx:120:        <CycleTile label="DPO" subtitle="Days payables outstanding" value={dpo ? `${dpo.value.toFixed(0)} days` : "—"} commentary={dpo?.commentary} />
+src/_removed/Cash.tsx:130:            <Row label="Net income" value={cashFlow.netIncome} cur={cur} kind="add" />
+src/_removed/tabs/PaymentsTab.tsx:39:          label="DSO"
+src/_removed/tabs/PaymentsTab.tsx:45:          label="Paid on time"
+src/_removed/tabs/PaymentsTab.tsx:51:          label="Outstanding"
+src/_removed/tabs/PaymentsTab.tsx:56:          label="Slow payers (top)"
+src/_removed/tabs/MarginTab.tsx:61:        <Tile label="Blended gross margin" value={`${(data.blended_gm_pct * 100).toFixed(1)}%`} sub={money(data.blended_gross_margin, currency)} />
+src/_removed/tabs/MarginTab.tsx:62:        <Tile label="Customers analyzed" value={data.by_customer.length.toLocaleString()} />
+src/_removed/tabs/MarginTab.tsx:63:        <Tile label="Products analyzed" value={data.by_product.length.toLocaleString()} />
+src/_removed/tabs/VatTab.tsx:27:          label="VAT collected (sales)"
+src/_removed/tabs/VatTab.tsx:33:          label="VAT paid (purchases)"
+src/_removed/tabs/VatTab.tsx:39:          label="Net VAT (payable)"
+src/_removed/tabs/VatTab.tsx:45:          label="D394 declared"
+src/_removed/tabs/CustomersTab.tsx:25:          label="Top customer"
+src/_removed/tabs/CustomersTab.tsx:31:          label="Top 5 share"
+src/_removed/tabs/CustomersTab.tsx:37:          label="Top 10 share"
+src/_removed/tabs/CustomersTab.tsx:42:          label="HHI"
+src/components/ui/pagination.tsx:50:  <PaginationLink aria-label="Go to previous page" size="default" className={cn("gap-1 pl-2.5", className)} {...props}>
+src/components/ui/pagination.tsx:58:  <PaginationLink aria-label="Go to next page" size="default" className={cn("gap-1 pr-2.5", className)} {...props}>
+src/components/ui/sidebar.tsx:252:        aria-label="Toggle Sidebar"
+src/components/ui/sidebar.tsx:255:        title="Toggle Sidebar"
+src/components/cfo/EbitdaMultiplePrimaryCard.tsx:234:            aria-label="EBITDA multiple"
+src/components/cfo/EbitdaMultiplePrimaryCard.tsx:270:              aria-label="EBITDA multiple (numeric)"
+src/components/cfo/UploadDialog.tsx:168:            aria-label="Close"
+src/components/cfo/CreditScoreCard.tsx:211:          <ScoreBar label="Altman Z″"          value={data.subscores.altman}        weight={30} />
+src/components/cfo/CreditScoreCard.tsx:212:          <ScoreBar label="Profitability"      value={data.subscores.profitability} weight={20} />
+src/components/cfo/CreditScoreCard.tsx:213:          <ScoreBar label="Leverage"           value={data.subscores.leverage}      weight={15} />
+src/components/cfo/CreditScoreCard.tsx:214:          <ScoreBar label="Interest coverage"  value={data.subscores.coverage}      weight={10} />
+src/components/cfo/CreditScoreCard.tsx:215:          <ScoreBar label="DSCR"               value={data.subscores.dscr}          weight={10} />
+src/components/cfo/CreditScoreCard.tsx:216:          <ScoreBar label="Liquidity"          value={data.subscores.liquidity}     weight={10} />
+src/components/cfo/CreditScoreCard.tsx:217:          <ScoreBar label="Equity ratio"       value={data.subscores.equity}        weight={5} />
+src/components/cfo/StatementNotes.tsx:181:        <FilterPill label="All"             count={counts.all}             active={filter === "all"}             onClick={() => { setFilter("all"); setExpanded(false); }} />
+src/components/cfo/StatementNotes.tsx:182:        <FilterPill label="Critical"        count={counts.critical}        active={filter === "critical"}        onClick={() => { setFilter("critical"); setExpanded(false); }} tone="critical" />
+src/components/cfo/StatementNotes.tsx:183:        <FilterPill label="Watch"           count={counts.watch}           active={filter === "watch"}           onClick={() => { setFilter("watch"); setExpanded(false); }} tone="watch" />
+src/components/cfo/StatementNotes.tsx:184:        <FilterPill label="Info"            count={counts.info}            active={filter === "info"}            onClick={() => { setFilter("info"); setExpanded(false); }} tone="info" />
+src/components/cfo/StatementNotes.tsx:185:        <FilterPill label="Recommendations" count={counts.recommendations} active={filter === "recommendations"} onClick={() => { setFilter("recommendations"); setExpanded(false); }} tone="rec" />
+src/components/cfo/CurrencyToggle.tsx:31:      aria-label="Display currency"
+src/components/cfo/UsageIndicator.tsx:104:        aria-label="Monthly usage"
+src/components/cfo/UsageIndicator.tsx:124:            label="Document uploads"
+src/components/cfo/UsageIndicator.tsx:129:            label="AI analyses"
+src/components/cfo/TopHeader.tsx:54:          aria-label="Open navigation"
+src/components/cfo/TopHeader.tsx:64:          aria-label="Go to dashboard"
+src/components/cfo/TopHeader.tsx:96:            aria-label="Ask CFO AI"
+src/components/cfo/ValuationSection.tsx:288:            label="EBITDA"
+src/components/cfo/ValuationSection.tsx:319:            label="Total debt"
+src/components/cfo/ValuationSection.tsx:326:            label="Cash"
+src/components/cfo/DocumentSwitcher.tsx:397:                              title="Period appears to be SKU/trading data, not a trial balance. Re-upload via Products to analyze."
+src/components/cfo/DocumentSwitcher.tsx:406:                        title="Remove this analysis"
+src/components/cfo/DatasetsPanel.tsx:193:      title="Datasets · ⌘⇧D"
+src/components/cfo/DatasetsPanel.tsx:330:            aria-label="Close datasets panel"
+src/components/cfo/DatasetsPanel.tsx:444:                        title="Restore"
+src/components/cfo/DatasetsPanel.tsx:454:                        title="Delete permanently — cannot be undone"
+src/components/cfo/DatasetsPanel.tsx:628:              aria-label="Dataset actions"
+src/components/cfo/ChatCopilot.tsx:215:              aria-label="Close"
+src/components/cfo/ChatCopilot.tsx:224:            <ContextChip label="Page"    value={currentPage} />
+src/components/cfo/ChatCopilot.tsx:225:            <ContextChip label="Workspace" value="Your workspace" />
+src/components/cfo/ChatCopilot.tsx:283:              placeholder="Ask CFO AI about this portfolio…"
+src/components/cfo/ChatCopilot.tsx:293:              aria-label="Send"
+src/components/cfo/SearchDialog.tsx:175:            placeholder="Search SKUs, categories, or jump to a page…"
+src/components/cfo/AuthCard.tsx:293:                <Field label="Full name">
+src/components/cfo/AuthCard.tsx:297:                    placeholder="Alex Maier"
+src/components/cfo/AuthCard.tsx:301:                <Field label="Company name" required>
+src/components/cfo/AuthCard.tsx:305:                    placeholder="Acme Romania SRL"
+src/components/cfo/AuthCard.tsx:313:            <Field label="Work email" required>
+src/components/cfo/AuthCard.tsx:324:            <Field label="Password" required>
+src/components/cfo/FloatingAiButton.tsx:37:      aria-label="Open CFO AI"
+src/components/cfo/Sidebar.tsx:245:                label="Command Center"
+src/components/cfo/Level1BenchmarkView.tsx:203:          <BigKPI label="Revenue"        value={m.revenue}      fmt="currency" />
+src/components/cfo/Level1BenchmarkView.tsx:204:          <BigKPI label="Net profit"     value={m.net_profit}   fmt="currency" tone={(m.net_profit ?? 0) >= 0 ? "positive" : "negative"} />
+src/components/cfo/Level1BenchmarkView.tsx:205:          <BigKPI label="Total assets"   value={m.total_assets} fmt="currency" />
+src/components/cfo/Level1BenchmarkView.tsx:206:          <BigKPI label="Total debt"     value={m.total_debt}   fmt="currency" />
+src/components/cfo/Level1BenchmarkView.tsx:207:          <BigKPI label="Equity"         value={m.total_equity} fmt="currency" />
+src/components/cfo/Level1BenchmarkView.tsx:208:          <BigKPI label="Employees"      value={m.employees}    fmt="int" />
+src/components/cfo/Level1BenchmarkView.tsx:209:          <BigKPI label="Net margin"     value={m.net_margin}   fmt="pct" />
+src/components/cfo/Level1BenchmarkView.tsx:210:          <BigKPI label="Equity ratio"   value={m.equity_ratio} fmt="pct" />
+src/components/cfo/ThemeToggle.tsx:63:      aria-label="Theme"
+src/components/cfo/AccountMenu.tsx:252:                aria-label="Documents this month"
+src/components/cfo/AccountMenu.tsx:263:        <SectionHeader label="Profile" />
+src/components/cfo/AccountMenu.tsx:266:          label="Me"
+src/components/cfo/AccountMenu.tsx:279:          label="Billing"
+src/components/cfo/AccountMenu.tsx:285:          label="Settings"
+src/components/cfo/AccountMenu.tsx:301:          label="Sign out"
+src/components/cfo/RatioDetailDrawer.tsx:193:        <Section icon={Calculator} title="Formula · live numbers">
+src/components/cfo/RatioDetailDrawer.tsx:204:        <Section icon={GaugeCircle} title="What this value means">
+src/components/cfo/RatioDetailDrawer.tsx:232:            <Section icon={Info} title="Why it matters">
+src/components/cfo/RatioDetailDrawer.tsx:238:            <Section icon={Target} title="What good looks like">
+src/components/cfo/RatioDetailDrawer.tsx:247:            <Section icon={TrendingUp} title="What may be driving it">
+src/components/cfo/RatioDetailDrawer.tsx:258:            <Section icon={Lightbulb} title="What to focus on">
+src/components/cfo/RatioDetailDrawer.tsx:264:            <Section icon={Layers} title="Related metrics">
+src/components/cfo/SkuDetailDrawer.tsx:250:            aria-label="Close panel"
+src/components/cfo/SkuDetailDrawer.tsx:300:                label="Allocated SG&A"
+src/components/cfo/SkuDetailDrawer.tsx:305:                label="DIO"
+src/components/cfo/SkuDetailDrawer.tsx:312:                label="Capital cost (6.5% / yr)"
+src/components/cfo/SkuDetailDrawer.tsx:321:            <KpiTile label="Volume" value={fmtVol(sku.volume_tons)} />
+src/components/cfo/SkuDetailDrawer.tsx:322:            <KpiTile label="NIV revenue" value={`${fmtKron(sku.niv_krn)} kRON`} />
+src/components/cfo/SkuDetailDrawer.tsx:324:              label="Absolute profit"
+src/components/cfo/SkuDetailDrawer.tsx:329:              label="Category share"
+src/components/cfo/SkuDetailDrawer.tsx:352:              <PresenceList label="Channels" items={sku.channels_present} />
+src/components/cfo/SkuDetailDrawer.tsx:353:              <PresenceList label="Clients" items={sku.clients_present} />
+src/components/cfo/BillingSection.tsx:111:        <Field label="Current plan">
+src/components/cfo/BillingSection.tsx:131:        <Field label="Billing email">
+src/components/cfo/BillingSection.tsx:238:            label="Too expensive"
+src/components/cfo/BillingSection.tsx:242:            label="Missing a feature"
+src/components/cfo/BillingSection.tsx:246:            label="Bug or technical issue"
+src/components/cfo/CommandDrawer.tsx:114:              aria-label="Close"
+src/components/cfo/CommandDrawer.tsx:274:      <Section label="Workspace">
+src/components/cfo/CommandDrawer.tsx:277:          title="Switch workspace"
+src/components/cfo/CommandDrawer.tsx:288:          title="Search dataset"
+src/components/cfo/CommandDrawer.tsx:293:      <Section label="General">
+src/components/cfo/CommandDrawer.tsx:296:          title="Cost of capital"
+src/components/cfo/CommandDrawer.tsx:307:          title="Users"
+src/components/cfo/CommandDrawer.tsx:330:      <Section label="Import">
+src/components/cfo/CommandDrawer.tsx:333:          title="ERP connector"
+src/components/cfo/CommandDrawer.tsx:344:      <Section label="Sync">
+src/components/cfo/CommandDrawer.tsx:347:          title="Sync history"
+src/components/cfo/CommandDrawer.tsx:358:          title="Data quality"
+src/components/cfo/CommandDrawer.tsx:389:      <Section label="Decision rules">
+src/components/cfo/CommandDrawer.tsx:391:          title="Protect"
+src/components/cfo/CommandDrawer.tsx:392:          subtitle="Anchor thresholds"
+src/components/cfo/CommandDrawer.tsx:399:          title="Watch · Fix · Reduce"
+src/components/cfo/CommandDrawer.tsx:400:          subtitle="Margin and DIO gates"
+src/components/cfo/CommandDrawer.tsx:407:          title="Liquidate · Scale"
+src/components/cfo/CommandDrawer.tsx:408:          subtitle="Capital trap, scale floor"
+src/components/cfo/CommandDrawer.tsx:418:      <Section label="Engine">
+src/components/cfo/CommandDrawer.tsx:475:            title="Number of thresholds adjusted away from calibrated defaults"
+src/components/cfo/CommandDrawer.tsx:607:      title="Reset all thresholds"
+src/components/cfo/CommandDrawer.tsx:670:      <Section label="Conversation">
+src/components/cfo/CommandDrawer.tsx:673:          title="Open CFO AI"
+src/components/cfo/CommandDrawer.tsx:678:      <Section label="Briefings">
+src/components/cfo/CommandDrawer.tsx:681:          title="Generate daily briefing"
+src/components/cfo/CommandDrawer.tsx:687:          title="Generate board summary"
+src/components/cfo/CommandDrawer.tsx:692:      <Section label="Tools">
+src/components/cfo/CommandDrawer.tsx:695:          title="Simulate impact"
+src/components/cfo/CommandDrawer.tsx:701:          title="Draft supplier negotiation"
+src/components/cfo/CommandDrawer.tsx:707:          title="Export action plan"
+src/components/cfo/CommandDrawer.tsx:721:      <Section label="Account">
+src/components/cfo/CommandDrawer.tsx:733:          title="Sign out"
+src/components/cfo/CommandDrawer.tsx:745:      <Section label="About">
+src/components/cfo/TierPricingSection.tsx:116:          aria-label="Billing cycle"
+src/components/cfo/TierPricingSection.tsx:318:        <Feature on label="P&L · Balance Sheet · Cash Flow" />
+src/components/cfo/TierPricingSection.tsx:323:        <Feature on label="EBITDA evaluation" />
+src/components/cfo/TierPricingSection.tsx:348:          <Feature on label="Industry-aware recommendations" />
+src/components/cfo/TierPricingSection.tsx:351:          <Feature on label="Monthly email reports" />
+src/components/cfo/TierPricingSection.tsx:354:        {!tier.features.nav_cascade && <Feature off label="No NAV cascade" />}
+src/components/cfo/TierPricingSection.tsx:355:        {!tier.features.ai_mastermind && <Feature off label="No AI Mastermind chat" />}
+src/components/cfo/TierPricingSection.tsx:356:        {!tier.features.valuation_suite && <Feature off label="No valuation suite" />}
+src/components/cfo/TierPricingSection.tsx:408:        <Feature on label="Custom limits sized to your actual workload" />
+src/components/cfo/PublicRecordsQuickCard.tsx:166:            label="Total assets"
+src/components/cfo/PublicRecordsQuickCard.tsx:170:            label="Employees"
+src/components/cfo/IndustryConfirmModal.tsx:219:            aria-label="Close panel"
+src/components/cfo/settings/FinancialAssumptionsCard.tsx:44:        label="Cost of capital"
+src/components/cfo/settings/FinancialAssumptionsCard.tsx:55:        label="Reporting currency"
+src/components/cfo/settings/FinancialAssumptionsCard.tsx:64:        label="Fiscal year"
+src/components/cfo/DocsPanel.tsx:215:      title="Documents · ⌘D"
+src/components/cfo/DocsPanel.tsx:383:            aria-label="Close documents panel"
+src/components/cfo/DocsPanel.tsx:527:                          title="Restore"
+src/components/cfo/DocsPanel.tsx:537:                          title="Delete permanently — cannot be undone"
+src/components/cfo/DocsPanel.tsx:875:              aria-label="Document actions"
+src/components/cfo/settings/DataRulesCard.tsx:67:        title="Protect"
+src/components/cfo/settings/DataRulesCard.tsx:68:        subtitle="Anchor thresholds — high-volume / good-margin SKUs"
+src/components/cfo/settings/DataRulesCard.tsx:75:        title="Watch · Fix · Reduce"
+src/components/cfo/settings/DataRulesCard.tsx:76:        subtitle="Margin + DIO gates for non-anchors"
+src/components/cfo/settings/DataRulesCard.tsx:83:        title="Wind down · Scale"
+src/components/cfo/settings/DataRulesCard.tsx:84:        subtitle="Capital-trap and scale-floor extremes"
+src/components/cfo/chat/CFOComposer.tsx:221:          aria-label="Ask CFO AI"
+src/components/cfo/chat/CFOComposer.tsx:238:              aria-label="Attach a document"
+src/components/cfo/chat/CFOComposer.tsx:267:            aria-label="Send message"
+src/components/cfo/chat/CFOChatPanel.tsx:100:            aria-label="Ask CFO AI"
+src/components/cfo/chat/CFOChatPanel.tsx:121:              aria-label="Close Ask CFO AI"
+src/components/cfo/Mark.tsx:43:      aria-label="CFO AI"
+src/components/cfo/industry/IndustrySuggestionCard.tsx:132:          <CheckCircle2 size={14} strokeWidth={2.2} className="text-emerald-600" aria-label="Currently selected" />
+src/components/cfo/settings/PlanUsageCard.tsx:110:          label="Documents this period"
+src/components/cfo/settings/PlanUsageCard.tsx:157:            label="Ask CFO AI — today"
+src/components/cfo/settings/PlanUsageCard.tsx:172:            label="Ask CFO AI — this month"
+src/components/cfo/command/tabs/WorkspaceTab.tsx:56:      <Section label="Current analysis">
+src/components/cfo/command/tabs/WorkspaceTab.tsx:60:            title="Open analysis"
+src/components/cfo/command/tabs/WorkspaceTab.tsx:74:            title="Upload document"
+src/components/cfo/command/tabs/WorkspaceTab.tsx:83:      <Section label="Quick actions">
+src/components/cfo/command/tabs/WorkspaceTab.tsx:86:          title="Ask CFO AI"
+src/components/cfo/command/tabs/WorkspaceTab.tsx:94:          title="Open benchmarks"
+src/components/cfo/command/tabs/WorkspaceTab.tsx:104:          title="Open reports"
+src/components/cfo/command/tabs/WorkspaceTab.tsx:113:          title="Upload another document"
+src/components/cfo/command/tabs/WorkspaceTab.tsx:125:      <Section label="Workspace">
+src/components/cfo/command/tabs/WorkspaceTab.tsx:128:          title="Switch workspace"
+src/components/cfo/chat/CFOMessageBubble.tsx:109:            aria-label="Copy message"
+src/components/cfo/command/tabs/AiTab.tsx:110:      <Section label="CFO AI">
+src/components/cfo/command/tabs/AiTab.tsx:113:          title="Open CFO AI Chat"
+src/components/cfo/command/tabs/AiTab.tsx:121:          title="New chat"
+src/components/cfo/command/tabs/AiTab.tsx:129:          title="Ask about current company"
+src/components/cfo/command/tabs/AiTab.tsx:151:      <Section label="Generate">
+src/components/cfo/command/tabs/AiTab.tsx:154:          title="Generate board summary"
+src/components/cfo/command/tabs/AiTab.tsx:162:          title="Generate action list (CSV)"
+src/components/cfo/command/tabs/AiTab.tsx:170:          title="Generate public report"
+src/components/cfo/command/tabs/AiTab.tsx:176:          title="Generate bank memo"
+src/components/cfo/command/tabs/AiTab.tsx:182:          title="Generate 90-day plan"
+src/components/cfo/command/tabs/AiTab.tsx:188:      <Section label="Simulate">
+src/components/cfo/command/tabs/AiTab.tsx:191:          title="Simulate cost of capital"
+src/components/cfo/command/tabs/AiTab.tsx:197:          title="Simulate debt reduction"
+src/components/cfo/command/tabs/AiTab.tsx:203:          title="Simulate margin improvement"
+src/components/cfo/chat/CFOHistorySidebar.tsx:64:      aria-label="Conversation history"
+src/components/cfo/chat/CFOHistorySidebar.tsx:94:            placeholder="Search chats"
+src/components/cfo/chat/CFOHistorySidebar.tsx:108:              aria-label="Clear search"
+src/components/cfo/chat/CFOHistorySidebar.tsx:242:            aria-label="Conversation actions"
+src/components/cfo/command/tabs/AccountTab.tsx:65:      <Section label="Profile">
+src/components/cfo/command/tabs/AccountTab.tsx:76:      <Section label="Billing">
+src/components/cfo/command/tabs/AccountTab.tsx:79:          title="Manage billing"
+src/components/cfo/command/tabs/AccountTab.tsx:87:      <Section label="Security">
+src/components/cfo/command/tabs/AccountTab.tsx:90:          title="Change password"
+src/components/cfo/command/tabs/AccountTab.tsx:98:          title="Two-factor authentication"
+src/components/cfo/pricing/UsageThisMonth.tsx:68:      label="Financial documents"
+src/components/cfo/pricing/UsageThisMonth.tsx:95:      label="Ask CFO AI"
+src/components/cfo/pricing/UsageThisMonth.tsx:125:      label="Reports generated"
+src/components/cfo/industry/IndustryPicker.tsx:326:            aria-label="Close panel"
+src/components/cfo/industry/IndustryPicker.tsx:365:                placeholder="Search by industry name or alias…"
+src/components/cfo/pricing/PricingFaq.tsx:75:      aria-label="Frequently asked questions"
+src/components/cfo/pricing/MonthlyBillEstimator.tsx:74:            label="Financial documents per month"
+src/components/cfo/pricing/MonthlyBillEstimator.tsx:84:            label="Ask CFO AI messages per month"
+src/components/cfo/command/CommandCenter.tsx:106:              aria-label="Close"
+src/components/cfo/command/CommandCenter.tsx:123:            aria-label="Command Center tabs"
+src/components/cfo/command/tabs/DataTab.tsx:78:      <Section label="Integrations">
+src/components/cfo/command/tabs/DataTab.tsx:81:          title="ERP connector"
+src/components/cfo/command/tabs/DataTab.tsx:88:          title="Accounting connector"
+src/components/cfo/command/tabs/DataTab.tsx:95:          title="Public registry connector"
+src/components/cfo/pricing/BillingCycleToggle.tsx:33:      aria-label="Billing cycle"
+src/pages/cfo/Settings.tsx:135:          title="Data"
+src/pages/cfo/Settings.tsx:136:          subtitle="Manage the documents and analyses in your workspace."
+src/pages/cfo/Settings.tsx:158:            · <Section title="Subscription"> + <SubscriptionCard> —
+src/pages/cfo/Settings.tsx:160:            · <Section title="Integrations"> + <IntegrationsStub> —
+src/pages/cfo/Settings.tsx:165:            · <Section title="Industry classification"> + <IndustrySection /> —
+src/pages/cfo/Settings.tsx:298:      <Section title="Profile" subtitle="Sign in to edit your profile.">
+src/pages/cfo/Settings.tsx:310:          <Input value={name} onChange={setName} placeholder="Alex Maier" />
+src/pages/cfo/Settings.tsx:313:          <Input value={company} onChange={setCompany} placeholder="Acme Romania SRL" />
+src/pages/cfo/Settings.tsx:316:          <Input value={role} onChange={setRole} placeholder="CFO" />
+src/pages/cfo/Settings.tsx:577:          <Input value={name} onChange={setName} placeholder="My company" />
+src/pages/cfo/Settings.tsx:639:          <Stat label="Trial">
+src/pages/cfo/Settings.tsx:646:        <Stat label="Cancel at period end">
+src/pages/cfo/Settings.tsx:679:            title="Re-fetch subscription from the server"
+src/pages/cfo/Pricing.tsx:64:        <Link to="/" className="flex items-center gap-3" aria-label="Home">
+src/pages/cfo/Login.tsx:35:            subtitle="Sign in to your CFO AI workspace."
+src/pages/cfo/RoadmapPage.tsx:127:        <RoadmapSection title="Q2 2026" entries={Q2_2026} />
+src/pages/cfo/RoadmapPage.tsx:128:        <RoadmapSection title="Q3 2026" entries={Q3_2026} />
+src/pages/cfo/RoadmapPage.tsx:129:        <RoadmapSection title="Backlog (no date yet)" entries={BACKLOG} />
+src/components/marketing/FooterSocial.tsx:70:    <nav className="flex items-center gap-2" aria-label="Social media">
+src/pages/cfo/ComprehensiveReport.tsx:273:            <SectionHeader number={1} title="Overview" />
+src/pages/cfo/ComprehensiveReport.tsx:304:            <SectionHeader number={2} title="P&L" />
+src/pages/cfo/ComprehensiveReport.tsx:310:            <SectionHeader number={3} title="Balance Sheet" />
+src/pages/cfo/ComprehensiveReport.tsx:316:            <SectionHeader number={4} title="Cash Flow Statement" />
+src/pages/cfo/ComprehensiveReport.tsx:322:            <SectionHeader number={5} title="Financial Ratios" />
+src/pages/cfo/ComprehensiveReport.tsx:328:            <SectionHeader number={6} title="Valuation" />
+src/pages/cfo/ComprehensiveReport.tsx:334:            <SectionHeader number={7} title="Risk & Credit" />
+src/pages/cfo/ComprehensiveReport.tsx:345:            <SectionHeader number={8} title="Recommendations" />
+src/pages/cfo/ComprehensiveReport.tsx:622:      <BsHalf title="Assets" rows={assetRows} totalLabel="Total assets" totalValue={bs.total_assets} reference={total} />
+src/pages/cfo/ComprehensiveReport.tsx:623:      <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={(bs.total_equity ?? 0) + (bs.total_liabilities ?? 0)} reference={total} />
+src/pages/cfo/ContactSalesPage.tsx:134:              label="Your name"
+src/pages/cfo/ContactSalesPage.tsx:140:              label="Work email"
+src/pages/cfo/ContactSalesPage.tsx:148:                label="Company"
+src/pages/cfo/ContactSalesPage.tsx:153:                label="Your role"
+src/pages/cfo/ContactSalesPage.tsx:154:                placeholder="Partner, CFO, Senior accountant…"
+src/pages/cfo/ContactSalesPage.tsx:214:                label="Phone"
+src/pages/cfo/MultiYearHistory.tsx:180:              label="Net profit"
+src/pages/cfo/MultiYearHistory.tsx:186:              label="Total debt"
+src/pages/cfo/MultiYearHistory.tsx:193:              label="Employees"
+src/pages/cfo/Onboarding.tsx:129:              <div className="grid sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Industry">
+src/pages/cfo/FinancialStatements.tsx:896:                label="Operating revenue"
+src/pages/cfo/FinancialStatements.tsx:907:                label="EBITDA"
+src/pages/cfo/FinancialStatements.tsx:913:                label="Net profit"
+src/pages/cfo/FinancialStatements.tsx:936:                    label="Total debt"
+src/pages/cfo/FinancialStatements.tsx:1473:              title="No recommendations yet"
+src/pages/cfo/FinancialStatements.tsx:1485:              title="Nothing to export yet"
+src/pages/cfo/FinancialStatements.tsx:1649:        label="Top customer share"
+src/pages/cfo/FinancialStatements.tsx:1654:        label="DSO"
+src/pages/cfo/FinancialStatements.tsx:1659:        label="Paid on time"
+src/pages/cfo/FinancialStatements.tsx:1664:        label="Net VAT"
+src/pages/cfo/FinancialStatements.tsx:1747:        aria-label="Dismiss accuracy notice"
+src/pages/cfo/FinancialStatements.tsx:2017:            title="Top 3 risks"
+src/pages/cfo/FinancialStatements.tsx:2026:            title="Top 3 opportunities"
+src/pages/cfo/FinancialStatements.tsx:2175:      <MiniCard title="Balance sheet" lines={bsLines} currency={cur} onOpen={() => onJumpToTab("statements")} />
+src/pages/cfo/FinancialStatements.tsx:2176:      <MiniCard title="P&L" lines={plLines} currency={cur} onOpen={() => onJumpToTab("statements")} />
+src/pages/cfo/FinancialStatements.tsx:2177:      <MiniCard title="Cash flow (derived)" lines={cfLines} currency={cur} onOpen={() => onJumpToTab("statements")} />
+src/pages/cfo/FinancialStatements.tsx:2701:          aria-label="Analysis pipeline"
+src/pages/cfo/FinancialStatements.tsx:2744:              title="Trial balance (balanță de verificare)"
+src/pages/cfo/FinancialStatements.tsx:2759:                title="Public records summary"
+src/pages/cfo/FinancialStatements.tsx:2772:              title="Statutory ANAF filing"
+src/pages/cfo/FinancialStatements.tsx:2782:              title="Sales / trading analysis"
+src/pages/cfo/FinancialStatements.tsx:3081:      <RatioGroupSection title="Liquidity"                           ratios={ratios.liquidity}     onPick={setSelected} />
+src/pages/cfo/FinancialStatements.tsx:3082:      <RatioGroupSection title="Profitability"                       ratios={ratios.profitability} onPick={setSelected} />
+src/pages/cfo/FinancialStatements.tsx:3083:      <RatioGroupSection title="Leverage"                            ratios={ratios.leverage}      onPick={setSelected} />
+src/pages/cfo/FinancialStatements.tsx:3084:      <RatioGroupSection title="Coverage"                            ratios={ratios.coverage}      onPick={setSelected} />
+src/pages/cfo/FinancialStatements.tsx:3085:      <RatioGroupSection title="Efficiency · working capital cycle"  ratios={ratios.efficiency}    onPick={setSelected} />
+src/pages/cfo/FinancialStatements.tsx:3086:      <RatioGroupSection title="Bankruptcy risk"                     ratios={ratios.bankruptcy}    onPick={setSelected} />
+src/pages/cfo/FinancialStatements.tsx:3347:          <KpiTile label="Net income" value={fmtMoney(netIncomeView, cur)} sub="statutory view" />
+src/pages/cfo/PeerComparisonReport.tsx:339:          label="EBITDA margin vs P50"
+src/pages/cfo/PeerComparisonReport.tsx:345:          label="Net margin vs P50"
+src/pages/cfo/Signup.tsx:32:            subtitle="Create your CFO AI workspace. Free tier — no credit card."
+src/pages/cfo/Products.tsx:878:          label="Company DIO"
+src/pages/cfo/Products.tsx:891:          label="DSO"
+src/pages/cfo/Products.tsx:899:          label="DPO"
+src/pages/cfo/Products.tsx:907:          label="CCC"
+src/pages/cfo/Products.tsx:1050:            aria-label="Close comparison"
+src/pages/cfo/Products.tsx:1068:          label="NIV delta"
+src/pages/cfo/Products.tsx:1073:          label="GM delta"
+src/pages/cfo/Products.tsx:1080:        <MoversList title="Top winners (Δ GM ↑)" rows={winners} dir="up" />
+src/pages/cfo/Products.tsx:1081:        <MoversList title="Top losers (Δ GM ↓)" rows={losers} dir="down" />
+src/pages/cfo/Products.tsx:1944:        label="Datasets analyzed"
+src/pages/cfo/Products.tsx:1950:          label="SKUs analyzed"
+src/pages/cfo/Products.tsx:1957:          label="Line rows ingested"
+src/pages/cfo/BenchmarkReport.tsx:363:            title="See how your company compares to peers."
+src/pages/cfo/BenchmarkReport.tsx:364:            subtitle="Upload a Romanian trial balance on the Dashboard and CFO AI will surface where you stand against industry-typical revenue, margin, leverage, and working-capital metrics."
+src/pages/cfo/BenchmarkReport.tsx:371:            title="No analysis open yet."
+src/pages/cfo/BenchmarkReport.tsx:372:            subtitle="The benchmark report unlocks the moment a trial balance is analyzed. Open the Dashboard, upload your export, and CFO AI will fan that single document out into peer-grade comparisons."
+src/pages/cfo/BenchmarkReport.tsx:399:            title="Couldn't load the benchmark report."
+src/pages/cfo/BenchmarkReport.tsx:400:            subtitle="The backend is unreachable, or your account doesn't have access to this period. Try again in a moment, or open the Dashboard to confirm the period is still loaded."
+src/pages/cfo/Landing.tsx:263:          <AuthCard subtitle="Sign in to your CFO AI workspace." />
+src/pages/cfo/Landing.tsx:266:          <AuthCard subtitle="Sign in to your CFO AI workspace." />
+src/pages/cfo/Landing.tsx:454:              <Stat label="Cash trapped"      value="11.2" unit="M RON"   trend="down" delta="−0.8M vs Apr"        Icon={Wallet}            accent="#3BA7FF" />
+src/pages/cfo/Landing.tsx:455:              <Stat label="Recoverable cash"  value="2.4"  unit="M RON"   trend="up"   delta="liquidate + reduce" Icon={CircleDollarSign}  accent="#2ED3C6" />
+src/pages/cfo/Landing.tsx:456:              <Stat label="Urgent decisions"  value="12"   unit=""        trend="flat" delta="3 critical"          Icon={Zap}               accent="#D6A84F" />
+src/pages/cfo/Landing.tsx:457:              <Stat label="ROIC"              value="17.7" unit="%"       trend="up"   delta="+2.1pp YoY"          Icon={LineChart}         accent="#2ED3C6" />

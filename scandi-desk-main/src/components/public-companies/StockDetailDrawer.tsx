@@ -190,23 +190,24 @@ export function StockDetailDrawer({
   /** Per-ticker public-company dashboard (NASDAQ-9) — full statements,
    *  ratios, valuation, benchmark integration.
    *
-   *  2026-05-25 — TEMPORARY "Coming soon" gate. The /dashboard/public/:ticker
-   *  page exists but the Overview/Financials/Benchmark/Valuation tabs
-   *  aren't fully wired against live SF1 data yet (see task #234 — the
-   *  full-screen route is deferred). Until that's polished end-to-end,
-   *  clicking shows a clear "coming soon" banner so users don't land on
-   *  a half-built page and lose trust.
+   *  2026-06-07 (F5.0 Phase 4.5) — Coming-soon gate REMOVED. The full
+   *  /dashboard/public/:ticker page is now live with Wave 4 LearnableMetricCard
+   *  KPI tiles (Revenue / EBITDA / Net Profit / Total Assets / Cash /
+   *  Total Debt / Operating CF / Free Cash Flow) and Wave 2 plain-English
+   *  popovers wired against live Sharadar SF1 data. Browser-verified on
+   *  prod against AAPL, all 8 tiles render and click-to-popover works.
    *
-   *  To restore the navigation, replace the toast() call with the
-   *  original two lines (onClose() + navigate()).
+   *  Old gate (replaced): a `toast({ title: "Coming soon", ... })` call
+   *  surfaced because the route existed but tabs weren't fully wired.
+   *  That is no longer the case — the Overview tab is the Wave 4 KPI
+   *  surface, and downstream tabs (P&L / BS / CF / Ratios / Valuation)
+   *  reuse the private-company renderers (NASDAQ-10).
    */
   const handleOpenFullAnalysis = useCallback(() => {
     if (!snapshot) return;
-    toast({
-      title: "Coming soon",
-      description: `The full ${snapshot.ticker} analysis page is in active development. For now, this drawer has everything you need — price chart, market & financial metrics, source link.`,
-    });
-  }, [snapshot]);
+    onClose();
+    navigate(`/dashboard/public/${snapshot.ticker}`);
+  }, [snapshot, onClose, navigate]);
 
   if (!snapshot) return null;
 
@@ -214,6 +215,13 @@ export function StockDetailDrawer({
   const alreadyPeer = isPeer(snapshot.ticker);
   const positiveDelta = (delta?.abs ?? 0) >= 0;
   const exchange = snapshot.exchange ?? "NASDAQ";
+  // BVB Phase 2 (2026-06-01) — strip the .BVB namespace suffix on
+  // display. Storage keeps the namespaced form (e.g. "EL.BVB" to avoid
+  // colliding with NASDAQ's Estée Lauder), but the user sees the bare
+  // BVB ticker since the exchange chip already disambiguates context.
+  // CompanyLogo also reads the bare form (logo CDN doesn't know about
+  // our namespace).
+  const displayTicker = snapshot.ticker.replace(/\.BVB$/, "");
   const sectorLine = [
     exchange,
     snapshot.sector,
@@ -259,17 +267,26 @@ export function StockDetailDrawer({
             {/* Company logo — Clearbit + letter-avatar fallback. Same
                 visual treatment as the universe list so the user sees
                 the same brand mark on hover, click, and detail. */}
-            <CompanyLogo ticker={snapshot.ticker} size={44} />
+            <CompanyLogo ticker={displayTicker} size={44} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h2
                   id="stock-drawer-title"
                   className="text-[20px] font-bold text-ink tracking-tight"
                 >
-                  {snapshot.ticker}
+                  {displayTicker}
                 </h2>
                 <PublicCompanySourceBadge
-                  variant={snapshot.source === "demo" ? "demo" : "nasdaq"}
+                  variant={
+                    // BVB Phase 2 (2026-06-01) — dispatch on source so
+                    // BVB seed rows show the BVB badge instead of
+                    // inheriting the misleading Nasdaq fallback.
+                    snapshot.source === "seed_bvb"
+                      ? "bvb"
+                      : snapshot.source === "demo"
+                        ? "demo"
+                        : "nasdaq"
+                  }
                 />
               </div>
               <div className="text-[14px] text-ink-soft font-medium truncate">

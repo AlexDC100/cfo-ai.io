@@ -1,0 +1,1493 @@
+{
+  "_meta": {
+    "fixture": "eei_dec_2025",
+    "company": "EEI IMOBILIARA INVESTMENT SRL",
+    "captured_from": "F3.1a — pre-refactor baseline",
+    "engine_module": "/Users/alex/Desktop/folder claude Scandia copy/src/engine/country_packs/ro_romania/chart_of_accounts.py",
+    "account_count": 62
+  },
+  "assembled": {
+    "statements": {
+      "companyName": "EEI IMOBILIARA INVESTMENT SRL",
+      "industry": null,
+      "currency": "RON",
+      "periodLabel": "2025-12-31",
+      "balanceSheet": {
+        "cash": 1494836.81,
+        "accountsReceivable": 4.0,
+        "inventory": 0.0,
+        "otherCurrentAssets": 3031004.81,
+        "propertyPlantEquipment": 15126831.29,
+        "intangibles": 0.0,
+        "otherNonCurrentAssets": 530739.02,
+        "accountsPayable": 7.49,
+        "shortTermDebt": 0.0,
+        "otherCurrentLiabilities": 276139.0,
+        "longTermDebt": 14083315.77,
+        "otherNonCurrentLiabilities": 0.0,
+        "shareCapital": 45200.0,
+        "retainedEarnings": 1789556.06,
+        "otherEquity": 3989197.61
+      },
+      "incomeStatement": {
+        "revenue": 2727103.68,
+        "costOfGoodsSold": 0.0,
+        "operatingExpenses": 2763779.81,
+        "depreciationAmortization": 355606.5,
+        "interestExpense": 716741.02,
+        "otherIncome": 0.0,
+        "financialIncome": 745637.07,
+        "financialExpense": 338580.67,
+        "taxExpense": 36867.0,
+        "capitalizedOwnWork": 2164079.83,
+        "inventoryVariationMemo": 0.0
+      },
+      "subAggregates": {
+        "opex_third_party": 2172788.6,
+        "fx_loss": 338580.67,
+        "ppe_under_construction": 2164079.83,
+        "financial_income": 716544.16,
+        "retained_earnings": 364310.48,
+        "ar_doubtful": 167026.63,
+        "ar_provisions": 0.0,
+        "ap_dividends": 1.0,
+        "interest_expense": 716741.02,
+        "equity_revaluation": 3980157.61,
+        "cash_fx": 679102.51,
+        "ppe_investment": 14457160.32,
+        "interest_income": 2460.43,
+        "ar_intercompany": 2596892.49,
+        "ppe_advances": 2021340.0,
+        "fx_gain": 26632.48,
+        "current_year_pnl": 1425245.58
+      },
+      "assembled_bs": {
+        "cash": 1494836.81,
+        "cash_fx_component": 679102.51,
+        "ar_net": 4.0,
+        "ar_doubtful_gross": 167026.63,
+        "ar_provisions": 0.0,
+        "ar_intercompany": 2596892.49,
+        "ar_other": -1587227.68,
+        "ppe_net": 15126831.29,
+        "ppe_investment_net": 14457160.32,
+        "ppe_under_construction": 2164079.83,
+        "ppe_advances": 2021340.0,
+        "intangibles_net": 0.0,
+        "investments": 530739.02,
+        "ap": 7.49,
+        "ap_dividends": 1.0,
+        "ap_other": 276138.0,
+        "lt_debt": 14083315.77,
+        "st_debt": 0.0,
+        "total_debt": 14083315.77,
+        "share_capital": 45200.0,
+        "revaluation_reserves": 3980157.61,
+        "retained_earnings": 364310.48,
+        "other_equity_non_revaluation": 9040.0,
+        "current_year_pnl": 1425245.58,
+        "total_assets": 20183415.93,
+        "total_equity": 5823953.67,
+        "total_liabilities": 14359462.26,
+        "bs_balance_delta": 0.0,
+        "accounts_receivable": 4.0,
+        "inventory": 0.0,
+        "other_current_assets": 3031004.81,
+        "property_plant_equipment": 15126831.29,
+        "intangibles": 0.0,
+        "other_non_current_assets": 530739.02,
+        "accounts_payable": 7.49,
+        "short_term_debt": 0.0,
+        "other_current_liabilities": 276139.0,
+        "long_term_debt": 14083315.77,
+        "other_non_current_liabilities": 0.0,
+        "other_equity": 3989197.61,
+        "total_current_assets": 4525845.62,
+        "total_non_current_assets": 15657570.31,
+        "total_current_liabilities": 276146.49,
+        "total_non_current_liabilities": 14083315.77
+      },
+      "assembled_pl": {
+        "revenue": 2727103.68,
+        "cogs": 0.0,
+        "gross_profit": 2727103.68,
+        "opex_total": 2763779.81,
+        "opex_third_party": 2172788.6,
+        "depreciation": 355606.5,
+        "ebitda": -36676.13,
+        "ebit": -392282.63,
+        "ebitda_operational": -36676.13,
+        "ebitda_statutory": 2127403.7,
+        "ebitda_operating_view": 2149570.7,
+        "ebitda_adjusted": 2843947.86,
+        "discounts_received": 22167.0,
+        "total_operating_revenue": 4913350.51,
+        "total_operating_revenue_statutory": 4913350.51,
+        "operating_ebitda": 2149570.7,
+        "operating_ebit": 1793964.2,
+        "ebitda_cash": -36676.13,
+        "ebitda_statutory_with_711": 2127403.7,
+        "inventory_variation_memo": 0.0,
+        "interest_expense": 716741.02,
+        "interest_income": 2460.43,
+        "fx_gain": 26632.48,
+        "fx_loss": 338580.67,
+        "financial_income_other": 716544.16,
+        "financial_income": 745637.07,
+        "financial_expense": 338580.67,
+        "pretax": -701967.25,
+        "tax": 36867.0,
+        "net_income_operational": -738834.25,
+        "net_income_statutory": 1425245.58,
+        "capitalized_own_work_memo": 2164079.83,
+        "cost_of_goods_sold": 0.0,
+        "income_tax": 36867.0,
+        "total_operating_expense": 3119386.31,
+        "opex_excluding_cogs_and_da": 2763779.81,
+        "other_income_758": 0,
+        "other_income_781_reversals": 0,
+        "core_ebitda": 2127403.7,
+        "adjusted_ebitda": 2149570.7,
+        "net_financial_result": -309684.62,
+        "financial_expense_total": 1055321.69,
+        "free_cash_flow_proxy": 1780852.08
+      },
+      "assembled_cf": {
+        "net_profit": 1425245.58,
+        "depreciation": 355606.5,
+        "provision_movement": 0,
+        "cf_before_wc": 1780852.08,
+        "delta_receivables": -0.2,
+        "delta_inventory": -0.0,
+        "delta_trade_pay": 0.37,
+        "delta_tax_pay": 552.28,
+        "net_wc_change": 552.45,
+        "cash_from_operating": 1781404.53,
+        "capex_real": -2164079.83,
+        "capex_other_approx": -756341.56,
+        "cip_change": -1082039.92,
+        "affiliate_change": -0.0,
+        "dividends_received": 716544.16,
+        "interest_received": 2460.43,
+        "capitalized_construction": -2164079.83,
+        "cash_used_in_investing": -1119376.89,
+        "delta_lt_debt": -1408331.58,
+        "delta_st_bank": 0.0,
+        "bank_loan_drawdowns": 0.0,
+        "bank_loan_repayments": -1408331.58,
+        "interest_paid": -716741.02,
+        "dividends_paid": -712622.79,
+        "cash_used_in_financing": -2837695.39,
+        "net_change_in_cash": -2175667.75,
+        "closing_cash_actual": 1494836.81,
+        "free_cash_flow": -382675.3,
+        "is_approximated": true,
+        "approximation_notes": [
+          "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
+          "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS."
+        ],
+        "dividends_declared_but_unpaid": false,
+        "cash_from_investing": -1119376.89,
+        "cash_from_financing": -2837695.39,
+        "capex_total": -5084501.22,
+        "working_capital_change": 552.45
+      },
+      "assembled_bands": {
+        "bands": {
+          "current_ratio": {
+            "strong": 2.0,
+            "healthy": 1.5,
+            "watch": 1.0,
+            "direction": "higher"
+          },
+          "quick_ratio": {
+            "strong": 1.5,
+            "healthy": 1.0,
+            "watch": 0.7,
+            "direction": "higher"
+          },
+          "cash_ratio": {
+            "strong": 0.5,
+            "healthy": 0.2,
+            "watch": 0.1,
+            "direction": "higher"
+          },
+          "debt_to_ebitda": {
+            "strong": 2.0,
+            "healthy": 3.0,
+            "watch": 4.5,
+            "direction": "lower"
+          },
+          "net_debt_to_ebitda": {
+            "strong": 1.5,
+            "healthy": 3.0,
+            "watch": 4.5,
+            "direction": "lower"
+          },
+          "debt_to_equity": {
+            "strong": 0.5,
+            "healthy": 1.0,
+            "watch": 2.0,
+            "direction": "lower"
+          },
+          "lt_debt_to_equity": {
+            "strong": 0.3,
+            "healthy": 0.6,
+            "watch": 1.2,
+            "direction": "lower"
+          },
+          "equity_ratio": {
+            "strong": 0.5,
+            "healthy": 0.3,
+            "watch": 0.15,
+            "direction": "higher"
+          },
+          "debt_to_assets": {
+            "strong": 0.3,
+            "healthy": 0.5,
+            "watch": 0.65,
+            "direction": "lower"
+          },
+          "interest_coverage": {
+            "strong": 6.0,
+            "healthy": 3.0,
+            "watch": 1.5,
+            "direction": "higher"
+          },
+          "ebitda_to_interest": {
+            "strong": 8.0,
+            "healthy": 4.0,
+            "watch": 2.0,
+            "direction": "higher"
+          },
+          "dscr": {
+            "strong": 1.5,
+            "healthy": 1.25,
+            "watch": 1.0,
+            "direction": "higher"
+          },
+          "dscr_with_lt_principal": {
+            "strong": 1.5,
+            "healthy": 1.25,
+            "watch": 1.0,
+            "direction": "higher"
+          },
+          "gross_margin": {
+            "strong": 0.4,
+            "healthy": 0.25,
+            "watch": 0.15,
+            "direction": "higher"
+          },
+          "ebitda_margin": {
+            "strong": 0.25,
+            "healthy": 0.15,
+            "watch": 0.08,
+            "direction": "higher"
+          },
+          "operating_margin": {
+            "strong": 0.2,
+            "healthy": 0.1,
+            "watch": 0.04,
+            "direction": "higher"
+          },
+          "core_ebitda_margin": {
+            "strong": 0.25,
+            "healthy": 0.15,
+            "watch": 0.08,
+            "direction": "higher"
+          },
+          "net_margin": {
+            "strong": 0.15,
+            "healthy": 0.08,
+            "watch": 0.03,
+            "direction": "higher"
+          },
+          "roa": {
+            "strong": 0.1,
+            "healthy": 0.05,
+            "watch": 0.02,
+            "direction": "higher"
+          },
+          "roe": {
+            "strong": 0.2,
+            "healthy": 0.12,
+            "watch": 0.06,
+            "direction": "higher"
+          },
+          "roic": {
+            "strong": 0.15,
+            "healthy": 0.1,
+            "watch": 0.05,
+            "direction": "higher"
+          },
+          "dso": {
+            "strong": 30,
+            "healthy": 45,
+            "watch": 75,
+            "direction": "lower"
+          },
+          "dio": {
+            "strong": 30,
+            "healthy": 60,
+            "watch": 100,
+            "direction": "lower"
+          },
+          "dpo": {
+            "strong": 60,
+            "healthy": 45,
+            "watch": 30,
+            "direction": "higher"
+          },
+          "ccc": {
+            "strong": 30,
+            "healthy": 60,
+            "watch": 90,
+            "direction": "lower"
+          },
+          "asset_turnover": {
+            "strong": 1.5,
+            "healthy": 1.0,
+            "watch": 0.5,
+            "direction": "higher"
+          },
+          "inventory_turnover": {
+            "strong": 12,
+            "healthy": 6,
+            "watch": 3,
+            "direction": "higher"
+          }
+        },
+        "source": "general_sme_fallback",
+        "industry_resolved": null,
+        "disclosure": "Verdict bands are general-SME defaults — not calibrated to the resolved industry's seeded distribution. Industry-specific bands activate when the period's resolved CAEN has matching rows in industry_benchmarks; that wiring is scheduled for a follow-up engine pass."
+      },
+      "assembled_piotroski": {
+        "score": 4,
+        "score_max": 9,
+        "has_prior_period": false,
+        "checks": [
+          {
+            "key": "ni_positive",
+            "label": "Net income positive",
+            "result": "pass",
+            "detail": "1,425,246 RON"
+          },
+          {
+            "key": "roa_positive",
+            "label": "ROA positive",
+            "result": "pass",
+            "detail": "7.06% on 20,183,416 RON total assets"
+          },
+          {
+            "key": "cfo_positive",
+            "label": "Cash from operating positive",
+            "result": "pass",
+            "detail": "1,781,405 RON"
+          },
+          {
+            "key": "cfo_gt_ni",
+            "label": "CFO greater than net income (earnings quality)",
+            "result": "pass",
+            "detail": "CFO 1,781,405 > NI 1,425,246"
+          },
+          {
+            "key": "roa_improving",
+            "label": "ROA improving year-over-year",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "debt_declining",
+            "label": "Long-term debt declining",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "no_share_issuance",
+            "label": "No share issuance",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "margin_improving",
+            "label": "Operating margin improving",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "asset_turnover_improving",
+            "label": "Asset turnover improving",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          }
+        ],
+        "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally."
+      },
+      "supplementary": {
+        "periodDays": 365
+      }
+    },
+    "lineItems": [
+      {
+        "statement": "BS",
+        "bucket": "shareCapital",
+        "canonical_bucket": "shareCapital",
+        "ro_account_code": "1012",
+        "ro_account_name": "CAPITAL SUBSCRIS VARSAT",
+        "amount": 45200.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherEquity",
+        "canonical_bucket": "equity_revaluation",
+        "ro_account_code": "105",
+        "ro_account_name": "REZERVE DIN REEVALUARE",
+        "amount": 3980157.61,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherEquity",
+        "canonical_bucket": "otherEquity",
+        "ro_account_code": "1061",
+        "ro_account_name": "REZERVE LEGALE",
+        "amount": 9040.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "retainedEarnings",
+        "canonical_bucket": "retained_earnings",
+        "ro_account_code": "1171",
+        "ro_account_name": "REZULTATUL REPORTAT",
+        "amount": 364310.48,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ltDebt",
+        "canonical_bucket": "ltDebt",
+        "ro_account_code": "1621",
+        "ro_account_name": "CREDITE BANCARE PE TERMEN LUNG",
+        "amount": 14083315.77,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "intangibles",
+        "canonical_bucket": "intangibles",
+        "ro_account_code": "208",
+        "ro_account_name": "ALTE IMOBILIZARI NECORPORALE",
+        "amount": 1529.41,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe",
+        "ro_account_code": "2131",
+        "ro_account_name": "ECHIPAMENTE TEHNOLOGICE",
+        "amount": 330276.96,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe",
+        "ro_account_code": "2132",
+        "ro_account_name": "APARATE SI INSTALATII DE MASURA",
+        "amount": 12321.82,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe",
+        "ro_account_code": "2133",
+        "ro_account_name": "MIJLOACE DE TRANSPORT",
+        "amount": 30583.8,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe",
+        "ro_account_code": "214",
+        "ro_account_name": "MOBILIER, APARATURA BIROTICA",
+        "amount": 221324.74,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe_investment",
+        "ro_account_code": "215",
+        "ro_account_name": "INVESTITII IMOBILIARE",
+        "amount": 14457160.32,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe_under_construction",
+        "ro_account_code": "231",
+        "ro_account_name": "IMOBILIZARI CORPORALE IN CURS DE EXECUTIE",
+        "amount": 2164079.83,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherNonCurrentAssets",
+        "canonical_bucket": "otherNonCurrentAssets",
+        "ro_account_code": "261",
+        "ro_account_name": "ACTIUNI DETINUTE LA ENTITATILE AFILIATE",
+        "amount": 501017.97,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherNonCurrentAssets",
+        "canonical_bucket": "otherNonCurrentAssets",
+        "ro_account_code": "2678",
+        "ro_account_name": "ALTE CREANTE IMOBILIZATE",
+        "amount": 29721.05,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "intangibles",
+        "canonical_bucket": "intangibles",
+        "ro_account_code": "2808",
+        "ro_account_name": "AMORT. ALTOR IMOB. NECORPORALE",
+        "amount": -1529.41,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe",
+        "ro_account_code": "2813",
+        "ro_account_name": "AMORT. INSTALATIILOR, MIJ. DE TRANSPORT",
+        "amount": -373182.58,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe",
+        "ro_account_code": "2814",
+        "ro_account_name": "AMORT. ALTOR IMOBILIZARI CORPORALE",
+        "amount": -212925.05,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe",
+        "ro_account_code": "2815",
+        "ro_account_name": "AMORT. INVESTITIILOR IMOBILIARE",
+        "amount": -3524148.55,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ap",
+        "canonical_bucket": "ap",
+        "ro_account_code": "401",
+        "ro_account_name": "FURNIZORI",
+        "amount": 7.49,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentAssets",
+        "canonical_bucket": "otherCurrentAssets",
+        "ro_account_code": "4092",
+        "ro_account_name": "FURNIZORI - DEBITORI PT. PRESTARI DE SERVICII",
+        "amount": 3208.76,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ppe",
+        "canonical_bucket": "ppe_advances",
+        "ro_account_code": "4093",
+        "ro_account_name": "AVANSURI ACORDATE PENTRU IMOBILIZARI CORPORALE",
+        "amount": 2021340.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ar",
+        "canonical_bucket": "ar",
+        "ro_account_code": "4111",
+        "ro_account_name": "CLIENTI",
+        "amount": 4.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ar",
+        "canonical_bucket": "ar_doubtful",
+        "ro_account_code": "4118",
+        "ro_account_name": "CLIENTI INCERTI SAU IN LITIGIU",
+        "amount": 167026.63,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "otherCurrentLiab",
+        "ro_account_code": "4281",
+        "ro_account_name": "ALTE DATORII IN LEGATURA CU PERSONALUL",
+        "amount": 226.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "otherCurrentLiab",
+        "ro_account_code": "4315",
+        "ro_account_name": "CONTR. DE ASIGURARI SOCIALE",
+        "amount": 3904.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "otherCurrentLiab",
+        "ro_account_code": "4316",
+        "ro_account_name": "CONTR. DE ASIGURARI SOCIALE DE SANATATE",
+        "amount": 1562.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "otherCurrentLiab",
+        "ro_account_code": "436",
+        "ro_account_name": "CONTR. ASIGURATORIE DE MUNCA",
+        "amount": 351.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "otherCurrentLiab",
+        "ro_account_code": "4411",
+        "ro_account_name": "IMPOZITUL PE PROFIT",
+        "amount": 10750.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentAssets",
+        "canonical_bucket": "otherCurrentAssets",
+        "ro_account_code": "4424",
+        "ro_account_name": "TVA DE RECUPERAT",
+        "amount": 492.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "otherCurrentLiab",
+        "ro_account_code": "444",
+        "ro_account_name": "IMPOZITUL PE VENITURI DE NATURA SALARIILOR",
+        "amount": 1014.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentAssets",
+        "canonical_bucket": "otherCurrentAssets",
+        "ro_account_code": "4482",
+        "ro_account_name": "ALTE CREANTE PRIVIND BUGETUL STATULUI",
+        "amount": 5463.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "ap_dividends",
+        "ro_account_code": "457",
+        "ro_account_name": "DIVIDENDE DE PLATIT",
+        "amount": 1.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentAssets",
+        "canonical_bucket": "ar_intercompany",
+        "ro_account_code": "461",
+        "ro_account_name": "DEBITORI DIVERSI",
+        "amount": 2596892.49,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentLiab",
+        "canonical_bucket": "otherCurrentLiab",
+        "ro_account_code": "462",
+        "ro_account_name": "CREDITORI DIVERSI",
+        "amount": 258331.0,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "otherCurrentAssets",
+        "canonical_bucket": "otherCurrentAssets",
+        "ro_account_code": "471",
+        "ro_account_name": "CHELTUIELI INREGISTRATE IN AVANS",
+        "amount": 424948.56,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "ar",
+        "canonical_bucket": "ar",
+        "ro_account_code": "491",
+        "ro_account_name": "AJUSTARI - DEPRECIEREA CREANTELOR - CLIENTI",
+        "amount": -167026.63,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "cash",
+        "canonical_bucket": "cash",
+        "ro_account_code": "5121",
+        "ro_account_name": "CONTURI LA BANCA IN LEI",
+        "amount": 810431.78,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "cash",
+        "canonical_bucket": "cash_fx",
+        "ro_account_code": "5124",
+        "ro_account_name": "CONTURI LA BANCA IN VALUTA",
+        "amount": 679102.51,
+        "is_derived": false
+      },
+      {
+        "statement": "BS",
+        "bucket": "cash",
+        "canonical_bucket": "cash",
+        "ro_account_code": "5311",
+        "ro_account_name": "CASA IN LEI",
+        "amount": 5302.52,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "6024",
+        "ro_account_name": "CHELT. CU PIESELE DE SCHIMB",
+        "amount": 54085.94,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "6051",
+        "ro_account_name": "CHELT. PRIVIND CONSUMUL DE ENERGIE",
+        "amount": 12.52,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "611",
+        "ro_account_name": "CHELT. CU INTRETINEREA SI REPARATIILE",
+        "amount": 45875.96,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "6123",
+        "ro_account_name": "CHELTUIELI CU CHIRIILE",
+        "amount": 49.03,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "613",
+        "ro_account_name": "CHELT. CU PRIME DE ASIGURARE",
+        "amount": 34248.69,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "622",
+        "ro_account_name": "CHELT. CU COMISIOANE SI ONORARIILE",
+        "amount": 31412.39,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "626",
+        "ro_account_name": "CHELT. POSTALE SI TAXE DE TELECOMUNICATII",
+        "amount": 1195.11,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "627",
+        "ro_account_name": "CHELT. CU SERV. BANCARE SI ASIMILATE",
+        "amount": 41206.34,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "opex_third_party",
+        "ro_account_code": "628",
+        "ro_account_name": "ALTE CHELT. CU SERVICIILE EXECUTATE DE TERTI",
+        "amount": 2172788.6,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "635",
+        "ro_account_name": "CHELT. CU ALTE IMPOZITE, TAXE SI VARSAMINTE ASIMILATE",
+        "amount": 253065.23,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "641",
+        "ro_account_name": "CHELT. CU SALARIILE PERSONALULUI",
+        "amount": 125808.0,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "6458",
+        "ro_account_name": "ALTE CHELT. PRIVIND ASIGURARILE SI PROTECTIA SOCIALA",
+        "amount": 1200.0,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "operatingExpenses",
+        "canonical_bucket": "operatingExpenses",
+        "ro_account_code": "6461",
+        "ro_account_name": "CHELT. CU CONTRIB. ASIGURATORIE PT. MUNCA A SALARIATILOR",
+        "amount": 2832.0,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "financialExpense",
+        "canonical_bucket": "fx_loss",
+        "ro_account_code": "6651",
+        "ro_account_name": "DIFERENTE NEFAVORABILE DE CURS VALUTAR",
+        "amount": 338580.67,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "interestExpense",
+        "canonical_bucket": "interest_expense",
+        "ro_account_code": "666",
+        "ro_account_name": "CHELT. PRIVIND DOBANZILE",
+        "amount": 716741.02,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "depreciation",
+        "canonical_bucket": "depreciation",
+        "ro_account_code": "6811",
+        "ro_account_name": "CHELT. DE EXPLOATARE CU AMORTIZAREA IMOBILIZARILOR",
+        "amount": 355606.5,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "taxExpense",
+        "canonical_bucket": "taxExpense",
+        "ro_account_code": "691",
+        "ro_account_name": "CHELT. CU IMPOZITUL PE PROFIT",
+        "amount": 36867.0,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "revenue",
+        "canonical_bucket": "revenue",
+        "ro_account_code": "706",
+        "ro_account_name": "VEN. DIN REDEVENTE SI CHIRII",
+        "amount": 2727103.68,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "capitalizedOwnWork",
+        "canonical_bucket": "capitalizedOwnWork",
+        "ro_account_code": "722",
+        "ro_account_name": "VEN. DIN PROD. DE IMOBILIZARI CORPORALE",
+        "amount": 2164079.83,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "financialIncome",
+        "canonical_bucket": "financial_income",
+        "ro_account_code": "7611",
+        "ro_account_name": "VEN. DIN ACTIUNI DETINUTE LA ENTITATI AFILIATE",
+        "amount": 694377.16,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "financialIncome",
+        "canonical_bucket": "fx_gain",
+        "ro_account_code": "7651",
+        "ro_account_name": "VEN. DIN DIFERENTE FAVORABILE DE CURS VALUTAR",
+        "amount": 26632.48,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "financialIncome",
+        "canonical_bucket": "interest_income",
+        "ro_account_code": "766",
+        "ro_account_name": "VEN. DIN DOBINZI",
+        "amount": 2460.43,
+        "is_derived": false
+      },
+      {
+        "statement": "PL",
+        "bucket": "financialIncome",
+        "canonical_bucket": "financial_income",
+        "ro_account_code": "767",
+        "ro_account_name": "VEN. DIN SCONTURI OBTINUTE",
+        "amount": 22167.0,
+        "is_derived": false
+      }
+    ],
+    "unmapped": [],
+    "ignored": [],
+    "assembled_canonical_v1": {
+      "schema_version": "canonical_v1.0.0",
+      "leaves": {
+        "share_capital": {
+          "magnitude": 45200.0,
+          "sign_meaning": "equity_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 45200.0
+        },
+        "revaluation_reserves": {
+          "magnitude": 3980157.61,
+          "sign_meaning": "equity_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 3980157.61
+        },
+        "legal_reserves": {
+          "magnitude": 9040.0,
+          "sign_meaning": "equity_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 9040.0
+        },
+        "retained_earnings_prior_years": {
+          "magnitude": 364310.48,
+          "sign_meaning": "equity_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 364310.48
+        },
+        "lt_debt_bank": {
+          "magnitude": 14083315.77,
+          "sign_meaning": "liability_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 14083315.77
+        },
+        "intangibles_other": {
+          "magnitude": 1529.41,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 1529.41
+        },
+        "ppe_machinery_equipment": {
+          "magnitude": 373182.58,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 3,
+          "ras_line_items_sum_signed": 373182.58
+        },
+        "ppe_furniture_office": {
+          "magnitude": 221324.74,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 221324.74
+        },
+        "investment_property": {
+          "magnitude": 14457160.32,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 14457160.32
+        },
+        "ppe_under_construction": {
+          "magnitude": 2164079.83,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 2164079.83
+        },
+        "financial_investments_affiliates": {
+          "magnitude": 501017.97,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 501017.97
+        },
+        "other_non_current_assets": {
+          "magnitude": 29721.05,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 29721.05
+        },
+        "accumulated_amortization_intangibles": {
+          "magnitude": 1529.41,
+          "sign_meaning": "asset_negative",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": -1529.41
+        },
+        "accumulated_depreciation_ppe": {
+          "magnitude": 4110256.18,
+          "sign_meaning": "asset_negative",
+          "ras_line_items_count": 3,
+          "ras_line_items_sum_signed": -4110256.18
+        },
+        "ap_trade": {
+          "magnitude": 7.49,
+          "sign_meaning": "liability_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 7.49
+        },
+        "ar_supplier_advances": {
+          "magnitude": 3208.76,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 3208.76
+        },
+        "ppe_advances": {
+          "magnitude": 2021340.0,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 2021340.0
+        },
+        "ar_trade_gross": {
+          "magnitude": 4.0,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 4.0
+        },
+        "ar_doubtful_gross": {
+          "magnitude": 167026.63,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 167026.63
+        },
+        "ap_personnel_other": {
+          "magnitude": 226.0,
+          "sign_meaning": "liability_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 226.0
+        },
+        "ap_personnel_social": {
+          "magnitude": 5817.0,
+          "sign_meaning": "liability_positive",
+          "ras_line_items_count": 3,
+          "ras_line_items_sum_signed": 5817.0
+        },
+        "ap_tax": {
+          "magnitude": 11764.0,
+          "sign_meaning": "liability_positive",
+          "ras_line_items_count": 2,
+          "ras_line_items_sum_signed": 11764.0
+        },
+        "ar_tax_recoverable": {
+          "magnitude": 5955.0,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 2,
+          "ras_line_items_sum_signed": 5955.0
+        },
+        "ap_dividends": {
+          "magnitude": 1.0,
+          "sign_meaning": "liability_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 1.0
+        },
+        "ar_intercompany": {
+          "magnitude": 2596892.49,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 2596892.49
+        },
+        "ap_other": {
+          "magnitude": 258331.0,
+          "sign_meaning": "liability_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 258331.0
+        },
+        "prepaid_expenses_st": {
+          "magnitude": 424948.56,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 424948.56
+        },
+        "ar_provisions": {
+          "magnitude": 167026.63,
+          "sign_meaning": "asset_negative",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": -167026.63
+        },
+        "cash_operating": {
+          "magnitude": 815734.3,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 2,
+          "ras_line_items_sum_signed": 815734.3
+        },
+        "cash_fx": {
+          "magnitude": 679102.51,
+          "sign_meaning": "asset_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 679102.51
+        },
+        "cogs_auxiliary_consumables": {
+          "magnitude": 54085.94,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 54085.94
+        },
+        "energy_utilities": {
+          "magnitude": 12.52,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 12.52
+        },
+        "maintenance_repairs": {
+          "magnitude": 45875.96,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 45875.96
+        },
+        "rent_operating_lease": {
+          "magnitude": 49.03,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 49.03
+        },
+        "insurance": {
+          "magnitude": 34248.69,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 34248.69
+        },
+        "third_party_services": {
+          "magnitude": 2246602.44,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 4,
+          "ras_line_items_sum_signed": 2246602.44
+        },
+        "other_operating_taxes": {
+          "magnitude": 253065.23,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 253065.23
+        },
+        "personnel_wages": {
+          "magnitude": 125808.0,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 125808.0
+        },
+        "personnel_social_security": {
+          "magnitude": 1200.0,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 1200.0
+        },
+        "personnel_other_contributions": {
+          "magnitude": 2832.0,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 2832.0
+        },
+        "fx_loss_realized": {
+          "magnitude": 338580.67,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 338580.67
+        },
+        "interest_expense": {
+          "magnitude": 716741.02,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 716741.02
+        },
+        "depreciation_ppe": {
+          "magnitude": 355606.5,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 355606.5
+        },
+        "income_tax_current": {
+          "magnitude": 36867.0,
+          "sign_meaning": "expense_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 36867.0
+        },
+        "revenue_rental_royalty": {
+          "magnitude": 2727103.68,
+          "sign_meaning": "revenue_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 2727103.68
+        },
+        "capitalized_own_work_memo": {
+          "magnitude": 2164079.83,
+          "sign_meaning": "revenue_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 2164079.83
+        },
+        "dividend_income_affiliates": {
+          "magnitude": 694377.16,
+          "sign_meaning": "revenue_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 694377.16
+        },
+        "fx_gain_realized": {
+          "magnitude": 26632.48,
+          "sign_meaning": "revenue_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 26632.48
+        },
+        "interest_income": {
+          "magnitude": 2460.43,
+          "sign_meaning": "revenue_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 2460.43
+        },
+        "discounts_received_financial": {
+          "magnitude": 22167.0,
+          "sign_meaning": "revenue_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 22167.0
+        },
+        "current_year_profit": {
+          "magnitude": 1425245.58,
+          "sign_meaning": "equity_positive",
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 1425245.58
+        }
+      },
+      "aggregates": {
+        "cash_and_equivalents": {
+          "net": 1494836.81,
+          "leaves": [
+            "cash_operating",
+            "cash_fx"
+          ]
+        },
+        "trade_receivables_net": {
+          "net": 4.0,
+          "leaves": [
+            "ar_trade_gross",
+            "ar_doubtful_gross",
+            "ar_provisions"
+          ]
+        },
+        "other_receivables": {
+          "net": 2606056.25,
+          "leaves": [
+            "ar_intercompany",
+            "ar_tax_recoverable",
+            "ar_supplier_advances"
+          ]
+        },
+        "prepaid_expenses_and_other": {
+          "net": 424948.56,
+          "leaves": [
+            "prepaid_expenses_st"
+          ]
+        },
+        "ppe_net": {
+          "net": 669670.97,
+          "leaves": [
+            "ppe_machinery_equipment",
+            "ppe_furniture_office",
+            "ppe_under_construction",
+            "ppe_advances",
+            "accumulated_depreciation_ppe"
+          ]
+        },
+        "investment_property": {
+          "net": 14457160.32,
+          "leaves": [
+            "investment_property"
+          ]
+        },
+        "intangibles_net": {
+          "net": 0.0,
+          "leaves": [
+            "intangibles_other",
+            "accumulated_amortization_intangibles"
+          ]
+        },
+        "financial_investments": {
+          "net": 501017.97,
+          "leaves": [
+            "financial_investments_affiliates"
+          ]
+        },
+        "other_non_current_assets": {
+          "net": 29721.05,
+          "leaves": [
+            "other_non_current_assets"
+          ]
+        },
+        "trade_payables": {
+          "net": 7.49,
+          "leaves": [
+            "ap_trade"
+          ]
+        },
+        "tax_payables": {
+          "net": 11764.0,
+          "leaves": [
+            "ap_tax"
+          ]
+        },
+        "personnel_payables": {
+          "net": 6043.0,
+          "leaves": [
+            "ap_personnel_social",
+            "ap_personnel_other"
+          ]
+        },
+        "other_payables_st": {
+          "net": 258332.0,
+          "leaves": [
+            "ap_dividends",
+            "ap_other"
+          ]
+        },
+        "financial_liabilities_lt": {
+          "net": 14083315.77,
+          "leaves": [
+            "lt_debt_bank"
+          ]
+        },
+        "contributed_capital": {
+          "net": 45200.0,
+          "leaves": [
+            "share_capital"
+          ]
+        },
+        "reserves": {
+          "net": 3989197.61,
+          "leaves": [
+            "revaluation_reserves",
+            "legal_reserves"
+          ]
+        },
+        "retained_earnings": {
+          "net": 1789556.06,
+          "leaves": [
+            "retained_earnings_prior_years",
+            "current_year_profit"
+          ]
+        },
+        "revenue_gross": {
+          "net": 2727103.68,
+          "leaves": [
+            "revenue_rental_royalty"
+          ]
+        },
+        "cogs": {
+          "net": 54085.94,
+          "leaves": [
+            "cogs_auxiliary_consumables"
+          ]
+        },
+        "opex_general": {
+          "net": 2579853.87,
+          "leaves": [
+            "energy_utilities",
+            "maintenance_repairs",
+            "rent_operating_lease",
+            "insurance",
+            "third_party_services",
+            "other_operating_taxes"
+          ]
+        },
+        "personnel_total": {
+          "net": 129840.0,
+          "leaves": [
+            "personnel_wages",
+            "personnel_social_security",
+            "personnel_other_contributions"
+          ]
+        },
+        "dap": {
+          "net": 355606.5,
+          "leaves": [
+            "depreciation_ppe"
+          ]
+        },
+        "memo_pl": {
+          "net": 2164079.83,
+          "leaves": [
+            "capitalized_own_work_memo"
+          ]
+        },
+        "financial_income": {
+          "net": 745637.07,
+          "leaves": [
+            "interest_income",
+            "dividend_income_affiliates",
+            "fx_gain_realized",
+            "discounts_received_financial"
+          ]
+        },
+        "financial_expense": {
+          "net": 1055321.69,
+          "leaves": [
+            "interest_expense",
+            "fx_loss_realized"
+          ]
+        },
+        "income_tax": {
+          "net": 36867.0,
+          "leaves": [
+            "income_tax_current"
+          ]
+        }
+      },
+      "unmapped": [],
+      "round_trip_check": {
+        "passed": true,
+        "tolerance_pct": 0.5,
+        "max_deviation_pct": 0.0
+      }
+    }
+  }
+}

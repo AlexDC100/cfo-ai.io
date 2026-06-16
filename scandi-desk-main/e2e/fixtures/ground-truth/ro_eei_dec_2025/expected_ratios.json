@@ -1,0 +1,77 @@
+{
+  "tolerance_pct": 0.01,
+  "_note": "Ratios computed off the OPERATIONAL view (722 excluded). The platform's current EBITDA includes 722 and yields 2.13M; that figure MUST be replaced by the operational EBITDA once the fixture is wired.",
+
+  "leverage": {
+    "total_debt":                        14083315.77,
+    "total_debt_minus_cash":             12588478.96,
+    "net_debt_to_ebitda_operational_ttm": null,
+    "_net_debt_to_ebitda_note":          "EBITDA_operational is negative this period → ratio is meaningless; surface as 'leverage not measurable on EBITDA basis — use LTV and DSCR for CRE'.",
+    "loan_to_value_ratio":                0.971,
+    "_ltv_note":                          "LT debt 14.08M / investment property net 14.46M − dep 3.52M = 10.93M (net book) → LTV on book ~129%; on gross 14.46M it's 97%. Real CRE LTV uses appraised value, not book — should be flagged for input.",
+    "debt_to_equity":                     2.418,
+    "_debt_to_equity_note":               "14.08M / 5.82M total equity"
+  },
+
+  "coverage": {
+    "interest_coverage_ebitda":          -0.053,
+    "_interest_coverage_note":           "Operational EBITDA -38k / interest 716k = negative coverage. THIS IS THE LEAD ALERT. Cash interest is funded from financial income (dividends 694k from affiliates) + capitalized 722.",
+    "dscr_estimate":                     null,
+    "_dscr_note":                         "Need principal payments to compute. Schedule shows 773,894.83 LT debt principal paid YTD; with interest 716,741.02 → debt service ~1.49M; cash from rent + dividends ~3.42M → DSCR ~2.3× before opex. After opex, DSCR collapses."
+  },
+
+  "liquidity": {
+    "current_ratio":                       null,
+    "_current_ratio_note":                "Need to split LT debt principal due <12mo from total. Cash 1.49M + AR-net 4 + other current 5.06M = 6.55M current assets; current liab 7.49 + 276k = 0.28M → ratio ~23× if no current portion of LT debt. Likely overstated."
+  },
+
+  "profitability": {
+    "revenue_operational":                2727103.68,
+    "gross_margin_pct":                   1.00,
+    "_gross_margin_note":                 "No COGS for real estate rental → gross margin = 100% by construction.",
+    "ebitda_margin_operational_pct":     -0.014,
+    "_ebitda_margin_note":                "Operational EBITDA margin -1.4% — anomalous for a stabilized real-estate holder. The 628 services anomaly is the lead explanation."
+  },
+
+  "valuation_primary": {
+    "method":                            "ev_ebitda_peer_multiple",
+    "_method_note":                       "Industry classification 'real_estate_commercial' → Damodaran EU REIT 2026 P50 multiple 16×.",
+    "ebitda_basis_for_valuation":         null,
+    "_ebitda_basis_note":                 "Operational EBITDA is negative or near-zero this period → primary method must flag confidence='low' and direct to (a) NOI / cap-rate cross-check, (b) DCF cross-check, (c) adjusted EBITDA after stripping the 628 anomaly.",
+    "adjusted_ebitda_estimate":          2134867.47,
+    "_adjusted_ebitda_note":              "If the user identifies 2.17M of 628 services as construction-related (i.e. should have been capitalized like 722 was), adjusted operational EBITDA ≈ -38k + 2,172,788 = 2,134,750. That's ~78% of rental revenue — plausible for CRE."
+  },
+
+  "anomalies_to_flag": [
+    {
+      "key": "628_anomaly",
+      "title": "Account 628 (third-party services) is 80% of revenue",
+      "severity": "HIGH",
+      "value": 2172788.60,
+      "denominator": 2727103.68,
+      "ratio": 0.797
+    },
+    {
+      "key": "461_related_party",
+      "title": "Account 461 (other debtors / related parties) is RON 2.6M — verify recoverability",
+      "severity": "MEDIUM",
+      "value": 2596892.49
+    },
+    {
+      "key": "105_revaluation_reserves",
+      "title": "Account 105 revaluation reserves represent 68% of total equity (non-cash)",
+      "severity": "INFO",
+      "value": 3980157.61,
+      "total_equity": 5823953.67,
+      "ratio": 0.683
+    },
+    {
+      "key": "fx_exposure",
+      "title": "FX cash (5124) is 45% of total cash — material currency exposure",
+      "severity": "INFO",
+      "value": 679102.51,
+      "total_cash": 1494836.81,
+      "ratio": 0.454
+    }
+  ]
+}

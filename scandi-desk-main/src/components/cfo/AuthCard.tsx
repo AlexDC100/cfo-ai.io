@@ -65,6 +65,13 @@ export function AuthCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
+  // Resend cooldown — Supabase rate-limits OTP / signup resends server-side
+  // (default 1/min, configurable in Auth → Rate limits). Without a client-
+  // side guard, an impatient user mashing the button gets 429s and a confusing
+  // "rate limit exceeded" toast. The countdown also doubles as a clear "we
+  // sent it — give it a moment" UX cue.
+  const [resendCooldownSec, setResendCooldownSec] = useState(0);
+  const [resendInfo, setResendInfo] = useState<string | null>(null);
 
   // Derived view-model — pure useMemo, deterministic.
   const selectedPlan = useMemo(
@@ -94,6 +101,29 @@ export function AuthCard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // Resend cooldown tick. Decrements once per second until 0 — keeps the
+  // button disabled and the countdown label fresh without re-rendering the
+  // whole card. setInterval is fine here because the resend cooldown is
+  // short (60s) and bound to the confirmEmail UI mount.
+  useEffect(() => {
+    if (resendCooldownSec <= 0) return;
+    const id = window.setInterval(() => {
+      setResendCooldownSec((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [resendCooldownSec]);
+
+  // When the "Check your email" panel first mounts (right after a successful
+  // signUp that returned needsConfirmation), seed the 60s cooldown so the
+  // user can't immediately mash Resend and trip Supabase's server-side rate
+  // limit. We also show a small "we sent it" confirmation chip.
+  useEffect(() => {
+    if (confirmEmail) {
+      setResendCooldownSec(60);
+      setResendInfo(null);
+    }
+  }, [confirmEmail]);
 
   /**
    * Post-auth router. Decides where to send the user once Supabase confirms
@@ -244,29 +274,71 @@ export function AuthCard({
               Click it to finish creating your account.
             </p>
             <p className="text-[11.5px] text-ink-mute mt-3">
-              Didn't see it? Check spam, or wait 60s and try again.
+              Didn't see it? Check spam — Supabase confirmations sometimes land
+              there on the first send. Allow up to 60 seconds for delivery.
             </p>
           </div>
+          {/* Successful-resend confirmation chip. Distinct from `error` so the
+              user sees a positive "we did the thing" cue, not a red box. */}
+          {resendInfo && (
+            <div className="text-[12px] text-brand bg-brand/10 border border-brand/30 rounded-lg px-3 py-2 text-center">
+              {resendInfo}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={async () => {
+                if (resendCooldownSec > 0) return;
                 setError(null);
+                setResendInfo(null);
                 setBusy(true);
                 const { error } = await signUp({ email: confirmEmail, password, displayName, companyName });
                 setBusy(false);
-                if (error && !error.message.toLowerCase().includes("already registered")) {
+                // Supabase returns a "User already registered" error on
+                // resends because the auth.users row exists from the original
+                // signUp call — that's expected, not a failure. The link is
+                // re-sent regardless. Surface other errors plainly.
+                const msg = (error?.message ?? "").toLowerCase();
+                const isAlreadyRegistered =
+                  msg.includes("already registered") ||
+                  msg.includes("user already exists");
+                if (error && !isAlreadyRegistered) {
                   setError(error.message);
+                } else {
+                  setResendInfo(
+                    "Sent. Check your inbox (and spam) for the new link.",
+                  );
                 }
+                // Start cooldown regardless of outcome — keeps the user from
+                // mashing the button and racing through Supabase's server-side
+                // rate limit.
+                setResendCooldownSec(60);
               }}
-              disabled={busy}
-              className="h-10 rounded-lg border border-rule text-[13px] text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors disabled:opacity-50"
+              disabled={busy || resendCooldownSec > 0}
+              className="h-10 rounded-lg border border-rule text-[13px] text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label={
+                resendCooldownSec > 0
+                  ? `Resend available in ${resendCooldownSec} seconds`
+                  : "Resend confirmation email"
+              }
             >
-              {busy ? <Loader2 size={14} className="inline animate-spin" /> : "Resend email"}
+              {busy ? (
+                <Loader2 size={14} className="inline animate-spin" />
+              ) : resendCooldownSec > 0 ? (
+                `Resend in ${resendCooldownSec}s`
+              ) : (
+                "Resend email"
+              )}
             </button>
             <button
               type="button"
-              onClick={() => { setConfirmEmail(null); setMode("sign_in"); }}
+              onClick={() => {
+                setConfirmEmail(null);
+                setMode("sign_in");
+                setResendInfo(null);
+                setResendCooldownSec(0);
+              }}
               className="h-10 rounded-lg bg-ink text-paper text-[13px] font-medium hover:bg-ink/90 transition-colors"
             >
               Back to sign in

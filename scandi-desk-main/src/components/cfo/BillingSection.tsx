@@ -58,12 +58,14 @@ import {
 import { usePlanState, type PlanState } from "@/lib/planState";
 import { useAuth } from "@/lib/auth";
 import { formatEur } from "@/lib/pricingConfig";
+import { SITE } from "@/config/site";
+import { UpcomingInvoicePreview } from "./UpcomingInvoicePreview";
 
 export function BillingSection() {
-  // Stripe sub state still consumed for future re-introduction of the
-  // portal CTA. Today: not used to decide routing — "Manage
-  // subscription" always navigates to /pricing per operator directive.
-  const { isLoading: subLoading } = useStripeSubscription();
+  // Stripe sub state — used to route "Manage subscription" to the
+  // Stripe Customer Portal when a real subscription exists, or fall
+  // back to /pricing for trial / pre-checkout users.
+  const { data: stripeSub, isLoading: subLoading } = useStripeSubscription();
 
   // V2 plan truth — name + price both come from here, server-side
   // config. This is the same hook PricingTableV2 + AccountMenu use, so
@@ -77,15 +79,27 @@ export function BillingSection() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
 
-  function handleManage() {
-    // Operator directive (May 2026): the "Manage subscription" CTA
-    // always routes to the in-app Plans & Billing page (/pricing).
-    // Reasoning: the Stripe customer portal isn't fully wired yet
-    // (price_ids pending) — pressing the button was leading nowhere.
-    // /pricing shows the full tier comparison + lets the user pick a
-    // plan. When Stripe is fully wired, re-introduce a conditional
-    // openBillingPortal() call here for users with an active Stripe sub.
+  /** Re-introduced (May 2026, Stripe go-live):
+   *   · If the user has a Stripe-linked subscription (any tier),
+   *     POST /api/billing/portal and redirect to the returned URL.
+   *     Stripe Customer Portal owns: update card / view invoices /
+   *     cancel / change plan.
+   *   · Otherwise — trial / pre-checkout users — fall back to /pricing
+   *     so they can pick a tier. The same fallback fires if the portal
+   *     call fails (e.g. backend 503, Customer Portal not yet
+   *     activated in the Stripe Dashboard). */
+  const hasStripeSub = Boolean(
+    stripeSub && (stripeSub.tier || stripeSub.plan_key) && stripeSub.status !== "trial",
+  );
+
+  async function handleManage() {
     setBusy(true);
+    if (hasStripeSub) {
+      const ok = await openBillingPortal();
+      if (ok) return; // browser navigated away
+    }
+    // Fallback: no active sub, OR portal call failed → /pricing
+    setBusy(false);
     navigate("/pricing");
   }
 
@@ -136,6 +150,11 @@ export function BillingSection() {
             {user?.email ?? "—"}
           </span>
         </Field>
+
+        {/* WS2 — live counter for the next invoice (base + metered extras +
+            total). Hidden for trial / pre-checkout users; renders itself
+            null when /api/billing/upcoming-invoice returns no subscription. */}
+        <UpcomingInvoicePreview />
 
         {/* Manage subscription — single CTA. Stripe portal when
             possible, /pricing fallback otherwise. */}
@@ -240,7 +259,7 @@ function CancelSaveAttempt({ open, sub, onClose, onConfirm }: CancelSaveAttemptP
           />
           <SaveReason
             label="Missing a feature"
-            suggestion="Tell us what you need — hello@yourchoice.ai"
+            suggestion={`Tell us what you need — ${SITE.supportEmail}`}
           />
           <SaveReason
             label="Bug or technical issue"

@@ -120,6 +120,45 @@ export interface Statements {
   assembled_pl?: Record<string, number>;
   assembled_bs?: Record<string, number>;
   assembled_cf?: Record<string, number>;
+  /** F4.1e — country-agnostic canonical envelope, embedded under
+   *  `statements` by the backend's `/api/period` + briefing-regenerate
+   *  paths (see `src/engine/api/pipeline.py:3511`). The
+   *  `methodology.ebitda` block carries the four named YAML variants
+   *  (reported / strict / cash / adjusted) that the F4.2-PARITY gate
+   *  hard-locks to be byte-identical to the in-code legacy fields per
+   *  ADR Lock #8 (3 of 4 HARD as of 3b.6-B; adjusted gated when
+   *  operator addbacks land per [F3.16-3b6-ADJUSTED-LATER]).
+   *
+   *  Consumed by `buildCanonicalMetrics` / `buildCanonicalMetricsFromInputs`
+   *  when the `F36_CUTOVER_METRICS_HUB` flag is on (the
+   *  `[F3.16-3b6-CONSUMER-CUTOVER]` cutover landing point — see
+   *  docs/SAGA-CALIBRATION-2026Q2.md §9). */
+  assembled_canonical_v1?: {
+    methodology?: {
+      ebitda?: {
+        reported?: number;
+        strict?: number;
+        cash?: number;
+        adjusted?: number;
+      };
+    };
+    [key: string]: unknown;
+  };
+  /** F3.11 — Source-data quality telemetry. Populated upstream of any
+   *  engine routing from raw sf_d/sf_c sums in the trial balance.
+   *  When `warn` is true (imbalance > 2%), the dashboard shows a
+   *  prominent WARN banner above the analysis explaining that engine
+   *  drift will exceed normal range because the source file itself
+   *  is imbalanced. Falsy/missing on Claude-extracted uploads and on
+   *  pre-F3.11 cached analyses — banner simply does not render. */
+  sourceDataQuality?: {
+    raw_imbalance_pct: number;
+    raw_imbalance_abs: number;
+    sum_closing_debit: number;
+    sum_closing_credit: number;
+    warn: boolean;
+    warn_threshold_pct?: number;
+  };
 }
 
 // ─── Derived totals ─────────────────────────────────────────────────────────
@@ -246,49 +285,140 @@ function verdictFromBands(
   return "critical";
 }
 
-export function computeRatios(s: Statements): RatioBundle {
+export function computeRatios(
+  s: Statements,
+  // F1.e — Optional engine-canonical margin pair from calculated_metrics
+  // (rows `ebitda_margin` and `net_margin`). When supplied, the Profitability
+  // section sources `ebitdaMargin` and `netMargin` from the engine instead
+  // of recomputing FE-side, so every margin display on a page agrees with
+  // every other one. The legacy in-FE arithmetic stays as a fallback for
+  // callers that haven't been migrated.
+  canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null },
+  // F2.2 — Optional engine-canonical metric map (`calculated_metrics` rows
+  // keyed by name). When supplied, EVERY ratio that has a direct engine
+  // equivalent is sourced from this map; the FE arithmetic stays as a
+  // fallback only for pre-v2.1 cached periods. Two ratios remain FE-
+  // arithmetic by design: `ltv` (uses user-supplied `propertyMarketValue`,
+  // not engine-derived) and `adjusted_dscr` (uses user-supplied
+  // `annualLeaseExpense`, not engine-derived). These are NOT canonical
+  // duplications — they're legitimate FE arithmetic on user input.
+  metricsByName?: Record<string, number | null>,
+): RatioBundle {
   const t = deriveTotals(s);
   const bs = s.balanceSheet;
   const is = s.incomeStatement;
   const sup = s.supplementary;
   const days = sup.periodDays ?? 365;
 
+  // F2.2 — Canonical-or-fallback helper. Reads `m` from metricsByName if
+  // present and non-null; else returns the FE-arithmetic fallback. Engine
+  // emits ratios as decimals (0.132 = 13.2%); pct() in this file returns
+  // 0-100 percentages. Where the consuming UI shows a percentage, multiply
+  // by 100. Where it shows a multiplier (1.5×), no transformation.
+  const m = (name: string): number | null => {
+    if (!metricsByName) return null;
+    const v = metricsByName[name];
+    return typeof v === "number" ? v : null;
+  };
+  const mOr = (name: string, fallback: number): number => {
+    const v = m(name);
+    return v === null ? fallback : v;
+  };
+  const mPctOr = (name: string, fallback: number): number => {
+    const v = m(name);
+    return v === null ? fallback : v * 100;
+  };
+
   // Liquidity ────────────────────────────────────────────────────────────────
-  const currentRatio = safeDiv(t.totalCurrentAssets, t.totalCurrentLiabilities);
-  const quickRatio = safeDiv(
-    bs.cash + bs.accountsReceivable,
-    t.totalCurrentLiabilities,
+  const currentRatio = mOr("current_ratio", safeDiv(t.totalCurrentAssets, t.totalCurrentLiabilities));
+  const quickRatio = mOr(
+    "quick_ratio",
+    safeDiv(bs.cash + bs.accountsReceivable, t.totalCurrentLiabilities),
   );
-  const cashRatio = safeDiv(bs.cash, t.totalCurrentLiabilities);
+  const cashRatio = mOr("cash_ratio", safeDiv(bs.cash, t.totalCurrentLiabilities));
 
   // Profitability ────────────────────────────────────────────────────────────
-  const grossMargin = pct(t.grossProfit, is.revenue);
-  const ebitdaMargin = pct(t.ebitda, is.revenue);
-  const netMargin = pct(t.netIncome, is.revenue);
-  const roa = pct(t.netIncome, t.totalAssets);
-  const roe = pct(t.netIncome, t.totalEquity);
+  // F1.e + F2.2: prefer engine canonical when supplied (via either the
+  // legacy `canonicalMargins` pair or the new `metricsByName` map). Engine
+  // emits margins as ratios (0–1); pct() emits 0–100; multiply canonical
+  // value by 100 to align units.
+  const grossMargin = mPctOr("gross_margin", pct(t.grossProfit, is.revenue));
+  const ebitdaMargin = m("ebitda_margin") !== null
+    ? (m("ebitda_margin") as number) * 100
+    : (canonicalMargins?.ebitdaMargin != null
+        ? canonicalMargins.ebitdaMargin * 100
+        : pct(t.ebitda, is.revenue));
+  const netMargin = m("net_margin") !== null
+    ? (m("net_margin") as number) * 100
+    : (canonicalMargins?.netMargin != null
+        ? canonicalMargins.netMargin * 100
+        : pct(t.netIncome, is.revenue));
+  const roa = mPctOr("roa", pct(t.netIncome, t.totalAssets));
+  const roe = mPctOr("roe", pct(t.netIncome, t.totalEquity));
+  // F2.2 — ROIC added as a new Profitability row (engine emits; FE didn't
+  // surface previously). Engine formula: operating_profit × (1 − 0.16) /
+  // max(total_debt + total_equity, 1) — NOPAT over invested capital.
+  const roic = mPctOr(
+    "roic",
+    pct(t.ebit * (1 - 0.16), Math.max(t.totalDebt + t.totalEquity, 1)),
+  );
 
   // Leverage ─────────────────────────────────────────────────────────────────
-  const debtToEbitda = safeDiv(t.totalDebt, t.ebitda);
-  const debtToEquity = safeDiv(t.totalDebt, t.totalEquity);
-  const equityRatio = pct(t.totalEquity, t.totalAssets);
+  const debtToEbitda = mOr("debt_to_ebitda", safeDiv(t.totalDebt, t.ebitda));
+  const debtToEquity = mOr("debt_to_equity", safeDiv(t.totalDebt, t.totalEquity));
+  const equityRatio = mPctOr("equity_ratio", pct(t.totalEquity, t.totalAssets));
+  // F2.2 — LTV stays FE-arithmetic when propertyMarketValue is supplied
+  // (user input, not engine-derived). When no override, read engine's
+  // `debt_to_assets` canonical. This is one of the few FE-arithmetic sites
+  // that survives F2's canonical-conformance rule because the input is
+  // genuinely user-side (the property valuation isn't in the trial balance).
+  // DO NOT "fix" this into a pure engine read — that would silently drop the
+  // user's market-value input from the LTV displayed value.
   const ltv = sup.propertyMarketValue
     ? pct(t.totalDebt, sup.propertyMarketValue)
-    : pct(t.totalDebt, t.totalAssets);
+    : mPctOr("debt_to_assets", pct(t.totalDebt, t.totalAssets));
 
   // Coverage ─────────────────────────────────────────────────────────────────
-  const interestCoverage = safeDiv(t.ebit, is.interestExpense);
-  const dscr = safeDiv(t.ebitda, is.interestExpense + bs.shortTermDebt);
+  // F2.2 — interest_coverage switches from FE EBIT-basis to engine
+  // EBITDA-basis canonical. Engine emits the same value as
+  // `ebitda_to_interest`. Visible value shift expected (small — depreciation
+  // delta between EBIT and EBITDA on both fixtures is modest).
+  const interestCoverage = mOr("interest_coverage", safeDiv(t.ebit, is.interestExpense));
+  // F2.2 — DSCR switches from FE cash-EBITDA basis to engine statutory-
+  // EBITDA basis (aligns with F1.e canonical decision). EEI shift is
+  // material (statutory adds 722 = 2.16M to numerator). Scandia unchanged
+  // because 722 = 0.
+  const dscr = mOr("dscr", safeDiv(t.ebitda, is.interestExpense + bs.shortTermDebt));
+  // F2.2 — adjusted_dscr stays FE-arithmetic when annualLeaseExpense is
+  // supplied (user input, not engine-derived). Same reasoning as LTV —
+  // legitimate FE arithmetic on user input. When no lease supplied,
+  // fall back to plain `dscr` (now engine canonical).
   const adjustedDscr = sup.annualLeaseExpense
     ? safeDiv(
         t.ebitda + sup.annualLeaseExpense,
         is.interestExpense + bs.shortTermDebt + sup.annualLeaseExpense,
       )
     : dscr;
+  // F2.2 — NEW row: DSCR with LT principal proxy (engine canonical).
+  // Different definition from `adjusted_dscr` above: principal proxy uses
+  // LT debt / 8 (~10-year amortization), not lease expense. Surfaced as
+  // a separate row so users can see both views.
+  const dscrWithLtPrincipal = mOr(
+    "dscr_with_lt_principal",
+    // Fallback computation matches engine pipeline.py line 1185 (lt_debt
+    // proxy at /8). When the engine row is absent (pre-v2.1), compute
+    // inline using the FE bs.longTermDebt.
+    safeDiv(t.ebitda, is.interestExpense + bs.longTermDebt / 8),
+  );
 
   // Efficiency ───────────────────────────────────────────────────────────────
+  // F2.2 — DIO / DPO / DSO / CCC switch to engine canonical. Engine
+  // formulas match the FE's (DIO/DPO use total_operating_expense
+  // denominator per the F1.d B1 closure). No definitional shift expected.
+  // The narrow-COGS rationale below is retained as comment context for
+  // the fallback FE-arithmetic path.
   // DIO / DPO denominator: TOTAL operating expense (COGS + OpEx + D&A), not
-  // narrow COGS. Per the methodology calibration (reference/financial_analysis.py
+  // narrow COGS. Per the methodology calibration (archive/calibration_toolkit/financial_analysis.py
   // lines 543-548, 581): in a manufacturer, inventory absorbs all production
   // costs — materials + labor + utilities + overhead — not just raw-material
   // class-6 accounts (601/602/607). Industry convention uses total operating
@@ -296,20 +426,39 @@ export function computeRatios(s: Statements): RatioBundle {
   // here inflated Scandia's DIO from the correct ~53d to ~95d.
   const totalOperatingExpense =
     is.costOfGoodsSold + is.operatingExpenses + is.depreciationAmortization;
-  const dso = safeDiv(bs.accountsReceivable, is.revenue) * days;
-  const dio = safeDiv(bs.inventory, totalOperatingExpense) * days;
-  const dpo = safeDiv(bs.accountsPayable, totalOperatingExpense) * days;
-  const ccc = dso + dio - dpo;
-  const assetTurnover = safeDiv(is.revenue, t.totalAssets);
+  const dso = mOr("dso", safeDiv(bs.accountsReceivable, is.revenue) * days);
+  const dio = mOr("dio", safeDiv(bs.inventory, totalOperatingExpense) * days);
+  const dpo = mOr("dpo", safeDiv(bs.accountsPayable, totalOperatingExpense) * days);
+  const ccc = mOr("ccc", dso + dio - dpo);
+  const assetTurnover = mOr("asset_turnover", safeDiv(is.revenue, t.totalAssets));
 
-  // Bankruptcy — Altman Z-Score (manufacturing/general) ─────────────────────
-  // Z = 1.2·(WC/TA) + 1.4·(RE/TA) + 3.3·(EBIT/TA) + 0.6·(Equity/TL) + 1.0·(Sales/TA)
-  const z =
-    1.2 * safeDiv(t.workingCapital, t.totalAssets) +
-    1.4 * safeDiv(bs.retainedEarnings, t.totalAssets) +
-    3.3 * safeDiv(t.ebit, t.totalAssets) +
-    0.6 * safeDiv(t.totalEquity, t.totalLiabilities) +
-    1.0 * safeDiv(is.revenue, t.totalAssets);
+  // Bankruptcy — Altman Z″ (engine canonical, 1995 EM variant) ─────────────
+  // F2.2 — Switched from FE inline Z(1968) formula to engine `altman_z_score`
+  // canonical. Engine emits Z″ (1995 EM) — the variant designed for non-
+  // manufacturing / services / RE / emerging markets. Z″ uses 4 components
+  // (no sales/assets X5 term), different coefficients (6.56 / 3.26 / 6.72 /
+  // 1.05), different thresholds (safe ≥ 2.60, distress < 1.10).
+  //
+  // Visible numeric shift expected on BOTH fixtures because the engine
+  // formula differs from the FE Z(1968). This is the canonical fix
+  // documented in DIAGNOSTIC_ALTMAN_CREDIT_VERDICT.md (F1.h-era).
+  //
+  // Fallback path (when engine row is absent — pre-v2.1 cached periods):
+  // compute Z″ inline ONLY. The Z(1968) and Z'(1983) industry-switch
+  // branches are deleted per the F2.2 kickoff ("delete the FE industry-
+  // switch Altman path entirely"). Z″ is the single canonical variant.
+  const zEngine = m("altman_z_score");
+  const z = zEngine !== null
+    ? zEngine
+    : (
+        // FE fallback — Z″ inline (single variant, no industry switch).
+        // Z″ = 6.56·(WC/TA) + 3.26·(RE+CurrentNP)/TA + 6.72·(EBIT/TA)
+        //    + 1.05·(Equity/TL)
+        6.56 * safeDiv(t.workingCapital, t.totalAssets) +
+        3.26 * safeDiv(bs.retainedEarnings + t.netIncome, t.totalAssets) +
+        6.72 * safeDiv(t.ebit, t.totalAssets) +
+        1.05 * safeDiv(t.totalEquity, t.totalLiabilities)
+      );
 
   return {
     liquidity: [
@@ -403,6 +552,21 @@ export function computeRatios(s: Statements): RatioBundle {
           roe >= 12
             ? "Capital deployed efficiently for shareholders."
             : "Equity returns below cost-of-capital benchmark.",
+      },
+      // F2.2 — NEW row: ROIC (engine canonical). Surfaced explicitly so the
+      // dashboard's Ratios tab shows the return-on-invested-capital row that
+      // was previously emitted by the engine but not displayed FE-side.
+      {
+        key: "roic",
+        label: "Return on Invested Capital",
+        value: roic,
+        unit: "%",
+        verdict: verdictFromBands(roic, { strong: 15, healthy: 10, watch: 5 }),
+        benchmark: "≥ 10% healthy",
+        commentary:
+          roic >= 10
+            ? "Invested capital earning above typical WACC."
+            : "Returns below cost of capital — value-destroying configuration.",
       },
     ],
     leverage: [
@@ -504,6 +668,27 @@ export function computeRatios(s: Statements): RatioBundle {
           ? "Adds lease obligation to fixed charges — lender-style view."
           : "No lease component — same as DSCR.",
       },
+      // F2.2 — NEW row: DSCR including LT principal amortization proxy
+      // (engine canonical). Different from adjusted_dscr above:
+      // numerator is statutory EBITDA, denominator adds LT debt / 8
+      // (~10-year amortization proxy) instead of lease expense. Lender-
+      // style view of covenant coverage when LT debt is the dominant
+      // service component.
+      {
+        key: "dscr_with_lt_principal",
+        label: "DSCR (incl. LT principal proxy)",
+        value: dscrWithLtPrincipal,
+        unit: "x",
+        verdict: verdictFromBands(
+          dscrWithLtPrincipal,
+          { strong: 1.5, healthy: 1.25, watch: 1 },
+        ),
+        benchmark: "≥ 1.25× with 10-year amortization proxy",
+        commentary:
+          dscrWithLtPrincipal >= 1.25
+            ? "Comfortable coverage of interest + LT principal amortization."
+            : "Including LT principal amortization, coverage is tight — refinancing risk.",
+      },
     ],
     efficiency: [
       {
@@ -556,17 +741,23 @@ export function computeRatios(s: Statements): RatioBundle {
       },
     ],
     bankruptcy: [
+      // F2.2 — Altman Z″ canonical (engine, 1995 EM variant). Replaces the
+      // FE inline Z(1968) formula AND the FE industry-switch path. Single
+      // variant, single source of truth. Thresholds updated to Z″:
+      // safe ≥ 2.60, grey 1.10–2.60, distress < 1.10 (was Z 1968's
+      // 2.60 / 1.80 / —). The label calls out the variant explicitly so
+      // users can verify against the Comprehensive Report's credit card.
       {
         key: "altman_z",
-        label: "Altman Z-Score",
+        label: "Altman Z″-Score",
         value: z,
         unit: "ratio",
-        verdict: verdictFromBands(z, { strong: 3, healthy: 2.6, watch: 1.8 }),
-        benchmark: "≥ 2.6 safe · 1.8–2.6 grey · < 1.8 distress",
+        verdict: verdictFromBands(z, { strong: 3, healthy: 2.6, watch: 1.1 }),
+        benchmark: "≥ 2.60 safe · 1.10–2.60 grey · < 1.10 distress (Z″ 1995 EM)",
         commentary:
           z >= 2.6
             ? "Bankruptcy risk: low. Balance sheet structurally sound."
-            : z >= 1.8
+            : z >= 1.1
               ? "Bankruptcy risk: grey zone. Monitor leverage and cash flow."
               : "Bankruptcy risk: distress zone. Action required.",
       },
@@ -586,6 +777,16 @@ export interface Recommendation {
   action: string;
   /** Estimated annual cash impact, in the company's currency. */
   estimatedImpact?: number;
+  /** F5.0 Phase 7 — the registry key of the rule that fired. Used by the
+   *  RecommendationCard to render an explainability block ("Triggered by")
+   *  showing the metric, threshold and value that crossed it. The rule
+   *  generation logic is NOT changed by exposing this — the engine has
+   *  always carried it; we just propagate it to the card now. */
+  ruleKey?: string;
+  /** F5.0 Phase 7 — the structured numeric facts the rule asserted to
+   *  fire. Keys match the rule's `factsCited` keys (e.g. dscr, total_debt,
+   *  current_ratio). Used to render the explainability block. */
+  factsCited?: Record<string, number>;
 }
 
 // Inline import avoids the periodFacts ↔ financialReport circular
@@ -745,6 +946,9 @@ export function generateRecommendations(
         : typeof c.factsCited.potential_savings_per_50bps === "number"
           ? c.factsCited.potential_savings_per_50bps
           : undefined,
+    // F5.0 Phase 7 — propagate engine telemetry to the card.
+    ruleKey: c.ruleKey,
+    factsCited: c.factsCited,
   }));
 
   if (out.length === 0) {

@@ -130,15 +130,13 @@ export function parseLinkifiedBody(
     }
 
     // Emit inert text before this match, then the link.
-    // Decide whether "RON " prefix or " RON" suffix belongs to the
-    // inert text on either side.
-    let preEnd = match.index;
-    let postStart = match.index + fullMatch.length;
-    if (fullMatch.startsWith("RON ")) {
-      preEnd = match.index + 4; // keep "RON " in the inert prefix
-    } else if (fullMatch.endsWith(" RON")) {
-      postStart = match.index + fullMatch.length - 4; // " RON" goes into post
-    }
+    // CUR-FIX — absorb the "RON" prefix/suffix INTO the link so the
+    // surrounding inert text doesn't keep a stale currency tag when
+    // the display currency toggles to EUR/USD. The TraceableNumber
+    // renders the full "<currency> <amount>" formatted string, so we
+    // simply drop the matched RON label from the inert text.
+    const preEnd = match.index;
+    const postStart = match.index + fullMatch.length;
     if (preEnd > lastIndex) {
       out.push({ kind: "text", value: body.slice(lastIndex, preEnd) });
     }
@@ -179,6 +177,7 @@ export function linkifyAlertBody(
             value={part.value}
             format="currency"
             source={part.source}
+            sourceCurrency="RON"
             className="text-ink font-medium"
           />
         ),

@@ -27,6 +27,7 @@ RUN pip install \
       "fastapi>=0.110" \
       "uvicorn[standard]>=0.27" \
       "anthropic>=0.30" \
+      "stripe>=8.0" \
       "pyarrow>=15.0" \
       "python-multipart>=0.0.20"
 
@@ -34,6 +35,24 @@ RUN pip install \
 COPY src/ ./src/
 COPY config.yaml ./
 COPY files/ ./files/
+# F4.2 — methodology YAML files (declarative EBITDA + ratio recipes).
+# Required at runtime by engine.methodology.loader.load_methodology().
+COPY methodology/ ./methodology/
+# F3.16-3b.6-A (2026-05-26) — regression gates live alongside engine
+# code. Pre-3b.6-A these were available in the running container only
+# because of leftover docker-cp residue; the first clean rebuild
+# wiped them and surfaced the gap. Adding here so future rebuilds
+# carry the F4.2-PARITY / F-A3.1 / F-A3.2 / F-A3.3 gate scripts
+# without manual docker-cp's. Sibling _pgrst_visibility helper +
+# measure_bs_drift fixtures all live in scripts/.
+COPY scripts/ ./scripts/
+# F3.16-3b.2 — EEI JSON fixture source-of-truth lives in the FE tree
+# (`scandi-desk-main/e2e/fixtures/...`) which is excluded by
+# .dockerignore. To make the F-A3.2-CROSS-PATH gate run GREEN on EEI
+# in-container, the fixture is also kept at `files/eei_expected_extraction.json`
+# (already inside the build context). `files/` COPY above grabs it.
+# Both copies must stay in sync — if the FE fixture changes,
+# re-copy via: `cp scandi-desk-main/e2e/fixtures/.../expected_extraction.json files/eei_expected_extraction.json`
 
 # Install the engine package itself so `python -m engine` resolves
 RUN pip install -e .

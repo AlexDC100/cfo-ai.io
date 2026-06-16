@@ -19,6 +19,7 @@
 //   3. Component breakdown (sub-scores as horizontal bars)
 
 import { formatRON } from "@/lib/formatRon";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
 
 export interface CreditScoreData {
   composite: number;          // 0-100
@@ -39,16 +40,31 @@ export interface CreditScoreData {
 }
 
 /**
- * Map composite 0-100 to letter grade (mirrors the same mapping in
- * pipeline.py — `if composite >= 90: AAA …`).
+ * Map composite 0-100 to letter grade — F1.h locked re-banding per SPEC §10.
+ * MUST mirror `_composite_to_letter_grade` in src/engine/api/pipeline.py.
+ *
+ *   ≥ 90       AAA
+ *   80 – 89    AA      (NEW notch — F1.h)
+ *   70 – 79    A
+ *   60 – 69    BBB
+ *   50 – 59    BB
+ *   40 – 49    B
+ *   25 – 39    CCC
+ *   < 25       CC
+ *
+ * The engine now also emits this grade directly on
+ * `assembled_metrics.credit.letter_grade`; once the FE migrates to the
+ * envelope reader (F3) this function becomes a fallback for cached v1
+ * periods only.
  */
 export function compositeToGrade(composite: number): string {
   if (composite >= 90) return "AAA";
-  if (composite >= 80) return "A";
-  if (composite >= 70) return "BBB";
-  if (composite >= 60) return "BB";
-  if (composite >= 50) return "B";
-  if (composite >= 40) return "CCC";
+  if (composite >= 80) return "AA";
+  if (composite >= 70) return "A";
+  if (composite >= 60) return "BBB";
+  if (composite >= 50) return "BB";
+  if (composite >= 40) return "B";
+  if (composite >= 25) return "CCC";
   return "CC";
 }
 
@@ -122,7 +138,10 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
             Credit score
           </div>
           <div className={`font-serif text-[22px] leading-none ${gradeColor}`}>
-            {Math.round(data.composite)}<span className="text-[14px] text-ink-mute"> / 100</span>
+            <LearnableNumber conceptKey="composite_credit_score" value={data.composite}>
+              {Math.round(data.composite)}
+            </LearnableNumber>
+            <span className="text-[14px] text-ink-mute"> / 100</span>
           </div>
         </div>
         <div className="h-8 w-px bg-rule/60" />
@@ -130,14 +149,18 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
           <div className="text-[10px] uppercase tracking-[0.1em] text-ink-mute font-medium">
             Grade
           </div>
-          <div className={`font-serif text-[22px] leading-none ${gradeColor}`}>{grade}</div>
+          <div className={`font-serif text-[22px] leading-none ${gradeColor}`}>
+            <LearnableNumber conceptKey="credit_grade" value={data.composite}>{grade}</LearnableNumber>
+          </div>
         </div>
         <div className="h-8 w-px bg-rule/60" />
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em] text-ink-mute font-medium">
             Altman Z″
           </div>
-          <div className="font-serif text-[18px] leading-none text-ink">{data.altmanZ.toFixed(2)}</div>
+          <div className="font-serif text-[18px] leading-none text-ink">
+            <LearnableNumber conceptKey="altman_z_score" value={data.altmanZ}>{data.altmanZ.toFixed(2)}</LearnableNumber>
+          </div>
         </div>
         <span className={`text-[10px] uppercase tracking-[0.1em] font-medium px-2 py-0.5 rounded-md border ${zoneClass}`}>
           {zoneLabel}
@@ -153,12 +176,16 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
           <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
             Credit score
           </div>
-          <div className="mt-2 flex items-baseline gap-3">
-            <span className={`font-serif text-[56px] leading-none ${gradeColor}`}>
-              {Math.round(data.composite)}
+          <div className="mt-2 flex items-baseline gap-2 sm:gap-3 flex-wrap">
+            <span className={`font-serif text-[clamp(36px,9vw,56px)] leading-none ${gradeColor}`}>
+              <LearnableNumber conceptKey="composite_credit_score" value={data.composite}>
+                {Math.round(data.composite)}
+              </LearnableNumber>
             </span>
-            <span className="text-[20px] text-ink-mute">/ 100</span>
-            <span className={`font-serif text-[40px] leading-none ${gradeColor}`}>{grade}</span>
+            <span className="text-[16px] sm:text-[20px] text-ink-mute">/ 100</span>
+            <span className={`font-serif text-[clamp(26px,6.5vw,40px)] leading-none ${gradeColor}`}>
+              <LearnableNumber conceptKey="credit_grade" value={data.composite}>{grade}</LearnableNumber>
+            </span>
           </div>
           <div className="mt-2 text-[12px] text-ink-soft">
             Composite score · weighted average of 7 risk dimensions
@@ -169,7 +196,9 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
             Altman Z″ score
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-serif text-[32px] text-ink">{data.altmanZ.toFixed(2)}</span>
+            <span className="font-serif text-[32px] text-ink">
+              <LearnableNumber conceptKey="altman_z_score" value={data.altmanZ}>{data.altmanZ.toFixed(2)}</LearnableNumber>
+            </span>
             <span className={`text-[11px] uppercase tracking-[0.08em] font-medium px-2 py-0.5 rounded-md border ${zoneClass}`}>
               {zoneLabel}
             </span>

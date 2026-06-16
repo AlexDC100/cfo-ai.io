@@ -34,6 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { BillingSection } from "@/components/cfo/BillingSection";
+import { LearningSettingsSection } from "@/components/learning/LearningSettingsSection";
 import {
   IndustryAuditTrail,
   IndustryBadge,
@@ -46,6 +47,7 @@ import {
 // import + JSX call to bring the section back (see comment near the
 // removed JSX below).
 import { useActivePeriod } from "@/lib/activePeriod";
+import { useCurrency as useCurrencyContext } from "@/stores/currency";
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -88,6 +90,7 @@ export default function Settings() {
       <div className="space-y-6 max-w-[860px]">
         <ProfileCard />
         <LanguageCard />
+        <CurrencyCard />
 
         {/* Workspace + Industry classification sections were removed per
             operator directive. Function defs kept on disk
@@ -134,6 +137,18 @@ export default function Settings() {
           subtitle="Manage the documents and analyses in your workspace."
         >
           <DataSection />
+        </Section>
+
+        {/* F5.0 Step 3 (CFO AI Learn) — learning-mode picker. Lets the
+            user switch between Guided / Subtle / Off and reset the
+            tutorialsSeen + coachDismissed flags. The underline + tour
+            visibility responds immediately via the data-attribute CSS
+            rules in src/styles/learning.css. */}
+        <Section
+          title="Learning"
+          subtitle="How CFO AI Learn appears across the app. Affects underlined numbers, page tours, and the first-run coach."
+        >
+          <LearningSettingsSection />
         </Section>
 
         <Section title={t("settings.security_title")} subtitle={t("settings.security_subtitle")}>
@@ -380,7 +395,7 @@ function LanguageCard() {
                 type="button"
                 onClick={() => void pickLanguage(lang.code)}
                 data-testid={`lang-${lang.code}`}
-                className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12.5px] transition-colors ${
+                className={`inline-flex items-center gap-1.5 h-11 sm:h-9 px-3 rounded-lg border text-[12.5px] transition-colors ${
                   active
                     ? "bg-ink text-paper border-ink"
                     : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
@@ -392,6 +407,93 @@ function LanguageCard() {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── Currency display card ───────────────────────────────────────── */
+//
+// Mirrors the top-bar CurrencyToggle and adds:
+//   · rate provenance line ("from BNR, updated 23 May 2026")
+//   · "Refresh now" button to force-pull fresh rates
+//
+// The shared currency context means the choice made here is the same
+// choice reflected in the top bar (and vice versa). No duplicate state.
+
+function CurrencyCard() {
+  const { t } = useTranslation();
+  const { display, rates, setDisplay, refresh, refreshing } = useCurrencyContext();
+  const fetchedAt = rates?.fetched_at ? new Date(rates.fetched_at) : null;
+  const fetchedAtLabel = fetchedAt
+    ? fetchedAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    : "—";
+  const sourceLabel = rates?.source === "BNR" ? "BNR (Banca Națională a României)" : "offline fallback";
+  const oneEurInRon = rates?.rates?.RON?.toFixed(4) ?? "—";
+
+  return (
+    <div className="rounded-2xl border border-rule bg-surface px-5 py-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="font-serif text-[18px] text-ink">
+            {t("settings.currency", "Display currency")}
+          </h3>
+          <p className="mt-1 text-[12.5px] text-ink-soft max-w-[520px]">
+            {t(
+              "settings.currency_description",
+              "Choose the currency every monetary figure in the app is displayed in. Values are stored in their native currency; conversion happens at display time only.",
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {(["RON", "EUR", "USD"] as const).map((c) => {
+            const active = display === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setDisplay(c)}
+                data-testid={`settings-currency-${c.toLowerCase()}`}
+                className={`inline-flex items-center gap-1.5 h-11 sm:h-9 px-3 rounded-lg border text-[12.5px] transition-colors ${
+                  active
+                    ? "bg-ink text-paper border-ink"
+                    : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+                }`}
+              >
+                <span>{c}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="mt-4 pt-4 border-t border-rule/60 flex items-center justify-between gap-3 flex-wrap text-[12px] text-ink-soft">
+        <div>
+          <div>
+            {t("settings.currency_rate", "Reference rate")}: 1 EUR ={" "}
+            <span className="font-mono">{oneEurInRon}</span> RON
+          </div>
+          <div className="mt-0.5 text-[11.5px]">
+            {t("settings.currency_source", "Source")}: {sourceLabel} ·{" "}
+            {t("settings.currency_updated", "Updated")} {fetchedAtLabel}
+            {rates?.stale && (
+              <span className="ml-1 text-amber-600">
+                · {t("settings.currency_stale", "offline fallback")}
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          disabled={refreshing}
+          data-testid="settings-currency-refresh"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-rule text-[12px] text-ink-soft hover:text-ink hover:border-rule-strong transition-colors disabled:opacity-50"
+        >
+          {refreshing && <Loader2 size={12} className="animate-spin" />}
+          {refreshing
+            ? t("settings.currency_refreshing", "Refreshing…")
+            : t("settings.currency_refresh", "Refresh now")}
+        </button>
       </div>
     </div>
   );
@@ -784,7 +886,7 @@ function DataSection() {
             type="button"
             onClick={() => setConfirming(true)}
             data-testid="settings-clear-uploads"
-            className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 h-11 sm:h-9 px-3.5 rounded-lg border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors"
           >
             <Trash2 size={13} strokeWidth={1.75} />
             Clear uploads…
@@ -795,7 +897,7 @@ function DataSection() {
               type="button"
               disabled={busy}
               onClick={() => setConfirming(false)}
-              className="inline-flex items-center h-9 px-3 rounded-lg border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center h-11 sm:h-9 px-3 rounded-lg border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors"
             >
               Cancel
             </button>
@@ -804,7 +906,7 @@ function DataSection() {
               disabled={busy}
               onClick={() => { void clearMyUploads(); }}
               data-testid="settings-confirm-clear"
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
+              className="inline-flex items-center gap-1.5 h-11 sm:h-9 px-3.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
             >
               {busy
                 ? <><Loader2 size={13} className="animate-spin" />Clearing…</>

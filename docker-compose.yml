@@ -1,31 +1,43 @@
-# Three-container stack for the Scandia SKU Decision Engine.
+# /opt/cfo-ai/docker-compose.yml
 #
-#   backend   — FastAPI engine (Python). Port 8000, internal-only.
-#   frontend  — Vite build served by nginx. Port 80, internal-only.
-#   caddy     — Reverse proxy + auto-TLS (Let's Encrypt). Public on 80/443.
+# CFO AI second stack — lives next to /opt/scandia/. Same shape as the
+# scandia compose minus its own Caddy: the existing `scandia-caddy`
+# container (in network `scandia_default`) is the public ingress for
+# this VPS and also routes cfo-ai.finance to our services here.
 #
-# Run:
-#   cp .env.example .env  (then fill in real values)
-#   docker compose up -d --build
-#   docker compose logs -f
+# This stack adds two containers:
+#   · cfo-ai-backend  — FastAPI (uvicorn) — internal :8000
+#   · cfo-ai-frontend — Vite build via nginx — internal :80
+#
+# Both join the external network `scandia_default` so scandia-caddy can
+# reverse-proxy by container name (cfo-ai-backend:8000, cfo-ai-frontend:80).
+# That's why this compose has its own implicit `default` network AND
+# attaches both services to `scandia_default` — the existing Caddy
+# resolves Docker DNS only inside the network it lives in.
 
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: scandia-backend
+    container_name: cfo-ai-backend
     restart: unless-stopped
     env_file: .env
     environment:
-      # CORS: not strictly needed since Caddy serves frontend + backend same-origin,
-      # but listed here so the API is also reachable from a separate hostname if you
-      # ever decide to split them. Add a comma-separated list if so.
-      CORS_ORIGINS: "https://scandiafood-sku.online,https://www.scandiafood-sku.online"
+      # 2026-05-24 — migrated from cfo-ai.finance → cfo-ai.io. Allowlist
+      # includes BOTH domains during the migration window so any
+      # consumer / browser tab still on the old host (within the redirect
+      # 301 grace period) doesn't hit CORS preflight failures. Drop the
+      # *.finance entries once cfo-ai.finance traffic is statistically
+      # zero (review at +90 days; sunset eligible at +12 months minimum).
+      CORS_ORIGINS: "https://cfo-ai.io,https://www.cfo-ai.io,https://api.cfo-ai.io,https://cfo-ai.finance,https://www.cfo-ai.finance,https://api.cfo-ai.finance"
     volumes:
       - backend_data:/app/data
     expose:
       - "8000"
+    networks:
+      - default
+      - scandia_default
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 30s
@@ -38,31 +50,25 @@ services:
       context: ./scandi-desk-main
       dockerfile: Dockerfile
       args:
-        # Empty string → frontend uses relative URLs (/api, /health) so Caddy
-        # routes to the backend on the same origin. Don't change this without
-        # also updating the Caddyfile.
+        # Empty string → frontend uses relative URLs (/api, /health) so
+        # the existing scandia-caddy routes /api/* to cfo-ai-backend
+        # and / to cfo-ai-frontend on the same origin. DO NOT change
+        # this without also updating the Caddyfile.
         VITE_API_URL: ""
-    container_name: scandia-frontend
+    container_name: cfo-ai-frontend
     restart: unless-stopped
     expose:
       - "80"
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: scandia-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - backend
-      - frontend
+    networks:
+      - default
+      - scandia_default
 
 volumes:
   backend_data:
-  caddy_data:
-  caddy_config:
+
+networks:
+  # Reuse the existing network scandia-caddy lives in — created by
+  # /opt/scandia/docker-compose.yml. `external: true` means this
+  # compose won't try to (re)create it.
+  scandia_default:
+    external: true

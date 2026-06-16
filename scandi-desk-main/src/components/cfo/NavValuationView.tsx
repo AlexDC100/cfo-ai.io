@@ -11,7 +11,10 @@
 // parent component — they remain available for SaaS / manufacturing.
 
 import type { NavCascade, NavLayer } from "@/lib/navStructure";
-import { formatRON, formatRONSigned, formatPercent } from "@/lib/formatRon";
+import { formatPercent } from "@/lib/formatRon";
+import { useAmountFormatter, useDisplayCurrency, useRates } from "@/stores/currency";
+import { convertFromTo } from "@/lib/money";
+import type { Currency } from "@/lib/rates";
 import "./navValuationView.css";
 
 interface Props {
@@ -31,6 +34,14 @@ function fmtShort(n: number): string {
 }
 
 export function NavValuationView({ cascade, entity, period, currency }: Props) {
+  // 2026-05-24 — currency-aware: convert source-currency values via display
+  // toggle. `fmt` formats absolute values for table cells; `fmtShortDisp`
+  // wraps the compact "X.XXM" hero formatter with an upfront conversion.
+  const fmt = useAmountFormatter(currency);
+  const display = useDisplayCurrency();
+  const ratesPayload = useRates();
+  const fmtShortDisp = (n: number) =>
+    fmtShort(convertFromTo(n, currency as Currency, display, ratesPayload.rates));
   const primary = cascade.layers.find((l) => l.layer === 3)!;
   const layer1 = cascade.layers.find((l) => l.layer === 1)!;
   const layer2 = cascade.layers.find((l) => l.layer === 2)!;
@@ -43,21 +54,21 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
       {/* ── HERO: NNNAV central + range ─────────────────────────────── */}
       <header className="nav-hero">
         <div className="nav-hero-central">
-          <div className="nav-hero-num">{fmtShort(primary.value)}M</div>
-          <div className="nav-hero-unit">{currency} equity value · NNNAV</div>
+          <div className="nav-hero-num">{fmtShortDisp(primary.value)}M</div>
+          <div className="nav-hero-unit">{display} equity value · NNNAV</div>
           <div className="nav-hero-label">EPRA NNNAV — Primary</div>
         </div>
         <div className="nav-hero-text">
           <p>
-            <strong>Indicative equity value: {fmtShort(sensLow)}M – {fmtShort(sensHigh)}M {currency}</strong>.
-            Primary number is the EPRA NNNAV (Layer 3) of {formatRON(primary.value)} for{" "}
+            <strong>Indicative equity value: {fmtShortDisp(sensLow)}M – {fmtShortDisp(sensHigh)}M {display}</strong>.
+            Primary number is the EPRA NNNAV (Layer 3) of {fmt(primary.value)} for{" "}
             {entity} as of {period}.
           </p>
           {cascade.crossMethods.convergenceConfidence === "high" && (
             <p className="nav-hero-convergence">
               ✓ Three asset-aware methods (NNNAV, cap rate, Graham) converge in{" "}
-              {fmtShort(cascade.crossMethods.convergenceBand[0])}M –{" "}
-              {fmtShort(cascade.crossMethods.convergenceBand[1])}M.
+              {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
+              {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M.
             </p>
           )}
         </div>
@@ -135,17 +146,13 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                 <tr key={adj.accountCode}>
                   <td className="code">{adj.accountCode}</td>
                   <td className="acct">{adj.accountName}</td>
-                  <td className="num">{formatRON(adj.bookValue)}</td>
+                  <td className="num">{fmt(adj.bookValue)}</td>
                   <td className="method">{adj.adjustmentMethod}</td>
-                  <td className="num">{formatRON(adj.goingConcernFairValue)}</td>
+                  <td className="num">{fmt(adj.goingConcernFairValue)}</td>
                   <td
                     className={`num ${adj.goingConcernUplift > 0 ? "pos" : adj.goingConcernUplift < 0 ? "neg" : ""}`}
                   >
-                    {adj.goingConcernUplift === 0
-                      ? "—"
-                      : adj.goingConcernUplift > 0
-                        ? formatRONSigned(adj.goingConcernUplift, "positive")
-                        : formatRONSigned(adj.goingConcernUplift, "negative")}
+                    {fmt(adj.goingConcernUplift, { signed: true })}
                   </td>
                   <td className="notes">{adj.notes}</td>
                 </tr>
@@ -155,14 +162,10 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                   <strong>Total asset uplift (going concern)</strong>
                 </td>
                 <td className="num pos">
-                  <strong>
-                    {cascade.totalAssetUpliftGoingConcern >= 0
-                      ? formatRONSigned(cascade.totalAssetUpliftGoingConcern, "positive")
-                      : formatRONSigned(cascade.totalAssetUpliftGoingConcern, "negative")}
-                  </strong>
+                  <strong>{fmt(cascade.totalAssetUpliftGoingConcern, { signed: true })}</strong>
                 </td>
                 <td>
-                  Layer 1 Book ({formatRON(layer1.value)}) → Layer 2 Adjusted ({formatRON(layer2.value)})
+                  Layer 1 Book ({fmt(layer1.value)}) → Layer 2 Adjusted ({fmt(layer2.value)})
                 </td>
               </tr>
             </tbody>
@@ -179,7 +182,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
             {cascade.hiddenItems.map((item, i) => (
               <li key={i} className={`nav-hidden-item nav-hidden-${item.type}`}>
                 <strong>
-                  {item.type === "asset" ? "+" : "−"} {formatRON(item.estimatedValue)}
+                  {item.type === "asset" ? "+" : "−"} {fmt(item.estimatedValue)}
                 </strong>{" "}
                 {item.description}{" "}
                 <span className="nav-confidence">({item.confidence} confidence)</span>
@@ -221,7 +224,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                         key={ay}
                         className={`num ${isCentral ? "central" : ""}`}
                       >
-                        {cell ? formatRON(cell.nnnav) : "—"}
+                        {cell ? fmt(cell.nnnav) : "—"}
                       </td>
                     );
                   })}
@@ -248,22 +251,22 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                   <strong>NNNAV (primary)</strong>
                 </td>
                 <td className="num">
-                  <strong>{formatRON(primary.value)}</strong>
+                  <strong>{fmt(primary.value)}</strong>
                 </td>
               </tr>
               <tr>
                 <td>Cap rate method</td>
-                <td className="num">{formatRON(cascade.crossMethods.capRate)}</td>
+                <td className="num">{fmt(cascade.crossMethods.capRate)}</td>
               </tr>
               <tr>
                 <td>Graham intrinsic value</td>
-                <td className="num">{formatRON(cascade.crossMethods.graham)}</td>
+                <td className="num">{fmt(cascade.crossMethods.graham)}</td>
               </tr>
               <tr className="secondary">
                 <td>
                   EV/EBITDA <span className="nav-caveat-tag">caveat</span>
                 </td>
-                <td className="num">{formatRON(cascade.crossMethods.evEbitda)}</td>
+                <td className="num">{fmt(cascade.crossMethods.evEbitda)}</td>
               </tr>
               <tr className="convergence-row">
                 <td>
@@ -271,8 +274,8 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                 </td>
                 <td className="num">
                   <strong>
-                    {fmtShort(cascade.crossMethods.convergenceBand[0])}M –{" "}
-                    {fmtShort(cascade.crossMethods.convergenceBand[1])}M
+                    {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
+                    {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M
                   </strong>
                 </td>
               </tr>
@@ -280,7 +283,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
           </table>
         </div>
         <p className="nav-caveat-text">
-          The EV/EBITDA result of {fmtShort(cascade.crossMethods.evEbitda)}M sits below
+          The EV/EBITDA result of {fmtShortDisp(cascade.crossMethods.evEbitda)}M sits below
           the convergence band — this is the expected pattern for asset-yielding
           businesses. It captures operating cash flow without crediting the
           property asset value.
@@ -313,7 +316,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                     <td>
                       Layer {mapping.layer} — {layer?.name}
                     </td>
-                    <td className="num">{formatRON(layer?.value ?? 0)}</td>
+                    <td className="num">{fmt(layer?.value ?? 0)}</td>
                     <td className="rationale">{mapping.rationale}</td>
                   </tr>
                 );
@@ -360,6 +363,8 @@ function NavLayerCard({
   isPrimary: boolean;
   currency: string;
 }) {
+  const fmt = useAmountFormatter(currency);
+  const display = useDisplayCurrency();
   return (
     <div
       className={`nav-layer-card${isPrimary ? " is-primary" : ""}`}
@@ -369,7 +374,7 @@ function NavLayerCard({
       <div className="nav-layer-label">Layer {layer.layer}</div>
       <div className="nav-layer-name">{layer.name}</div>
       <div className="nav-layer-value">
-        {formatRON(layer.value)} <span className="nav-layer-ccy">{currency}</span>
+        {fmt(layer.value)} <span className="nav-layer-ccy">{display}</span>
       </div>
       <div className="nav-layer-description">{layer.description}</div>
       <div className="nav-layer-use-cases">

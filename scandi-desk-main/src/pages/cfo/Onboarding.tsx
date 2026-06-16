@@ -79,7 +79,10 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
-      <header className="px-6 sm:px-10 py-5 flex items-center justify-between gap-3">
+      <header
+        className="px-4 sm:px-10 py-5 flex items-center justify-between gap-3"
+        style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
+      >
         <div className="flex items-center gap-3">
           <Logo size={26} compact />
           <span className="hidden sm:inline-flex text-[10.5px] uppercase tracking-[0.18em] text-ink-soft pl-3 border-l border-rule">
@@ -89,7 +92,10 @@ export default function Onboarding() {
         <ThemeToggle compact />
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-5 py-10 sm:py-16">
+      <main
+        className="flex-1 flex items-center justify-center px-4 sm:px-5 py-8 sm:py-16"
+        style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom) + 1rem)" }}
+      >
         <div className="w-full max-w-[640px]">
           <div className="mb-6">
             <div className="label-eyebrow">Step 1 of 2 · Industry</div>

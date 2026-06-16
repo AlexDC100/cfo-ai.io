@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import { Logo } from "@/components/cfo/Logo";
 import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 import { useToast } from "@/hooks/use-toast";
+import { SITE } from "@/config/site";
 
 interface FormState {
   name: string;
@@ -66,7 +67,7 @@ export default function ContactSalesPage() {
       toast({
         title: "Couldn't send",
         description:
-          "Please email hello@cfoai.app directly — we'll get back to you within 4 business hours.",
+          `Please email ${SITE.supportEmail} directly — we'll get back to you within 4 business hours.`,
         variant: "destructive",
       });
     } finally {

@@ -53,6 +53,7 @@ interface Props {
 export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
   const { toast } = useToast();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // The hook is the single source of truth — assignment, detection,
   // mutating state, all in one place. Component-local state is for
@@ -73,7 +74,13 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<IndustryProfileSummary[] | null>(null);
-  /** The user's in-flight selection, persisted only when they click Save. */
+  /** The user's in-flight selection, persisted only when they click Save.
+   *  Intentionally starts null on every open — pre-selecting the saved
+   *  assignment made Save disabled and looked broken to users who opened
+   *  the picker specifically to CHANGE the industry. The catalog now
+   *  shows the saved industry visually highlighted (see savedKey below)
+   *  but nothing is pre-checked, so any click on a different row is a
+   *  real selection that enables Save immediately. */
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   /** Detail row for the pending industry — fetched on demand so we can
    *  show the internal-brand note ("Sadu and Bucegi are brands within
@@ -81,10 +88,21 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
    *  relevant. */
   const [pendingDetail, setPendingDetail] = useState<IndustryProfileDetail | null>(null);
 
+  /** The currently-saved key — used for read-only visual highlighting in
+   *  the catalog so the user sees what's CURRENTLY in effect without
+   *  it counting as a "pending" selection. Distinct from pendingKey
+   *  which only updates on explicit user click. */
+  const savedKey = assignment?.selected_industry_key ?? null;
+
   // ── Open / close lifecycle ────────────────────────────────────
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
+    // Auto-focus the search input on open so the user can start typing
+    // immediately. Falls back to the close button (prior behavior) if
+    // the search input isn't mounted yet — e.g. periodNotFound case
+    // where the catalog is hidden behind the stale-URL banner.
+    const focusTarget = searchRef.current ?? closeRef.current;
+    focusTarget?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -92,25 +110,27 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // Sync pendingKey to the persisted choice on first load so the
-  // checkbox / radio reflects what's currently saved.
+  // Reset state on close. NOTE: no longer pre-selects the saved assignment
+  // when opening — see pendingKey doc comment for why.
   useEffect(() => {
     if (!open) {
       setPendingKey(null);
       setSearchTerm("");
       setSearchResults(null);
-      return;
     }
-    if (assignment) setPendingKey(assignment.selected_industry_key);
-    else if (detection?.primary) setPendingKey(detection.primary.industry_key);
-  }, [open, assignment, detection]);
+  }, [open]);
 
   // ── Profile catalog (sector-grouped) ──────────────────────────
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setProfilesLoading(true);
-    listProfiles()
+    // `seededOnly: true` — restrict the picker to industries whose
+    // caen_codes overlap with the seeded `industry_benchmarks` catalog.
+    // We refuse to list industries that would render an empty bench;
+    // a confidently-empty "not calibrated" pick is worse UX than
+    // omitting the option. See spec ABSOLUTE RULE #3.
+    listProfiles({ seededOnly: true })
       .then((rows) => { if (!cancelled) setProfiles(rows); })
       .catch(() => { if (!cancelled) setProfiles([]); })
       .finally(() => { if (!cancelled) setProfilesLoading(false); });
@@ -143,7 +163,10 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
     }
     let cancelled = false;
     const t = window.setTimeout(() => {
-      searchIndustries(q, 30)
+      // Search must also respect seeded-only — otherwise a user could
+      // type "dairy" and pick a non-seeded result, defeating the
+      // catalog-level constraint.
+      searchIndustries(q, 30, { seededOnly: true })
         .then((rows) => { if (!cancelled) setSearchResults(rows); })
         .catch(() => { if (!cancelled) setSearchResults([]); });
     }, 220);
@@ -199,6 +222,12 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
     if (row) {
       toast({ title: "Industry updated", description: row.selected_industry_key });
       onChanged?.();
+      // 2026-05-24 — auto-close after successful save. Previously the picker
+      // stayed open after save, which made the new benchmark data invisible
+      // (the picker covered it) and gave users the "nothing happened" feel
+      // the operator reported. Brief delay so the toast is visible before
+      // the panel slides out.
+      setTimeout(() => onClose(), 250);
     } else if (error) {
       toast({
         title: "Couldn't save industry",
@@ -252,6 +281,42 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
       toast({ title: "Industry updated", description: row.selected_industry_key });
       setPendingKey(row.selected_industry_key);
       onChanged?.();
+      // 2026-05-24 — same auto-close as handleSave; consistent UX across
+      // both single-click (this) and select+Save (handleSave) paths.
+      setTimeout(() => onClose(), 250);
+    }
+  };
+
+  // 2026-05-24 — single-click save from the catalog. Previously the catalog
+  // required: click radio → click Save. The two-step flow + no auto-close
+  // gave users the "nothing happens" feel the operator reported. Now a
+  // click on any catalog row saves immediately + auto-closes (matches
+  // handlePickAlternative for suggestion cards). The Save button remains
+  // visible as a fallback / for keyboard-driven users who want to confirm
+  // after navigating via arrow keys.
+  const handleCatalogPick = async (industryKey: string) => {
+    if (mutating) return; // selectionInFlight guard — block double-clicks
+    if (industryKey === savedKey) {
+      toast({ title: "No change — same industry already selected." });
+      return;
+    }
+    setPendingKey(industryKey);
+    const row = await save({
+      selected_industry_key: industryKey,
+      source: "user_override",
+      locked_by_user: true,
+      reason: "Picked from IndustryPicker catalog.",
+    });
+    if (row) {
+      toast({ title: "Industry updated", description: row.selected_industry_key });
+      onChanged?.();
+      setTimeout(() => onClose(), 250);
+    } else if (error) {
+      toast({
+        title: "Couldn't save industry",
+        description: humanizeError(error),
+        variant: "destructive",
+      });
     }
   };
 
@@ -270,6 +335,10 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="industry-picker-title"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
         className="
           fixed right-0 top-0 bottom-0 z-50
           w-[100vw] sm:w-[92vw] sm:max-w-[560px]
@@ -311,45 +380,19 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
             </div>
           )}
 
-          {/* Stale-URL state — the period referenced in `?period=...`
-              doesn't exist on the backend (HTTP 404 from /detect/{id}).
-              Most common cause: the document was permanent-deleted and
-              `_maybe_drop_empty_period` cascaded the period row.
-              Render a redirect-out banner instead of a broken picker
-              with "Recalc failed: Period not found" toasts. See
-              diagnostics/SET_INDUSTRY_PERIOD_NOT_FOUND_2026-05-18.md
-              (defect D1). */}
+          {/* Stale-URL state — see diagnostics doc D1. */}
           {!assignmentLoading && periodNotFound && (
-            <StaleUrlBanner
-              onClose={onClose}
-              periodId={periodId}
-            />
+            <StaleUrlBanner onClose={onClose} periodId={periodId} />
           )}
 
-          {/* Detection card — only when the period DOES exist. Without
-              this guard the suggestion card would render its empty
-              state on top of the stale-URL banner. */}
-          {!assignmentLoading && !periodNotFound && detection && (
-            <IndustrySuggestionCard
-              detection={detection}
-              selectedKey={pendingKey ?? assignment?.selected_industry_key ?? null}
-              onPickCandidate={(c) => void handlePickAlternative(c.industry_key)}
-            />
-          )}
-
-          {/* Pending-industry context — readable label, CAEN summary,
-              internal-brand note. Only renders when the user has a
-              candidate selected (pendingKey != null) so it doesn't
-              clutter the picker on first open. */}
-          {!periodNotFound && pendingDetail && (
-            <PendingIndustryContext detail={pendingDetail} />
-          )}
-
-          {/* Search + manual pick — hidden when periodNotFound because
-              saving requires a valid period; offering the picker here
-              would let the user pick an industry that can't be
-              persisted (the recalc/save endpoints also 404). */}
-          {!periodNotFound && (
+          {/* ── PRIMARY ACTION: search + catalog ──────────────────────
+           *  Promoted above the suggestion card so users who opened the
+           *  picker specifically to CHANGE industry see the catalog
+           *  first, not a "best match" card they may already disagree
+           *  with. The catalog is the unambiguous primary action;
+           *  detection results are a hint below.
+           */}
+          {!assignmentLoading && !periodNotFound && (
           <section data-testid="industry-search-section" className="space-y-2">
             <label className="block text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
               Pick from the full catalog
@@ -357,15 +400,16 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
             <div className="relative">
               <Search size={14} strokeWidth={1.75} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute" />
               <input
+                ref={searchRef}
                 type="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by industry name or alias…"
-                className="w-full h-10 rounded-md border border-rule bg-surface pl-9 pr-3 text-[13px] text-ink"
+                className="w-full h-10 rounded-md border border-rule bg-surface pl-9 pr-3 text-[13px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               />
             </div>
 
-            <div className="max-h-[340px] overflow-y-auto border border-rule rounded-md divide-y divide-rule">
+            <div className="max-h-[460px] overflow-y-auto border border-rule rounded-md divide-y divide-rule">
               {profilesLoading && (
                 <div className="px-3 py-4 text-[12px] text-ink-mute inline-flex items-center gap-2">
                   <Loader2 size={12} className="animate-spin" /> Loading catalog…
@@ -381,34 +425,86 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
                   <div className="px-3 py-1.5 bg-bg-2/60 text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
                     {INDUSTRY_GROUP_LABELS[group]}
                   </div>
-                  {rows.map((r) => (
-                    <label
-                      key={r.key}
-                      className={
-                        "flex items-start gap-2.5 px-3 py-2 cursor-pointer hover:bg-bg-2 " +
-                        (pendingKey === r.key ? "bg-bg-2" : "")
-                      }
-                    >
-                      <input
-                        type="radio"
-                        name="industry-pick"
-                        value={r.key}
-                        checked={pendingKey === r.key}
-                        onChange={() => setPendingKey(r.key)}
-                        className="mt-0.5"
-                      />
-                      <div className="min-w-0">
-                        <div className="text-[13px] text-ink">{r.display_name}</div>
-                        {r.display_name_ro && r.display_name_ro !== r.display_name && (
-                          <div className="text-[11px] text-ink-mute">{r.display_name_ro}</div>
+                  {rows.map((r) => {
+                    const isSaved = r.key === savedKey;
+                    const isPending = pendingKey === r.key;
+                    const isSaving = mutating && pendingKey === r.key;
+                    return (
+                      // 2026-05-24 — converted from <label> to <button> so the
+                      // entire row triggers handleCatalogPick on click (single-
+                      // click save + auto-close). The radio input stays for
+                      // keyboard accessibility + visual checkmark, but the
+                      // row's onClick is the primary interaction. Disabled
+                      // during in-flight save so double-clicks can't queue a
+                      // second POST (selectionInFlight guard at handler).
+                      <button
+                        key={r.key}
+                        type="button"
+                        data-testid={`industry-row-${r.key}`}
+                        onClick={(e) => {
+                          // stopPropagation prevents the backdrop click handler
+                          // (which calls onClose) from firing if event bubbles.
+                          e.stopPropagation();
+                          void handleCatalogPick(r.key);
+                        }}
+                        disabled={mutating && !isSaving}
+                        className={
+                          "w-full flex items-start gap-2.5 px-3 py-2 text-left transition-colors " +
+                          "hover:bg-bg-2 disabled:opacity-50 disabled:cursor-progress " +
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 " +
+                          (isPending ? "bg-brand-tint/40 " : isSaved ? "bg-bg-2/60 " : "cursor-pointer")
+                        }
+                      >
+                        {isSaving ? (
+                          <Loader2 size={14} className="mt-0.5 animate-spin text-brand-d" strokeWidth={2} />
+                        ) : (
+                          <input
+                            type="radio"
+                            name="industry-pick"
+                            value={r.key}
+                            checked={isPending}
+                            readOnly
+                            tabIndex={-1}
+                            className="mt-0.5 pointer-events-none"
+                          />
                         )}
-                      </div>
-                    </label>
-                  ))}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13px] text-ink inline-flex items-center gap-2">
+                            {r.display_name}
+                            {isSaved && (
+                              <span className="text-[9.5px] uppercase tracking-[0.08em] font-medium text-brand-d bg-brand-tint/70 px-1.5 py-0.5 rounded-full">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          {r.display_name_ro && r.display_name_ro !== r.display_name && (
+                            <div className="text-[11px] text-ink-mute">{r.display_name_ro}</div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
             </div>
           </section>
+          )}
+
+          {/* ── SECONDARY: auto-detection suggestion (below the catalog) */}
+          {!assignmentLoading && !periodNotFound && detection && (
+            <IndustrySuggestionCard
+              detection={detection}
+              selectedKey={pendingKey ?? assignment?.selected_industry_key ?? null}
+              onPickCandidate={(c) => void handlePickAlternative(c.industry_key)}
+            />
+          )}
+
+          {/* Pending-industry context — only renders when the user has
+              actively picked something. With the no-pre-select change,
+              this stays hidden on open and only appears after a real
+              user selection — exactly when the extra context helps. */}
+          {!periodNotFound && pendingDetail && (
+            <PendingIndustryContext detail={pendingDetail} />
           )}
 
           {/* Error surface */}

@@ -33,6 +33,16 @@ interface BuildArgs {
   periodEnd?: string;
   /** Currency code (defaults RON). */
   currency?: string;
+  /**
+   * F1.e — Optional engine-canonical margin pair. When provided, the Key
+   * Margins block collapses from the legacy 3-row dual-basis presentation
+   * (EBITDA / EBITDA excl 722 / Net on statutory NP) to the two canonical
+   * rows the engine emits via `calculated_metrics.ebitda_margin` and
+   * `calculated_metrics.net_margin`. The dual-basis comparison still lives
+   * on the Comprehensive Report Overview REPORTED/CORE tiles and the
+   * EBITDA Reconciliation panel (intentional dual-view surfaces).
+   */
+  canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null };
 }
 
 // Account-to-label table used to render the per-line labels next to the
@@ -269,23 +279,47 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   // The 628/722 offset means the clean view drops revenue AND opex by the
   // same amount — net effect on EBITDA is roughly zero (within rounding).
 
-  const keyMargins: PLKeyMargin[] = [
-    {
-      label: "EBITDA margin (on total operating revenue)",
-      value: totalOperatingRevenue > 0 ? ebitda / totalOperatingRevenue : 0,
-      pct: true,
-    },
-    {
-      label: "EBITDA margin excl. capitalized own work",
-      value: operatingRevenueExclCIP > 0 ? cleanEbitda / operatingRevenueExclCIP : 0,
-      pct: true,
-    },
-    {
-      label: "Net margin (on statutory net profit)",
-      value: totalOperatingRevenue > 0 ? netProfitStatutory / totalOperatingRevenue : 0,
-      pct: true,
-    },
-  ];
+  // F1.e — Key Margins: two canonical rows when the engine-canonical pair
+  // is provided (the only path that fires in the post-F1.e UI). The legacy
+  // 3-row dual-basis presentation is preserved as a fallback for callers
+  // that haven't been migrated yet — but every active caller in
+  // FinancialStatements.tsx / ComprehensiveReport.tsx supplies the canonical
+  // pair, so the fallback is back-compat only and shouldn't fire in prod.
+  // The `cleanEbitda` and `operatingRevenueExclCIP` locals are still scoped
+  // above for the fallback path.
+  void cleanEbitda;
+  void operatingRevenueExclCIP;
+  const cm = args.canonicalMargins;
+  const keyMargins: PLKeyMargin[] = cm
+    ? [
+        {
+          label: "EBITDA margin",
+          value: cm.ebitdaMargin ?? 0,
+          pct: true,
+        },
+        {
+          label: "Net margin",
+          value: cm.netMargin ?? 0,
+          pct: true,
+        },
+      ]
+    : [
+        {
+          label: "EBITDA margin (on total operating revenue)",
+          value: totalOperatingRevenue > 0 ? ebitda / totalOperatingRevenue : 0,
+          pct: true,
+        },
+        {
+          label: "EBITDA margin excl. capitalized own work",
+          value: operatingRevenueExclCIP > 0 ? cleanEbitda / operatingRevenueExclCIP : 0,
+          pct: true,
+        },
+        {
+          label: "Net margin (on statutory net profit)",
+          value: totalOperatingRevenue > 0 ? netProfitStatutory / totalOperatingRevenue : 0,
+          pct: true,
+        },
+      ];
 
   return {
     entity: args.entity,
@@ -343,20 +377,32 @@ interface IncomeStatementCanonical extends IncomeStatement {
  * everything into the right buckets server-side).
  */
 export function pickPLBuilder(
-  args: { lineItems?: ApiLineItem[]; entity?: string; period?: unknown; currency?: string; periodEnd?: string },
+  args: {
+    lineItems?: ApiLineItem[];
+    entity?: string;
+    period?: unknown;
+    currency?: string;
+    periodEnd?: string;
+    /**
+     * F1.e — Engine-canonical margin pair (calculated_metrics.ebitda_margin
+     * + calculated_metrics.net_margin). When provided, both builder
+     * branches collapse Key Margins to 2 canonical rows.
+     */
+    canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null };
+  },
   statements: Statements,
 ): PLStatement {
   const items = args.lineItems ?? [];
   const plItems = items.filter((li) => li.statement === "PL");
   if (plItems.length === 0) {
-    return buildPLStatementFromAggregates(statements);
+    return buildPLStatementFromAggregates(statements, args.canonicalMargins);
   }
   const longCodeCount = plItems.filter(
     (li) => typeof li.ro_account_code === "string" && li.ro_account_code.length > 4,
   ).length;
   const looksLikeSubAccountFormat = longCodeCount > plItems.length * 0.5;
   if (looksLikeSubAccountFormat) {
-    return buildPLStatementFromAggregates(statements);
+    return buildPLStatementFromAggregates(statements, args.canonicalMargins);
   }
   return buildPLStatement({
     lineItems: items,
@@ -364,10 +410,16 @@ export function pickPLBuilder(
     period: (args.period ?? "") as string,
     currency: args.currency ?? "RON",
     periodEnd: args.periodEnd,
+    canonicalMargins: args.canonicalMargins,
   });
 }
 
-export function buildPLStatementFromAggregates(statements: Statements): PLStatement {
+export function buildPLStatementFromAggregates(
+  statements: Statements,
+  // F1.e — see BuildArgs.canonicalMargins for the full rationale. Mirrored
+  // here so the aggregates-path caller can supply the same canonical pair.
+  canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null },
+): PLStatement {
   const is = statements.incomeStatement as IncomeStatementCanonical;
   const revenue = is.revenue;
   const cogs = is.costOfGoodsSold;
@@ -560,23 +612,40 @@ export function buildPLStatementFromAggregates(statements: Statements): PLStatem
   // never adds `otherIncome` to the headline number (711 was the bug).
   const operatingRevExclCIP = revenue;
 
-  const keyMargins: PLKeyMargin[] = [
-    {
-      label: "EBITDA margin (on total operating revenue)",
-      value: totalOperatingRevenue > 0 ? ebitda / totalOperatingRevenue : 0,
-      pct: true,
-    },
-    {
-      label: "EBITDA margin excl. capitalized own work",
-      value: operatingRevExclCIP > 0 ? cleanEbitda / operatingRevExclCIP : 0,
-      pct: true,
-    },
-    {
-      label: "Net margin (on statutory net profit)",
-      value: totalOperatingRevenue > 0 ? netProfitStatutory / totalOperatingRevenue : 0,
-      pct: true,
-    },
-  ];
+  // F1.e — see the BuildArgs.canonicalMargins comment in buildPLStatement.
+  // Aggregates-path mirror.
+  void cleanEbitda;
+  void operatingRevExclCIP;
+  const keyMargins: PLKeyMargin[] = canonicalMargins
+    ? [
+        {
+          label: "EBITDA margin",
+          value: canonicalMargins.ebitdaMargin ?? 0,
+          pct: true,
+        },
+        {
+          label: "Net margin",
+          value: canonicalMargins.netMargin ?? 0,
+          pct: true,
+        },
+      ]
+    : [
+        {
+          label: "EBITDA margin (on total operating revenue)",
+          value: totalOperatingRevenue > 0 ? ebitda / totalOperatingRevenue : 0,
+          pct: true,
+        },
+        {
+          label: "EBITDA margin excl. capitalized own work",
+          value: operatingRevExclCIP > 0 ? cleanEbitda / operatingRevExclCIP : 0,
+          pct: true,
+        },
+        {
+          label: "Net margin (on statutory net profit)",
+          value: totalOperatingRevenue > 0 ? netProfitStatutory / totalOperatingRevenue : 0,
+          pct: true,
+        },
+      ];
 
   return {
     entity: statements.companyName ?? "Entity",

@@ -48,56 +48,68 @@
     "briefing_label": "Briefing CFO"
   },
   "products": {
-    "header_eyebrow": "Portefeuille",
-    "header_title": "Chaque SKU, décidé.",
-    "header_subtitle": "{{skus}} SKU dans {{categories}} catégories. Le moteur a classé chacun — examinez les seaux ci-dessous.",
-    "empty_title": "Téléversez vos données SKU pour commencer",
-    "empty_subtitle": "Analyse commerciale (XLSX), registre de factures ou ventes par produit. Le moteur classe chaque SKU en seaux ancre / scaler / surveiller / éliminer — totalement distinct de vos téléversements d'états financiers.",
-    "drop_title": "Déposez votre analyse commerciale ou registre de factures",
-    "drop_hint": "XLSX · CSV — classeurs multi-feuilles pris en charge.",
+    "title": "Portefeuille",
+    "buckets": {
+      "protect": "Protéger",
+      "watch": "Surveiller",
+      "windDown": "Réduire l'exposition",
+      "all": "Tous"
+    },
+    "filters": {
+      "allBrands": "Toutes les marques ({{count}})",
+      "allCategories": "Toutes les catégories ({{count}})",
+      "allChannels": "Tous les canaux"
+    },
+    "sort": {
+      "label": "Tri :",
+      "gmDesc": "MB ↓ (profit)",
+      "gmAsc": "MB ↑ (pertes d'abord)",
+      "gmPctDesc": "MB% ↓",
+      "gmPctAsc": "MB% ↑",
+      "volumeDesc": "Volume ↓",
+      "nivDesc": "NIV ↓",
+      "nameAsc": "Nom A→Z"
+    },
+    "exportCsv": "Exporter CSV",
+    "showing": "Affichage de {{visible}} sur {{total}} SKU",
+    "columns": {
+      "skuCategory": "SKU · Catégorie",
+      "volume": "Volume (t)",
+      "niv": "NIV (kRON)",
+      "gmPct": "MB%",
+      "gm": "MB (kRON)",
+      "dio": "DIO (jours)",
+      "lines": "# lignes",
+      "channels": "# canaux",
+      "signal": "Signal"
+    },
+    "dioUnavailable": "—",
+    "dioUnavailableHint": "n/d",
+    "empty": {
+      "dropHere": "Déposez votre jeu de données ici",
+      "noDataset": "Aucun jeu de données connecté",
+      "uploadToStart": "Téléchargez un export de ventes pour démarrer l'analyse"
+    },
+    "comparison": "Comparaison",
+    "searchPlaceholder": "Rechercher SKU, marque, catégorie…",
+    "loading": {
+      "datasets": "Chargement des jeux de données…",
+      "skus": "Chargement des SKU…"
+    },
     "kpi": {
       "skus": "SKU",
-      "eliminate": "Éliminer",
+      "skusSub": "{{cats}} cat. · {{brands}} marques",
+      "protect": "Protéger",
+      "protectSub": "ancres + croissance",
       "watch": "Surveiller",
-      "anchors": "Ancres",
-      "in_categories": "dans {{count}} cat",
-      "losses": "{{amount}} pertes",
-      "no_losses": "pas de pertes",
-      "thin_margin": "marge faible / DIO",
-      "protecting_volume": "volume protégé"
+      "watchSub": "suivi rapproché",
+      "windDown": "Réduire l'exposition",
+      "windDownSub": "réduire l'exposition"
     },
+    "subtitle": "{{rows}} lignes · {{count}} SKU uniques sur {{categories}} catégories",
     "table": {
-      "sku_category": "SKU · Catégorie",
-      "volume": "Volume",
-      "gm_pct": "Marge brute %",
-      "real_margin_pct": "Marge réelle %",
-      "profit": "Profit",
-      "signal": "Signal",
-      "empty_filter": "Aucun SKU ne correspond à ce filtre."
-    },
-    "search_placeholder": "Rechercher SKU, marque, catégorie…",
-    "all_categories": "Toutes les catégories",
-    "sort_profit_desc": "Trier : profit ↓",
-    "sort_rm_desc": "Trier : marge réelle % ↓",
-    "sort_rm_asc": "Trier : marge réelle % ↑",
-    "sort_volume_desc": "Trier : volume ↓",
-    "export_csv": "Exporter CSV",
-    "ai_recommendations": "Recommandations IA",
-    "total_portfolio": "Portefeuille total",
-    "totals": {
-      "volume": "Volume",
-      "revenue": "CA (NIV)",
-      "profit": "Profit",
-      "losses": "Pertes"
-    },
-    "buckets": {
-      "anchor": "Ancre",
-      "anchor_alert": "Ancre alerte",
-      "scale": "Scaler",
-      "keep": "Garder",
-      "watch": "Surveiller",
-      "eliminate": "Éliminer",
-      "wind_down": "Arrêter"
+      "emptyFiltered": "Aucun SKU ne correspond à ces filtres.",
+      "dioMissingTooltip": "DIO non disponible — valeur d'inventaire et/ou COGS non fournis pour ce SKU"
     }
   },
   "onboarding": {
@@ -128,13 +140,292 @@
     "language_description": "Choisissez la langue pour l'interface et l'analyse générée par IA."
   },
   "common": {
-    "loading": "Chargement…",
-    "cancel": "Annuler",
+    "add": "Ajouter",
+    "delete": "Supprimer",
+    "edit": "Modifier",
     "save": "Enregistrer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "open": "Ouvrir",
+    "upload": "Téléverser",
+    "download": "Télécharger",
+    "search": "Rechercher",
+    "apply": "Appliquer",
+    "reset": "Réinitialiser",
+    "submit": "Envoyer",
+    "confirm": "Confirmer",
+    "loading": "Chargement…",
+    "error": "Erreur",
+    "success": "Succès",
+    "warning": "Attention",
+    "done": "Terminé",
+    "continue": "Continuer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
     "yes": "Oui",
     "no": "Non",
+    "and": "et",
+    "or": "ou",
     "retry": "Réessayer",
-    "close": "Fermer",
-    "back": "Retour"
+    "notAvailable": "non disponible",
+    "unknown": "inconnu",
+    "more": "plus",
+    "less": "moins",
+    "showMore": "Afficher plus",
+    "showLess": "Afficher moins",
+    "emDash": "—"
+  },
+  "errors": {
+    "generic": "Une erreur est survenue. Veuillez réessayer.",
+    "network": "Problème de connexion. Vérifiez votre Internet et réessayez.",
+    "unauthorized": "Session expirée. Veuillez vous reconnecter.",
+    "serverError": "Erreur côté serveur. Notre équipe a été notifiée.",
+    "fileTooLarge": "Fichier trop volumineux. Taille maximale : {{max}}.",
+    "unsupportedFormat": "Format non pris en charge. Utilisez XLSX, PDF ou CSV.",
+    "parseError": "Impossible de lire ce fichier.",
+    "uploadFailed": "Échec du téléversement.",
+    "saveFailed": "Impossible d'enregistrer les modifications.",
+    "deleteFailed": "Impossible de supprimer.",
+    "loadFailed": "Impossible de charger les données."
+  },
+  "toasts": {
+    "languageChanged": "Langue : {{lang}}",
+    "currencyChanged": "Devise : {{currency}}",
+    "settingsSaved": "Paramètres enregistrés",
+    "linkCopied": "Lien copié dans le presse-papiers",
+    "exportReady": "Export prêt",
+    "uploadStarted": "Téléversement démarré",
+    "uploadComplete": "Téléversement terminé",
+    "analysisComplete": "Analyse prête",
+    "deleted": "Supprimé",
+    "restored": "Restauré"
+  },
+  "confirmations": {
+    "deleteTitle": "Supprimer ?",
+    "deleteDetail": "Cette action est irréversible.",
+    "discardTitle": "Abandonner les modifications non enregistrées ?",
+    "discardDetail": "Vos modifications seront perdues."
+  },
+  "empty": {
+    "noResults": "Aucun résultat",
+    "noResultsHint": "Essayez un autre terme de recherche ou effacez les filtres."
+  },
+  "page": {
+    "titles": {
+      "dashboard": "Tableau de bord — CFO AI",
+      "products": "Produits — CFO AI",
+      "documents": "Documents — CFO AI",
+      "settings": "Paramètres — CFO AI",
+      "decisions": "Décisions — CFO AI",
+      "alerts": "Alertes — CFO AI",
+      "benchmark": "Benchmark — CFO AI",
+      "chat": "Demander à CFO AI",
+      "reports": "Rapports — CFO AI",
+      "onboarding": "Bienvenue — CFO AI",
+      "notFound": "Page introuvable — CFO AI",
+      "login": "Connexion — CFO AI",
+      "signup": "Créer un compte — CFO AI"
+    }
+  },
+  "totals": {
+    "title": "Portefeuille total",
+    "volume": "Volume",
+    "niv": "NIV",
+    "gm": "MB",
+    "losses": "Pertes"
+  },
+  "datasets": {
+    "title": "Imports récents",
+    "more": "{{count}} de plus",
+    "columns": {
+      "file": "Fichier",
+      "rows": "Lignes",
+      "skus": "SKU",
+      "status": "Statut"
+    },
+    "status": {
+      "active": "Actif",
+      "analyzed": "Analysé",
+      "processing": "En cours",
+      "failed": "Échoué",
+      "unknown": "Inconnu"
+    }
+  },
+  "expectedFormat": {
+    "eyebrow": "Format attendu",
+    "title": "Analyse des ventes / trading — XLSX",
+    "intro": "Une ligne par SKU-canal-période. Les en-têtes ci-dessous indiquent les noms de colonnes reconnus par le parseur (les variantes roumaines et anglaises sont acceptées).",
+    "required": "Seuls <c1>Denumire produs</c1> et <c2>NIV</c2> sont obligatoires ;",
+    "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> sont facultatifs mais débloquent le <c3>DIO</c3> par SKU ;",
+    "rollup": "l'agrégat <c1>CCC</c1> au niveau de l'entreprise utilise en plus la balance comptable de la période pour DSO / DPO.",
+    "downloadExample": "Télécharger l'exemple (XLSX)",
+    "exampleCaption": "Exemple anonymisé — faites correspondre ces colonnes ; données fictives.",
+    "exampleFooter": "Lignes d'illustration uniquement — remplacez par votre export réel. La troisième ligne omet délibérément <c1>Inventory value</c1> & <c2>COGS</c2> pour démontrer le rendu « DIO non disponible » : les lignes sans les deux entrées affichent « — », jamais 0, et sont exclues de l'agrégat DIO de l'entreprise."
+  },
+  "workingCapital": {
+    "title": "Agrégation BFR",
+    "subtitle": "DIO · DSO · DPO · CCC au niveau de l'entreprise",
+    "explainer": "DIO depuis l'inventaire et le COGS des SKU téléchargés, lignes couvertes uniquement. DSO / DPO depuis le contexte de la balance comptable de la période. CCC est un agrégat de l'entreprise, pas par SKU.",
+    "companyDIO": "DIO entreprise",
+    "notAvailable": "non disponible",
+    "notAvailableReason": "Inventory / COGS non fournis sur aucun SKU",
+    "addColumnsHint": "Ajoutez les colonnes Inventory value et COGS au téléchargement pour calculer le DIO.",
+    "dsoLabel": "DSO",
+    "dpoLabel": "DPO",
+    "cccLabel": "CCC",
+    "dsoSource": "depuis la balance comptable · période : {{period}}",
+    "cccMissing": "manquant : {{what}}",
+    "cccExplain": "Le CCC n'est calculé que lorsque DIO, DSO et DPO sont tous disponibles.",
+    "exclusionNote": "Les lignes sans inventaire + COGS affichent DIO comme « — » dans le tableau ci-dessus et sont exclues de l'agrégat DIO de l'entreprise (jamais traitées comme zéro).",
+    "days": "jours"
+  },
+  "landing": {
+    "hero": {
+      "headline": "Le premier outil de benchmark conçu pour les entreprises privées.",
+      "subhead": "Téléchargez votre balance comptable. Nous vous associons à des sociétés cotées de votre taille, dans votre secteur. Voyez exactement comment vous vous comparez en marge, croissance, levier et trésorerie — avec des comparaisons nommées, pas des moyennes sectorielles vagues.",
+      "quickTry": "Essai rapide",
+      "upload": {
+        "eyebrow": "Vos données",
+        "title": "Importer une balance ou un compte de résultat",
+        "description": "Bilanț, balance sheet ou tout format standard. Analysé en 90 secondes — même moteur que l'analyse des sociétés cotées.",
+        "cta": "Essai gratuit",
+        "hint": "Sans CB · 90s"
+      },
+      "markets": {
+        "eyebrow": "Sociétés cotées",
+        "title": "Analyser Hain Celestial en 10 secondes",
+        "description": "Plus de 5 000 sociétés NASDAQ + NYSE. Données SEC EDGAR + Nasdaq Sharadar. Même moteur que pour vos propres données.",
+        "cta": "Choisir une société",
+        "hint": "Sans inscription · 10s"
+      },
+      "eyebrow": "Conçu pour les entreprises privées",
+      "workflowLabel": "Le workflow complet",
+      "step1": {
+        "title": "Téléchargez vos données",
+        "sub": "Bilanț, compte de résultat, tout format · 90s"
+      },
+      "step2": {
+        "title": "Obtenez vos pairs",
+        "sub": "Sociétés cotées de votre taille dans votre secteur"
+      },
+      "step3": {
+        "title": "Visualisez-vous en contexte",
+        "sub": "Pairs nommés, pas des moyennes vagues"
+      },
+      "primaryCta": "Commencez gratuitement — sans carte",
+      "noCard": "Sans carte bancaire",
+      "fast": "90 secondes",
+      "cancel": "Annulez à tout moment",
+      "alreadyExploring": "Vous explorez ? Vous recherchez une société cotée d'abord ?",
+      "browsePublicCompanies": "Parcourir la bibliothèque des sociétés cotées",
+      "disclaimer": "Analyse assistée par IA. Les décisions finales restent avec votre équipe de direction."
+    },
+    "publicCo": {
+      "eyebrow": "Public Company Intelligence",
+      "headline": "Lisez 5 000+ sociétés cotées comme un CFO.",
+      "subhead": "Sans import. Sans inscription. Choisissez un ticker, voyez l'analyse complète en moins de 10 secondes.",
+      "tryAnother": "Essayez-en une autre",
+      "openFull": "Ouvrir l'analyse complète de {{ticker}}",
+      "samplePreview": "Aperçu de démo",
+      "previewCaption": "Snapshot · tendance sur 12 trimestres · benchmark pairs — tout en direct dans le hub. Connexion non requise.",
+      "transition": "Envie de comparer votre propre activité ?",
+      "uploadOwnData": "Importer votre balance comptable",
+      "cards": {
+        "coverage": {
+          "label": "Tickers couverts",
+          "detail": "Toutes les sociétés cotées NASDAQ + NYSE, derniers dépôts 10-K et 10-Q."
+        },
+        "source": {
+          "label": "Données SEC EDGAR",
+          "detail": "Directement depuis le flux XBRL du régulateur via Nasdaq Sharadar — toujours à jour."
+        },
+        "engine": {
+          "label": "Identique à vos données",
+          "detail": "Ce que vous voyez pour Apple est exactement ce que vous verrez pour votre propre balance — même moteur."
+        }
+      }
+    },
+    "bridge": {
+      "headline": "Choisissez des pairs cotés de votre taille. Comparez vos chiffres aux leurs.",
+      "subhead": "Pas Apple. Pas Microsoft. De vraies entreprises cotées mid-market dans votre secteur — des entreprises auxquelles vous pouvez réellement aspirer.",
+      "step1": {
+        "title": "Téléchargez votre balance comptable",
+        "body": "Bilanț roumain, compte de résultat ou tout format standard. Analysé en 90 secondes."
+      },
+      "step2": {
+        "title": "Choisissez des pairs cotés",
+        "body": "Nous suggérons des entreprises cotées dans votre secteur et de votre taille. Ajoutez-en 3 à 5."
+      },
+      "step3": {
+        "title": "Visualisez-vous dans le contexte",
+        "body": "Vos chiffres, vos pairs, votre fourchette sectorielle — tout sur un seul graphique."
+      }
+    },
+    "realPeers": {
+      "eyebrow": "Vrais pairs, pas des mégacaps",
+      "headline": "Parcourez 5 000+ sociétés cotées. Trouvez les 5 qui vous ressemblent.",
+      "subhead": "Filtrez par taille, secteur, géographie. Ajoutez les pairs un par un. Ils rejoignent votre page Benchmark comme ancres de comparaison nommées.",
+      "notMegaCaps": "Ces sociétés vous ressemblent vraiment — capitalisation de $50M à $5B, pas de la tech à mille milliards.",
+      "moreInSector": "Plus dans ce secteur",
+      "browseAll": "Parcourir les 5 000+ sociétés cotées",
+      "categories": {
+        "consumer": {
+          "label": "Biens de consommation / Alimentaire",
+          "description": "Aliments emballés, boissons, produits ménagers"
+        },
+        "energy": {
+          "label": "Énergie / Industrie",
+          "description": "Extraction de ressources, équipements, logistique"
+        },
+        "manufacturing": {
+          "label": "Industrie manufacturière",
+          "description": "Équipements industriels, composants, spécialités"
+        },
+        "healthcare": {
+          "label": "Santé / Services",
+          "description": "Cliniques spécialisées, soins à domicile, dispositifs"
+        },
+        "retail": {
+          "label": "Vente au détail / E-commerce",
+          "description": "Magasins spécialisés, en ligne, distribution"
+        },
+        "software": {
+          "label": "Logiciels / Services Tech",
+          "description": "SaaS, services IT, distribution de logiciels"
+        }
+      }
+    },
+    "demo": {
+      "sectionHeadline": "Voici ce que vous verrez, en 90 secondes.",
+      "sectionSubhead": "Vos chiffres en tant qu'entreprise privée, côte à côte avec de vrais pairs cotés et la fourchette sectorielle. Plus besoin de deviner où vous vous situez.",
+      "frameLabel": "Voici ce que vous verrez",
+      "revenue": "chiffre d'affaires",
+      "companySector": "Biens de consommation",
+      "samplePrivate": "Exemple d'entreprise privée",
+      "peersAdded": "Pairs ajoutés",
+      "insightLabel": "Insight",
+      "insightBody": "Sous l'EBITDA des pairs, au-dessus de la médiane de croissance. Investir dans la marge = point de levier.",
+      "tryWithMine": "Essayer avec mes données",
+      "vsPeers": "vs pairs",
+      "you": "Vous",
+      "median": "Médiane",
+      "metrics": {
+        "ebitdaMargin": "Marge EBITDA",
+        "revenueGrowth": "Croissance CA en glissement annuel"
+      }
+    }
+  },
+  "authCallback": {
+    "verifying": "Vérification de votre e-mail…",
+    "verifyingSub": "Une seconde — nous finalisons votre connexion.",
+    "success": "Vous êtes connecté.",
+    "successSub": "Direction votre espace de travail…",
+    "errorTitle": "Un problème est survenu",
+    "errorGeneric": "Une erreur s'est produite lors de la connexion.",
+    "expired": "Impossible de finaliser la connexion. Le lien de vérification a peut-être expiré ou a déjà été utilisé.",
+    "notConfigured": "L'authentification n'est pas configurée dans cette version.",
+    "retrySignup": "Demander un nouveau lien",
+    "backToSignin": "Retour à la connexion"
   }
 }

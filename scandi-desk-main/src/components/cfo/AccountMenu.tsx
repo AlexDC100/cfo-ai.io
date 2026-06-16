@@ -57,7 +57,7 @@ import { planUsagePct, usePlanState, type PlanState } from "@/lib/planState";
 
 export function AccountMenu() {
   const { user, displayName, initials, signOut } = useAuth();
-  const { state } = usePlanState();
+  const { state, refresh: refreshPlan } = usePlanState();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -78,8 +78,20 @@ export function AccountMenu() {
     if (!error) navigate("/", { replace: true });
   }
 
+  // Refetch plan state every time the dropdown opens. AccountMenu lives
+  // in TopHeader and stays mounted for the whole session, so the single
+  // mount-time fetch in usePlanState would otherwise leave docs_used /
+  // chat_used_today stale after an upload or an Ask CFO AI message.
+  // PlanUsageCard doesn't need this because Settings remounts on nav.
+  // Honest-absent semantics from usePlanState (state stays null while
+  // loading, becomes null on error) are preserved — we never fabricate.
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (nextOpen) void refreshPlan();
+  }
+
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         {/* May 2026 — simplified to a clean initials circle (no trailing
          *  name text). Matches the reference layout: just the avatar
@@ -334,13 +346,13 @@ function Row({
       disabled={disabled}
       data-testid={testId}
       className={`
-        w-full inline-flex items-center gap-3 px-2.5 py-2 rounded-lg
+        w-full inline-flex items-center gap-3 px-2.5 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-lg
         text-left text-[13px]
         ${disabled
           ? "text-ink-mute cursor-not-allowed"
           : destructive
-          ? "text-ink hover:bg-red-500/10 hover:text-red-700 transition-colors"
-          : "text-ink hover:bg-bg-2/60 transition-colors"}
+          ? "text-ink hover:bg-red-500/10 hover:text-red-700 active:bg-red-500/15 transition-colors"
+          : "text-ink hover:bg-bg-2/60 active:bg-bg-2/80 transition-colors"}
       `}
     >
       <Icon size={14} strokeWidth={1.75} className="shrink-0" />

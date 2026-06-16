@@ -1,0 +1,65 @@
+
+=== SCANDIA ORACLE — BS line by line ===
+Validation: ok, accounts: 809
+Issues: []
+
+  affiliates                                 57,455,296.29
+  cash_fx                                         6,973.48
+  cash_lei                                    5,807,107.32
+  cip                                         6,031,376.49
+  current_profit                             36,787,352.75
+  dividends_pay                               4,820,272.34
+  financial_fixed                            66,938,393.97
+  intangibles_amort                           6,065,864.00
+  intangibles_gross                           6,773,581.68
+  intangibles_net                               707,717.68
+  interests                                   4,975,502.80
+  investment_property                                 0.00
+  leasing                                     3,390,397.01
+  lt_bank                                    36,569,911.71
+  net_debt                                   49,241,167.62
+  other_lt_inv                                4,507,594.88
+  personnel                                   6,867,976.10
+  ppe_amort                                 146,475,585.99
+  ppe_gross                                 252,801,511.46
+  ppe_net                                   106,325,925.47
+  provisions                                  1,784,834.64
+  rec_provisions                              9,784,647.34
+  reconciliation_gap                            131,160.33
+  reconciliation_pct                                  0.04
+  reserves_legal                              6,304,785.85
+  reserves_other                              6,521,425.57
+  retained                                   27,929,264.02
+  revaluation                                10,507,869.61
+  share_capital                              20,446,900.00
+  share_premium                              41,653,952.96
+  social_pay                                  2,621,170.70
+  st_bank                                    15,385,098.84
+  subsidies                                   4,035,543.58
+  tax_pay                                     2,472,867.37
+  total_assets                              292,908,585.20
+  total_cash                                  6,104,239.94
+  total_current                             112,905,171.59
+  total_debt                                 55,345,407.56
+  total_equity                              150,151,550.76
+  total_inventory                            55,341,817.75
+  total_liab                                142,888,194.77
+  total_lt_debt                              39,960,308.72
+  total_lt_liab                              45,780,686.94
+  total_noncurrent                          180,003,413.61
+  total_receivables                          51,459,113.90
+  total_st_liab                              97,107,507.83
+  trade_pay                                  47,735,475.61
+  trade_rec                                  51,364,115.79
+
+=== ORACLE TOTALS ===
+  total_assets:           292,908,585
+  total_equity:           150,151,551
+  total_liab:             142,888,195
+  drift:                      131,160  (0.04%)
+
+=== ORACLE P&L ===
+  net_turnover:                413,727,560
+  ebitda:                       54,443,833
+  net_profit_statutory:         36,787,353
+  net_profit_recon:             36,267,964

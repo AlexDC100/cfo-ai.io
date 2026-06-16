@@ -67,6 +67,20 @@ class AskRequest(BaseModel):
 
 
 def _require_jwt(authorization: Optional[str]) -> str:
+    # PUBLIC_TEST_MODE bypass — see `_test_mode.py`. Open-access posture.
+    from . import _test_mode
+    if _test_mode.is_test_mode():
+        # Mint (and cache) a real Supabase access_token for the synthetic
+        # test user so per_user(jwt) downstream calls Supabase honors.
+        # RLS-scoped to test org via the test user's membership row.
+        try:
+            return _test_mode.get_test_user_jwt()
+        except Exception:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).exception(
+                "[test_mode] JWT mint failed; falling back to placeholder."
+            )
+            return _test_mode.JWT_BYPASS_PLACEHOLDER
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Missing Bearer token.")
     return authorization.split(" ", 1)[1].strip()

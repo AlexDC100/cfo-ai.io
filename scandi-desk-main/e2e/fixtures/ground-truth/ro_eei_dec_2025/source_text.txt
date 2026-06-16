@@ -1,0 +1,94 @@
+EEI IMOBILIARA INVESTMENT SRL  c.f. 16890444  r.c. J2004017451402  Capital social 45200
+BUCURESTI sect. 1 str. BUZESTI nr. 85 ap. 4 tel. 0
+
+Balanta de verificare
+01.12.2025 -- 31.12.2025
+
+Columns: Solduri initiale an (Debit/Credit) | Rulaje perioada (Debit/Credit) | Sume totale (Debit/Credit) | Solduri finale (Debit/Credit)
+
+Note: "Sume totale" are YTD cumulative debits/credits. "Solduri finale" are closing balances.
+
+CONT  | NAME                                                                  | SUME_TOTALE_DEBIT | SUME_TOTALE_CREDIT | SOLD_FINAL_DEBIT | SOLD_FINAL_CREDIT
+1012  | CAPITAL SUBSCRIS VARSAT                                               | 0.00              | 45 200.00          | 0.00             | 45 200.00
+105   | REZERVE DIN REEVALUARE                                                | 0.00              | 3 980 157.61       | 0.00             | 3 980 157.61
+1061  | REZERVE LEGALE                                                        | 0.00              | 9 040.00           | 0.00             | 9 040.00
+1171  | REZULTATUL REPORTAT - PROFITUL NEREP./ PIERDERE NEACOP.               | 1 158 775.40      | 1 523 085.88       | 0.00             | 364 310.48
+121   | PROFIT SI PIERDERE                                                    | 4 480 950.40      | 5 906 195.98       | 0.00             | 1 425 245.58
+1621  | CREDITE BANCARE PE TERMEN LUNG                                        | 773 894.83        | 14 857 210.60      | 0.00             | 14 083 315.77
+                                                                  Total clasa 1  | 6 413 620.63      | 26 320 890.07      | 0.00             | 19 907 269.44
+
+208   | ALTE IMOBILIZARI NECORPORALE                                          | 1 529.41          | 0.00               | 1 529.41         | 0.00
+2131  | ECHIPAMENTE TEHNOLOGICE (MASINI, UTILAJE)                             | 330 276.96        | 0.00               | 330 276.96       | 0.00
+2132  | APARATE SI INSTALATII DE MASURA, CONTROL SI REGLARE                   | 12 321.82         | 0.00               | 12 321.82        | 0.00
+2133  | MIJLOACE DE TRANSPORT                                                 | 30 583.80         | 0.00               | 30 583.80        | 0.00
+214   | MOBILIER, APARATURA BIROTICA, ALTE ACTIVE CORPORALE                   | 221 324.74        | 0.00               | 221 324.74       | 0.00
+215   | INVESTITII IMOBILIARE                                                 | 14 457 160.32     | 0.00               | 14 457 160.32    | 0.00
+231   | IMOBILIZARI CORPORALE IN CURS DE EXECUTIE                             | 2 164 079.83      | 0.00               | 2 164 079.83     | 0.00
+261   | ACTIUNI DETINUTE LA ENTITATILE AFILIATE                               | 501 017.97        | 0.00               | 501 017.97       | 0.00
+2678  | ALTE CREANTE IMOBILIZATE                                              | 29 721.05         | 0.00               | 29 721.05        | 0.00
+2808  | AMORT. ALTOR IMOB. NECORPORALE                                        | 0.00              | 1 529.41           | 0.00             | 1 529.41
+2813  | AMORT. INSTALATIILOR, MIJ. DE TRANSPORT                               | 0.00              | 373 182.58         | 0.00             | 373 182.58
+2814  | AMORT. ALTOR IMOBILIZARI CORPORALE                                    | 0.00              | 212 925.05         | 0.00             | 212 925.05
+2815  | AMORT. INVESTITIILOR IMOBILIARE                                       | 0.00              | 3 524 148.55       | 0.00             | 3 524 148.55
+                                                                  Total clasa 2  | 17 748 015.90     | 4 111 785.59       | 17 748 015.90    | 4 111 785.59
+
+401   | FURNIZORI                                                             | 2 309 074.20      | 2 309 081.69       | 0.00             | 7.49
+408   | FURNIZORI - FACTURI NESOSITE                                          | 143.18            | 143.18             | 0.00             | 0.00
+4091  | FURNIZORI - DEBITORI PT. CUMPARARI DE BUNURI (STOCURI)                | 0.00              | 0.00               | 0.00             | 0.00
+4092  | FURNIZORI - DEBITORI PT. PRESTARI DE SERVICII                         | 3 396.22          | 187.46             | 3 208.76         | 0.00
+4093  | AVANSURI ACORDATE PENTRU IMOBILIZARI CORPORALE                        | 2 021 340.00      | 0.00               | 2 021 340.00     | 0.00
+4111  | CLIENTI                                                               | 2 727 107.68      | 2 727 103.68       | 4.00             | 0.00
+4118  | CLIENTI INCERTI SAU IN LITIGIU                                        | 167 026.63        | 0.00               | 167 026.63       | 0.00
+421   | PERSONAL - SALARII DATORATE                                           | 125 808.00        | 125 808.00         | 0.00             | 0.00
+425   | AVANSURI ACORDATE PERSONALULUI                                        | 20 202.00         | 20 202.00          | 0.00             | 0.00
+4281  | ALTE DATORII IN LEGATURA CU PERSONALUL                                | 0.00              | 226.00             | 0.00             | 226.00
+4315  | CONTR. DE ASIGURARI SOCIALE                                           | 31 448.00         | 35 352.00          | 0.00             | 3 904.00
+4316  | CONTR. DE ASIGURARI SOCIALE DE SANATATE                               | 12 584.00         | 14 146.00          | 0.00             | 1 562.00
+436   | CONTR. ASIGURATORIE DE MUNCA                                          | 2 832.00          | 3 183.00           | 0.00             | 351.00
+4382  | ALTE CREANTE SOCIALE                                                  | 23 625.00         | 23 625.00          | 0.00             | 0.00
+4411  | IMPOZITUL PE PROFIT                                                   | 26 117.00         | 36 867.00          | 0.00             | 10 750.00
+4424  | TVA DE RECUPERAT                                                      | 492.00            | 0.00               | 492.00           | 0.00
+444   | IMPOZITUL PE VENITURI DE NATURA SALARIILOR                            | 8 168.00          | 9 182.00           | 0.00             | 1 014.00
+446   | ALTE IMPOZITE, TAXE SI VARSAMINTE ASIMILATE                           | 266 717.00        | 266 717.00         | 0.00             | 0.00
+4482  | ALTE CREANTE PRIVIND BUGETUL STATULUI                                 | 5 463.00          | 0.00               | 5 463.00         | 0.00
+457   | DIVIDENDE DE PLATIT                                                   | 889 400.00        | 889 401.00         | 0.00             | 1.00
+461   | DEBITORI DIVERSI                                                      | 2 597 484.49      | 592.00             | 2 596 892.49     | 0.00
+462   | CREDITORI DIVERSI                                                     | 309.08            | 258 640.08         | 0.00             | 258 331.00
+471   | CHELTUIELI INREGISTRATE IN AVANS                                      | 755 945.09        | 330 996.53         | 424 948.56       | 0.00
+491   | AJUSTARI - DEPRECIEREA CREANTELOR - CLIENTI                           | 0.00              | 167 026.63         | 0.00             | 167 026.63
+                                                                  Total clasa 4  | 11 994 682.57     | 7 218 480.25       | 5 219 375.44     | 443 173.12
+
+5121  | CONTURI LA BANCA IN LEI                                               | 11 381 834.29     | 10 571 402.51      | 810 431.78       | 0.00
+5124  | CONTURI LA BANCA IN VALUTA                                            | 5 301 041.36      | 4 621 938.85       | 679 102.51       | 0.00
+5311  | CASA IN LEI                                                           | 5 302.52          | 0.00               | 5 302.52         | 0.00
+581   | VIRAMENTE INTERNE                                                     | 7 173 740.67      | 7 173 740.67       | 0.00             | 0.00
+                                                                  Total clasa 5  | 23 861 918.84     | 22 367 082.03      | 1 494 836.81     | 0.00
+
+6024  | CHELT. CU PIESELE DE SCHIMB                                           | 54 085.94         | 54 085.94          | 0.00             | 0.00
+6051  | CHELT. PRIVIND CONSUMUL DE ENERGIE                                    | 12.52             | 12.52              | 0.00             | 0.00
+611   | CHELT. CU INTRETINEREA SI REPARATIILE                                 | 45 875.96         | 45 875.96          | 0.00             | 0.00
+6123  | CHELTUIELI CU CHIRIILE                                                | 49.03             | 49.03              | 0.00             | 0.00
+613   | CHELT. CU PRIME DE ASIGURARE                                          | 34 248.69         | 34 248.69          | 0.00             | 0.00
+622   | CHELT. CU COMISIOANE SI ONORARIILE                                    | 31 412.39         | 31 412.39          | 0.00             | 0.00
+626   | CHELT. POSTALE SI TAXE DE TELECOMUNICATII                             | 1 195.11          | 1 195.11           | 0.00             | 0.00
+627   | CHELT. CU SERV. BANCARE SI ASIMILATE                                  | 41 206.34         | 41 206.34          | 0.00             | 0.00
+628   | ALTE CHELT. CU SERVICIILE EXECUTATE DE TERTI                          | 2 172 788.60      | 2 172 788.60       | 0.00             | 0.00
+635   | CHELT. CU ALTE IMPOZITE, TAXE SI VARSAMINTE ASIMILATE                 | 253 065.23        | 253 065.23         | 0.00             | 0.00
+641   | CHELT. CU SALARIILE PERSONALULUI                                      | 125 808.00        | 125 808.00         | 0.00             | 0.00
+6458  | ALTE CHELT. PRIVIND ASIGURARILE SI PROTECTIA SOCIALA                  | 1 200.00          | 1 200.00           | 0.00             | 0.00
+6461  | CHELT. CU CONTRIB. ASIGURATORIE PT. MUNCA A SALARIATILOR              | 2 832.00          | 2 832.00           | 0.00             | 0.00
+6651  | DIFERENTE NEFAVORABILE DE CURS VALUTAR                                | 338 580.67        | 338 580.67         | 0.00             | 0.00
+666   | CHELT. PRIVIND DOBANZILE                                              | 716 741.02        | 716 741.02         | 0.00             | 0.00
+6811  | CHELT. DE EXPLOATARE CU AMORTIZAREA IMOBILIZARILOR                    | 355 606.50        | 355 606.50         | 0.00             | 0.00
+691   | CHELT. CU IMPOZITUL PE PROFIT                                         | 36 867.00         | 36 867.00          | 0.00             | 0.00
+                                                                  Total clasa 6  | 4 211 575.00      | 4 211 575.00       | 0.00             | 0.00
+
+706   | VEN. DIN REDEVENTE SI CHIRII                                          | 2 727 103.68      | 2 727 103.68       | 0.00             | 0.00
+722   | VEN. DIN PROD. DE IMOBILIZARI CORPORALE                               | 2 164 079.83      | 2 164 079.83       | 0.00             | 0.00
+7611  | VEN. DIN ACTIUNI DETINUTE LA ENTITATI AFILIATE                        | 694 377.16        | 694 377.16         | 0.00             | 0.00
+7651  | VEN. DIN DIFERENTE FAVORABILE DE CURS VALUTAR                         | 26 632.48         | 26 632.48          | 0.00             | 0.00
+766   | VEN. DIN DOBINZI                                                      | 2 460.43          | 2 460.43           | 0.00             | 0.00
+767   | VEN. DIN SCONTURI OBTINUTE                                            | 22 167.00         | 22 167.00          | 0.00             | 0.00
+                                                                  Total clasa 7  | 5 636 820.58      | 5 636 820.58       | 0.00             | 0.00
+
+GRAND TOTAL (Sume Totale)                                                       | 69 866 633.52     | 69 866 633.52      | 24 462 228.15    | 24 462 228.15

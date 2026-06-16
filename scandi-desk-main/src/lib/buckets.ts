@@ -1,4 +1,9 @@
 // CFO AI bucket — display utilities. Mirrors src/engine/buckets.py.
+//
+// Display naming follows the 3-bucket UX model (Protect / Watch / Wind down).
+// The engine still emits 6 raw bucket tokens because the underlying rules
+// distinguish them; `BUCKET_LABEL` for the LIQUIDATE token is intentionally
+// "Wind down" so no user-facing string in any locale reads "Liquidate".
 
 import type { Bucket } from "./cfoApi";
 
@@ -7,7 +12,7 @@ export const BUCKET_LABEL: Record<Bucket, string> = {
   WATCH: "Watch",
   FIX: "Fix",
   REDUCE: "Reduce",
-  LIQUIDATE: "Liquidate",
+  LIQUIDATE: "Wind down",
   SCALE: "Scale",
 };
 
@@ -16,7 +21,7 @@ export const BUCKET_DESCRIPTION: Record<Bucket, string> = {
   WATCH: "Important but weakening — monitor closely.",
   FIX: "Renegotiate, reprice, or change channel.",
   REDUCE: "Throttle reorder and minimum stock.",
-  LIQUIDATE: "Dead stock or bleeding margin — exit.",
+  LIQUIDATE: "Dead stock or bleeding margin — wind down.",
   SCALE: "Strong returns — allocate more capital.",
 };
 
@@ -25,7 +30,7 @@ export const BUCKET_CHIP_CLASS: Record<Bucket, string> = {
   WATCH: "chip chip-watch",
   FIX: "chip chip-fix",
   REDUCE: "chip chip-reduce",
-  LIQUIDATE: "chip chip-liquidate",
+  LIQUIDATE: "chip chip-wind-down",
   SCALE: "chip chip-scale",
 };
 

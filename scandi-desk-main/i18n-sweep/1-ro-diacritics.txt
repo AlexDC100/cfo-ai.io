@@ -1,0 +1,112 @@
+src/components/cfo/CashFlowStatementView.tsx:76:                  e.g. balanță FY2024 alongside FY2025
+src/components/cfo/PricingTableV2.tsx:141:  "Romanian bilanț, balanță, invoices, public filings",
+src/components/cfo/Level1BenchmarkView.tsx:75:  net_margin:           { en: "Net margin",            ro: "Marjă netă",          fmt: "pct"      },
+src/components/cfo/Level1BenchmarkView.tsx:79:  asset_turnover:       { en: "Asset turnover",        ro: "Rotația activelor",   fmt: "ratio"    },
+src/components/cfo/Level1BenchmarkView.tsx:80:  revenue_per_employee: { en: "Revenue per employee",  ro: "Cifră/salariat",      fmt: "currency" },
+src/components/cfo/Level1BenchmarkView.tsx:82:  revenue_yoy_pct:      { en: "Revenue YoY growth",    ro: "Creștere CA YoY",     fmt: "pct"      },
+src/components/cfo/Level1BenchmarkView.tsx:83:  profit_yoy_pct:       { en: "Profit YoY growth",     ro: "Creștere profit YoY", fmt: "pct"      },
+src/lib/invoiceAnalytics.ts:638:const RO_FIRST = ["Mihai", "Andrei", "Ana", "Ioana", "Vlad", "Mircea", "Cristina", "Adrian", "Bogdan", "Ileana", "Florin", "Diana", "Sorin", "Elena", "Răzvan", "Monica"];
+src/lib/invoiceAnalytics.ts:654:  { sku: "PROD-A200", description: "Apă minerală 1,5L bax 6", price: 18.00, cost_pct: 0.55 },
+src/lib/invoiceAnalytics.ts:656:  { sku: "PROD-B400", description: "Ulei de măsline 1L Extra-virgin", price: 64.00, cost_pct: 0.58 },
+src/lib/invoiceAnalytics.ts:657:  { sku: "PROD-C500", description: "Carne porc 1kg pulpă", price: 28.50, cost_pct: 0.78 },
+src/lib/invoiceAnalytics.ts:658:  { sku: "PROD-C600", description: "Pui întreg 1,2kg refrigerat", price: 24.00, cost_pct: 0.75 },
+src/lib/invoiceAnalytics.ts:659:  { sku: "PROD-D700", description: "Cașcaval 0,5kg afumat", price: 42.00, cost_pct: 0.68 },
+src/lib/invoiceAnalytics.ts:662:  { sku: "PROD-F100", description: "Conserve roșii 0,8kg pack 6", price: 32.00, cost_pct: 0.50 },
+src/lib/categoryHints.ts:41:    "ZACUSCA":              "zacuscă (vegetable spread)",
+src/lib/dataDepth.ts:71:    "Upload a Romanian trial balance (balanță de verificare) " +
+src/lib/trialBalanceParser.ts:82:  { prefix: "121", bucket: "retainedEarnings", sign: 1, description: "Profit / pierdere curentă" },
+src/lib/trialBalanceParser.ts:85:  { prefix: "16", bucket: "ltDebt", sign: 1, description: "Împrumuturi pe termen lung" },
+src/lib/trialBalanceParser.ts:88:  { prefix: "167", bucket: "ltDebt", sign: 1, description: "Alte împrumuturi" },
+src/lib/trialBalanceParser.ts:89:  { prefix: "168", bucket: "interestExpense", sign: 1, description: "Dobânzi de plătit" },
+src/lib/trialBalanceParser.ts:95:  { prefix: "208", bucket: "intangibles", sign: 1, description: "Alte imobilizări necorporale" },
+src/lib/trialBalanceParser.ts:96:  { prefix: "21", bucket: "ppe", sign: 1, description: "Imobilizări corporale" },
+src/lib/trialBalanceParser.ts:97:  { prefix: "212", bucket: "ppe", sign: 1, description: "Construcții" },
+src/lib/trialBalanceParser.ts:98:  { prefix: "213", bucket: "ppe", sign: 1, description: "Echipamente, mașini" },
+src/lib/trialBalanceParser.ts:99:  { prefix: "215", bucket: "ppe", sign: 1, description: "Investiții imobiliare" },
+src/lib/trialBalanceParser.ts:100:  { prefix: "23", bucket: "ppe", sign: 1, description: "Imobilizări în curs (CIP)" },
+src/lib/trialBalanceParser.ts:101:  { prefix: "232", bucket: "ppe", sign: 1, description: "Avansuri pentru imobilizări" },
+src/lib/trialBalanceParser.ts:102:  { prefix: "26", bucket: "otherNonCurrentAssets", sign: 1, description: "Imobilizări financiare" },
+src/lib/trialBalanceParser.ts:103:  { prefix: "267", bucket: "otherNonCurrentAssets", sign: 1, description: "Creanțe imobilizate" },
+src/lib/trialBalanceParser.ts:104:  { prefix: "28", bucket: "ppe", sign: -1, description: "Amortizare imobilizări (contra-asset)" },
+src/lib/trialBalanceParser.ts:111:  { prefix: "403", bucket: "ap", sign: 1, description: "Efecte de plătit" },
+src/lib/trialBalanceParser.ts:112:  { prefix: "404", bucket: "ap", sign: 1, description: "Furnizori de imobilizări" },
+src/lib/trialBalanceParser.ts:114:  { prefix: "409", bucket: "otherCurrentAssets", sign: 1, description: "Avansuri către furnizori" },
+src/lib/trialBalanceParser.ts:115:  { prefix: "411", bucket: "ar", sign: 1, description: "Clienți" },
+src/lib/trialBalanceParser.ts:116:  { prefix: "418", bucket: "ar", sign: 1, description: "Clienți — facturi de întocmit" },
+src/lib/trialBalanceParser.ts:117:  { prefix: "419", bucket: "otherCurrentLiab", sign: 1, description: "Avansuri de la clienți" },
+src/lib/trialBalanceParser.ts:121:  { prefix: "426", bucket: "otherCurrentLiab", sign: 1, description: "Drepturi salariale neplătite" },
+src/lib/trialBalanceParser.ts:122:  { prefix: "43", bucket: "otherCurrentLiab", sign: 1, description: "Asigurări sociale" },
+src/lib/trialBalanceParser.ts:128:  { prefix: "455", bucket: "otherCurrentLiab", sign: 1, description: "Asociați — conturi curente" },
+src/lib/trialBalanceParser.ts:129:  { prefix: "456", bucket: "shareCapital", sign: 1, description: "Decontări cu acționarii" },
+src/lib/trialBalanceParser.ts:130:  { prefix: "457", bucket: "otherCurrentLiab", sign: 1, description: "Dividende de plată" },
+src/lib/trialBalanceParser.ts:131:  { prefix: "461", bucket: "otherCurrentAssets", sign: 1, description: "Debitori diverși" },
+src/lib/trialBalanceParser.ts:132:  { prefix: "462", bucket: "otherCurrentLiab", sign: 1, description: "Creditori diverși" },
+src/lib/trialBalanceParser.ts:134:  { prefix: "48", bucket: "otherCurrentAssets", sign: 1, description: "Decontări în cadrul unității" },
+src/lib/trialBalanceParser.ts:138:  { prefix: "509", bucket: "stDebt", sign: 1, description: "Vărsăminte de efectuat" },
+src/lib/trialBalanceParser.ts:143:  { prefix: "61", bucket: "operatingExpenses", sign: 1, description: "Lucrări și servicii executate de terți" },
+src/lib/trialBalanceParser.ts:144:  { prefix: "62", bucket: "operatingExpenses", sign: 1, description: "Alte servicii executate de terți" },
+src/lib/trialBalanceParser.ts:145:  { prefix: "63", bucket: "operatingExpenses", sign: 1, description: "Cheltuieli cu impozite și taxe" },
+src/lib/trialBalanceParser.ts:149:  { prefix: "666", bucket: "interestExpense", sign: 1, description: "Cheltuieli cu dobânzile" },
+src/lib/trialBalanceParser.ts:150:  { prefix: "665", bucket: "financialExpense", sign: 1, description: "Cheltuieli din diferențe de curs" },
+src/lib/trialBalanceParser.ts:152:  { prefix: "68", bucket: "depreciation", sign: 1, description: "Cheltuieli cu amortizările" },
+src/lib/trialBalanceParser.ts:156:  { prefix: "70", bucket: "revenue", sign: 1, description: "Venituri din vânzări" },
+src/lib/trialBalanceParser.ts:157:  { prefix: "704", bucket: "revenue", sign: 1, description: "Venituri din lucrări și servicii (chirii)" },
+src/lib/trialBalanceParser.ts:158:  { prefix: "706", bucket: "revenue", sign: 1, description: "Venituri din redevențe și chirii" },
+src/lib/trialBalanceParser.ts:159:  { prefix: "711", bucket: "otherIncome", sign: 1, description: "Variația stocurilor" },
+src/lib/trialBalanceParser.ts:160:  { prefix: "722", bucket: "otherIncome", sign: 1, description: "Producția de imobilizări (capitalized own work)" },
+src/lib/trialBalanceParser.ts:161:  { prefix: "74", bucket: "otherIncome", sign: 1, description: "Subvenții" },
+src/lib/trialBalanceParser.ts:164:  { prefix: "761", bucket: "financialIncome", sign: 1, description: "Venituri din participații (dividende)" },
+src/lib/trialBalanceParser.ts:165:  { prefix: "766", bucket: "financialIncome", sign: 1, description: "Venituri din dobânzi" },
+src/lib/trialBalanceParser.ts:435:1012  Capital subscris vărsat                              1.000.000,00
+src/lib/trialBalanceParser.ts:438:121   Profit / pierdere curentă                              480.000,00
+src/lib/trialBalanceParser.ts:441:212   Construcții                                          5.200.000,00
+src/lib/trialBalanceParser.ts:443:2812  Amortizare construcții                              -1.150.000,00
+src/lib/trialBalanceParser.ts:444:371   Mărfuri                                              1.480.000,00
+src/lib/trialBalanceParser.ts:445:4111  Clienți                                                910.000,00
+src/lib/trialBalanceParser.ts:447:4423  TVA de plată                                            95.000,00
+src/lib/trialBalanceParser.ts:449:431   Asigurări sociale                                       82.000,00
+src/lib/trialBalanceParser.ts:450:512   Conturi curente la bănci — RON                         540.000,00
+src/lib/trialBalanceParser.ts:451:5311  Casa în lei                                             18.000,00
+src/lib/trialBalanceParser.ts:452:471   Cheltuieli înregistrate în avans                        62.000,00
+src/lib/trialBalanceParser.ts:453:707   Venituri din vânzarea mărfurilor                     8.400.000,00
+src/lib/trialBalanceParser.ts:454:711   Variația stocurilor                                    120.000,00
+src/lib/trialBalanceParser.ts:455:607   Cheltuieli privind mărfurile vândute                 5.100.000,00
+src/lib/trialBalanceParser.ts:456:628   Cheltuieli cu serviciile prestate de terți             860.000,00
+src/lib/trialBalanceParser.ts:459:605   Cheltuieli cu energia și apa                            74.000,00
+src/lib/trialBalanceParser.ts:460:681   Cheltuieli cu amortizările                             310.000,00
+src/lib/trialBalanceParser.ts:461:666   Cheltuieli cu dobânzile                                205.000,00
+src/lib/financialReport.ts:53:  /** RAS account 711 (Variația stocurilor) — non-cash inventory variation
+src/lib/supabase.ts:339:  if (/bilan[tț]|balance[\s_-]?sheet|^bs_/.test(n)) return "bilant";
+src/lib/supabase.ts:582: *     bilanț, P&L, trial balance). Pipeline writes financial_periods +
+src/i18n/index.ts:51:  { code: "ro", label: "Română",    flag: "🇷🇴" },
+src/pages/cfo/Settings.tsx:418:  const sourceLabel = rates?.source === "BNR" ? "BNR (Banca Națională a României)" : "offline fallback";
+src/pages/cfo/MultiYearHistory.tsx:273:          internal balanță de verificare separately.
+src/pages/cfo/FinancialStatements.tsx:2611:                          the trial balance (balanță de verificare) as
+src/pages/cfo/FinancialStatements.tsx:2744:              title="Trial balance (balanță de verificare)"
+src/pages/cfo/FinancialStatements.tsx:2749:                { label: "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)", href: null },
+src/pages/cfo/FinancialStatements.tsx:2776:                { label: "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX", href: "https://anaf.ro" },
+src/pages/cfo/FinancialStatements.tsx:2799:              bilanț" → "Print PDF", drop the file above. You'll get a 20-year financial
+src/pages/cfo/FinancialStatements.tsx:2804:              Trial balance (balanță de verificare) is the document that unlocks the full
+src/pages/cfo/FinancialStatements.tsx:2806:              <em>Rapoarte → Balanța de verificare</em> or equivalent. The download buttons
+src/pages/cfo/FinancialStatements.tsx:2900:            Upload your trial balance (balanță de verificare)
+src/pages/cfo/FinancialStatements.tsx:3001:          <strong className="text-white">"Date de bilanț"</strong>, hit{" "}
+src/pages/cfo/BenchmarkReport.tsx:291:      reason: `Datele companiei tale sunt foarte diferite de tipicul industriei selectate pe ${extremeMetrics.length} indicatori (${sample}${extremeMetrics.length > 3 ? "…" : ""}). Probabil ai selectat industria greșită.`,
+src/pages/cfo/BenchmarkReport.tsx:726:              <th className="text-left px-3 py-2.5">Sursă</th>
+src/pages/cfo/BenchmarkReport.tsx:844:  thin_margin:  { label: "MARJĂ SUBȚIRE", cls: "bg-amber-500 text-white" },
+src/pages/cfo/BenchmarkReport.tsx:868:      <h2 className="font-serif text-[20px] text-ink">1. Peers — cine ocupă pozițiile în industrie</h2>
+src/pages/cfo/BenchmarkReport.tsx:889:              <th className="text-right px-3 py-2.5">Marjă netă</th>
+src/pages/cfo/BenchmarkReport.tsx:935:        2. De ce liderul ({deep.leader_company}) domină — {deep.leader_reasons.length} motive structurale
+src/pages/cfo/BenchmarkReport.tsx:939:        <strong>+{deep.leader_total_impact_pp.toFixed(1)}pp marjă</strong> peste media industriei.
+src/pages/cfo/BenchmarkReport.tsx:940:        Acestea sunt avantaje structurale (nu conjuncturale) — competitorii ar trebui să le replice
+src/pages/cfo/BenchmarkReport.tsx:941:        simultan pentru a închide gap-ul.
+src/pages/cfo/BenchmarkReport.tsx:1017:      <h2 className="font-serif text-[20px] text-ink">4. Target margin tiers pentru această industrie</h2>
+src/pages/cfo/BenchmarkReport.tsx:1023:              <th className="text-right px-3 py-2.5">Marja netă</th>
+src/pages/cfo/BenchmarkReport.tsx:1044:        <strong className="text-ink">Cum citești tabelul:</strong>{" "}
+src/pages/cfo/BenchmarkReport.tsx:1045:        Aspirational este pragul top quartile (10-15% din industrie), necesită avantaje structurale ca cele
+src/pages/cfo/BenchmarkReport.tsx:1046:        descrise mai sus și 5-10+ ani execuție. Realistic este targetul rezonabil pentru o companie bine
+src/pages/cfo/BenchmarkReport.tsx:1047:        condusă, fără avantaje structurale extreme. Minimum viable este pragul sub care continuarea
+src/pages/cfo/BenchmarkReport.tsx:1048:        operațiunilor devine fragilă (incapacitate de capex, refinanțare).
+src/pages/cfo/BenchmarkReport.tsx:1059:    growth: "Creștere",
+src/pages/cfo/BenchmarkReport.tsx:1095:          <h2 className="font-serif text-[20px] text-ink mb-2">6. Pattern-uri de succes în această industrie</h2>
+src/pages/cfo/BenchmarkReport.tsx:1105:          <h2 className="font-serif text-[20px] text-ink mb-2">7. Moduri tipice de eșec</h2>
+src/pages/cfo/BenchmarkReport.tsx:1120:      <h2 className="font-serif text-[20px] text-ink">8. Context piața România</h2>

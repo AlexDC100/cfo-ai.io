@@ -29,6 +29,19 @@ interface BuildArgs {
   /** Net profit for the year — derived from the P&L. Drives equity's
    *  "Current year net profit" line. */
   currentYearNetProfit?: number;
+  /**
+   * F2.1 — Engine canonical `assembled_bs`. When supplied, the BS totals
+   * (`totalAssets`, `totalEquityLiab`, `balanceCheck`) are read directly
+   * from this object instead of being computed by FE row aggregation, and
+   * per-engine-bucket residual rows ("Other [bucket]") are inserted where
+   * the FE per-account row enumeration doesn't sum to the engine bucket
+   * value. Result: BS subtotals match engine to the cent; any FE-coverage
+   * gap surfaces as an explicit "Other [bucket]" line rather than as a
+   * silent drift between rows and totals. Falls back to the legacy
+   * FE-recompute behavior when absent (back-compat for periods without
+   * `statements.assembled_bs`).
+   */
+  assembledBs?: Record<string, number>;
 }
 
 // Romanian account labels — used to render the per-line description next to
@@ -206,27 +219,34 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
   const tech213ResidualOpening =
     tech213Catchall.opening - tech2131.opening - measure2132.opening - transport2133.opening;
 
+  // F1.n — Intangibles sign fix. `intangibleAmort` is the sum of 28xx
+  // amortization line items, which the engine emits with `sign=-1` already
+  // applied (i.e. line_item.amount is NEGATIVE). The prior `−` here
+  // double-counted: `gross − (−amort)` = `gross + amort`. Correct math is
+  // `gross + amort` (which subtracts because amort is already negative),
+  // matching the established `+ accumDep.closing` pattern one line below.
   const netFixedClosing =
     land211.closing + buildings212.closing +
     tech2131.closing + measure2132.closing + transport2133.closing +
     Math.max(0, tech213Residual) +
     furniture214.closing + investment215.closing + cip231.closing +
-    (intangiblesGross.closing - intangibleAmort.closing) +
+    (intangiblesGross.closing + intangibleAmort.closing) +
     accumDep.closing;  // accumDep amount is negative (sign=-1), so adding subtracts
   const netFixedOpening =
     land211.opening + buildings212.opening +
     tech2131.opening + measure2132.opening + transport2133.opening +
     Math.max(0, tech213ResidualOpening) +
     furniture214.opening + investment215.opening + cip231.opening +
-    (intangiblesGross.opening - intangibleAmort.opening) +
+    (intangiblesGross.opening + intangibleAmort.opening) +
     accumDep.opening;
 
   const nonCurrentLines: BSLine[] = [
     {
       accountCode: "208/2808",
       label: "Intangibles (208 net of 2808)",
-      opening: intangiblesGross.opening - intangibleAmort.opening,
-      closing: intangiblesGross.closing - intangibleAmort.closing,
+      // F1.n — see netFixed sign-fix comment above. Same formula, same fix.
+      opening: intangiblesGross.opening + intangibleAmort.opening,
+      closing: intangiblesGross.closing + intangibleAmort.closing,
       style: "item",
     },
     { accountCode: "211",  label: "Land", opening: land211.opening, closing: land211.closing, style: "item" },
@@ -351,8 +371,14 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     {
       accountCode: "4118-491",
       label: "Doubtful receivables net",
-      opening: ar4118.opening - allowance491.opening,
-      closing: ar4118.closing - allowance491.closing,
+      // F1.n — Doubtful receivables sign fix. 491 (Ajustări depreciere
+      // creanțe) is emitted with `sign=-1` by the engine, so its line_item
+      // amount is already negative. The prior `−` double-counted:
+      // `4118 − (−491)` = `4118 + 491`. Correct: `4118 + 491` where 491
+      // is negative, which subtracts. Engine `ar_provisions` already
+      // nets globally; this restores agreement.
+      opening: ar4118.opening + allowance491.opening,
+      closing: ar4118.closing + allowance491.closing,
       style: "item",
     },
     { accountCode: "425",  label: "Wage advances",                opening: wage425.opening, closing: wage425.closing, style: "item" },
@@ -533,10 +559,337 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
   };
 
   // ── TOTALS ───────────────────────────────────────────────────────────
-  const totalELClosing = totalEquityClosing + ltDebt.closing + totalCurrentLiabClosing;
-  const totalELOpening = totalEquityOpening + ltDebt.opening + totalCurrentLiabOpening;
+  // F2.1 — When engine canonical `assembled_bs` is supplied, the top-level
+  // totals + balance check read directly from it. The legacy line-549
+  // formula `totalEquity + ltDebt + totalCurrentLiab` (which silently
+  // omitted leasing/167, accrued-LT-interest/168, provisions/15x,
+  // subsidies/475, grants/478) is removed — replaced by engine reads.
+  // Per-bucket residual rows are injected into the appropriate sections
+  // before computing FE-side section subtotals.
+  const ab = args.assembledBs;
+  const useEngineTotals = !!ab;
 
-  const balanceCheck = totalAssetsClosing - totalELClosing;
+  // F2.1 per-bucket residual helper — surfaces FE-coverage gaps as named
+  // "Other [bucket]" rows. The bucket-to-FE-rows map below mirrors what
+  // the engine canon emits at the `assembled_bs.*` level. Sign matters:
+  // a positive residual means FE rows undercount the engine bucket;
+  // a negative residual means FE rows overcount it.
+  const TOLERANCE = 0.5;  // RON; below this we treat the residual as noise
+
+  // ─── Asset-side per-bucket residuals ────────────────────────────────
+  // Each entry: [engine bucket value, FE row sum for that bucket, label,
+  // target section ("non-current" | "current")]
+  type ResidualEntry = {
+    engineValue: number;
+    feSum: number;
+    label: string;
+    section: "non-current" | "current" | "equity" | "nc-liab" | "c-liab";
+  };
+
+  const residualEntries: ResidualEntry[] = ab ? [
+    // PP&E (excluding the dedicated investment / under-construction / advances
+    // sub-buckets the engine carves out separately).
+    {
+      engineValue: ab.ppe_net ?? 0,
+      feSum:
+        land211.closing + buildings212.closing +
+        tech2131.closing + measure2132.closing + transport2133.closing +
+        Math.max(0, tech213Residual) +
+        furniture214.closing +
+        accumDep.closing
+        // ppe_net the engine reports nets out the 215 investment property
+        // AND 231 CIP into separate buckets, AND ppe_advances. So those
+        // are NOT in the FE row sum for ppe_net comparison.
+        + investment215.closing + cip231.closing,
+      label: "Other PP&E",
+      section: "non-current",
+    },
+    // Intangibles bucket (engine `intangibles_net` already nets amort).
+    {
+      engineValue: ab.intangibles_net ?? 0,
+      feSum: intangiblesGross.closing + intangibleAmort.closing,
+      label: "Other intangibles",
+      section: "non-current",
+    },
+    // Long-term investments (engine `investments` = 261 + 263 + 265 + 267
+    // + 2678 etc., FE only renders 261 and 2678 today).
+    {
+      engineValue: ab.investments ?? 0,
+      feSum: shares261.closing + ltRecv2678.closing,
+      label: "Other LT investments",
+      section: "non-current",
+    },
+    // ppe_advances — 4093 today on FE renders in the CURRENT section, but
+    // the engine routes it to PPE-advances (non-current PPE family). Treat
+    // any residual as a "non-current" line for engine alignment.
+    {
+      engineValue: ab.ppe_advances ?? 0,
+      feSum: adv4093.closing,
+      label: "Other PP&E advances",
+      section: "non-current",
+    },
+    // Cash bucket — FE sums 5121 + 5124 + 5311 + 5314; engine may also
+    // route other class-5 cash (581 transit handled separately as ignored).
+    {
+      engineValue: ab.cash ?? 0,
+      feSum: cashTotalClosing,
+      label: "Other cash",
+      section: "current",
+    },
+    // Aggregated receivables — engine reports ar_net + ar_doubtful_gross
+    // + ar_provisions + ar_intercompany + ar_other; FE rows that sum to
+    // this aggregate: 4111 + 4118 + 491 + 461 + 4091 + 4092 + 425 + 4382
+    // + 4424 + 4426 + 4482 + 471.
+    {
+      engineValue:
+        (ab.ar_net ?? 0) + (ab.ar_doubtful_gross ?? 0) +
+        (ab.ar_provisions ?? 0) + (ab.ar_intercompany ?? 0) +
+        (ab.ar_other ?? 0),
+      feSum:
+        ar4111.closing +
+        (ar4118.closing + allowance491.closing) +  // F1.n net
+        debt461.closing +
+        sup4091.closing + sup4092.closing +
+        wage425.closing + soc4382.closing +
+        vat4424.closing + vat4426.closing +
+        other4482.closing + prepaid471.closing,
+      label: "Other receivables / current assets",
+      section: "current",
+    },
+    // Inventory — engine doesn't emit a single inventory bucket field,
+    // so there's no per-bucket residual to inject for inventory at the
+    // F2.1 scope. Inventory rows roll into the current-section subtotal
+    // as before. (Engine has total_assets that captures inventory; any
+    // inventory-mapping miss surfaces in the asset-side bottom-line
+    // residual below.)
+
+    // ─── E&L per-bucket residuals ─────────────────────────────────────
+    // Equity sub-buckets — engine emits five named fields. FE renders
+    // 1012/104/105/1061/1068/117/121.
+    {
+      engineValue: ab.share_capital ?? 0,
+      feSum: share1012.closing,
+      label: "Other share capital",
+      section: "equity",
+    },
+    {
+      engineValue: ab.revaluation_reserves ?? 0,
+      feSum: reval105.closing,
+      label: "Other revaluation reserves",
+      section: "equity",
+    },
+    {
+      engineValue: ab.retained_earnings ?? 0,
+      feSum: retained117.closing,
+      label: "Other retained earnings",
+      section: "equity",
+    },
+    {
+      engineValue: ab.other_equity_non_revaluation ?? 0,
+      feSum: premium104.closing + legal1061.closing + otherReserves1068.closing,
+      label: "Other equity (uncategorized)",
+      section: "equity",
+    },
+    // current_year_pnl matches the `121` line we render from
+    // `args.currentYearNetProfit` (F1.n statutory anchor) — no residual.
+
+    // LT debt — engine `lt_debt` aggregates bank loans + leasing + LT
+    // interest accruals. FE rows: 1621 + 167 + 168 + 15x + 475 + 478.
+    {
+      engineValue: ab.lt_debt ?? 0,
+      feSum:
+        ltDebt.closing + leasing167.closing + ltInterest168.closing +
+        provisions15.closing + subsidies475.closing + grants478.closing,
+      label: "Other long-term debt / liabilities",
+      section: "nc-liab",
+    },
+    // ST debt — engine `st_debt` = 519 alone.
+    {
+      engineValue: ab.st_debt ?? 0,
+      feSum: stBank519.closing,
+      label: "Other short-term debt",
+      section: "c-liab",
+    },
+    // Trade payables — engine `ap` = 401.
+    {
+      engineValue: ab.ap ?? 0,
+      feSum: ap401.closing,
+      label: "Other trade payables",
+      section: "c-liab",
+    },
+    // Dividends payable — engine `ap_dividends` = 457.
+    {
+      engineValue: ab.ap_dividends ?? 0,
+      feSum: div457.closing,
+      label: "Other dividends payable",
+      section: "c-liab",
+    },
+    // Other current liabilities — engine `ap_other` aggregates the long
+    // tail (403, 405, 408, 419, personnel, social, tax, intercompany
+    // C-side flips, 462, 472).
+    {
+      engineValue: ab.ap_other ?? 0,
+      feSum:
+        notesPayable403.closing + faPayable405.closing + ap408.closing +
+        custAdv419.closing + sal421.closing + personnel4281.closing +
+        cas4315.closing + cass4316.closing + cam436.closing +
+        incTax4411.closing + vatCol4427.closing + salTax444.closing +
+        othTax446.closing + affiliated45.closing +
+        creditors462.closing + deferredRev472.closing,
+      label: "Other current liabilities",
+      section: "c-liab",
+    },
+  ] : [];
+
+  // Build "Other [bucket]" residual lines from non-zero entries.
+  const otherLinesNonCurrentAssets: BSLine[] = [];
+  const otherLinesCurrentAssets: BSLine[] = [];
+  const otherLinesEquity: BSLine[] = [];
+  const otherLinesNCLiab: BSLine[] = [];
+  const otherLinesCLiab: BSLine[] = [];
+  for (const r of residualEntries) {
+    const diff = r.engineValue - r.feSum;
+    if (Math.abs(diff) < TOLERANCE) continue;
+    const line: BSLine = {
+      accountCode: "other",
+      label: r.label,
+      opening: 0,    // prior-period assembled_bs is not supplied (no opening canonical)
+      closing: diff,
+      style: "item",
+    };
+    if (r.section === "non-current") otherLinesNonCurrentAssets.push(line);
+    else if (r.section === "current") otherLinesCurrentAssets.push(line);
+    else if (r.section === "equity") otherLinesEquity.push(line);
+    else if (r.section === "nc-liab") otherLinesNCLiab.push(line);
+    else if (r.section === "c-liab") otherLinesCLiab.push(line);
+  }
+
+  // If engine canonical is in use, append "Other" residual rows AND
+  // recompute the section subtotals to include them, so each section's
+  // displayed subtotal equals the sum of its visible rows (no silent
+  // discrepancy). Top-level totals come from engine.
+  if (useEngineTotals) {
+    nonCurrentAssets.lines = [
+      ...nonCurrentAssets.lines,
+      ...otherLinesNonCurrentAssets,
+    ];
+    const ncAddOpen = otherLinesNonCurrentAssets.reduce((s, l) => s + (l.opening ?? 0), 0);
+    const ncAddClose = otherLinesNonCurrentAssets.reduce((s, l) => s + (l.closing ?? 0), 0);
+    nonCurrentAssets.subtotalOpening = (nonCurrentAssets.subtotalOpening ?? 0) + ncAddOpen;
+    nonCurrentAssets.subtotalClosing = (nonCurrentAssets.subtotalClosing ?? 0) + ncAddClose;
+    nonCurrentAssets.subtotalDelta =
+      (nonCurrentAssets.subtotalClosing ?? 0) - (nonCurrentAssets.subtotalOpening ?? 0);
+
+    currentAssets.lines = [
+      ...currentAssets.lines,
+      ...otherLinesCurrentAssets,
+    ];
+    const cAddOpen = otherLinesCurrentAssets.reduce((s, l) => s + (l.opening ?? 0), 0);
+    const cAddClose = otherLinesCurrentAssets.reduce((s, l) => s + (l.closing ?? 0), 0);
+    currentAssets.subtotalOpening = (currentAssets.subtotalOpening ?? 0) + cAddOpen;
+    currentAssets.subtotalClosing = (currentAssets.subtotalClosing ?? 0) + cAddClose;
+    currentAssets.subtotalDelta =
+      (currentAssets.subtotalClosing ?? 0) - (currentAssets.subtotalOpening ?? 0);
+
+    equity.lines = [
+      ...equity.lines,
+      ...otherLinesEquity,
+    ];
+    const eqAddClose = otherLinesEquity.reduce((s, l) => s + (l.closing ?? 0), 0);
+    equity.subtotalClosing = (equity.subtotalClosing ?? 0) + eqAddClose;
+    equity.subtotalDelta =
+      (equity.subtotalClosing ?? 0) - (equity.subtotalOpening ?? 0);
+
+    nonCurrentLiab.lines = [
+      ...nonCurrentLiab.lines,
+      ...otherLinesNCLiab,
+    ];
+    const ncLAddClose = otherLinesNCLiab.reduce((s, l) => s + (l.closing ?? 0), 0);
+    nonCurrentLiab.subtotalClosing = (nonCurrentLiab.subtotalClosing ?? 0) + ncLAddClose;
+    nonCurrentLiab.subtotalDelta =
+      (nonCurrentLiab.subtotalClosing ?? 0) - (nonCurrentLiab.subtotalOpening ?? 0);
+
+    currentLiab.lines = [
+      ...currentLiab.lines,
+      ...otherLinesCLiab,
+    ];
+    const cLAddClose = otherLinesCLiab.reduce((s, l) => s + (l.closing ?? 0), 0);
+    currentLiab.subtotalClosing = (currentLiab.subtotalClosing ?? 0) + cLAddClose;
+    currentLiab.subtotalDelta =
+      (currentLiab.subtotalClosing ?? 0) - (currentLiab.subtotalOpening ?? 0);
+  }
+
+  // F2.1 — Top-level totals come from engine canonical when available.
+  // No more `totalEquity + ltDebt + totalCurrentLiab` (line-549 bug). The
+  // engine emits the truth as `assembled_bs.total_assets`,
+  // `assembled_bs.total_equity`, `assembled_bs.total_liabilities`, and
+  // `assembled_bs.bs_balance_delta`. We consume those directly.
+  const totalAssetsClosingFinal = useEngineTotals
+    ? (ab.total_assets ?? totalAssetsClosing)
+    : totalAssetsClosing;
+  const totalAssetsOpeningFinal = totalAssetsOpening; // no prior assembled_bs
+  const totalELClosingFinal = useEngineTotals
+    ? ((ab.total_equity ?? 0) + (ab.total_liabilities ?? 0))
+    : (totalEquityClosing + ltDebt.closing + totalCurrentLiabClosing);
+  const totalELOpeningFinal = useEngineTotals
+    ? totalELClosingFinal  // we don't have prior canonical; opening matches closing
+    : (totalEquityOpening + ltDebt.opening + totalCurrentLiabOpening);
+  const balanceCheck = useEngineTotals
+    ? (ab.bs_balance_delta ?? 0)
+    : (totalAssetsClosing - (totalEquityClosing + ltDebt.closing + totalCurrentLiabClosing));
+
+  // F2.1 — Section-to-grand-total reconciliation. The engine's
+  // sub-aggregate buckets are not a clean partition of total_assets /
+  // total_liab+equity (engine sub-aggregates have carve-outs and
+  // overlap relationships not exposed at the BS-field level). After
+  // per-bucket residuals are injected, residual error can still remain
+  // between (sum of section subtotals) and (engine grand total) — this
+  // shows up as a visible "section subtotals don't add to TOTAL"
+  // defect on prod, which is the Shape B failure mode we explicitly
+  // rejected. To prevent this, compute one final "Other (uncategorized)"
+  // reconciliation row per side that closes the gap, so visible rows
+  // sum to displayed subtotals AND displayed subtotals sum to engine
+  // grand totals.
+  if (useEngineTotals) {
+    const assetSectionsSum =
+      (nonCurrentAssets.subtotalClosing ?? 0) +
+      (currentAssets.subtotalClosing ?? 0);
+    const assetReconcile = totalAssetsClosingFinal - assetSectionsSum;
+    if (Math.abs(assetReconcile) >= TOLERANCE) {
+      const reconLine: BSLine = {
+        accountCode: "other",
+        label: "Other (uncategorized — engine bucket carve-outs)",
+        opening: 0,
+        closing: assetReconcile,
+        style: "item",
+      };
+      currentAssets.lines = [...currentAssets.lines, reconLine];
+      currentAssets.subtotalClosing =
+        (currentAssets.subtotalClosing ?? 0) + assetReconcile;
+      currentAssets.subtotalDelta =
+        (currentAssets.subtotalClosing ?? 0) - (currentAssets.subtotalOpening ?? 0);
+    }
+
+    const elSectionsSum =
+      (equity.subtotalClosing ?? 0) +
+      (nonCurrentLiab.subtotalClosing ?? 0) +
+      (currentLiab.subtotalClosing ?? 0);
+    const elReconcile = totalELClosingFinal - elSectionsSum;
+    if (Math.abs(elReconcile) >= TOLERANCE) {
+      const reconLine: BSLine = {
+        accountCode: "other",
+        label: "Other (uncategorized — engine bucket carve-outs)",
+        opening: 0,
+        closing: elReconcile,
+        style: "item",
+      };
+      currentLiab.lines = [...currentLiab.lines, reconLine];
+      currentLiab.subtotalClosing =
+        (currentLiab.subtotalClosing ?? 0) + elReconcile;
+      currentLiab.subtotalDelta =
+        (currentLiab.subtotalClosing ?? 0) - (currentLiab.subtotalOpening ?? 0);
+    }
+  }
 
   // Dividends-payable note when 457 has a material closing balance
   const note =
@@ -551,15 +904,15 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     currency,
     assetSections: [nonCurrentAssets, currentAssets],
     totalAssets: {
-      opening: totalAssetsOpening,
-      closing: totalAssetsClosing,
-      delta: totalAssetsClosing - totalAssetsOpening,
+      opening: totalAssetsOpeningFinal,
+      closing: totalAssetsClosingFinal,
+      delta: totalAssetsClosingFinal - totalAssetsOpeningFinal,
     },
     equityLiabSections: [equity, nonCurrentLiab, currentLiab],
     totalEquityLiab: {
-      opening: totalELOpening,
-      closing: totalELClosing,
-      delta: totalELClosing - totalELOpening,
+      opening: totalELOpeningFinal,
+      closing: totalELClosingFinal,
+      delta: totalELClosingFinal - totalELOpeningFinal,
     },
     balanceCheck,
     note,

@@ -228,6 +228,49 @@
 
 .cf-note { margin: 6px 0; color: hsl(var(--ink)); }
 
+/* ── Mobile (<640px) ────────────────────────────────────────────────────
+   Same overflow root cause as PL: 64px + 1fr + 180px fixed grid leaves
+   no room for Romanian labels on iPhone SE. Collapse to a 2-row stack:
+   account code + label on row 1; amount right-aligned on row 2.
+   Paired with useAmountFormatter's auto-compact so "−379.080,94" → "−379k".
+   2026-06-02 mobile-overflow fix. */
+@media (max-width: 639px) {
+  .cf-row,
+  .cf-row-wc,
+  .cf-row-plug,
+  .cf-subtotal-rule {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "code label"
+      ".    amount";
+    gap: 4px 8px;
+    padding: 6px 0;
+  }
+  .cf-code {
+    grid-area: code;
+    font-size: 10.5px;
+    align-self: start;
+  }
+  .cf-label {
+    grid-area: label;
+    font-size: 12.5px;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .cf-amount {
+    grid-area: amount;
+    text-align: right;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .cf-subtotal-rule::after {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ── Print ──────────────────────────────────────────────────────────── */
 @media print {
   .cf-statement {

@@ -94,6 +94,15 @@ void i18n
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
       caches: ["localStorage"],
     },
+    // Dev-only: surface missing translation keys so they don't ship to prod
+    // unnoticed. Production builds tree-shake the import.meta.env.DEV branch.
+    saveMissing: import.meta.env.DEV,
+    missingKeyHandler: (lngs, ns, key) => {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn(`[i18n] Missing key: ${key} (${Array.isArray(lngs) ? lngs.join(",") : lngs})`);
+      }
+    },
   });
 
 export default i18n;
@@ -107,6 +116,47 @@ export function setLanguage(code: string): void {
     /* private mode — best effort */
   }
   void i18n.changeLanguage(code);
+}
+
+/**
+ * Authenticated language change — local persist (localStorage + i18next)
+ * PLUS profile + auth-metadata mirror so the choice survives both a browser
+ * cache clear AND wins over the priority chain in useLanguage.ts (which
+ * reads user_metadata.language ABOVE storedLang on authenticated pages).
+ *
+ * Without this profile sync, the sidebar Globe popover would write to
+ * localStorage but LanguageSync would immediately override back to whatever
+ * user_metadata.language already says — making the click silently
+ * ineffective. The auth-aware priority chain sits between the user and
+ * their local-only override, so the Globe button must mirror to the
+ * profile to "win" over the priority chain.
+ *
+ * Best-effort on the network calls — both Supabase updates are wrapped in
+ * try/catch and a failed call doesn't roll back the local change.
+ */
+export async function pickLanguageWithProfileSync(
+  code: string,
+  user: { id: string } | null | undefined,
+  supabase: {
+    from: (table: string) => {
+      update: (patch: Record<string, unknown>) => {
+        eq: (col: string, val: string) => Promise<unknown>;
+      };
+    };
+    auth: { updateUser: (args: { data: Record<string, unknown> }) => Promise<unknown> };
+  } | null | undefined,
+): Promise<void> {
+  setLanguage(code);
+  if (user && supabase) {
+    try {
+      await supabase.from("profiles").update({ language: code }).eq("id", user.id);
+    } catch {
+      /* `language` column may not exist yet — non-fatal */
+    }
+    try {
+      await supabase.auth.updateUser({ data: { language: code } });
+    } catch { /* non-fatal */ }
+  }
 }
 
 /** Read the active language synchronously. Useful for backend calls

@@ -21,6 +21,29 @@ if (URL && ANON_KEY) {
       autoRefreshToken: true,
     },
   });
+} else {
+  // B-H4: loud-failure on boot when Supabase env vars are missing.
+  //
+  // Until this warning was added, the app silently ran with no auth — every
+  // signIn/signUp returned a friendly "Sign-in is not configured" error from
+  // AuthCard, but if you were debugging "why does the dashboard show empty
+  // state" or "why does upload fail with no error," there was no breadcrumb
+  // pointing at the missing env. The console.warn below is impossible to miss
+  // for anyone with DevTools open during a fresh deploy.
+  //
+  // We log specifically which vars are missing — `URL && ANON_KEY` is a
+  // single failure mode at the top level, but the operator usually has one
+  // of the two set (e.g. a partial copy/paste from the Supabase Dashboard
+  // settings tab) and the missing one is the actionable fix.
+  const missing: string[] = [];
+  if (!URL) missing.push("VITE_SUPABASE_URL");
+  if (!ANON_KEY) missing.push("VITE_SUPABASE_ANON_KEY");
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[supabase] auth disabled — missing build env: ${missing.join(", ")}. ` +
+      `Sign-in, sign-up, file upload, and persistence will all return a friendly error. ` +
+      `Set these in .env (dev) or your deploy environment (prod) and rebuild.`,
+  );
 }
 
 /** True when env vars are present and the SDK was initialised. */

@@ -85,6 +85,25 @@ COLUMN_SYNONYMS: Dict[str, List[str]] = {
         r"^cmv$",
         r"^cost[\s_]?marfa$",
     ],
+    # Pre-computed DIO column — some operator workbooks already include
+    # the metric ready-to-go (e.g. "DIO days" with values like 69, 60,
+    # 90, 180). Accept these directly. When present, `aggregate_sku_lines`
+    # uses the explicit value instead of computing DIO from
+    # inventory_value / COGS — that fallback path remains for files
+    # that only provide the raw inputs. Pattern set covers the common
+    # spellings: "DIO", "DIO days", "DIO (days)", "Days inventory
+    # outstanding", "days inventory on hand", plus Romanian variants.
+    "dio_days": [
+        r"^dio$",
+        r"^dio[\s_]?days$",
+        r"^dio\s*\(?\s*days?\s*\)?$",
+        r"^days?[\s_]?inventory[\s_]?outstanding$",
+        r"^days?[\s_]?inventory[\s_]?on[\s_]?hand$",
+        r"^days?[\s_]?inventory$",
+        r"^days?[\s_]?in[\s_]?stock$",
+        r"^zile[\s_]?stoc$",
+        r"^durata[\s_]?stoc$",
+    ],
 }
 
 
@@ -92,6 +111,182 @@ def _normalize_header(h: Any) -> str:
     if h is None:
         return ""
     return re.sub(r"\s+", " ", str(h).strip().lower())
+
+
+def _normalize_category(s: Any) -> str:
+    """Normalise a category string for comparison: uppercase, strip
+    diacritics, collapse internal whitespace. Used to match SKU.category
+    against the DIO sheet's category column ("LEGUME CONSERVATE",
+    "MURATURI" etc.) — the analyst's free-text labels in either sheet
+    can have stray accents or doubled spaces."""
+    import unicodedata
+    if s is None:
+        return ""
+    nfkd = unicodedata.normalize("NFD", str(s))
+    stripped = "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", stripped.upper().strip())
+
+
+def extract_category_dio_from_analysis_sheet(xlsx_bytes: bytes) -> Dict[str, float]:
+    """Read the "Analysis" sheet and return {category: dio_days} from
+    the operator-set DIO/DSO/DPO/CCC block (typically cols 60-63 in the
+    Trading_analysis_* workbooks). These are the realistic operational
+    targets the analyst chose (e.g. LEGUME=60, JELEURI=180) — vastly
+    different from, and preferred over, the extreme computed values in
+    the standalone DIO sheet's Region 2 (LEGUME=73.5, JELEURI=1001.7).
+
+    Detection: the header row near the top has 'DIO' / 'DSO' / 'DPO' /
+    'CCC' (case-insensitive) in adjacent cells. We walk the next ~40
+    rows pulling (category-name, dio-days) pairs whenever the row has
+    a category label in col B/C and a number under the DIO column.
+
+    Returns {} when no Analysis sheet exists or the structure doesn't
+    match — caller falls back to `extract_category_dio` (DIO sheet R2).
+    """
+    try:
+        wb = load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
+    except Exception:
+        return {}
+    # Case-insensitive search for an "Analysis" sheet.
+    target = next((s for s in wb.sheetnames if s.strip().upper() == "ANALYSIS"), None)
+    if not target:
+        return {}
+    ws = wb[target]
+
+    # ── Locate the DIO column index by scanning the first 6 rows for
+    # the literal header "DIO". The header is typically on row 2 in the
+    # known fixture (Trading_analysis_YTDMar_26), at column index 60,
+    # alongside 'DSO', 'DPO', 'CCC'. We scan defensively so a future
+    # column-layout shift doesn't silently break the extraction.
+    dio_col_idx: Optional[int] = None
+    label_col_idx: Optional[int] = None
+    header_row_idx: Optional[int] = None
+    sniff_rows: List[List[Any]] = []
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i >= 8:
+            break
+        sniff_rows.append(list(row))
+    for row_idx, row in enumerate(sniff_rows):
+        for col_idx, cell in enumerate(row):
+            if isinstance(cell, str) and cell.strip().upper() == "DIO":
+                dio_col_idx = col_idx
+                header_row_idx = row_idx
+                break
+        if dio_col_idx is not None:
+            break
+    if dio_col_idx is None or header_row_idx is None:
+        return {}
+    # Category labels in the Analysis sheet sit in column B (index 1).
+    # Defend against a layout where they live in column A or C by
+    # scanning for the first non-empty string column in the next 5
+    # data rows after the header.
+    for col_candidate in (1, 0, 2):
+        sample_rows = list(ws.iter_rows(
+            min_row=header_row_idx + 2 + 1,  # 1-indexed; +2 for header rows; +1 for the data row
+            max_row=header_row_idx + 8,
+            values_only=True,
+        ))
+        if any(
+            isinstance(r[col_candidate], str) and r[col_candidate].strip()
+            for r in sample_rows
+            if len(r) > col_candidate
+        ):
+            label_col_idx = col_candidate
+            break
+    if label_col_idx is None:
+        label_col_idx = 1  # fall back to canonical layout
+
+    # Pull (category, dio_days) pairs from the rows immediately after
+    # the header. Walk up to ~40 rows; stop when we hit a long run of
+    # empty category cells (end of the block).
+    result: Dict[str, float] = {}
+    blank_streak = 0
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i <= header_row_idx + 1:
+            continue
+        if i > header_row_idx + 45:
+            break
+        label = row[label_col_idx] if len(row) > label_col_idx else None
+        dio = row[dio_col_idx] if len(row) > dio_col_idx else None
+        if label is None or str(label).strip() == "":
+            blank_streak += 1
+            if blank_streak > 5:
+                break
+            continue
+        blank_streak = 0
+        if not isinstance(dio, (int, float)) or dio <= 0:
+            continue
+        # Skip subtotal/total rollups — we want LEAF categories so the
+        # downstream SKU join finds a match. "TOTAL", "DIVERSE",
+        # "PESTE" are the rollup labels; "CATEGORY" + "PESTE / CATEGORY"
+        # are phantom header artifacts that surface when openpyxl reads
+        # merged cells in the Analysis sheet (the visible label is the
+        # rollup name like "DIVERSE", but the underlying cell value is
+        # the column header "Category").
+        norm = _normalize_category(str(label))
+        if (
+            norm in {"TOTAL", "DIVERSE", "PESTE", "CATEGORY"}
+            or "CATEGORY" in norm
+        ):
+            continue
+        result[norm] = float(dio)
+    return result
+
+
+def extract_category_dio(xlsx_bytes: bytes) -> Dict[str, float]:
+    """Read the standalone "DIO" sheet and return {category_normalised:
+    days} from REGION 2 (the per-category DIO breakdown).
+
+    Source-file shape: REGION 2 sits below REGION 1 (category inventory
+    snapshot) and follows the pattern: column A empty, column B holds
+    the category name (string), column D holds DIO days (number).
+    Empty / header rows simply don't match the pattern and get skipped.
+
+    Returns {} when no "DIO" sheet exists OR no rows match — that's
+    the graceful-missing path; downstream `aggregate_sku_lines` falls
+    back to (a) per-SKU explicit DIO column, (b) inventory_value ÷
+    cogs × 365 computation, (c) None.
+
+    PREFERENCE ORDER (set in the pipeline orchestrator, not here):
+      1. Analysis sheet operator-set DIO (cols 60-63 typically) —
+         realistic targets the analyst chose (e.g. LEGUME=60).
+      2. DIO sheet REGION 2 — computed actuals (e.g. LEGUME=73.5,
+         JELEURI=1001.7) that can be extreme outliers. Used as a
+         fallback when the Analysis sheet doesn't carry a value.
+    """
+    try:
+        wb = load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
+    except Exception:
+        return {}
+    if "DIO" not in wb.sheetnames:
+        # Case-insensitive search for a sheet named DIO with any whitespace.
+        target = next((s for s in wb.sheetnames if s.strip().upper() == "DIO"), None)
+        if not target:
+            return {}
+        ws = wb[target]
+    else:
+        ws = wb["DIO"]
+
+    result: Dict[str, float] = {}
+    for row in ws.iter_rows(values_only=True):
+        # Need at least 4 columns to inspect (A, B, C, D).
+        if not row or len(row) < 4:
+            continue
+        col_a, col_b, _col_c, col_d = row[0], row[1], row[2], row[3]
+        # REGION 2 row signature: col A empty, col B is a non-empty
+        # string category, col D is a positive number.
+        if col_a is None and isinstance(col_b, str) and isinstance(col_d, (int, float)):
+            if col_d <= 0:
+                continue
+            cat = _normalize_category(col_b)
+            if not cat:
+                continue
+            # When the same category appears more than once in the sheet,
+            # the LAST occurrence wins (matches the analyst's "most
+            # recent" calculation; REGION 2 is below REGION 1, so this
+            # naturally picks the computed-DIO not the inventory row).
+            result[cat] = float(col_d)
+    return result
 
 
 def _match_synonym(header: str, patterns: List[str]) -> bool:
@@ -280,6 +475,12 @@ class _Agg:
     cogs_krn: Optional[float] = None
     inventory_lines_with_data: int = 0
     cogs_lines_with_data: int = 0
+    # Pre-computed DIO from the source workbook (when a "DIO days"
+    # column exists). When the column is present we average it across
+    # the lines for this SKU; when absent we leave it None and fall
+    # back to computing DIO from inventory_krn / cogs_krn below.
+    dio_explicit_sum: float = 0.0
+    dio_explicit_count: int = 0
     line_row_count: int = 0
     channels: set = None  # type: ignore[assignment]
     clients: set = None  # type: ignore[assignment]
@@ -291,20 +492,30 @@ class _Agg:
             self.clients = set()
 
 
-def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def aggregate_sku_lines(
+    lines: List[Dict[str, Any]],
+    category_dio: Optional[Dict[str, float]] = None,
+) -> List[Dict[str, Any]]:
     """Roll lines up to one row per product_name. Returns list of dicts
     ready for insertion into sku_aggregates (without dataset_id / org_id —
     the caller stamps those).
 
-    DIO (Days Inventory Outstanding) is emitted ONLY when BOTH inventory
-    value and COGS are present and COGS > 0. When either is missing the
-    output dict gets `inventory_value_krn = None` and
-    `days_inventory_on_hand = None` — the FE renders these as an
-    explicit "not available — inventory/COGS not provided" rather than
-    as 0 (which would dishonestly read as "perfect inventory turnover").
-    Per the no-fabrication rule, an absent DIO is always better than a
-    falsely-good one.
+    DIO resolution order (first non-null wins):
+      1. Pre-computed per-SKU "DIO days" column in the source line rows
+      2. inventory_value ÷ cogs × 365 when both are present
+      3. Category-level DIO from the standalone "DIO" sheet
+         (`category_dio` dict). Matches sku.category (normalised) with
+         a " FILE" suffix-strip fallback so "MACROU FILE" picks up
+         "MACROU" when no exact match exists.
+      4. None — rendered as "not available" in the UI, NEVER 0.
+
+    The category fallback (3) lets the engine populate DIO for every SKU
+    in a workbook whose analyst only provided the per-category DIO sheet
+    (no per-SKU inventory_value/COGS columns). All SKUs in the same
+    category inherit the category DIO — that's by design and matches
+    how the source analyst computed it.
     """
+    cat_dio_map = category_dio or {}
     bucket: Dict[str, _Agg] = {}
     for line in lines:
         name = (line.get("product_name") or "").strip()
@@ -335,6 +546,17 @@ def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 agg.cogs_lines_with_data += 1
             except (TypeError, ValueError):
                 pass
+        # Explicit DIO (when the source workbook ships pre-computed days).
+        # Accumulate the sum + count so we can take the mean per SKU at
+        # emit time. Negatives and zeros are kept (a SKU that genuinely
+        # sells out instantly should read 0, not be silently dropped).
+        dio_explicit = line.get("dio_days")
+        if dio_explicit is not None:
+            try:
+                agg.dio_explicit_sum += float(dio_explicit)
+                agg.dio_explicit_count += 1
+            except (TypeError, ValueError):
+                pass
         agg.line_row_count += 1
         ch = line.get("channel")
         if ch:
@@ -350,11 +572,25 @@ def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for a in bucket.values():
         gm_pct = (a.gm_krn / a.niv_krn) if a.niv_krn else 0.0
-        # DIO = (Inventory ÷ COGS) × 365 — only when BOTH inputs are
-        # concretely non-null AND COGS > 0. Anything else stays None
-        # (graceful-missing rule).
+        # DIO resolution order:
+        #   1. Pre-computed DIO column in the source workbook ("DIO" /
+        #      "DIO days" / "Days inventory outstanding" etc.) — when
+        #      present, we average it across the lines for this SKU
+        #      (some workbooks repeat the same DIO on every line, some
+        #      vary it per period; the mean is the honest summary).
+        #   2. Computed DIO = (Inventory ÷ COGS) × 365 — fallback for
+        #      workbooks that ship only the raw inputs.
+        #   3. None — both paths absent, rendered as "not available".
+        # Order matters: an explicit DIO column reflects operator
+        # judgement (e.g. seasonal adjustment, period basis) that the
+        # naive (inv ÷ cogs × 365) computation can't reproduce.
         dio: Optional[float] = None
-        if (
+        if a.dio_explicit_count > 0:
+            try:
+                dio = round(a.dio_explicit_sum / a.dio_explicit_count, 2)
+            except (TypeError, ValueError, ZeroDivisionError):
+                dio = None
+        elif (
             a.inventory_krn is not None
             and a.cogs_krn is not None
             and a.cogs_krn > 0
@@ -363,6 +599,19 @@ def aggregate_sku_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 dio = round((a.inventory_krn / a.cogs_krn) * 365.0, 2)
             except (TypeError, ValueError, ZeroDivisionError):
                 dio = None
+        # Step 3 fallback: category-level DIO from the standalone "DIO"
+        # sheet. Try the SKU's category as-is; if no match, strip a
+        # trailing " FILE" (Romanian for fillet — same product family,
+        # e.g. "MACROU FILE" inherits "MACROU"'s DIO). Last resort the
+        # SKU stays at None (not 0) per the no-fabrication rule.
+        if dio is None and cat_dio_map:
+            cat = _normalize_category(a.category or "")
+            if cat and cat in cat_dio_map:
+                dio = round(cat_dio_map[cat], 2)
+            elif cat:
+                base = re.sub(r"\s+FILE$", "", cat).strip()
+                if base and base in cat_dio_map:
+                    dio = round(cat_dio_map[base], 2)
         rows.append({
             "product_name": a.product_name,
             "brand": a.brand,

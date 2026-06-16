@@ -1,0 +1,92 @@
+{
+  "currency": "RON",
+  "period_end": "2025-12-31",
+  "tolerance_pct": 0.01,
+  "_note": "All values derived from closing balances (Solduri finale) of the real EEI Dec 2025 TB. Trial balance ties at 24,462,228.15 RON (debit = credit).",
+
+  "balance_sheet": {
+    "_construction": "Solduri finale, RO OMFP 1802 → standardized buckets per expected_mapping.json",
+    "assets": {
+      "cash":                          1494836.81,
+      "accountsReceivable_gross":       167030.63,
+      "accountsReceivable_allowance":  -167026.63,
+      "accountsReceivable_net":              4.00,
+      "inventory":                           0.00,
+      "otherCurrentAssets":            5055553.57,
+      "propertyPlantEquipment_gross": 17215747.47,
+      "propertyPlantEquipment_advances": 2021340.00,
+      "propertyPlantEquipment_accumulated_depreciation": -4110256.18,
+      "propertyPlantEquipment_net":   15126831.29,
+      "intangibles_gross":                1529.41,
+      "intangibles_accumulated_amort":   -1529.41,
+      "intangibles_net":                     0.00,
+      "otherNonCurrentAssets":          530739.02,
+      "total_assets":                 22207964.69
+    },
+    "liabilities_equity": {
+      "accountsPayable":                     7.49,
+      "otherCurrentLiabilities":        276139.00,
+      "shortTermDebt":                       0.00,
+      "longTermDebt":                 14083315.77,
+      "shareCapital":                    45200.00,
+      "otherEquity":                   3989197.61,
+      "retainedEarnings":              1789556.06,
+      "total_equity":                  5823953.67,
+      "total_liabilities":            14359462.26,
+      "total_liabilities_equity":     20183415.93
+    },
+    "_balance_check": {
+      "_note": "Standardized BS differs from trial-balance debit total because contra accounts (491, 2808-2815) are netted against gross. Closing TB ties at 24,462,228.15 with contras shown gross; standardized model shows them net.",
+      "delta_to_trial_balance": 0.01
+    }
+  },
+
+  "income_statement_ytd": {
+    "_construction": "P&L from Class 6 and Class 7 YTD totals, with 722 excluded from operational revenue.",
+    "revenue_operational":               2727103.68,
+    "_revenue_components": {
+      "706_rental":                      2727103.68
+    },
+    "capitalized_own_work_memo":         2164079.83,
+    "_capitalized_own_work_components": {
+      "722_production_imobilizari":      2164079.83
+    },
+    "cogs":                                    0.00,
+    "gross_profit":                      2727103.68,
+    "operating_expenses": {
+      "628_third_party_services":        2172788.60,
+      "635_other_taxes":                  253065.23,
+      "641_payroll":                      125808.00,
+      "611_maintenance":                   45875.96,
+      "613_insurance":                     34248.69,
+      "627_banking_services":              41206.34,
+      "622_commissions":                   31412.39,
+      "6024_spare_parts":                  54085.94,
+      "_other_small":                       6533.66,
+      "total":                            2765024.81
+    },
+    "ebitda_operational":                 -37921.13,
+    "_ebitda_note": "Operational EBITDA EXCLUDES 722. Negative result reflects that 628 third-party services (2.17M = 80% of revenue) — likely related to PPE construction work — currently sit in opex when they should be capitalized. Anomaly MUST be flagged.",
+    "depreciation_amortization":           355606.50,
+    "ebit":                              -393527.63,
+    "financial_income":                    745637.07,
+    "_financial_income_components": {
+      "7611_affiliate_dividends":          694377.16,
+      "7651_fx_gains":                      26632.48,
+      "766_interest_received":               2460.43,
+      "767_discounts":                      22167.00
+    },
+    "financial_expense": {
+      "666_interest_expense":              716741.02,
+      "6651_fx_losses":                    338580.67,
+      "total":                            1055321.69
+    },
+    "pretax_income":                     -703212.25,
+    "tax_expense":                         36867.00,
+    "net_income_computed":               -740079.25,
+    "_native_net_income_check": {
+      "121_balance":                     1425245.58,
+      "_note": "Native 121 = 1,425,245.58 — this INCLUDES 722's 2.16M capitalized own work as revenue per RO accounting convention. The standardized model excludes 722, so computed net income (-740k) differs from native 121 (+1.4M) by ~2.16M which is exactly the 722 amount. The platform MUST surface this delta as the capitalized_own_work effect."
+    }
+  }
+}

@@ -1,0 +1,435 @@
+{
+  "_meta": {
+    "fixture": "scandia_retail_fy2025",
+    "company": "Scandia Retail SRL",
+    "captured_from": "F3.7h \u2014 first-time registration; extended 20-col XLSX (multi-store retail with affiliate income); toolkit HTML truth shows own BS gap 1.92%",
+    "engine_module": "/host_repo/src/engine/country_packs/ro_romania/chart_of_accounts.py",
+    "engine_version": "post-F3.7d (sub-step 4 \u2014 extended-layout fixtures registered with data-quality per-fixture thresholds)",
+    "account_count": 398,
+    "source_file": "scandia_retail_tb_2025.xlsx",
+    "industry_target": "retail_grocery",
+    "bs_drift_pct": 1.988,
+    "fa31_verdict": "GREEN_EXTENDED_RELAXED"
+  },
+  "assembled": {
+    "statements": {
+      "companyName": "Scandia Retail SRL",
+      "industry": null,
+      "currency": "RON",
+      "periodLabel": "X",
+      "balanceSheet": {
+        "cash": 997045.82,
+        "accountsReceivable": 254961.33,
+        "inventory": 6795205.57,
+        "otherCurrentAssets": 518360.86,
+        "propertyPlantEquipment": 2448863.0,
+        "intangibles": 108768.52,
+        "otherNonCurrentAssets": 57588647.56,
+        "accountsPayable": 6455119.8,
+        "shortTermDebt": 0.0,
+        "otherCurrentLiabilities": 10539512.43,
+        "longTermDebt": 27859009.64,
+        "otherNonCurrentLiabilities": 0.0,
+        "shareCapital": 6631600.0,
+        "retainedEarnings": 16980246.29,
+        "otherEquity": 1612330.31
+      },
+      "incomeStatement": {
+        "revenue": 79510264.65,
+        "costOfGoodsSold": 63376621.45,
+        "operatingExpenses": 15372742.74,
+        "depreciationAmortization": 1476837.65,
+        "interestExpense": 2421110.34,
+        "otherIncome": 323847.78,
+        "financialIncome": 5476851.49,
+        "financialExpense": 671267.28,
+        "taxExpense": 0.0,
+        "capitalizedOwnWork": 0.0,
+        "inventoryVariationMemo": 0.0
+      },
+      "subAggregates": {
+        "ppe_under_construction": 2487.8,
+        "retained_earnings": 13775033.67,
+        "ar_doubtful": 521628.39,
+        "fx_loss": 671267.28,
+        "ar_provisions": 0.0,
+        "ppe_investment": 0.0,
+        "fx_gain": 0.0,
+        "ar_intercompany": 90140.24,
+        "ap_dividends": 0.0,
+        "equity_revaluation": 124042.72,
+        "financial_income": 5453923.78,
+        "opex_third_party": 703258.2,
+        "interest_expense": 2421110.34,
+        "cash_fx": 10290.45,
+        "interest_income": 22927.71,
+        "ppe_advances": 0.0,
+        "current_year_pnl": 3205212.62
+      },
+      "assembled_bs": {
+        "cash": 997045.82,
+        "cash_fx_component": 10290.45,
+        "ar_net": 254961.33,
+        "ar_doubtful_gross": 521628.39,
+        "ar_provisions": 0.0,
+        "ar_intercompany": 90140.24,
+        "ar_other": 428220.62,
+        "ppe_net": 2448863.0,
+        "ppe_investment_net": 0.0,
+        "ppe_under_construction": 2487.8,
+        "ppe_advances": 0.0,
+        "intangibles_net": 108768.52,
+        "investments": 57588647.56,
+        "ap": 6455119.8,
+        "ap_dividends": 0.0,
+        "ap_other": 10539512.43,
+        "lt_debt": 27859009.64,
+        "st_debt": 0.0,
+        "total_debt": 27859009.64,
+        "share_capital": 6631600.0,
+        "revaluation_reserves": 124042.72,
+        "retained_earnings": 13775033.67,
+        "other_equity_non_revaluation": 1488287.59,
+        "current_year_pnl": 3205212.62,
+        "total_assets": 68711852.66,
+        "total_equity": 25224176.6,
+        "total_liabilities": 44853641.87,
+        "bs_balance_delta": -1365965.81,
+        "accounts_receivable": 254961.33,
+        "inventory": 6795205.57,
+        "other_current_assets": 518360.86,
+        "property_plant_equipment": 2448863.0,
+        "intangibles": 108768.52,
+        "other_non_current_assets": 57588647.56,
+        "accounts_payable": 6455119.8,
+        "short_term_debt": 0.0,
+        "other_current_liabilities": 10539512.43,
+        "long_term_debt": 27859009.64,
+        "other_non_current_liabilities": 0.0,
+        "other_equity": 1612330.31,
+        "total_current_assets": 8565573.58,
+        "total_non_current_assets": 60146279.08,
+        "total_current_liabilities": 16994632.23,
+        "total_non_current_liabilities": 27859009.64
+      },
+      "assembled_pl": {
+        "revenue": 79510264.65,
+        "cogs": 63376621.45,
+        "gross_profit": 16133643.2,
+        "opex_total": 15372742.74,
+        "opex_third_party": 703258.2,
+        "depreciation": 1476837.65,
+        "ebitda": 1084748.24,
+        "ebit": -392089.41,
+        "ebitda_operational": 1084748.24,
+        "ebitda_statutory": 1084748.24,
+        "ebitda_operating_view": 1086672.02,
+        "ebitda_adjusted": 6538672.02,
+        "discounts_received": 1923.78,
+        "total_operating_revenue": 79512188.43,
+        "total_operating_revenue_statutory": 79512188.43,
+        "operating_ebitda": 1086672.02,
+        "operating_ebit": -390165.63,
+        "ebitda_cash": 1084748.24,
+        "ebitda_statutory_with_711": 1084748.24,
+        "inventory_variation_memo": 0.0,
+        "interest_expense": 2421110.34,
+        "interest_income": 22927.71,
+        "fx_gain": 0.0,
+        "fx_loss": 671267.28,
+        "financial_income_other": 5453923.78,
+        "financial_income": 5476851.49,
+        "financial_expense": 671267.28,
+        "pretax": 1992384.46,
+        "tax": 0.0,
+        "net_income_operational": 1992384.46,
+        "net_income_statutory": 3205212.62,
+        "capitalized_own_work_memo": 0.0,
+        "cost_of_goods_sold": 63376621.45,
+        "income_tax": 0.0,
+        "total_operating_expense": 80226201.84,
+        "opex_excluding_cogs_and_da": 15372742.74,
+        "other_income_758": 245913.17,
+        "other_income_781_reversals": 77934.61,
+        "core_ebitda": 760900.46,
+        "net_financial_result": 2384473.87,
+        "financial_expense_total": 3092377.62,
+        "free_cash_flow_proxy": 4682050.27
+      },
+      "assembled_cf": {
+        "net_profit": 3205212.62,
+        "depreciation": 1476837.65,
+        "provision_movement": 194308.67,
+        "cf_before_wc": 4876358.94,
+        "delta_receivables": -12748.07,
+        "delta_inventory": -339760.28,
+        "delta_trade_pay": 322755.99,
+        "delta_tax_pay": 21079.02,
+        "net_wc_change": -8673.33,
+        "cash_from_operating": 4867685.61,
+        "capex_real": -0.0,
+        "capex_other_approx": -122443.15,
+        "cip_change": -1243.9,
+        "affiliate_change": -0.0,
+        "dividends_received": 5453923.78,
+        "interest_received": 22927.71,
+        "capitalized_construction": -0.0,
+        "cash_used_in_investing": 5353164.44,
+        "delta_lt_debt": -2785900.96,
+        "delta_st_bank": 0.0,
+        "bank_loan_drawdowns": 0.0,
+        "bank_loan_repayments": -2785900.96,
+        "interest_paid": -2421110.34,
+        "dividends_paid": -1602606.31,
+        "cash_used_in_financing": -6809617.61,
+        "net_change_in_cash": 3411232.44,
+        "closing_cash_actual": 997045.82,
+        "free_cash_flow": 4867685.61,
+        "is_approximated": true,
+        "approximation_notes": [
+          "Working-capital movements estimated at 5% of current balances; actual \u0394AR / \u0394Inventory / \u0394AP cannot be computed without a prior-period trial balance.",
+          "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS."
+        ],
+        "dividends_declared_but_unpaid": false,
+        "cash_from_investing": 5353164.44,
+        "cash_from_financing": -6809617.61,
+        "capex_total": -122443.15,
+        "working_capital_change": -8673.33
+      },
+      "assembled_bands": {
+        "bands": {
+          "current_ratio": {
+            "strong": 2.0,
+            "healthy": 1.5,
+            "watch": 1.0,
+            "direction": "higher"
+          },
+          "quick_ratio": {
+            "strong": 1.5,
+            "healthy": 1.0,
+            "watch": 0.7,
+            "direction": "higher"
+          },
+          "cash_ratio": {
+            "strong": 0.5,
+            "healthy": 0.2,
+            "watch": 0.1,
+            "direction": "higher"
+          },
+          "debt_to_ebitda": {
+            "strong": 2.0,
+            "healthy": 3.0,
+            "watch": 4.5,
+            "direction": "lower"
+          },
+          "net_debt_to_ebitda": {
+            "strong": 1.5,
+            "healthy": 3.0,
+            "watch": 4.5,
+            "direction": "lower"
+          },
+          "debt_to_equity": {
+            "strong": 0.5,
+            "healthy": 1.0,
+            "watch": 2.0,
+            "direction": "lower"
+          },
+          "lt_debt_to_equity": {
+            "strong": 0.3,
+            "healthy": 0.6,
+            "watch": 1.2,
+            "direction": "lower"
+          },
+          "equity_ratio": {
+            "strong": 0.5,
+            "healthy": 0.3,
+            "watch": 0.15,
+            "direction": "higher"
+          },
+          "debt_to_assets": {
+            "strong": 0.3,
+            "healthy": 0.5,
+            "watch": 0.65,
+            "direction": "lower"
+          },
+          "interest_coverage": {
+            "strong": 6.0,
+            "healthy": 3.0,
+            "watch": 1.5,
+            "direction": "higher"
+          },
+          "ebitda_to_interest": {
+            "strong": 8.0,
+            "healthy": 4.0,
+            "watch": 2.0,
+            "direction": "higher"
+          },
+          "dscr": {
+            "strong": 1.5,
+            "healthy": 1.25,
+            "watch": 1.0,
+            "direction": "higher"
+          },
+          "dscr_with_lt_principal": {
+            "strong": 1.5,
+            "healthy": 1.25,
+            "watch": 1.0,
+            "direction": "higher"
+          },
+          "gross_margin": {
+            "strong": 0.4,
+            "healthy": 0.25,
+            "watch": 0.15,
+            "direction": "higher"
+          },
+          "ebitda_margin": {
+            "strong": 0.25,
+            "healthy": 0.15,
+            "watch": 0.08,
+            "direction": "higher"
+          },
+          "operating_margin": {
+            "strong": 0.2,
+            "healthy": 0.1,
+            "watch": 0.04,
+            "direction": "higher"
+          },
+          "core_ebitda_margin": {
+            "strong": 0.25,
+            "healthy": 0.15,
+            "watch": 0.08,
+            "direction": "higher"
+          },
+          "net_margin": {
+            "strong": 0.15,
+            "healthy": 0.08,
+            "watch": 0.03,
+            "direction": "higher"
+          },
+          "roa": {
+            "strong": 0.1,
+            "healthy": 0.05,
+            "watch": 0.02,
+            "direction": "higher"
+          },
+          "roe": {
+            "strong": 0.2,
+            "healthy": 0.12,
+            "watch": 0.06,
+            "direction": "higher"
+          },
+          "roic": {
+            "strong": 0.15,
+            "healthy": 0.1,
+            "watch": 0.05,
+            "direction": "higher"
+          },
+          "dso": {
+            "strong": 30,
+            "healthy": 45,
+            "watch": 75,
+            "direction": "lower"
+          },
+          "dio": {
+            "strong": 30,
+            "healthy": 60,
+            "watch": 100,
+            "direction": "lower"
+          },
+          "dpo": {
+            "strong": 60,
+            "healthy": 45,
+            "watch": 30,
+            "direction": "higher"
+          },
+          "ccc": {
+            "strong": 30,
+            "healthy": 60,
+            "watch": 90,
+            "direction": "lower"
+          },
+          "asset_turnover": {
+            "strong": 1.5,
+            "healthy": 1.0,
+            "watch": 0.5,
+            "direction": "higher"
+          },
+          "inventory_turnover": {
+            "strong": 12,
+            "healthy": 6,
+            "watch": 3,
+            "direction": "higher"
+          }
+        },
+        "source": "general_sme_fallback",
+        "industry_resolved": null,
+        "disclosure": "Verdict bands are general-SME defaults \u2014 not calibrated to the resolved industry's seeded distribution. Industry-specific bands activate when the period's resolved CAEN has matching rows in industry_benchmarks; that wiring is scheduled for a follow-up engine pass."
+      },
+      "assembled_piotroski": {
+        "score": 4,
+        "score_max": 9,
+        "has_prior_period": false,
+        "checks": [
+          {
+            "key": "ni_positive",
+            "label": "Net income positive",
+            "result": "pass",
+            "detail": "3,205,213 RON"
+          },
+          {
+            "key": "roa_positive",
+            "label": "ROA positive",
+            "result": "pass",
+            "detail": "4.66% on 68,711,853 RON total assets"
+          },
+          {
+            "key": "cfo_positive",
+            "label": "Cash from operating positive",
+            "result": "pass",
+            "detail": "4,867,686 RON"
+          },
+          {
+            "key": "cfo_gt_ni",
+            "label": "CFO greater than net income (earnings quality)",
+            "result": "pass",
+            "detail": "CFO 4,867,686 > NI 3,205,213"
+          },
+          {
+            "key": "roa_improving",
+            "label": "ROA improving year-over-year",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "debt_declining",
+            "label": "Long-term debt declining",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "no_share_issuance",
+            "label": "No share issuance",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "margin_improving",
+            "label": "Operating margin improving",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          },
+          {
+            "key": "asset_turnover_improving",
+            "label": "Asset turnover improving",
+            "result": "uncertain",
+            "detail": "Prior-period data unavailable for YoY comparison."
+          }
+        ],
+        "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally."
+      },
+      "supplementary": {
+        "periodDays": 365
+      }
+    }
+  }
+}

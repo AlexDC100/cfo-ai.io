@@ -93,7 +93,7 @@ export function CommandDrawer({
         side="right"
         className="
           w-[calc(100vw-24px)] sm:w-[420px] sm:max-w-[420px]
-          p-0 m-3 h-[calc(100vh-24px)]
+          p-0 m-3 h-[calc(100dvh-24px)]
           rounded-3xl
           bg-surface dark:bg-bg-2
           border border-rule-strong

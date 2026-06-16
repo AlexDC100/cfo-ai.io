@@ -93,18 +93,18 @@ longivity.io, www.longivity.io {
     }
 }
 
-# ─── CFO AI (cfo-ai.finance) — added 2026-05-18, additive.
-# Reverse-proxies to the cfo-ai-frontend / cfo-ai-backend containers
-# in /opt/cfo-ai/docker-compose.yml (joined to scandia_default via
-# external network — see that compose). Routing matches the scandia
-# block: /api/* + /health → backend, everything else → frontend.
+# ─── CFO AI on cfo-ai.io (PRIMARY domain, 2026-05-24) ────────────────
+# Reverse-proxies to the cfo-ai-frontend / cfo-ai-backend containers in
+# /opt/cfo-ai/docker-compose.yml (joined to scandia_default via external
+# network — see that compose). Routing matches the scandia block: /api/*
+# + /health → backend, everything else → frontend.
 #
-# Long timeouts on the API path because Ask CFO AI streams Anthropic
-# SSE responses; flush_interval -1 keeps tokens unbuffered.
+# Long timeouts on the API path because Ask CFO AI streams Anthropic SSE
+# responses; flush_interval -1 keeps tokens unbuffered.
 #
-# www.cfo-ai.finance is a CNAME to the apex (set in Hostinger DNS);
-# Caddy auto-issues a Let's Encrypt cert for both on first HTTPS hit.
-cfo-ai.finance, www.cfo-ai.finance {
+# www.cfo-ai.io is a CNAME to the apex (set in DNS provider); Caddy
+# auto-issues a Let's Encrypt cert for both on first HTTPS hit.
+cfo-ai.io, www.cfo-ai.io {
     encode gzip zstd
 
     @api path /api/* /health
@@ -129,12 +129,12 @@ cfo-ai.finance, www.cfo-ai.finance {
     }
 }
 
-# ─── CFO AI API subdomain (api.cfo-ai.finance) — additive.
-# Optional split-origin entry point. The CFO AI frontend uses relative
-# /api URLs and DOES NOT need this; it's here only so external scripts /
-# webhooks / Stripe can hit a clean `api.` host. Same backend, no
-# frontend handler. DNS A record exists (added 2026-05-18).
-api.cfo-ai.finance {
+# ─── CFO AI API subdomain (api.cfo-ai.io) — split-origin entry point.
+# The frontend uses VITE_API_URL=https://api.cfo-ai.io so the browser
+# bundle calls a clean `api.` host (no relative-URL routing surprises in
+# CORS preflights, webhook callbacks, Stripe, etc.). Same backend as the
+# apex; no frontend handler. DNS A record api → 187.124.0.37 in place.
+api.cfo-ai.io {
     encode gzip zstd
     reverse_proxy cfo-ai-backend:8000 {
         flush_interval -1
@@ -144,4 +144,23 @@ api.cfo-ai.finance {
             write_timeout 600s
         }
     }
+}
+
+# ─── Legacy cfo-ai.finance → 301 redirect to cfo-ai.io (2026-05-24) ──
+# Migration preservation: the old domain 301-redirects to the new one
+# with path + query preserved ({uri} includes both). KEEP THIS BLOCK
+# ACTIVE FOR AT LEAST 12 MONTHS to preserve SEO link equity, bookmarks,
+# shared links, and any integration that still references the old host.
+#
+# Sunset eligibility: 2027-05-24 minimum. Even then, prefer keeping the
+# redirect indefinitely — domain registration is cheap and removing the
+# redirect after years of crawled 301s breaks every external backlink.
+#
+# DNS for cfo-ai.finance must keep pointing here while this block exists;
+# if DNS lapses, the redirect silently disappears and old links 404.
+#
+# Apex + www + api subdomain all redirect to the new apex (api callers
+# get the redirect too — they should update VITE_API_URL on their end).
+cfo-ai.finance, www.cfo-ai.finance, api.cfo-ai.finance {
+    redir https://cfo-ai.io{uri} permanent
 }

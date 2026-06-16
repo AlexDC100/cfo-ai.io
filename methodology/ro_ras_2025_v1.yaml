@@ -1,0 +1,380 @@
+# Romanian RAS methodology, fiscal year 2024-2025, OMFP 1802.
+# =============================================================================
+# First methodology file. Doubles as the format spec for all future
+# methodology files. Read CANONICAL_SCHEMA_V1.md §6 for the design.
+#
+# Every formula references CANONICAL bucket names (from
+# src/engine/canonical/schema_v1.py). Bucket lookups resolve against the
+# canonical envelope's `leaves` (per-bucket magnitudes, always-positive
+# under §3b) and `aggregates` (parent-roll-up `.net` field).
+#
+# Formula syntax:
+#   - `bucket_name`              — leaf magnitude (always positive)
+#   - `aggregate_name.net`       — parent aggregate net sum
+#   - `+ - * /`                  — basic arithmetic, unary minus, parens
+#   - `view.<name>`              — reference to another named view (EBITDA
+#                                  variant or ratio computed earlier)
+#   - `?bucket_name`             — optional bucket; resolves to 0 if absent
+#                                  (use for memo lines / sparse data)
+#
+# Parallel migration discipline (3e):
+#   - These views are EMITTED ALONGSIDE the legacy in-code EBITDA fields
+#     in chart_of_accounts.py (lines ~1378-1480). Both stay live until
+#     the 2-quarter deprecation horizon elapses (~Nov 2026).
+#   - The F4.2-PARITY gate checks YAML-derived values match in-code
+#     values within 1 RON (rounding tolerance only). If they diverge,
+#     the methodology bug breaks deploy, not silently miscomputes.
+# =============================================================================
+
+methodology_id: ro_ras_2025_v1
+applies_to:
+  countries: [RO]
+  standards: [ras_omfp_1802]
+  fiscal_year_range: ["2024-01-01", "2025-12-31"]
+schema_version: canonical_v1.0.0
+methodology_version: "1.0.0"
+created_at: "2026-05-23"
+authors: ["alex_cretin"]
+
+# ─── EBITDA family ────────────────────────────────────────────────────────
+# Four named views. `reported` is the headline; the other three derive
+# from it via base+subtract+add composition for transparency.
+#
+# Important: capitalized_own_work_memo (722) and inventory_variation_memo
+# (711) are RAS-specific MEMO buckets; IFRS books them inside COGS. The
+# Romanian convention adds 722 BACK to the operating revenue side (it's
+# revenue earned by capitalizing internal labor), and nets 711 against
+# COGS (production stocked minus consumed). These two adjustments
+# produce the divergence between RAS statutory and IFRS / cash views.
+
+ebitda_variants:
+
+  reported:
+    description: >
+      Headline EBITDA as filed under RAS statutory reporting. Includes
+      722 capitalized own-work (per Romanian convention), 758 other
+      operating income, and 781 provision reversals (credit operating
+      adjustments). Excludes 711 inventory variation (memo-only;
+      already net-zero in the COGS aggregate). Lender covenants
+      typically reference this number — matches in-code
+      `ebitda_statutory` field on assembled_pl within 1 RON.
+    formula: >
+      revenue_gross.net
+      + other_op_income.net
+      + ?capitalized_own_work_memo
+      + ?provision_reversals
+      - cogs.net
+      - opex_general.net
+      - personnel_total.net
+    excludes_by_convention: [dap.net, financial_income.net, financial_expense.net, income_tax.net, inventory_variation_memo]
+    note: >
+      781 provision reversals lives in canonical `dap` aggregate with
+      EXPENSE_NEGATIVE sign_meaning, but is added back to reported
+      EBITDA because it's a credit (income), not a depreciation charge.
+      D&A as a whole is excluded by convention.
+
+  strict:
+    description: >
+      Reported EBITDA stripped of all other-operating-income lump and
+      provision reversals. Per F3.16-3b.6 Phase 2 decision (2026-05-26):
+      the YAML subtracts the FULL other_op_income aggregate
+      (recurring + one-off + grants + disposal) plus 781 reversals,
+      mirroring the in-code adjusted_ebitda's broader scan across the
+      74/75/77 prefix family. PE diligence teams and lenders anchor to
+      this view.
+    base: reported
+    subtract:
+      - ?other_op_income.net
+      - ?provision_reversals
+    add: []
+    note: >
+      Granular sub-bucket subtracts (one_off / grants / disposal_ppe /
+      fx_gain_unrealized) were the original 3b.6 plan's prediction but
+      were empirically wrong — the canonical adapter routes 758 to
+      other_operating_income_recurring (not one_off), and 7418-style
+      grants land under 74-catchall rather than 740 prefix. Lumping at
+      the aggregate level captures all of them. See
+      [F3.16-3b6-FOLLOWUP-VARIANT-PARITY] in
+      docs/SAGA-CALIBRATION-2026Q2.md §9 + Phase 1 analysis in
+      docs/F3.16-3b6-variant-analysis.md.
+
+  cash:
+    description: >
+      EBITDA measured on a cash basis — strips capitalized own-work
+      (722) which is the only non-cash item already inside `reported`.
+      Per F3.16-3b.6 Phase 2 decision (2026-05-26): the in-code
+      ebitda_cash = bare operating EBITDA (excludes 722; does NOT
+      subtract 711 because 711 is already net-zero in COGS via the
+      production-variation wash). The YAML matches.
+    base: reported
+    subtract:
+      - ?capitalized_own_work_memo
+    add: []
+    note: >
+      Pre-3b.6-A YAML also subtracted 711 (inventory variation memo)
+      and 781 (provision reversals) and 765 (fx_gain_unrealized), and
+      added back 6812 (provision_charges) / 6651 (fx_loss_unrealized)
+      / 654 (impairment_receivables). Empirical Phase 1 probe showed
+      this produced 100-1571 % divergence vs in-code (chiefly via the
+      711 double-strip on inventory-heavy fixtures — 192M on Agras,
+      83M on Frozen). Phase 2 chose Candidate B (in-code is right);
+      YAML now matches the in-code's "bare EBITDA + capitalized strip"
+      view. See [F3.16-3b6-FOLLOWUP-VARIANT-PARITY].
+
+  adjusted:
+    description: >
+      Strict EBITDA + operator-curated add-backs (owner compensation
+      normalization, related-party rent adjustments, non-recurring legal
+      costs, etc.). The per-period add-back list is stored on the
+      financial_period row (`adjusted_ebitda_addbacks` jsonb); this
+      formula sums them in when present.
+    base: strict
+    add: ["?operator_addbacks"]
+    note: >
+      Default add-back list empty; operator populates per-deal via the
+      "Adjustments" panel. Every add-back row carries justification +
+      timestamp for audit trail.
+
+# ─── Working totals (used by ratios; cached after EBITDA pass) ────────────
+totals:
+  revenue_net:
+    formula: revenue_gross.net
+    note: "Top-line revenue net of commercial reductions (709 already nets here)."
+
+  gross_profit:
+    formula: revenue_gross.net - cogs.net
+    note: "Revenue net minus direct cost of goods/services sold."
+
+  operating_profit_reported:
+    formula: ebitda.reported - dap.net
+    note: "EBIT view of reported EBITDA (D&A subtracted)."
+
+  net_debt:
+    formula: >
+      financial_liabilities_lt.net
+      + financial_liabilities_st.net
+      - cash_and_equivalents.net
+    note: "Total interest-bearing debt minus cash + equivalents."
+
+  total_debt:
+    formula: financial_liabilities_lt.net + financial_liabilities_st.net
+
+  current_assets:
+    formula: >
+      cash_and_equivalents.net
+      + trade_receivables_net.net
+      + other_receivables.net
+      + inventory_net.net
+      + prepaid_expenses_and_other.net
+
+  current_liabilities:
+    formula: >
+      trade_payables.net + tax_payables.net + personnel_payables.net
+      + other_payables_st.net + financial_liabilities_st.net
+      + deferred_revenue_st.net + provisions_st.net
+
+  total_assets:
+    formula: >
+      cash_and_equivalents.net + trade_receivables_net.net
+      + other_receivables.net + inventory_net.net
+      + prepaid_expenses_and_other.net
+      + ppe_net.net + investment_property.net + right_of_use_assets.net
+      + intangibles_net.net + financial_investments.net
+      + deferred_tax_assets.net + other_non_current_assets.net
+
+  total_equity:
+    formula: >
+      contributed_capital.net + reserves.net + retained_earnings.net
+      - ?treasury_shares + ?accumulated_oci + ?non_controlling_interest
+      + ?convertible_debt_equity_component
+
+  total_liabilities:
+    formula: >
+      trade_payables.net + tax_payables.net + personnel_payables.net
+      + other_payables_st.net + financial_liabilities_st.net
+      + deferred_revenue_st.net + provisions_st.net
+      + financial_liabilities_lt.net + deferred_tax_liabilities.net
+      + provisions_lt.net + pension_liabilities.net
+      + deferred_income_lt.net + other_non_current_liabilities.net
+
+# ─── Ratios ───────────────────────────────────────────────────────────────
+# 25 ratios across 5 dimensions (profitability/liquidity/leverage/coverage/
+# efficiency). Each carries unit + direction + benchmark band
+# (industry-overridable in the industry_overrides section).
+ratios:
+
+  # ── Profitability (6) ──
+  ebitda_margin_reported:
+    formula: ebitda.reported / totals.revenue_net
+    unit: ratio
+    direction: higher_is_better
+    band_default: [0.08, 0.15]    # generic SME 8-15%
+
+  ebitda_margin_cash:
+    formula: ebitda.cash / totals.revenue_net
+    unit: ratio
+    direction: higher_is_better
+
+  net_margin:
+    formula: (ebitda.reported - dap.net - financial_expense.net + financial_income.net - income_tax.net) / totals.revenue_net
+    unit: ratio
+    direction: higher_is_better
+    band_default: [0.03, 0.08]
+
+  gross_margin:
+    formula: totals.gross_profit / totals.revenue_net
+    unit: ratio
+    direction: higher_is_better
+
+  return_on_equity:
+    formula: (ebitda.reported - dap.net - financial_expense.net + financial_income.net - income_tax.net) / totals.total_equity
+    unit: ratio
+    direction: higher_is_better
+    band_default: [0.10, 0.20]
+
+  return_on_assets:
+    formula: (ebitda.reported - dap.net - financial_expense.net + financial_income.net - income_tax.net) / totals.total_assets
+    unit: ratio
+    direction: higher_is_better
+    band_default: [0.05, 0.10]
+
+  # ── Liquidity (4) ──
+  current_ratio:
+    formula: totals.current_assets / totals.current_liabilities
+    unit: ratio
+    direction: higher_is_better
+    band_default: [1.2, 2.0]
+
+  quick_ratio:
+    formula: (totals.current_assets - inventory_net.net) / totals.current_liabilities
+    unit: ratio
+    direction: higher_is_better
+    band_default: [0.7, 1.2]
+
+  cash_ratio:
+    formula: cash_and_equivalents.net / totals.current_liabilities
+    unit: ratio
+    direction: higher_is_better
+    band_default: [0.10, 0.30]
+
+  working_capital:
+    formula: totals.current_assets - totals.current_liabilities
+    unit: currency
+    direction: higher_is_better
+
+  # ── Leverage (5) ──
+  equity_ratio:
+    formula: totals.total_equity / totals.total_assets
+    unit: ratio
+    direction: higher_is_better
+    band_default: [0.30, 0.60]
+
+  debt_to_equity:
+    formula: totals.total_debt / totals.total_equity
+    unit: ratio
+    direction: lower_is_better
+    band_default: [0.0, 1.0]
+
+  lt_debt_to_equity:
+    formula: financial_liabilities_lt.net / totals.total_equity
+    unit: ratio
+    direction: lower_is_better
+
+  net_debt_to_ebitda:
+    formula: totals.net_debt / ebitda.reported
+    unit: ratio
+    direction: lower_is_better
+    band_default: [0.0, 3.0]
+
+  debt_to_assets:
+    formula: totals.total_debt / totals.total_assets
+    unit: ratio
+    direction: lower_is_better
+
+  # ── Coverage (3) ──
+  interest_coverage:
+    formula: totals.operating_profit_reported / financial_expense.net
+    unit: ratio
+    direction: higher_is_better
+    band_default: [3.0, 8.0]
+
+  ebitda_to_interest:
+    formula: ebitda.reported / financial_expense.net
+    unit: ratio
+    direction: higher_is_better
+    band_default: [4.0, 10.0]
+
+  dscr_approx:
+    formula: ebitda.reported / (financial_expense.net + financial_liabilities_lt.net / 8)
+    unit: ratio
+    direction: higher_is_better
+    note: "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available."
+
+  # ── Efficiency (7) ──
+  asset_turnover:
+    formula: totals.revenue_net / totals.total_assets
+    unit: ratio
+    direction: higher_is_better
+
+  inventory_turnover:
+    formula: cogs.net / inventory_net.net
+    unit: ratio
+    direction: higher_is_better
+
+  days_inventory_outstanding:
+    formula: (inventory_net.net / cogs.net) * 365
+    unit: days
+    direction: lower_is_better
+    band_default: [30, 70]
+
+  days_sales_outstanding:
+    formula: (trade_receivables_net.net / totals.revenue_net) * 365
+    unit: days
+    direction: lower_is_better
+    band_default: [30, 60]
+
+  days_payable_outstanding:
+    formula: (trade_payables.net / cogs.net) * 365
+    unit: days
+    direction: higher_is_better
+    band_default: [30, 60]
+
+  cash_conversion_cycle:
+    formula: ratios.days_inventory_outstanding + ratios.days_sales_outstanding - ratios.days_payable_outstanding
+    unit: days
+    direction: lower_is_better
+
+  capex_intensity:
+    formula: dap.net / totals.revenue_net
+    unit: ratio
+    direction: neutral
+    note: "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement)."
+
+# ─── Industry overrides ───────────────────────────────────────────────────
+# Per-industry tweaks. Same canonical buckets, different formulas where
+# the industry's accounting convention differs materially. Falls back to
+# the defaults above when no override exists for the period's industry_key.
+industry_overrides:
+
+  real_estate_developer:
+    note: >
+      Developers in pre-livrare phase capitalize cost flows into PPE
+      under construction; reported EBITDA reflects recurring operations
+      only (rental + services), not the construction P&L which lives on
+      the BS until handover.
+    overrides:
+      ebitda_variants.reported.formula: >
+        revenue_rental_royalty
+        + revenue_services
+        + ?government_grants_recognized
+        - opex_general.net
+        - personnel_total.net
+
+  hospitality_hotels:
+    note: >
+      Hotel revenue concentrated in 704/706 (rooms, F&B services + rentals
+      for venues); operations heavy on personnel + utilities. Reported
+      formula identical to default but bands adjusted for industry norms.
+    overrides:
+      ratios.ebitda_margin_reported.band_default: [0.20, 0.35]
+      ratios.net_debt_to_ebitda.band_default: [2.0, 5.0]

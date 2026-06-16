@@ -38,3 +38,35 @@ export const PUBLIC_RECORDS_ENABLED = false as boolean;
  * will return once their UX is folded into the chat-first flow.
  */
 export const DECISIONS_ALERTS_ENABLED = false as boolean;
+
+/**
+ * F3.16-3b.6 — Consumer cutover routing flag. When `true`, the
+ * `canonicalMetrics` hub prefers `statements.assembled_canonical_v1.
+ * methodology.ebitda.reported` (the YAML methodology layer) over
+ * `assembled_pl.ebitda_statutory` (the legacy in-code field) for
+ * the headline Reported EBITDA value consumed by every surface:
+ * Dashboard KPI tile, ComprehensiveReport KPI grid, Opus briefing
+ * display, Valuation, Chat workspace snapshot, Export report.
+ *
+ * Default `true` because F4.2-PARITY (per ADR Lock #8 Reference
+ * Appendix) hard-locks the methodology field byte-identical to the
+ * legacy field — 24/24 fixture-variant cells match to the cent
+ * (8 fixtures × 3 HARD variants on 2026-05-26). The cutover is a
+ * no-op behaviorally; flipping the flag is the single revert path
+ * if any downstream consumer surfaces a regression we missed.
+ *
+ * The original 3b.6 plan §7 envisioned per-surface flags
+ * (`F36_CUTOVER_DASHBOARD_TILE`, `F36_CUTOVER_PL_TAB`, etc.). One
+ * flag at the hub replaces that whole table because every consumer
+ * routes through `canonicalMetrics.ts` — a hub-level flip simul-
+ * taneously cuts over every surface, and a hub-level revert backs
+ * out the entire migration. This trade is sound ONLY because
+ * F4.2-PARITY HARD guarantees value identity; if a future variant
+ * needs surface-by-surface migration with possibly-different
+ * values, the per-surface flag scheme should be re-introduced.
+ *
+ * Removal horizon: F4.7 (2026-11-23) — when the legacy in-code
+ * fields are deleted, the fallback branch in `canonicalMetrics.ts`
+ * collapses and this flag is no longer needed.
+ */
+export const F36_CUTOVER_METRICS_HUB = true as boolean;

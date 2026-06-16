@@ -82,12 +82,54 @@ export interface IntelligenceSignal {
   risk_categories: RiskCategory[];
 }
 
+/** Provenance of a per-ticker exposure score. Drives the source-badge chip. */
+export type ExposureSource =
+  | "sector_model"        // sector-default, lowest confidence
+  | "sec_filing"          // extracted from 10-K text
+  | "operator_curated"    // operator-edited override
+  | "bvb_override";       // Romanian-specific BVB override
+
+/** One ticker's slot in a radar card's affected list. The category_score
+ *  drives the exposure-bar width (0.0-1.0 → 0-100%). country='RO' flips on
+ *  the 🇷🇴 emoji prefix. source feeds the provenance badge. */
+export interface AffectedTickerRich {
+  ticker: string;
+  category_score: number;   // 0.0-1.0
+  country: string;          // "US" | "RO" | "EU" | ...
+  sector: string;
+  source: ExposureSource;
+  confidence: number;
+}
+
+/** One entry in a card's structural-correlation footnote. `related` is the
+ *  OTHER category we overlap with; `drivers` is the human-readable cause
+ *  (e.g. "Semiconductors (Taiwan exposure)"). FE computes the N/M overlap
+ *  count from set intersection of affected_tickers_rich. */
+export interface StructuralCorrelation {
+  related: RiskCategory;
+  drivers: string;
+}
+
+/** Diversity-of-sector status for a card's top-N. `structural_correlation`
+ *  fires when this category is documented in _KNOWN_STRUCTURAL_CORRELATIONS
+ *  (sector-default-only scoring resolution → predictable overlap with
+ *  another category). `sector_constrained` fires when top-N draws from <3
+ *  sectors (real concentration). `diverse` is healthy default. */
+export type DiversityStatus =
+  | "diverse"
+  | "sector_constrained"
+  | "structural_correlation";
+
 export interface RiskRadarCategory {
   category: RiskCategory;
   score: number;             // 0–100
   level: Severity;
   affected_sectors: string[];
-  affected_tickers: string[];
+  affected_tickers: string[];                    // legacy bare-list, kept for back-compat
+  affected_tickers_rich?: AffectedTickerRich[];  // v2 canonical field
+  diversity_status?: DiversityStatus;
+  structural_correlations?: StructuralCorrelation[];
+  sectors_represented?: number;
   signal_count: number;
   top_signals: IntelligenceSignal[];
 }

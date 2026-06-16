@@ -36,6 +36,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { SITE } from "@/config/site";
 
 interface Industry {
   caen_code: string;
@@ -177,6 +178,10 @@ export function IndustryConfirmModal({ periodId, open, onClose, onConfirmed, cur
         role="dialog"
         aria-modal="true"
         aria-labelledby="industry-modal-title"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
         className="
           fixed right-0 top-0 bottom-0 z-50
           w-[100vw] sm:w-[92vw] sm:max-w-[480px]
@@ -276,7 +281,7 @@ export function IndustryConfirmModal({ periodId, open, onClose, onConfirmed, cur
             </select>
             <p className="text-[11.5px] text-ink-mute mt-2 leading-relaxed">
               Your industry not on the list? Coverage is expanding —{" "}
-              <a href="mailto:support@cfo-ai.example" className="text-ink-soft hover:text-ink underline-offset-2 hover:underline">
+              <a href={SITE.supportMailto} className="text-ink-soft hover:text-ink underline-offset-2 hover:underline">
                 contact us
               </a>{" "}
               and we'll add it.

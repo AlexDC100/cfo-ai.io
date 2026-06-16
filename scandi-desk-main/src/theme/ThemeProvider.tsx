@@ -27,7 +27,17 @@ export function ThemeProvider({
   attribute = "class",
   enableSystem = true,
   defaultTheme = "system",
-  disableTransitionOnChange = false,
+  // 2026-05-24 — flipped from false → true to fix a stale-transition
+  // cache bug. When `disableTransitionOnChange=false`, any element with
+  // `transition-colors` or similar would keep its OLD computed color
+  // across the theme switch because the CSS transition kept the cached
+  // start value. Visible symptoms: body bg stayed light-cream after
+  // switch to dark (showed through 40% modal backdrops), buttons with
+  // `bg-ink text-paper` showed inverted colors (dark-mode tokens in
+  // light mode). next-themes' built-in fix injects a momentary
+  // `* { transition: none !important }` <style> tag during the swap,
+  // forces a paint with the new var values, then removes the override.
+  disableTransitionOnChange = true,
   storageKey = "cfoai_theme",
   children,
   ...rest

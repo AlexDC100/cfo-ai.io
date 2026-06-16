@@ -77,9 +77,9 @@ export function CommandCenter({
         side="right"
         data-testid="command-center"
         className="
-          w-[calc(100vw-24px)] sm:w-[440px] sm:max-w-[460px]
-          p-0 m-3 h-[calc(100vh-24px)]
-          rounded-3xl
+          w-[calc(100vw-16px)] sm:w-[440px] sm:max-w-[460px]
+          p-0 m-2 sm:m-3 h-[calc(100dvh-16px)] sm:h-[calc(100dvh-24px)]
+          rounded-2xl sm:rounded-3xl
           bg-surface dark:bg-bg-2
           border border-rule-strong
           text-ink
@@ -87,6 +87,12 @@ export function CommandCenter({
           [&>button.absolute]:hidden
           flex flex-col
         "
+        style={{
+          marginTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+          marginBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)",
+          marginRight: "calc(env(safe-area-inset-right) + 0.5rem)",
+          maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem)",
+        }}
       >
         {/* ── Header ────────────────────────────────────────── */}
         <div className="px-5 pt-5 pb-4">
@@ -98,9 +104,10 @@ export function CommandCenter({
               type="button"
               onClick={close}
               aria-label="Close"
-              className="text-ink-mute hover:text-ink p-1 -m-1 rounded-md transition-colors"
+              className="inline-flex items-center justify-center text-ink-mute hover:text-ink active:bg-bg-2/60 h-11 w-11 sm:h-7 sm:w-7 -m-2 sm:m-0 rounded-md transition-colors"
             >
-              <X size={16} strokeWidth={1.75} />
+              <X size={18} className="sm:hidden" strokeWidth={1.75} />
+              <X size={16} className="hidden sm:block" strokeWidth={1.75} />
             </button>
           </div>
 

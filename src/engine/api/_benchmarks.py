@@ -26,7 +26,8 @@ from pydantic import BaseModel
 
 from . import _supabase
 from ._benchmark_engine import build_benchmark_report
-from ._caen_industry_map import caen_to_category, caen_label_fallback
+# F3.1e: CAEN map moved into the Romania country pack.
+from engine.country_packs.ro_romania.caen_industry_map import caen_to_category, caen_label_fallback
 from ._industry_classifier import suggest_caen_code
 
 
@@ -40,57 +41,172 @@ def _require_jwt(authorization: Optional[str]) -> str:
     return authorization.split(" ", 1)[1].strip()
 
 
-def _resolve_effective_caen(*, jwt: str, period_id: str,
-                            fallback_caen: str) -> tuple[str, str]:
-    """Phase E dual-read.
+def _load_period_signals(jwt: str, period_id: str) -> Dict[str, float]:
+    """Load and flatten the per-period signals the industry classifier needs.
 
-    Returns ``(caen_code, source)`` where ``source`` is either
-    ``"period_assignment"`` (the user reclassified this period via the
-    new IndustryPicker → company_industry_assignments) or
-    ``"org_default"`` (no per-period assignment, or the assignment's
-    industry has no CAEN that exists in the legacy
-    ``industry_benchmarks`` catalog).
+    Shared by `/api/benchmarks/suggest/{period_id}` (user-facing suggest
+    endpoint) and the internal confident auto-detect inside
+    `_resolve_effective_caen`. Single-sourcing the input shape keeps
+    suggest and auto-resolve in lock-step — a change in classifier
+    inputs only edits one site.
+    """
+    # Imported lazily to keep the module-level import surface small —
+    # `_benchmark_engine` pulls heavyweight statistics deps.
+    from ._benchmark_engine import (
+        OPEX_PERSONNEL_PREFIXES, OPEX_ENERGY_PREFIXES, OPEX_RENT_PREFIXES,
+        OPEX_EXTERNAL_SERVICES_PREFIXES, _sum_line_items_by_prefix,
+    )
 
-    The fallback is critical: until backfill (Phase F) makes the new
-    industries fully populate the legacy catalog, most per-period
-    assignments will degrade gracefully to ``org_default`` so the
-    existing benchmark engine keeps returning numbers.
+    with _supabase.per_user(jwt) as client:
+        metrics_rows = client.select(
+            "calculated_metrics",
+            filters={"period_id": f"eq.{period_id}"},
+            columns="name,value",
+        )
+        line_items = client.select(
+            "statement_line_items",
+            filters={"period_id": f"eq.{period_id}"},
+            columns="statement,bucket,ro_account_code,amount",
+        )
 
-    No-op (returns the fallback) when the period has no assignment row.
-    Catches every exception so a transient PostgREST hiccup never
-    breaks the legacy path.
+    flat: Dict[str, float] = {}
+    for r in metrics_rows:
+        name = r.get("name")
+        val = r.get("value")
+        if name and val is not None:
+            try:
+                flat[name] = float(val)
+            except (TypeError, ValueError):
+                pass
+    bucket_sums: Dict[str, float] = {}
+    for li in line_items:
+        if li.get("statement") != "PL":
+            continue
+        b = (li.get("bucket") or "").strip()
+        try:
+            bucket_sums[b] = bucket_sums.get(b, 0.0) + float(li.get("amount") or 0)
+        except (TypeError, ValueError):
+            pass
+    if "revenue" in bucket_sums and "total_operating_revenue" not in flat:
+        flat["total_operating_revenue"] = (
+            bucket_sums["revenue"]
+            + bucket_sums.get("capitalizedOwnWork", 0)
+            + bucket_sums.get("otherIncome", 0)
+        )
+    flat.setdefault("cogs", bucket_sums.get("cogs", 0))
+    flat.setdefault("depreciation_amortization", bucket_sums.get("depreciation", 0))
+    flat["opex_personnel"] = _sum_line_items_by_prefix(line_items, OPEX_PERSONNEL_PREFIXES)
+    flat["opex_energy"] = _sum_line_items_by_prefix(line_items, OPEX_ENERGY_PREFIXES)
+    flat["opex_rent"] = _sum_line_items_by_prefix(line_items, OPEX_RENT_PREFIXES)
+    flat["opex_external_services"] = _sum_line_items_by_prefix(line_items, OPEX_EXTERNAL_SERVICES_PREFIXES)
+    return flat
+
+
+# Minimum confidence the per-period auto-detect must achieve before a
+# CAEN is accepted without explicit user confirmation. Mirrors the
+# classifier's "single-rule match" tier (returns 0.7). Anything weaker
+# falls through to the caen_not_set gate so the user picks via
+# IndustryPicker — a confident wrong industry is worse than no industry.
+_AUTODETECT_MIN_CONFIDENCE = 0.7
+
+
+def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
+    """Resolve the CAEN to render benchmarks against for a single period.
+
+    Resolution order — there is intentionally NO silent fallback to the
+    organization's stale `caen_code`. That fallback used to leak the
+    first-set industry (Scandia's meat-processing CAEN) onto every
+    subsequent upload from the same workspace and produced confidently
+    wrong peer comparisons. The honest "pick an industry" gate is
+    strictly better than a confidently wrong benchmark.
+
+    1. **Per-period user choice** — `company_industry_assignments[period_id]`
+       written by the IndustryPicker. Authoritative when present and
+       the chosen industry has a CAEN that exists in the legacy
+       `industry_benchmarks` catalog.
+
+    2. **Confident auto-detect** — run `suggest_caen_code()` against
+       THIS period's own metrics + line items. Accepted only at
+       confidence ≥ `_AUTODETECT_MIN_CONFIDENCE` (single-rule match)
+       AND when the suggested CAEN is seeded in the benchmark catalog.
+
+    3. **Unknown** — return `("", "unknown")`. The caller fires the
+       `caen_not_set` gate so the FE opens IndustryPicker.
+
+    Returns ``(caen_code, source)`` where ``source`` is one of
+    ``"period_assignment"``, ``"auto_detected"``, or ``"unknown"``.
     """
     try:
+        # ── Step 1: per-period user choice (authoritative) ──────────
+        # The user's explicit pick ALWAYS wins. We never silently
+        # auto-detect over it, even when their chosen industry has no
+        # rows in the seeded `industry_benchmarks` catalog. In that
+        # unseeded case we return the industry's first CAEN anyway —
+        # the downstream benchmark engine then surfaces the existing
+        # honest `benchmarks_not_available` disclosure for that CAEN,
+        # which is the right empty state. (The picker is constrained
+        # to seeded-only profiles, so this unseeded-pick branch only
+        # ever fires on legacy assignments written before that
+        # constraint shipped.)
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "company_industry_assignments",
                 filters={"period_id": f"eq.{period_id}"},
                 columns="selected_industry_key",
             )
-        if not rows:
-            return fallback_caen, "org_default"
-        selected = rows[0].get("selected_industry_key")
-        if not selected:
-            return fallback_caen, "org_default"
+        selected = (rows[0].get("selected_industry_key") if rows else None) or None
+        if selected:
+            with _supabase.admin() as ac:
+                profiles = ac.select(
+                    "industry_profiles",
+                    filters={"key": f"eq.{selected}"},
+                    columns="caen_codes",
+                )
+                candidate_caens: List[str] = (
+                    profiles[0].get("caen_codes") or []
+                ) if profiles else []
+                # Prefer the first candidate that is seeded — that yields
+                # a real benchmark render. If none are seeded, return the
+                # FIRST raw CAEN so the response carries an unambiguous
+                # caen_code; the benchmark engine treats that CAEN as
+                # "not seeded yet" and emits benchmarks_not_available.
+                first_caen: Optional[str] = None
+                for caen in candidate_caens:
+                    if not caen or len(str(caen)) < 3:
+                        continue
+                    if first_caen is None:
+                        first_caen = str(caen)
+                    hits = ac.select(
+                        "industry_benchmarks",
+                        filters={"caen_code": f"eq.{caen}"},
+                        columns="caen_code",
+                        limit=1,
+                    )
+                    if hits:
+                        return str(caen), "period_assignment"
+                if first_caen:
+                    # User-picked industry exists but has no seeded
+                    # benchmarks. Return the picked CAEN so the FE shows
+                    # the honest "not calibrated" disclosure, not a
+                    # silently-different auto-detected industry.
+                    return first_caen, "period_assignment_unseeded"
 
-        # Pull the industry's canonical CAEN list. industry_profiles.caen_codes
-        # is the curated array maintained in src/engine/api/seed/industries.yaml.
-        with _supabase.admin() as ac:
-            profiles = ac.select(
-                "industry_profiles",
-                filters={"key": f"eq.{selected}"},
-                columns="caen_codes",
+        # ── Step 2: confident auto-detect from this period's data ───
+        try:
+            signals = _load_period_signals(jwt, period_id)
+            caen, _label, confidence = suggest_caen_code(signals)
+        except Exception:
+            logger.exception(
+                "auto-detect failed for period=%s; deferring to picker",
+                period_id,
             )
-            if not profiles:
-                return fallback_caen, "org_default"
-            candidate_caens: list[str] = profiles[0].get("caen_codes") or []
+            caen, confidence = None, 0.0
 
-            # First candidate that ALSO exists in the legacy
-            # industry_benchmarks catalog wins — that's the one the
-            # downstream benchmark engine can render against.
-            for caen in candidate_caens:
-                if not caen or len(str(caen)) < 3:
-                    continue
+        if caen and confidence >= _AUTODETECT_MIN_CONFIDENCE:
+            # Verify the suggested CAEN is actually seeded — anything
+            # without rows in industry_benchmarks would render an empty
+            # report. Treat as unknown rather than emit an empty page.
+            with _supabase.admin() as ac:
                 hits = ac.select(
                     "industry_benchmarks",
                     filters={"caen_code": f"eq.{caen}"},
@@ -98,17 +214,18 @@ def _resolve_effective_caen(*, jwt: str, period_id: str,
                     limit=1,
                 )
                 if hits:
-                    return str(caen), "period_assignment"
-        # Industry chosen but no overlap with legacy catalog yet.
-        return fallback_caen, "org_default"
+                    return str(caen), "auto_detected"
+
+        # ── Step 3: unknown — defer to user via the picker gate ─────
+        return "", "unknown"
     except Exception:
-        # Belt-and-braces: any failure here MUST NOT break the legacy
-        # benchmark path. Log via the existing module logger and degrade.
+        # Belt-and-braces: any failure here MUST NOT serve a wrong
+        # industry. Surfacing the picker is the safe default.
         logger.exception(
-            "_resolve_effective_caen failed for period=%s; falling back to org default",
+            "_resolve_effective_caen failed for period=%s; treating as unknown",
             period_id,
         )
-        return fallback_caen, "org_default"
+        return "", "unknown"
 
 
 def _resolve_user_org(jwt: str) -> tuple[str, str]:
@@ -187,57 +304,14 @@ def build_router() -> APIRouter:
     ) -> SuggestResponse:
         """Auto-suggest a CAEN from the period's calculated_metrics +
         statement_line_items. Returns confidence so the UI can downweight
-        ambiguous matches."""
+        ambiguous matches.
+
+        Shares its signal-flattening helper (`_load_period_signals`) with
+        `_resolve_effective_caen` so the user-facing suggestion and the
+        internal benchmark auto-detect stay in lock-step.
+        """
         jwt = _require_jwt(authorization)
-        with _supabase.per_user(jwt) as client:
-            metrics_rows = client.select(
-                "calculated_metrics",
-                filters={"period_id": f"eq.{period_id}"},
-                columns="name,value",
-            )
-            line_items = client.select(
-                "statement_line_items",
-                filters={"period_id": f"eq.{period_id}"},
-                columns="statement,bucket,ro_account_code,amount",
-            )
-
-        # Flatten — the classifier reads from `calculated_metrics` first,
-        # but it also needs cogs/opex/depreciation breakouts which aren't
-        # all stored as standalone rows. Pull those from line_items by
-        # bucket-summing.
-        flat: Dict[str, float] = {}
-        for r in metrics_rows:
-            name = r.get("name")
-            val = r.get("value")
-            if name and val is not None:
-                try:
-                    flat[name] = float(val)
-                except (TypeError, ValueError):
-                    pass
-        bucket_sums: Dict[str, float] = {}
-        for li in line_items:
-            if li.get("statement") != "PL":
-                continue
-            b = (li.get("bucket") or "").strip()
-            try:
-                bucket_sums[b] = bucket_sums.get(b, 0.0) + float(li.get("amount") or 0)
-            except (TypeError, ValueError):
-                pass
-        if "revenue" in bucket_sums and "total_operating_revenue" not in flat:
-            flat["total_operating_revenue"] = bucket_sums["revenue"] + bucket_sums.get("capitalizedOwnWork", 0) + bucket_sums.get("otherIncome", 0)
-        flat.setdefault("cogs", bucket_sums.get("cogs", 0))
-        flat.setdefault("depreciation_amortization", bucket_sums.get("depreciation", 0))
-
-        # Per-account roll-ups for the opex breakdown (personnel, energy, rent).
-        from ._benchmark_engine import (
-            OPEX_PERSONNEL_PREFIXES, OPEX_ENERGY_PREFIXES, OPEX_RENT_PREFIXES,
-            OPEX_EXTERNAL_SERVICES_PREFIXES, _sum_line_items_by_prefix,
-        )
-        flat["opex_personnel"] = _sum_line_items_by_prefix(line_items, OPEX_PERSONNEL_PREFIXES)
-        flat["opex_energy"] = _sum_line_items_by_prefix(line_items, OPEX_ENERGY_PREFIXES)
-        flat["opex_rent"] = _sum_line_items_by_prefix(line_items, OPEX_RENT_PREFIXES)
-        flat["opex_external_services"] = _sum_line_items_by_prefix(line_items, OPEX_EXTERNAL_SERVICES_PREFIXES)
-
+        flat = _load_period_signals(jwt, period_id)
         caen, label, confidence = suggest_caen_code(flat)
         return SuggestResponse(
             period_id=period_id,
@@ -334,36 +408,26 @@ def build_router() -> APIRouter:
             if period["org_id"] != org_id:
                 raise HTTPException(403, "Period belongs to a different organization.")
 
-        # Resolve CAEN — required to render anything useful.
-        # Phase F: BOTH paths consulted before triggering the gate.
-        # · Primary  — company_industry_assignments[period_id] (new path)
-        # · Fallback — organizations.caen_code (legacy)
-        # The gate only fires when BOTH are empty. A user who classifies via
-        # the new IndustryPicker no longer needs the legacy set-caen call
-        # to satisfy the gate.
+        # Resolve CAEN. The resolver checks (1) per-period assignment,
+        # then (2) confident auto-detect from this period's signals.
+        # There is NO fallback to `organizations.caen_code` — that
+        # silent fallback produced cross-company industry bleed
+        # (Scandia's meat CAEN on every other upload in the same
+        # workspace). When neither path yields a confident answer the
+        # resolver returns `("", "unknown")` and we surface the picker.
         with _supabase.admin() as ac:
             org_rows = ac.select(
                 "organizations",
                 filters={"id": f"eq.{org_id}"},
-                columns="id,name,caen_code",
+                columns="id,name",
                 single=True,
             )
-        org_caen: Optional[str] = (
-            org_rows[0].get("caen_code") if org_rows else None
-        )
 
-        # Phase E dual-read — when the user has reclassified the period
-        # via the new IndustryPicker (writes to
-        # company_industry_assignments), prefer THAT industry's canonical
-        # CAEN over the legacy org-level default. Returns
-        # (fallback_caen, "org_default") when no assignment exists OR
-        # when the assignment's industry has no CAEN in the legacy
-        # `industry_benchmarks` catalog (graceful degradation).
         caen_code, caen_source = _resolve_effective_caen(
-            jwt=jwt, period_id=period_id, fallback_caen=org_caen or "",
+            jwt=jwt, period_id=period_id,
         )
 
-        # Phase F gate — fail closed only if BOTH paths returned nothing.
+        # Gate — surface the picker when we have no confident industry.
         if not caen_code:
             return {
                 "error": "caen_not_set",
@@ -374,24 +438,30 @@ def build_router() -> APIRouter:
                 "period_id": period_id,
                 "org_id": org_id,
             }
-        if caen_source == "period_assignment" and caen_code != org_caen:
-            logger.info(
-                "benchmark_report period=%s using period-assignment CAEN %s "
-                "(org default would have been %s)",
-                period_id, caen_code, org_caen,
-            )
+        logger.info(
+            "benchmark_report period=%s caen=%s source=%s",
+            period_id, caen_code, caen_source,
+        )
 
         # Cache hit? Avoid recomputing if the period hasn't been
         # re-analyzed (re-analysis produces a NEW period_id, so the
         # cache key never goes stale incorrectly).
+        #
+        # Integrity check: cached rows from before the industry-default
+        # fix were rendered against `organizations.caen_code` and may
+        # carry a different CAEN than the one `_resolve_effective_caen`
+        # now resolves. Serving that stale cache would re-introduce
+        # the bleed bug. We compare `benchmark_reports.caen_code`
+        # against the freshly-resolved CAEN and fall through to
+        # recompute when they diverge.
         with _supabase.admin() as ac:
             cached = ac.select(
                 "benchmark_reports",
                 filters={"period_id": f"eq.{period_id}"},
-                columns="report_data,generated_at",
+                columns="report_data,generated_at,caen_code",
                 single=True,
             )
-            if cached:
+            if cached and cached[0].get("caen_code") == caen_code:
                 payload = cached[0]["report_data"]
                 # PostgREST returns jsonb as a dict already; if it's a
                 # string for any reason, decode it.

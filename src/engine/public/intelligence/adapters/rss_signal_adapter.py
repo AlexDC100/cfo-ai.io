@@ -30,6 +30,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import unicodedata
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -280,7 +281,14 @@ class RssSignalAdapter:
             if t in self._ticker_to_sector
         })
 
-        signal_type, severity, channels = _classify_keyword(text_lower)
+        # NFKD-fold before keyword classification so Romanian (and other
+        # diacritic-heavy languages) match ASCII patterns: "dobândă" → "dobanda",
+        # "Marea Roșie" → "marea rosie", "război" → "razboi". Same canonical-
+        # ization the BVB Phase 1 ticker search uses — kept consistent so a
+        # text mentioning Romanian terms classifies identically to its English
+        # counterpart. ASCII-only inputs are unchanged (NFKD is a no-op on them).
+        text_folded = _nfkd_fold(text_lower)
+        signal_type, severity, channels = _classify_keyword(text_folded)
 
         sig_id = str(uuid5(NAMESPACE_URL, f"rss:{feed_url}:{title}"))
         return IntelligenceSignal(
@@ -343,6 +351,26 @@ def _strip_corporate_suffix(name: str) -> str:
     return cleaned
 
 
+def _nfkd_fold(text: str) -> str:
+    """NFKD-normalize + strip combining marks → ASCII-safe lowercase form.
+
+    Romanian diacritics decompose under NFKD into ASCII base + combining mark
+    (e.g. "â" → "a" + U+0302). Filtering by `unicodedata.combining(c) == 0`
+    yields the bare ASCII letter, so "dobândă" → "dobanda", "război" → "razboi".
+
+    This matches the canonicalization the BVB Phase 1 ticker search applies on
+    the FE side (`.normalize("NFKD").replace(/\\p{M}/gu, "")`) — keeping back
+    end and front end on the same fold rule means a query typed with or
+    without diacritics produces identical matches.
+
+    Pure ASCII inputs pass through unchanged.
+    """
+    if not text:
+        return text
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 def _parse_date_safe(raw: Optional[str]) -> Optional[datetime]:
     """Tolerant RFC2822 / RFC3339 datetime parse. Returns None on failure."""
     if not raw:
@@ -368,8 +396,16 @@ def _parse_date_safe(raw: Optional[str]) -> Optional[datetime]:
 # Keyword heuristics — coarse classification of signal_type / severity /
 # financial impact. Operators can override per-signal severity via the
 # manual adapter when they need precision.
+#
+# All inputs are NFKD-folded before matching (see `_nfkd_fold`), so Romanian
+# patterns use the diacritic-stripped ASCII form: "dobândă" → "dobanda",
+# "Roșie" → "rosie", "război" → "razboi", "amendă" → "amenda". Patterns stay
+# pure ASCII for clarity. Bucket names match the existing English buckets so
+# the downstream radar mapping (signal_type → risk category) is multilingual-
+# transparent — Romanian and English sources route to the same exposure cell.
 _KEYWORDS: list[tuple[str, str, str, list[str]]] = [
     # (keyword regex, signal_type, severity, channels)
+    # ── English ──────────────────────────────────────────────────────────
     (r"\b(tariff|sanction|export\s*control|trade\s*war)\b", "geopolitical", "high",
         ["revenue", "supply_availability"]),
     (r"\b(war|conflict|invasion|missile)\b", "geopolitical", "critical",
@@ -392,6 +428,51 @@ _KEYWORDS: list[tuple[str, str, str, list[str]]] = [
         ["valuation_multiple"]),
     (r"\b(layoffs?|restructur(ing|ed)?|job\s*cuts?)\b", "company_news", "high",
         ["revenue", "ebitda_margin"]),
+    # ── Romanian (NFKD-folded form) ──────────────────────────────────────
+    # Romanian is heavily inflected — definite articles append directly to
+    # the noun ("pret" → "pretul", "gaze" → "gazele"/"gazelor") and genitive/
+    # dative cases shift endings ("criza" → "crizei", "dobânzii"). We use
+    # stems + `\w*` to absorb any case ending, rather than enumerate every
+    # inflection. Order matters: ENERGY before tariff-geopolitical so
+    # "tarif energie" routes to energy (not the more generic geopolitical
+    # tariff bucket).
+    #
+    # Energy — preț gaze, criză energetică, preț petrol, tarif energie
+    (r"\b(pret\w*\s+(de\s+)?gaz\w*|criz\w*\s+energetic\w*|pret\w*\s+petrol\w*"
+     r"|pret\w*\s+energi\w*|tarif\w*\s+energi\w*|gaz\w*\s+natural\w*)\b",
+        "energy", "high",
+        ["gross_margin", "ebitda_margin"]),
+    # Geopolitical war/conflict — război/invazie/conflict armat
+    (r"\b(razboi|invazi\w*|conflict\s+armat|atac\s+militar)\b", "geopolitical", "critical",
+        ["supply_availability", "revenue"]),
+    # Geopolitical trade — sanctiune/embargo/control export. "tarif" alone
+    # is ambiguous (energy tariff vs trade tariff) — require the modifier.
+    (r"\b(tarif\s+(vamal|comercial)|sanctiun\w*|embargo|control\s+export)\b",
+        "geopolitical", "high",
+        ["revenue", "supply_availability"]),
+    # Supply chain — Marea Roșie/Houthi/lanț de aprovizionare/transport maritim
+    (r"\b(marea\s+rosi\w*|houthi|lant\w*\s+de\s+aprovizionar\w*"
+     r"|transport\s+maritim|navlu)\b",
+        "supply_chain", "high",
+        ["supply_availability", "working_capital"]),
+    # Interest rates — BNR/dobândă/dobânzii/politică monetară/inflație.
+    # Two stems for the central word: "doband" (nom: dobanda) and
+    # "dobanz" (gen: dobanzii) — fold doesn't unify them.
+    (r"\b(bnr|doband\w*|dobanz\w*|politic\w*\s+monetar\w*|inflati\w*)\b",
+        "interest_rates", "medium",
+        ["debt_cost", "valuation_multiple"]),
+    # Regulation — amendă/amenzi/ANCOM/ANRE/ASF/investigație/proces/litigiu
+    (r"\b(amenda|amenz\w*|ancom|anre|asf\s+romania|investigati\w*|proces|litigi\w*)\b",
+        "regulation", "medium",
+        ["valuation_multiple"]),
+    # Credit — retrogradare rating/rating retrogradat/rating scăzut
+    (r"\b(retrogradar\w*\s+rating|rating\s+retrogradat\w*|rating\s+scazut\w*)\b",
+        "credit", "high",
+        ["debt_cost", "valuation_multiple"]),
+    # Company news — concedieri/restructurare/disponibilizări
+    (r"\b(concedier\w*|restructurar\w*|disponibilizar\w*)\b",
+        "company_news", "high",
+        ["revenue", "ebitda_margin"]),
 ]
 
 
@@ -407,3 +488,77 @@ def _classify_keyword(text_lower: str) -> tuple[str, str, list[str]]:
 # Re-export under the stub adapter's name so existing imports continue to
 # work — the manual_signal_adapter module structure stays untouched.
 __all__ = ["RssSignalAdapter"]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Self-test — Romanian keyword classification via NFKD fold
+# ──────────────────────────────────────────────────────────────────────────
+# Lock #12 discipline: include WRONG-on-purpose inputs so the test isn't a
+# tautology. A pure-positive test ("Romanian rates news → interest_rates")
+# would still pass if the fallback bucket coincidentally returned
+# interest_rates for every input — the negative cases discriminate.
+
+def _run_self_test() -> int:
+    """Exercise NFKD-fold + Romanian keyword routing. Returns 0 on PASS."""
+    failures: list[str] = []
+
+    def check(text: str, expected_type: str, label: str) -> None:
+        folded = _nfkd_fold(text.lower())
+        sig_type, _sev, _chan = _classify_keyword(folded)
+        if sig_type != expected_type:
+            failures.append(
+                f"{label}: expected signal_type={expected_type!r}, got {sig_type!r} "
+                f"(folded={folded!r})"
+            )
+
+    # 1. THE operator-mandated test: Romanian central-bank rate news with full
+    #    diacritics. After NFKD-fold "dobândă" → "dobanda" and matches the
+    #    Romanian interest_rates pattern. signal_type bucket = interest_rates,
+    #    which the radar layer maps to the `rates_credit` risk category.
+    check("BNR a majorat dobânda de politică monetară", "interest_rates",
+          "Romanian rates (operator-mandated)")
+
+    # 2. Discriminator — same sentence ASCII-folded already (no diacritics).
+    #    Same input post-fold ⇒ same answer. If the fold is broken (e.g.
+    #    forgotten on one path), this catches the divergence.
+    check("BNR a majorat dobanda de politica monetara", "interest_rates",
+          "Romanian rates (already-ASCII)")
+
+    # 3. Discriminator — Romanian war/conflict news. "război" → "razboi".
+    #    Confirms diacritic stripping isn't routing every Romanian text to
+    #    interest_rates (would be a vacuous pass otherwise).
+    check("Război în Ucraina escaladează în zona de est", "geopolitical",
+          "Romanian war (must NOT route to interest_rates)")
+
+    # 4. Discriminator — Romanian energy news. "preț gaze" → "pret gaze".
+    #    Routes to energy, not interest_rates, not geopolitical.
+    check("Prețul gazelor a crescut din cauza crizei energetice", "energy",
+          "Romanian energy (must NOT route to interest_rates)")
+
+    # 5. Discriminator — Romanian shipping news. "Marea Roșie" → "marea rosie".
+    check("Atacurile Houthi în Marea Roșie afectează lanțul de aprovizionare",
+          "supply_chain", "Romanian Red Sea (must route to supply_chain)")
+
+    # 6. Wrong-on-purpose: a Romanian sentence with NO trigger words.
+    #    Should fall back to company_news. If it routes to interest_rates,
+    #    the Romanian patterns are too greedy.
+    check("Compania a anunțat lansarea unui produs nou pe piață",
+          "company_news", "Romanian generic news (no triggers → company_news)")
+
+    # 7. English baseline preserved — NFKD-fold is a no-op on ASCII.
+    check("Fed chair signals rate cut", "interest_rates", "English rates baseline")
+
+    if failures:
+        print(f"FAIL — {len(failures)} test(s):")
+        for f in failures:
+            print(f"  - {f}")
+        return 1
+    print("PASS — all 7 NFKD/Romanian keyword tests passed")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    if "--self-test" in sys.argv:
+        raise SystemExit(_run_self_test())
+    print("Usage: python -m engine.public.intelligence.adapters.rss_signal_adapter --self-test")

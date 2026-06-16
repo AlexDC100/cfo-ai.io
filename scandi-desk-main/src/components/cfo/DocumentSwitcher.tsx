@@ -58,6 +58,14 @@ interface PeriodEntry {
   currency: string | null;
   documents: DocInPeriod[];
   extraction_confidence: number | null;
+  /** F3.15 Chunk 2 — false when the period is fully analyzed but produced
+   *  no TB output AND has no sku_analyses row. Used to filter dead
+   *  periods (SKU files mistakenly uploaded via the Dashboard scope,
+   *  etc.). In-flight uploads stay visible because the backend only
+   *  sets this to false when `status == 'analyzed'`. Optional in the
+   *  type so pre-F3.15 cached responses (without the field) default
+   *  to "show" via the FE's nullish-check. */
+  has_meaningful_data?: boolean;
 }
 interface PublicRecordEntry {
   document_id: string;
@@ -92,6 +100,12 @@ type SwitcherEntry =
       sortKey: number;              // epoch ms for ordering
       documentId: string;           // primary doc on the period (for delete)
       periodId: string;
+      /** F3.15 Chunk 2 — true unless backend flagged the period as fully
+       *  analyzed but empty (no TB output, no SKU). Defaults to true for
+       *  pre-F3.15 cached responses missing the field. The picker filters
+       *  hasMeaningfulData=false rows by default; "N hidden · show" pill
+       *  at picker bottom toggles visibility. */
+      hasMeaningfulData: boolean;
     }
   | {
       kind: "public_record";
@@ -166,6 +180,9 @@ function buildEntries(
       sortKey: Date.parse(p.period_end ?? "") || 0,
       documentId: primaryDoc.id,
       periodId: p.period_id,
+      // F3.15 Chunk 2 — default to TRUE when the backend field is absent
+      // (pre-F3.15 cached responses). Explicit `false` is the only hidden state.
+      hasMeaningfulData: p.has_meaningful_data !== false,
     });
   }
   // Public-records entries gated behind PUBLIC_RECORDS_ENABLED. When the
@@ -211,6 +228,8 @@ export function DocumentSwitcher({ className, compact }: Props) {
   const [open, setOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
+  // F3.15 Chunk 2 — hide empty periods by default; one-click reveal.
+  const [showHidden, setShowHidden] = useState(false);
   const [params, setParams] = useSearchParams();
   const nav = useNavigate();
   const loc = useLocation();
@@ -229,6 +248,19 @@ export function DocumentSwitcher({ className, compact }: Props) {
   // "active period" hint.
   const activePeriodId = activePeriodFromUrl || data?.active_period_id || null;
   const entries = buildEntries(data, activePeriodId, activeDocFromUrl);
+  // F3.15 Chunk 2 — partition into visible + hidden using the
+  // backend's per-period `hasMeaningfulData` flag. ALWAYS show the
+  // active period even if it would otherwise be hidden — the operator
+  // may be viewing that period via direct URL and yanking it from
+  // under them would be hostile. Public-records entries don't carry
+  // the flag and are always visible.
+  const hiddenEntries = entries.filter(
+    (e) => e.kind === "period" && e.hasMeaningfulData === false && !e.isActive,
+  );
+  const visibleEntries = showHidden
+    ? entries
+    : entries.filter((e) => !hiddenEntries.includes(e));
+  const hiddenCount = hiddenEntries.length;
   const active = entries.find((e) => e.isActive) ?? null;
 
   function selectEntry(e: SwitcherEntry) {
@@ -325,49 +357,89 @@ export function DocumentSwitcher({ className, compact }: Props) {
                 listafirme.ro public-records PDF from the Dashboard.
               </div>
             ) : (
-              <ul className="divide-y divide-rule/60">
-                {entries.map((e) => (
-                  <li key={e.key} className="flex items-stretch">
+              <>
+                <ul className="divide-y divide-rule/60">
+                  {visibleEntries.map((e) => {
+                    // F3.15 Chunk 2 — render hidden periods (revealed via
+                    // "show" toggle) with a subtle muted treatment so
+                    // operators can tell at a glance which entries the
+                    // backend flagged as empty.
+                    const isEmpty = e.kind === "period" && e.hasMeaningfulData === false;
+                    return (
+                    <li key={e.key} className="flex items-stretch">
+                      <button
+                        type="button"
+                        onClick={() => selectEntry(e)}
+                        className={`flex-1 min-w-0 text-left px-3 py-2.5 hover:bg-bg-2/40 transition-colors ${
+                          e.isActive ? "bg-[hsl(var(--warning-2-tint))]/50" : ""
+                        } ${isEmpty ? "opacity-60" : ""}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {e.isActive && <Check className="h-3.5 w-3.5 text-[hsl(var(--warning-2))] shrink-0" />}
+                          <span className="text-[13px] font-semibold text-ink truncate">
+                            {e.title}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`inline-block text-[9.5px] uppercase tracking-[0.05em] font-semibold px-1.5 py-0.5 rounded ${
+                            e.kind === "public_record"
+                              ? "bg-info-tint text-[hsl(var(--info))]"
+                              : "bg-success-tint text-[hsl(var(--success))]"
+                          }`}>
+                            {e.typeLabel}
+                          </span>
+                          <span className="text-[11px] text-ink-soft truncate">
+                            {e.subtitle}
+                          </span>
+                          {isEmpty && (
+                            <span
+                              className="text-[10px] uppercase tracking-[0.05em] font-semibold text-ink-mute"
+                              title="Period appears to be SKU/trading data, not a trial balance. Re-upload via Products to analyze."
+                            >
+                              · empty
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        title="Remove this analysis"
+                        data-testid={`delete-${e.kind}-${e.documentId}`}
+                        onClick={(ev) => { ev.stopPropagation(); setConfirmDeleteId(e.documentId); }}
+                        className="px-3 hover:bg-alert-tint/60 text-ink-mute hover:text-[hsl(var(--alert))] transition-colors flex items-center"
+                      >
+                        {busyDeleteId === e.documentId
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </li>
+                  );
+                  })}
+                </ul>
+                {/* F3.15 Chunk 2 — inline reveal toggle at picker bottom.
+                    Hidden periods are those the backend flagged as fully
+                    analyzed but with no TB output AND no SKU output (per
+                    ADR-3 in ADR_F3_14_DEFERRED_ITEMS.md). One-click
+                    toggles visibility; no Settings page needed in v1. */}
+                {hiddenCount > 0 && (
+                  <div className="px-3 py-2 border-t border-rule/60 text-[11.5px] text-ink-mute flex items-center justify-between gap-2">
+                    <span>
+                      {hiddenCount} empty period{hiddenCount === 1 ? "" : "s"} hidden
+                      <span className="ml-1 text-ink-mute/70">
+                        · file appears to be SKU/trading data, not a trial balance
+                      </span>
+                    </span>
                     <button
                       type="button"
-                      onClick={() => selectEntry(e)}
-                      className={`flex-1 min-w-0 text-left px-3 py-2.5 hover:bg-bg-2/40 transition-colors ${
-                        e.isActive ? "bg-[hsl(var(--warning-2-tint))]/50" : ""
-                      }`}
+                      onClick={() => setShowHidden((v) => !v)}
+                      className="font-semibold text-[hsl(var(--info))] hover:underline"
+                      data-testid="document-switcher-toggle-hidden"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {e.isActive && <Check className="h-3.5 w-3.5 text-[hsl(var(--warning-2))] shrink-0" />}
-                        <span className="text-[13px] font-semibold text-ink truncate">
-                          {e.title}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`inline-block text-[9.5px] uppercase tracking-[0.05em] font-semibold px-1.5 py-0.5 rounded ${
-                          e.kind === "public_record"
-                            ? "bg-info-tint text-[hsl(var(--info))]"
-                            : "bg-success-tint text-[hsl(var(--success))]"
-                        }`}>
-                          {e.typeLabel}
-                        </span>
-                        <span className="text-[11px] text-ink-soft truncate">
-                          {e.subtitle}
-                        </span>
-                      </div>
+                      {showHidden ? "hide" : "show"}
                     </button>
-                    <button
-                      type="button"
-                      title="Remove this analysis"
-                      data-testid={`delete-${e.kind}-${e.documentId}`}
-                      onClick={(ev) => { ev.stopPropagation(); setConfirmDeleteId(e.documentId); }}
-                      className="px-3 hover:bg-alert-tint/60 text-ink-mute hover:text-[hsl(var(--alert))] transition-colors flex items-center"
-                    >
-                      {busyDeleteId === e.documentId
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

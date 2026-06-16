@@ -1,0 +1,75 @@
+src/stores/currency.tsx:121:      throw new Error("useCurrency must be used inside <CurrencyProvider>");
+src/components/ui/chart.tsx:26:    throw new Error("useChart must be used within a <ChartContainer />");
+src/components/ui/sidebar.tsx:37:    throw new Error("useSidebar must be used within a SidebarProvider.");
+src/components/ui/form.tsx:41:    throw new Error("useFormField should be used within <FormField>");
+src/components/cfo/UploadDialog.tsx:73:      toast.success("Dataset deleted", { description: remoteDescription });
+src/components/cfo/UploadDialog.tsx:76:      toast.error("Reset failed", {
+src/components/cfo/UploadDialog.tsx:109:      toast.success("Workbook imported", {
+src/components/cfo/UploadDialog.tsx:115:      toast.error("Upload failed", {
+src/components/cfo/UploadDialog.tsx:131:      toast.error("Unsupported file", {
+src/components/ui/carousel.tsx:35:    throw new Error("useCarousel must be used within a <Carousel />");
+src/components/cfo/useHighlightFromUrl.ts:66:      // dismissable error toast.
+src/components/cfo/BillingSection.tsx:57:// async error to toast.
+src/components/cfo/CommandDrawer.tsx:361:            toast.success("All clear", {
+src/components/cfo/CommandDrawer.tsx:502:              toast.success(`${title} reset to calibrated`, {
+src/components/cfo/CommandDrawer.tsx:611:        toast.success("All thresholds reset", {
+src/components/cfo/CommandDrawer.tsx:645:      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+src/components/cfo/CommandDrawer.tsx:655:      toast.success("Action plan exported", {
+src/components/cfo/CommandDrawer.tsx:660:      toast.error("Export failed", {
+src/components/cfo/ErrorBoundary.tsx:30:    console.error("Unhandled render error:", error, info.componentStack);
+src/components/cfo/DocsPanel.tsx:716:          undo toast. No confirmation dialog (Apple "Move to Bin" pattern). */}
+src/components/cfo/settings/DataRulesCard.tsx:61:    toast.success("All thresholds reset to calibrated defaults");
+src/components/cfo/pricing/IntroUnlockCallout.tsx:37:      console.error(
+src/hooks/use-toast.ts:82:        toasts: state.toasts.map((t) => (t.id === action.toast.id ? { ...t, ...action.toast } : t)),
+src/hooks/use-toast.ts:94:          addToRemoveQueue(toast.id);
+src/components/cfo/command/tabs/AiTab.tsx:75:      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+src/components/cfo/command/tabs/AiTab.tsx:84:      toast.success("Action plan exported", {
+src/components/cfo/command/tabs/AiTab.tsx:89:      toast.error("Export failed", {
+src/lib/rates.ts:107:      throw new Error(`HTTP ${resp.status}`);
+src/lib/rates.ts:116:      throw new Error("malformed rates payload");
+src/lib/activePeriod.ts:297:      console.warn("[activePeriod] /api/period failed:", res.status);
+src/lib/activePeriod.ts:302:    console.warn("[activePeriod] /api/period error:", err);
+src/lib/api.ts:67:    throw new Error(detail);
+src/lib/api.ts:276:    throw new Error(detail);
+src/lib/features.ts:117:      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+src/lib/auth.tsx:178:    throw new Error("useAuth() called outside <AuthProvider>");
+src/lib/pricingConfig.ts:71:      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+src/lib/billing.ts:136:    console.warn("[billing] fetchSubscription failed:", error.message);
+src/lib/billing.ts:168:    console.warn("[billing] ensureTrialSubscription failed:", error.message);
+src/lib/billing.ts:287:      console.warn("[billing] setPlan failed:", error.message);
+src/lib/billing.ts:312:      console.warn("[billing] cancel failed:", error.message);
+src/lib/billing.ts:335:      console.warn("[billing] reactivate failed:", error.message);
+src/lib/recommendationRules.ts:538:      console.error(`[recommendationRules] Rule ${rule.key} crashed:`, err);
+src/lib/alerts.ts:187:    throw new Error(detail);
+src/i18n/index.ts:103:        console.warn(`[i18n] Missing key: ${key} (${Array.isArray(lngs) ? lngs.join(",") : lngs})`);
+src/lib/org.ts:56:    console.warn("[org] fetchOrgsForUser failed:", error.message);
+src/lib/org.ts:116:    console.warn("[org] updateActiveOrg failed:", error.message);
+src/pages/cfo/Settings.tsx:829:        throw new Error(body || `HTTP ${r.status}`);
+src/pages/cfo/ComprehensiveReport.tsx:103:        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+src/pages/cfo/MultiYearHistory.tsx:73:        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+src/pages/cfo/PeerComparisonReport.tsx:137:        if (!benchRes.ok) throw new Error(`benchmarks HTTP ${benchRes.status}`);
+src/pages/cfo/ContactSalesPage.tsx:63:      if (!r.ok) throw new Error(await r.text());
+src/lib/supabase.ts:96:    console.warn("[supabase] fetchAlertStates failed:", error.message);
+src/lib/supabase.ts:120:    console.warn("[supabase] persistAlertState skipped: not signed in");
+src/lib/supabase.ts:140:    console.warn("[supabase] persistAlertState failed:", error.message);
+src/lib/supabase.ts:181:  if (error) console.warn("[supabase] logActivity failed:", error.message);
+src/lib/supabase.ts:195:    console.warn("[supabase] fetchRecentActivity failed:", error.message);
+src/lib/supabase.ts:230: * extra plumbing. Returns the count of rows removed per table for the toast.
+src/lib/supabase.ts:246:    // on a single delete, and we want an honest "removed N rows" toast.
+src/lib/supabase.ts:253:      console.warn(`[supabase] clearUserPersistedState ${table} failed:`, error.message);
+src/lib/supabase.ts:276:    console.warn("[supabase] recordDataset failed:", error.message);
+src/lib/supabase.ts:389:    console.warn("[supabase] enqueuePipeline: no access token");
+src/lib/supabase.ts:465:    console.warn("[pipeline] enqueue failed:", res.status, txt);
+src/lib/supabase.ts:468:    console.warn("[pipeline] enqueue error:", err);
+src/lib/supabase.ts:628:      console.warn("[supabase] HEIC → JPEG conversion failed:", err);
+src/lib/supabase.ts:686:    console.warn("[supabase] content-hash dedupe skipped:", e);
+src/lib/supabase.ts:693:    console.warn("[supabase] storage upload failed:", upErr.message);
+src/lib/supabase.ts:727:    console.warn("[supabase] documents insert failed:", error.message);
+src/lib/supabase.ts:753:    console.warn("[supabase] listDocuments failed:", error.message);
+src/lib/supabase.ts:766:    console.warn("[supabase] deleteDocument failed:", error.message);
+src/lib/supabase.ts:783:    console.warn("[supabase] signedDocumentUrl failed:", error?.message);
+src/lib/supabase.ts:796:    console.warn("[supabase] setDocumentStatus failed:", error.message);
+src/lib/supabase.ts:847:    console.warn("[supabase] fetchAlerts failed:", error.message);
+src/lib/supabase.ts:863:    console.warn("[supabase] replaceAlerts delete failed:", delErr.message);
+src/lib/supabase.ts:870:    console.warn("[supabase] replaceAlerts insert failed:", insErr.message);
+src/pages/NotFound.tsx:8:    console.error("404 Error: User attempted to access non-existent route:", location.pathname);

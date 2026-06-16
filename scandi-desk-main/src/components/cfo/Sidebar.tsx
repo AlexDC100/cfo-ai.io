@@ -15,7 +15,7 @@
 // Keeping the surface narrow makes navigation feel calm and product-led
 // rather than admin-led.
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "next-themes";
@@ -38,10 +38,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   MoreHorizontal,
+  Globe,
   // LogOut import dropped — sign-out moved to AccountMenu. Re-add if
   // the sidebar row is ever restored (see comment near the System group).
   type LucideIcon,
 } from "lucide-react";
+import { SUPPORTED_LANGUAGES, pickLanguageWithProfileSync } from "@/i18n";
+import { useAuth } from "@/lib/auth";
+import { getSupabase } from "@/lib/supabase";
+import { IconButton } from "@/components/ui/IconButton";
 import {
   type FeatureKey,
   type FeatureStatus,
@@ -97,6 +102,11 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   // financial command-center; chat is the universal CFO assistant.
   { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "intelligence" },
   { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "intelligence" },
+  // Public Company Intelligence — first-class module, sits in Intelligence
+  // group right next to Dashboard + Ask CFO AI. Lands on the hub page
+  // (/public-companies) which hosts the search panel, watchlist,
+  // benchmarking + AI interpretation panels.
+  { to: "/public-companies", labelKey: "sidebar.publicCompanies", icon: Globe, testId: "sidebar-public-companies", group: "intelligence" },
   // Analysis — datasets + comparative lenses + actionable lists.
   { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analysis" },
   { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analysis" },
@@ -258,26 +268,23 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Footer — collapse toggle (lg+), theme switch, disclaimer. */}
+      {/* Footer — theme switch, language, collapse toggle (lg+), disclaimer.
+       *  All three buttons go through the shared `IconButton` primitive so
+       *  box dimensions, icon size, hover/active/focus behavior are
+       *  identical. Single flex container with `gap-1` owns the spacing
+       *  — no per-button margin/padding overrides. */}
       <div className={`${effectivelyCollapsed ? "px-2" : "px-3"} pt-2 pb-3 border-t border-rule`}>
-        <div className={`flex items-center ${effectivelyCollapsed ? "justify-center" : "justify-between"} gap-1 mb-2`}>
+        <div className={`flex items-center ${effectivelyCollapsed ? "justify-center" : "justify-start"} gap-1 mb-2`}>
           <ThemeIconButton />
+          <LanguageIconButton />
           {!inDrawer && (
-            <button
-              type="button"
-              onClick={() => setCollapsed((v) => !v)}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            <IconButton
+              size="sm"
+              icon={collapsed ? <PanelLeftOpen strokeWidth={1.75} /> : <PanelLeftClose strokeWidth={1.75} />}
+              label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               data-testid="sidebar-collapse-toggle"
-              className="
-                inline-flex items-center justify-center h-9 w-9 rounded-lg
-                text-ink-mute hover:text-ink hover:bg-bg-2/70
-                transition-colors
-              "
-            >
-              {collapsed
-                ? <PanelLeftOpen size={15} strokeWidth={1.75} />
-                : <PanelLeftClose size={15} strokeWidth={1.75} />}
-            </button>
+              onClick={() => setCollapsed((v) => !v)}
+            />
           )}
         </div>
         {!effectivelyCollapsed && (
@@ -361,10 +368,10 @@ function SidebarLink({
       // differences (?period=eei vs none) don't affect the highlight.
       end={false}
       className={({ isActive }) =>
-        `group relative flex items-center ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2"} rounded-lg text-[13px] transition-all duration-150 ${
+        `group relative flex items-center min-h-[44px] sm:min-h-0 ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2.5 sm:py-2"} rounded-lg text-[13px] transition-all duration-150 ${
           isActive
             ? "text-ink font-medium [&>svg]:text-brand-d"
-            : "text-ink-soft hover:text-ink hover:bg-bg-2/70 [&>svg]:text-ink-mute hover:[&>svg]:text-ink-soft"
+            : "text-ink-soft hover:text-ink hover:bg-bg-2/70 active:bg-bg-2/50 [&>svg]:text-ink-mute hover:[&>svg]:text-ink-soft"
         }`
       }
     >
@@ -439,11 +446,11 @@ function SidebarAction({
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={
-        "group relative w-full text-left flex items-center rounded-lg text-[13px] " +
-        "text-ink-soft hover:text-ink hover:bg-bg-2/70 " +
+        "group relative w-full text-left flex items-center min-h-[44px] sm:min-h-0 rounded-lg text-[13px] " +
+        "text-ink-soft hover:text-ink hover:bg-bg-2/70 active:bg-bg-2/50 " +
         "[&>svg]:text-ink-mute hover:[&>svg]:text-ink-soft " +
         "transition-all duration-150 " +
-        (collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2")
+        (collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2.5 sm:py-2")
       }
     >
       <Icon
@@ -491,18 +498,125 @@ function ThemeIconButton() {
   const label = isDark ? "Switch to light theme" : "Switch to dark theme";
 
   return (
-    <button
+    <IconButton
+      size="sm"
+      icon={<Icon strokeWidth={1.75} />}
+      label={label}
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      title={label}
-      aria-label={label}
-      className="
-        inline-flex items-center justify-center
-        h-9 w-9 rounded-lg
-        text-ink-soft hover:text-ink hover:bg-bg-2
-        transition-colors
-      "
-    >
-      <Icon size={15} strokeWidth={1.75} />
-    </button>
+    />
+  );
+}
+
+/**
+ * FE-FIX-4 — Sidebar language selector.
+ *
+ * The i18n machinery already exists (react-i18next + LanguageDetector +
+ * useLanguage() priority chain + Settings → Language page), but the user
+ * had no globally-visible language switcher. This sits next to the theme
+ * toggle in the sidebar footer, opens a small popover, persists via
+ * setLanguage() → localStorage → i18n.changeLanguage(). Active language
+ * gets a check mark; popover dismisses on outside click.
+ *
+ * The popover also sets <html lang=...> so screen readers + the browser
+ * surface the language correctly. Done inside `setLanguage()` already?
+ * It is — i18next's languageChanged event fires LanguageSync, which
+ * persists. The <html lang> attribute is set in main.tsx on language
+ * changes. So this button is just a UI surface — all the state plumbing
+ * already exists.
+ */
+function LanguageIconButton() {
+  const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const active = i18n.language?.split("-")[0] ?? "en";
+  const label = t("sidebar.language_label", "Change language");
+
+  function handlePick(code: string) {
+    // Fix 3 — perf: close the popover SYNCHRONOUSLY before kicking off
+    // the network-bound profile sync. Awaiting two Supabase round-trips
+    // before closing left the popover open for ~400-800ms on prod, which
+    // read as button lag. The local i18next change inside
+    // pickLanguageWithProfileSync is itself synchronous; only the
+    // Supabase profile + auth.updateUser calls are async. We fire-and-
+    // forget those — the priority chain in useLanguage.ts already gets
+    // the right answer from the in-flight i18next change + localStorage
+    // write, so the UI re-renders immediately. The profile mirror
+    // happens in the background to make the choice survive a cache
+    // clear / new-device sign-in.
+    //
+    // Mirrors Settings → Language card semantics (profile + auth metadata)
+    // so useLanguage()'s priority chain treats this as the canonical
+    // preference. Without the profile sync the click would silently
+    // revert: LanguageSync re-reads profileLang on every render and
+    // pushes it back into i18next, overriding the localStorage write.
+    setOpen(false);
+    const sb = getSupabase();
+    void pickLanguageWithProfileSync(code, user ?? null, sb);
+  }
+
+  return (
+    // `<span>` (inline-block in the flex parent) rather than `<div>` so
+    // the popover anchor doesn't introduce a baseline shift relative to
+    // the sibling icon buttons. The button itself goes through the same
+    // `IconButton` primitive as the other two footer icons.
+    <span ref={containerRef} className="relative inline-flex">
+      <IconButton
+        size="sm"
+        icon={<Globe strokeWidth={1.75} />}
+        label={label}
+        active={open}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-testid="sidebar-language-button"
+        onClick={() => setOpen((v) => !v)}
+      />
+      {open && (
+        <div
+          role="menu"
+          data-testid="sidebar-language-popover"
+          className="
+            absolute bottom-full left-0 mb-2 min-w-[160px] z-50
+            rounded-lg border border-rule bg-surface shadow-lg
+            py-1
+          "
+        >
+          {SUPPORTED_LANGUAGES.map((lng) => {
+            const isActive = lng.code === active;
+            return (
+              <button
+                key={lng.code}
+                type="button"
+                role="menuitemradio"
+                aria-checked={isActive}
+                onClick={() => handlePick(lng.code)}
+                className={`
+                  w-full text-left px-3 py-1.5 text-[12.5px]
+                  hover:bg-bg-2 transition-colors
+                  flex items-center gap-2
+                  ${isActive ? "text-ink font-medium" : "text-ink-soft"}
+                `}
+              >
+                <span className="text-[14px] leading-none">{lng.flag}</span>
+                <span className="flex-1">{lng.label}</span>
+                {isActive && <span aria-hidden className="text-brand">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </span>
   );
 }

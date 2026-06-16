@@ -372,7 +372,8 @@ function TierCard({
         {finePrint}
       </p>
       <p className="text-[10px] text-ink-mute text-center mt-1 italic leading-snug">
-        Automated extraction with ~90%+ accuracy. Always verify before external use.
+        Extraction accuracy auto-measured per upload. Clean trial balances reconcile within 0.5%;
+        anything off gets a specific warning naming the issue.
       </p>
     </article>
   );

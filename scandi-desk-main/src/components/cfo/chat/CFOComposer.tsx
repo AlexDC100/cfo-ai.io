@@ -204,6 +204,16 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
+          onFocus={(e) => {
+            // iOS Safari: when virtual keyboard opens, the composer can be
+            // pushed off-screen. Wait a tick for the keyboard animation to
+            // settle, then scroll the textarea into view.
+            const el = e.currentTarget;
+            window.setTimeout(() => {
+              try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+              catch { /* older browsers — ignore */ }
+            }, 250);
+          }}
           placeholder={blockedReason ? "Chat is paused — see banner above" : placeholder}
           rows={1}
           disabled={hardDisabled}
@@ -211,7 +221,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           aria-label="Ask CFO AI"
           className="
             w-full resize-none bg-transparent
-            text-[14.5px] leading-[1.55] text-ink
+            text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
             placeholder:text-ink-mute focus:outline-none
             disabled:opacity-60
             min-h-[48px] max-h-[170px]

@@ -124,6 +124,69 @@ class LlmChatMessage(BaseModel):
     content: str
 
 
+class LlmFxContext(BaseModel):
+    """CUR-FIX — FX context the FE sends with every chat turn so the
+    system prompt can instruct Claude to cite figures in the user's
+    chosen display currency. Without these fields the model defaulted
+    to the source currency it saw in ``dataset_summary`` — which was
+    wrong any time the user toggled the TopHeader currency away from
+    the period's native currency (always RON for Romanian uploads).
+
+    Optional for back-compat: pre-CUR-FIX clients don't send the block
+    and the prompt builder falls back to the source-currency default.
+    """
+    source_currency: str = "RON"
+    display_currency: str = "RON"
+    rate: float = 1.0           # 1 source_currency = `rate` display_currency
+    rate_date: Optional[str] = None
+    provider: Optional[str] = None
+
+
+class LlmPublicCompanyContext(BaseModel):
+    """NASDAQ-13 — public-company context the FE sends when the user
+    has a Nasdaq ticker open on /public-companies and asks CFO AI a
+    question. Lets the model ground answers in the selected company's
+    headline figures without the operator having to paste them in.
+
+    The FE looks up the ticker from the public-company snapshot it
+    already has loaded (no extra HTTP needed) and bundles the headline
+    + market_metrics + a few derived ratios. The backend turns this
+    into a system-prompt block so Claude can cite figures like "AAPL
+    FY2024 revenue of $391B (Sharadar SF1)" without inventing them.
+
+    All fields optional — pre-NASDAQ-13 clients omit the block and the
+    chat falls back to its normal workspace persona.
+    """
+    ticker: str
+    company_name: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    exchange: Optional[str] = None
+    currency: Optional[str] = "USD"
+    latest_period: Optional[str] = None        # "FY2024" / "Q4 2024"
+    latest_period_end: Optional[str] = None    # YYYY-MM-DD
+    # Headline (raw USD)
+    revenue: Optional[float] = None
+    ebitda: Optional[float] = None
+    net_income: Optional[float] = None
+    total_assets: Optional[float] = None
+    total_equity: Optional[float] = None
+    cash: Optional[float] = None
+    net_debt: Optional[float] = None
+    free_cash_flow: Optional[float] = None
+    # Market
+    market_cap: Optional[float] = None
+    enterprise_value: Optional[float] = None
+    pe_ratio: Optional[float] = None
+    ev_to_ebitda: Optional[float] = None
+    # Ratios (% points where applicable)
+    ebitda_margin: Optional[float] = None
+    net_margin: Optional[float] = None
+    roe: Optional[float] = None
+    net_debt_to_ebitda: Optional[float] = None
+    source: Optional[str] = None               # "nasdaq" | "demo"
+
+
 class LlmChatRequest(BaseModel):
     """Conversational chat turn driven by Claude Opus 4.7.
 
@@ -140,12 +203,25 @@ class LlmChatRequest(BaseModel):
         knowledge) that grounds company-specific answers in the active
         period's workspace context and never fabricates the user's own
         figures. Picks up dataset_summary as the workspace snapshot.
+
+    `display_currency` + `fx_context` — CUR-FIX. When provided, the
+    system prompt instructs Claude to cite figures in the user's
+    chosen display currency (and note the conversion when display ≠
+    source). Optional for back-compat — pre-CUR-FIX clients still work.
+
+    `public_company` — NASDAQ-13. Optional public-company context block
+    sent when the user has a Nasdaq ticker selected on /public-companies.
+    Lets Claude cite live SF1 figures for that ticker without the user
+    pasting them in.
     """
     messages: List[LlmChatMessage] = Field(..., min_length=1, max_length=200)
     dataset_summary: Optional[str] = None
     page: str = "Today"
     company_name: str = "Demo workspace"
     mode: Optional[str] = None  # "inventory" (default) | "workspace"
+    display_currency: Optional[str] = None
+    fx_context: Optional[LlmFxContext] = None
+    public_company: Optional[LlmPublicCompanyContext] = None
 
 
 # ─── Conversion helpers ──────────────────────────────────────────────────
@@ -645,12 +721,18 @@ def create_cfo_router(
                 page=req.page,
                 company_name=req.company_name,
                 dataset_summary=req.dataset_summary,
+                display_currency=req.display_currency,
+                fx_context=req.fx_context,
+                public_company=req.public_company,
             )
         else:
             system_text = _build_chat_system_prompt(
                 page=req.page,
                 company_name=req.company_name,
                 dataset_summary=req.dataset_summary,
+                display_currency=req.display_currency,
+                fx_context=req.fx_context,
+                public_company=req.public_company,
             )
 
         try:
@@ -996,17 +1078,170 @@ def _csv_escape(s: str) -> str:
     return s
 
 
+def _build_currency_directive(
+    *,
+    display_currency: Optional[str],
+    fx_context: Optional["LlmFxContext"],
+) -> str:
+    """CUR-FIX — synthesize the system-prompt block that tells Claude
+    which currency to cite figures in.
+
+    The FE owns the user's display preference (TopHeader RON/EUR/USD
+    toggle) and computes the FX rate against the workspace's source
+    currency (always RON for the current SME pack). It posts both to
+    the chat API; this helper turns them into a one-paragraph
+    directive injected at the bottom of the system prompt — after the
+    persona but before the grounding snapshot, so the model treats it
+    as a rendering rule rather than a topic.
+
+    Returns an empty string when no display preference is provided
+    (pre-CUR-FIX clients), so the existing prompts render unchanged
+    and remain cache-eligible.
+    """
+    if not display_currency and not fx_context:
+        return ""
+
+    if fx_context is not None:
+        source = (fx_context.source_currency or "RON").upper()
+        display = (fx_context.display_currency or display_currency or source).upper()
+        rate = fx_context.rate if fx_context.rate else 1.0
+        rate_date = fx_context.rate_date or "today"
+        provider = fx_context.provider or "BNR"
+    else:
+        source = "RON"
+        display = (display_currency or "RON").upper()
+        rate = 1.0
+        rate_date = "today"
+        provider = "BNR"
+
+    # Same currency on both sides → no conversion math needed; just tell
+    # the model the active surface so prose like "in EUR" or "in RON"
+    # matches what the user sees on screen.
+    if source == display:
+        return (
+            "\n\n=== Display-currency rule ===\n"
+            f"The user is viewing this workspace in {display}. The underlying "
+            f"data is also stored in {display}, so cite money figures in "
+            f"{display} directly — no conversion needed.\n"
+            "Ratios, multiples, days, counts, and percentages stay as-is "
+            "regardless of currency.\n"
+            "=== End rule ===\n"
+        )
+
+    return (
+        "\n\n=== Display-currency rule ===\n"
+        f"The user is viewing this workspace in {display}. The underlying "
+        f"snapshot below is stored in {source}.\n"
+        f"Reference FX rate: 1 {source} = {rate:.4f} {display} "
+        f"(source: {provider}, {rate_date}).\n"
+        "When you cite money figures from the snapshot:\n"
+        f"  · Show the value in {display} as the primary unit.\n"
+        f"  · For non-trivial conversions, note the source briefly, e.g. "
+        f"\"~{display} 918k (converted from {source} 4.58M at {provider} rate)\".\n"
+        "  · For ratios, multiples, days, counts, percentages: present "
+        "unchanged regardless of currency.\n"
+        "  · Never invent or extrapolate a different FX rate. Use only "
+        "the rate provided above; if the user asks for a currency outside "
+        "RON/EUR/USD, say you don't have the rate.\n"
+        "=== End rule ===\n"
+    )
+
+
+def _build_public_company_directive(
+    public_company: Optional["LlmPublicCompanyContext"],
+) -> str:
+    """NASDAQ-13 — synthesize a system-prompt block describing the public
+    company the user is currently viewing on /public-companies.
+
+    Returns "" when no context is provided so the existing prompt stays
+    cache-eligible for the workspace path.
+
+    Formatting notes:
+      · Money figures rendered in raw USD with thousands separators —
+        the FX directive (built separately) handles any RON/EUR/USD
+        display conversion the user has selected in the TopHeader.
+      · Ratios as %-points where applicable. Multiples as 'Nx'.
+      · Provenance line names the source (Sharadar SF1 for live,
+        FY2024-indicative demo when source="demo").
+    """
+    if public_company is None:
+        return ""
+
+    pc = public_company
+    label = (pc.company_name or pc.ticker).strip()
+    period = pc.latest_period or "latest available period"
+    source_line = (
+        "Demo (FY2024-indicative — not live SF1 data)"
+        if (pc.source or "").lower() == "demo"
+        else "Sharadar SF1 (live)"
+    )
+
+    def _money(v: Optional[float]) -> str:
+        return f"USD {v:,.0f}" if v is not None else "—"
+
+    def _pct(v: Optional[float]) -> str:
+        return f"{v:.1f}%" if v is not None else "—"
+
+    def _mult(v: Optional[float]) -> str:
+        return f"{v:.1f}x" if v is not None else "—"
+
+    lines = [
+        f"Ticker / company: {pc.ticker}  ·  {label}",
+        f"Exchange · sector · industry: "
+        f"{pc.exchange or '—'} · {pc.sector or '—'} · {pc.industry or '—'}",
+        f"Currency: {pc.currency or 'USD'}    Period: {period}"
+        + (f"  (ended {pc.latest_period_end})" if pc.latest_period_end else ""),
+        f"Source: {source_line}",
+        "",
+        "Headline (raw USD unless noted):",
+        f"  · Revenue          {_money(pc.revenue)}",
+        f"  · EBITDA           {_money(pc.ebitda)}  ({_pct(pc.ebitda_margin)} margin)",
+        f"  · Net income       {_money(pc.net_income)}  ({_pct(pc.net_margin)} margin)",
+        f"  · Total assets     {_money(pc.total_assets)}",
+        f"  · Total equity     {_money(pc.total_equity)}",
+        f"  · Cash             {_money(pc.cash)}",
+        f"  · Net debt         {_money(pc.net_debt)}  ({_mult(pc.net_debt_to_ebitda)} ND/EBITDA)",
+        f"  · Free cash flow   {_money(pc.free_cash_flow)}",
+        "",
+        "Market:",
+        f"  · Market cap       {_money(pc.market_cap)}",
+        f"  · Enterprise value {_money(pc.enterprise_value)}",
+        f"  · P/E              {_mult(pc.pe_ratio)}",
+        f"  · EV / EBITDA      {_mult(pc.ev_to_ebitda)}",
+        f"  · ROE              {_pct(pc.roe)}",
+    ]
+
+    body = "\n".join(lines)
+    return (
+        "\n\n=== Public-company context ===\n"
+        "The user is currently viewing this Nasdaq-listed company on the "
+        "Public Company Intelligence page. Use the figures below when the "
+        "user asks about this ticker — never invent or extrapolate beyond "
+        "these numbers. If they ask for a metric not shown here (e.g. "
+        "segment revenue, geographic mix), say so plainly and suggest the "
+        "Sharadar SF1 query that would surface it.\n\n"
+        f"{body}\n"
+        "=== End public-company context ===\n"
+    )
+
+
 def _build_chat_system_prompt(
     *,
     page: str,
     company_name: str,
     dataset_summary: Optional[str],
+    display_currency: Optional[str] = None,
+    fx_context: Optional["LlmFxContext"] = None,
+    public_company: Optional["LlmPublicCompanyContext"] = None,
 ) -> str:
     """Persona + grounding for the conversational chat.
 
     Kept stable across turns so the system prompt is cache-eligible — the
     only volatile bit is the user message itself, so on a typical chat
     session the model only re-bills the new user turn each round.
+
+    CUR-FIX — `display_currency` + `fx_context` append the display-currency
+    rule (see `_build_currency_directive`). Optional for back-compat.
     """
     persona = (
         "You are CFO AI, a senior financial AI advisor for inventory-heavy "
@@ -1059,7 +1294,11 @@ def _build_chat_system_prompt(
             "topic they raised.\n"
         )
 
-    return persona + page_line + company_line + grounding
+    fx_directive = _build_currency_directive(
+        display_currency=display_currency, fx_context=fx_context,
+    )
+    public_directive = _build_public_company_directive(public_company)
+    return persona + page_line + company_line + grounding + fx_directive + public_directive
 
 
 def _build_workspace_chat_system_prompt(
@@ -1067,6 +1306,9 @@ def _build_workspace_chat_system_prompt(
     page: str,
     company_name: str,
     dataset_summary: Optional[str],
+    display_currency: Optional[str] = None,
+    fx_context: Optional["LlmFxContext"] = None,
+    public_company: Optional["LlmPublicCompanyContext"] = None,
 ) -> str:
     """System prompt for the universal Ask-CFO-AI workspace chat tab.
 
@@ -1146,4 +1388,8 @@ def _build_workspace_chat_system_prompt(
             "from the Dashboard first.\n"
         )
 
-    return persona + page_line + company_line + grounding
+    fx_directive = _build_currency_directive(
+        display_currency=display_currency, fx_context=fx_context,
+    )
+    public_directive = _build_public_company_directive(public_company)
+    return persona + page_line + company_line + grounding + fx_directive + public_directive

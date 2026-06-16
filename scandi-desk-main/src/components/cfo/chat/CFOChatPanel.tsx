@@ -109,15 +109,21 @@ export function CFOChatPanel({
               flex flex-col
               shadow-2xl
             "
+            style={{
+              paddingTop: "env(safe-area-inset-top)",
+              paddingBottom: "env(safe-area-inset-bottom)",
+            }}
             data-testid="chat-slide-over"
           >
             <button
               type="button"
               onClick={onClose}
               aria-label="Close Ask CFO AI"
-              className="absolute top-2.5 right-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/60 transition-colors"
+              className="absolute top-2 right-2 sm:top-2.5 sm:right-3 z-10 inline-flex h-11 w-11 sm:h-7 sm:w-7 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/60 active:bg-bg-2/40 transition-colors"
+              style={{ top: "calc(env(safe-area-inset-top) + 0.5rem)" }}
             >
-              <X size={14} strokeWidth={1.75} />
+              <X size={18} className="sm:hidden" strokeWidth={1.75} />
+              <X size={14} className="hidden sm:block" strokeWidth={1.75} />
             </button>
 
             <CFOChatShell

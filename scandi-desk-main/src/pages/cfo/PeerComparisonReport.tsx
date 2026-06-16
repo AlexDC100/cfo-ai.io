@@ -17,12 +17,36 @@
 // /report page). CSS @media print rules strip app chrome.
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+
+import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { Download, Printer, Loader2, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { IndustryBadge } from "@/components/cfo/industry";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/stores/currency";
+import { formatMoneyFrom } from "@/lib/money";
+import type { Currency } from "@/lib/rates";
+
+/**
+ * CUR-FIX — currency-aware compact formatter for peer-comparison impact
+ * values. The impact column shows EBITDA drag in money ("+2.5 M RON"
+ * → "+€480k" on EUR toggle). Same conversion pipeline as the other
+ * reports — single source of truth via <CurrencyProvider>.
+ */
+function usePeerImpactFmt(sourceCurrency: string) {
+  const { display, rates } = useCurrency();
+  const src = (sourceCurrency as Currency) || "RON";
+  return useMemo(() => {
+    return {
+      displayCurrency: display,
+      fmtImpact(absRons: number, signed: boolean, sign: "+" | "−" = "+"): string {
+        const compact = formatMoneyFrom(absRons, src, display, rates.rates, { compact: true });
+        return signed ? `${sign}${compact}` : compact;
+      },
+    };
+  }, [src, display, rates]);
+}
 
 const apiBase = (): string =>
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -105,11 +129,17 @@ interface ReportResponse {
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function PeerComparisonReport() {
-  const [params] = useSearchParams();
-  const periodId = params.get("period");
+  // 2026-05-24 — auto-resolve active period when URL lacks ?period= so
+  // sidebar navigation doesn't show an empty state when the user has docs.
+  // See src/hooks/useActivePeriodFallback.ts for the shared pattern.
+  const { periodId } = useActivePeriodFallback();
   const { toast } = useToast();
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [companyName, setCompanyName] = useState<string>("Your company");
+  // CUR-FIX — capture the period's source currency so peer-comparison impact
+  // figures convert through the same FX pipeline as Dashboard / Report /
+  // Products. Defaults to RON until /api/period responds.
+  const [periodCurrency, setPeriodCurrency] = useState<string>("RON");
   const [loading, setLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
 
@@ -139,7 +169,10 @@ export default function PeerComparisonReport() {
         if (!cancelled) setReport(body);
         if (periodRes.ok) {
           const pbody = await periodRes.json();
-          if (!cancelled) setCompanyName(pbody?.statements?.companyName ?? "Your company");
+          if (!cancelled) {
+            setCompanyName(pbody?.statements?.companyName ?? "Your company");
+            setPeriodCurrency(pbody?.period?.currency ?? "RON");
+          }
         }
       } catch (e: unknown) {
         if (!cancelled) toast({
@@ -198,13 +231,16 @@ export default function PeerComparisonReport() {
         {/* Navy gradient header — matches the Transavia memo + /report page */}
         <header className="rounded-2xl px-6 py-6 mb-6 text-white"
                 style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
+          {/* 2026-05-26 mobile fix: stack vertically below sm: so the
+              three-company "A vs B vs C" headline doesn't column-stack
+              when the Export PDF button competes for width. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.14em] opacity-80">
                 Peer comparison memo
               </div>
-              <h1 className="mt-1 font-serif text-[32px] leading-tight">
-                {companyName} <span className="opacity-70 text-[24px]">vs</span> {deep?.leader_company ?? "Industry"} <span className="opacity-70 text-[24px]">vs</span> {report.caen_label}
+              <h1 className="mt-1 font-serif text-[24px] sm:text-[28px] md:text-[32px] leading-tight">
+                {companyName} <span className="opacity-70 text-[18px] sm:text-[20px] md:text-[24px]">vs</span> {deep?.leader_company ?? "Industry"} <span className="opacity-70 text-[18px] sm:text-[20px] md:text-[24px]">vs</span> {report.caen_label}
               </h1>
               <p className="mt-1.5 text-[13px] opacity-85 inline-flex items-center gap-2 flex-wrap">
                 <span>CAEN {report.caen_code} · {periodLabel}</span>
@@ -219,7 +255,7 @@ export default function PeerComparisonReport() {
                 )}
               </p>
             </div>
-            <div className="flex items-center gap-2 print:hidden">
+            <div className="flex items-center gap-2 flex-wrap sm:shrink-0 print:hidden">
               <button
                 onClick={exportPdf}
                 disabled={pdfBusy}
@@ -242,10 +278,10 @@ export default function PeerComparisonReport() {
 
         <article className="space-y-10">
           {/* ── HEADLINE VERDICT ─────────────────────────────────────── */}
-          <HeadlineVerdict report={report} revenue={revenue} companyName={companyName} />
+          <HeadlineVerdict report={report} revenue={revenue} companyName={companyName} currency={periodCurrency} />
 
           {/* ── 1. SIDE-BY-SIDE P&L (cost-structure gap table) ───────── */}
-          <PnlGapTable report={report} revenue={revenue} companyName={companyName} />
+          <PnlGapTable report={report} revenue={revenue} companyName={companyName} currency={periodCurrency} />
 
           {/* ── 2. PEER LANDSCAPE ────────────────────────────────────── */}
           {deep && deep.peers.length > 0 && <PeerLandscape deep={deep} companyName={companyName} />}
@@ -287,11 +323,15 @@ function useMemoPeriodLabel(r: ReportResponse | null): string {
 
 // ─── Headline verdict — 3-bullet executive read ────────────────────────────
 
-function HeadlineVerdict({ report, revenue, companyName }: {
+function HeadlineVerdict({ report, revenue, companyName, currency }: {
   report: ReportResponse;
   revenue: number;
   companyName: string;
+  currency: string;
 }) {
+  // CUR-FIX — Impact figures convert through the same FX pipeline as the
+  // rest of the report so toggling EUR/USD updates them live.
+  const impactFmt = usePeerImpactFmt(currency);
   // Pick the two biggest unfavorable gaps from cost_structure + the
   // EBITDA / net margin gap. This block is the read-it-in-30-seconds
   // summary; everything below is the supporting math.
@@ -310,7 +350,7 @@ function HeadlineVerdict({ report, revenue, companyName }: {
   const formatImpact = (gapPp: number | null) => {
     if (gapPp == null || revenue <= 0) return "—";
     const rons = Math.abs(gapPp) * revenue / 100;
-    return rons >= 1_000_000 ? `${(rons/1_000_000).toFixed(1)} M RON` : `${(rons/1_000).toFixed(0)} K RON`;
+    return impactFmt.fmtImpact(rons, false);
   };
 
   const overallVerdict = (() => {
@@ -382,11 +422,14 @@ function KpiBox({ label, value, sub, favorable }: { label: string; value: string
 
 // ─── P&L gap table — the Transavia-style row-by-row comparison ──────────────
 
-function PnlGapTable({ report, revenue, companyName }: {
+function PnlGapTable({ report, revenue, companyName, currency }: {
   report: ReportResponse;
   revenue: number;
   companyName: string;
+  currency: string;
 }) {
+  // CUR-FIX — drives the Financial-impact column conversion.
+  const impactFmt = usePeerImpactFmt(currency);
   // Combine all comparison rows from profitability + cost_structure +
   // capital_structure sections into one table. Order matters: profit
   // headlines first, then cost-structure lines, then capital structure.
@@ -439,8 +482,8 @@ function PnlGapTable({ report, revenue, companyName }: {
     // Magnitude × revenue = the EBITDA drag. For higher-is-better,
     // negative gap = under-earning = magnitude × revenue = lost EBITDA.
     const drag = Math.abs(gap) * revenue / 100;
-    const sign = (lowerIsBetter && gap > 0) || (!lowerIsBetter && gap < 0) ? "−" : "+";
-    return drag >= 1_000_000 ? `${sign}${(drag/1_000_000).toFixed(1)} M RON` : `${sign}${(drag/1_000).toFixed(0)} K RON`;
+    const sign: "+" | "−" = (lowerIsBetter && gap > 0) || (!lowerIsBetter && gap < 0) ? "−" : "+";
+    return impactFmt.fmtImpact(drag, true, sign);
   }
 
   return (
@@ -454,7 +497,7 @@ function PnlGapTable({ report, revenue, companyName }: {
         on annual EBITDA: <code className="font-mono text-[11px]">|gap pp| × revenue / 100</code>.
       </p>
       <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
           <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
             <tr>
               <th className="text-left px-4 py-2.5">Line</th>
@@ -509,13 +552,13 @@ function PeerLandscape({ deep, companyName }: { deep: DeepPayload; companyName: 
         §2. Peer landscape — named Romanian comparables
       </h2>
       <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
           <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
             <tr>
               <th className="text-left px-4 py-2.5">Company</th>
               <th className="text-left px-3 py-2.5">Specialization</th>
               <th className="text-right px-3 py-2.5">FY</th>
-              <th className="text-right px-3 py-2.5">Revenue (M RON)</th>
+              <th className="text-right px-3 py-2.5">Revenue (M, source curr.)</th>
               <th className="text-right px-3 py-2.5">Net margin</th>
               <th className="text-right px-3 py-2.5">EBITDA margin</th>
               <th className="text-right px-3 py-2.5">Equity ratio</th>

@@ -154,6 +154,17 @@ def _dcf_cross_check(
     real_capex: float = 0.0,
     net_wc_change: float = 0.0,
     use_stabilized_fcf: bool = False,
+    # ── F1.j — interactive recompute overrides ──────────────────────────
+    # All optional; each defaults to None which means "use the engine
+    # default constant below". The new `POST /api/period/:id/valuation/
+    # recompute` endpoint pipes user inputs through these. Engine
+    # defaults stay literal in this function — single source of truth.
+    rf_override: Optional[float] = None,
+    erp_override: Optional[float] = None,
+    beta_override: Optional[float] = None,
+    forecast_growth_override: Optional[float] = None,
+    terminal_growth_override: Optional[float] = None,
+    forecast_years_override: Optional[int] = None,
 ) -> Dict[str, Any]:
     """5-year FCF growth + Gordon terminal, ROMANIA-CORRECTED inputs.
 
@@ -179,10 +190,12 @@ def _dcf_cross_check(
     central WACC components for the FE to surface in the methodology table.
     """
     # ── Romania-corrected WACC inputs ────────────────────────────────────
-    rf = 0.0675
-    erp = 0.075
-    beta = 1.0
-    cost_of_equity = rf + beta * erp  # 14.25%
+    # F1.j — engine defaults below are overridable via the recompute
+    # endpoint. Defaults stay as the spec'd Romanian-market constants.
+    rf = float(rf_override) if rf_override is not None else 0.0675
+    erp = float(erp_override) if erp_override is not None else 0.075
+    beta = float(beta_override) if beta_override is not None else 1.0
+    cost_of_equity = rf + beta * erp  # 14.25% at defaults
 
     implied_tax = (tax_expense / pretax) if pretax > 0 else 0.0
     tax_rate = max(0.0, min(0.25, implied_tax))
@@ -208,9 +221,14 @@ def _dcf_cross_check(
     else:
         base_fcf = max(cfo + real_capex, 0.0)
 
-    horizon = 5
-    g_forecast = 0.035          # 3.5% over years 1-5 (CPI + lease-up)
-    g_terminal = 0.030          # 3.0% mature CRE indexation
+    # F1.j — engine defaults overridable via recompute endpoint.
+    horizon = int(forecast_years_override) if forecast_years_override is not None else 5
+    g_forecast = (
+        float(forecast_growth_override) if forecast_growth_override is not None else 0.035
+    )  # 3.5% over years 1-N (CPI + lease-up) at default
+    g_terminal = (
+        float(terminal_growth_override) if terminal_growth_override is not None else 0.030
+    )  # 3.0% mature CRE indexation at default
 
     def _dcf_at(wacc: float) -> Dict[str, float]:
         """Run a single DCF at the given WACC; return EV and equity."""
@@ -304,6 +322,15 @@ def compute_valuation(
     industry_key: Optional[str],
     statements: Dict[str, Any],
     user_assumptions: Optional[Dict[str, Any]] = None,
+    # F1.j — stateless interactive recompute overrides. Pass-through dict
+    # forwarded to `_dcf_cross_check`. None means "engine defaults".
+    # Accepted keys (all optional): forecast_years, forecast_growth,
+    # terminal_growth, beta, equity_risk_premium, rf, property_market_value,
+    # annual_lease_expense, shares_outstanding. The last three are accepted
+    # for schema-completeness per SPEC §11 and stored back on the result
+    # for the FE to surface even if the engine doesn't yet wire them into
+    # the calculation (real-estate-specific extensions).
+    dcf_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the valuation payload.
 
@@ -457,6 +484,10 @@ def compute_valuation(
     real_capex = _safe(cf_canonical.get("capex_real", 0.0))
     net_wc_change = _safe(cf_canonical.get("net_wc_change", 0.0))
     use_stabilized = is_cre and abs(real_capex) > depreciation * 2
+    # F1.j — DCF overrides (rf / erp / beta / forecast_growth /
+    # terminal_growth / forecast_years) thread through to _dcf_cross_check.
+    # When absent, _dcf_cross_check applies its engine defaults.
+    overrides = dcf_overrides or {}
     dcf = _dcf_cross_check(
         ebitda=ebitda_used,
         depreciation=depreciation,
@@ -475,6 +506,12 @@ def compute_valuation(
         real_capex=real_capex,
         net_wc_change=net_wc_change,
         use_stabilized_fcf=use_stabilized,
+        rf_override=overrides.get("rf"),
+        erp_override=overrides.get("equity_risk_premium"),
+        beta_override=overrides.get("beta"),
+        forecast_growth_override=overrides.get("forecast_growth"),
+        terminal_growth_override=overrides.get("terminal_growth"),
+        forecast_years_override=overrides.get("forecast_years"),
     )
 
     # ── FCF BREAKDOWN for the Valuation tab tiles ────────────────────────
@@ -708,6 +745,22 @@ def compute_valuation(
         # Presentation
         "formula_text": formula_text,
         "football_field": football_field,
+        # F1.j — echo back what overrides were applied (or NULL = engine
+        # defaults). Lets the FE render "you used these inputs" alongside
+        # the recomputed numbers, and lets the SPEC §11 schema fields
+        # `property_market_value`, `annual_lease_expense`, `shares_outstanding`
+        # round-trip even though the engine does not yet consume them.
+        "overrides_applied": {
+            "rf":                    overrides.get("rf"),
+            "equity_risk_premium":   overrides.get("equity_risk_premium"),
+            "beta":                  overrides.get("beta"),
+            "forecast_years":        overrides.get("forecast_years"),
+            "forecast_growth":       overrides.get("forecast_growth"),
+            "terminal_growth":       overrides.get("terminal_growth"),
+            "property_market_value": overrides.get("property_market_value"),
+            "annual_lease_expense":  overrides.get("annual_lease_expense"),
+            "shares_outstanding":    overrides.get("shares_outstanding"),
+        },
     }
 
 

@@ -11,8 +11,12 @@
 // transparent "WC reconciliation" plug line when prior-period data
 // isn't available to itemize working-capital deltas.
 
+import { useTranslation } from "react-i18next";
 import type { CashFlowStatement } from "@/lib/cfStructure";
-import { formatRON, formatRONParen, formatRONSigned } from "@/lib/formatRon";
+import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { GuideMeButton } from "@/components/learning/GuideMeButton";
+import { CF_GUIDE } from "@/components/learning/pageGuides";
 import "./cashFlowStatementView.css";
 
 interface Props {
@@ -20,17 +24,24 @@ interface Props {
 }
 
 export function CashFlowStatementView({ statement }: Props) {
+  const { t } = useTranslation();
   const { operating, investing, financing, reconciliation, notes } = statement;
   const driftExceedsTolerance = Math.abs(reconciliation.drift) > 1;
   const showApproximationBanner = statement.isApproximated;
+  // 2026-05-24 — currency conversion via display-currency toggle.
+  const fmt = useAmountFormatter(statement.currency);
+  const display = useDisplayCurrency();
 
   return (
     <div className="cf-statement" data-testid="cf-statement">
-      <div className="cf-header">
-        <h2>
-          CASH FLOW — {statement.entity} — {statement.period} ({statement.currency})
-        </h2>
-        <p className="cf-method">Indirect method</p>
+      <div className="cf-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h2>
+            {t("statements.cf.title")} — {statement.entity} — {statement.period} ({display})
+          </h2>
+          <p className="cf-method">{t("statements.cf.indirectMethod")}</p>
+        </div>
+        <GuideMeButton pageId="cash-flow" title="Cash Flow" steps={CF_GUIDE} />
       </div>
 
       {/* ── HONESTY BANNER ─────────────────────────────────────────── */}
@@ -49,13 +60,10 @@ export function CashFlowStatementView({ statement }: Props) {
             <span aria-hidden className="text-amber-700 dark:text-amber-300 mt-0.5">ⓘ</span>
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-medium text-amber-900 dark:text-amber-100">
-                Cash flow is approximated
+                {t("statements.cf.approximated.heading")}
               </div>
               <p className="text-[12px] text-amber-900/85 dark:text-amber-100/85 mt-1 leading-relaxed">
-                This is a single-period upload, so working-capital movements
-                and financing detail can't be computed exactly. The
-                reconciliation plug absorbs unmodeled accounts. For exact
-                figures, upload the <strong>prior year trial balance</strong> as well.
+                {t("statements.cf.approximated.body")}
               </p>
               {statement.approximationNotes.length > 0 && (
                 <ul className="text-[11.5px] text-amber-900/80 dark:text-amber-100/80 mt-2 ml-3 list-disc space-y-0.5">
@@ -70,10 +78,10 @@ export function CashFlowStatementView({ statement }: Props) {
                   data-testid="cf-upload-prior-cta"
                   className="inline-flex items-center gap-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 text-[12px] font-medium transition-colors"
                 >
-                  Upload prior period
+                  {t("statements.cf.approximated.cta")}
                 </a>
                 <span className="text-[11.5px] text-amber-900/70 dark:text-amber-100/70">
-                  e.g. balanță FY2024 alongside FY2025
+                  {t("statements.cf.approximated.hint")}
                 </span>
               </div>
             </div>
@@ -83,30 +91,36 @@ export function CashFlowStatementView({ statement }: Props) {
 
       <div className="cf-body">
         {/* ── OPERATING ACTIVITIES ─────────────────────────────────── */}
-        <section className="cf-section" data-testid="cf-section-operating">
-          <div className="cf-section-header">OPERATING ACTIVITIES</div>
+        <section className="cf-section" data-testid="cf-section-operating" data-guide="cf-operating">
+          <div className="cf-section-header">{t("statements.cf.operating.header")}</div>
 
           <div className="cf-row cf-row-item">
             <span className="cf-code" />
-            <span className="cf-label">Net profit</span>
-            <span className="cf-amount">{formatRON(operating.netProfit)}</span>
+            <span className="cf-label">{t("statements.cf.operating.netProfit")}</span>
+            <LearnableNumber conceptKey="net_profit" value={operating.netProfit} className="cf-amount" block>
+              {fmt(operating.netProfit)}
+            </LearnableNumber>
           </div>
           <div className="cf-row cf-row-item">
             <span className="cf-code" />
-            <span className="cf-label">+ Depreciation &amp; amortization</span>
-            <span className="cf-amount">{formatRON(operating.depreciation)}</span>
+            <span className="cf-label">{t("statements.cf.operating.depreciation")}</span>
+            <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
+              {fmt(operating.depreciation)}
+            </LearnableNumber>
           </div>
 
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-subtotal">
             <span className="cf-code" />
-            <span className="cf-label">Operating CF before WC changes</span>
-            <span className="cf-amount">{formatRON(operating.cfBeforeWcChanges)}</span>
+            <span className="cf-label">{t("statements.cf.operating.cfBeforeWc")}</span>
+            <LearnableNumber conceptKey="operating_cash_flow_before_wc" value={operating.cfBeforeWcChanges} className="cf-amount" block>
+              {fmt(operating.cfBeforeWcChanges)}
+            </LearnableNumber>
           </div>
 
           {operating.wcChanges.length > 0 && (
             <>
-              <div className="cf-subsection-header">Working capital changes:</div>
+              <div className="cf-subsection-header">{t("statements.cf.operating.wcChanges")}</div>
               {operating.wcChanges.map((wc, i) => (
                 <div
                   key={`${wc.label}-${i}`}
@@ -120,11 +134,11 @@ export function CashFlowStatementView({ statement }: Props) {
                       <span className="cf-account-ref"> ({wc.accounts})</span>
                     )}
                   </span>
-                  <span className="cf-amount">
+                  <LearnableNumber conceptKey="working_capital_changes" value={wc.delta} className="cf-amount" block>
                     {wc.delta >= 0
-                      ? formatRONSigned(wc.delta, "positive")
-                      : formatRONSigned(wc.delta, "negative")}
-                  </span>
+                      ? fmt(wc.delta, { sign: "positive" })
+                      : fmt(wc.delta, { sign: "negative" })}
+                  </LearnableNumber>
                 </div>
               ))}
             </>
@@ -133,14 +147,16 @@ export function CashFlowStatementView({ statement }: Props) {
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-from-operating">
             <span className="cf-code" />
-            <span className="cf-label">Cash from operating activities</span>
-            <span className="cf-amount">{formatRON(operating.cashFromOperating)}</span>
+            <span className="cf-label">{t("statements.cf.operating.cashFromOperating")}</span>
+            <LearnableNumber conceptKey="operating_cash_flow" value={operating.cashFromOperating} className="cf-amount" block>
+              {fmt(operating.cashFromOperating)}
+            </LearnableNumber>
           </div>
         </section>
 
         {/* ── INVESTING ACTIVITIES ─────────────────────────────────── */}
-        <section className="cf-section" data-testid="cf-section-investing">
-          <div className="cf-section-header">INVESTING ACTIVITIES</div>
+        <section className="cf-section" data-testid="cf-section-investing" data-guide="cf-investing">
+          <div className="cf-section-header">{t("statements.cf.investing.header")}</div>
           {investing.items.map((item, i) => (
             <div key={`${item.label}-${i}`} className="cf-row cf-row-item">
               <span className="cf-code" />
@@ -148,63 +164,69 @@ export function CashFlowStatementView({ statement }: Props) {
                 {item.label}
                 <span className="cf-account-ref"> ({item.accounts})</span>
               </span>
-              <span className="cf-amount">{formatRONParen(item.amount)}</span>
+              <LearnableNumber conceptKey="capex" value={item.amount} className="cf-amount" block>
+                {fmt(item.amount, { paren: true })}
+              </LearnableNumber>
             </div>
           ))}
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-used-investing">
             <span className="cf-code" />
-            <span className="cf-label">Cash used in investing</span>
-            <span className="cf-amount">{formatRONParen(investing.cashUsedInInvesting)}</span>
+            <span className="cf-label">{t("statements.cf.investing.cashUsed")}</span>
+            <LearnableNumber conceptKey="investing_cash_flow" value={investing.cashUsedInInvesting} className="cf-amount" block>
+              {fmt(investing.cashUsedInInvesting, { paren: true })}
+            </LearnableNumber>
           </div>
         </section>
 
         {/* ── FINANCING ACTIVITIES ─────────────────────────────────── */}
-        <section className="cf-section" data-testid="cf-section-financing">
-          <div className="cf-section-header">FINANCING ACTIVITIES</div>
+        <section className="cf-section" data-testid="cf-section-financing" data-guide="cf-financing">
+          <div className="cf-section-header">{t("statements.cf.financing.header")}</div>
           <div className="cf-row cf-row-item">
             <span className="cf-code" />
             <span className="cf-label">
-              LT bank loan drawdowns
+              {t("statements.cf.financing.ltDraws")}
               <span className="cf-account-ref"> (1621 YTD credit)</span>
             </span>
-            <span className="cf-amount">
+            <LearnableNumber conceptKey="lt_debt_drawdowns" value={financing.bankLoanDrawdowns} className="cf-amount" block>
               {financing.bankLoanDrawdowns > 0
-                ? formatRONSigned(financing.bankLoanDrawdowns, "positive")
+                ? fmt(financing.bankLoanDrawdowns, { sign: "positive" })
                 : "—"}
-            </span>
+            </LearnableNumber>
           </div>
           <div className="cf-row cf-row-item">
             <span className="cf-code" />
             <span className="cf-label">
-              LT bank loan repayments
+              {t("statements.cf.financing.ltRepays")}
               <span className="cf-account-ref"> (1621 YTD debit)</span>
             </span>
-            <span className="cf-amount">
+            <LearnableNumber conceptKey="lt_debt_repayments" value={financing.bankLoanRepayments} className="cf-amount" block>
               {financing.bankLoanRepayments < 0
-                ? formatRONParen(financing.bankLoanRepayments)
+                ? fmt(financing.bankLoanRepayments, { paren: true })
                 : "—"}
-            </span>
+            </LearnableNumber>
           </div>
           <div className="cf-row cf-row-item">
             <span className="cf-code" />
             <span className="cf-label">
-              Dividends paid in cash
+              {t("statements.cf.financing.dividendsPaid")}
               {financing.dividendsPaid === 0 && (
-                <span className="cf-account-ref"> (only declared, see note)</span>
+                <span className="cf-account-ref"> ({t("statements.cf.financing.onlyDeclared")})</span>
               )}
             </span>
-            <span className="cf-amount">{formatRON(financing.dividendsPaid)}</span>
+            <LearnableNumber conceptKey="dividends_paid" value={financing.dividendsPaid} className="cf-amount" block>
+              {fmt(financing.dividendsPaid)}
+            </LearnableNumber>
           </div>
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-from-financing">
             <span className="cf-code" />
-            <span className="cf-label">Cash from financing</span>
-            <span className="cf-amount">
+            <span className="cf-label">{t("statements.cf.financing.cashFromFinancing")}</span>
+            <LearnableNumber conceptKey="financing_cash_flow" value={financing.cashFromFinancing} className="cf-amount" block>
               {financing.cashFromFinancing >= 0
-                ? formatRONSigned(financing.cashFromFinancing, "positive")
-                : formatRONParen(financing.cashFromFinancing)}
-            </span>
+                ? fmt(financing.cashFromFinancing, { sign: "positive" })
+                : fmt(financing.cashFromFinancing, { paren: true })}
+            </LearnableNumber>
           </div>
         </section>
 
@@ -213,30 +235,32 @@ export function CashFlowStatementView({ statement }: Props) {
           <div className="cf-double-rule" />
           <div className="cf-row cf-recon-row">
             <span className="cf-code" />
-            <span className="cf-label">Net change in cash</span>
-            <span className="cf-amount">
+            <span className="cf-label">{t("statements.cf.recon.netChange")}</span>
+            <LearnableNumber conceptKey="net_change_in_cash" value={reconciliation.netChangeInCash} className="cf-amount" block>
               {reconciliation.netChangeInCash >= 0
-                ? formatRONSigned(reconciliation.netChangeInCash, "positive")
-                : formatRONParen(reconciliation.netChangeInCash)}
-            </span>
+                ? fmt(reconciliation.netChangeInCash, { sign: "positive" })
+                : fmt(reconciliation.netChangeInCash, { paren: true })}
+            </LearnableNumber>
           </div>
           <div className="cf-row cf-recon-row">
             <span className="cf-code" />
-            <span className="cf-label">Opening cash</span>
-            <span className="cf-amount">{formatRON(reconciliation.openingCash)}</span>
+            <span className="cf-label">{t("statements.cf.recon.opening")}</span>
+            <LearnableNumber conceptKey="opening_cash" value={reconciliation.openingCash} className="cf-amount" block>
+              {fmt(reconciliation.openingCash)}
+            </LearnableNumber>
           </div>
           <div className="cf-row cf-recon-row cf-closing" data-testid="cf-closing-cash">
             <span className="cf-code" />
-            <span className="cf-label">Closing cash</span>
-            <span className="cf-amount">{formatRON(reconciliation.closingCashComputed)}</span>
+            <span className="cf-label">{t("statements.cf.recon.closing")}</span>
+            <LearnableNumber conceptKey="closing_cash" value={reconciliation.closingCashComputed} className="cf-amount" block>
+              {fmt(reconciliation.closingCashComputed)}
+            </LearnableNumber>
           </div>
           <div className="cf-double-rule" />
 
           {driftExceedsTolerance && (
             <div className="cf-drift-warning" data-testid="cf-drift-warning">
-              ⚠ Reconciliation drift: RON {reconciliation.drift.toFixed(2)} — closing
-              cash on this statement does not match the Balance Sheet position
-              ({formatRON(reconciliation.closingCashActual)}) within RON 1.
+              ⚠ {t("statements.cf.recon.drift")}: {fmt(reconciliation.drift)} ({fmt(reconciliation.closingCashActual)}).
             </div>
           )}
         </section>
@@ -244,7 +268,7 @@ export function CashFlowStatementView({ statement }: Props) {
         {/* ── NOTES ────────────────────────────────────────────────── */}
         {notes.length > 0 && (
           <section className="cf-notes" data-testid="cf-notes">
-            <h4>NOTES</h4>
+            <h4>{t("statements.cf.notes")}</h4>
             {notes.map((note, i) => (
               <p key={i} className="cf-note">{note}</p>
             ))}

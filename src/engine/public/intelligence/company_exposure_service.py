@@ -20,9 +20,15 @@ pre-fetched overrides without this module needing a DB handle.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+from .bvb_overrides import get_bvb_overrides
+from .category_scoring import (
+    CATEGORIES,
+    derive_category_scores,
+)
 from .models import (
     CompanyExposureProfile,
     ExposureSource,
@@ -37,11 +43,35 @@ from .sector_risk_library import (
     SECTOR_RISK_LIBRARY,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # Confidence band for sector_model: 0.55 default. We're not pretending to
 # know company-specific risk; we're saying "this is the sector default."
 # When filings/manual sources take over, this lifts to 0.85+.
 SECTOR_MODEL_CONFIDENCE = 0.55
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# BVB override observability
+# ─────────────────────────────────────────────────────────────────────────
+# Per-override-fire INFO logging is deduplicated via this process-local
+# set so we don't spam logs once per request. Each (ticker, field) pair
+# logs exactly once per process lifetime — the radar refreshes every 5
+# min, so without dedup we'd emit ~144 lines per ticker per 12-hour day.
+# Module-level startup log (bvb_overrides.py) gives the operator the
+# "which overrides are loaded" view; this gives the "which overrides
+# fired in practice" view, complementary not redundant.
+
+_override_logged: set[tuple[str, str]] = set()
+
+
+def _log_override_once(ticker: str, field: str, detail: str) -> None:
+    key = (ticker, field)
+    if key in _override_logged:
+        return
+    _override_logged.add(key)
+    logger.info("[bvb_override_fired] %s.%s — %s", ticker, field, detail)
 
 
 def build_company_exposure_profile(
@@ -116,6 +146,29 @@ def build_company_exposure_profile(
     supply = dict(profile.default_supply_chain_exposure)
     sens = dict(profile.default_financial_sensitivity)
 
+    # BVB Phase 2 — apply ticker-level overrides on top of sector default.
+    # The geographic_exposure overlay is the most important field: H2O's
+    # romania=0.95 replaces the Utilities sector default of us=0.85, which
+    # then flows into category_scoring's geopolitical computation. Per Lock
+    # #11, the override knowledge stays at the service layer; the scoring
+    # function is exchange-agnostic. Per Lock #8, the override fire is
+    # logged once per (ticker, field) so we can confirm in production logs
+    # that the overrides we expected to fire actually fired.
+    bvb_override = get_bvb_overrides(ticker)
+    if bvb_override is not None:
+        geo_override = bvb_override.get("geographic_exposure")
+        if geo_override:
+            # Replace the geo dict entirely — the override is intentional and
+            # caller-curated (Hidroelectrica is 100% RO, not 5% RO + 85% US).
+            # Partial-merge would silently mix sector defaults with curated
+            # data which is exactly the kind of source-of-truth ambiguity
+            # the README ladder doc warns against.
+            geo = dict(geo_override)
+            _log_override_once(
+                ticker, "geographic_exposure",
+                f"replaced sector default with {sorted(geo_override.items())}",
+            )
+
     # Filter sector risks to the ones that apply to this industry +
     # geographic exposure. Then turn each RiskDimension into a RiskRef
     # (the surface-level record with company-specific explanation).
@@ -184,6 +237,76 @@ def build_company_exposure_profile(
         confidence=SECTOR_MODEL_CONFIDENCE,
         source="sector_model",
         last_updated=datetime.now(timezone.utc),
+    )
+
+
+def score_categories_for_ticker(
+    *,
+    ticker: str,
+    sector: str,
+    industry: Optional[str],
+    geographic_exposure: dict[str, float],
+) -> dict[str, float]:
+    """Compute the 8 Risk Radar category exposures for a ticker.
+
+    This is the service-layer entry point for the radar's per-(ticker,
+    category) ranking. routes.py calls this once per ticker; the
+    function itself is the ONE place that knows where category-level
+    overrides come from (currently bvb_overrides; future
+    wse_overrides / ase_overrides for Warsaw / Athens drop in next to
+    it without `category_scoring.py` ever changing — Lock #11).
+
+    Args:
+      ticker: ticker symbol (e.g. "NVDA", "TLV", "EL.BVB"). Used to
+        look up explicit_tickers theme matches AND to look up per-
+        ticker override entries.
+      sector: sector name as it appears in SECTOR_RISK_LIBRARY.
+      industry: optional industry sub-tag for finer-grained theme
+        matches (e.g. "Pharma" for healthcare GLP-1 theme).
+      geographic_exposure: the resolved geo dict for the ticker. Caller
+        passes the post-override geo (BVB override applied in
+        build_company_exposure_profile already), so this function
+        doesn't re-apply the geo overlay.
+
+    Returns:
+      Dict keyed by category (`CATEGORIES`), values in [0.0, 1.0].
+      Sector-unknown tickers return zeros (`category_scoring`'s
+      contract for None profile).
+    """
+    profile = SECTOR_RISK_LIBRARY.get(sector)
+    if profile is None:
+        return {cat: 0.0 for cat in CATEGORIES}
+
+    # Resolve themes via the same path the existing main_risks/main_opps
+    # uses. themes_for_ticker handles both sector matches and the
+    # explicit_tickers shortcut.
+    themes_applied = themes_for_ticker(ticker, sector, industry)
+
+    # Pull category-level overrides from the relevant exchange's module.
+    # Today only BVB is wired; tomorrow Warsaw/Athens slot into the same
+    # if/elif structure. The DERIVATION function knows nothing about any
+    # of this — it just receives a dict[str, float] | None.
+    category_overrides: Optional[dict[str, float]] = None
+    bvb_override = get_bvb_overrides(ticker)
+    if bvb_override is not None:
+        category_overrides = bvb_override.get("category_exposures") or None
+        if category_overrides:
+            # Per-fire dedup log so we can confirm in prod which override
+            # categories are actually being applied. Logs once per
+            # (ticker, "category_exposures") combo per process — the
+            # detail string lists which categories were overridden.
+            _log_override_once(
+                ticker, "category_exposures",
+                "overrode " + ", ".join(
+                    f"{k}={v}" for k, v in sorted(category_overrides.items())
+                ),
+            )
+
+    return derive_category_scores(
+        profile=profile,
+        themes_applied=themes_applied,
+        geographic_exposure=geographic_exposure,
+        category_overrides=category_overrides,
     )
 
 

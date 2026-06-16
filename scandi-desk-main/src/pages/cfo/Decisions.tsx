@@ -13,11 +13,14 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Check, Clock, FileText, X } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod } from "@/lib/activePeriod";
+import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { usePeriodFacts } from "@/lib/periodFacts";
 import { RecommendationsView } from "@/components/cfo/RecommendationsView";
+import { Money } from "@/components/ui/Money";
+import type { Currency } from "@/lib/rates";
+import { linkifyAlertBody } from "@/lib/linkifyAlertBody";
 import {
   computeRatios,
-  formatCurrency,
   generateRecommendations,
   type Recommendation,
   type RecommendationPriority,
@@ -40,6 +43,9 @@ const PRIORITY_TONE: Record<RecommendationPriority, string> = {
 };
 
 export default function Decisions() {
+  // 2026-05-24 — auto-resolve active period when URL lacks ?period=.
+  // Without this, sidebar navigation shows empty Decisions even with docs.
+  useActivePeriodFallback();
   const period = useActivePeriod();
   const facts = usePeriodFacts();
   if (!period.isLoaded || !period.statements) {
@@ -96,7 +102,19 @@ function DecisionsEmptyState() {
 
 function DecisionsLoaded({ statements }: { statements: NonNullable<ReturnType<typeof useActivePeriod>["statements"]> }) {
   const period = useActivePeriod();
-  const ratios = useMemo(() => computeRatios(statements), [statements]);
+  // F2.2 — Pass engine-canonical metrics map so this page's ratios
+  // match the dashboard Ratios tab to the cent.
+  const metricsByName = useMemo(() => {
+    const out: Record<string, number | null> = {};
+    for (const mt of period.metrics) {
+      out[mt.name] = typeof mt.value === "number" ? mt.value : null;
+    }
+    return out;
+  }, [period.metrics]);
+  const ratios = useMemo(
+    () => computeRatios(statements, undefined, metricsByName),
+    [statements, metricsByName],
+  );
   // Server-generated (Opus 4.7) recommendations win when available — they
   // carry industry context the local rule-based generator lacks. For samples
   // (no remote payload) we fall back to the client-side recommendations.
@@ -148,7 +166,7 @@ function DecisionsLoaded({ statements }: { statements: NonNullable<ReturnType<ty
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[640px]">
           {totalImpact > 0
-            ? <>Combined estimated impact: <span className="text-ink font-medium">~{formatCurrency(totalImpact, cur)} / year</span>.</>
+            ? <>Combined estimated impact: <span className="text-ink font-medium">~<Money value={totalImpact} fromCurrency={cur as Currency} compact /> / year</span>.</>
             : "Recommendations are tracked here. Mark them in-progress, done, or dismiss as appropriate."}
         </p>
       </header>
@@ -217,17 +235,26 @@ function DecisionCard({
         <span className={`inline-flex items-center text-[10.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border ${tone}`}>
           {PRIORITY_LABEL[rec.priority]}
         </span>
-        <h3 className={`font-serif text-[17px] text-ink leading-tight ${done ? "line-through" : ""}`}>{rec.title}</h3>
+        {/* CUR-FIX — pipe title/rationale/action through linkifyAlertBody so
+            the recommendation's "RON X" mentions convert live when the user
+            toggles the global currency. `rec.factsCited` carries the raw
+            facts the rule emitted; linkify matches them to RON figures in
+            the prose and replaces with currency-aware <TraceableNumber>s. */}
+        <h3 className={`font-serif text-[17px] text-ink leading-tight ${done ? "line-through" : ""}`}>
+          {linkifyAlertBody(rec.title, rec.factsCited as Record<string, number> | undefined)}
+        </h3>
       </div>
       <p className="text-[13px] text-ink-soft leading-snug mt-2">
-        <span className="text-ink font-medium">Why:</span> {rec.rationale}
+        <span className="text-ink font-medium">Why:</span>{" "}
+        {linkifyAlertBody(rec.rationale, rec.factsCited as Record<string, number> | undefined)}
       </p>
       <p className="text-[13px] text-ink-soft leading-snug mt-2">
-        <span className="text-ink font-medium">Action:</span> {rec.action}
+        <span className="text-ink font-medium">Action:</span>{" "}
+        {linkifyAlertBody(rec.action, rec.factsCited as Record<string, number> | undefined)}
       </p>
       {rec.estimatedImpact && (
         <div className="mt-3 inline-flex items-center text-[11.5px] font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
-          Estimated impact: ~{formatCurrency(rec.estimatedImpact, currency)} / year
+          Estimated impact: ~<Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / year
         </div>
       )}
       <div className="mt-4 flex items-center gap-2 flex-wrap">

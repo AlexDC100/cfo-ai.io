@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { TopHeader } from "./TopHeader";
+import { UploadResumeProvider } from "./UploadResumeProvider";
 import { Sidebar } from "./Sidebar";
 // FloatingAiButton import removed — see comment in JSX below.
 // App-shell cleanup Phase 4 — the legacy CommandDrawer is replaced by
@@ -45,6 +46,7 @@ import { useAuth } from "@/lib/auth";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
 import { useToast } from "@/hooks/use-toast";
+import { UsageWarningBanner } from "./UsageWarningBanner";
 
 interface Props {
   children: ReactNode;
@@ -204,6 +206,9 @@ export function AppShell({ children }: Props) {
 
   return (
     <div className="min-h-screen bg-bg text-ink">
+      {/* Resumes polling on any persisted in-flight upload when the app
+          shell mounts (page refresh during an analysis). Renders nothing. */}
+      <UploadResumeProvider />
       <TopHeader
         onOpenAi={openAskCfoAi}
         onOpenSidebar={() => setSidebarOpen(true)}
@@ -217,11 +222,17 @@ export function AppShell({ children }: Props) {
         <SheetContent
           side="left"
           className="
-            w-[280px] p-0
+            w-[min(280px,calc(100vw-3rem))] p-0
             bg-bg
             border-r border-rule
             [&>button.absolute]:hidden
+            overflow-y-auto overscroll-contain
           "
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingBottom: "env(safe-area-inset-bottom)",
+            paddingLeft: "env(safe-area-inset-left)",
+          }}
         >
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <div className="h-16 border-b border-rule" />
@@ -247,7 +258,15 @@ export function AppShell({ children }: Props) {
           slide-out is open on wide screens (≥1280px) the content shifts
           left by the panel's width so nothing is hidden. */}
       <main className={`pt-16 ${sidebarCollapsed ? "lg:pl-[68px]" : "lg:pl-[244px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
-        <div className="px-5 sm:px-8 lg:px-10 py-8 sm:py-10 lg:py-12 pb-32">
+        {/* WS1 — sticky usage warning when caller is at 80%+ of any
+            cap. Renders null when under threshold, off, dismissed, or
+            no plan state. Stays at top of the main scroll region so it
+            doesn't fight with the fixed TopHeader. */}
+        <UsageWarningBanner />
+        <div
+          className="px-4 sm:px-8 lg:px-10 py-6 sm:py-10 lg:py-12"
+          style={{ paddingBottom: "max(8rem, calc(env(safe-area-inset-bottom) + 6rem))" }}
+        >
           {children}
         </div>
       </main>

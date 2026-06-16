@@ -25,3 +25,13 @@ logs/
 supabase/.temp/
 
 .claude/
+
+# LEARN-MOBILE / repo-init (2026-06-16): exclude customer trial-balance
+# uploads + test artifacts that don't belong in source control.
+files/
+out/
+test-results/
+test-results*/
+scandi-desk-main/test-results/
+scandi-desk-main/test-results*/
+.DS_Store

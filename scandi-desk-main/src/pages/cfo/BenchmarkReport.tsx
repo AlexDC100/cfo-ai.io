@@ -13,20 +13,29 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, BarChart3, Info, Layers as LayersIcon, LineChart, Loader2, ShieldAlert } from "lucide-react";
 
 import { AppShell } from "@/components/cfo/AppShell";
-import { IndustryConfirmModal } from "@/components/cfo/IndustryConfirmModal";
-// Phase E — additive: the new picker/badge use the per-period
-// `company_industry_assignments` table; the legacy modal still writes
-// `organizations.caen_code`. Both work in parallel during the dual-write
-// window. The header now opens IndustryPicker; the first-time "caen_not_set"
-// gate keeps IndustryConfirmModal because it's the only flow that maps to
-// the legacy benchmark engine's required input today.
+import { Money } from "@/components/ui/Money";
+// 2026-05-24 — first-time `caen_not_set` gate now opens IndustryPicker too
+// (not the legacy IndustryConfirmModal). Operator feedback: the legacy
+// modal's bare <select> dropdown was hard to use, didn't surface
+// available industries clearly, and frequently rendered with an empty
+// catalog when the back-end returned no rows. IndustryPicker has search,
+// grouped catalog, single-click save + auto-close, internal-brand notes,
+// and error humanisation — everything the legacy modal lacked. The
+// legacy component is left in src/ as quiet dead code; no remaining
+// callers in this codebase.
 import { IndustryBadge, IndustryPicker } from "@/components/cfo/industry";
 import { Level1BenchmarkView } from "@/components/cfo/Level1BenchmarkView";
 import { EmptyState } from "@/components/cfo/ui/EmptyState";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { GuideMeButton } from "@/components/learning/GuideMeButton";
+import { BENCHMARK_GUIDE } from "@/components/learning/pageGuides";
+import { LearnableMetricCard } from "@/components/learning/LearnableMetricCard";
+import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
+import { benchmarkMetricToConcept } from "@/lib/learning/benchmarkMetricToConcept";
 import { getSupabase } from "@/lib/supabase";
 import { PUBLIC_RECORDS_ENABLED } from "@/config/features";
 
@@ -226,16 +235,10 @@ async function fetchReport(periodId: string): Promise<Report | ApiError | null> 
 }
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
-
-function formatCurrency(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  const abs = Math.abs(value);
-  const sign = value < 0 ? "−" : "";
-  if (abs >= 1_000_000_000) return `${sign}${(abs / 1_000_000_000).toFixed(2)}B RON`;
-  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(2)}M RON`;
-  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)}K RON`;
-  return `${sign}${abs.toFixed(0)} RON`;
-}
+// Money formatting now flows through the canonical <Money> component so the
+// global RON/EUR/USD toggle converts benchmark + headline tiles uniformly.
+// Sector benchmark percentiles are stored as Romanian-sector RON values,
+// so the source currency is always RON here.
 
 function formatPct(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -247,11 +250,11 @@ function formatRatio(value: number | null | undefined): string {
   return `${value.toFixed(2)}×`;
 }
 
-function formatValue(value: number | null | undefined, unit: string | null | undefined): string {
+function formatValue(value: number | null | undefined, unit: string | null | undefined): React.ReactNode {
   if (value === null || value === undefined) return "—";
   if (unit === "pct") return formatPct(value);
   if (unit === "ratio") return formatRatio(value);
-  return formatCurrency(value);
+  return <Money value={value} fromCurrency="RON" compact />;
 }
 
 // ─── Sanity check: detect obvious CAEN mismatches ──────────────────────────
@@ -280,7 +283,7 @@ function detectClassificationMismatch(report: Report): { mismatch: boolean; reas
     if (c.benchmark.unit !== "pct") continue;  // only flag percentage metrics
     const gap = Math.abs(c.company_value - c.benchmark.p50);
     if (gap > 30) {
-      extremeMetrics.push(c.display.ro);
+      extremeMetrics.push(c.display.en);
     }
   }
 
@@ -288,7 +291,7 @@ function detectClassificationMismatch(report: Report): { mismatch: boolean; reas
     const sample = extremeMetrics.slice(0, 3).join(", ");
     return {
       mismatch: true,
-      reason: `Datele companiei tale sunt foarte diferite de tipicul industriei selectate pe ${extremeMetrics.length} indicatori (${sample}${extremeMetrics.length > 3 ? "…" : ""}). Probabil ai selectat industria greșită.`,
+      reason: `Your company's numbers differ sharply from typical ${extremeMetrics.length} metrics for this industry (${sample}${extremeMetrics.length > 3 ? "…" : ""}). You probably picked the wrong industry.`,
     };
   }
   return { mismatch: false, reason: "" };
@@ -302,11 +305,43 @@ export default function BenchmarkReportPage() {
   const periodId = params.get("period");
   const [data, setData] = useState<Report | ApiError | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  // Phase E — separate state for the new IndustryPicker so the legacy
-  // modal (gated on `caen_not_set`) and the new picker (user-initiated
-  // change) can coexist during the dual-write window. setShowModal
-  // remains tied to the legacy first-time confirmation.
+  // 2026-05-24 — fallback to active period when URL has no ?period= param.
+  // Previously: landing on /benchmark from the sidebar (which doesn't
+  // preserve the query) silently showed "No analysis open yet" even when
+  // the user had documents loaded. Now we fetch active_period_id from
+  // /api/org/periods-with-documents and canonicalize the URL.
+  const [activeLookup, setActiveLookup] = useState<"idle" | "pending" | "none">(
+    periodId ? "idle" : "pending",
+  );
+  useEffect(() => {
+    if (periodId || activeLookup !== "pending") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const h = await authHeaders();
+        if (!h) { if (!cancelled) setActiveLookup("none"); return; }
+        const r = await fetch(`${apiBase()}/api/org/periods-with-documents`, { headers: h });
+        if (!r.ok) { if (!cancelled) setActiveLookup("none"); return; }
+        const body = await r.json() as { active_period_id?: string | null };
+        if (cancelled) return;
+        if (body.active_period_id) {
+          // Canonicalize URL so deep links + browser back/forward stay
+          // consistent. The query param is the source of truth for the
+          // rest of this component.
+          navigate(`/benchmark?period=${encodeURIComponent(body.active_period_id)}`, { replace: true });
+        } else {
+          setActiveLookup("none");
+        }
+      } catch {
+        if (!cancelled) setActiveLookup("none");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [periodId, activeLookup, navigate]);
+  // 2026-05-24 — single industry-edit surface. IndustryPicker now opens
+  // for BOTH the first-time caen_not_set auto-trigger AND every user-
+  // initiated change-industry button. The legacy IndustryConfirmModal
+  // is no longer mounted by this page.
   const [showPicker, setShowPicker] = useState(false);
 
   const refresh = useMemo(
@@ -320,8 +355,15 @@ export default function BenchmarkReportPage() {
         try {
           const result = await fetchReport(periodId);
           setData(result);
+          // 2026-05-24 — auto-open the NEW IndustryPicker (search + grouped
+          // catalog + one-click save) on first-time caen_not_set, instead
+          // of the legacy IndustryConfirmModal whose bare <select> dropdown
+          // was the source of the user-reported "industry menu has bugs,
+          // make it simple" complaint. The picker writes per-period via
+          // /api/industry/assignment/{period_id} and onChanged triggers
+          // refresh() below, so the benchmark recomputes immediately.
           if (result && "error" in result && result.error === "caen_not_set") {
-            setShowModal(true);
+            setShowPicker(true);
           }
         } catch (e) {
           // Defense-in-depth: even if fetchReport throws (it shouldn't —
@@ -343,7 +385,21 @@ export default function BenchmarkReportPage() {
   }, [refresh]);
 
   if (!periodId) {
-    // No financial_period in scope. Two paths:
+    // Still resolving active period from /api/org/periods-with-documents?
+    // Show a quiet spinner instead of flashing the "no analysis" empty
+    // state before the redirect lands.
+    if (activeLookup === "pending") {
+      return (
+        <AppShell>
+          <div className="max-w-[680px] mx-auto py-16 text-center">
+            <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
+            <p className="text-[13px] text-ink-soft">Loading benchmark report…</p>
+          </div>
+        </AppShell>
+      );
+    }
+    // No financial_period in scope (resolved to none — user genuinely has
+    // no uploads yet). Two paths:
     //   · Flag ON  → fall through to Level-1 view (public-records data)
     //   · Flag OFF → public-records is hidden product-wide; show the
     //     plain "upload a trial balance" empty state so the page never
@@ -391,13 +447,38 @@ export default function BenchmarkReportPage() {
   }
 
   if (!data) {
+    // No data + not loading + had a periodId = backend errored, fetchReport
+    // returned null/undefined, or the request was cancelled. Previously we
+    // rendered only the PageHeader — looked like a half-built page with no
+    // way out. Now we surface the same EmptyState primitive used elsewhere
+    // with two explicit recovery actions: retry the fetch, or fall back to
+    // the Dashboard where the user can re-pick a period.
     return (
       <AppShell>
-        <div className="max-w-[1080px] mx-auto py-10">
+        <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
           <PageHeader
             eyebrow="Benchmark"
             title="Couldn't load the benchmark report."
-            subtitle="The backend is unreachable, or your account doesn't have access to this period. Try again in a moment, or open the Dashboard to confirm the period is still loaded."
+            subtitle="The backend is unreachable, or your account doesn't have access to this period. Try again, or open the Dashboard to confirm the period is still loaded."
+            atmosphere
+            testid="benchmark-error-header"
+          />
+          <EmptyState
+            icon={BarChart3}
+            title="Report didn't load."
+            subtitle="Click retry to re-fetch. If it keeps failing, open the Dashboard to verify the period is still active, or contact support."
+            primary={{
+              label: "Retry",
+              onClick: () => { void refresh(); },
+              testid: "benchmark-error-retry",
+            }}
+            secondary={{
+              label: "Open Dashboard",
+              onClick: () => navigateToDashboard(navigate),
+              testid: "benchmark-error-dashboard",
+            }}
+            footnote="Persists? Email contact@cfo-ai.io with the period name."
+            testid="benchmark-error-empty"
           />
         </div>
       </AppShell>
@@ -420,58 +501,83 @@ export default function BenchmarkReportPage() {
           </AppShell>
         );
       }
+      // period_not_found — referenced UUID was deleted or never existed.
+      // Same visual vocabulary as the other empty states: PageHeader +
+      // BenchmarkPreviewStrip + EmptyState with an explicit recovery path.
       return (
         <AppShell>
-          <div className="max-w-[640px] mx-auto py-24 text-center">
-            <h1 className="font-serif text-[24px] text-ink mb-2">Period not found</h1>
-            <p className="text-[13.5px] text-ink-soft">
-              The period referenced in the URL no longer exists. Open the Dashboard
-              and select an analysis to view its benchmark.
-            </p>
+          <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
+            <PageHeader
+              eyebrow="Benchmark"
+              title="Period not found."
+              subtitle="The period referenced in the URL no longer exists. It may have been deleted, or the link is from another workspace. Open the Dashboard to pick an analysis that still exists."
+              atmosphere
+              testid="benchmark-period-not-found-header"
+            />
+            <BenchmarkPreviewStrip />
+            <EmptyState
+              icon={BarChart3}
+              title="This period is gone."
+              subtitle="Periods can be cleared from the Dashboard or auto-removed when the underlying document is deleted. Open the Dashboard to pick a current analysis."
+              primary={{
+                label: "Open Dashboard",
+                onClick: () => navigateToDashboard(navigate),
+                testid: "benchmark-period-not-found-cta",
+              }}
+              testid="benchmark-period-not-found-empty"
+            />
           </div>
         </AppShell>
       );
     }
+    // caen_not_set / benchmarks_not_available — the user has a period but
+    // no usable industry assignment yet. Was an amber inline box with one
+    // tiny button. Now it's the full-fat empty-state surface the user
+    // already sees elsewhere on the page: PageHeader → BenchmarkPreviewStrip
+    // (so they SEE what they'll get) → EmptyState with the picker CTA as
+    // primary action and Open Dashboard as escape hatch.
+    const isCaenMissing = data.error === "caen_not_set";
     return (
       <AppShell>
-        <section className="max-w-[800px] mx-auto py-12 space-y-4">
-          <div className="rounded-lg border border-amber-300/60 bg-amber-50/40 p-5">
-            <h1 className="font-serif text-[24px] text-ink mb-2">Benchmark not available yet</h1>
-            <p className="text-[13.5px] text-ink-soft">{data.message}</p>
-            {data.error === "caen_not_set" && (
-              // Phase F — gate now opens the new IndustryPicker. The
-              // backend (`_benchmarks.py`) accepts EITHER path as a
-              // valid classification, so the user can satisfy the gate
-              // by writing a company_industry_assignments row alone —
-              // no need to touch `organizations.caen_code`. The legacy
-              // IndustryConfirmModal remains mounted below for
-              // reversibility; remove after backfill verifies.
-              <button
-                type="button"
-                onClick={() => setShowPicker(true)}
-                data-testid="benchmark-confirm-caen-btn"
-                className="mt-4 inline-flex h-9 px-4 rounded-md bg-ink text-paper text-[13px] font-medium hover:bg-ink/90 transition-colors"
-              >
-                Confirm industry
-              </button>
-            )}
-          </div>
-        </section>
-        {showModal && periodId && (
-          <IndustryConfirmModal
-            periodId={periodId}
-            open={showModal}
-            onClose={() => setShowModal(false)}
-            onConfirmed={() => {
-              setShowModal(false);
-              void refresh();
-            }}
+        <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
+          <PageHeader
+            eyebrow="Benchmark"
+            title={isCaenMissing
+              ? "Pick an industry to unlock the benchmark."
+              : "Industry coverage is still expanding."}
+            subtitle={isCaenMissing
+              ? "Your trial balance is loaded. One more step: confirm which industry to benchmark against. We use industry to pick the right peer median, working-capital norms, and leverage bands — picking the wrong one gives misleading comparisons, so we ask once instead of guessing."
+              : "The industry you've picked doesn't have benchmark data yet. Switch to a related industry that is seeded, or contact support and we'll prioritise yours."}
+            atmosphere
+            testid="benchmark-needs-industry-header"
           />
-        )}
-        {/* Phase E — IndustryPicker is mounted in parallel; it only opens
-            when the user explicitly triggers it (header buttons, mismatch
-            banner CTA). Writes go to company_industry_assignments, so the
-            page refresh below picks up the change on the next render. */}
+          <BenchmarkPreviewStrip />
+          <EmptyState
+            icon={BarChart3}
+            title={isCaenMissing ? "Industry not set yet." : "No benchmark data for this industry."}
+            subtitle={data.message
+              || (isCaenMissing
+                ? "Open the industry picker — it shows the full RO CAEN catalog with a one-click pick."
+                : "The picker shows which industries are currently seeded; switch to one of those.")}
+            primary={{
+              label: isCaenMissing ? "Confirm industry" : "Change industry",
+              onClick: () => setShowPicker(true),
+              testid: "benchmark-confirm-caen-btn",
+            }}
+            secondary={{
+              label: "Open Dashboard",
+              onClick: () => navigateToDashboard(navigate),
+              testid: "benchmark-needs-industry-dashboard",
+            }}
+            footnote="No fabricated peer data is ever shown — once the industry is picked and seeded, real peer medians load instantly."
+            testid="benchmark-needs-industry-empty"
+          />
+        </div>
+        {/* 2026-05-24 — IndustryPicker is the single industry-edit surface.
+            Auto-opens on caen_not_set (set above) and also opens from every
+            user-initiated "Confirm / Change industry" button. Writes go to
+            company_industry_assignments; onChanged → refresh() refetches
+            the benchmark with the new assignment applied. */}
         {showPicker && periodId && (
           <IndustryPicker
             periodId={periodId}
@@ -488,8 +594,15 @@ export default function BenchmarkReportPage() {
   return (
     <AppShell>
       <section className="space-y-6 max-w-[1200px]">
-        <header data-testid="benchmark-header" className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
+        {/* 2026-05-26 (mobile fix): stack vertically on mobile so the
+            CAEN industry headline doesn't get squeezed by the action
+            buttons cluster. Was `flex items-start justify-between
+            gap-4 flex-wrap` with `flex-1` left col — that produced the
+            same column-stacking bug as the PublicCompanyIntelligence
+            hero (right cluster wins the width battle, left col gets
+            ~150px, 34-40px heading wraps to 4-5 lines). */}
+        <header data-testid="benchmark-header" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
             <div className="label-eyebrow">Industry benchmark · your company</div>
             <h1 className="mt-2 font-serif text-[34px] sm:text-[40px] leading-[1.05] tracking-[-0.02em] text-ink">
               {r.caen_label}
@@ -515,7 +628,8 @@ export default function BenchmarkReportPage() {
               ) : null}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap sm:shrink-0">
+            <GuideMeButton pageId="benchmark" title="Benchmark" steps={BENCHMARK_GUIDE} />
             <button
               type="button"
               data-testid="benchmark-header-change-caen"
@@ -634,23 +748,8 @@ export default function BenchmarkReportPage() {
         </div>
       </section>
 
-      {showModal && periodId && (
-        <IndustryConfirmModal
-          periodId={periodId}
-          // Pass the active CAEN so the modal renders in
-          // reclassification mode (title "Change industry",
-          // "Current industry" banner, save disabled until different).
-          currentCaen={r.caen_code}
-          open={showModal}
-          onClose={() => setShowModal(false)}
-          onConfirmed={() => {
-            setShowModal(false);
-            void refresh();
-          }}
-        />
-      )}
-      {/* Phase E — IndustryPicker (per-period assignment). Coexists with
-          the legacy modal during dual-write. */}
+      {/* 2026-05-24 — single industry surface. Header / mismatch-banner /
+          row-pencil all open IndustryPicker. Legacy modal removed. */}
       {showPicker && periodId && (
         <IndustryPicker
           periodId={periodId}
@@ -683,17 +782,41 @@ function DisclosureBox({ text }: { text: string }) {
 
 function HeadlineGrid({ section }: { section: HeadlineSection }) {
   return (
-    <section data-testid="benchmark-headline" className="space-y-3">
-      <h2 className="font-serif text-[18px] text-ink">{section.title_ro}</h2>
+    <section data-testid="benchmark-headline" data-guide="benchmark-headline" className="space-y-3">
+      <h2 className="font-serif text-[18px] text-ink">{section.title_en}</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {section.metrics.map((m) => {
-          const value = section.company_values[m];
-          const label = section.display[m]?.ro ?? m;
+          const value = section.company_values[m] ?? 0;
+          const label = section.display[m]?.en ?? m;
+          const conceptKey = benchmarkMetricToConcept(m);
+          // When the metric maps to a concept, render the premium
+          // LearnableMetricCard primitive — the whole tile becomes a
+          // tap-target. When it doesn't map, fall back to the plain
+          // card so we don't regress the visual.
+          if (conceptKey) {
+            return (
+              <LearnableMetricCard
+                key={m}
+                label={label}
+                conceptKey={conceptKey}
+                value={value}
+                display={
+                  section.company_values[m] != null ? (
+                    <Money value={value} fromCurrency="RON" compact />
+                  ) : (
+                    "—"
+                  )
+                }
+                tone="default"
+                data-testid={`benchmark-headline-${m}`}
+              />
+            );
+          }
           return (
             <div key={m} className="rounded-2xl border border-rule bg-surface p-4">
               <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">{label}</div>
               <div className="mt-2 font-serif text-[24px] text-ink tabular-nums">
-                {formatCurrency(value)}
+                {section.company_values[m] != null ? <Money value={section.company_values[m] ?? 0} fromCurrency="RON" compact /> : "—"}
               </div>
             </div>
           );
@@ -709,28 +832,42 @@ function ComparisonSection({ section, testId }: { section: ComparisonSection; te
   }
   return (
     <section data-testid={testId} className="space-y-3">
-      <h2 className="font-serif text-[18px] text-ink">{section.title_ro}</h2>
+      <h2 className="font-serif text-[18px] text-ink">{section.title_en}</h2>
       <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
           <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
             <tr>
-              <th className="text-left px-4 py-2.5">Indicator</th>
-              <th className="text-right px-3 py-2.5">Compania</th>
+              <th className="text-left px-4 py-2.5">Metric</th>
+              <th className="text-right px-3 py-2.5">Your company</th>
               <th className="text-right px-3 py-2.5">P25</th>
               <th className="text-right px-3 py-2.5">Median</th>
               <th className="text-right px-3 py-2.5">P75</th>
               <th className="text-left px-3 py-2.5">Verdict</th>
-              <th className="text-left px-3 py-2.5">Sursă</th>
+              <th className="text-left px-3 py-2.5">Source</th>
             </tr>
           </thead>
           <tbody>
-            {section.comparisons.map((c) => (
+            {section.comparisons.map((c) => {
+              const conceptKey = benchmarkMetricToConcept(c.metric_name);
+              return (
               <tr
                 key={c.metric_name}
                 data-testid={`benchmark-row-${c.metric_name}`}
                 className="border-t border-rule/60"
               >
-                <td className="px-4 py-2.5 text-ink">{c.display.ro}</td>
+                <td className="px-4 py-2.5 text-ink">
+                  {conceptKey ? (
+                    <LearnableRowLabel
+                      conceptKey={conceptKey}
+                      value={c.company_value ?? 0}
+                      data-testid={`benchmark-label-${c.metric_name}`}
+                    >
+                      {c.display.en}
+                    </LearnableRowLabel>
+                  ) : (
+                    c.display.en
+                  )}
+                </td>
                 <td className="px-3 py-2.5 text-right tabular-nums font-medium">
                   {formatValue(c.company_value, c.benchmark.unit)}
                 </td>
@@ -755,7 +892,8 @@ function ComparisonSection({ section, testId }: { section: ComparisonSection; te
                   />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -834,13 +972,16 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
 // reads first: who's in the industry, why the leader wins, where my
 // numbers sit vs the leader, what targets are realistic.
 
-const TIER_META: Record<DeepPeer["tier"], { label: string; cls: string }> = {
-  leader:       { label: "LIDER",         cls: "bg-emerald-700 text-white" },
-  strong:       { label: "PUTERNIC",      cls: "bg-blue-700 text-white" },
-  median:       { label: "MEDIE",         cls: "bg-stone-500 text-white" },
-  thin_margin:  { label: "MARJĂ SUBȚIRE", cls: "bg-amber-500 text-white" },
-  distressed:   { label: "DISTRESSED",    cls: "bg-red-700 text-white" },
-  self:         { label: "COMPANIA TA",   cls: "bg-ink text-paper" },
+// TIER_META holds the visual class per tier. The user-facing label is
+// translated at render time via t('benchmarkPage.peersTable.tiers.<tier>'),
+// not baked in here, so EN→RO/DE/FR/ES toggle re-paints the badge text.
+const TIER_META: Record<DeepPeer["tier"], { cls: string }> = {
+  leader:       { cls: "bg-emerald-700 text-white" },
+  strong:       { cls: "bg-blue-700 text-white" },
+  median:       { cls: "bg-stone-500 text-white" },
+  thin_margin:  { cls: "bg-amber-500 text-white" },
+  distressed:   { cls: "bg-red-700 text-white" },
+  self:         { cls: "bg-ink text-paper" },
 };
 
 function fmtM(value: number | null): string {
@@ -860,32 +1001,54 @@ function fmtRatio2(value: number | null): string {
 }
 
 function DeepPeerSection({ deep }: { deep: DeepReport }) {
+  const { t } = useTranslation();
+
+  // Backend ships `revenue_mlei` + `net_profit_mlei` in millions of RON.
+  // Convert to raw RON (×1e6) so <Money fromCurrency="RON" compact /> can
+  // re-display in whatever currency the top-bar toggle is set to — flips
+  // RON → EUR → USD live without a page refresh. fmtM is kept as a tiny
+  // signed-number helper for things that aren't currency (margins, etc.).
+  const moneyFromMlei = (mlei: number | null) => {
+    if (mlei === null || mlei === undefined || Number.isNaN(mlei)) return null;
+    return mlei * 1_000_000;
+  };
+
   return (
     <section data-testid="benchmark-deep-peers" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">1. Peers — cine ocupă pozițiile în industrie</h2>
+      <h2 className="font-serif text-[20px] text-ink">{t("benchmarkPage.peersTable.heading")}</h2>
       {deep.leader_company && (
         <div className="rounded-lg border-l-[3px] border-blue-400 bg-blue-50/40 dark:bg-blue-500/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
-          <strong className="text-ink">Lider de industrie identificat:</strong>{" "}
+          <strong className="text-ink">{t("benchmarkPage.peersTable.leaderIntro")}</strong>{" "}
           {deep.leader_company}
-          {deep.leader_year ? <> ({deep.leader_year}, {fmtM(deep.leader_revenue_mlei)}M lei revenue, {fmtPct1(deep.leader_net_margin_pct)} margin)</> : null}.{" "}
+          {deep.leader_year ? (
+            <> ({deep.leader_year},{" "}
+              <Money
+                value={moneyFromMlei(deep.leader_revenue_mlei)}
+                fromCurrency="RON"
+                compact
+              />
+              {" "}{t("benchmarkPage.peersTable.leaderRevenue")},{" "}
+              {fmtPct1(deep.leader_net_margin_pct)} {t("benchmarkPage.peersTable.leaderMargin")})
+            </>
+          ) : null}.{" "}
           {deep.leader_specialization && (
             <>
-              <strong>Specializare:</strong> {deep.leader_specialization}.
+              <strong>{t("benchmarkPage.peersTable.leaderSpec")}:</strong> {deep.leader_specialization}.
             </>
           )}
         </div>
       )}
       <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
           <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
             <tr>
-              <th className="text-left px-4 py-2.5">Companie</th>
-              <th className="text-right px-3 py-2.5">An</th>
-              <th className="text-right px-3 py-2.5">CA (M lei)</th>
-              <th className="text-right px-3 py-2.5">Profit net (M lei)</th>
-              <th className="text-right px-3 py-2.5">Marjă netă</th>
-              <th className="text-left px-3 py-2.5">Specializare</th>
-              <th className="text-center px-3 py-2.5">Verdict</th>
+              <th className="text-left px-4 py-2.5">{t("benchmarkPage.peersTable.cols.company")}</th>
+              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.year")}</th>
+              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.revenue")}</th>
+              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.netProfit")}</th>
+              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.netMargin")}</th>
+              <th className="text-left px-3 py-2.5">{t("benchmarkPage.peersTable.cols.specialization")}</th>
+              <th className="text-center px-3 py-2.5">{t("benchmarkPage.peersTable.cols.verdict")}</th>
             </tr>
           </thead>
           <tbody>
@@ -894,6 +1057,13 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
               const profitColor = positive ? "text-emerald-700" : "text-red-700";
               const isSelf = p.tier === "self";
               const isLeader = p.tier === "leader";
+              // Self-row specialization is set by backend to a localized
+              // sentinel ("Compania ta" / "Your company"). Re-derive on
+              // FE so the cell follows the active language regardless of
+              // what the backend baked in.
+              const specCell = isSelf
+                ? t("benchmarkPage.yourCompany")
+                : (p.specialization ?? "—");
               return (
                 <tr
                   key={`${p.company_name}-${p.fiscal_year}-${idx}`}
@@ -902,17 +1072,19 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
                 >
                   <td className="px-4 py-2.5">{p.company_name}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-ink-mute">{p.fiscal_year ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{fmtM(p.revenue_mlei)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">
+                    <Money value={moneyFromMlei(p.revenue_mlei)} fromCurrency="RON" compact />
+                  </td>
                   <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitColor}`}>
-                    {fmtM(p.net_profit_mlei)}
+                    <Money value={moneyFromMlei(p.net_profit_mlei)} fromCurrency="RON" compact signed />
                   </td>
                   <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitColor}`}>
                     {fmtPct1(p.net_margin_pct)}
                   </td>
-                  <td className="px-3 py-2.5 text-ink-soft">{p.specialization ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-ink-soft">{specCell}</td>
                   <td className="px-3 py-2.5 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-[0.06em] ${TIER_META[p.tier].cls}`}>
-                      {TIER_META[p.tier].label}
+                      {t(`benchmarkPage.peersTable.tiers.${p.tier}`)}
                     </span>
                   </td>
                 </tr>
@@ -929,13 +1101,13 @@ function DeepLeaderWhySection({ deep }: { deep: DeepReport }) {
   return (
     <section data-testid="benchmark-deep-why" className="space-y-3">
       <h2 className="font-serif text-[20px] text-ink">
-        2. De ce liderul ({deep.leader_company}) domină — {deep.leader_reasons.length} motive structurale
+        2. Why the leader ({deep.leader_company}) dominates — {deep.leader_reasons.length} structural reasons
       </h2>
       <p className="text-[13px] text-ink-soft leading-relaxed">
-        Suma impacturilor cumulate este de aproximativ{" "}
-        <strong>+{deep.leader_total_impact_pp.toFixed(1)}pp marjă</strong> peste media industriei.
-        Acestea sunt avantaje structurale (nu conjuncturale) — competitorii ar trebui să le replice
-        simultan pentru a închide gap-ul.
+        Cumulative impact is approximately{" "}
+        <strong>+{deep.leader_total_impact_pp.toFixed(1)}pp margin</strong> above the industry average.
+        These are structural advantages (not cyclical) — competitors would have to replicate them
+        simultaneously to close the gap.
       </p>
       <div className="space-y-2.5">
         {deep.leader_reasons.map((reason) => (
@@ -966,14 +1138,14 @@ function DeepGapSection({ deep }: { deep: DeepReport }) {
   return (
     <section data-testid="benchmark-deep-gap" className="space-y-3">
       <h2 className="font-serif text-[20px] text-ink">
-        3. Compania ta vs Liderul ({deep.leader_company}) — Gap analysis
+        3. Your company vs the leader ({deep.leader_company}) — Gap analysis
       </h2>
       <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
           <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
             <tr>
               <th className="text-left px-4 py-2.5">Metric</th>
-              <th className="text-right px-3 py-2.5">Compania ta</th>
+              <th className="text-right px-3 py-2.5">Your company</th>
               <th className="text-right px-3 py-2.5">{deep.leader_company ?? "Leader"}</th>
               <th className="text-right px-3 py-2.5">Gap</th>
             </tr>
@@ -1011,15 +1183,15 @@ function DeepTargetTiersSection({ deep }: { deep: DeepReport }) {
   if (t.minimum_viable) rows.push({ tier: t.minimum_viable, bg: "bg-red-50/40", icon: "⚠" });
   return (
     <section data-testid="benchmark-deep-tiers" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">4. Target margin tiers pentru această industrie</h2>
+      <h2 className="font-serif text-[20px] text-ink">4. Target margin tiers for this industry</h2>
       <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
           <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
             <tr>
               <th className="text-left px-4 py-2.5">Tier</th>
-              <th className="text-right px-3 py-2.5">Marja netă</th>
-              <th className="text-right px-3 py-2.5">Marja EBITDA</th>
-              <th className="text-left px-3 py-2.5">Comentariu</th>
+              <th className="text-right px-3 py-2.5">Net margin</th>
+              <th className="text-right px-3 py-2.5">EBITDA margin</th>
+              <th className="text-left px-3 py-2.5">Comment</th>
             </tr>
           </thead>
           <tbody>
@@ -1038,11 +1210,12 @@ function DeepTargetTiersSection({ deep }: { deep: DeepReport }) {
         </table>
       </div>
       <div className="rounded-lg border-l-[3px] border-amber-400 bg-amber-50/30 dark:bg-amber-500/[0.06] px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
-        <strong className="text-ink">Cum citești tabelul:</strong>{" "}
-        Aspirational este pragul top quartile (10-15% din industrie), necesită avantaje structurale ca cele
-        descrise mai sus și 5-10+ ani execuție. Realistic este targetul rezonabil pentru o companie bine
-        condusă, fără avantaje structurale extreme. Minimum viable este pragul sub care continuarea
-        operațiunilor devine fragilă (incapacitate de capex, refinanțare).
+        <strong className="text-ink">How to read the table:</strong>{" "}
+        Aspirational is the top-quartile threshold (10-15% of the industry); it requires the kind of
+        structural advantages described above plus 5-10+ years of execution. Realistic is the
+        reasonable target for a well-run company without extreme structural advantages. Minimum
+        viable is the threshold below which operations become fragile (capex inability, refinancing
+        pressure).
       </div>
     </section>
   );
@@ -1052,21 +1225,21 @@ function DeepDynamicsSection({ deep }: { deep: DeepReport }) {
   const d = deep.dynamics;
   if (!d) return null;
   const labels: Record<string, string> = {
-    concentration: "Concentrare",
-    growth: "Creștere",
-    regulation: "Reglementare",
-    barriers: "Bariere intrare",
+    concentration: "Concentration",
+    growth: "Growth",
+    regulation: "Regulation",
+    barriers: "Entry barriers",
   };
   return (
     <section data-testid="benchmark-deep-dynamics" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">5. Dinamica industriei</h2>
+      <h2 className="font-serif text-[20px] text-ink">5. Industry dynamics</h2>
       <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
           <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
             <tr>
               <th className="text-left px-4 py-2.5">Aspect</th>
               <th className="text-left px-3 py-2.5">Verdict</th>
-              <th className="text-left px-3 py-2.5">Detaliu</th>
+              <th className="text-left px-3 py-2.5">Detail</th>
             </tr>
           </thead>
           <tbody>
@@ -1089,7 +1262,7 @@ function DeepPatternsFailuresSection({ deep }: { deep: DeepReport }) {
     <section data-testid="benchmark-deep-patterns" className="space-y-4">
       {deep.success_patterns.length > 0 && (
         <div>
-          <h2 className="font-serif text-[20px] text-ink mb-2">6. Pattern-uri de succes în această industrie</h2>
+          <h2 className="font-serif text-[20px] text-ink mb-2">6. Success patterns in this industry</h2>
           <ul className="list-disc pl-5 text-[12.5px] text-ink-soft leading-relaxed space-y-1">
             {deep.success_patterns.map((p, i) => (
               <li key={i}>{p}</li>
@@ -1099,7 +1272,7 @@ function DeepPatternsFailuresSection({ deep }: { deep: DeepReport }) {
       )}
       {deep.failure_modes.length > 0 && (
         <div>
-          <h2 className="font-serif text-[20px] text-ink mb-2">7. Moduri tipice de eșec</h2>
+          <h2 className="font-serif text-[20px] text-ink mb-2">7. Typical failure modes</h2>
           <ul className="list-disc pl-5 text-[12.5px] text-ink-soft leading-relaxed space-y-1">
             {deep.failure_modes.map((p, i) => (
               <li key={i}>{p}</li>
@@ -1114,7 +1287,7 @@ function DeepPatternsFailuresSection({ deep }: { deep: DeepReport }) {
 function DeepMarketContextSection({ text }: { text: string }) {
   return (
     <section data-testid="benchmark-deep-market" className="space-y-2">
-      <h2 className="font-serif text-[20px] text-ink">8. Context piața România</h2>
+      <h2 className="font-serif text-[20px] text-ink">8. Romania market context</h2>
       <div className="rounded-lg border-l-[3px] border-blue-400 bg-blue-50/40 dark:bg-blue-500/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
         {text}
       </div>

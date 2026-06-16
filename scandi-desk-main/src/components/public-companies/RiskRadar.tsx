@@ -1,15 +1,28 @@
 // RiskRadar — 8 risk-category cards driven by /api/public/intelligence/risk-radar.
 //
-// Renders the universe-wide aggregation: each card shows the category score
-// (0–100), severity level, the sectors + top tickers affected, the signal
-// count, and the top 1–3 signals. Click a card to drill into the universe
-// table filtered to the affected tickers — same pattern as MarketsOverview
-// → handleExplore.
+// Per-card rendering:
+//   · Header  — icon, category label, severity pill
+//   · Score   — 0-100 bar
+//   · Sectors — short chip list
+//   · Companies — affected_tickers_rich rows with:
+//       · 🇷🇴 emoji prefix for country='RO' (no Romania filter toggle —
+//         country is metadata, not filter axis)
+//       · exposure-bar per row (0.0-1.0 score → 0-100% width, green<0.5
+//         amber 0.5-0.7 red >0.7)
+//       · source-provenance badge (sector / BVB / 10-K / curated)
+//       · clicking a row expands CompanyExposureDetail inline below
+//   · Structural-correlation footnote — when this category overlaps a
+//     documented sibling, e.g. "Shares 8 of 12 with Geopolitical — both
+//     driven by Semiconductors (Taiwan exposure)." Italic, soft tint,
+//     visually distinct from a warning. The trust signal that turns
+//     documented overlap from a bug-shaped artifact into product honesty.
+//   · Signals — top 1-2 titles
 //
-// Per brief §14. Per design plan §25.6, this is the Phase A surface that
-// works WITHOUT a live news feed: signals come from the static sector
-// library + cross-sector themes, computed_at refreshes on the 5-min cache.
+// One global "expanded ticker" state — clicking a ticker in one card
+// collapses any previously expanded ticker (same or different card). Keeps
+// the page focused on one drill-down at a time.
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -25,22 +38,31 @@ import {
 } from "lucide-react";
 import {
   fetchRiskRadar,
+  type AffectedTickerRich,
+  type ExposureSource,
   type RiskCategory,
+  type RiskRadarCategory,
+  type RiskRadarResponse,
+  type StructuralCorrelation,
   RISK_CATEGORY_BLURB,
   RISK_CATEGORY_LABEL,
   severityToBgClass,
   severityToTextClass,
   type Severity,
 } from "@/lib/publicCompanyIntelligence";
+import {
+  CompanyExposureDetail,
+  ExposureBar,
+} from "@/components/public-companies/CompanyExposureDetail";
 
 interface Props {
-  /** Click handler fired when the user clicks a card. The page uses this to
-   *  switch from radar view → universe table filtered to the affected tickers. */
+  /** Click handler fired when the user clicks a card's category header.
+   *  The page uses this to switch from radar view → universe table filtered
+   *  to the affected tickers. NOT fired by ticker-row clicks (those expand
+   *  CompanyExposureDetail inline instead). */
   onDrillToCategory?: (category: RiskCategory, tickers: string[]) => void;
 }
 
-// Lucide icon for each category — keeps the iconography consistent across
-// cards (one icon per risk dimension). Easy to swap as we calibrate.
 const CATEGORY_ICON: Record<RiskCategory, typeof Globe> = {
   geopolitical:    Globe,
   supply_chain:    Boxes,
@@ -63,6 +85,24 @@ const CATEGORY_ORDER: RiskCategory[] = [
   "fx",
 ];
 
+// Short labels for the source-provenance chip. Kept in sync with the same
+// table in CompanyExposureDetail.tsx (single source of truth would be nice;
+// for now both reference the ExposureSource type so any new value triggers
+// a TS error here too).
+const SOURCE_LABEL: Record<ExposureSource, string> = {
+  sector_model: "sector",
+  sec_filing: "10-K",
+  operator_curated: "curated",
+  bvb_override: "BVB",
+};
+
+const SOURCE_TINT: Record<ExposureSource, string> = {
+  sector_model: "bg-bg-2/60 text-ink-mute border-rule/60",
+  sec_filing: "bg-sky-400/10 text-sky-500 border-sky-400/30",
+  operator_curated: "bg-amber-400/10 text-amber-500 border-amber-400/30",
+  bvb_override: "bg-indigo-400/10 text-indigo-500 border-indigo-400/30",
+};
+
 export function RiskRadar({ onDrillToCategory }: Props) {
   const radarQuery = useQuery({
     queryKey: ["intelligence", "risk-radar"],
@@ -70,6 +110,15 @@ export function RiskRadar({ onDrillToCategory }: Props) {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
+
+  // Single global expanded-ticker state. `{ category, ticker }` so clicking
+  // the same ticker in the same card collapses, but clicking the same
+  // ticker in a DIFFERENT card opens the new card's expansion (since the
+  // context category changes).
+  const [expanded, setExpanded] = useState<{
+    category: RiskCategory;
+    ticker: string;
+  } | null>(null);
 
   if (radarQuery.isLoading) {
     return (
@@ -99,8 +148,9 @@ export function RiskRadar({ onDrillToCategory }: Props) {
             AI Risk Radar
           </h2>
           <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px] leading-relaxed">
-            Macro-to-micro risk view across the 200-ticker universe. Click a card
-            to drill into the affected companies.
+            Macro-to-micro risk view across the universe (US-listed + Romanian
+            BVB). Click a company row to see its factor breakdown; click a
+            card header to filter the universe table.
           </p>
         </div>
         <FeedStatusBadge status={feed_status} computedAt={computed_at} />
@@ -118,13 +168,19 @@ export function RiskRadar({ onDrillToCategory }: Props) {
             <RadarCard
               key={cat}
               category={cat}
-              score={data.score}
-              level={data.level}
-              affectedSectors={data.affected_sectors}
-              affectedTickers={data.affected_tickers}
-              signalCount={data.signal_count}
-              topSignalTitles={(data.top_signals ?? []).map((s) => s.title).slice(0, 2)}
-              onClick={
+              data={data}
+              allCategories={categories}
+              expandedTicker={
+                expanded?.category === cat ? expanded.ticker : null
+              }
+              onExpandTicker={(ticker) =>
+                setExpanded((cur) =>
+                  cur?.category === cat && cur.ticker === ticker
+                    ? null
+                    : { category: cat, ticker },
+                )
+              }
+              onCategoryHeaderClick={
                 onDrillToCategory
                   ? () => onDrillToCategory(cat, data.affected_tickers)
                   : undefined
@@ -137,8 +193,11 @@ export function RiskRadar({ onDrillToCategory }: Props) {
       {/* ── Disclosure footer ─────────────────────────────────────────── */}
       <div className="rounded-xl border border-rule/60 bg-bg-2/40 p-3.5 text-[11.5px] text-ink-mute leading-relaxed">
         Scores derived from the in-repo sector risk library + cross-sector
-        themes (AI datacenter, Taiwan, Red Sea, EV demand, oil, rates, defense,
-        GLP-1, datacenter power, consumer slowdown).{" "}
+        themes (AI datacenter, Taiwan, Red Sea, EV demand, oil, rates,
+        defense, GLP-1, datacenter power, consumer slowdown). Per-ticker
+        scores reflect company-specific exposure profiles where available
+        (SEC filings, BVB overrides, operator-curated), sector defaults
+        otherwise — see the source chip on each row.{" "}
         {feed_status === "sector_model_only" && (
           <>
             Live news feed not connected — when a provider is wired up,
@@ -156,52 +215,54 @@ export function RiskRadar({ onDrillToCategory }: Props) {
 
 interface RadarCardProps {
   category: RiskCategory;
-  score: number;
-  level: Severity;
-  affectedSectors: string[];
-  affectedTickers: string[];
-  signalCount: number;
-  topSignalTitles: string[];
-  onClick?: () => void;
+  data: RiskRadarCategory;
+  allCategories: Record<RiskCategory, RiskRadarCategory>;
+  expandedTicker: string | null;
+  onExpandTicker: (ticker: string) => void;
+  onCategoryHeaderClick?: () => void;
 }
 
 function RadarCard({
   category,
-  score,
-  level,
-  affectedSectors,
-  affectedTickers,
-  signalCount,
-  topSignalTitles,
-  onClick,
+  data,
+  allCategories,
+  expandedTicker,
+  onExpandTicker,
+  onCategoryHeaderClick,
 }: RadarCardProps) {
   const Icon = CATEGORY_ICON[category];
-  const sevText = severityToTextClass(level);
-  const sevBg = severityToBgClass(level);
-  const interactive = Boolean(onClick);
+  const sevText = severityToTextClass(data.level);
+  const sevBg = severityToBgClass(data.level);
+  const rich: AffectedTickerRich[] = data.affected_tickers_rich ?? [];
+  const correlations: StructuralCorrelation[] = data.structural_correlations ?? [];
+  const expandedRow = rich.find((r) => r.ticker === expandedTicker);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!interactive}
+    <div
       data-testid={`risk-radar-card-${category}`}
       data-category={category}
-      data-level={level}
-      className={`
+      data-level={data.level}
+      className="
         group relative w-full text-left
         rounded-2xl border border-rule bg-surface/80
         p-4 sm:p-5
-        transition-all
-        ${interactive
-          ? "hover:border-brand/40 hover:bg-surface focus-visible:border-brand/60 cursor-pointer"
-          : "cursor-default"}
-        focus-visible:outline-none
-        focus-visible:ring-2 focus-visible:ring-brand/30
-      `}
+        transition-colors
+        focus-within:border-brand/30
+      "
     >
-      {/* Header — icon + category + severity pill */}
-      <div className="flex items-start justify-between gap-2 mb-3">
+      {/* Header — icon + category + severity pill — click goes to category drill */}
+      <button
+        type="button"
+        onClick={onCategoryHeaderClick}
+        disabled={!onCategoryHeaderClick}
+        className={`
+          w-full flex items-start justify-between gap-2 mb-3
+          ${onCategoryHeaderClick
+            ? "cursor-pointer hover:opacity-90"
+            : "cursor-default"}
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 rounded
+        `}
+      >
         <div className={`inline-flex items-center justify-center h-9 w-9 rounded-lg ${sevBg} border ${sevText}`}>
           <Icon size={16} strokeWidth={1.75} />
         </div>
@@ -213,10 +274,10 @@ function RadarCard({
             ${sevBg} ${sevText}
           `}
         >
-          {level === "critical" && <AlertTriangle size={10} strokeWidth={2} />}
-          {level}
+          {data.level === "critical" && <AlertTriangle size={10} strokeWidth={2} />}
+          {data.level}
         </span>
-      </div>
+      </button>
 
       {/* Title + blurb */}
       <div className="mb-3">
@@ -235,31 +296,31 @@ function RadarCard({
             Score
           </span>
           <span className={`text-[18px] font-semibold tabular-nums ${sevText}`}>
-            {score}
+            {data.score}
             <span className="text-[10.5px] text-ink-mute font-normal ml-0.5">/100</span>
           </span>
         </div>
         <div className="h-1.5 rounded-full bg-bg-2 overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
-              level === "critical" ? "bg-alert" :
-              level === "high"     ? "bg-orange-400" :
-              level === "medium"   ? "bg-amber-400" :
-                                     "bg-emerald-400"
+              data.level === "critical" ? "bg-alert" :
+              data.level === "high"     ? "bg-orange-400" :
+              data.level === "medium"   ? "bg-amber-400" :
+                                          "bg-emerald-400"
             }`}
-            style={{ width: `${Math.max(2, Math.min(100, score))}%` }}
+            style={{ width: `${Math.max(2, Math.min(100, data.score))}%` }}
           />
         </div>
       </div>
 
-      {/* Sectors affected — short list */}
-      {affectedSectors.length > 0 && (
-        <div className="mb-2">
+      {/* Sectors affected — short chip list */}
+      {data.affected_sectors.length > 0 && (
+        <div className="mb-3">
           <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-1">
             Sectors
           </div>
           <div className="flex flex-wrap gap-1">
-            {affectedSectors.slice(0, 3).map((s) => (
+            {data.affected_sectors.slice(0, 3).map((s) => (
               <span
                 key={s}
                 className="text-[11px] text-ink-soft bg-bg-2/60 border border-rule/60 rounded px-1.5 py-0.5"
@@ -267,63 +328,218 @@ function RadarCard({
                 {s}
               </span>
             ))}
-            {affectedSectors.length > 3 && (
+            {data.affected_sectors.length > 3 && (
               <span className="text-[11px] text-ink-mute py-0.5">
-                +{affectedSectors.length - 3}
+                +{data.affected_sectors.length - 3}
               </span>
             )}
           </div>
         </div>
       )}
 
-      {/* Top tickers — small monospace chips */}
-      {affectedTickers.length > 0 && (
-        <div className="mb-2">
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-1">
+      {/* Companies — rich rows with exposure bars + 🇷🇴 flag + source chip */}
+      {rich.length > 0 ? (
+        <div className="mb-3">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-1.5">
             Companies
           </div>
-          <div className="flex flex-wrap gap-1">
-            {affectedTickers.slice(0, 5).map((t) => (
-              <span
-                key={t}
-                className="text-[10.5px] font-mono text-ink-soft tabular-nums"
-              >
-                {t}
-              </span>
+          <div className="space-y-1">
+            {rich.slice(0, 6).map((row) => (
+              <TickerRow
+                key={row.ticker}
+                row={row}
+                isExpanded={row.ticker === expandedTicker}
+                onClick={() => onExpandTicker(row.ticker)}
+              />
             ))}
-            {affectedTickers.length > 5 && (
-              <span className="text-[10.5px] text-ink-mute">+{affectedTickers.length - 5}</span>
+            {rich.length > 6 && (
+              <div className="text-[10.5px] text-ink-mute pl-1 pt-0.5">
+                +{rich.length - 6} more
+              </div>
             )}
           </div>
+        </div>
+      ) : (
+        // Back-compat: legacy bare-list when affected_tickers_rich not present
+        data.affected_tickers.length > 0 && (
+          <div className="mb-3">
+            <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-1">
+              Companies
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {data.affected_tickers.slice(0, 6).map((t) => (
+                <span key={t} className="text-[10.5px] font-mono text-ink-soft tabular-nums">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      )}
+
+      {/* Expansion — factor breakdown for clicked ticker */}
+      {expandedRow && (
+        <CompanyExposureDetail
+          ticker={expandedRow}
+          category={category}
+          onClose={() => onExpandTicker(expandedRow.ticker)}
+        />
+      )}
+
+      {/* Structural-correlation footnote — the trust signal. Each correlation
+          gets its own line with named sectors + named driver. Italic + muted
+          tint so it reads as explanation, not warning. */}
+      {correlations.length > 0 && (
+        <div
+          className="border-t border-rule/40 pt-2.5 mt-3 space-y-1.5"
+          data-testid={`structural-correlation-${category}`}
+        >
+          {correlations.map((corr) => (
+            <CorrelationFootnote
+              key={corr.related}
+              category={category}
+              corr={corr}
+              allCategories={allCategories}
+            />
+          ))}
         </div>
       )}
 
       {/* Top signals (titles only — full feed lives on Macro Signals tab) */}
-      {topSignalTitles.length > 0 && (
+      {data.top_signals.length > 0 && (
         <div className="border-t border-rule/40 pt-2.5 mt-2.5">
           <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-1">
-            {signalCount} signal{signalCount === 1 ? "" : "s"}
+            {data.signal_count} signal{data.signal_count === 1 ? "" : "s"}
           </div>
           <ul className="space-y-1">
-            {topSignalTitles.map((title, i) => (
+            {data.top_signals.slice(0, 2).map((s, i) => (
               <li
                 key={i}
                 className="text-[11.5px] text-ink-soft leading-snug line-clamp-2"
               >
-                · {title}
+                · {s.title}
               </li>
             ))}
           </ul>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Interaction hint */}
-      {interactive && (
-        <div className="absolute top-3.5 right-3.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {/* nothing — hover indication is handled by border + bg */}
+// ─────────────────────────────────────────────────────────────────────────
+// Per-ticker row — flag, ticker, exposure bar, source chip
+// ─────────────────────────────────────────────────────────────────────────
+
+function TickerRow({
+  row,
+  isExpanded,
+  onClick,
+}: {
+  row: AffectedTickerRich;
+  isExpanded: boolean;
+  onClick: () => void;
+}) {
+  const flag = row.country === "RO" ? "🇷🇴 " : "";
+  const sourceLabel = SOURCE_LABEL[row.source] ?? "sector";
+  const sourceTint = SOURCE_TINT[row.source] ?? SOURCE_TINT.sector_model;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={`radar-row-${row.ticker}`}
+      data-country={row.country}
+      className={`
+        w-full text-left rounded px-1.5 py-1
+        transition-colors
+        ${isExpanded
+          ? "bg-brand/5 ring-1 ring-brand/20"
+          : "hover:bg-bg-2/50"}
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30
+      `}
+    >
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[11.5px] text-ink tabular-nums min-w-[64px] shrink-0">
+          {flag}
+          {row.ticker}
+        </span>
+        <div className="flex-1 min-w-0">
+          <ExposureBar score={row.category_score} />
         </div>
-      )}
+        <span className="text-[10px] font-mono text-ink-mute tabular-nums w-9 text-right shrink-0">
+          {row.category_score.toFixed(2)}
+        </span>
+        <span
+          className={`
+            text-[9.5px] uppercase tracking-wide font-medium shrink-0
+            px-1 py-px rounded border whitespace-nowrap
+            ${sourceTint}
+          `}
+          title={`Source: ${row.source}`}
+        >
+          {sourceLabel}
+        </span>
+      </div>
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Structural-correlation footnote — the trust signal
+// ─────────────────────────────────────────────────────────────────────────
+// Renders ONE line per documented correlation pair, naming the OTHER
+// category, the overlap count (set-intersection of affected_tickers_rich),
+// and the human-readable driver. Italic + muted color distinguishes it
+// from a warning — this is explanation, not error.
+//
+// Example output:
+//   "Shares 8 of 12 with Geopolitical — both driven by Semiconductors
+//    (Taiwan exposure)."
+
+function CorrelationFootnote({
+  category,
+  corr,
+  allCategories,
+}: {
+  category: RiskCategory;
+  corr: StructuralCorrelation;
+  allCategories: Record<RiskCategory, RiskRadarCategory>;
+}) {
+  const ourRich = allCategories[category]?.affected_tickers_rich ?? [];
+  const theirRich = allCategories[corr.related]?.affected_tickers_rich ?? [];
+
+  // Use the affected_tickers (legacy bare-list) as the back-compat fallback
+  // if rich payload not present. The N/M ratio is the empirical overlap
+  // count — surfaces the magnitude of the correlation in concrete terms.
+  const ourSet = new Set(
+    ourRich.length > 0
+      ? ourRich.map((r) => r.ticker)
+      : (allCategories[category]?.affected_tickers ?? []),
+  );
+  const theirTickers =
+    theirRich.length > 0
+      ? theirRich.map((r) => r.ticker)
+      : (allCategories[corr.related]?.affected_tickers ?? []);
+  const shared = theirTickers.filter((t) => ourSet.has(t)).length;
+  const total = theirTickers.length;
+
+  // Render nothing if we can't compute overlap — better silent than half-rendered.
+  if (total === 0) return null;
+
+  return (
+    <div className="text-[10.5px] text-ink-mute leading-snug italic">
+      Shares <span className="font-medium tabular-nums not-italic">{shared}</span>
+      <span> of </span>
+      <span className="font-medium tabular-nums not-italic">{total}</span>
+      <span> with </span>
+      <span className="font-medium not-italic">
+        {RISK_CATEGORY_LABEL[corr.related]}
+      </span>
+      <span> — both driven by </span>
+      <span className="text-ink-soft not-italic">{corr.drivers}</span>
+      <span>.</span>
+    </div>
   );
 }
 

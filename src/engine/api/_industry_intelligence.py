@@ -376,6 +376,17 @@ def build_router() -> APIRouter:
     def list_profiles(
         sector: Optional[str] = Query(None, description="Filter by top-level sector key."),
         include_inactive: bool = Query(False, description="Include is_active=false rows."),
+        seeded_only: bool = Query(
+            False,
+            description=(
+                "If true, return only industries whose `caen_codes` array "
+                "overlaps with the seeded `industry_benchmarks` catalog. "
+                "Used by the FE IndustryPicker so users never pick an "
+                "industry that would render an empty 'not calibrated' "
+                "benchmark — a confidently wrong or empty bench is worse "
+                "than a small honest menu."
+            ),
+        ),
         authorization: Optional[str] = Header(None),
     ) -> List[IndustryProfileSummary]:
         _require_jwt(authorization)
@@ -385,15 +396,46 @@ def build_router() -> APIRouter:
         if not include_inactive:
             filters["is_active"] = "eq.true"
         with _supabase.admin() as ac:
+            # When seeded_only is requested we need caen_codes too so we
+            # can intersect with the live benchmark catalog below.
+            cols = (
+                "key,display_name,display_name_ro,sector,parent_key,"
+                "benchmark_depth,confidence_default"
+            )
+            if seeded_only:
+                cols += ",caen_codes"
             rows = ac.select(
                 "industry_profiles",
                 filters=filters,
-                columns=(
-                    "key,display_name,display_name_ro,sector,parent_key,"
-                    "benchmark_depth,confidence_default"
-                ),
+                columns=cols,
                 order="sector.asc,key.asc",
             )
+
+            if seeded_only:
+                # One query to enumerate seeded CAENs — distinct caen_code
+                # rows present in industry_benchmarks. We pull them once
+                # and intersect in Python so we don't issue one query per
+                # profile (the table is small: ~8 CAENs today).
+                bench_rows = ac.select(
+                    "industry_benchmarks",
+                    columns="caen_code",
+                )
+                seeded_caens = {
+                    str(r["caen_code"]).strip()
+                    for r in bench_rows
+                    if r.get("caen_code")
+                }
+                kept: List[Dict[str, Any]] = []
+                for r in rows:
+                    caens = r.get("caen_codes") or []
+                    if any(str(c).strip() in seeded_caens for c in caens):
+                        # Drop caen_codes before serialization since the
+                        # response model doesn't carry it (kept the read
+                        # local to the filter step).
+                        r.pop("caen_codes", None)
+                        kept.append(r)
+                rows = kept
+
         return [IndustryProfileSummary(**r) for r in rows]
 
     # ─── single profile (with mappings + peers + latest benchmark) ─
@@ -500,6 +542,15 @@ def build_router() -> APIRouter:
     def search(
         q: str = Query(..., min_length=2, max_length=80),
         limit: int = Query(20, ge=1, le=100),
+        seeded_only: bool = Query(
+            False,
+            description=(
+                "If true, results are intersected with the seeded "
+                "`industry_benchmarks` catalog — picker callers set this "
+                "so search never surfaces an industry that would render "
+                "an empty 'not calibrated' bench."
+            ),
+        ),
         authorization: Optional[str] = Header(None),
     ) -> List[IndustryProfileSummary]:
         _require_jwt(authorization)
@@ -548,6 +599,39 @@ def build_router() -> APIRouter:
         for r in alias_profiles:
             seen.setdefault(r["key"], r)
         results = list(seen.values())[:limit]
+
+        if seeded_only and results:
+            # Same intersection pattern as list_profiles' seeded_only —
+            # one query for the seeded CAEN set, then drop any profile
+            # whose caen_codes don't overlap.
+            keys = [r["key"] for r in results]
+            with _supabase.admin() as ac2:
+                bench_rows = ac2.select(
+                    "industry_benchmarks",
+                    columns="caen_code",
+                )
+                seeded_caens = {
+                    str(r["caen_code"]).strip()
+                    for r in bench_rows
+                    if r.get("caen_code")
+                }
+                in_list = ",".join(keys)
+                detail_rows = ac2.select(
+                    "industry_profiles",
+                    filters={"key": f"in.({in_list})"},
+                    columns="key,caen_codes",
+                )
+                key_to_caens = {
+                    d["key"]: (d.get("caen_codes") or []) for d in detail_rows
+                }
+            results = [
+                r for r in results
+                if any(
+                    str(c).strip() in seeded_caens
+                    for c in key_to_caens.get(r["key"], [])
+                )
+            ]
+
         return [IndustryProfileSummary(**r) for r in results]
 
     # ─── detect industry for a period (read-only) ─────────────────

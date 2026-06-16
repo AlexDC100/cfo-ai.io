@@ -1,0 +1,91 @@
+{
+  "_comment": [
+    "EEI Imobiliara Investment SRL — Dec 2025 AUDITED reference (year-end convention).",
+    "Every value is the Solduri finale (closing balance) from balanta verificare EEI dec 2025.pdf.",
+    "This is the convention used by Romanian statutory financial statements, Patria Bank",
+    "covenant measurement, and the published v5 annual analysis report.",
+    "",
+    "Convention: amount = closing_dr for debit-natural accounts; closing_cr for credit-natural.",
+    "P&L values are YTD movement totals (Sume totale) since P&L accounts close to zero at year-end.",
+    "",
+    "Tolerance for CI: ±1 RON on absolutes, ±0.01 on ratios.",
+    "",
+    "Source-of-truth account amounts (closing balances per Solduri finale columns)",
+    "drive every assertion in scripts/validate_eei_canonical.py. Do NOT modify",
+    "without re-running the verify_mapping.py reference against the source PDF."
+  ],
+  "period": "2025-12-31",
+  "company": "EEI Imobiliara Investment SRL",
+  "convention": "year_end_solduri_finale",
+
+  "balance_sheet": {
+    "cash":                   1494836.81,
+    "cash_fx_component":       679102.51,
+    "ar_net":                       4.00,
+    "ar_doubtful_gross":       167026.63,
+    "ar_provisions":           167026.63,
+    "ar_intercompany":        2597484.00,
+    "ppe_investment_net":    14457160.32,
+    "ppe_under_construction": 2164079.83,
+    "ppe_advances":           2021340.00,
+    "ap":                         150.67,
+    "ap_dividends":                 1.00,
+    "lt_debt":               14083315.77,
+    "st_debt":                      0.00,
+    "total_debt":            14083315.77,
+    "share_capital":            45200.00,
+    "revaluation_reserves":   3980157.61,
+    "retained_earnings":       364310.48,
+    "current_year_pnl_statutory": 1425245.58
+  },
+
+  "income_statement": {
+    "revenue":                2727103.68,
+    "capitalized_own_work_memo": 2164079.83,
+
+    "_ebitda_conventions_note": [
+      "Three EBITDA views, all internally consistent:",
+      "  ebitda_operating_view (DEFAULT, matches reference): 722 + 767 in revenue → 2,149,570.70",
+      "  ebitda_financial_view (audit firms / IFRS): 722 in revenue, 767 below EBIT → 2,127,403.70",
+      "  ebitda_operational_view (722 excluded entirely): negative (−36,676)",
+      "Net profit is the same RON 1,425,245.58 in all three — the differences are presentation only."
+    ],
+
+    "operating_view": {
+      "_convention": "Romanian SME / CRE default — matches the reference output",
+      "total_operating_revenue":   4913350.51,
+      "total_opex_cash":           2763779.81,
+      "ebitda":                    2149570.70,
+      "depreciation":               355606.50,
+      "ebit":                      1793964.20,
+      "net_financial_result":     -331851.62,
+      "profit_before_tax":         1462112.58,
+      "tax":                        36867.00,
+      "net_profit":                1425245.58
+    },
+
+    "financial_view": {
+      "_convention": "IFRS — 767 (discounts received) below EBIT",
+      "ebitda":                    2127403.70,
+      "ebit":                      1771797.20,
+      "net_financial_result":     -309684.62,
+      "net_profit":                1425245.58
+    },
+
+    "net_income_statutory":   1425245.58,
+    "net_income_operational": "negative — Class 7 (ex 722) minus Class 6"
+  },
+
+  "classification": {
+    "industry_key":         "real_estate_commercial",
+    "industry_confidence":  1.0,
+    "primary_valuation":    "asset_based"
+  },
+
+  "must_not": {
+    "_457_in_total_debt":      "ap_dividends NEVER summed into total_debt",
+    "_581_in_cash":            "581 transit ignored entirely",
+    "_722_in_revenue":         "capitalized own-work is memo only",
+    "_ev_ebitda_primary":      "EV/EBITDA is NEVER primary for CRE or negative EBITDA"
+  }
+}

@@ -1,0 +1,27 @@
+=== SCANDIA ORACLE CF (single-period; is_approximated=True) ===
+
+  affiliate_change                       -1,149,106
+  capex                                 -12,640,076
+  cf_before_wc                           56,342,719
+  cff                                   -23,926,419
+  cfi                                    -8,044,433
+  cfo                                    53,438,904
+  cip_change                             -3,015,688
+  da                                     13,649,645
+  delta_inventory                        -2,767,091
+  delta_lt_debt                          -3,996,031
+  delta_receivables                      -2,572,956
+  delta_st_bank                           1,538,510
+  delta_tax_pay                              49,457
+  delta_trade_pay                         2,386,774
+  dividends_paid                        -18,393,676
+  dividends_received                      7,744,000
+  interest_paid                          -3,075,222
+  interest_received                       1,016,437
+  is_approximated                                 1
+  net_change_cash                        21,468,051
+  net_profit                             36,787,353
+  provision_movement                      5,905,722
+  wc_changes                             -2,903,815
+
+oracle uses indirect method; is_approximated=True

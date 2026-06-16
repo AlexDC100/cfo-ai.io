@@ -31,7 +31,23 @@ import {
   runPiotroski,
 } from "./financialValuation";
 
-export function buildExcelWorkbook(s: Statements): XLSX.WorkBook {
+/** Currency context for export — captured at the moment the user
+ *  clicks "Export". The export embeds the display currency + the FX
+ *  rate it used so the recipient knows what they're reading.
+ *  Optional for back-compat; absent → defaults to the storage currency
+ *  with no conversion note. */
+export interface ExportCurrencyContext {
+  /** Currency the user was viewing when they hit Export. */
+  display: "RON" | "EUR" | "USD";
+  /** Rate used to convert from canonical (EUR base) → display. */
+  rate: number;
+  /** Source of the rate: "BNR" | "fallback". */
+  source: string;
+  /** ISO date the upstream rate provider published. */
+  asOf: string;
+}
+
+export function buildExcelWorkbook(s: Statements, currencyCtx?: ExportCurrencyContext): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
   const t = deriveTotals(s);
   const ratios = computeRatios(s);
@@ -64,15 +80,28 @@ export function buildExcelWorkbook(s: Statements): XLSX.WorkBook {
     ["Net debt", t.netDebt],
     ["Total equity", t.totalEquity],
     [],
-    ["DATA ACCURACY NOTICE"],
-    ["This workbook was generated from automated trial-balance extraction with"],
-    ["approximately 90%+ accuracy. Edge-case account classifications, sub-account"],
-    ["aggregations, or non-standard COA structures may produce minor"],
-    ["misclassifications. Always verify headline figures (revenue, EBITDA, net"],
-    ["profit, total assets, total debt, total equity) against your source trial"],
-    ["balance before using this report for external purposes — including board"],
-    ["reports, bank submissions, investor pitches, due diligence packages, or"],
-    ["audit materials."],
+    ["AUDIT FOOTER"],
+    // Currency conversion note — only when display ≠ canonical (EUR).
+    ...(currencyCtx && currencyCtx.display !== "EUR"
+      ? [
+          [
+            `All figures shown in ${currencyCtx.display}. Conversion rate: 1 EUR = ${currencyCtx.rate.toFixed(4)} ${currencyCtx.display} (${currencyCtx.source}, ${currencyCtx.asOf}).`,
+          ],
+          [
+            `Underlying values stored in source-document currency (typically RON for Romanian filings). Conversion applied at display + export time only.`,
+          ],
+          [],
+        ]
+      : []),
+    ["EXTRACTION QUALITY"],
+    ["This workbook was generated from automated trial-balance extraction."],
+    ["Per-document extraction confidence is computed at upload time and"],
+    ["surfaced in the app's post-upload quality panel. Verify headline"],
+    ["figures (revenue, EBITDA, net profit, total assets, total debt,"],
+    ["total equity) against your source trial balance before using this"],
+    ["report for external purposes — including board reports, bank"],
+    ["submissions, investor pitches, due diligence packages, or audit"],
+    ["materials."],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cover), "Cover");
 

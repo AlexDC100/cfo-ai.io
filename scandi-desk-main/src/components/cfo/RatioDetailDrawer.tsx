@@ -46,6 +46,7 @@ import { getRatioKnowledge, type RatioKnowledge, type FormulaPart } from "@/lib/
 import { resolveFormulaInput } from "@/lib/resolveFormulaInput";
 import { TraceableNumber } from "./TraceableNumber";
 import { STATEMENT_TAB, HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
 
 interface Props {
   /** The ratio to explain. `null` closes the drawer. */
@@ -173,7 +174,9 @@ function DrawerBody({
                 This company
               </div>
               <div className="mt-0.5 text-[34px] sm:text-[38px] leading-none font-semibold tabular-nums text-ink">
-                {formatRatio(ratio)}
+                <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
+                  {formatRatio(ratio)}
+                </LearnableNumber>
               </div>
             </div>
             <span
@@ -187,7 +190,7 @@ function DrawerBody({
       </header>
 
       {/* ── Scrollable body — restructured layout ────────────────── */}
-      <div className="flex-1 overflow-y-auto px-6 sm:px-7 py-6 space-y-5">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-6 sm:px-7 py-6 space-y-5">
 
         {/* Inline formula — primary surface */}
         <Section icon={Calculator} title="Formula · live numbers">
@@ -311,7 +314,7 @@ function FormulaDisplay({
   // the static text formula — zero regression from pre-Phase-B.
   if (!knowledge.formulaParts || !statements) {
     return (
-      <code className="block rounded-lg bg-bg-2/60 border border-rule px-3.5 py-2.5 text-[13px] font-mono text-ink tracking-[0.005em]">
+      <code className="block rounded-lg bg-bg-2/60 border border-rule px-3.5 py-2.5 text-[13px] font-mono text-ink tracking-[0.005em] overflow-x-auto whitespace-pre">
         {knowledge.formula}
       </code>
     );

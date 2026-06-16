@@ -110,7 +110,12 @@
 
   /* Big-number serif treatment — UPRIGHT Instrument Serif. The earlier
      italic experiment is removed: italic is reserved for editorial pull-
-     quotes only, never for numerals or headlines (the B2B refinement). */
+     quotes only, never for numerals or headlines (the B2B refinement).
+     FIT-1 (2026-06-08): added min-width:0 + overflow-wrap so long
+     currency strings (RON 656,047,165) inside narrow grid cells shrink
+     gracefully instead of breaking the column. The size declared at
+     the call site (e.g. text-[30px]) is still respected, but a
+     stretched flex/grid child no longer escapes its container. */
   .num-hero {
     font-family: '"Instrument Serif"', "Cormorant Garamond", ui-serif, Georgia, serif;
     font-style: normal;
@@ -118,6 +123,28 @@
     letter-spacing: -0.015em;
     font-variant-numeric: tabular-nums;
     line-height: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    text-wrap: balance;
+  }
+
+  /* FIT-1 (2026-06-08): fluid sizing utility for KPI hero numerals
+     that need to fit inside narrow tile containers. The clamp() lower
+     bound is set so a long money string ("RON 656,047,165" — ~14 chars)
+     fits at the narrowest expected tile width (~108 px in a 6-col
+     desktop grid). The upper bound matches the existing visual rhythm
+     of the dashboard. Used on KpiTile / KpiCard / drawer KpiTile —
+     never override with text-[30px] directly; that's what causes the
+     overflow in the first place. */
+  .num-hero-fluid {
+    font-size: clamp(18px, 2.4vw, 30px);
+  }
+  .num-hero-fluid-lg {
+    font-size: clamp(22px, 3.2vw, 40px);
+  }
+  .num-hero-fluid-sm {
+    font-size: clamp(16px, 2vw, 22px);
   }
 
   /* Subtle animated breathing — for confidence dots, gradient spinners.
@@ -379,18 +406,61 @@
 
   html {
     font-feature-settings: "tnum" 1, "ss03" 1, "cv11" 1;
+    /* Disable the iOS 300ms tap delay on every element; pinch-zoom still
+       works because we set touch-action on actionable elements only,
+       and we leave the default (auto) on html/body. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Snappy taps on actionable elements — removes any vestigial 300ms
+     delay on older Safari and disables double-tap zoom on buttons/links
+     (zoom is still available on body content). */
+  button,
+  [role="button"],
+  a,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  summary,
+  label {
+    touch-action: manipulation;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "tnum" 1, "ss03" 1, "cv11" 1;
-    /* Smooth theme transitions on the body itself. Per-element transitions
-       are opt-in via `.theme-transition` (set on common surfaces below)
-       so we don't fight existing animation systems. */
-    transition:
-      background-color 220ms var(--ease-fluid),
-      color 220ms var(--ease-fluid);
+    /* Prevent stray horizontal scroll on mobile when a child overflows
+       (e.g. a wide table that escapes its scroll container, or a long
+       unbroken string). Page never scrolls horizontally — only nested
+       scroll containers do. */
+    overflow-x: hidden;
   }
+
+  /* iOS Safari auto-zooms on `<input>` / `<textarea>` / `<select>` focus
+     when the element's font-size is < 16px. That zoom is jarring and
+     breaks sticky layouts (the viewport shifts to center the input).
+     Force 16px on mobile only — desktop keeps its design intent.
+     `!important` is required because Tailwind utilities like `text-xs`
+     / `text-sm` would otherwise win the cascade. */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+
+  /* 2026-05-24 — removed `transition: background-color 220ms` from body.
+     It caused a real bug: the first paint computed body bg using the
+     :root (light) `--background` value, and the transition then held
+     the computed value at light cream even after `.dark` was added by
+     next-themes. Browsers don't always re-tick variable-driven
+     transitions when the underlying var changes — `getComputedStyle`
+     kept returning the start value until a forced reflow. Result:
+     body painted cream behind dark-mode modals (visible through the
+     40% backdrop). Theme toggling stays instant which is what users
+     expect anyway; component-level smoothing is opt-in via the
+     `.theme-transition` class below. */
 
   /* Coordinated theme transition for common themed surfaces. Applied via
      the helper class so components can opt out by removing it. */

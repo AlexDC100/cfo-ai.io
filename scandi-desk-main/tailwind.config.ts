@@ -119,6 +119,12 @@ export default {
         md: "var(--radius)",
         lg: "var(--radius-lg)",
       },
+      spacing: {
+        "safe-t": "env(safe-area-inset-top)",
+        "safe-b": "env(safe-area-inset-bottom)",
+        "safe-l": "env(safe-area-inset-left)",
+        "safe-r": "env(safe-area-inset-right)",
+      },
       boxShadow: {
         1: "var(--shadow-1)",
         2: "var(--shadow-2)",

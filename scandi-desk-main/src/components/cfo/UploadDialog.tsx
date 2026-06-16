@@ -26,6 +26,11 @@ import {
   useRunMeta,
 } from "@/lib/runStore";
 import { clearUserPersistedState, supabaseEnabled } from "@/lib/supabase";
+// Surface the canonical Excel template at the top of the upload dialog
+// so first-time users grab the known-good format instead of uploading
+// arbitrary workbooks and hitting the silent-extract failure modes.
+// `compact` variant matches the modal's information density.
+import { TemplateDownloadCard } from "@/components/cfo/products/TemplateDownloadCard";
 
 interface Props {
   open: boolean;
@@ -140,11 +145,17 @@ export function UploadDialog({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : close())}>
       <DialogContent
         className="
-          max-w-[520px] p-0 overflow-hidden
+          p-0 overflow-hidden
           bg-surface dark:bg-bg-2
-          border border-rule shadow-4 rounded-2xl
+          border border-rule shadow-4
           [&>button.absolute]:hidden
+          inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0
+          w-full max-h-[92vh] overflow-y-auto overscroll-contain rounded-t-2xl rounded-b-none
+          sm:inset-auto sm:top-1/2 sm:left-1/2
+          sm:-translate-x-1/2 sm:-translate-y-1/2
+          sm:w-full sm:max-w-[520px] sm:max-h-[85vh] sm:rounded-2xl
         "
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {/* Header */}
         <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-3 border-b border-rule">
@@ -175,6 +186,15 @@ export function UploadDialog({ open, onOpenChange }: Props) {
             className="hidden"
             onChange={(e) => onPick(e.target.files)}
           />
+
+          {/* Canonical template download — first thing inside the body so
+              first-time users see the recommended path before staring at
+              an empty dropzone. Hidden once an active dataset banner is
+              showing (rename/replace flow) because the user is past the
+              "what format?" question at that point. */}
+          {!hasActiveDataset && !confirmingDelete && (
+            <TemplateDownloadCard variant="compact" />
+          )}
 
           {/* Active-dataset banner — shown only when an upload is loaded.
               Lets the operator wipe the current dataset (locally + remotely

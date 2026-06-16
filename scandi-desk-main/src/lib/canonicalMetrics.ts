@@ -49,6 +49,31 @@
 // over silently-correct.
 
 import type { ActivePeriod, PeriodLineItem } from "./activePeriod";
+import { F36_CUTOVER_METRICS_HUB } from "@/config/features";
+
+/**
+ * F3.16-3b.6 cutover helper — resolves the Reported EBITDA value
+ * preferring the YAML methodology layer over the legacy in-code field.
+ *
+ * Per ADR Lock #8 Reference Appendix, F4.2-PARITY HARD-locks the
+ * methodology field byte-identical to the legacy field (24/24 fixture-
+ * variant cells matched to the cent post-3b.6-B). When the flag is on
+ * (default), we read from the canonical envelope; when off, we revert
+ * to the legacy field. Both branches return the same number today.
+ *
+ * The branch exists because F4.7 (2026-11-23) deletes the legacy field
+ * — at that horizon, the fallback becomes unreachable and the flag is
+ * removed alongside the legacy code path.
+ */
+function _resolveReportedEbitda(
+  canonicalMethodologyValue: number | undefined,
+  legacyValue: number,
+): number {
+  if (F36_CUTOVER_METRICS_HUB && typeof canonicalMethodologyValue === "number") {
+    return canonicalMethodologyValue;
+  }
+  return legacyValue;
+}
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -178,8 +203,16 @@ export function buildCanonicalMetrics(period: ActivePeriod): CanonicalMetrics | 
   // consolidator, not a recomputer.
   const apl = (period.statements as unknown as { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
   const abs = (period.statements as unknown as { assembled_bs?: Record<string, number> }).assembled_bs ?? {};
-
-  const reported = num(apl.ebitda_statutory) ?? num(apl.ebitda) ?? 0;
+  // F3.16-3b.6 — pull the canonical envelope's methodology.ebitda.reported
+  // (the YAML layer) when the cutover flag is on. F4.2-PARITY guarantees
+  // this equals apl.ebitda_statutory ±1 RON across every fixture.
+  const canonicalMethodology = (
+    period.statements as unknown as {
+      assembled_canonical_v1?: { methodology?: { ebitda?: { reported?: number } } };
+    }
+  ).assembled_canonical_v1?.methodology?.ebitda;
+  const legacyReported = num(apl.ebitda_statutory) ?? num(apl.ebitda) ?? 0;
+  const reported = _resolveReportedEbitda(canonicalMethodology?.reported, legacyReported);
   const revenue = num(apl.revenue) ?? 0;
   const totalOpRev = num(apl.total_operating_revenue) ?? revenue;
   const ebit = num(apl.ebit) ?? 0;
@@ -262,12 +295,21 @@ export function buildCanonicalMetricsFromInputs(input: {
   period?: string | null;
   period_id?: string | null;
   source?: string | null;
+  /** F3.16-3b.6 — optional canonical envelope; when present and the
+   *  cutover flag is on, `methodology.ebitda.reported` is preferred
+   *  over `assembled_pl.ebitda_statutory`. */
+  assembled_canonical_v1?: {
+    methodology?: { ebitda?: { reported?: number } };
+    [key: string]: unknown;
+  };
 }): CanonicalMetrics | null {
   if (!input.period_id) return null;
   const apl = input.assembled_pl ?? {};
   const abs = input.assembled_bs ?? {};
+  const canonicalMethodology = input.assembled_canonical_v1?.methodology?.ebitda;
 
-  const reported = num(apl.ebitda_statutory) ?? num(apl.ebitda) ?? 0;
+  const legacyReported = num(apl.ebitda_statutory) ?? num(apl.ebitda) ?? 0;
+  const reported = _resolveReportedEbitda(canonicalMethodology?.reported, legacyReported);
   const revenue = num(apl.revenue) ?? 0;
   const totalOpRev = num(apl.total_operating_revenue) ?? revenue;
   const ebit = num(apl.ebit) ?? 0;

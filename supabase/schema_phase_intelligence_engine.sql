@@ -192,3 +192,9 @@ CREATE INDEX IF NOT EXISTS idx_risk_interp_subject ON risk_interpretations (subj
 -- complement; the Dashboard click is the deterministic step.
 -- ─────────────────────────────────────────────────────────────────────────
 NOTIFY pgrst, 'reload schema';
+# Verify before push
+git log -1 --stat
+git show 7d5087e --stat | head
+
+# When you're happy with the commit
+git push origin <branch>

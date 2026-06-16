@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "generate-template": "python3 ../scripts/generate_upload_template.py"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

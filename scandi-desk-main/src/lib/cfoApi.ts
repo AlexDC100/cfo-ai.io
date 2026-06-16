@@ -284,12 +284,63 @@ export const cfoApi = {
    *    · "workspace"              — universal Ask-CFO-AI tab persona
    *      (open-domain, grounded in workspace snapshot, never fabricates
    *      the user's own figures). */
+  /** CUR-FIX — `display_currency` + `fx_context` lets the backend system
+   *  prompt instruct the model to cite figures in the user's chosen
+   *  currency. Without these, the model defaults to the source currency
+   *  it sees in `dataset_summary`, which is wrong any time display ≠ RON.
+   *  Backend signature accepts these as optional so older clients still
+   *  work; backend uses them to inject:
+   *    "User is viewing data in {display}. Source data is in {source}.
+   *     Rate: 1 {source} = N {display} (BNR, YYYY-MM-DD).
+   *     Cite money figures in {display}; for ratios/multiples/days use
+   *     unchanged. Never invent rates." */
   chatLlm: (req: {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
     dataset_summary?: string;
     page?: string;
     company_name?: string;
     mode?: "inventory" | "workspace";
+    display_currency?: "RON" | "EUR" | "USD";
+    fx_context?: {
+      source_currency: "RON" | "EUR" | "USD";
+      display_currency: "RON" | "EUR" | "USD";
+      rate: number;
+      rate_date: string | null;
+      provider: string | null;
+    };
+    /** NASDAQ-13 — when the user is viewing a Nasdaq ticker on the
+     *  /public-companies page, the FE bundles its currently-loaded
+     *  snapshot and posts it as `public_company`. Backend turns it
+     *  into a system-prompt block so Claude can cite live SF1 numbers
+     *  (or FY2024-indicative demo numbers) without the user pasting
+     *  them in. Omit when not relevant — workspace chat unchanged. */
+    public_company?: {
+      ticker: string;
+      company_name?: string | null;
+      sector?: string | null;
+      industry?: string | null;
+      exchange?: string | null;
+      currency?: string | null;
+      latest_period?: string | null;
+      latest_period_end?: string | null;
+      revenue?: number | null;
+      ebitda?: number | null;
+      net_income?: number | null;
+      total_assets?: number | null;
+      total_equity?: number | null;
+      cash?: number | null;
+      net_debt?: number | null;
+      free_cash_flow?: number | null;
+      market_cap?: number | null;
+      enterprise_value?: number | null;
+      pe_ratio?: number | null;
+      ev_to_ebitda?: number | null;
+      ebitda_margin?: number | null;
+      net_margin?: number | null;
+      roe?: number | null;
+      net_debt_to_ebitda?: number | null;
+      source?: "nasdaq" | "demo" | null;
+    };
   }) =>
     call<{
       answer: string;

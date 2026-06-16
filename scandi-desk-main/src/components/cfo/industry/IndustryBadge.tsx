@@ -24,6 +24,24 @@ import { AlertCircle, ChevronRight, Lock, Pencil, Sparkles } from "lucide-react"
 import { useIndustryAssignment } from "@/hooks/useIndustryAssignment";
 import { formatConfidence, sourceLabel, sourceTone } from "@/lib/industryApi";
 
+/**
+ * Convert snake_case industry_key → human-readable label.
+ *   `real_estate_commercial_rental` → "Real estate commercial rental"
+ *   `packaged_canned_meat_prepared_foods` → "Packaged canned meat prepared foods"
+ * Used ONLY as a last-resort fallback when detection.candidates doesn't
+ * carry a localized display_name for the user's chosen industry — e.g.
+ * when the auto-detector ran on data that doesn't match the user's
+ * eventual override (the EEI case: detector returns meat, user picks
+ * real estate). Without this, we'd fall through to detection.primary's
+ * label and silently render the wrong industry.
+ */
+function humanizeIndustryKey(key: string | null | undefined): string {
+  if (!key) return "Unknown";
+  return key
+    .replace(/_/g, " ")
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
 interface Props {
   periodId: string;
   variant?: "compact" | "inline" | "full";
@@ -34,16 +52,24 @@ export function IndustryBadge({ periodId, variant = "inline", onClickChange }: P
   const { assignment, detection, loading } = useIndustryAssignment(periodId);
 
   // Display strategy:
-  //   · prefer assignment.selected_industry_key + its display_name
-  //   · if no assignment yet, surface detection.primary so the badge
-  //     reads "Suggested: Real estate commercial rental" until the
-  //     user confirms.
-  const displayName =
-    assignment?.selected_industry_key === detection?.primary?.industry_key
-      ? detection?.primary?.display_name ?? assignment?.selected_industry_key
-      : detection?.candidates.find(
-          (c) => c.industry_key === assignment?.selected_industry_key,
-        )?.display_name ?? assignment?.selected_industry_key ?? detection?.primary?.display_name;
+  //   · If user has an assignment: ALWAYS show the assignment's industry.
+  //     Resolve display_name from detection.candidates if available;
+  //     otherwise humanize the snake_case key. NEVER fall back to
+  //     detection.primary.display_name when the keys differ — that's
+  //     the bug operator hit (EEI shows real_estate_commercial assignment
+  //     but detector returned packaged_canned_meat at confidence 1.0;
+  //     old fallback rendered "Packaged canned meat & prepared foods"
+  //     even though the user explicitly picked real estate).
+  //   · If no assignment yet, surface detection.primary so the badge
+  //     reads "Suggested: ..." until the user confirms.
+  const displayName = assignment
+    ? // Try detection.candidates first (gives the localized display_name);
+      // if not present (detector didn't surface this industry), humanize
+      // the key. Never reach for detection.primary when assignment exists.
+      detection?.candidates.find(
+        (c) => c.industry_key === assignment.selected_industry_key,
+      )?.display_name ?? humanizeIndustryKey(assignment.selected_industry_key)
+    : detection?.primary?.display_name ?? null;
 
   const sourceForTone = assignment?.source ?? detection?.primary?.source ?? "fallback";
   const tone = sourceTone(sourceForTone);

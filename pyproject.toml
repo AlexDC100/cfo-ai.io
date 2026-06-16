@@ -17,6 +17,15 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
     "anthropic>=0.30",
+    # OpenAI SDK — used by the ai_orchestrator GPT verifier path
+    # (src/engine/api/ai_orchestrator/adapters/gpt_adapter.py). Lazy-imported;
+    # orchestrator degrades to Claude-only when OPENAI_API_KEY is unset.
+    "openai>=1.50",
+    # Stripe Python SDK — used by engine.api._billing for Checkout Sessions,
+    # webhooks, and Customer Portal. Lazy-imported via _stripe_or_none(); the
+    # billing surface returns 503 gracefully when the SDK or STRIPE_SECRET_KEY
+    # is missing. Pinned >=8 to get the modern resource interface.
+    "stripe>=8.0",
     "pyarrow>=15.0",
     # pdfplumber gives per-token x/y coordinates, used by
     # `_public_records_parser._extract_annual_rows_geometry` to deterministically
@@ -24,6 +33,16 @@ dependencies = [
     # (~20-65 px) in listafirme.ro PDFs. Pure-Python; depends only on
     # pdfminer.six. Soft-imported with text-extractor fallback in the parser.
     "pdfplumber>=0.11",
+    # F3.8 — PyMuPDF (fitz) for Romanian RAS trial-balance PDF ingestion
+    # (WinMENTOR / SAGA / Ciel exporters). Position-based extraction is
+    # the only reliable approach: long account names (account 1171
+    # "Rezultatul reportat...") wrap visually across multiple lines,
+    # but the 10 numeric columns end up on the last continuation line.
+    # PyMuPDF's per-word (x,y) tuples let the leaf-filter regrop logical
+    # rows by y-coordinate (2px tolerance). Empirically validated on
+    # Scandia Sibiu FY2019 (249 leaf accounts, 95% movement capture,
+    # account 121 exact). See country_packs/ro_romania/pdf_ingester.py.
+    "pymupdf>=1.24",
 ]
 
 [project.optional-dependencies]

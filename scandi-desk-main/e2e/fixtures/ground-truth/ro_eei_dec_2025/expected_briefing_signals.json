@@ -1,0 +1,72 @@
+{
+  "_purpose": "Keywords and concepts the Opus-generated CFO briefing MUST surface for the EEI fixture. The test verifies these substrings appear (case-insensitive) in the briefing body.",
+
+  "must_contain_any_of_each_group": [
+    {
+      "group": "company_identification",
+      "examples": ["EEI", "Imobiliara", "real estate", "commercial real estate", "rental"]
+    },
+    {
+      "group": "operational_revenue_corrected",
+      "examples": [
+        "2,727,103", "2,727,104", "2.73M", "2.73 M", "RON 2.73",
+        "2727103", "2727104",
+        "rental revenue", "rental income", "rent",
+        "706"
+      ],
+      "_note": "Briefing MUST quote operational revenue (706 only), NOT the inflated 4.89M total that includes 722. Accept rounded / formatted variants."
+    },
+    {
+      "group": "leverage_framing",
+      "examples": [
+        "14,083,316", "14.08M", "14.08 M", "RON 14.08M",
+        "leverage", "loan-to-value", "LTV", "DSCR",
+        "real estate", "commercial real estate",
+        "debt-to-equity", "debt to equity", "D/E"
+      ]
+    },
+    {
+      "group": "interest_burden",
+      "examples": [
+        "716,741", "716,741.02", "716741",
+        "interest expense", "interest", "dobânzi", "dobanzi",
+        "coverage"
+      ]
+    }
+  ],
+  "optional_groups_observed": [
+    {"group": "capitalized_own_work_trap", "examples": ["722", "capitalized own-work", "production de imobilizari", "non-cash revenue"]},
+    {"group": "628_anomaly", "examples": ["628", "third-party services", "services executate de terti", "80%", "anomaly"]},
+    {"group": "fx_exposure", "examples": ["FX", "5124", "valuta", "currency exposure", "multi-currency"]},
+    {"group": "equity_quality_warning", "examples": ["105", "revaluation reserves", "rezerve din reevaluare", "non-cash equity"]},
+    {"group": "related_party_warning", "examples": ["461", "related party", "debitori diversi", "intercompany"]}
+  ],
+  "_optional_groups_note": "These appear via the structured alerts surface (see expected_validation.must_flag). Not required in the 3-sentence briefing — they live in the Decisions / Alerts surfaces.",
+
+  "must_NOT_contain": [
+    {
+      "key": "wrong_revenue_4_89M",
+      "value_patterns": ["4,891,183", "4.89M revenue", "RON 4.89M revenue"],
+      "rationale": "If 722 is incorrectly included in revenue the briefing will quote 4.89M. That's the failure mode."
+    },
+    {
+      "key": "wrong_inventory_advice",
+      "value_patterns": ["reduce inventory", "inventory turn", "DIO", "days inventory"],
+      "rationale": "EEI has zero inventory. Any inventory advice is generic-finance-template noise."
+    },
+    {
+      "key": "wrong_working_capital_focus",
+      "value_patterns": ["working capital management", "CCC", "cash conversion cycle"],
+      "rationale": "For a real-estate holding the working capital cycle is irrelevant. Focus must be on LTV, DSCR, occupancy."
+    }
+  ],
+
+  "structural_requirements": {
+    "min_length_chars": 600,
+    "max_length_chars": 4000,
+    "must_use_markdown_headers": true,
+    "must_have_followups": true,
+    "followups_pattern": "SUGGESTED_FOLLOWUPS: \\[.+\\]",
+    "_followups_note": "Trailer line must be present (and stripped from display) for the chip buttons."
+  }
+}

@@ -11,7 +11,7 @@
 // What we kept
 //   · Same SPECS schema, same threshold storage (useThresholds + writeThresholds)
 //   · Same calibrated-tick + snap-back interaction
-//   · Same group structure (Protect · Watch · Liquidate-Scale)
+//   · Same group structure (Protect · Watch · Wind down-Scale)
 //   · Same "edited drift" badge so the user can see how far they've roamed
 //
 // What changed
@@ -44,7 +44,7 @@ export function DataRulesCard() {
   const thresholds = useThresholds();
   // Three groups stay open by default — Settings page has the room.
   const [openGroups, setOpenGroups] = useState<Set<GroupKey>>(
-    new Set(["protect", "watch", "liquidate"]),
+    new Set(["protect", "watch", "wind_down"]),
   );
 
   function toggle(g: GroupKey) {
@@ -80,12 +80,12 @@ export function DataRulesCard() {
         onToggle={() => toggle("watch")}
       />
       <RuleGroup
-        title="Liquidate · Scale"
+        title="Wind down · Scale"
         subtitle="Capital-trap and scale-floor extremes"
         specs={[...SPECS.eliminate, ...SPECS.scale]}
         thresholds={thresholds}
-        open={openGroups.has("liquidate")}
-        onToggle={() => toggle("liquidate")}
+        open={openGroups.has("wind_down")}
+        onToggle={() => toggle("wind_down")}
       />
 
       <div className="px-4 py-3 border-t border-rule flex items-center justify-between gap-3">
@@ -109,7 +109,7 @@ export function DataRulesCard() {
 
 // ─── Helpers (mirror of the legacy CommandDrawer RuleGroup + ThresholdSlider) ───
 
-type GroupKey = "protect" | "watch" | "liquidate";
+type GroupKey = "protect" | "watch" | "wind_down";
 
 function RuleGroup({
   title,

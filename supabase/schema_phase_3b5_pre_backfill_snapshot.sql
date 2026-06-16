@@ -1,0 +1,128 @@
+-- F3.16-3b.5 — pre_backfill_snapshot column for canonical-envelope backfill
+-- =====================================================================
+--
+-- Purpose
+-- -------
+-- The F3.16-3b.5 backfill re-extracts 8 production `financial_periods`
+-- through `_run_pipeline_sync(doc_id)` to populate the missing
+-- `assembled_canonical_v1` envelope. Re-extraction REPLACES the
+-- existing assembled_canonical_v1 / methodology_version / calculated
+-- metrics, so the only safe path is to snapshot the pre-state first
+-- and reserve a one-shot revert.
+--
+-- This migration adds a JSONB column that holds the entire
+-- pre-backfill state for each touched period. The 3b.5 orchestrator
+-- script (`scripts/run_3b5_backfill.py`) writes a snapshot row before
+-- each re-extract; if any halt condition fires post-backfill, the
+-- operator runs the rollback block below to restore the pre-state.
+--
+-- Why JSONB rather than separate columns
+-- --------------------------------------
+-- - Single atomic write per snapshot (no multi-row transaction).
+-- - Schema-flexible: future backfills can store different shapes
+--   without another migration.
+-- - Queryable: `pre_backfill_snapshot->>'snapshot_version'` lets us
+--   identify which backfill produced which snapshot when we ship 3b.7+.
+-- - Cheap: empty JSON value on every other row; only ~50KB per
+--   snapshotted row (the canonical envelope blob).
+--
+-- Idempotency
+-- -----------
+-- `ADD COLUMN IF NOT EXISTS` makes the migration safe to re-run.
+-- The orchestrator script only writes a snapshot when the column is
+-- still NULL for that row — so re-running the script after a
+-- successful backfill is also a no-op for already-backfilled periods.
+--
+-- §14 deploy discipline
+-- ---------------------
+-- This SQL runs in Supabase Studio, NOT via `docker exec` or any
+-- automated path. The operator pastes the block below, runs it,
+-- verifies the column exists, and only then runs
+-- `scripts/run_3b5_backfill.py` from the host.
+
+ALTER TABLE financial_periods
+  ADD COLUMN IF NOT EXISTS pre_backfill_snapshot JSONB;
+
+-- Optional but recommended: an index on the snapshot version for
+-- future "find all periods snapshotted by F3.16-3b.5" queries.
+-- GIN over a single JSONB key would be wasteful here — the orchestrator
+-- and rollback queries always include the period_id, which is already
+-- the table's primary key. A partial b-tree on the
+-- `snapshot_version` text gives us fast scans by sprint:
+CREATE INDEX IF NOT EXISTS idx_financial_periods_pre_backfill_version
+  ON financial_periods ((pre_backfill_snapshot->>'snapshot_version'))
+  WHERE pre_backfill_snapshot IS NOT NULL;
+
+-- =====================================================================
+-- POST-MIGRATION: invalidate PostgREST schema cache
+-- =====================================================================
+--
+-- Per F3.24 discipline rule (added to CLAUDE.md §14 on 2026-05-26):
+-- every schema-change migration MUST end with this NOTIFY so PostgREST
+-- (the Supabase REST API layer) refreshes its column cache. Without
+-- this, ALTER TABLE additions are invisible to API queries until
+-- PostgREST naturally polls pg_catalog (1-2 minutes on Supabase
+-- managed, longer on some self-hosted setups), and any orchestrator
+-- script that tries to write to the new column gets a 400 Bad Request
+-- with "column does not exist."
+--
+-- The 3b.5 sprint hit this exact issue: the column existed in
+-- pg_catalog but PostgREST kept returning 400 for explicit selects.
+-- The fix is one line; the rule is permanent.
+--
+-- Caveat: Supabase managed PostgREST does NOT reliably subscribe to
+-- the `pgrst` NOTIFY channel — so this line is belt-and-suspenders
+-- for self-hosted PostgREST + harmless on Supabase. If the cache
+-- doesn't refresh within 10 seconds on Supabase, fall back to:
+--   - Supabase Dashboard → Settings → API → "Reload schema cache"
+--   - OR toggle any API setting to force PostgREST restart
+--   - OR wait ~1-2 min for natural polling refresh
+
+NOTIFY pgrst, 'reload schema';
+
+
+-- =====================================================================
+-- ROLLBACK BLOCK — runs only on a HALT trigger from the orchestrator
+-- =====================================================================
+--
+-- Do NOT run this block as part of the migration. It's reproduced here
+-- so the rollback procedure lives next to the snapshot column it
+-- restores from. The orchestrator emits the exact `period_id` values
+-- to rollback when a halt condition fires (e.g. F-A3.1 RED after a
+-- batch); copy from the orchestrator's HALT output into the IN clause.
+--
+-- Restores the four user-visible columns. Other columns (line_items,
+-- calculated_metrics rows in their own table) are NOT restored here —
+-- they get re-derived from the restored envelope on next read by
+-- the F3.15 fallback path, which is still active during 3b.5 (F3.15
+-- fallback deletion is 3b.5 phase 3, separate PR).
+--
+-- =====================================================================
+-- BEGIN;
+--
+-- UPDATE financial_periods
+-- SET
+--   assembled_canonical_v1 = pre_backfill_snapshot->'assembled_canonical_v1',
+--   methodology_version    = pre_backfill_snapshot->>'methodology_version',
+--   detection_envelope     = pre_backfill_snapshot->'detection_envelope',
+--   -- updated_at intentionally NOT restored — we want a fresh
+--   -- updated_at on the rollback so the audit trail is clear.
+--   updated_at             = now()
+-- WHERE id IN (
+--   -- paste period_id values from orchestrator HALT output here
+-- )
+--   AND pre_backfill_snapshot IS NOT NULL
+--   AND pre_backfill_snapshot->>'snapshot_version' = 'F3.16-3b5-v1';
+--
+-- -- Verify the rollback before COMMIT:
+-- SELECT id,
+--        pre_backfill_snapshot->>'snapshot_version' AS snap_ver,
+--        (assembled_canonical_v1 IS NOT NULL)        AS has_envelope_after,
+--        methodology_version,
+--        updated_at
+--   FROM financial_periods
+--  WHERE id IN ( /* same list as above */ );
+--
+-- -- If all looks right:
+-- COMMIT;
+-- -- (Or ROLLBACK; if the verify block surfaces anything unexpected.)

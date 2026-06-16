@@ -15,16 +15,38 @@
 // across the page use the techy UPPERCASE monospace style with a brand-teal
 // square bullet — the user's preferred eyebrow treatment.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
+import { AnimatePresence, motion } from "framer-motion";
+import { CompanyLogo } from "@/components/public-companies/CompanyLogo";
+// 2026-05-27 — strategic repositioning. The prior PublicCompanyShowcase
+// led with AAPL/MSFT/NVDA/TSLA/GOOGL mega-caps, implicitly pitching "this
+// tool analyzes Apple." Real users are SMB / mid-market operators who
+// want benchmarks against companies their size. These three sections
+// replace that showcase: BridgeSection (3-step illustration) sells the
+// mental model; RealPeersSection (sector grid, $50M-$5B tickers) gives
+// relatable starting points; PrivateBusinessDemo shows "Acme Foods SRL +
+// 3 real peers + multi-dot benchmark + insight callout" — the product's
+// value in one frame. PublicCompanyShowcase function stays in the file
+// for tree-shaking only; it's no longer rendered.
+import { BridgeSection } from "@/components/landing/BridgeSection";
+// F5.0 Phase 9 — Landing-side packaging of the CFO AI Learn layer.
+// Lives between ProductPreview and HowItWorks so it lands right after
+// the visitor sees the product output — the click-to-learn proof is
+// fresh in their mind.
+import { LearningLayerSection } from "@/components/landing/LearningLayerSection";
+import { RealPeersSection } from "@/components/landing/RealPeersSection";
+import { PrivateBusinessDemo } from "@/components/landing/PrivateBusinessDemo";
 import {
   ArrowRight,
+  BarChart3,
   CheckCircle2,
   ChevronDown,
   CircleDollarSign,
   LineChart,
   ShieldCheck,
+  Globe2,
   Sparkles,
   TrendingDown,
   TrendingUp,
@@ -36,10 +58,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/cfo/Logo";
-import { AuthCard } from "@/components/cfo/AuthCard";
+// AuthCard import retired — the rev3 twin-card hero replaces the
+// embedded sign-in card; users hit /signup or /signin via the header
+// nav. Kept this comment so the next reader doesn't re-add it on autopilot.
 import { PricingTableV2 } from "@/components/cfo/PricingTableV2";
 import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 import { FooterSocial } from "@/components/marketing/FooterSocial";
+import { EntryCard } from "@/components/landing/EntryCard";
+import { ReassuranceCard } from "@/components/landing/ReassuranceCard";
 import { useAuth } from "@/lib/auth";
 import {
   ease,
@@ -64,8 +90,21 @@ export default function Landing() {
     <div className="min-h-screen bg-bg text-ink selection:bg-brand/30 selection:text-ink">
       <Header />
       <Hero />
+      {/* The repositioning trio — replaces the AAPL/MSFT/NVDA showcase.
+          Order matters: Bridge sets the mental model (upload → pick peers
+          → see context), then Real Peers shows what "your-sized" public
+          companies actually look like, then the Private Business Demo
+          shows the product output (Acme Foods + 3 peers + insight). */}
+      <BridgeSection />
+      <RealPeersSection />
+      <PrivateBusinessDemo />
       <FlagshipUseCases />
       <ProductPreview />
+      {/* F5.0 Phase 9 — landing-side packaging of CFO AI Learn. Sits
+          immediately after the product preview so the click-to-learn
+          differentiator lands while the visitor still has the dashboard
+          mental model in their head. */}
+      <LearningLayerSection />
       <HowItWorks />
       <UseCases />
       {/* V2 pricing — single source of truth pulled from GET /api/pricing/config
@@ -145,11 +184,63 @@ function Header() {
   );
 }
 
-/* ───────── Hero (left) + AuthCard (right) ──────────────────────────────── */
+/* ───────── Hero — twin entry points ────────────────────────────────────────
+
+   2026-05-24 rev3 per operator spec: replace the single-CTA hero with a
+   pair of co-equal entry-point cards (Upload-your-data vs Public-Companies).
+   Equal weight is the design contract — neither card overshadows the
+   other; only the accent colour (brand-green vs info-blue) differentiates
+   them. Below the cards, a row of quick-try ticker chips lets visitors
+   jump straight into the public-company snapshot with no signup gate.
+
+   The embedded AuthCard from rev2 moved out — sign-in / sign-up are still
+   one click away via the Header's existing top-right buttons, and the
+   twin-card layout needs the full hero width to read as balanced. */
+
+/** Featured ticker chips on the hero quick-try strip + the showcase
+ *  ticker switcher. Kept in one place so the two surfaces always agree
+ *  on the recommended starter set. AAPL leads because the public-company
+ *  canonical synthesis is calibrated against it. */
+const FEATURED_TICKERS: ReadonlyArray<{ ticker: string; name: string }> = [
+  { ticker: "AAPL",  name: "Apple" },
+  { ticker: "MSFT",  name: "Microsoft" },
+  { ticker: "NVDA",  name: "NVIDIA" },
+  { ticker: "TSLA",  name: "Tesla" },
+  { ticker: "GOOGL", name: "Alphabet" },
+];
 
 function Hero() {
+  // ── 2026-05-27 rev4: single-workflow hero ────────────────────────────
+  // The prior twin-card hero ("Upload your data" + "Analyze a public
+  // company") presented two parallel choices with an "OR" between them.
+  // That mental model was wrong — a private-business owner doesn't
+  // decide between "analyze Apple" vs "analyze myself," those are
+  // different mental tasks entirely.
+  //
+  // The real product is ONE workflow with two inputs: your private
+  // books + your chosen public peers → benchmarked together. The
+  // public-company side isn't a separate destination, it's the
+  // comparison anchor for the user's business.
+  //
+  // This hero now communicates: upload → we match peers → see how you
+  // compare. Single primary CTA ("Start free — no card required") that
+  // is the conversion path. Tertiary "Browse the public-company
+  // library" link acknowledges the explore-first audience
+  // (researchers, students, advisors) without making them primary.
+  //
+  // Removed entirely: twin EntryCard grid, "Quick try" ticker chips
+  // (FEATURED_TICKERS still exists in the file but no longer rendered
+  // from the hero — kept for any future explore surface).
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+
   return (
-    <section className="relative overflow-hidden">
+    <section
+      data-testid="landing-hero-workflow"
+      className="relative overflow-hidden"
+    >
+      {/* Ambient glow plumbing — preserved verbatim from rev2/3 so the
+       *  hero retains its Apple-style light wash. */}
       <motion.div
         aria-hidden
         initial={{ opacity: 0, scale: 0.9 }}
@@ -176,101 +267,686 @@ function Hero() {
         className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent"
       />
 
-      <motion.div
-        variants={staggerChildren}
-        initial="initial"
-        animate="animate"
-        className="relative mx-auto max-w-[1280px] px-5 sm:px-8 pt-14 sm:pt-20 pb-16 sm:pb-24 grid lg:grid-cols-[1fr_auto] gap-12 lg:gap-14 items-center"
-      >
-        {/* Left column — copy + CTAs */}
-        <div className="max-w-[640px]">
-          <motion.div variants={enterFromBelowSoft} transition={ease}>
-            <Eyebrow>For CFOs · Investors · Accountants · Banks · Private Equity</Eyebrow>
-          </motion.div>
+      <div className="relative mx-auto max-w-[1100px] px-5 sm:px-8 pt-14 sm:pt-20 pb-14 sm:pb-20 flex flex-col items-center text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...ease, delay: 0.04 }}
+        >
+          <Eyebrow>CFO AI · {t("landing.hero.eyebrow", "Built for private businesses")}</Eyebrow>
+        </motion.div>
 
-          <motion.h1
-            variants={enterFromBelow}
-            transition={easeSlow}
-            className="mt-6 font-serif text-[48px] sm:text-[64px] lg:text-[76px] leading-[0.95] tracking-[-0.03em] text-ink"
-          >
-            Turn invoices and balance sheets into{" "}
-            <span className="text-gradient-cfo">board-ready financial intelligence</span>.
-          </motion.h1>
+        {/* Defensive render: plain elements (no motion wrappers) for
+            the critical above-the-fold copy + workflow card. The hero
+            content MUST be visible immediately; entrance animation is
+            nice-to-have, not must-have. (Prior version had motion.h1 +
+            motion.div here; the dev preview's framer-motion stalled
+            at opacity:0 on these specific elements while the inner
+            button's springSnappy/whileHover still worked. Plain DOM
+            elements avoid any animation-trigger risk; prod is safe
+            either way.) */}
+        <h1 className="mt-7 font-serif text-[40px] sm:text-[54px] lg:text-[64px] leading-[1.05] tracking-[-0.025em] text-ink max-w-[920px]">
+          {t(
+            "landing.hero.headline",
+            "The first benchmark tool built for private businesses.",
+          )}
+        </h1>
 
-          <motion.p
-            variants={enterFromBelowSoft}
-            transition={ease}
-            className="mt-6 text-[16px] sm:text-[17.5px] leading-relaxed text-ink-soft max-w-[580px]"
-          >
-            Upload a <span className="text-ink">trial balance</span>, balance
-            sheet, P&L, or invoice export. CFO AI builds the financial model,
-            ratios, valuations, and strategic recommendations — in minutes.
-          </motion.p>
+        <p className="mt-5 text-[16px] sm:text-[17.5px] leading-relaxed text-ink-soft max-w-[680px]">
+          {t(
+            "landing.hero.subhead",
+            "Upload your trial balance. We match you with public companies your size, in your sector. See exactly how you compare on margin, growth, leverage, and cash — with named comparisons, not vague industry averages.",
+          )}
+        </p>
 
+        {/* Workflow card — single unified surface that holds the 3-step
+         *  visualization, primary CTA, reassurance row, and tertiary
+         *  link. One mental model: this card IS the product story. */}
+        <div
+          className="
+            mt-12 sm:mt-14 w-full max-w-[680px]
+            rounded-3xl border border-rule
+            bg-surface/80 backdrop-blur-xl
+            p-6 sm:p-8
+            shadow-[0_24px_80px_-40px_rgba(0,0,0,0.5)]
+          "
+          data-testid="landing-hero-workflow-card"
+        >
+          {/* Workflow label */}
+          <div className="text-[10.5px] uppercase tracking-[0.18em] text-ink-mute font-mono font-medium text-center mb-7">
+            {t("landing.hero.workflowLabel", "The full workflow")}
+          </div>
+
+          {/* 3-step inline visualization. CSS grid with
+              [step][arrow][step][arrow][step] columns; gap shrinks on
+              mobile but never collapses (steps stay readable). */}
+          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] gap-1 sm:gap-3 items-start mb-8">
+            <WorkflowStep
+              n="1"
+              icon={Upload}
+              title={t("landing.hero.step1.title", "Upload your books")}
+              sub={t("landing.hero.step1.sub", "Bilanț, P&L, any format · 90s")}
+            />
+            <WorkflowConnector />
+            <WorkflowStep
+              n="2"
+              icon={Sparkles}
+              title={t("landing.hero.step2.title", "Get peer matches")}
+              sub={t("landing.hero.step2.sub", "Public companies your size in your sector")}
+              accent
+            />
+            <WorkflowConnector />
+            <WorkflowStep
+              n="3"
+              icon={BarChart3}
+              title={t("landing.hero.step3.title", "See yourself in context")}
+              sub={t("landing.hero.step3.sub", "Named peers, not vague averages")}
+            />
+          </div>
+
+          {/* Primary CTA — single conversion path */}
           <motion.div
-            variants={enterFromBelowSoft}
-            transition={ease}
-            className="mt-8 flex flex-wrap items-center gap-3"
+            whileHover={{ y: -1, scale: 1.01 }}
+            whileTap={{ scale: 0.985 }}
+            transition={springSnappy}
           >
-            <motion.div whileHover={{ y: -2, scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={springSnappy}>
-              <Link
-                to="/signup"
-                className="
-                  inline-flex items-center gap-2
-                  h-12 px-6 rounded-full
-                  bg-gradient-cfo text-white
-                  text-[14px] font-medium
-                  shadow-2 hover:shadow-3
-                  transition-shadow
-                "
-              >
-                Upload financial statements
-                <ArrowRight size={14} strokeWidth={2.25} />
-              </Link>
-            </motion.div>
-            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={springSnappy}>
-              <Link
-                to="/dashboard"
-                className="
-                  inline-flex items-center
-                  h-12 px-5 rounded-full
-                  border border-rule hover:border-rule-strong
-                  text-[14px] text-ink/90 hover:text-ink
-                  transition-colors
-                "
-              >
-                See how it works
-              </Link>
-            </motion.div>
+            <button
+              type="button"
+              onClick={() => navigate("/signup?plan=trial")}
+              data-testid="landing-hero-primary-cta"
+              className="
+                w-full min-h-[52px] py-3.5 px-6 rounded-full
+                bg-gradient-cfo text-white font-medium text-[15px]
+                shadow-1 hover:shadow-2 transition-shadow
+                inline-flex items-center justify-center gap-2
+              "
+            >
+              {t("landing.hero.primaryCta", "Start free — no card required")}
+              <ArrowRight size={15} strokeWidth={2.25} />
+            </button>
           </motion.div>
 
-          <motion.div
-            variants={enterFromBelowSoft}
-            transition={ease}
-            className="mt-8 flex items-center gap-2 text-[12px] text-ink-soft/80"
-          >
-            <ShieldCheck size={13} strokeWidth={1.75} className="text-brand/70" />
-            AI-assisted financial recommendations. Final decisions remain with your management team.
-          </motion.div>
+          {/* Reassurance row — three checks, brand-coloured dots */}
+          <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11.5px] text-ink-soft">
+            <li className="inline-flex items-center gap-1.5">
+              <CheckCircle2 size={11} className="text-brand" />
+              {t("landing.hero.noCard", "No credit card")}
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <CheckCircle2 size={11} className="text-brand" />
+              {t("landing.hero.fast", "90 seconds")}
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <CheckCircle2 size={11} className="text-brand" />
+              {t("landing.hero.cancel", "Cancel anytime")}
+            </li>
+          </ul>
+
+          {/* Tertiary link — for the explore-first audience that's not
+              ready to upload yet. Below the dividing line so it reads
+              as a secondary option, not a parallel choice. */}
+          <div className="mt-6 pt-5 border-t border-rule/50 text-center">
+            <p className="text-[12.5px] text-ink-mute mb-1.5">
+              {t(
+                "landing.hero.alreadyExploring",
+                "Just exploring? Researching a public company first?",
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/public-companies")}
+              data-testid="landing-hero-browse-public"
+              className="
+                inline-flex items-center gap-1.5
+                text-[12.5px] font-medium text-ink-soft hover:text-ink
+                transition-colors
+              "
+            >
+              {t("landing.hero.browsePublicCompanies", "Browse the public-company library")}
+              <ArrowRight size={12} strokeWidth={2.25} />
+            </button>
+          </div>
         </div>
 
-        {/* Right column — embedded AuthCard. */}
-        <motion.div
-          variants={enterScale}
-          transition={easeSlow}
-          className="hidden lg:flex justify-end"
+        {/* Disclaimer — defensive plain div, see workflow-card note above */}
+        <div
+          className="mt-8 flex items-center justify-center gap-2 text-[11.5px] text-ink-soft/75 max-w-md text-center"
         >
-          <AuthCard subtitle="Sign in to your CFO AI workspace." />
-        </motion.div>
-        <motion.div variants={enterScale} transition={easeSlow} className="lg:hidden">
-          <AuthCard subtitle="Sign in to your CFO AI workspace." />
-        </motion.div>
-      </motion.div>
+          <ShieldCheck size={12} strokeWidth={1.75} className="text-brand/70 flex-shrink-0" />
+          {t(
+            "landing.hero.disclaimer",
+            "AI-assisted analysis. Final decisions remain with your management team.",
+          )}
+        </div>
+      </div>
 
-      <div className="hidden sm:flex justify-center pb-6 -mt-4 text-ink-soft/60">
+      <div className="hidden sm:flex justify-center pb-6 -mt-2 text-ink-soft/60">
         <ChevronDown size={18} strokeWidth={1.5} className="animate-pulse" />
       </div>
     </section>
+  );
+}
+
+/* ───────── WorkflowStep — one tile in the hero's 3-step strip ──────────
+   Each tile is a centered icon-circle (with a small ribbon-style step
+   number) + bold title + a sub line that collapses to icon-only on
+   very small viewports via the `hidden sm:block` on the sub. */
+interface WorkflowStepProps {
+  n: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  title: string;
+  sub: string;
+  accent?: boolean;
+}
+
+function WorkflowStep({ n, icon: Icon, title, sub, accent = false }: WorkflowStepProps) {
+  return (
+    <div className="text-center px-0.5 sm:px-1 min-w-0">
+      <div
+        className={`
+          relative inline-flex items-center justify-center
+          w-10 h-10 sm:w-11 sm:h-11 rounded-full mb-2.5
+          ${accent ? "bg-info/15 text-info" : "bg-surface border border-rule text-ink-soft"}
+        `}
+      >
+        <span
+          className="
+            absolute -top-1 -right-1
+            w-4 h-4 rounded-full bg-bg
+            text-[9px] font-mono font-semibold text-ink
+            flex items-center justify-center
+            border border-rule
+          "
+        >
+          {n}
+        </span>
+        <Icon size={16} strokeWidth={2} />
+      </div>
+      <div className="text-[12.5px] sm:text-[13.5px] font-semibold text-ink leading-tight mb-1 break-words">
+        {title}
+      </div>
+      <div className="text-[10.5px] sm:text-[11px] text-ink-mute leading-snug hidden sm:block">
+        {sub}
+      </div>
+    </div>
+  );
+}
+
+function WorkflowConnector() {
+  return (
+    <div className="flex items-center justify-center pt-4 sm:pt-4">
+      <ArrowRight size={12} strokeWidth={2} className="text-ink-mute" />
+    </div>
+  );
+}
+
+/* ───────── Public Company Intelligence showcase ────────────────────────────
+
+   Sits directly under the hero and exists to make the second entry-point
+   feel real before anyone signs up. Operator spec: visitors see a live
+   preview frame (browser-chrome window with the actual hub UI), a ticker
+   switcher to swap the preview, three reassurance tiles, and a soft
+   transition back to "upload your own data" so the path doesn't dead-end.
+
+   Preview surface: ideally autoplay-muted-loop MP4s recorded against the
+   real product. Until those land in `public/landing/preview-<ticker>.mp4`
+   we fall back to a clean placeholder card that mirrors the hub's KPI-
+   strip layout — same Apple-quality "this is what you'll get" framing. */
+
+function PublicCompanyShowcase() {
+  const navigate = useNavigate();
+  const [selectedTicker, setSelectedTicker] = useState<string>("AAPL");
+
+  return (
+    <section
+      id="public-company-intelligence"
+      data-testid="landing-public-company-showcase"
+      className="relative border-t border-rule/40"
+    >
+      <div className="relative mx-auto max-w-[1100px] px-5 sm:px-8 py-20 sm:py-28">
+        <div className="text-center max-w-[760px] mx-auto mb-12 sm:mb-14">
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={ease}
+          >
+            <Eyebrow>Public Company Intelligence</Eyebrow>
+          </motion.div>
+          <motion.h2
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ ...easeSlow, delay: 0.06 }}
+            className="mt-5 font-serif text-[34px] sm:text-[44px] lg:text-[50px] leading-[1.08] tracking-[-0.02em] text-ink"
+          >
+            Read 5,000+ public companies the way a CFO does.
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ ...ease, delay: 0.14 }}
+            className="mt-4 text-[15.5px] sm:text-[17px] leading-relaxed text-ink-soft"
+          >
+            No upload. No signup. Pick a ticker, see the full analysis in under
+            10 seconds.
+          </motion.p>
+        </div>
+
+        {/* Preview frame — browser-chrome wrapper. Inside: an autoplaying
+         *  MP4 when the asset exists, else a graceful KPI-strip placeholder
+         *  so visitors still see a "live" hub-looking surface. */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ ...easeSlow, delay: 0.1 }}
+          className="relative rounded-2xl overflow-hidden border border-rule bg-surface shadow-[0_24px_80px_-30px_rgba(0,0,0,0.45)]"
+        >
+          {/* Chrome strip */}
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-rule bg-bg-2/60 backdrop-blur">
+            <div className="flex gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-400/45" />
+              <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/45" />
+              <span className="h-2.5 w-2.5 rounded-full bg-green-400/45" />
+            </div>
+            <div className="flex-1 text-center text-[11px] text-ink-mute font-mono tabular-nums">
+              cfo-ai.io / {selectedTicker} · Live preview
+            </div>
+            <div className="w-12" /> {/* spacer to balance the chrome dots */}
+          </div>
+
+          <PreviewSurface ticker={selectedTicker} />
+
+          <div className="border-t border-rule bg-bg-2/40 px-4 py-3 text-center">
+            <button
+              type="button"
+              onClick={() => navigate(`/public-companies?ticker=${selectedTicker}`)}
+              data-testid={`landing-showcase-open-${selectedTicker.toLowerCase()}`}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-info hover:text-info/80 transition-colors"
+            >
+              Open full {selectedTicker} analysis
+              <ArrowRight size={13} strokeWidth={2.25} />
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Ticker switcher — same FEATURED_TICKERS list as the hero chips
+         *  so the showcase reinforces the muscle memory the visitor just
+         *  built one section above. */}
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <span className="text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
+            Try another
+          </span>
+          <div className="flex flex-wrap justify-center gap-2 max-w-[640px]">
+            {FEATURED_TICKERS.map((c) => {
+              const isActive = c.ticker === selectedTicker;
+              return (
+                <button
+                  key={c.ticker}
+                  type="button"
+                  onClick={() => setSelectedTicker(c.ticker)}
+                  data-testid={`landing-showcase-pick-${c.ticker.toLowerCase()}`}
+                  className={`
+                    inline-flex items-center gap-2
+                    h-8 px-3 rounded-full
+                    text-[12.5px]
+                    border transition-all
+                    ${isActive
+                      ? "bg-info/[0.08] border-info/40 text-ink"
+                      : "bg-surface border-rule text-ink-soft hover:text-ink hover:border-rule-strong"
+                    }
+                  `}
+                >
+                  <span className="font-mono font-semibold tabular-nums">{c.ticker}</span>
+                  <span className="text-ink-mute">{c.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Three reassurance tiles. */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-14">
+          <ReassuranceCard
+            stat="5,000+"
+            label="Tickers covered"
+            detail="All NASDAQ + NYSE-listed companies, latest 10-K and 10-Q filings."
+            testid="landing-reassurance-coverage"
+          />
+          <ReassuranceCard
+            stat="Official"
+            label="SEC EDGAR data"
+            detail="Direct from the regulator's XBRL feed via Nasdaq Sharadar — always current."
+            testid="landing-reassurance-source"
+          />
+          <ReassuranceCard
+            stat="Identical"
+            label="Same as your data"
+            detail="What you see for Apple is what you'll see for your own trial balance — same engine."
+            testid="landing-reassurance-engine"
+          />
+        </div>
+
+        {/* Soft transition back to the upload funnel. */}
+        <div className="mt-16 text-center">
+          <p className="text-[14.5px] text-ink-soft mb-3">
+            Want to compare your own business?
+          </p>
+          <Link
+            to="/signup?plan=trial"
+            data-testid="landing-showcase-back-to-upload"
+            className="inline-flex items-center gap-2 text-[14.5px] font-medium text-brand hover:text-brand-dark transition-colors"
+          >
+            Upload your trial balance
+            <ArrowRight size={15} strokeWidth={2.25} />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// PreviewSurface — the inside of the landing page's "Live preview" frame.
+//
+// 2026-05-27 rewrite. The prior version tried to render an autoplaying
+// MP4 (`/landing/preview-<ticker>.mp4`) that doesn't actually exist on
+// disk, so every visitor saw the bare placeholder layer behind it: a
+// label-on-top-of-value KPI strip plus a half-empty "Snapshot · trend
+// · peer benchmark" stub with no actual chart. Read as a broken table.
+//
+// New design — three layered surfaces that genuinely sell the product:
+//   1. Company header (logo + name + sector chip)
+//   2. Three KPI cards with deltas (revenue TTM, EBITDA TTM, P/E)
+//   3. Sparkline of revenue trend (12 normalized bars; CSS-only, no chart lib)
+//   4. Peer benchmark bars (4 tickers, the active one highlighted)
+//   5. Open-full CTA
+//
+// All data hardcoded. We do NOT fetch from the backend on the marketing
+// surface — the LCP hit would punish landing-page conversion. Strings
+// stay in English here matching the rest of Landing.tsx; i18n sweep
+// for Landing is its own ticket (already pending: I18n batch 2).
+// ──────────────────────────────────────────────────────────────────────
+
+interface CompanyData {
+  ticker: string;
+  name: string;
+  sector: string;
+  revenue: { value: string; delta: string };
+  ebitda: { value: string; delta: string };
+  pe: string;
+  /** 12 quarter values normalized 0-1 for the sparkline. Last bar = latest. */
+  trend: number[];
+  /** Peer comparison rows. First entry should match the company itself. */
+  peers: Array<{ ticker: string; ebitdaMargin: number }>;
+}
+
+const PREVIEW_COMPANIES: Record<string, CompanyData> = {
+  AAPL: {
+    ticker: "AAPL", name: "Apple Inc.", sector: "Consumer Electronics",
+    revenue: { value: "$391.0B", delta: "+2.0%" },
+    ebitda:  { value: "$131.8B", delta: "+3.2%" },
+    pe: "31.5×",
+    trend: [0.55, 0.58, 0.62, 0.61, 0.65, 0.68, 0.71, 0.72, 0.75, 0.78, 0.82, 0.85],
+    peers: [
+      { ticker: "AAPL",  ebitdaMargin: 33.7 },
+      { ticker: "MSFT",  ebitdaMargin: 36.1 },
+      { ticker: "GOOGL", ebitdaMargin: 32.8 },
+      { ticker: "META",  ebitdaMargin: 52.0 },
+    ],
+  },
+  MSFT: {
+    ticker: "MSFT", name: "Microsoft Corp.", sector: "Software · Cloud",
+    revenue: { value: "$245.1B", delta: "+11.2%" },
+    ebitda:  { value: "$133.6B", delta: "+14.5%" },
+    pe: "37.8×",
+    trend: [0.42, 0.48, 0.51, 0.55, 0.58, 0.62, 0.68, 0.71, 0.75, 0.80, 0.85, 0.90],
+    peers: [
+      { ticker: "MSFT",  ebitdaMargin: 48.1 },
+      { ticker: "ORCL",  ebitdaMargin: 41.2 },
+      { ticker: "AAPL",  ebitdaMargin: 33.7 },
+      { ticker: "GOOGL", ebitdaMargin: 32.8 },
+    ],
+  },
+  NVDA: {
+    ticker: "NVDA", name: "NVIDIA Corp.", sector: "Semiconductors · AI",
+    revenue: { value: "$130.5B", delta: "+125.9%" },
+    ebitda:  { value: " $84.5B", delta: "+248.3%" },
+    pe: "65.2×",
+    trend: [0.18, 0.20, 0.24, 0.28, 0.35, 0.45, 0.55, 0.68, 0.78, 0.85, 0.92, 0.98],
+    peers: [
+      { ticker: "NVDA", ebitdaMargin: 55.7 },
+      { ticker: "TSM",  ebitdaMargin: 41.5 },
+      { ticker: "AMD",  ebitdaMargin: 14.2 },
+      { ticker: "INTC", ebitdaMargin: 11.8 },
+    ],
+  },
+  TSLA: {
+    ticker: "TSLA", name: "Tesla Inc.", sector: "Auto · Energy",
+    revenue: { value: " $97.7B", delta: "+18.8%" },
+    ebitda:  { value: " $14.7B", delta: "-12.4%" },
+    pe: "85.4×",
+    trend: [0.45, 0.52, 0.58, 0.64, 0.68, 0.72, 0.75, 0.78, 0.74, 0.71, 0.68, 0.70],
+    peers: [
+      { ticker: "TSLA", ebitdaMargin: 13.6 },
+      { ticker: "TM",   ebitdaMargin: 14.7 },
+      { ticker: "GM",   ebitdaMargin: 10.2 },
+      { ticker: "F",    ebitdaMargin:  7.8 },
+    ],
+  },
+  GOOGL: {
+    ticker: "GOOGL", name: "Alphabet Inc.", sector: "Internet · Cloud",
+    revenue: { value: "$350.0B", delta: "+8.7%" },
+    ebitda:  { value: "$131.0B", delta: "+22.1%" },
+    pe: "23.6×",
+    trend: [0.50, 0.54, 0.58, 0.61, 0.64, 0.68, 0.71, 0.74, 0.78, 0.82, 0.85, 0.88],
+    peers: [
+      { ticker: "GOOGL", ebitdaMargin: 32.8 },
+      { ticker: "META",  ebitdaMargin: 52.0 },
+      { ticker: "AAPL",  ebitdaMargin: 33.7 },
+      { ticker: "AMZN",  ebitdaMargin: 18.4 },
+    ],
+  },
+};
+
+
+function PreviewSurface({ ticker }: { ticker: string }) {
+  const company = PREVIEW_COMPANIES[ticker] ?? PREVIEW_COMPANIES.AAPL;
+  const peerMax = Math.max(...company.peers.map((p) => p.ebitdaMargin));
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={ticker}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-bg p-5 sm:p-7 space-y-5 sm:space-y-6"
+      >
+        {/* Company header — logo, ticker, name, sector, SAMPLE pill */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <CompanyLogo ticker={company.ticker} size={40} className="shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="font-mono font-semibold text-[15px] text-ink tabular-nums">
+                  {company.ticker}
+                </span>
+                <span className="text-[15px] font-medium text-ink truncate">
+                  {company.name}
+                </span>
+              </div>
+              <div className="text-[11.5px] text-ink-soft mt-0.5">
+                {company.sector} · NASDAQ
+              </div>
+            </div>
+          </div>
+          <span className="
+            text-[9.5px] uppercase tracking-[0.14em] font-semibold
+            px-2 py-1 rounded-full shrink-0
+            bg-info/[0.10] text-info border border-info/20
+          ">
+            Sample preview
+          </span>
+        </div>
+
+        {/* KPI cards — three, side-by-side even on mobile (375px-tested). */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <PreviewKpi
+            label="Revenue (TTM)"
+            value={company.revenue.value}
+            delta={company.revenue.delta}
+          />
+          <PreviewKpi
+            label="EBITDA (TTM)"
+            value={company.ebitda.value}
+            delta={company.ebitda.delta}
+          />
+          <PreviewKpi
+            label="P / E ratio"
+            value={company.pe}
+          />
+        </div>
+
+        {/* Mini revenue trend — 12 CSS bars, staggered grow-in animation.
+            Intentionally NOT recharts: 12 divs are smaller + faster + look
+            identical at this size. Save the JS budget. */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <TrendingUp size={12} strokeWidth={2.25} className="text-ink-mute" />
+            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+              Revenue trend · last 12 quarters
+            </span>
+          </div>
+          <div className="flex items-end gap-1 h-10 sm:h-12" aria-hidden>
+            {company.trend.map((v, i) => (
+              <motion.div
+                key={i}
+                initial={{ height: 0 }}
+                animate={{ height: `${Math.max(v * 100, 4)}%` }}
+                transition={{
+                  delay: i * 0.035,
+                  duration: 0.45,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className={`
+                  flex-1 rounded-sm
+                  ${i === company.trend.length - 1 ? "bg-info" : "bg-info/35"}
+                `}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Peer benchmark — 4 horizontal bars, active company highlighted */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <BarChart3 size={12} strokeWidth={2.25} className="text-ink-mute" />
+            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+              Peer benchmark · EBITDA margin
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {company.peers.map((peer) => (
+              <PreviewPeerBar
+                key={peer.ticker}
+                ticker={peer.ticker}
+                value={peer.ebitdaMargin}
+                max={peerMax}
+                highlight={peer.ticker === company.ticker}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Footer note — the reassurance that this is REAL data the user
+            will get on their own. Quiet typography; not a billboard. */}
+        <p className="text-[11.5px] text-ink-mute text-center leading-relaxed pt-2 border-t border-rule/40">
+          Snapshot · 12-quarter trend · peer benchmark — all live in the
+          full hub. <span className="text-info font-medium">No sign-in required.</span>
+        </p>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// KPI card with optional delta. Delta is sign-derived (+/-) — green for
+// positive, red for negative. Tight padding so 3 fit at 375px viewport.
+function PreviewKpi({ label, value, delta }: { label: string; value: string; delta?: string }) {
+  const positive = delta?.trim().startsWith("+");
+  const negative = delta?.trim().startsWith("-");
+  return (
+    <div className="
+      rounded-xl border border-rule/60 bg-surface/60
+      px-3 py-3 sm:px-4 sm:py-3.5
+      transition-colors hover:border-rule
+    ">
+      <div className="text-[9.5px] uppercase tracking-[0.1em] text-ink-mute font-semibold leading-tight">
+        {label}
+      </div>
+      <div className="font-serif text-[17px] sm:text-[20px] text-ink leading-none tabular-nums mt-2 sm:mt-2.5">
+        {value}
+      </div>
+      {delta && (
+        <div className={`
+          text-[10.5px] font-medium mt-1.5 inline-flex items-center gap-0.5 tabular-nums
+          ${positive ? "text-success" : negative ? "text-alert" : "text-ink-mute"}
+        `}>
+          {positive && <TrendingUp size={9} strokeWidth={2.5} />}
+          {negative && <TrendingDown size={9} strokeWidth={2.5} />}
+          {delta.replace(/^[+-]/, "")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Single peer-comparison bar. The active company's ticker gets the
+// brand colour; peers get a muted tone. Bar width is proportional to
+// peerMax, NOT to 100%, so even the lowest peer reads as a real bar
+// (otherwise META at 52% would make AAPL at 33% look tiny).
+function PreviewPeerBar({
+  ticker,
+  value,
+  max,
+  highlight,
+}: {
+  ticker: string;
+  value: number;
+  max: number;
+  highlight: boolean;
+}) {
+  const widthPct = Math.min((value / max) * 100, 100);
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className={`
+        font-mono text-[11px] font-semibold w-12 flex-shrink-0 tabular-nums
+        ${highlight ? "text-info" : "text-ink-soft"}
+      `}>
+        {ticker}
+      </span>
+      <div className="flex-1 h-5 sm:h-6 rounded bg-bg-2/60 relative overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${widthPct}%` }}
+          transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+          className={`
+            h-full rounded
+            ${highlight ? "bg-info" : "bg-ink-mute/30"}
+          `}
+        />
+        <span className={`
+          absolute top-1/2 -translate-y-1/2 right-2
+          text-[10.5px] font-medium tabular-nums
+          ${highlight ? "text-info" : "text-ink-soft"}
+        `}>
+          {value.toFixed(1)}%
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -305,6 +981,18 @@ function FlagshipUseCases() {
       cta: "Open module",
       live: true,
     },
+    // NASDAQ-7 — public-company analysis surfaced on the public landing page
+    // so prospects see the dual-path positioning ("upload your books OR analyse
+    // any Nasdaq-listed company") before they sign up.
+    {
+      icon: Globe2,
+      title: "Public Company Intelligence",
+      tagline: "Nasdaq tickers → board-ready analysis",
+      body: "Search any of 16,000+ US-listed companies on Sharadar. Same dashboard, ratios, valuation, and CFO chat as your private books. Add as a benchmark peer next to your own.",
+      href: "/dashboard/public/search",
+      cta: "Search Nasdaq",
+      live: true,
+    },
   ];
 
   return (
@@ -322,9 +1010,9 @@ function FlagshipUseCases() {
           transition={easeSlow}
           className="text-center max-w-[680px] mx-auto mb-10"
         >
-          <Eyebrow>Three flagship modules</Eyebrow>
+          <Eyebrow>Four flagship modules</Eyebrow>
           <h2 className="mt-4 font-serif text-[32px] sm:text-[44px] leading-[1.05] tracking-[-0.02em]">
-            One platform. <span className="text-gradient-cfo">Three intelligences.</span>
+            One platform. <span className="text-gradient-cfo">Your books, or any public company.</span>
           </h2>
         </motion.div>
         <motion.div
@@ -332,7 +1020,7 @@ function FlagshipUseCases() {
           whileInView="animate"
           viewport={{ once: true, margin: "-80px" }}
           variants={staggerChildren}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
         >
           {cards.map(({ icon: Icon, title, tagline, body, href, cta, live }) => (
             <motion.div

@@ -22,18 +22,65 @@
 //                      to produce a paged PDF with the same content.
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+
+import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { Download, FileText, Printer, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { GuideMeButton } from "@/components/learning/GuideMeButton";
+import { COMPREHENSIVE_GUIDE } from "@/components/learning/pageGuides";
 import {
   buildCanonicalMetricsFromInputs,
   type CanonicalMetrics,
 } from "@/lib/canonicalMetrics";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/stores/currency";
+import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
+import type { Currency } from "@/lib/rates";
+
+/**
+ * CUR-FIX (universal coverage) — the report's local `fmt(n, opts)` helper
+ * used to be a pure number-to-string formatter that assumed RON. With the
+ * currency toggle alive on every page, that assumption silently kept the
+ * memo in RON regardless of what the user picked.
+ *
+ * `useReportFmt(sourceCurrency)` is the drop-in replacement: it takes the
+ * period's source currency and reads the global display currency from the
+ * <CurrencyProvider>. Calling it returns:
+ *   - `fmt(n, opts)`           : same signature as before, but converted to
+ *                                 the active display currency before format.
+ *   - `fmtCompact(n)`          : "1.2M €" / "12k RON" — replaces currency_M.
+ *   - `displayCurrency`        : the active 3-letter code (RON / EUR / USD)
+ *                                 — use for `<th>{display}</th>` headers.
+ *   - `sourceCurrency`         : the period's native currency, for source
+ *                                 labels in commentary ("matches account 121").
+ */
+function useReportFmt(sourceCurrency: string) {
+  const { display, rates } = useCurrency();
+  const src = (sourceCurrency as Currency) || "RON";
+  return useMemo(() => {
+    const fmt = (
+      n: number | null | undefined,
+      opts?: { signed?: boolean; pct?: boolean; mult?: boolean },
+    ): string => {
+      if (n == null || !Number.isFinite(n)) return "—";
+      if (opts?.pct) return `${n.toFixed(1)}%`;
+      if (opts?.mult) return `${n.toFixed(2)}×`;
+      const converted = convertFromTo(n, src, display, rates.rates);
+      const abs = Math.abs(converted);
+      const formatted = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(abs);
+      if (opts?.signed && converted < 0) return `(${formatted})`;
+      return converted < 0 ? `(${formatted})` : formatted;
+    };
+    const fmtCompact = (n: number): string =>
+      formatMoneyFrom(n, src, display, rates.rates, { compact: true });
+    return { fmt, fmtCompact, displayCurrency: display, sourceCurrency: src };
+  }, [src, display, rates]);
+}
 
 const apiBase = (): string =>
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -81,8 +128,9 @@ interface PeriodResponse {
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function ComprehensiveReport() {
-  const [params] = useSearchParams();
-  const periodId = params.get("period");
+  // 2026-05-24 — auto-resolve active period when URL lacks ?period= so
+  // sidebar navigation doesn't show empty state when the user has docs.
+  const { periodId } = useActivePeriodFallback();
   const { toast } = useToast();
   const [report, setReport] = useState<PeriodResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -215,19 +263,22 @@ export default function ComprehensiveReport() {
         {/* ── Header card (navy gradient, matches the EEI v5 reference) ── */}
         <header className="rounded-2xl px-6 py-6 mb-6 text-white"
                 style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
+          {/* 2026-05-26 mobile fix: stack vertically below sm: so the
+              company-name headline (34px serif) stays on one line. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.14em] opacity-80">
                 Comprehensive financial analysis
               </div>
-              <h1 className="mt-1 font-serif text-[34px] leading-tight">
+              <h1 className="mt-1 font-serif text-[26px] sm:text-[30px] md:text-[34px] leading-tight">
                 {companyName}
               </h1>
               <p className="mt-1.5 text-[13px] opacity-85">
-                Period ending {periodEnd} · Source: trial balance ({currency})
+                Period ending {periodEnd} · Source: trial balance ({currency}) · Displayed in <CurrencyDisplayChip />
               </p>
             </div>
-            <div className="flex items-center gap-2 print:hidden">
+            <div className="flex items-center gap-2 flex-wrap sm:shrink-0 print:hidden">
+              <GuideMeButton pageId="comprehensive-report" title="Report" steps={COMPREHENSIVE_GUIDE} />
               <button
                 onClick={exportPdf}
                 disabled={pdfBusy}
@@ -273,7 +324,12 @@ export default function ComprehensiveReport() {
             <SectionHeader number={1} title="Overview" />
             {canonical ? (
               <>
-                <KpiGrid canonical={canonical} credit={credit} />
+                <KpiGrid
+                  canonical={canonical}
+                  credit={credit}
+                  netMarginCanonical={metricsByName["net_margin"]}
+                  currency={currency}
+                />
                 {/* Itemized Reported → Core EBITDA bridge — the spec's
                  *  non-negotiable: each adjustment (758, 781) shown
                  *  with account / label / amount, arithmetic exact. */}
@@ -302,19 +358,19 @@ export default function ComprehensiveReport() {
           {/* ── 2. P&L ──────────────────────────────────────────────── */}
           <section id="pnl" data-testid="report-section-2-pnl">
             <SectionHeader number={2} title="P&L" />
-            <PnlTable pl={pl} />
+            <PnlTable pl={pl} currency={currency} />
           </section>
 
           {/* ── 3. BALANCE SHEET ────────────────────────────────────── */}
           <section id="bs" data-testid="report-section-3-bs">
             <SectionHeader number={3} title="Balance Sheet" />
-            <BsTable bs={bs} />
+            <BsTable bs={bs} currency={currency} />
           </section>
 
           {/* ── 4. CASH FLOW ────────────────────────────────────────── */}
           <section id="cf" data-testid="report-section-4-cf">
             <SectionHeader number={4} title="Cash Flow Statement" />
-            <CashFlowTable cf={cf} />
+            <CashFlowTable cf={cf} currency={currency} />
           </section>
 
           {/* ── 5. RATIOS ───────────────────────────────────────────── */}
@@ -326,7 +382,7 @@ export default function ComprehensiveReport() {
           {/* ── 6. VALUATION ────────────────────────────────────────── */}
           <section id="valuation" data-testid="report-section-6-valuation">
             <SectionHeader number={6} title="Valuation" />
-            <ValuationView metrics={metricsByName} pl={pl} bs={bs} />
+            <ValuationView metrics={metricsByName} pl={pl} bs={bs} currency={currency} />
           </section>
 
           {/* ── 7. RISK & CREDIT ────────────────────────────────────── */}
@@ -369,6 +425,14 @@ function SectionHeader({ number, title }: { number: number; title: string }) {
   );
 }
 
+/** CUR-FIX — inline chip showing the active display currency. Reads from
+ *  <CurrencyProvider> so the report's "Displayed in EUR" tagline updates
+ *  the instant the TopHeader toggle flips. */
+function CurrencyDisplayChip() {
+  const { display } = useCurrency();
+  return <span className="font-semibold tabular-nums">{display}</span>;
+}
+
 // ─── Briefing label-transform ─────────────────────────────────────────────
 // Engine-generated narrative occasionally calls the operational net-profit
 // figure (excl. RAS 722 capitalized own-work) "statutory" — a known mislabel.
@@ -385,6 +449,11 @@ function relabelOperationalInBriefing(summary: string): string {
     .replace(/\bstatutory net income\b/gi, "operational net income (excl. capitalized own-work)");
 }
 
+// Legacy non-converting helpers retained ONLY for the now-removed code paths
+// below. New call sites must use `useReportFmt(sourceCurrency)`.
+// (Marked deprecated so a future cleanup PR can delete them once every
+// caller is hook-based.)
+/** @deprecated CUR-FIX — use the `fmt` returned from `useReportFmt()` instead. */
 function fmt(n: number | null | undefined, opts?: { signed?: boolean; pct?: boolean; mult?: boolean }): string {
   if (n == null || !Number.isFinite(n)) return "—";
   if (opts?.pct) return `${(n).toFixed(1)}%`;
@@ -396,14 +465,25 @@ function fmt(n: number | null | undefined, opts?: { signed?: boolean; pct?: bool
 }
 
 function KpiGrid({
-  canonical, credit,
+  canonical, credit, netMarginCanonical, currency,
 }: {
   /** Canonical metric object — the single source of truth for
    *  EBITDA + net profit across every surface. See
    *  `src/lib/canonicalMetrics.ts`. */
   canonical: CanonicalMetrics;
   credit: ReturnType<typeof readCreditFromMetrics>;
+  // F1.e — Engine-canonical `net_margin` (ratio, 0–1) from
+  // calculated_metrics. When supplied, the Net Profit Statutory tile's
+  // margin agrees with the §5 Financial Ratios row and the dashboard.
+  // The "legally filed" sub-label still refers to the source-currency value
+  // (kept per ¶ — sub-label scope, not margin denominator).
+  netMarginCanonical?: number | null;
+  /** Period's source currency — drives the FX conversion done by
+   *  `useReportFmt`. The display currency comes from <CurrencyProvider>. */
+  currency: string;
 }) {
+  // CUR-FIX — every money value in this grid converts to display currency.
+  const { fmt, fmtCompact } = useReportFmt(currency);
   // Pull from the canonical object only. No fallback to legacy
   // independent derivations — those are the bug the canonical object
   // exists to eliminate.
@@ -424,31 +504,54 @@ function KpiGrid({
   //   · Net profit      (statutory acct 121 — the legally filed number)
   // The 758/781 bridge is rendered as a separate panel directly below.
   // This is the consistency fix — no surface picks its own figure.
-  const tiles: Array<{ label: string; value: string; sub?: string; headline?: boolean }> = [
-    { label: "Net turnover",       value: fmt(revenue),     sub: currency_M(revenue) },
+  const tiles: Array<{
+    label: string;
+    value: string;
+    sub?: string;
+    headline?: boolean;
+    conceptKey?: string;
+    rawValue?: number;
+  }> = [
+    { label: "Net turnover", value: fmt(revenue), sub: fmtCompact(revenue), conceptKey: "operating_revenue", rawValue: revenue },
     {
       label: "EBITDA — reported",
       value: fmt(ebitda.reported),
       sub: ebitda.reported_margin_pct != null ? `${ebitda.reported_margin_pct.toFixed(1)}% margin · acct 121 view` : "Reported / statutory",
+      conceptKey: "ebitda",
+      rawValue: ebitda.reported,
     },
     {
       label: "EBITDA — core",
       value: fmt(ebitda.core),
       sub: ebitda.core_margin_pct != null ? `${ebitda.core_margin_pct.toFixed(1)}% margin · excl. 758, 781` : "Basis for valuation",
       headline: true,
+      conceptKey: "ebitda",
+      rawValue: ebitda.core,
     },
     {
       label: "Net profit — statutory (ct 121)",
       value: fmt(netProfit.statutory_account_121),
-      sub: totalOpRev > 0
-        ? `${((netProfit.statutory_account_121 / totalOpRev) * 100).toFixed(1)}% margin · legally filed`
-        : "Legally filed (acct 121)",
+      // F1.e — Margin reads engine-canonical `net_margin` from
+      // calculated_metrics so this tile agrees with the dashboard tile
+      // and the Ratios row on the same page. The "legally filed"
+      // sub-label refers to the source-currency value (per ¶ in F1.e
+      // protocol — sub-label scope, not margin denominator).
+      sub: (() => {
+        if (typeof netMarginCanonical === "number") {
+          return `${(netMarginCanonical * 100).toFixed(1)}% margin · legally filed`;
+        }
+        return totalOpRev > 0
+          ? `${((netProfit.statutory_account_121 / totalOpRev) * 100).toFixed(1)}% margin · legally filed`
+          : "Legally filed (acct 121)";
+      })(),
+      conceptKey: "net_profit",
+      rawValue: netProfit.statutory_account_121,
     },
-    { label: "Total assets",       value: fmt(balance.total_assets), sub: currency_M(balance.total_assets) },
-    { label: "Equity ratio",       value: equityRatio == null ? "—" : `${(equityRatio*100).toFixed(1)}%`,    sub: "Equity / Assets" },
-    { label: "Net Debt / EBITDA",  value: ndeRatio == null ? "—" : `${ndeRatio.toFixed(2)}×`,                  sub: "Leverage · on Core EBITDA" },
-    { label: "ROE",                value: roe == null ? "—" : `${(roe*100).toFixed(1)}%`,                       sub: "Return on equity" },
-    { label: "Altman Z″",          value: altman == null ? "—" : altman.toFixed(2),                              sub: "Distress score" },
+    { label: "Total assets", value: fmt(balance.total_assets), sub: fmtCompact(balance.total_assets), conceptKey: "total_assets", rawValue: balance.total_assets },
+    { label: "Equity ratio", value: equityRatio == null ? "—" : `${(equityRatio*100).toFixed(1)}%`, sub: "Equity / Assets", conceptKey: equityRatio == null ? undefined : "equity_ratio", rawValue: equityRatio ?? undefined },
+    { label: "Net Debt / EBITDA", value: ndeRatio == null ? "—" : `${ndeRatio.toFixed(2)}×`, sub: "Leverage · on Core EBITDA", conceptKey: ndeRatio == null ? undefined : "net_debt_ebitda", rawValue: ndeRatio ?? undefined },
+    { label: "ROE", value: roe == null ? "—" : `${(roe*100).toFixed(1)}%`, sub: "Return on equity", conceptKey: roe == null ? undefined : "roe", rawValue: roe ?? undefined },
+    { label: "Altman Z″", value: altman == null ? "—" : altman.toFixed(2), sub: "Distress score", conceptKey: altman == null ? undefined : "altman_z_score", rawValue: altman ?? undefined },
   ];
 
   return (
@@ -456,7 +559,15 @@ function KpiGrid({
       {tiles.map((t) => (
         <div key={t.label} className={`eei-kpi-card${t.headline ? " is-headline" : ""}`}>
           <div className="label">{t.label}</div>
-          <div className="value">{t.value}</div>
+          <div className="value">
+            {t.conceptKey != null && t.rawValue != null ? (
+              <LearnableNumber conceptKey={t.conceptKey} value={t.rawValue}>
+                {t.value}
+              </LearnableNumber>
+            ) : (
+              t.value
+            )}
+          </div>
           {t.sub && <div className="sub">{t.sub}</div>}
         </div>
       ))}
@@ -464,13 +575,18 @@ function KpiGrid({
   );
 }
 
+// CUR-FIX — `currency_M` is replaced by `fmtCompact` from `useReportFmt`.
+// Kept here only as deprecated dead-code so the symbol still resolves if
+// any rare downstream import references it; new code MUST use the hook.
+/** @deprecated CUR-FIX — use `useReportFmt().fmtCompact` instead. */
 function currency_M(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `${(n/1_000_000).toFixed(1)} M RON`;
   if (Math.abs(n) >= 1_000)     return `${(n/1_000).toFixed(0)} K RON`;
   return `${n.toFixed(0)} RON`;
 }
 
-function PnlTable({ pl }: { pl: Record<string, number> }) {
+function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: string }) {
+  const { fmt, displayCurrency } = useReportFmt(currency);
   const revenue = pl.revenue ?? 0;
 
   // Operational net profit (engine field, despite the legacy name) and the
@@ -533,7 +649,7 @@ function PnlTable({ pl }: { pl: Record<string, number> }) {
         <thead>
           <tr>
             <th>Line</th>
-            <th className="num">RON</th>
+            <th className="num">{displayCurrency}</th>
             <th className="num">% of turnover</th>
           </tr>
         </thead>
@@ -570,8 +686,8 @@ function PnlTable({ pl }: { pl: Record<string, number> }) {
           Account 722 (capitalized own work) is a non-cash credit that capitalizes internally-incurred
           costs into CIP (account 231 — the year&rsquo;s movement matches 722 to the cent). The
           corresponding cost sits inside account 628 (third-party services). Net P&amp;L effect of the
-          722/628 wash is ~zero; the OPERATIONAL net profit ({fmt(opNetProfit)} RON) is therefore the
-          headline figure across this report. Statutory net profit ({fmt(statNetProfit)} RON, matches
+          722/628 wash is ~zero; the OPERATIONAL net profit ({fmt(opNetProfit)} {displayCurrency}) is therefore the
+          headline figure across this report. Statutory net profit ({fmt(statNetProfit)} {displayCurrency}, matches
           account 121 closing balance) is shown above as the reconciled total — not as a competing
           headline.
         </div>
@@ -580,7 +696,7 @@ function PnlTable({ pl }: { pl: Record<string, number> }) {
   );
 }
 
-function BsTable({ bs }: { bs: Record<string, number> }) {
+function BsTable({ bs, currency }: { bs: Record<string, number>; currency: string }) {
   const total = bs.total_assets ?? 0;
   const assetRows: Array<[string, number | undefined]> = [
     ["Cash", bs.cash],
@@ -603,19 +719,21 @@ function BsTable({ bs }: { bs: Record<string, number> }) {
   ];
   return (
     <div className="eei-two-up">
-      <BsHalf title="Assets" rows={assetRows} totalLabel="Total assets" totalValue={bs.total_assets} reference={total} />
-      <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={(bs.total_equity ?? 0) + (bs.total_liabilities ?? 0)} reference={total} />
+      <BsHalf title="Assets" rows={assetRows} totalLabel="Total assets" totalValue={bs.total_assets} reference={total} currency={currency} />
+      <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={(bs.total_equity ?? 0) + (bs.total_liabilities ?? 0)} reference={total} currency={currency} />
     </div>
   );
 }
 
-function BsHalf({ title, rows, totalLabel, totalValue, reference }: {
+function BsHalf({ title, rows, totalLabel, totalValue, reference, currency }: {
   title: string;
   rows: Array<[string, number | undefined]>;
   totalLabel: string;
   totalValue: number | undefined;
   reference: number;
+  currency: string;
 }) {
+  const { fmt, displayCurrency } = useReportFmt(currency);
   return (
     <div>
       <h3 className="eei-h3">{title}</h3>
@@ -623,7 +741,7 @@ function BsHalf({ title, rows, totalLabel, totalValue, reference }: {
         <thead>
           <tr>
             <th>Line</th>
-            <th className="num">RON</th>
+            <th className="num">{displayCurrency}</th>
             <th className="num">% of assets</th>
           </tr>
         </thead>
@@ -648,7 +766,8 @@ function BsHalf({ title, rows, totalLabel, totalValue, reference }: {
   );
 }
 
-function CashFlowTable({ cf }: { cf: Record<string, number | boolean | string[] | undefined> }) {
+function CashFlowTable({ cf, currency }: { cf: Record<string, number | boolean | string[] | undefined>; currency: string }) {
+  const { fmt } = useReportFmt(currency);
   const isApprox = Boolean(cf.is_approximated);
   const notes = Array.isArray(cf.approximation_notes) ? cf.approximation_notes : [];
   const n = (k: string) => (typeof cf[k] === "number" ? (cf[k] as number) : 0);
@@ -810,11 +929,13 @@ function RatiosTables({ metrics }: { metrics: Record<string, number | null> }) {
   );
 }
 
-function ValuationView({ metrics, pl, bs }: {
+function ValuationView({ metrics, pl, bs, currency }: {
   metrics: Record<string, number | null>;
   pl: Record<string, number>;
   bs: Record<string, number>;
+  currency: string;
 }) {
+  const { fmt, displayCurrency } = useReportFmt(currency);
   const ebitda = pl.ebitda_statutory ?? pl.ebitda ?? metrics.ebitda ?? 0;
   const netDebt = (bs.total_debt ?? 0) - (bs.cash ?? 0);
   const bookEquity = bs.total_equity ?? metrics.total_equity ?? 0;
@@ -842,8 +963,8 @@ function ValuationView({ metrics, pl, bs }: {
           <thead>
             <tr>
               <th className="text-left px-4 py-2 font-medium text-ink-mute">Method</th>
-              <th className="text-right px-3 py-2 font-medium text-ink-mute">Enterprise value (RON)</th>
-              <th className="text-right px-3 py-2 font-medium text-ink-mute">Equity value (RON)</th>
+              <th className="text-right px-3 py-2 font-medium text-ink-mute">Enterprise value ({displayCurrency})</th>
+              <th className="text-right px-3 py-2 font-medium text-ink-mute">Equity value ({displayCurrency})</th>
             </tr>
           </thead>
           <tbody>

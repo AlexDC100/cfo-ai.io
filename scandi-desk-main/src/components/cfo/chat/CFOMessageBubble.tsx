@@ -199,8 +199,8 @@ function renderInline(text: string): React.ReactNode {
 
   return tokens.map((t, k) => {
     if (t.kind === "bold") return <strong key={k} className="font-semibold text-ink">{t.v}</strong>;
-    if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded text-[12.5px] bg-bg-2/70 font-mono text-ink">{t.v}</code>;
-    if (t.kind === "link") return <a key={k} href={t.v} target="_blank" rel="noreferrer" className="text-brand-d underline underline-offset-2 hover:text-brand">{t.v}</a>;
+    if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded text-[12.5px] bg-bg-2/70 font-mono text-ink break-all">{t.v}</code>;
+    if (t.kind === "link") return <a key={k} href={t.v} target="_blank" rel="noreferrer" className="text-brand-d underline underline-offset-2 hover:text-brand break-all">{t.v}</a>;
     return <span key={k}>{t.v}</span>;
   });
 }

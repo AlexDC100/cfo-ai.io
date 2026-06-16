@@ -18,7 +18,7 @@ import {
   type DetectedCondition,
   type Severity,
 } from "@/lib/recommendationRules";
-import { formatRON } from "@/lib/formatRon";
+import { useAmountFormatter } from "@/stores/currency";
 
 interface Props {
   facts: PeriodFacts;
@@ -50,7 +50,7 @@ export function RecommendationsView({ facts }: Props) {
       </div>
 
       {conditions.map((c) => (
-        <ConditionCard key={c.ruleKey} condition={c} />
+        <ConditionCard key={c.ruleKey} condition={c} currency={facts.currency} />
       ))}
 
       <p className="text-[12px] text-ink-mute pt-2">
@@ -61,8 +61,11 @@ export function RecommendationsView({ facts }: Props) {
   );
 }
 
-function ConditionCard({ condition }: { condition: DetectedCondition }) {
+function ConditionCard({ condition, currency }: { condition: DetectedCondition; currency: string }) {
   const [factsOpen, setFactsOpen] = useState(false);
+  // Currency-aware formatter for the facts-cited table. Numeric values
+  // convert via the global RON/EUR/USD toggle; non-numerics pass through.
+  const fmt = useAmountFormatter(currency);
   const sevPalette = severityClasses(condition.severity);
   const Icon = severityIcon(condition.severity);
 
@@ -135,7 +138,7 @@ function ConditionCard({ condition }: { condition: DetectedCondition }) {
               <div key={k} className="flex items-baseline justify-between py-0.5 border-b border-rule/40 last:border-0">
                 <span className="text-ink-soft">{k}</span>
                 <span className="text-ink tabular-nums">
-                  {typeof v === "number" && Math.abs(v) > 1 ? formatRON(v) : String(v)}
+                  {typeof v === "number" && Math.abs(v) > 1 ? fmt(v) : String(v)}
                 </span>
               </div>
             ))}

@@ -67,7 +67,7 @@ export function KpiCard({ label, value, hint, accent = "default" }: Props) {
           initial={{ opacity: 0, y: 8 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
           transition={{ ...easeSlow, delay: 0.08 }}
-          className={`relative mt-3 num-hero text-[44px] leading-[44px] ${ACCENT_NUMBER[accent]}`}
+          className={`relative mt-3 num-hero text-[clamp(28px,7vw,44px)] leading-[1.05] ${ACCENT_NUMBER[accent]}`}
         >
           {value}
         </motion.div>

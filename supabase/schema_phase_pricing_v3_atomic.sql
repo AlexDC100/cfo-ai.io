@@ -484,3 +484,12 @@ grant execute on function commit_user_chat(uuid, text, date)                    
 grant execute on function release_user_chat(uuid, text, date)                   to service_role;
 
 -- End of migration.
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- F3.24 (2026-05-26) — invalidate PostgREST schema cache after schema change.
+-- Backfilled retroactively into existing migration files so re-running them
+-- after a Postgres restore or fresh-environment setup stays safe. Harmless
+-- on already-applied migrations. See CLAUDE.md §14 discipline rule.
+-- ─────────────────────────────────────────────────────────────────────
+NOTIFY pgrst, 'reload schema';

@@ -29,7 +29,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import _pricing_tiers, _supabase
+from . import _pricing_tiers, _site, _supabase
 
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,28 @@ logger = logging.getLogger(__name__)
 
 
 def _require_jwt(authorization: Optional[str]) -> str:
+    # PUBLIC_TEST_MODE — open-access posture bypass. When the env flag is
+    # on, every request is treated as authenticated as the shared test
+    # user. See `_test_mode.py` for the safety guarantees (shared user has
+    # membership only in TEST_ORG_ID; real orgs structurally inaccessible).
+    from . import _test_mode
+    if _test_mode.is_test_mode():
+        # Mint (and cache) a real Supabase access_token for the synthetic
+        # test user so downstream per_user(jwt) calls don't 401. See
+        # _test_mode.get_test_user_jwt() for the cache + refresh logic.
+        # On any unexpected mint failure we degrade to the placeholder so
+        # the existing bypass guards (is_bypass_token) still keep
+        # identity-resolution working — Supabase data calls will then
+        # 401, but the route gets a structured error instead of an
+        # uncaught exception.
+        try:
+            return _test_mode.get_test_user_jwt()
+        except Exception:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).exception(
+                "[test_mode] JWT mint failed; falling back to placeholder."
+            )
+            return _test_mode.JWT_BYPASS_PLACEHOLDER
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Missing Bearer token.")
     return authorization.split(" ", 1)[1].strip()
@@ -72,6 +94,14 @@ def _stripe_or_none():
 def _user_id_from_jwt(jwt: str) -> str:
     """Local JWT claim decode — same pattern as _supabase.get_user; avoids
     the auth-gateway round-trip and key-rotation breakage."""
+    # PUBLIC_TEST_MODE — short-circuit to the shared test user. The
+    # bypass placeholder is set by `_require_jwt` upstream; the second
+    # branch is the paranoid catch-all (any token when test mode is on
+    # still routes here, so a missed bypass at the require-jwt site
+    # can't reach Supabase with a bogus token and 500).
+    from . import _test_mode
+    if _test_mode.is_bypass_token(jwt):
+        return _test_mode.test_user_id()
     with _supabase.per_user(jwt) as client:
         user = client.get_user(jwt)
     user_id = user.get("id") if user else None
@@ -145,6 +175,17 @@ _SIMPLE_TIER_CONFIG: Dict[str, Dict[str, str]] = {
     "pro":     {"env": "STRIPE_PRICE_PRO",     "mode": "subscription"},
 }
 
+# WS2 — per-tier metered overage prices (Stripe metered billing).
+# Created in Stripe Dashboard as recurring monthly metered prices with
+# sum aggregation. The base subscription item bills the flat tier; the
+# metered item accumulates `usage_record`s during the cycle and bills at
+# the period_end invoice. Only Starter and Pro have overage prices; Intro
+# is one-time (mode=payment) and Trial caps at 1 doc hard-block.
+_METERED_EXTRA_DOC_CONFIG: Dict[str, str] = {
+    "starter": "STRIPE_PRICE_STARTER_EXTRA_DOC",
+    "pro":     "STRIPE_PRICE_PRO_EXTRA_DOC",
+}
+
 
 def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
                                 org_id: Optional[str], email: str,
@@ -181,6 +222,49 @@ def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
         existing = sub_rows[0] if sub_rows else None
         if existing:
             customer_id = existing.get("stripe_customer_id")
+
+    # Self-heal: if the cached customer_id is from a different Stripe mode
+    # (test ↔ live), retrieve raises InvalidRequestError "No such customer".
+    # Drop the stale ID, fall through to fresh-customer creation, and the
+    # subscriptions row gets reattached when the webhook handler upserts
+    # the new sub. Same behavior covers customers manually deleted from
+    # the Stripe Dashboard.
+    if customer_id:
+        try:
+            stripe.Customer.retrieve(customer_id)
+        except Exception as exc:  # noqa: BLE001
+            if "No such customer" in str(exc):
+                logger.warning(
+                    "[billing] stale customer %s for user %s — likely test/live "
+                    "mode swap or manual delete; clearing and creating fresh",
+                    customer_id, user_id,
+                )
+                customer_id = None
+                # Also null the stale ID + subscription_id in the row so
+                # subsequent portal / cancel / record_metered calls don't
+                # re-hit the same wall. The webhook will repopulate them
+                # when the new sub is created.
+                try:
+                    with _supabase.admin() as ac:
+                        ac._client.patch(  # type: ignore[attr-defined]
+                            f"{ac.url}/rest/v1/subscriptions",
+                            params={"user_id": f"eq.{user_id}"},
+                            json={"stripe_customer_id": None,
+                                  "stripe_subscription_id": None},
+                            headers={**ac._headers,  # type: ignore[attr-defined]
+                                     "Prefer": "return=minimal"},
+                        )
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "[billing] failed to clear stale customer from DB "
+                        "for user %s; checkout will continue with fresh "
+                        "Stripe customer but DB will keep stale ID until "
+                        "webhook lands", user_id,
+                    )
+            else:
+                # Different Stripe error — surface it so the operator can see
+                raise
+
     if not customer_id:
         customer = stripe.Customer.create(
             email=email or "",
@@ -188,10 +272,31 @@ def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
         )
         customer_id = customer["id"]
 
+    line_items: List[Dict[str, Any]] = [{"price": price, "quantity": 1}]
+
+    # WS2 — for Starter / Pro, attach the metered overage item to the
+    # subscription at checkout so overages bill on cycle close without
+    # needing a separate `stripe.SubscriptionItem.create` round-trip.
+    # If the metered env is unset the checkout still succeeds (silent
+    # warn) — the upload flow's `_record_metered_extra_doc` lazy-adds
+    # the item on first overage, which keeps both paths working.
+    metered_env = _METERED_EXTRA_DOC_CONFIG.get(tier)
+    if metered_env:
+        metered_price = os.environ.get(metered_env)
+        if metered_price:
+            # Stripe rejects `quantity` on metered prices; just the price ref.
+            line_items.append({"price": metered_price})
+        else:
+            logger.warning(
+                "[billing] %s unset — checkout proceeds without metered item; "
+                "first overage will lazy-add it via SubscriptionItem.create",
+                metered_env,
+            )
+
     session_kwargs: Dict[str, Any] = {
         "customer": customer_id,
         "mode": config["mode"],
-        "line_items": [{"price": price, "quantity": 1}],
+        "line_items": line_items,
         "payment_method_collection": "always",
         "success_url": f"{app_url}/dashboard?welcome=1&tier={tier}",
         "cancel_url": f"{app_url}/pricing?canceled=1",
@@ -211,6 +316,161 @@ def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
             **({"org_id": org_id} if org_id else {}),
         }
     return stripe.checkout.Session.create(**session_kwargs)
+
+
+# ─── WS2: Metered overage billing ──────────────────────────────────────────
+
+
+def record_metered_extra_doc(user_id: str, reservation_id: str) -> Dict[str, Any]:
+    """Charge a Starter/Pro user for one extra-quota document via Stripe
+    metered billing.
+
+    Called from `_commit_pipeline_quota(was_extra=True, success=True)` —
+    only fires when a doc successfully processed AND was flagged as a paid
+    extra at reservation time. On failure (analysis errored, user
+    cancelled mid-flight) the orchestrator's release path runs instead
+    and this function is never called — no charge.
+
+    Lazy migration: for subscriptions created before WS2 went live (no
+    metered line item at checkout), the first overage attempt creates
+    the metered SubscriptionItem on the fly via
+    `stripe.SubscriptionItem.create`. New subscriptions created after
+    deploy ship with the metered item already attached, so this branch
+    is taken once per legacy sub.
+
+    Idempotency: `idempotency_key=f"extra_doc:{reservation_id}"` is the
+    Stripe-side guarantee. If this endpoint is retried (network blip,
+    container restart between commit + return) the second call returns
+    the original usage_record without double-charging.
+
+    Returns:
+        {ok: True,  billed: True,  amount_eur: 2.50, usage_record_id: ...}
+        {ok: True,  billed: False, reason: "..."}                 — no charge applicable
+        {ok: False, billed: False, error: "...", detail: "..."}    — error path; release reservation in caller
+    """
+    stripe_client = _stripe_or_none()
+    if stripe_client is None:
+        logger.warning("[billing] record_metered_extra_doc: Stripe SDK/keys missing")
+        return {"ok": False, "billed": False, "error": "stripe_unavailable"}
+
+    # Resolve the user's active sub
+    sub_row: Optional[Dict[str, Any]] = None
+    with _supabase.admin() as client:
+        rows = client.select(
+            "subscriptions",
+            filters={"user_id": f"eq.{user_id}"},
+            single=True,
+        )
+        if rows:
+            sub_row = rows[0]
+
+    if not sub_row or not sub_row.get("stripe_subscription_id"):
+        # Free trial / Intro unlock — no metered billing path applies.
+        # Caller decides: hard-block or silently release reservation.
+        return {"ok": True, "billed": False, "reason": "no_stripe_subscription"}
+
+    tier = sub_row.get("tier") or sub_row.get("plan_key") or ""
+    metered_env = _METERED_EXTRA_DOC_CONFIG.get(tier)
+    if not metered_env:
+        # Unknown / unsupported tier (e.g. legacy founder/standard) —
+        # they shouldn't hit the extras flow but if they do, skip silently.
+        return {"ok": True, "billed": False, "reason": f"tier_{tier}_no_metered_price"}
+
+    metered_price = os.environ.get(metered_env)
+    if not metered_price:
+        logger.error("[billing] %s unset; cannot record overage usage for %s", metered_env, user_id)
+        return {"ok": False, "billed": False, "error": "metered_price_env_unset"}
+
+    sub_id = sub_row["stripe_subscription_id"]
+
+    try:
+        sub = stripe_client.Subscription.retrieve(sub_id, expand=["items.data.price"])
+    except Exception as exc:  # noqa: BLE001
+        # Test/live mode mismatch — same self-heal as portal/cancel.
+        # Don't fail the user's doc upload; just skip metered billing and
+        # log loudly so the operator can reconcile. The user can re-subscribe
+        # via /pricing to fix the underlying state.
+        if "No such subscription" in str(exc) or "No such customer" in str(exc):
+            logger.error(
+                "[billing] metered usage skipped — stale sub %s for user %s "
+                "(test/live mode mismatch). User upload proceeds unbilled. "
+                "Reconcile: have user re-subscribe via /pricing.",
+                sub_id, user_id,
+            )
+            try:
+                with _supabase.admin() as ac:
+                    ac._client.patch(  # type: ignore[attr-defined]
+                        f"{ac.url}/rest/v1/subscriptions",
+                        params={"user_id": f"eq.{user_id}"},
+                        json={"stripe_customer_id": None,
+                              "stripe_subscription_id": None},
+                        headers={**ac._headers,  # type: ignore[attr-defined]
+                                 "Prefer": "return=minimal"},
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+            return {"ok": True, "billed": False, "reason": "stale_subscription_cleared"}
+        logger.exception("[billing] subscription retrieve failed for %s", sub_id)
+        return {"ok": False, "billed": False, "error": "stripe_retrieve_failed",
+                "detail": str(exc)[:160]}
+
+    # Find an existing metered item on this sub; lazy-create if missing.
+    items = (sub.get("items") if isinstance(sub, dict) else sub.items).to_dict()["data"] \
+        if not isinstance(sub, dict) else sub["items"]["data"]
+    metered_item = next(
+        (it for it in items
+         if (it.get("price") or {}).get("recurring", {}).get("usage_type") == "metered"),
+        None,
+    )
+
+    if metered_item is None:
+        # Legacy sub created before WS2 went live — add the metered item
+        # so this and future overages can record usage against it. The
+        # `proration_behavior=none` ensures we don't generate an immediate
+        # prorated invoice line (the metered item has no fixed price).
+        try:
+            metered_item = stripe_client.SubscriptionItem.create(
+                subscription=sub_id,
+                price=metered_price,
+                proration_behavior="none",
+            )
+            logger.info("[billing] lazy-added metered item to sub %s for user %s", sub_id, user_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[billing] lazy-create metered SubscriptionItem failed for %s", sub_id)
+            return {"ok": False, "billed": False, "error": "metered_item_create_failed",
+                    "detail": str(exc)[:160]}
+
+    # Record the usage. The idempotency key is the reservation_id so
+    # any retry of this function for the same reservation is a no-op.
+    item_id = metered_item.get("id") if hasattr(metered_item, "get") else metered_item["id"]
+    try:
+        usage_record = stripe_client.SubscriptionItem.create_usage_record(
+            item_id,
+            quantity=1,
+            timestamp=int(datetime.now(timezone.utc).timestamp()),
+            action="increment",
+            idempotency_key=f"extra_doc:{reservation_id}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Distinguish "already recorded" (safe to continue) from other errors.
+        err_name = type(exc).__name__
+        if "Idempotency" in err_name:
+            logger.info("[billing] usage_record already exists for reservation %s — safe no-op",
+                        reservation_id)
+            return {"ok": True, "billed": True, "amount_eur": None,
+                    "reason": "idempotent_replay"}
+        logger.exception("[billing] create_usage_record failed for sub_item %s", item_id)
+        return {"ok": False, "billed": False, "error": "usage_record_failed",
+                "detail": str(exc)[:160]}
+
+    logger.info("[billing] recorded metered extra-doc usage user=%s sub=%s reservation=%s",
+                user_id, sub_id, reservation_id)
+    return {
+        "ok": True,
+        "billed": True,
+        "usage_record_id": usage_record.get("id") if hasattr(usage_record, "get") else None,
+        "subscription_item_id": item_id,
+    }
 
 
 # ─── Subscription Schedule setup (founder phase 1 → phase 2) ───────────────
@@ -808,14 +1068,41 @@ def build_router() -> APIRouter:
             raise HTTPException(503, "Stripe is not configured on the backend.")
 
         app_url = os.environ.get("APP_URL", "http://localhost:5173").rstrip("/")
-        # Portal session ends → land back on /settings where BillingSection
-        # is rendered. We don't have a dedicated /settings/billing route
-        # today; the page-level Settings surface is the single billing
-        # entry point.
-        session = stripe.billing_portal.Session.create(
-            customer=existing["stripe_customer_id"],
-            return_url=f"{app_url}/settings",
-        )
+        try:
+            session = stripe.billing_portal.Session.create(
+                customer=existing["stripe_customer_id"],
+                return_url=f"{app_url}/settings",
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Same self-heal as _create_simple_tier_session: a stale customer
+            # from a different Stripe mode (test ↔ live) or manual deletion
+            # in the dashboard surfaces as "No such customer". Clear the
+            # stale IDs and tell the user to re-checkout — there's no tier
+            # available here to recreate the subscription with.
+            if "No such customer" in str(exc):
+                logger.warning(
+                    "[billing] portal: stale customer %s for user %s — clearing",
+                    existing["stripe_customer_id"], user_id,
+                )
+                try:
+                    with _supabase.admin() as ac:
+                        ac._client.patch(  # type: ignore[attr-defined]
+                            f"{ac.url}/rest/v1/subscriptions",
+                            params={"user_id": f"eq.{user_id}"},
+                            json={"stripe_customer_id": None,
+                                  "stripe_subscription_id": None},
+                            headers={**ac._headers,  # type: ignore[attr-defined]
+                                     "Prefer": "return=minimal"},
+                        )
+                except Exception:  # noqa: BLE001
+                    logger.exception("[billing] portal: failed to clear stale IDs for user %s", user_id)
+                raise HTTPException(
+                    409,
+                    "Your subscription record is out of sync with Stripe "
+                    "(usually after a test/live mode switch). Please go to "
+                    "/pricing and re-select your tier to re-subscribe.",
+                )
+            raise
         return {"url": session.url}
 
     @router.post("/api/billing/cancel")
@@ -833,10 +1120,37 @@ def build_router() -> APIRouter:
         stripe = _stripe_or_none()
         if not stripe:
             raise HTTPException(503, "Stripe is not configured on the backend.")
-        stripe.Subscription.modify(
-            existing["stripe_subscription_id"],
-            cancel_at_period_end=True,
-        )
+        try:
+            stripe.Subscription.modify(
+                existing["stripe_subscription_id"],
+                cancel_at_period_end=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Test/live mode mismatch — same pattern as portal. The cached
+            # subscription_id was created in test mode but we're now in live.
+            # Clear the stale IDs; there's nothing to cancel.
+            if "No such subscription" in str(exc) or "No such customer" in str(exc):
+                logger.warning(
+                    "[billing] cancel: stale sub %s for user %s — clearing",
+                    existing.get("stripe_subscription_id"), user_id,
+                )
+                try:
+                    with _supabase.admin() as ac:
+                        ac._client.patch(  # type: ignore[attr-defined]
+                            f"{ac.url}/rest/v1/subscriptions",
+                            params={"user_id": f"eq.{user_id}"},
+                            json={"stripe_customer_id": None,
+                                  "stripe_subscription_id": None},
+                            headers={**ac._headers,  # type: ignore[attr-defined]
+                                     "Prefer": "return=minimal"},
+                        )
+                except Exception:  # noqa: BLE001
+                    logger.exception("[billing] cancel: failed to clear stale IDs for user %s", user_id)
+                raise HTTPException(
+                    404,
+                    "No active subscription to cancel (record was stale and has been cleared).",
+                )
+            raise
         return {"ok": True, "cancel_at_period_end": True}
 
     @router.post("/api/stripe/webhook")
@@ -911,6 +1225,178 @@ def build_router() -> APIRouter:
                 "founder_renewal_at": sub.get("founder_renewal_at"),
                 "founder_renewal_price_eur": sub.get("founder_renewal_price_eur"),
             }
+        }
+
+    @router.get("/api/billing/upcoming-invoice")
+    def upcoming_invoice(authorization: Optional[str] = Header(None)) -> Any:
+        """WS2 — preview the user's next invoice with base + accumulated
+        metered overages. Drives the live-counter UpcomingInvoicePreview
+        in Settings → Billing so users always know what's coming.
+
+        Stripe's `Invoice.upcoming` returns the in-flight invoice for the
+        current cycle (no fees due yet but all line items applied). For a
+        Starter user on €14.99 who already triggered 3 extra docs, the
+        response is base 14.99 + extras 9.00 + total 23.99."""
+        jwt = _require_jwt(authorization)
+        user_id = _user_id_from_jwt(jwt)
+        sub = _find_subscription_for_user(user_id)
+        if not sub or not sub.get("stripe_customer_id"):
+            # Trial / no-checkout users have no invoice yet — return a
+            # null shape so the FE can render "—" or hide the card.
+            return {"invoice": None, "reason": "no_active_subscription"}
+
+        stripe = _stripe_or_none()
+        if not stripe:
+            raise HTTPException(503, "Stripe is not configured on the backend.")
+
+        try:
+            upcoming = stripe.Invoice.upcoming(customer=sub["stripe_customer_id"])
+        except Exception as exc:  # noqa: BLE001
+            # Stripe returns InvalidRequestError when there's no upcoming
+            # invoice (e.g. canceled at period end with nothing due) OR
+            # when the customer ID is stale (test/live mode mismatch).
+            # Both cases: FE just shows nothing — not an error to the user.
+            reason = "no_upcoming_invoice"
+            if "No such customer" in str(exc):
+                reason = "stale_customer"  # FE could show "re-subscribe" hint
+            return {"invoice": None, "reason": reason,
+                    "detail": str(exc)[:160]}
+
+        base_amount = 0.0
+        extras_count = 0
+        extras_amount = 0.0
+        for line in (upcoming.lines.data if upcoming.lines else []):
+            # Metered lines have `price.recurring.usage_type == 'metered'`.
+            # Stripe expresses amounts in minor units (cents) — divide by 100.
+            price = line.price if hasattr(line, "price") else line.get("price")
+            recurring = (price.recurring if hasattr(price, "recurring") else
+                         (price or {}).get("recurring")) if price else None
+            usage_type = (recurring.usage_type if hasattr(recurring, "usage_type")
+                          else (recurring or {}).get("usage_type")) if recurring else None
+            amt = float(line.amount or 0) / 100.0
+            qty = int(line.quantity or 0)
+            if usage_type == "metered":
+                extras_count += qty
+                extras_amount += amt
+            else:
+                base_amount += amt
+
+        total = float(upcoming.amount_due or 0) / 100.0
+        cur = (upcoming.currency or "eur").upper()
+        period_end = datetime.fromtimestamp(int(upcoming.period_end), tz=timezone.utc) \
+            if upcoming.period_end else None
+
+        return {
+            "invoice": {
+                "base_amount": round(base_amount, 2),
+                "extras_count": extras_count,
+                "extras_amount": round(extras_amount, 2),
+                "total_estimated": round(total, 2),
+                "currency": cur,
+                "next_invoice_date": period_end.isoformat() if period_end else None,
+            }
+        }
+
+    @router.get("/api/admin/usage")
+    def admin_usage(authorization: Optional[str] = Header(None)) -> Any:
+        """WS1 — per-user usage snapshot for the operator. JSON only; no
+        UI page. Read this before flipping USAGE_LIMITS_ENABLED=true to
+        confirm no live user would be hard-blocked. Re-read in the hour
+        after flip to catch unexpected blocks.
+
+        Auth: ENGINE_API_TOKEN bearer (same gate as /run-daily). User JWTs
+        are explicitly rejected — this is an operator endpoint, not a
+        user-facing one. If ENGINE_API_TOKEN is unset on the host the
+        endpoint refuses to serve at all (don't expose user data on an
+        unauth'd endpoint by accident)."""
+        expected = os.environ.get("ENGINE_API_TOKEN")
+        if not expected:
+            raise HTTPException(503, "ENGINE_API_TOKEN not set; admin endpoint refuses to serve.")
+        token = _require_jwt(authorization)
+        if token != expected:
+            raise HTTPException(401, "Invalid admin token.")
+
+        from . import _plan_state
+
+        # Iterate every subscription row + derive plan state. The
+        # admin client is unscoped so we see every user. For users
+        # without a subscription row (pure trial), the FE shows the
+        # default trial gate — they're not in this report.
+        snapshot: List[Dict[str, Any]] = []
+        with _supabase.admin() as ac:
+            sub_rows = ac.select(
+                "subscriptions",
+                columns="user_id,tier,plan,status,stripe_customer_id,"
+                        "stripe_subscription_id,current_period_end,"
+                        "extra_docs_billed_period,is_founding_member",
+                limit=500,
+            ) or []
+
+        for row in sub_rows:
+            uid = row.get("user_id")
+            if not uid:
+                continue
+            try:
+                ps = _plan_state.get_plan_state(uid)
+            except Exception as exc:  # noqa: BLE001
+                snapshot.append({
+                    "user_id": uid,
+                    "tier": row.get("tier") or row.get("plan"),
+                    "status": row.get("status"),
+                    "error": f"plan_state failed: {type(exc).__name__}: {str(exc)[:120]}",
+                })
+                continue
+
+            # Compute pct + would_be_blocked rollup. Blocking thresholds
+            # match _usage_gate: when docs_used >= included AND not on a
+            # tier that has metered overage → hard block.
+            included = getattr(ps, "included_docs", 0) or 0
+            used = getattr(ps, "docs_used_this_period", 0) or 0
+            tier = row.get("tier") or row.get("plan") or "trial"
+            metered_supported = tier in _METERED_EXTRA_DOC_CONFIG  # starter/pro have overage
+            over_quota = bool(included) and used >= included
+            would_block = over_quota and not metered_supported
+
+            snapshot.append({
+                "user_id": uid,
+                "tier": tier,
+                "status": row.get("status"),
+                "stripe_customer_id": row.get("stripe_customer_id"),
+                "stripe_subscription_id": row.get("stripe_subscription_id"),
+                "current_period_end": row.get("current_period_end"),
+                "is_founding_member": bool(row.get("is_founding_member")),
+                "docs": {
+                    "used_this_period": used,
+                    "included": included,
+                    "extras_billed": int(row.get("extra_docs_billed_period") or 0),
+                    "pct_used": round(used / included * 100, 1) if included else None,
+                    "over_quota": over_quota,
+                    "would_block_on_flip": would_block,
+                    "overage_supported": metered_supported,
+                },
+                "chat": {
+                    "used_today": getattr(ps, "chat_used_today", 0),
+                    "daily_cap": getattr(ps, "chat_daily_cap", None),
+                    "used_this_period": getattr(ps, "chat_used_this_period", 0),
+                    "monthly_cap": getattr(ps, "chat_monthly_cap", None),
+                },
+            })
+
+        # Summary rollup — operator's "is anyone about to break?" line.
+        total = len(snapshot)
+        would_block = sum(1 for s in snapshot if s.get("docs", {}).get("would_block_on_flip"))
+        over_quota = sum(1 for s in snapshot if s.get("docs", {}).get("over_quota"))
+        return {
+            "ok": True,
+            "summary": {
+                "total_users": total,
+                "users_over_quota": over_quota,
+                "users_would_block_on_flip": would_block,
+                "usage_limits_enabled": os.environ.get("USAGE_LIMITS_ENABLED", "").lower()
+                                        in ("1", "true", "yes", "on"),
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "users": snapshot,
         }
 
     @router.post("/api/billing/cron/renewal-reminders")
@@ -1128,7 +1614,10 @@ def build_router() -> APIRouter:
                 client.insert("contact_sales_leads", row, returning=False)
         except Exception:  # noqa: BLE001
             logger.exception("[billing] contact_sales insert failed")
-            raise HTTPException(503, "Couldn't save your message. Please email hello@cfoai.app directly.")
+            raise HTTPException(
+                503,
+                f"Couldn't save your message. Please email {_site.SITE['support_email']} directly.",
+            )
 
         # Best-effort notification — the SendGrid/Postmark/Resend wiring is
         # left to the deploy. Falls through silently when no provider is set.
@@ -1203,7 +1692,9 @@ def _notify_contact_sales(lead: Dict[str, Any]) -> None:
     """Send the owner + the lead an email. Provider-agnostic; wires off
     SENDGRID_API_KEY, RESEND_API_KEY, or POSTMARK_API_KEY when one is set,
     otherwise logs the payload and returns. NEVER raises into the request."""
-    sales_inbox = os.environ.get("SALES_INBOX_EMAIL", "hello@cfoai.app")
+    # Fallback to the canonical support inbox if SALES_INBOX_EMAIL isn't
+    # set — a single shared inbox handles support + sales today.
+    sales_inbox = os.environ.get("SALES_INBOX_EMAIL", _site.SITE["support_email"])
     summary = (
         f"Name: {lead.get('name')}\n"
         f"Email: {lead.get('email')}\n"

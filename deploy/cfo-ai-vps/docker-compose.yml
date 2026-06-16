@@ -24,12 +24,13 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # Caddy + the FE share an origin via the existing scandia-caddy,
-      # so CORS isn't strictly needed for cfo-ai.finance itself. We
-      # still include the production hostnames so a future split-origin
-      # deploy (e.g. api.cfo-ai.finance carved off the apex) is a
-      # one-line Caddy change, not a redeploy.
-      CORS_ORIGINS: "https://cfo-ai.finance,https://www.cfo-ai.finance,https://api.cfo-ai.finance"
+      # 2026-05-24 — migrated from cfo-ai.finance → cfo-ai.io. Allowlist
+      # includes BOTH domains during the migration window so any
+      # consumer / browser tab still on the old host (within the redirect
+      # 301 grace period) doesn't hit CORS preflight failures. Drop the
+      # *.finance entries once cfo-ai.finance traffic is statistically
+      # zero (review at +90 days; sunset eligible at +12 months minimum).
+      CORS_ORIGINS: "https://cfo-ai.io,https://www.cfo-ai.io,https://api.cfo-ai.io,https://cfo-ai.finance,https://www.cfo-ai.finance,https://api.cfo-ai.finance"
     volumes:
       - backend_data:/app/data
     expose:

@@ -212,10 +212,16 @@ async function request<T>(
 export async function listProfiles(opts?: {
   sector?: string;
   includeInactive?: boolean;
+  /** When true, the backend returns only profiles whose caen_codes
+   *  array overlaps with the seeded `industry_benchmarks` catalog.
+   *  The picker uses this so users can't choose an industry that
+   *  would render an empty "not calibrated" benchmark. */
+  seededOnly?: boolean;
 }): Promise<IndustryProfileSummary[]> {
   const qs = new URLSearchParams();
   if (opts?.sector) qs.set("sector", opts.sector);
   if (opts?.includeInactive) qs.set("include_inactive", "true");
+  if (opts?.seededOnly) qs.set("seeded_only", "true");
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<IndustryProfileSummary[]>("GET", `/api/industry/profiles${suffix}`);
 }
@@ -231,8 +237,10 @@ export async function resolveCaen(caen: string): Promise<CaenMappingRow> {
 export async function searchIndustries(
   q: string,
   limit = 20,
+  opts?: { seededOnly?: boolean },
 ): Promise<IndustryProfileSummary[]> {
   const qs = new URLSearchParams({ q, limit: String(limit) });
+  if (opts?.seededOnly) qs.set("seeded_only", "true");
   return request<IndustryProfileSummary[]>(
     "GET",
     `/api/industry/search?${qs.toString()}`,

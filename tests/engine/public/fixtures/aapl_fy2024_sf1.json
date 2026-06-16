@@ -1,0 +1,60 @@
+{
+  "_comment": "Synthetic AAPL FY2024 Sharadar SF1 row — shaped exactly like a real /datatables/SHARADAR/SF1 response. Numbers are real Apple Inc FY2024 10-K filings (public information; sourced from Apple's published annual report). Used by NASDAQ-4 normalizer tests + NASDAQ-3 adapter HTTP-parsing tests without hitting the live API. Update via tests/engine/public/scripts/record_fixture.py once that script exists (NASDAQ-14).",
+  "datatable": {
+    "columns": [
+      {"name": "ticker", "type": "String"},
+      {"name": "dimension", "type": "String"},
+      {"name": "calendardate", "type": "Date"},
+      {"name": "datekey", "type": "Date"},
+      {"name": "reportperiod", "type": "Date"},
+      {"name": "lastupdated", "type": "Date"},
+      {"name": "revenue", "type": "double"},
+      {"name": "cor", "type": "double"},
+      {"name": "gp", "type": "double"},
+      {"name": "sgna", "type": "double"},
+      {"name": "rnd", "type": "double"},
+      {"name": "opex", "type": "double"},
+      {"name": "ebitda", "type": "double"},
+      {"name": "ebit", "type": "double"},
+      {"name": "intexp", "type": "double"},
+      {"name": "taxexp", "type": "double"},
+      {"name": "netinc", "type": "double"},
+      {"name": "assets", "type": "double"},
+      {"name": "assetsc", "type": "double"},
+      {"name": "cashneq", "type": "double"},
+      {"name": "receivables", "type": "double"},
+      {"name": "inventory", "type": "double"},
+      {"name": "ppnenet", "type": "double"},
+      {"name": "intangibles", "type": "double"},
+      {"name": "liabilities", "type": "double"},
+      {"name": "liabilitiesc", "type": "double"},
+      {"name": "debt", "type": "double"},
+      {"name": "debtnc", "type": "double"},
+      {"name": "equity", "type": "double"},
+      {"name": "retearn", "type": "double"},
+      {"name": "ncfo", "type": "double"},
+      {"name": "ncfi", "type": "double"},
+      {"name": "ncff", "type": "double"},
+      {"name": "capex", "type": "double"},
+      {"name": "fcf", "type": "double"},
+      {"name": "shareswa", "type": "double"},
+      {"name": "eps", "type": "double"},
+      {"name": "epsdil", "type": "double"},
+      {"name": "dps", "type": "double"},
+      {"name": "currency", "type": "String"}
+    ],
+    "data": [
+      [
+        "AAPL", "ARY", "2024-09-30", "2024-11-01", "2024-09-30", "2024-11-01",
+        391035000000, 210352000000, 180683000000, 57467000000, 31370000000,
+        88837000000, 134661000000, 123216000000, 3750000000, 29749000000,
+        93736000000, 364980000000, 152987000000, 65171000000, 66243000000,
+        7286000000, 45680000000, 0, 308030000000, 176392000000,
+        106629000000, 85750000000, 56950000000, -19154000000,
+        118254000000, 2935000000, -121983000000, -9447000000, 108807000000,
+        15311000000, 6.11, 6.08, 0.99, "USD"
+      ]
+    ]
+  },
+  "meta": {"next_cursor_id": null}
+}

@@ -50,7 +50,7 @@ export function CFOMessageList({ messages, groundedLabel }: Props) {
   return (
     <div
       ref={ref}
-      className="flex-1 overflow-y-auto px-4 sm:px-6 py-6"
+      className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 py-6"
       role="log"
       aria-live="polite"
       data-testid="chat-messages"

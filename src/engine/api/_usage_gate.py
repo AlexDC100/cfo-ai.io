@@ -184,6 +184,39 @@ def reserve_document(user_id: str) -> DocReserveDecision:
     allow_extra = plan.extra_doc_eur is not None
     month = _month_bucket()
 
+    # 2026-05-26 — gap-D follow-up. When the user already saw the
+    # extra-doc confirm dialog and clicked Confirm, the upstream call to
+    # `confirm_extra_document` ran `reserve_user_upload_extra`, which
+    # incremented BOTH `user_usage.uploads_reserved` AND
+    # `subscriptions.extra_docs_pending`. The FE then retries
+    # `POST /api/pipeline/run`, landing here a second time. If we just
+    # re-call `reserve_user_upload`, the SQL guard
+    # `(uploads + uploads_reserved) < base_cap` is still false (the
+    # confirmed extra pushed us further over cap) — it returns
+    # `extra_required` AGAIN and the FE shows the confirm dialog a
+    # second time, OR worse, the user gets billed twice for one upload.
+    #
+    # Short-circuit: if there's a pending pre-confirmed extra slot
+    # waiting for an upload to claim it, treat THIS upload as the
+    # claimant. Return `allowed` directly with `was_extra=True` so the
+    # orchestrator's terminal callback runs
+    # `commit_user_upload(was_extra=True)` and the pending → billed
+    # transition happens cleanly. No new reservation increment is
+    # needed because `reserve_user_upload_extra` already took one.
+    if allow_extra and state.extra_docs_pending_this_period > 0:
+        return DocReserveDecision(
+            kind="allowed",
+            plan_key=plan.key,
+            used=state.docs_used_this_period,
+            # Reflect the existing reservation count for the response
+            # envelope; the caller doesn't act on this directly.
+            reserved=state.extra_docs_pending_this_period,
+            cap=plan.included_docs,
+            extra_doc_eur=plan.extra_doc_eur,
+            message="",
+            was_extra=True,
+        )
+
     body = _rpc("reserve_user_upload", {
         "p_user_id":     user_id,
         "p_month":       month,

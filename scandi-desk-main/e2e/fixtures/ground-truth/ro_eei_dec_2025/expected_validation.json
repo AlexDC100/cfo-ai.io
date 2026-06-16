@@ -1,0 +1,82 @@
+{
+  "_purpose": "Rules the pipeline MUST raise (or MUST NOT raise) when processing the EEI fixture.",
+
+  "must_flag": [
+    {
+      "key": "722_excluded_from_operational_revenue",
+      "severity": "HIGH",
+      "category": "accounting_convention",
+      "title_keywords": ["capitalized own-work", "722", "production de imobilizari", "excluded from revenue"],
+      "rationale": "Account 722 (RON 2,164,079.83) MUST be surfaced separately as capitalized own-work, NOT folded into operational revenue. The current platform's EBITDA of RON 2.13M includes this and is incorrect."
+    },
+    {
+      "key": "628_anomaly_third_party_services",
+      "severity": "HIGH",
+      "category": "expense_anomaly",
+      "title_keywords": ["628", "third-party services", "services executate de terti", "abnormal", "anomaly"],
+      "rationale": "Account 628 of RON 2,172,788.60 is 79.7% of operational revenue — wildly above the 30% threshold. Likely related to PPE construction activity and should have been capitalized (matched against 722). Flag and prompt user to verify.",
+      "trigger_threshold_pct": 0.30
+    },
+    {
+      "key": "461_related_party_concentration",
+      "severity": "MEDIUM",
+      "category": "balance_sheet_quality",
+      "title_keywords": ["461", "related party", "debitori diversi", "intercompany"],
+      "rationale": "Account 461 (debitori diverși) of RON 2,596,892.49 represents 12% of total assets. Without recoverability evidence, classification as receivable is optimistic."
+    },
+    {
+      "key": "105_revaluation_reserve_non_cash",
+      "severity": "INFO",
+      "category": "equity_quality",
+      "title_keywords": ["105", "revaluation reserve", "rezerve din reevaluare", "non-cash"],
+      "rationale": "Account 105 (RON 3,980,157.61) is 68% of total equity. Non-cash equity — quality of equity is materially lower than the balance sheet suggests."
+    },
+    {
+      "key": "ebitda_unreliable_use_cre_metrics",
+      "severity": "HIGH",
+      "category": "valuation_confidence",
+      "title_keywords": ["EBITDA", "negative", "low confidence", "LTV", "DSCR", "real estate"],
+      "rationale": "Operational EBITDA (excluding 722) is near zero or negative. EBITDA-multiple valuation is unreliable. Direct user to CRE-appropriate metrics: LTV, DSCR, NOI/cap-rate."
+    },
+    {
+      "key": "valuation_confidence_low",
+      "severity": "HIGH",
+      "category": "valuation_confidence",
+      "title_keywords": ["confidence", "low", "Other industry", "real estate"],
+      "rationale": "Org industry is classified 'Other' — falls back to generic benchmark band. For real-estate holdings, this should resolve to 'real_estate_commercial' for proper peer comparison."
+    }
+  ],
+
+  "must_NOT_flag": [
+    {
+      "key": "false_balance_sheet_imbalance",
+      "severity": "CRITICAL",
+      "rationale": "Trial balance ties at 24,462,228.15 RON debit=credit. The platform must NOT raise a 'balance sheet does not balance' alert. If it does, the contra-account handling (491, 2808-2815) is broken."
+    },
+    {
+      "key": "false_empty_pl",
+      "severity": "HIGH",
+      "rationale": "Revenue (706) of RON 2.73M is present. 'Empty P&L' alert is wrong."
+    },
+    {
+      "key": "false_overstated_revenue",
+      "severity": "HIGH",
+      "rationale": "Once 722 is properly excluded, revenue MUST be 2.73M (706 only), NOT 4.89M. If briefing quotes 4.89M revenue, the 722 trap is not handled."
+    }
+  ],
+
+  "extraction_completeness": {
+    "min_accounts_extracted": 50,
+    "_note": "PDF lists ~67 accounts. Extraction must capture at least the top 50 by absolute YTD value.",
+    "must_extract_codes": ["105", "121", "215", "231", "1621", "5121", "5124", "706", "722", "628", "666", "461", "1171"],
+    "_must_extract_note": "These 13 accounts drive every primary metric. Any missing one is a hard fail."
+  },
+
+  "totals_balance_check": {
+    "trial_balance_ytd_debit":  69866633.52,
+    "trial_balance_ytd_credit": 69866633.52,
+    "trial_balance_closing_debit":  24462228.15,
+    "trial_balance_closing_credit": 24462228.15,
+    "tolerance_eur": 0.01
+  }
+}

@@ -183,7 +183,7 @@ export function ChatCopilot({ open, onOpenChange }: Props) {
         side="right"
         className="
           w-[calc(100vw-24px)] sm:w-[480px] sm:max-w-[480px]
-          p-0 m-3 h-[calc(100vh-24px)]
+          p-0 m-3 h-[calc(100dvh-24px)]
           rounded-3xl
           bg-surface
           border border-rule-strong

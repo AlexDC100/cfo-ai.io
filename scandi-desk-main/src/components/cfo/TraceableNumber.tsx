@@ -23,6 +23,9 @@
 import { useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { formatRON, formatPercent } from "@/lib/formatRon";
+import { useCurrency } from "@/stores/currency";
+import { formatMoneyFrom } from "@/lib/money";
+import type { Currency } from "@/lib/rates";
 import {
   STATEMENT_TAB,
   HIGHLIGHT_PARAM,
@@ -48,6 +51,11 @@ interface Props {
   /** Optional override: if provided, renders instead of the formatted
    *  value. Use sparingly — e.g. for "—" placeholders. */
   children?: React.ReactNode;
+  /** CUR-FIX — source currency of the underlying value. Defaults to RON.
+   *  When the global display currency in <CurrencyProvider> differs from
+   *  this, `format="currency"` will convert + format in the display
+   *  currency so toggling RON/EUR/USD updates traceable figures live. */
+  sourceCurrency?: Currency;
 }
 
 /** Render a value as a clickable number that traces back to its source row. */
@@ -58,12 +66,20 @@ export function TraceableNumber({
   source,
   className = "",
   children,
+  sourceCurrency = "RON",
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
+  const { display: displayCurrency, rates } = useCurrency();
 
-  const display = children ?? renderFormat(value, format, decimals);
+  const display =
+    children ??
+    renderFormat(value, format, decimals, {
+      sourceCurrency,
+      displayCurrency,
+      rates: rates.rates,
+    });
 
   // The click handler preserves every existing query param (period_id
   // especially — we never want to drop the loaded period) and just
@@ -124,10 +140,28 @@ function renderFormat(
   value: number | null | undefined,
   format: Format,
   decimalsOverride?: number,
+  // CUR-FIX — when set, "currency" format flows through formatMoneyFrom
+  // (source → display FX). When omitted falls back to the legacy
+  // formatRON path so existing call sites that haven't been migrated
+  // yet keep rendering exactly as before.
+  currencyOpts?: {
+    sourceCurrency: Currency;
+    displayCurrency: Currency;
+    rates: Record<string, number>;
+  },
 ): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   switch (format) {
     case "currency":
+      if (currencyOpts) {
+        return formatMoneyFrom(
+          value,
+          currencyOpts.sourceCurrency,
+          currencyOpts.displayCurrency,
+          currencyOpts.rates,
+          { fractionDigits: decimalsOverride ?? 2 },
+        );
+      }
       return formatRON(value);
     case "percent":
       return formatPercent(value);

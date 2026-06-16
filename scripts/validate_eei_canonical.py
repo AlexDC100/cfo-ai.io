@@ -34,9 +34,16 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# F3.1e: data moved to engine.country_packs.ro_romania.chart_of_accounts.
+# Add `src` to sys.path so the proper package-qualified import resolves.
+sys.path.insert(0, str(REPO_ROOT / "src"))
+# Legacy sibling-import fallback (when sys.path includes engine/api).
 sys.path.insert(0, str(REPO_ROOT / "src" / "engine" / "api"))
 
-import _ro_coa as mod  # noqa: E402
+try:
+    from engine.country_packs.ro_romania import chart_of_accounts as mod  # noqa: E402
+except Exception:
+    import _ro_coa as mod  # noqa: E402  — legacy shim, F3.1d-vintage
 
 
 # ─── Load audit.json — the durable specification ─────────────────────────

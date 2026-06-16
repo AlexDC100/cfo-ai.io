@@ -266,10 +266,22 @@ export function DatasetsPanel() {
   const compareId = params.get("compare");
 
   function switchTo(id: string) {
+    // 2026-05-26 — operator reported switching felt broken because:
+    // (1) the panel stayed open over the page so no visual feedback,
+    // (2) the query cache held stale data so the page showed the old
+    //     dataset until the network round-trip landed silently.
+    // Fix: close the panel + force-invalidate the relevant queries so
+    // React Query refetches and the page renders its loading skeleton.
     const sp = new URLSearchParams(params);
     sp.set("dataset", id);
     sp.delete("compare"); // dropping comparison when switching
     navigate({ search: `?${sp.toString()}` }, { replace: true });
+    void qc.invalidateQueries({ queryKey: ["sales-dataset", id] });
+    setOpen(false);
+    toast({
+      title: "Loading dataset…",
+      description: "Switching to the selected analysis.",
+    });
   }
   function setCompare(id: string | null) {
     const sp = new URLSearchParams(params);
@@ -317,6 +329,7 @@ export function DatasetsPanel() {
           motion-safe:animate-in motion-safe:slide-in-from-right
           motion-safe:duration-200 motion-safe:ease-out
         "
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-rule">
           <div>
@@ -333,7 +346,7 @@ export function DatasetsPanel() {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-5">
           {isLoading && (
             <div className="text-center py-8 text-[12px] text-ink-mute">
               <Loader2 size={14} className="inline animate-spin mr-1" />
@@ -530,8 +543,18 @@ export function DatasetsPanel() {
           <button
             type="button"
             onClick={() => {
+              // 2026-05-26 — was: close panel + scroll-to-top, hoping
+              // the user would find the upload dropzone. That dropzone
+              // is HIDDEN once a dataset is loaded (it only renders in
+              // the empty state), so the button silently did nothing
+              // for any user already on a dataset. Now: dispatch a
+              // window event that Products.tsx listens for; the page
+              // closes the panel for us and programmatically clicks
+              // the hidden file input — opens the native file picker
+              // immediately regardless of whether the dropzone is
+              // currently in the DOM.
               setOpen(false);
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              window.dispatchEvent(new CustomEvent("cfo:request-sku-upload"));
             }}
             data-testid="datasets-panel-upload"
             className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-lg border border-dashed border-rule text-[12.5px] font-medium text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2 transition-colors"

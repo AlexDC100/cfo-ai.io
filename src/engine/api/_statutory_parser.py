@@ -133,6 +133,16 @@ F10_ROW_MAP: Dict[int, str] = {
 
     # EQUITY
     81: "capital_subscris_varsat",             # ct 1012
+    # Prime de capital (ct 104) — paid-in surplus / merger premium.
+    # rd 86 in the OMFP-1802 short-form template (between capital and
+    # rezerve), where the line carries the literal `(ct. 104)` anchor.
+    # Older templates may locate this at rd 84 or 85; the text-anchor in
+    # F10_LABEL_MAP below catches those reliably regardless of row index.
+    # Closes Strand A.2 of DIAGNOSTIC_EQUITY_BS_INTEREST_DIO_SAGA.md —
+    # without this row, every F30/F10-parsed entity that has a non-zero
+    # merger premium under-states equity by exactly that amount,
+    # silently distorting X4 (Altman) and the equity ratio.
+    86: "prime_de_capital",                    # ct 104 — merger / paid-in premium
     91: "rezerve_total",                       # ct 106
     97: "profit_pierdere_reportat",            # ct 117 — retained earnings
     103: "profit_pierdere_exercitiu",          # ct 121 — current year
@@ -246,6 +256,14 @@ F10_LABEL_MAP: List[Tuple[re.Pattern, str]] = [
 
     # Equity. Capital subscris vărsat carries `(ct. 1012)`.
     (_pat(r"Capital\s+subscris\s+v.rsat\s*\(ct\.\s*1012"),        "capital_subscris_varsat"),
+    # Prime de capital (ct 104). Row index varies across template
+    # vintages (rd 84 / 85 / 86), so the text-anchor is the reliable
+    # detector. Matches whether the label is "Prime de capital",
+    # "Primă de capital", or "Prime de emisiune" (older synonym).
+    # Closes Strand A.2: without this anchor the F10 parser silently
+    # drops 104 → under-states total equity → X4/Altman/equity ratio
+    # all distort downstream.
+    (_pat(r"Prim[eaă]\s+de\s+(capital|emisiune)\s*\(ct\.\s*104"),  "prime_de_capital"),
     (_pat(r"REZERVE\s+DIN\s+REEVALUARE\s*\(ct\.\s*105"),          "rezerve_din_reevaluare"),
     (_pat(r"TOTAL\s*\(rd\.\s*88\s+la\s+90"),                      "rezerve_total"),
     (_pat(r"PROFITUL\s+SAU\s+PIERDEREA\s+REPORTAT|SOLD\s+C\s*\(ct\.\s*117"),
@@ -1003,6 +1021,21 @@ def _synth_accounts_from_extraction(
     capital = float(bs.get("capital_subscris_varsat", 0) or 0)
     if capital:
         add("1012", "Capital subscris vărsat (F10 rd 81)", capital)
+
+    # Prime de capital (ct 104) — paid-in surplus / merger premium.
+    # The mapper rule on _ro_coa.py:82 routes 104 → otherEquity, which
+    # `_ro_coa.py:866` then sums into total_equity. Without this emit,
+    # the F30/F10 statutory path silently drops the line entirely:
+    # total_equity is under-stated by exactly the prime-de-capital
+    # amount, total_assets vs (total_liab + total_equity) goes
+    # imbalanced by the same delta, and every X4-driven score
+    # (Altman, equity_ratio) shifts. Conditional on non-zero so we
+    # emit nothing for the entities (most SMEs) that have never
+    # absorbed a merger or paid-in surplus.
+    # Closes Strand A.2 of DIAGNOSTIC_EQUITY_BS_INTEREST_DIO_SAGA.md.
+    prime_capital = float(bs.get("prime_de_capital", 0) or 0)
+    if prime_capital:
+        add("104", "Prime de capital (F10)", prime_capital)
 
     rezerve = float(bs.get("rezerve_total", 0) or 0)
     if rezerve:

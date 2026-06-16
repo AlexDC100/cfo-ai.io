@@ -293,12 +293,62 @@
 .pl-recon-note {
   margin-top: 10px;
   padding: 10px 14px;
-  background: #fff8e1;
-  border-left: 4px solid #f39c12;
+  background: hsl(var(--caution-tint));
+  border-left: 4px solid hsl(var(--caution));
   font-size: 12px;
   line-height: 1.55;
   color: hsl(var(--ink));
   border-radius: 0 4px 4px 0;
+}
+
+/* ── Mobile (<640px) ────────────────────────────────────────────────────
+   Desktop grid is `64px 1fr 180px` = 244px+ fixed for code + amount,
+   leaving only ~130px for the label on iPhone SE (375px). Romanian
+   account names like "Total operating revenue (excluded from operating
+   revenue / EBITDA exclusion)" wrap to 12+ lines in that space. The
+   2026-06-02 fix collapses to a 2-row stack:
+     Row 1: account code + label (label wraps freely)
+     Row 2: amount value right-aligned
+
+   Combined with useAmountFormatter's auto-compact, amounts shrink from
+   "1.234.567,89" to "1,2 mil." and the right-aligned sub-row never
+   overflows. */
+@media (max-width: 639px) {
+  .pl-row,
+  .pl-subtotal-rule {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "code label"
+      ".    amount";
+    gap: 4px 8px;
+    padding: 6px 0;
+  }
+  .pl-code {
+    grid-area: code;
+    font-size: 10.5px;
+    align-self: start;
+  }
+  .pl-label {
+    grid-area: label;
+    font-size: 12.5px;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .pl-amount {
+    grid-area: amount;
+    text-align: right;
+    font-size: 13px;
+    /* Compact format keeps strings short; allow ellipsis as a final
+       safety net so an unexpectedly long string can't push viewport. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .pl-subtotal-rule::after {
+    /* Subtotal hairline now spans the full row, not the (gone) amount col. */
+    grid-column: 1 / -1;
+  }
 }
 
 /* ── Print ──────────────────────────────────────────────────────────── */
