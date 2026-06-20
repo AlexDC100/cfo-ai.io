@@ -162,9 +162,28 @@ If you're touching engine code, [CLAUDE.md §3 (Appendix A)](CLAUDE.md) has the 
 
 | Ticket | Owner | Notes |
 |---|---|---|
-| **Add Google + Apple sign-in options** | Coder | Supabase Auth supports both providers — enable in Supabase Dashboard, then wire the buttons into `AuthCard.tsx`. Match existing email/password styling. See `src/components/cfo/AuthCard.tsx`. |
-| **DNS + email infrastructure setup** | **Alex** (external) | Register cfo-ai.io email at Namecheap/Cloudflare. Recommendation: Cloudflare Email Routing (free) for forwarding-only, OR Google Workspace €5/mo for full inbox. Need MX, SPF, DKIM, DMARC. See the operator brief Alex has — paste it into a `docs/email-setup.md` if useful. |
+| **[#7](https://github.com/AlexDC100/cfo-ai.io/issues/7) — Add Google + Apple sign-in** | Coder | Supabase Auth supports both providers — enable in Supabase Dashboard, then wire the buttons into `scandi-desk-main/src/components/cfo/AuthCard.tsx`. Match existing email/password styling. Full spec in the issue. |
+| **DNS + email infrastructure setup** | **Alex** (external) | Register cfo-ai.io email at Namecheap/Cloudflare. Recommendation: Cloudflare Email Routing (free) for forwarding-only, OR Google Workspace €5/mo for full inbox. Need MX, SPF, DKIM, DMARC. |
 | **Stripe Dashboard public support email** | **Alex** (external) | Stripe → Settings → Public details → Business support email = `contact@cfo-ai.io`. After DNS is live. |
+
+### 🟣 F6.0 FP&A Initiative — queued, blocked on Bug #4
+
+Six-phase FP&A initiative queued behind F3.16 closure. Full strategy doc:
+[docs/F6.0-FPA-INITIATIVE-OPENING-PROMPT.md](docs/F6.0-FPA-INITIATIVE-OPENING-PROMPT.md).
+Dependency-ordered (Period Comparison is the foundation; building variance
+before period comparison gives broken math).
+
+| Issue | Phase | Notes |
+|---|---|---|
+| [#1](https://github.com/AlexDC100/cfo-ai.io/issues/1) | **F6.0.1 Period Comparison Everywhere** | Foundation. Full spec at [docs/F6.0.1-PERIOD-COMPARISON-OPENING-PROMPT.md](docs/F6.0.1-PERIOD-COMPARISON-OPENING-PROMPT.md). Currently `blocked` label. |
+| [#2](https://github.com/AlexDC100/cfo-ai.io/issues/2) | F6.0.2 Excel + PDF Export | Independent quick win. Opens after #1 closes. |
+| [#3](https://github.com/AlexDC100/cfo-ai.io/issues/3) | F6.0.3 Variance Analysis | Depends on #1 (multi-period) + #2 (export the view). |
+| [#4](https://github.com/AlexDC100/cfo-ai.io/issues/4) | F6.0.4 Configurable Dashboard | Independent. Closes loop on F5.0 learning. |
+| [#5](https://github.com/AlexDC100/cfo-ai.io/issues/5) | F6.0.5 Scenario Planning | Depends on #3 (variance baseline). |
+| [#6](https://github.com/AlexDC100/cfo-ai.io/issues/6) | F6.0.6 Three-Statement Modeling | Heaviest. Schema changes. Depends on #5. |
+
+All issues live under milestone [F6.0 FP&A Initiative](https://github.com/AlexDC100/cfo-ai.io/milestone/1).
+**Do not start F6.0.1 until Bug #4 clears and F3.16-3b.5 backfill completes.**
 
 ### 🟡 P2 — engineering backlog
 
