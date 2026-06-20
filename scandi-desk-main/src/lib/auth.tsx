@@ -57,6 +57,16 @@ export interface AuthActions {
   }) => Promise<{ error: AuthError | null; needsConfirmation: boolean }>;
   signIn: (input: { email: string; password: string }) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
+  /** Issue #7 (2026-06-16) — OAuth sign-in via Supabase Auth providers.
+   *  Currently wired for Google + Apple. Returns immediately with the
+   *  provider redirect URL; the browser navigates away and Supabase
+   *  redirects back to `/auth/callback` once the provider completes.
+   *  Operator-side requirement: provider must be enabled in Supabase
+   *  Dashboard → Authentication → Providers, with OAuth client ID/secret
+   *  registered at the provider's developer console. Without that,
+   *  Supabase returns "Unsupported provider" — the AuthCard surfaces a
+   *  human-friendly fallback message in that case. */
+  signInWithOAuth: (provider: "google" | "apple") => Promise<{ error: AuthError | null }>;
   /** No-op — demo mode was removed. Kept on the interface so legacy callers
    *  don't break; the body navigates to the real /signup flow if invoked. */
   enterDemo: () => void;
@@ -117,6 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp: async () => ({ error: testModeUnavailable(), needsConfirmation: false }),
       signIn: async () => ({ error: testModeUnavailable() }),
       signOut: async () => ({ error: null }),
+      // Issue #7 — OAuth no-op in test mode (no provider redirect possible
+      // without a real Supabase project). Surface the same testModeUnavailable
+      // error so the AuthCard renders a consistent fallback.
+      signInWithOAuth: async () => ({ error: testModeUnavailable() }),
       enterDemo: () => { /* test mode IS the demo */ },
       exitDemo: () => { /* no-op */ },
     };
@@ -230,6 +244,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   }, [supabase]);
 
+  // Issue #7 (2026-06-16) — OAuth sign-in via Supabase Auth.
+  // Provider must be enabled in Supabase Dashboard → Authentication →
+  // Providers, with Google OAuth client ID/secret OR Apple Services ID
+  // registered. emailRedirectTo points at the existing /auth/callback
+  // route that the email-confirmation flow already uses, so token
+  // exchange happens in one place.
+  const signInWithOAuth = useCallback<AuthActions["signInWithOAuth"]>(async (provider) => {
+    if (!supabase) return { error: disabledError() };
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    return { error };
+  }, [supabase]);
+
   const signOut = useCallback<AuthActions["signOut"]>(async () => {
     try {
       localStorage.removeItem(WORKSPACE_KEY);
@@ -264,9 +295,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signIn,
     signOut,
+    signInWithOAuth,
     enterDemo,
     exitDemo,
-  }), [status, session, user, displayName, initials, workspaceLabel, companyName, isAuthenticated, signUp, signIn, signOut, enterDemo, exitDemo]);
+  }), [status, session, user, displayName, initials, workspaceLabel, companyName, isAuthenticated, signUp, signIn, signOut, signInWithOAuth, enterDemo, exitDemo]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

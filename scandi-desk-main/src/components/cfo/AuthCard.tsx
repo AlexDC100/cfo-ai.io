@@ -45,7 +45,7 @@ export function AuthCard({
   // ─── Hooks (all unconditional, fixed order) ────────────────────────────
   // useAuth + useNavigate + useSearchParams must run on every render or React
   // throws "change in the order of Hooks". Keep them tight at the top.
-  const { signIn, signUp, status } = useAuth();
+  const { signIn, signUp, signInWithOAuth, status } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -165,6 +165,44 @@ export function AuthCard({
 
   function authedRedirect() {
     void postAuthNavigate();
+  }
+
+  // Issue #7 (2026-06-16) — OAuth sign-in handler.
+  //
+  // Calls supabase.auth.signInWithOAuth via the extended useAuth interface.
+  // On success the browser redirects to the provider; control comes back to
+  // /auth/callback which the existing email-confirmation flow already handles.
+  //
+  // On error, the most common failure mode is "Unsupported provider" — the
+  // operator hasn't enabled Google/Apple in Supabase Dashboard yet. Surface a
+  // human-friendly message rather than the raw error string.
+  async function handleOAuth(provider: "google" | "apple") {
+    setError(null);
+    setBusy(true);
+    try {
+      const { error } = await signInWithOAuth(provider);
+      if (error) {
+        // Detect the "provider not configured" case via Supabase's error
+        // shape: status 400 + message containing "provider" or "validation".
+        // Show a friendlier message that doesn't leak the raw API string.
+        const msg = (error.message ?? "").toLowerCase();
+        const isProviderUnavailable =
+          msg.includes("provider is not enabled") ||
+          msg.includes("unsupported provider") ||
+          msg.includes("validation_failed");
+        setError(
+          isProviderUnavailable
+            ? `${provider === "google" ? "Google" : "Apple"} sign-in is being configured. Please use email for now.`
+            : error.message,
+        );
+        setBusy(false);
+      }
+      // No success branch: signInWithOAuth navigates the browser away.
+      // setBusy stays true so the button shows a spinner during redirect.
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Sign-in failed");
+      setBusy(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -359,6 +397,34 @@ export function AuthCard({
             </div>
           )}
 
+          {/* Issue #7 (2026-06-16) — OAuth providers.
+              Render only when Supabase is wired (test mode + disabled mode
+              both hide these — the user is auto-signed-in in test mode, and
+              there's no provider to redirect to in disabled mode). */}
+          {supabaseEnabled && (
+            <>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <OAuthButton
+                  provider="google"
+                  busy={busy}
+                  onClick={() => handleOAuth("google")}
+                />
+                <OAuthButton
+                  provider="apple"
+                  busy={busy}
+                  onClick={() => handleOAuth("apple")}
+                />
+              </div>
+              <div className="flex items-center gap-3 mb-3" aria-hidden>
+                <div className="flex-1 h-px bg-rule" />
+                <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft/70">
+                  or continue with email
+                </span>
+                <div className="flex-1 h-px bg-rule" />
+              </div>
+            </>
+          )}
+
           <form className="space-y-3" onSubmit={handleSubmit}>
             {mode === "sign_up" && (
               <>
@@ -441,6 +507,86 @@ export function AuthCard({
         </>
       )}
     </div>
+  );
+}
+
+// Issue #7 (2026-06-16) — OAuth provider button.
+//
+// Two providers supported: Google + Apple. Each ships its own brand mark via
+// inline SVG (no external dependency, no icon-font load) so the button looks
+// right on the first paint with no FOUC.
+//
+// Visual treatment: matches the existing app aesthetic (rounded, border,
+// frosted) rather than the official Google "Sign in with Google" brand
+// guidelines — those guidelines require white-on-blue + Roboto and would
+// clash with the dark glass card. The brand logo + verb-first label
+// preserve recognizability without breaking the surface treatment.
+//
+// Tap target ≥44px high (h-11) per WCAG / our mobile spec.
+function OAuthButton({
+  provider,
+  busy,
+  onClick,
+}: {
+  provider: "google" | "apple";
+  busy: boolean;
+  onClick: () => void;
+}) {
+  const label = provider === "google" ? "Google" : "Apple";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      data-testid={`oauth-${provider}`}
+      aria-label={`Continue with ${label}`}
+      className="
+        inline-flex items-center justify-center gap-2
+        h-11 rounded-xl
+        bg-bg-2/80 hover:bg-bg-2
+        border border-rule
+        text-[13px] font-medium text-ink
+        disabled:opacity-50 disabled:cursor-not-allowed
+        transition-colors
+      "
+    >
+      {provider === "google" ? <GoogleLogo /> : <AppleLogo />}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function GoogleLogo() {
+  // Authentic Google G — 4-colour mark, single SVG path per arc.
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden focusable="false">
+      <path
+        d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.614z"
+        fill="#4285F4"
+      />
+      <path
+        d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"
+        fill="#34A853"
+      />
+      <path
+        d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
+function AppleLogo() {
+  // Apple silhouette logo — single path. Uses currentColor so it follows
+  // the text-ink token (dark glass-mode → bright, light-mode → near-black).
+  return (
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden focusable="false" fill="currentColor">
+      <path d="M11.6 8.5c0-2 1.6-3 1.7-3-.9-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.7-.7C3.4 3.9 2 4.7 1.2 6.1c-1.3 2.3-.3 5.6 1 7.4.6.9 1.4 1.9 2.4 1.9.9 0 1.3-.6 2.4-.6 1.1 0 1.5.6 2.4.6 1 0 1.7-.9 2.3-1.8.7-1 1-2.1 1-2.1s-2.1-.8-2.1-3zM9.5 2.7c.5-.6.9-1.5.8-2.3-.8 0-1.7.5-2.3 1.2-.5.6-.9 1.5-.8 2.3.8.1 1.8-.5 2.3-1.2z" />
+    </svg>
   );
 }
 
