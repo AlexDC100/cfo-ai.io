@@ -34,6 +34,8 @@ import { factToConceptKey, factLabel } from "@/lib/learning/concepts/recommendat
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
 import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetrics";
+import { ConfigurableDashboard } from "@/components/dashboard/ConfigurableDashboard";
+import { DashboardProvider } from "@/stores/dashboard";
 import type { Currency } from "@/lib/rates";
 // First-class Public Company Intelligence module on the empty-state dashboard.
 // Renders as a full premium module card (same weight as Trial Balances)
@@ -1021,95 +1023,42 @@ export default function FinancialStatements() {
                 ? "Source: trial balance. Full account-level granularity."
                 : null;
           return (
-            <section
-              className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3"
-              title={sourceTooltip ?? undefined}
-            >
-              <KpiTile
-                data-testid="kpi-revenue"
-                label="Operating revenue"
-                value={
-                  <LearnableNumber conceptKey="operating_revenue" value={totalOperatingRevenue}>
-                    <Money value={totalOperatingRevenue} fromCurrency={statements.currency as Currency} compact />
-                  </LearnableNumber>
-                }
-                sub={<>incl. 722 CIP <Money value={pl.capitalizedOwnWorkMemo ?? 0} fromCurrency={statements.currency as Currency} compact /></>}
-              />
-              {/* EBITDA tile — engine canonical statutory EBITDA so the
-                  number matches the AI briefing + every other surface
-                  that quotes EBITDA. See comment above where
-                  `tileEbitdaRon` + `ebitdaMarginPct` are computed for
-                  the routing rationale and fallback behavior. */}
-              {/* F5.0 Phase 1 proof point — the EBITDA value becomes
-                  interactive. Hover (desktop) or tap (mobile) on the
-                  dotted-underlined number opens the QuickExplain popover
-                  with the EBITDA concept definition + formula. Phase 4
-                  expands to every numeric across all KpiTiles via the
-                  same wrapper pattern. */}
-              <KpiTile
-                data-testid="kpi-ebitda"
-                label="EBITDA"
-                value={
-                  <LearnableNumber conceptKey="ebitda" value={tileEbitdaRon}>
-                    <Money value={tileEbitdaRon} fromCurrency={statements.currency as Currency} compact />
-                  </LearnableNumber>
-                }
-                sub={`${ebitdaMarginPct.toFixed(1)}% margin`}
-              />
-              <KpiTile
-                data-testid="kpi-net-income"
-                label="Net profit"
-                value={
-                  <LearnableNumber conceptKey="net_profit" value={tileNetProfitRon}>
-                    <Money value={tileNetProfitRon} fromCurrency={statements.currency as Currency} compact />
-                  </LearnableNumber>
-                }
-                sub={`${netMarginPct.toFixed(1)}% margin`}
-              />
-              {/* Total Debt sub-label "× EBITDA" — divides totals.totalDebt
-                  by the same canonical statutory EBITDA the tile above
-                  renders. We do NOT route through engine
-                  `calculated_metrics.debt_to_ebitda` because the engine
-                  metric divides by `ebitda` (cash view); for EEI that
-                  collapses to total_debt / −36K = −384×. Computing
-                  locally from totals.totalDebt / ebitda_statutory keeps
-                  the displayed ratio basis-consistent with the EBITDA
-                  tile to the left and the briefing's stated
-                  Debt/EBITDA. Near-zero guard preserved. */}
-              {(() => {
-                const ebitdaThreshold = Math.max(Math.abs(totalOperatingRevenue) * 0.01, 10_000);
-                const subLabel =
-                  Math.abs(tileEbitdaRon) < ebitdaThreshold
-                    ? "n/a — EBITDA near zero"
-                    : `${(totals.totalDebt / tileEbitdaRon).toFixed(1)}× EBITDA`;
-                return (
-                  <KpiTile
-                    data-testid="kpi-total-debt"
-                    label="Total debt"
-                    value={
-                      <LearnableNumber conceptKey="total_debt" value={totals.totalDebt}>
-                        <Money value={totals.totalDebt} fromCurrency={statements.currency as Currency} compact />
-                      </LearnableNumber>
-                    }
-                    sub={subLabel}
-                  />
-                );
-              })()}
-              {/* Source badge — visible label, not just a tooltip, so users
-                  understand why two periods of the same company might
-                  carry slightly different EBITDA when one was uploaded as
-                  TB and the other as F30+F10. */}
+            <div title={sourceTooltip ?? undefined}>
+              {/* F6.0.4 (2026-06-20) — Configurable dashboard.
+                  Replaces the legacy fixed 4-tile KPI strip with a
+                  user-configurable card grid. The first four default
+                  cards (operating_revenue, ebitda, net_profit,
+                  total_debt) receive canonical value OVERRIDES so they
+                  render byte-identical to the pre-F6.0.4 tiles — the
+                  engine-routed EBITDA + net-profit numbers, not the raw
+                  snapshot. Additional cards the user adds resolve from
+                  the ReportingMetrics snapshot. Wrapped in
+                  DashboardProvider for the per-user layout store. */}
+              <DashboardProvider>
+                <ConfigurableDashboard
+                  overrides={{
+                    operating_revenue: totalOperatingRevenue,
+                    ebitda: tileEbitdaRon,
+                    net_profit: tileNetProfitRon,
+                    total_debt: totals.totalDebt,
+                  }}
+                />
+              </DashboardProvider>
+              {/* Source badge — visible label so users understand why two
+                  periods of the same company might carry slightly
+                  different EBITDA when one was uploaded as TB and the
+                  other as F30+F10. */}
               {sourceTooltip && (
                 <div
                   data-testid="kpi-source-badge"
-                  className="col-span-2 lg:col-span-4 text-[10.5px] text-ink-mute -mt-1"
+                  className="text-[10.5px] text-ink-mute mb-3 -mt-1"
                 >
                   {remotePeriod.detectedType === "statutory_f30_f10"
                     ? "Source: statutory statement (Formular F30 + F10)"
                     : "Source: trial balance"}
                 </div>
               )}
-            </section>
+            </div>
           );
         })()}
 
