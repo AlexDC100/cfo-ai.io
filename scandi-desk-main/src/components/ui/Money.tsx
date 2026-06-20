@@ -33,6 +33,8 @@ import { useCurrency } from "@/stores/currency";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import type { Currency } from "@/lib/rates";
+import { delta as deltaFn, sentimentFor } from "@/lib/learning/computeDeltas";
+import { DeltaBadge } from "@/components/period/DeltaBadge";
 
 export interface MoneyProps {
   /** Amount in the SOURCE currency (typically `statements.currency`).
@@ -60,6 +62,31 @@ export interface MoneyProps {
   fractionDigits?: number;
   /** Extra className appended after the default tabular-nums + whitespace-nowrap. */
   className?: string;
+  /** F6.0.1 (2026-06-20) — Comparison context for delta rendering.
+   *
+   *  When provided, the component renders the primary value followed by a
+   *  DeltaBadge showing the change vs the comparison amount. Backward-
+   *  compatible: every existing call site that doesn't pass `comparison`
+   *  renders unchanged.
+   *
+   *  Two source-currency invariants:
+   *    1. `comparison.amount` MUST be in the same source currency as
+   *       `value` (typically the period's source currency). The Money
+   *       component handles display-currency conversion uniformly across
+   *       both via the active `useCurrency()` rates, so as long as both
+   *       sides are in the SAME source, the delta math holds.
+   *    2. Never pass a ratio (e.g. EBITDA margin = 0.14) through this
+   *       prop. Ratios must render in PERCENTAGE POINTS via a dedicated
+   *       Percentage component (not yet built — F6.0.1 follow-up).
+   *
+   *  Set `showAbsolute=true` to display "+€3.2M" instead of the default
+   *  relative "+5.4%". Useful when the absolute number tells the story
+   *  better than the percentage (small base values).
+   */
+  comparison?: {
+    amount: number;
+    showAbsolute?: boolean;
+  };
 }
 
 export function Money({
@@ -70,6 +97,7 @@ export function Money({
   signed = false,
   fractionDigits,
   className,
+  comparison,
 }: MoneyProps) {
   const { display, rates } = useCurrency();
   const isMobile = useIsMobile();
@@ -128,6 +156,41 @@ export function Money({
         fractionDigits,
       });
     }
+  }
+
+  // F6.0.1 (2026-06-20) — Comparison badge.
+  //
+  // When `comparison` prop is provided AND the primary value is a real
+  // number (not missing), render the primary value followed by a small
+  // DeltaBadge with the absolute or relative change vs the comparison.
+  //
+  // Wrapping behavior: inline-flex with items-baseline keeps the badge
+  // visually anchored to the digits' baseline, not the bottom of the
+  // span. `whitespace-nowrap` propagates from the parent so on narrow
+  // viewports the badge may wrap to a new line under the value rather
+  // than overflow horizontally.
+  if (comparison && typeof numericValue === "number") {
+    const d = deltaFn(numericValue as number, comparison.amount);
+    const sentiment = sentimentFor(d);
+    return (
+      <span
+        className={cn(
+          "inline-flex items-baseline gap-2 tabular-nums",
+          className,
+        )}
+        title={fullFormatted}
+      >
+        <span className="whitespace-nowrap">{formatted}</span>
+        <DeltaBadge
+          delta={d}
+          sentiment={sentiment}
+          showAbsolute={comparison.showAbsolute}
+          currency={
+            usingSourceAware ? (fromCurrency ?? "RON") : ("EUR" as Currency)
+          }
+        />
+      </span>
+    );
   }
 
   return (
