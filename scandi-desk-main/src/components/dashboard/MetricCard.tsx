@@ -91,38 +91,41 @@ export function MetricCard({ card, editMode, overrides }: Props) {
           : "border-rule",
       )}
     >
-      {/* Edit-mode controls — drag handle (left) + remove/resize (right). */}
+      {/* Edit-mode controls — drag handle (left) + remove/resize (right).
+          Review #4 (2026-06-20): each control gets a 44×44 hit area
+          (min-w/min-h-[44px] + grid place-items-center) so the icons stay
+          visually small but the tap zone meets WCAG 2.5.5 on mobile. */}
       {editMode && (
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-2 py-1.5">
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-0.5">
           <button
             type="button"
             {...attributes}
             {...listeners}
             aria-label="Drag to reorder"
             data-testid={`card-drag-${card.conceptKey}`}
-            className="touch-none cursor-grab active:cursor-grabbing text-ink-mute hover:text-ink p-1 -m-1 rounded"
+            className="touch-none cursor-grab active:cursor-grabbing text-ink-mute hover:text-ink min-w-[44px] min-h-[44px] grid place-items-center rounded"
           >
-            <GripVertical className="w-3.5 h-3.5" />
+            <GripVertical className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center">
             <button
               type="button"
               onClick={() => resizeCard(card.id, NEXT_SIZE[card.size])}
               aria-label="Resize card"
               data-testid={`card-resize-${card.conceptKey}`}
-              className="text-ink-mute hover:text-ink p-1 rounded hover:bg-bg-2"
+              className="text-ink-mute hover:text-ink min-w-[44px] min-h-[44px] grid place-items-center rounded hover:bg-bg-2"
               title={`Size: ${card.size.toUpperCase()} — tap to grow`}
             >
-              <Maximize2 className="w-3.5 h-3.5" />
+              <Maximize2 className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => removeCard(card.id)}
               aria-label="Remove card"
               data-testid={`card-remove-${card.conceptKey}`}
-              className="text-ink-mute hover:text-[hsl(0,75%,55%)] p-1 rounded hover:bg-bg-2"
+              className="text-ink-mute hover:text-[hsl(0,75%,55%)] min-w-[44px] min-h-[44px] grid place-items-center rounded hover:bg-bg-2"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -132,7 +135,7 @@ export function MetricCard({ card, editMode, overrides }: Props) {
       <div
         className={cn(
           "text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate",
-          editMode && "mt-5",
+          editMode && "mt-11",
         )}
       >
         {title}

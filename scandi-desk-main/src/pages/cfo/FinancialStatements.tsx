@@ -981,10 +981,9 @@ export default function FinancialStatements() {
               ? statements.assembled_pl.ebitda_statutory
               : null;
           const tileEbitdaRon = tileEbitdaCanonical ?? pl.ebitda;
-          const ebitdaMarginPct =
-            totalOperatingRevenue > 0
-              ? (tileEbitdaRon / totalOperatingRevenue) * 100
-              : 0;
+          // (F6.0.4) ebitdaMarginPct removed — the EBITDA-margin metric is
+          // now a configurable card that computes margin from the same
+          // canonical EBITDA via resolveConceptValue's override overlay.
           // ‡ F1.e — Net profit RON on the tile reads engine canonical
           // `net_income_statutory` (the ct.121 anchor) so the magnitude
           // and the margin agree. Order of preference:
@@ -1001,16 +1000,9 @@ export default function FinancialStatements() {
               : typeof pl.netProfitStatutory === "number"
                 ? pl.netProfitStatutory
                 : pl.netProfit;
-          // Net margin derived from the tile's actual displayed value
-          // (statutory net profit) divided by the OPERATING REVENUE the
-          // tile to the left shows — same basis pair as the EBITDA tile
-          // above. Without this, EEI displayed "Net profit RON 1.43M /
-          // −27.1% margin": value statutory, margin operational. Same
-          // mismatch class.
-          const netMarginPct =
-            totalOperatingRevenue > 0
-              ? (tileNetProfitRon / totalOperatingRevenue) * 100
-              : 0;
+          // (F6.0.4) netMarginPct removed — net margin is now an addable
+          // configurable card; resolveConceptValue computes it from the
+          // canonical net-profit override so the basis stays consistent.
           // Honest source label. Trial balance + statutory F30+F10 produce
           // similar but NOT identical metrics (711 inventory variation is
           // explicit in TB, aggregated inside the F30 operating result).

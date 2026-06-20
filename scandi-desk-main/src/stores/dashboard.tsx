@@ -85,6 +85,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   // only the network call is debounced.
   const persistTimer = useRef<number | null>(null);
 
+  // RACE GUARD (review #3, 2026-06-20): the mount-time backend fetch is
+  // async and can resolve seconds later. If the user adds/removes/reorders
+  // a card before it resolves, naively adopting the remote config would
+  // silently discard their edit. This flag flips on the first local
+  // mutation; the fetch effect refuses to overwrite once it's set.
+  const userTouched = useRef(false);
+
   const persist = useCallback((next: DashboardCard[]) => {
     // Immediate device-local write — never lose config.
     writeLocalConfig(next);
@@ -99,13 +106,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }, 600);
   }, []);
 
-  // On mount, try the backend. If it has a config, adopt it.
+  // On mount, try the backend. If it has a config, adopt it — UNLESS the
+  // user has already edited locally while the fetch was in flight (race
+  // guard), in which case the local edit wins and we still mark the sync
+  // source as account so the next persist flushes the user's version.
   useEffect(() => {
     let cancelled = false;
     void fetchRemoteConfig().then((remote) => {
       if (cancelled) return;
       if (remote?.cards?.length) {
-        setCards(normalize(remote.cards));
+        if (!userTouched.current) {
+          setCards(normalize(remote.cards));
+        }
         setSyncSource("account");
       }
       setLoaded(true);
@@ -120,6 +132,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const apply = useCallback(
     (updater: (prev: DashboardCard[]) => DashboardCard[]) => {
+      // Mark the layout as user-touched so an in-flight backend fetch
+      // can't clobber this edit when it resolves.
+      userTouched.current = true;
       setCards((prev) => {
         const next = normalize(updater(prev));
         persist(next);

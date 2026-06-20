@@ -255,9 +255,13 @@ export function resolveConceptValue(
     case "current_ratio":
       return { value: div(m.currentAssets, m.currentLiabilities), format };
     case "quick_ratio": {
-      const cash = n(m.cash) ?? 0;
-      const ar = n(m.receivables) ?? 0;
-      return { value: div(cash + ar, m.currentLiabilities), format };
+      // Match the documented concept formula (analytics.ts): quick assets =
+      // current assets − inventory (NOT just cash + receivables, which
+      // drops prepayments + other current assets and would diverge from
+      // the popover the card opens).
+      const ca = n(m.currentAssets) ?? 0;
+      const inv = n(m.inventory) ?? 0;
+      return { value: div(ca - inv, m.currentLiabilities), format };
     }
     case "cash_ratio":
       return { value: div(m.cash, m.currentLiabilities), format };
