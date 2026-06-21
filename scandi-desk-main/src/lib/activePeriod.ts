@@ -276,12 +276,12 @@ interface PeriodApiResponse {
  * spinner. See diagnostics/SET_INDUSTRY_PERIOD_NOT_FOUND_2026-05-18.md
  * for the root cause this fixes.
  */
-type PeriodFetchResult =
+export type PeriodFetchResult =
   | { kind: "ok"; data: PeriodApiResponse }
   | { kind: "not_found" }
   | { kind: "error" };
 
-async function fetchPeriodFromApi(periodId: string): Promise<PeriodFetchResult> {
+export async function fetchPeriodFromApi(periodId: string): Promise<PeriodFetchResult> {
   const supabase = getSupabase();
   if (!supabase) return { kind: "error" };
   const { data } = await supabase.auth.getSession();

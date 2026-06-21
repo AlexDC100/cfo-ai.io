@@ -6,7 +6,7 @@
 // from an uploaded file (or a clearly-labeled demo on the test workspace).
 
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Scale } from "lucide-react";
 import { AppShell } from "@/components/cfo/AppShell";
 import { EmptyState } from "@/components/cfo/ui/EmptyState";
@@ -22,9 +22,10 @@ import { useBudgetComparison } from "@/stores/budget";
 import { KpiVarianceStrip } from "@/components/comparison/KpiVarianceStrip";
 import { VarianceTable, type VarianceView } from "@/components/comparison/VarianceTable";
 import { BudgetUploadCard } from "@/components/comparison/BudgetUploadCard";
+import { LastYearSourcePicker, type LastYearSelection } from "@/components/comparison/LastYearSourcePicker";
 import type { Statements } from "@/lib/financialReport";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
-import type { ComparisonDataset } from "@/lib/comparison/types";
+import type { ComparisonDataset, VarianceLineKey } from "@/lib/comparison/types";
 import { cn } from "@/lib/utils";
 
 const VIEWS: { key: VarianceView; label: string }[] = [
@@ -47,6 +48,11 @@ function VarianceInner({
   const currency = statements.currency ?? "RON";
   const [view, setView] = useState<VarianceView>("both");
   const { uploaded, save, clear } = useBudgetComparison();
+  const [params] = useSearchParams();
+  const activePeriodId = params.get("period");
+  // F6.1b — Last-year source chosen via the period picker (a prior year of
+  // this analysis, or another uploaded period). null until the picker emits.
+  const [lySel, setLySel] = useState<LastYearSelection | null>(null);
 
   const actualLines = useMemo(() => {
     const snap = buildReportingMetricsSnapshot(statements);
@@ -72,9 +78,33 @@ function VarianceInner({
   }, [rawDataset, currency, ratesPayload.rates]);
 
   const isDemo = !uploaded && rawDataset?.source === "demo";
-  const rows = useMemo(() => buildVarianceRows(actualLines, dataset), [actualLines, dataset]);
-  const hasBudget = !!dataset && Object.keys(dataset.budget).length > 0;
-  const hasLastYear = !!dataset && Object.keys(dataset.lastYear).length > 0;
+  // Whether the uploaded file itself carries a Last-year column (drives the
+  // picker's "Budget file column" option — demo seed doesn't count).
+  const budgetHasLastYear = !!uploaded && !!dataset && Object.keys(dataset.lastYear).length > 0;
+
+  // F6.1b — overlay the picker's Last-year choice onto the (currency-
+  // normalized) dataset. "period" → the chosen period's actuals; "none" →
+  // blank the column; "budget"/unset → keep the file's Last-year column.
+  const effectiveDataset = useMemo<ComparisonDataset | null>(() => {
+    if (!dataset && lySel?.kind !== "period") return dataset;
+    const base = dataset ?? { budget: {}, lastYear: {}, source: "upload" as const };
+    if (lySel?.kind === "period") {
+      const ly: Partial<Record<VarianceLineKey, number>> = {};
+      for (const [k, v] of Object.entries(lySel.lines) as [VarianceLineKey, number | null][]) {
+        if (v !== null && Number.isFinite(v)) ly[k] = v;
+      }
+      return { ...base, lastYear: ly };
+    }
+    if (lySel?.kind === "none") return { ...base, lastYear: {} };
+    return base;
+  }, [dataset, lySel]);
+
+  const rows = useMemo(
+    () => buildVarianceRows(actualLines, effectiveDataset),
+    [actualLines, effectiveDataset],
+  );
+  const hasBudget = !!effectiveDataset && Object.keys(effectiveDataset.budget).length > 0;
+  const hasLastYear = !!effectiveDataset && Object.keys(effectiveDataset.lastYear).length > 0;
 
   return (
     <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-6 space-y-5">
@@ -92,7 +122,17 @@ function VarianceInner({
         </p>
       </div>
 
-      <BudgetUploadCard uploaded={uploaded} isDemo={!!isDemo} onSave={save} onClear={clear} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <BudgetUploadCard uploaded={uploaded} isDemo={!!isDemo} onSave={save} onClear={clear} />
+        <LastYearSourcePicker
+          statements={statements}
+          activeCurrency={currency}
+          activePeriodId={activePeriodId}
+          hasBudgetLastYear={budgetHasLastYear}
+          rates={ratesPayload.rates}
+          onChange={setLySel}
+        />
+      </div>
 
       {(hasBudget || hasLastYear) && (
         <>
