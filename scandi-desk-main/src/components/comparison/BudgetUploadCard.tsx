@@ -106,7 +106,18 @@ export function BudgetUploadCard({ uploaded, isDemo, onSave, onClear }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,.xlsx,.xls,.txt,.pptx,.ppt"
+          // Extensions AND MIME types: a macOS file picker greys out files
+          // when only an extension is given and it can't map it to a UTI —
+          // that's why ".pptx" could be unselectable. The MIME types make
+          // PowerPoint / Excel / CSV reliably selectable across OS + browser.
+          accept={[
+            ".csv", ".txt", ".xlsx", ".xls", ".pptx", ".ppt",
+            "text/csv", "text/plain",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          ].join(",")}
           className="hidden"
           data-testid="budget-file-input"
           onChange={(e) => {
