@@ -74,6 +74,8 @@ const Decisions = lazy(() => import("./pages/cfo/Decisions"));
 const Products = lazy(() => import("./pages/cfo/Products"));
 // F6.0.5 — Scenario planning / what-if (/dashboard/scenarios).
 const Scenarios = lazy(() => import("./pages/cfo/Scenarios"));
+// F6.0.1b — Budget vs Actual vs Last-Year variance (/dashboard/variance).
+const Variance = lazy(() => import("./pages/cfo/Variance"));
 const Alerts = lazy(() => import("./pages/cfo/Alerts"));
 const Settings = lazy(() => import("./pages/cfo/Settings"));
 const BenchmarkReport = lazy(() => import("./pages/cfo/BenchmarkReport"));
@@ -267,6 +269,8 @@ function AppRoutes() {
               through revenue/cost/working-capital levers and shows the impact
               on leverage + covenants. AuthGuard like the rest of the app. */}
           <Route path="/dashboard/scenarios" element={<AuthGuard><Scenarios /></AuthGuard>} />
+          {/* F6.0.1b — Budget vs Actual vs Last-Year variance report. */}
+          <Route path="/dashboard/variance" element={<AuthGuard><Variance /></AuthGuard>} />
           {/* NASDAQ-8 — public-company search surface. Reached from the
               DashboardPublicCompanyCard on the empty-state dashboard.
               /dashboard/public/:ticker (the per-company dashboard) lands

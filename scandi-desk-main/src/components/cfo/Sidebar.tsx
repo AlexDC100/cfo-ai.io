@@ -36,6 +36,7 @@ import {
   Receipt,
   Sparkles,
   SlidersHorizontal,
+  Scale,
   PanelLeftClose,
   PanelLeftOpen,
   MoreHorizontal,
@@ -113,6 +114,8 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analysis" },
   // F6.0.5 — Scenario planning / what-if. Always reachable (no registry gate).
   { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analysis" },
+  // F6.0.1b — Budget vs Actual vs Last-Year variance.
+  { to: "/dashboard/variance", labelKey: "sidebar.variance", icon: Scale, testId: "sidebar-variance", group: "analysis" },
   { to: "/inventory",  labelKey: "sidebar.inventory",  icon: Boxes,           testId: "sidebar-inventory",  group: "analysis", featureKey: "inventory" },
   { to: "/invoices",   labelKey: "sidebar.invoices",   icon: Receipt,         testId: "sidebar-invoices",   group: "analysis", featureKey: "invoices" },
   { to: "/decisions",  labelKey: "sidebar.decisions",  icon: ClipboardCheck,  testId: "sidebar-decisions",  group: "analysis" },
