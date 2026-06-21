@@ -100,6 +100,7 @@ import {
   FileText,
   Info,
   Loader2,
+  Scale,
   Shield,
   Sparkles,
   TrendingUp,
@@ -200,7 +201,7 @@ export default function FinancialStatements() {
   // F6.0.1c — a PowerPoint/CSV/XLSX budget deck dropped on the MAIN upload
   // is a budget, not a trial balance; intercept it (see onFileChosen) and
   // route it to the Budget vs Actual variance store instead of the engine.
-  const { save: saveBudgetDeck } = useBudgetComparison();
+  const { uploaded: budgetDeck, save: saveBudgetDeck } = useBudgetComparison();
   // Pricing V3 — wraps enqueuePipeline so 402 (extra-doc) opens the
   // confirm dialog, 429 (quota blocked) surfaces a toast, and queued
   // proceeds normally. `uploadEnqueue.dialog` is rendered in JSX
@@ -1107,6 +1108,40 @@ export default function FinancialStatements() {
             </div>
           );
         })()}
+
+        {/* F6.0.1d — Budget vs Actual entry point.
+            The variance report is no longer a standalone sidebar item — it
+            lives on the dashboard (drop a budget deck on /dashboard and you
+            land on the report). When a budget deck is loaded, surface a
+            discoverable link back to the report so it stays one click away.
+            Renders only while a budget is in the store, so it never shows the
+            usually-empty state the removed nav item used to. */}
+        {hasPeriodLoaded && budgetDeck && (
+          <button
+            type="button"
+            data-testid="dashboard-variance-link"
+            onClick={() => {
+              const p = searchParams.get("period");
+              navigate(`/dashboard/variance${p ? `?period=${encodeURIComponent(p)}` : ""}`);
+            }}
+            className="
+              group w-full mb-6 flex items-center gap-3
+              rounded-xl border border-rule bg-surface px-4 py-3 text-left
+              hover:border-brand/40 hover:bg-bg-2/40 transition-colors
+            "
+          >
+            <span className="grid place-items-center h-9 w-9 rounded-lg bg-[hsl(165,75%,55%)]/[0.12] text-[hsl(165,80%,34%)] shrink-0">
+              <Scale className="w-4 h-4" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[13px] font-semibold text-ink">Budget vs Actual</span>
+              <span className="block text-[11.5px] text-ink-mute truncate">
+                A budget deck is loaded — open the report to see every P&amp;L line vs budget and last year.
+              </span>
+            </span>
+            <ArrowRight className="w-4 h-4 text-ink-mute group-hover:text-ink group-hover:translate-x-0.5 transition-transform shrink-0" />
+          </button>
+        )}
 
         {/* Second KPI row — invoice analytics (when invoices loaded). */}
         {hasPeriodLoaded && invoices && invoices.length > 0 && <InvoiceKpiStrip invoices={invoices} />}
