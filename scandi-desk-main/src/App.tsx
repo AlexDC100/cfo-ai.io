@@ -72,6 +72,8 @@ import NotFound from "./pages/NotFound";
 const Dashboard = lazy(() => import("./pages/cfo/FinancialStatements"));
 const Decisions = lazy(() => import("./pages/cfo/Decisions"));
 const Products = lazy(() => import("./pages/cfo/Products"));
+// F6.0.5 — Scenario planning / what-if (/dashboard/scenarios).
+const Scenarios = lazy(() => import("./pages/cfo/Scenarios"));
 const Alerts = lazy(() => import("./pages/cfo/Alerts"));
 const Settings = lazy(() => import("./pages/cfo/Settings"));
 const BenchmarkReport = lazy(() => import("./pages/cfo/BenchmarkReport"));
@@ -261,6 +263,10 @@ function AppRoutes() {
           {/* Authenticated app — gated by AuthGuard. Visiting any of these
               paths without sign-in OR demo-mode redirects to "/". */}
           <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
+          {/* F6.0.5 — Scenario planning / what-if. Cascades the live period
+              through revenue/cost/working-capital levers and shows the impact
+              on leverage + covenants. AuthGuard like the rest of the app. */}
+          <Route path="/dashboard/scenarios" element={<AuthGuard><Scenarios /></AuthGuard>} />
           {/* NASDAQ-8 — public-company search surface. Reached from the
               DashboardPublicCompanyCard on the empty-state dashboard.
               /dashboard/public/:ticker (the per-company dashboard) lands

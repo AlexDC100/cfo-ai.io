@@ -126,37 +126,48 @@ export function computeMetric(
       const debt = num(state.totalDebt);
       const cash = num(state.cash);
       const ebitda = num(state.ebitda);
-      if (ebitda === 0) return null;
-      return (debt - cash) / ebitda;
+      const netDebt = debt - cash;
+      // Review #7: when EBITDA ≤ 0 there are NO earnings to service debt.
+      // Naively dividing gives a NEGATIVE ratio that reads (and tests) as
+      // "leverage improved / covenant passes" — the worst-case scenario
+      // disguised as the safest. Represent it as +Infinity (worst) when
+      // there's net debt, 0 when net cash. +Infinity correctly trips any
+      // "≤ X" covenant as a breach.
+      if (ebitda <= 0) return netDebt > 0 ? Number.POSITIVE_INFINITY : 0;
+      return netDebt / ebitda;
     }
     case "ebitda_to_interest": {
-      // ReportingMetrics doesn't carry interestExpense; using
-      // netFinancialResult magnitude as a proxy. Negative
-      // netFinancialResult typically equals -interest paid; magnitude
-      // is the right denominator. If both are zero, return null.
+      // ReportingMetrics doesn't carry interestExpense; netFinancialResult
+      // is the SIGNED net (income − expense). Review #5: only a net financial
+      // EXPENSE (netFin < 0) is an interest burden. Net financial INCOME
+      // (netFin ≥ 0) means there's no net interest to cover — return null
+      // (uncomputable → warning) rather than fabricating a burden out of
+      // income via Math.abs (which produced false breaches).
       const ebitda = num(state.ebitda);
       const netFin = num(state.netFinancialResult);
-      const interestProxy = Math.abs(netFin);
-      if (interestProxy === 0) return null;
-      return ebitda / interestProxy;
+      if (netFin >= 0) return null;
+      return ebitda / -netFin;
     }
     case "current_ratio": {
       const ca = num(state.currentAssets);
       const cl = num(state.currentLiabilities);
-      if (cl === 0) return null;
+      if (cl <= 0) return null;
       return ca / cl;
     }
     case "quick_ratio": {
       const cash = num(state.cash);
       const ar = num(state.receivables);
       const cl = num(state.currentLiabilities);
-      if (cl === 0) return null;
+      if (cl <= 0) return null;
       return (cash + ar) / cl;
     }
     case "debt_to_equity": {
       const debt = num(state.totalDebt);
       const equity = num(state.shareholdersEquity);
-      if (equity === 0) return null;
+      // Review #7 (same class): negative equity (losses wiped it out) flips
+      // the ratio sign and reads as "deleveraged". +Infinity when there's
+      // debt against non-positive equity is the honest worst case.
+      if (equity <= 0) return debt > 0 ? Number.POSITIVE_INFINITY : 0;
       return debt / equity;
     }
   }

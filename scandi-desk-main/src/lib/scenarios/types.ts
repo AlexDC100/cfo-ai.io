@@ -28,13 +28,15 @@ import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
  *  the cascade engine has a `applyDriverAdjustment` switch that handles
  *  each one. Adding a new driver = add the key here + the case in
  *  cascade.ts. */
+// NOTE (F6.0.5 review #6): `ebitda_margin` and `net_margin` drivers were
+// removed — cascadePnL unconditionally re-derives EBITDA and net profit from
+// primitives, so setting them was a silent no-op. They can return once
+// cascadePnL learns to honour a margin override via a balancing P&L line.
 export type DriverKey =
   | "dio_days"
   | "dso_days"
   | "dpo_days"
   | "gross_margin"
-  | "ebitda_margin"
-  | "net_margin"
   | "effective_tax_rate"
   | "capex_pct_revenue"
   | "da_pct_revenue";

@@ -76,12 +76,32 @@ export function applyCascade(
 
   const sorted = sortAdjustmentsByDependency(adjustments);
 
+  // The effective-tax-rate driver is special: tax must be charged on the
+  // CASCADED EBIT, which only exists after cascadePnL. Applying it in the
+  // per-adjustment loop would tax the STALE baseline EBIT (review #4). So
+  // we intercept the rate here and hand it to cascadePnL, which recomputes
+  // EBIT first and then charges tax on it.
+  let taxRateOverride: number | null = null;
+
   let state = initial;
   for (const adj of sorted) {
+    if (
+      adj.target.type === "driver" &&
+      adj.target.driverKey === "effective_tax_rate"
+    ) {
+      const dv =
+        adj.operation.type === "set_driver"
+          ? adj.operation.driverValue
+          : adj.operation.type === "set_value"
+            ? adj.operation.value
+            : null;
+      if (dv !== null) taxRateOverride = dv;
+      continue;
+    }
     state = applySingleAdjustment(state, adj);
   }
 
-  state = cascadePnL(state);
+  state = cascadePnL(state, taxRateOverride);
   state = cascadeBalanceSheet(state, baseline);
   state = cascadeCashFlow(state, baseline);
   state = recomputeRatios(state);
@@ -180,24 +200,13 @@ function applyDriverAdjustment(
       const rev = num(state.revenue);
       return { ...state, cogs: rev * (1 - driverValue) };
     }
-    case "ebitda_margin": {
-      // ebitda_margin = ebitda / revenue  →  ebitda = revenue × em
-      const rev = num(state.revenue);
-      return { ...state, ebitda: rev * driverValue };
-    }
-    case "net_margin": {
-      // net_margin = netProfit / revenue  →  netProfit = revenue × nm
-      const rev = num(state.revenue);
-      return { ...state, netProfit: rev * driverValue };
-    }
-    case "effective_tax_rate": {
-      // tax = EBIT × rate (assumes tax base is EBIT; close enough for
-      // scenarios). Negative EBIT → tax floors at 0; we follow the same
-      // sign convention as the engine (no tax credit on losses).
-      const ebit = num(state.ebit);
-      const rawTax = ebit * driverValue;
-      return { ...state, incomeTax: rawTax > 0 ? rawTax : 0 };
-    }
+    // NOTE (review #4): effective_tax_rate is NOT handled here. It is
+    // intercepted in applyCascade and applied inside cascadePnL against the
+    // recomputed EBIT, so charging it here (off the stale EBIT) is wrong.
+    // ebitda_margin / net_margin drivers were removed (review #6): they wrote
+    // fields cascadePnL unconditionally re-derives, so they were silent
+    // no-ops. They can return when cascadePnL learns to honour a margin
+    // override via a balancing P&L line.
     case "capex_pct_revenue": {
       // capex = revenue × pct
       const rev = num(state.revenue);
@@ -223,12 +232,19 @@ function applyDriverAdjustment(
         amortization: totalDA * (1 - depRatio),
       };
     }
+    default:
+      // effective_tax_rate is intercepted in applyCascade and never reaches
+      // here; any unrecognised driver is a safe no-op.
+      return state;
   }
 }
 
 // ─── P&L cascade ───────────────────────────────────────────────────────
 
-function cascadePnL(state: CascadeState): CascadeState {
+function cascadePnL(
+  state: CascadeState,
+  taxRateOverride: number | null = null,
+): CascadeState {
   const revenue = num(state.revenue);
   const cogs = num(state.cogs);
   const opex = num(state.opex);
@@ -242,10 +258,14 @@ function cascadePnL(state: CascadeState): CascadeState {
   const ebit = grossProfit - opex;
   const ebitda = ebit + depreciation + amortization;
   const pretaxProfit = ebit - interestExpense + netFinancialResult;
-  // If incomeTax was set by an effective_tax_rate driver, respect it;
-  // otherwise reuse the baseline tax (already in state from
-  // structuredClone). The driver case sets state.incomeTax directly.
-  const incomeTax = num(state.incomeTax);
+  // Tax: if an effective_tax_rate driver was set, charge it on the FRESHLY
+  // recomputed EBIT (review #4 — never on the stale baseline EBIT). No tax
+  // credit on a loss (floor at 0), matching the engine convention. Without
+  // a rate driver, reuse the baseline tax plug already on state.
+  const incomeTax =
+    taxRateOverride !== null
+      ? Math.max(0, ebit * taxRateOverride)
+      : num(state.incomeTax);
   const netProfit = pretaxProfit - incomeTax;
 
   return {
@@ -264,63 +284,72 @@ function cascadeBalanceSheet(
   state: CascadeState,
   baseline: CascadeState,
 ): CascadeState {
-  const baselineNetProfit = num(baseline.netProfit);
-  const newNetProfit = num(state.netProfit);
-  const niDelta = newNetProfit - baselineNetProfit;
-
-  // Retained earnings flow: net income delta accumulates into equity
-  // (assume zero dividend payout for Phase 1; F6.0.5b adds dividend
-  // policy adjustments).
-  const baselineEquity = num(baseline.shareholdersEquity);
-  const newEquity = baselineEquity + niDelta;
-
-  // Working capital recompute from (possibly adjusted) AR + Inv − AP
-  const ar = num(state.receivables);
-  const inv = num(state.inventory);
-  const ap = num(state.accountsPayable);
-  const newCurrentAssetsExcludingCash = ar + inv;
-
-  // Balance the sheet via cash as the plug. Approach:
-  //   New total assets = newCurrentAssetsExcludingCash + cash + nonCurrentAssets
-  //   New total L + E = totalDebt + currentLiabilities + newEquity
-  //   Set cash so that A = L + E.
+  // INCREMENTAL model (F6.0.5, 2026-06-20). Everything is expressed as a
+  // DELTA from the baseline balance sheet, which guarantees two invariants
+  // the previous full-reconstruction plug violated:
   //
-  // For non-current assets we use the baseline PPE less any capex delta;
-  // capex change shows up as a use of cash (CFI) but PPE on the balance
-  // sheet increases by the same amount (net of D&A, which is already in
-  // P&L). For Phase 1 we use baseline non-current as the constant
-  // (no capex-driven PPE change) — this keeps the scenario internally
-  // consistent without requiring a separate Capex policy block.
-  const nonCurrentAssets =
-    num(baseline.totalAssets) -
+  //   1. CONTINUITY — when no driver moves a balance-sheet input, every
+  //      delta is 0, so cash / equity / current liabilities / total assets
+  //      come back BYTE-IDENTICAL to the baseline. (The old code re-derived
+  //      the sheet from a partial liability set and silently dropped any
+  //      non-current liability that wasn't long-term DEBT — provisions,
+  //      deferred grants — so cash jumped the instant any slider moved,
+  //      making leverage discontinuous at the baseline. That destroyed
+  //      trust in small scenarios.)
+  //   2. BALANCE — A = L + E holds by construction (cash is solved as the
+  //      residual of an identity, not re-plugged from scratch).
+  //
+  // Deltas that move cash (indirect cash-flow identity, D&A cancels in the
+  // delta because it's unchanged unless a D&A driver moves it — none in the
+  // Phase-1 lever set):
+  //   Δcash = ΔNetIncome − (ΔAR + ΔInv − ΔAP) − ΔCapex + ΔDebt
+  // CapEx also reclassifies cash → PPE (non-current assets rise by ΔCapex),
+  // so total assets are unchanged by capex alone — only its financing
+  // (the cash leg) bites.
+  const niDelta = num(state.netProfit) - num(baseline.netProfit);
+  const dAR = num(state.receivables) - num(baseline.receivables);
+  const dInv = num(state.inventory) - num(baseline.inventory);
+  const dAP = num(state.accountsPayable) - num(baseline.accountsPayable);
+  const dCapex = num(state.capex) - num(baseline.capex);
+  const dDebt = num(state.totalDebt) - num(baseline.totalDebt);
+
+  // Retained earnings: net-income delta accrues to equity (zero dividend
+  // payout for Phase 1; a dividend-policy lever comes later).
+  const equityNew = num(baseline.shareholdersEquity) + niDelta;
+
+  const cashNew =
+    num(baseline.cash) + niDelta - (dAR + dInv - dAP) - dCapex + dDebt;
+
+  // Current assets other than the three the levers can move (cash, AR, inv)
+  // — prepayments, other current — are held at their baseline level.
+  const otherCurrentAssets =
+    num(baseline.currentAssets) -
     num(baseline.cash) -
     num(baseline.receivables) -
     num(baseline.inventory);
+  const currentAssetsNew =
+    cashNew + num(state.receivables) + num(state.inventory) + otherCurrentAssets;
 
-  const totalDebt = num(state.totalDebt);
-  const currentLiabilitiesExcludingAP = Math.max(
-    num(state.currentLiabilities) - num(baseline.accountsPayable),
-    0,
-  );
-  const newCurrentLiabilities = currentLiabilitiesExcludingAP + ap;
-  const nonCurrentLiabilities = totalDebt - num(baseline.shortTermDebt);
-  const totalLiabilities =
-    newCurrentLiabilities + Math.max(nonCurrentLiabilities, 0);
+  // Non-current assets = baseline non-current + capex additions.
+  const nonCurrentAssetsNew =
+    num(baseline.totalAssets) - num(baseline.currentAssets) + dCapex;
 
-  const totalLE = totalLiabilities + newEquity;
-  const newCash = totalLE - nonCurrentAssets - newCurrentAssetsExcludingCash;
+  const totalAssetsNew = currentAssetsNew + nonCurrentAssetsNew;
 
-  const newCurrentAssets = newCash + ar + inv;
-  const newTotalAssets = newCurrentAssets + nonCurrentAssets;
+  // Only AP moves among current liabilities (the lever set has no other
+  // current-liability driver); everything else holds at baseline.
+  const currentLiabilitiesNew = num(baseline.currentLiabilities) + dAP;
 
   return {
     ...state,
-    cash: newCash,
-    currentAssets: newCurrentAssets,
-    currentLiabilities: newCurrentLiabilities,
-    totalAssets: newTotalAssets,
-    totalEquityAndLiab: totalLE,
-    shareholdersEquity: newEquity,
+    cash: cashNew,
+    currentAssets: currentAssetsNew,
+    nonCurrentAssets: nonCurrentAssetsNew,
+    currentLiabilities: currentLiabilitiesNew,
+    totalAssets: totalAssetsNew,
+    // A = L + E by construction (cash solved as the identity residual).
+    totalEquityAndLiab: totalAssetsNew,
+    shareholdersEquity: equityNew,
   };
 }
 
@@ -419,8 +448,6 @@ export function sortAdjustmentsByDependency(
     "concept:amortization": 7,
     "driver:da_pct_revenue": 7,
     "driver:effective_tax_rate": 8,
-    "driver:ebitda_margin": 9,
-    "driver:net_margin": 9,
   };
 
   return [...adjustments].sort((a, b) => {

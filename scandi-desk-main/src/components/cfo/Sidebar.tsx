@@ -35,6 +35,7 @@ import {
   Boxes,
   Receipt,
   Sparkles,
+  SlidersHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   MoreHorizontal,
@@ -110,6 +111,8 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   // Analysis — datasets + comparative lenses + actionable lists.
   { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analysis" },
   { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analysis" },
+  // F6.0.5 — Scenario planning / what-if. Always reachable (no registry gate).
+  { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analysis" },
   { to: "/inventory",  labelKey: "sidebar.inventory",  icon: Boxes,           testId: "sidebar-inventory",  group: "analysis", featureKey: "inventory" },
   { to: "/invoices",   labelKey: "sidebar.invoices",   icon: Receipt,         testId: "sidebar-invoices",   group: "analysis", featureKey: "invoices" },
   { to: "/decisions",  labelKey: "sidebar.decisions",  icon: ClipboardCheck,  testId: "sidebar-decisions",  group: "analysis" },
