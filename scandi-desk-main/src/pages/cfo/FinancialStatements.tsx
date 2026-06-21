@@ -20,7 +20,9 @@
 //   • Excel workbook (downloadExcelReport) — 8-sheet xlsx model
 
 import { useMemo, useState, useRef, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useBudgetComparison } from "@/stores/budget";
+import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
 import { Money } from "@/components/ui/Money";
@@ -190,6 +192,11 @@ export default function FinancialStatements() {
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  // F6.0.1c — a PowerPoint/CSV/XLSX budget deck dropped on the MAIN upload
+  // is a budget, not a trial balance; intercept it (see onFileChosen) and
+  // route it to the Budget vs Actual variance store instead of the engine.
+  const { save: saveBudgetDeck } = useBudgetComparison();
   // Pricing V3 — wraps enqueuePipeline so 402 (extra-doc) opens the
   // confirm dialog, 429 (quota blocked) surfaces a toast, and queued
   // proceeds normally. `uploadEnqueue.dialog` is rendered in JSX
@@ -557,6 +564,30 @@ export default function FinancialStatements() {
   }, [hasPeriodLoaded, uploadInFlight?.status]);
 
   async function onFileChosen(file: File) {
+    // F6.0.1c — Budget-deck interception. A PowerPoint / budget workbook is
+    // NOT a trial balance and must not go to the engine extraction pipeline.
+    // Parse it client-side into the Budget vs Actual store and route there.
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".pptx") || lower.endsWith(".ppt")) {
+      try {
+        const ds = await parseBudgetFile(file);
+        saveBudgetDeck(ds);
+        const n = Object.keys(ds.budget).length;
+        toast({
+          title: "Budget deck loaded",
+          description: `${n} P&L line${n === 1 ? "" : "s"} from ${file.name} — opening Budget vs Actual.`,
+        });
+        navigate("/dashboard/variance");
+      } catch (e) {
+        toast({
+          title: "Couldn't read that budget deck",
+          description: e instanceof Error ? e.message : "Unknown parse error.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     setUploadName(file.name);
     const MAX_BYTES = 25 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
@@ -756,7 +787,7 @@ export default function FinancialStatements() {
       <input
         ref={fileRef}
         type="file"
-        accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif"
+        accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif,.pptx,.ppt,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
