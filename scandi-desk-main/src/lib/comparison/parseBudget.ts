@@ -187,6 +187,12 @@ export async function parseBudgetFile(file: File): Promise<ComparisonDataset> {
   const name = file.name;
   const label = name.replace(/\.[^.]+$/, "");
   const lower = name.toLowerCase();
+  if (lower.endsWith(".pptx") || lower.endsWith(".ppt")) {
+    // Dynamic import keeps the (heavier) pptx + unzip path out of the main
+    // chunk and avoids a static import cycle (parsePptxBudget → parseNumber).
+    const { parsePptxBudget } = await import("./parsePptxBudget");
+    return parsePptxBudget(file);
+  }
   if (lower.endsWith(".csv") || lower.endsWith(".txt")) {
     const text = await file.text();
     return rowsToDataset(parseCsv(text), label);

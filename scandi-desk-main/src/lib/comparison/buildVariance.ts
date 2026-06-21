@@ -9,6 +9,8 @@
 
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
 import type { DashboardCanonical } from "@/lib/scenarios/dashboardCanon";
+import { convertFromTo } from "@/lib/money";
+import type { Currency, Rates } from "@/lib/rates";
 import {
   delta,
   type Delta,
@@ -20,6 +22,41 @@ import {
   type ComparisonDataset,
   type VarianceLineKey,
 } from "./types";
+
+const VALID_CURRENCIES: readonly string[] = ["RON", "EUR", "USD"];
+
+/**
+ * Convert a comparison dataset's budget + last-year amounts INTO the period's
+ * currency so the variance deltas don't mix currencies (e.g. an uploaded
+ * EUR'000 budget deck on a RON workspace). Safe no-op when currencies match,
+ * the dataset has no currency, or either currency is unknown.
+ */
+export function normalizeDatasetCurrency(
+  ds: ComparisonDataset,
+  toCurrency: string,
+  rates: Rates,
+): { dataset: ComparisonDataset; convertedFrom: string | null } {
+  const from = ds.currency;
+  if (
+    !from ||
+    from === toCurrency ||
+    !VALID_CURRENCIES.includes(from) ||
+    !VALID_CURRENCIES.includes(toCurrency)
+  ) {
+    return { dataset: ds, convertedFrom: null };
+  }
+  const conv = (m: Partial<Record<VarianceLineKey, number>>) => {
+    const out: Partial<Record<VarianceLineKey, number>> = {};
+    for (const [k, v] of Object.entries(m) as [VarianceLineKey, number][]) {
+      out[k] = convertFromTo(v, from as Currency, toCurrency as Currency, rates);
+    }
+    return out;
+  };
+  return {
+    dataset: { ...ds, budget: conv(ds.budget), lastYear: conv(ds.lastYear), currency: toCurrency },
+    convertedFrom: from,
+  };
+}
 
 function num(v: number | null | undefined): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;

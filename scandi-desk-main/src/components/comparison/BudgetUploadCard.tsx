@@ -106,7 +106,7 @@ export function BudgetUploadCard({ uploaded, isDemo, onSave, onClear }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,.xlsx,.xls,.txt"
+          accept=".csv,.xlsx,.xls,.txt,.pptx,.ppt"
           className="hidden"
           data-testid="budget-file-input"
           onChange={(e) => {
@@ -138,7 +138,7 @@ export function BudgetUploadCard({ uploaded, isDemo, onSave, onClear }: Props) {
         </button>
         <span className="inline-flex items-center gap-1 text-[11px] text-ink-mute">
           <FileSpreadsheet className="w-3 h-3" />
-          .csv or .xlsx
+          .csv, .xlsx or .pptx budget deck
         </span>
       </div>
     </div>

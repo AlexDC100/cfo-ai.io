@@ -15,7 +15,8 @@ import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { isPublicTestMode } from "@/lib/testMode";
 import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetrics";
 import { buildDashboardCanonical } from "@/lib/scenarios/dashboardCanon";
-import { buildActualLines, buildVarianceRows } from "@/lib/comparison/buildVariance";
+import { buildActualLines, buildVarianceRows, normalizeDatasetCurrency } from "@/lib/comparison/buildVariance";
+import { useRates } from "@/stores/currency";
 import { buildDemoComparison } from "@/lib/comparison/demoSeed";
 import { useBudgetComparison } from "@/stores/budget";
 import { KpiVarianceStrip } from "@/components/comparison/KpiVarianceStrip";
@@ -23,6 +24,7 @@ import { VarianceTable, type VarianceView } from "@/components/comparison/Varian
 import { BudgetUploadCard } from "@/components/comparison/BudgetUploadCard";
 import type { Statements } from "@/lib/financialReport";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
+import type { ComparisonDataset } from "@/lib/comparison/types";
 import { cn } from "@/lib/utils";
 
 const VIEWS: { key: VarianceView; label: string }[] = [
@@ -54,13 +56,22 @@ function VarianceInner({
 
   // Effective comparison: an upload always wins; otherwise the test workspace
   // shows a labeled demo; a real workspace with no upload shows none.
-  const dataset = useMemo(() => {
+  const rawDataset = useMemo(() => {
     if (uploaded) return uploaded;
     if (isPublicTestMode) return buildDemoComparison(actualLines);
     return null;
   }, [uploaded, actualLines]);
 
-  const isDemo = !uploaded && dataset?.source === "demo";
+  // Normalize the budget/LY into the period's currency (e.g. an EUR'000
+  // budget deck on a RON workspace) so deltas don't mix currencies.
+  const ratesPayload = useRates();
+  const { dataset, convertedFrom } = useMemo(() => {
+    if (!rawDataset)
+      return { dataset: null as ComparisonDataset | null, convertedFrom: null as string | null };
+    return normalizeDatasetCurrency(rawDataset, currency, ratesPayload.rates);
+  }, [rawDataset, currency, ratesPayload.rates]);
+
+  const isDemo = !uploaded && rawDataset?.source === "demo";
   const rows = useMemo(() => buildVarianceRows(actualLines, dataset), [actualLines, dataset]);
   const hasBudget = !!dataset && Object.keys(dataset.budget).length > 0;
   const hasLastYear = !!dataset && Object.keys(dataset.lastYear).length > 0;
@@ -120,6 +131,13 @@ function VarianceInner({
       {!hasBudget && !hasLastYear && (
         <p className="text-[12px] text-ink-mute px-1">
           Showing Actuals only. Upload a budget above to see the variance columns fill in.
+        </p>
+      )}
+
+      {convertedFrom && (
+        <p className="text-[11px] text-ink-mute px-1 italic" data-testid="variance-fx-note">
+          Budget converted from {convertedFrom} to {currency} at the current FX rate so the
+          comparison is in one currency.
         </p>
       )}
 
