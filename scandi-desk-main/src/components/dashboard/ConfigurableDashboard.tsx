@@ -31,19 +31,24 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Plus, Pencil, Check, RotateCcw, Cloud, Smartphone } from "lucide-react";
+import { Plus, Pencil, Check, RotateCcw, Cloud, Smartphone, Activity, BarChart2 } from "lucide-react";
 import { useDashboard } from "@/stores/dashboard";
+import { useDashboardView } from "@/stores/dashboardView";
 import { MetricCard } from "./MetricCard";
 import { ConceptPicker } from "./ConceptPicker";
 import { cn } from "@/lib/utils";
+import type { MultiYearSeries } from "@/lib/learning/multiPeriodSeries";
 
 interface Props {
   /** Canonical value overrides keyed by conceptKey — engine-routed
    *  numbers for the legacy tiles so they stay byte-identical. */
   overrides?: Record<string, number | null | undefined>;
+  /** F6.1 — multi-year series for the active period; drives the Trend view.
+   *  When it carries <2 years the Snapshot/Trend toggle is disabled. */
+  series?: MultiYearSeries;
 }
 
-export function ConfigurableDashboard({ overrides }: Props) {
+export function ConfigurableDashboard({ overrides, series }: Props) {
   const {
     cards,
     isCustomized,
@@ -53,9 +58,16 @@ export function ConfigurableDashboard({ overrides }: Props) {
     reorderCards,
     resetToDefault,
   } = useDashboard();
+  const { view, setView } = useDashboardView();
 
   const [editMode, setEditMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Trend is only meaningful with ≥2 years of history. When the active period
+  // has none (e.g. a single backend trial balance), the toggle is disabled and
+  // we force snapshot rendering regardless of the stored preference.
+  const trendAvailable = (series?.available ?? 0) >= 2;
+  const effectiveView = trendAvailable ? view : "snapshot";
 
   const sensors = useSensors(
     // Distance activation — a drag only begins after the pointer moves
@@ -86,16 +98,57 @@ export function ConfigurableDashboard({ overrides }: Props) {
     <section data-testid="configurable-dashboard" className="mb-3">
       {/* Control row */}
       <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 text-[11px] text-ink-mute">
-          {syncSource === "account" ? (
-            <span className="inline-flex items-center gap-1" title="Layout synced to your account">
-              <Cloud className="w-3 h-3" /> Synced to your account
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1" title="Layout saved on this device">
-              <Smartphone className="w-3 h-3" /> Saved on this device
-            </span>
-          )}
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* F6.1 — Snapshot ↔ Trend toggle. Disabled (with explanatory
+              tooltip) when the active period lacks multi-year history, so the
+              affordance is discoverable but never misleading. */}
+          <div
+            className={cn(
+              "flex items-center gap-0.5 rounded-lg border border-rule bg-surface p-0.5",
+              !trendAvailable && "opacity-50",
+            )}
+            data-testid="dashboard-view-toggle"
+            title={
+              trendAvailable
+                ? "Switch between this period and the multi-year trend"
+                : "Trend needs at least two years of history for this company"
+            }
+          >
+            {([
+              { key: "snapshot", label: "Snapshot", Icon: BarChart2 },
+              { key: "trend", label: "Trend", Icon: Activity },
+            ] as const).map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                disabled={!trendAvailable && key === "trend"}
+                onClick={() => setView(key)}
+                data-testid={`dashboard-view-${key}`}
+                aria-pressed={effectiveView === key}
+                className={cn(
+                  "inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-medium transition-colors",
+                  effectiveView === key
+                    ? "bg-[hsl(165,75%,55%)]/[0.14] text-[hsl(165,80%,34%)]"
+                    : "text-ink-mute hover:text-ink",
+                  !trendAvailable && key === "trend" && "cursor-not-allowed hover:text-ink-mute",
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-ink-mute">
+            {syncSource === "account" ? (
+              <span className="inline-flex items-center gap-1" title="Layout synced to your account">
+                <Cloud className="w-3 h-3" /> Synced
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1" title="Layout saved on this device">
+                <Smartphone className="w-3 h-3" /> On this device
+              </span>
+            )}
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           {editMode && isCustomized && (
@@ -168,6 +221,8 @@ export function ConfigurableDashboard({ overrides }: Props) {
                 card={card}
                 editMode={editMode}
                 overrides={overrides}
+                series={series}
+                view={effectiveView}
               />
             ))}
           </div>

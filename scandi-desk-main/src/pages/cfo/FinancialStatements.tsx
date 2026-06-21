@@ -38,6 +38,10 @@ import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
 import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetrics";
 import { ConfigurableDashboard } from "@/components/dashboard/ConfigurableDashboard";
 import { DashboardProvider } from "@/stores/dashboard";
+import { DashboardViewProvider } from "@/stores/dashboardView";
+import { DemoBanner } from "@/components/dashboard/DemoBanner";
+import { buildMultiYearSeries } from "@/lib/learning/multiPeriodSeries";
+import { DEMO_SAMPLE_ID } from "@/lib/demo/demoCompany";
 import type { Currency } from "@/lib/rates";
 // First-class Public Company Intelligence module on the empty-state dashboard.
 // Renders as a full premium module card (same weight as Trial Balances)
@@ -309,6 +313,12 @@ export default function FinancialStatements() {
   // Statements-derived metrics — only computed when statements is non-null,
   // otherwise the tabs that need them aren't visible anyway.
   const totals = useMemo(() => (statements ? deriveTotals(statements) : null), [statements]);
+  // F6.1 — Multi-year series (oldest → newest) built once from the active
+  // period's historicalPeriods. Drives the dashboard Trend view; empty
+  // (available=0/1) for single-period uploads, which keeps the Trend toggle
+  // disabled. The demo company carries five years so Trend lights up.
+  const multiYearSeries = useMemo(() => buildMultiYearSeries(statements), [statements]);
+  const isDemoPeriod = remotePeriod.source === "sample" && remotePeriod.id === DEMO_SAMPLE_ID;
   // F1.e — Engine-canonical margin pair used by the Ratios tab Profitability
   // section so EBITDA margin / Net margin agree with the dashboard tile and
   // the P&L Key Margins block. Falls back to FE arithmetic when the engine
@@ -1047,6 +1057,14 @@ export default function FinancialStatements() {
                 : null;
           return (
             <div title={sourceTooltip ?? undefined}>
+              {/* F6.1 — Demo banner: only when the active period is the
+                  fictional Meridian demo (public/marketing surface). "Upload
+                  yours" opens the same file picker; a real upload replaces
+                  the demo. Renders nothing once the visitor has their own
+                  data loaded. */}
+              {isDemoPeriod && (
+                <DemoBanner onUpload={() => fileRef.current?.click()} />
+              )}
               {/* F6.0.4 (2026-06-20) — Configurable dashboard.
                   Replaces the legacy fixed 4-tile KPI strip with a
                   user-configurable card grid. The first four default
@@ -1056,16 +1074,21 @@ export default function FinancialStatements() {
                   engine-routed EBITDA + net-profit numbers, not the raw
                   snapshot. Additional cards the user adds resolve from
                   the ReportingMetrics snapshot. Wrapped in
-                  DashboardProvider for the per-user layout store. */}
+                  DashboardProvider for the per-user layout store.
+                  F6.1 — DashboardViewProvider adds the Snapshot/Trend
+                  toggle; `series` feeds the per-card sparklines. */}
               <DashboardProvider>
-                <ConfigurableDashboard
-                  overrides={{
-                    operating_revenue: totalOperatingRevenue,
-                    ebitda: tileEbitdaRon,
-                    net_profit: tileNetProfitRon,
-                    total_debt: totals.totalDebt,
-                  }}
-                />
+                <DashboardViewProvider>
+                  <ConfigurableDashboard
+                    overrides={{
+                      operating_revenue: totalOperatingRevenue,
+                      ebitda: tileEbitdaRon,
+                      net_profit: tileNetProfitRon,
+                      total_debt: totals.totalDebt,
+                    }}
+                    series={multiYearSeries}
+                  />
+                </DashboardViewProvider>
               </DashboardProvider>
               {/* Source badge — visible label so users understand why two
                   periods of the same company might carry slightly

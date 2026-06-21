@@ -11,6 +11,14 @@ export interface DemoPeriodMeta {
   label: string;
 }
 
+/** Stable, non-UUID period id under which the demo company is registered in
+ *  SAMPLE_DATASETS. A bare-URL public/marketing visitor is defaulted to
+ *  `?period=demo-meridian` (see useActivePeriodFallback); a real upload
+ *  navigates to `?period=<uuid>` which wins, so the demo vanishes the moment
+ *  the visitor uploads their own trial balance. Must NOT match the UUID shape
+ *  so `useActivePeriod` routes it through `resolveSample` rather than the API. */
+export const DEMO_SAMPLE_ID = "demo-meridian";
+
 export const DEMO_COMPANY = {
   name: "Meridian Industries SRL",
   industry: "Food & Beverage Manufacturing",

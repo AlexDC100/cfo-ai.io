@@ -31,6 +31,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { getSupabase } from "@/lib/supabase";
 import { SITE } from "@/config/site";
+import { isPublicTestMode } from "@/lib/testMode";
+import { DEMO_SAMPLE_ID } from "@/lib/demo/demoCompany";
 
 type ResolutionStatus = "ready" | "resolving" | "none";
 
@@ -71,6 +73,21 @@ export function useActivePeriodFallback(
     // User just deleted/reset a period — show empty state, don't auto-resolve.
     if (emptyFlag) {
       setStatus("none");
+      return;
+    }
+    // F6.1 — Public/marketing surface: greet a bare-URL visitor with the
+    // Meridian demo period (5-year history → the Trend view + multi-year
+    // surfaces have data to show). This deliberately bypasses the backend
+    // `active_period_id` lookup on the test surface. A real upload navigates
+    // to `?period=<uuid>`, which wins via the `periodId` guard above, so the
+    // demo is replaced the instant the visitor uploads their own data; a
+    // reset (`?empty=1`) still lands on the empty state via the guard above.
+    if (isPublicTestMode) {
+      const target = opts.basePath ?? window.location.pathname;
+      navigate(
+        `${target}?period=${DEMO_SAMPLE_ID}${window.location.hash || ""}`,
+        { replace: true },
+      );
       return;
     }
     let cancelled = false;
