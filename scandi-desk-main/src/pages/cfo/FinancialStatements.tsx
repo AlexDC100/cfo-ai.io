@@ -1111,15 +1111,17 @@ export default function FinancialStatements() {
 
         {/* F6.0.1d — Budget vs Actual entry point.
             The variance report is no longer a standalone sidebar item — it
-            lives on the dashboard (drop a budget deck on /dashboard and you
-            land on the report). When a budget deck is loaded, surface a
-            discoverable link back to the report so it stays one click away.
-            Renders only while a budget is in the store, so it never shows the
-            usually-empty state the removed nav item used to. */}
-        {hasPeriodLoaded && budgetDeck && (
+            lives on the dashboard. This entry is the discoverable doorway:
+            it shows for ANY loaded period (so a first-time user can find the
+            upload area), with copy that adapts to whether a budget is already
+            loaded. It routes to /dashboard/variance, where the dedicated
+            "Upload budget" button (.csv / .xlsx / .pptx) + Template download
+            live. (Dropping a .pptx on the dashboard also opens it directly.) */}
+        {hasPeriodLoaded && (
           <button
             type="button"
             data-testid="dashboard-variance-link"
+            data-budget-loaded={budgetDeck ? "true" : "false"}
             onClick={() => {
               const p = searchParams.get("period");
               navigate(`/dashboard/variance${p ? `?period=${encodeURIComponent(p)}` : ""}`);
@@ -1135,8 +1137,10 @@ export default function FinancialStatements() {
             </span>
             <span className="flex-1 min-w-0">
               <span className="block text-[13px] font-semibold text-ink">Budget vs Actual</span>
-              <span className="block text-[11.5px] text-ink-mute truncate">
-                A budget deck is loaded — open the report to see every P&amp;L line vs budget and last year.
+              <span className="block text-[11.5px] text-ink-mute leading-snug">
+                {budgetDeck
+                  ? "A budget is loaded — open the report to see every P&L line vs budget and last year."
+                  : "Upload a budget (.csv / .xlsx / .pptx) to compare every P&L line vs budget and last year."}
               </span>
             </span>
             <ArrowRight className="w-4 h-4 text-ink-mute group-hover:text-ink group-hover:translate-x-0.5 transition-transform shrink-0" />

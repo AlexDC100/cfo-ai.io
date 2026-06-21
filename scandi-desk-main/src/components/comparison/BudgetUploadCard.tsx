@@ -84,7 +84,7 @@ export function BudgetUploadCard({ uploaded, isDemo, onSave, onClear }: Props) {
               </span>
             ) : (
               <span data-testid="budget-source-none">
-                Upload a budget file to compare Actual vs Budget. Last year auto-fills from a prior uploaded period.
+                Upload a budget file to compare Actual vs Budget. Add a “Last year” column to the same file to also compare vs last year.
               </span>
             )}
           </div>
