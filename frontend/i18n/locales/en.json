@@ -479,6 +479,27 @@
         "ebitdaMargin": "EBITDA margin",
         "revenueGrowth": "Revenue growth YoY"
       }
+    },
+    "learn": {
+      "badge": "CFO AI Learn",
+      "headline": "Every number, traceable. Every formula, walkable.",
+      "subhead": "Most dashboards hand you a number and trust you to believe it. This one lets you tap any value and walk it back — definition, formula, then the actual trial-balance accounts behind it.",
+      "footnote": "108 concepts in the glossary today — RAS / GAAP cross-references, plain-English explanations, and per-industry benchmarks. Press Cmd-K inside the app to search them all.",
+      "layer1": {
+        "label": "Definition",
+        "title": "Tap any number",
+        "body": "A plain-English explanation pops up. No CFA charter required — every concept reads at smart-business-user level."
+      },
+      "layer2": {
+        "label": "Formula",
+        "title": "Trace the calculation",
+        "body": "See exactly how the value was computed. Tap any operand to keep drilling — EBITDA opens to EBIT + D&A, EBIT opens to Revenue − OpEx, all the way down."
+      },
+      "layer3": {
+        "label": "Source",
+        "title": "Back to your trial balance",
+        "body": "At the bottom of every chain are the raw RAS accounts — 701, 602, 5121. Click through to see the actual debit / credit movements from your upload."
+      }
     }
   },
   "statements": {

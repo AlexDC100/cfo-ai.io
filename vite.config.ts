@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./frontend"),
     },
     // Single React copy across the bundle — without dedupe, a transitive
     // dep on a different React minor used to ship a second copy that

@@ -13,9 +13,9 @@ output/*.json
 .env.production
 
 # Frontend build artifacts
-scandi-desk-main/node_modules/
-scandi-desk-main/dist/
-scandi-desk-main/.vite/
+node_modules/
+dist/
+.vite/
 
 # Local data dumps
 data/
@@ -32,6 +32,6 @@ files/
 out/
 test-results/
 test-results*/
-scandi-desk-main/test-results/
-scandi-desk-main/test-results*/
+test-results/
+test-results*/
 .DS_Store

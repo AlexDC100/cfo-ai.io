@@ -9,8 +9,14 @@ output/
 .git/
 .gitignore
 
-# Frontend (separate Dockerfile, separate context)
-scandi-desk-main/
+# Frontend artifacts (frontend source is in Dockerfile.frontend only)
+node_modules/
+dist/
+.vite/
+frontend/
+public/
+e2e/
+i18n-sweep/
 
 # Tests aren't needed in production
 tests/
