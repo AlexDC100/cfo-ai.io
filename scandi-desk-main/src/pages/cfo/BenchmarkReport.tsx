@@ -299,10 +299,19 @@ function detectClassificationMismatch(report: Report): { mismatch: boolean; reas
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
+/** A real backend period is a UUID. The client-side sample/demo company uses
+ *  a non-UUID id (e.g. "demo-meridian"), which has no backend period — so the
+ *  benchmark report endpoint 500s and the industry assignment can't be saved.
+ *  Benchmark is inherently a backend feature on an uploaded period. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function BenchmarkReportPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const periodId = params.get("period");
+  // Sample/demo periods have no backend record — gate them to an honest
+  // "upload to benchmark" state instead of a 500 + a dead-end industry picker.
+  const isSamplePeriod = !!periodId && !UUID_RE.test(periodId);
   const [data, setData] = useState<Report | ApiError | null>(null);
   const [loading, setLoading] = useState(true);
   // 2026-05-24 — fallback to active period when URL has no ?period= param.
@@ -347,7 +356,10 @@ export default function BenchmarkReportPage() {
   const refresh = useMemo(
     () =>
       async () => {
-        if (!periodId) {
+        if (!periodId || isSamplePeriod) {
+          // Sample/demo period → no backend record to benchmark. Skip the
+          // fetch entirely so we never trip the 500 + render the honest
+          // "upload to benchmark" state below.
           setLoading(false);
           return;
         }
@@ -377,7 +389,7 @@ export default function BenchmarkReportPage() {
           setLoading(false);
         }
       },
-    [periodId],
+    [periodId, isSamplePeriod],
   );
 
   useEffect(() => {
@@ -429,6 +441,37 @@ export default function BenchmarkReportPage() {
             primary={{ label: "Open Dashboard", onClick: () => navigateToDashboard(navigate), testid: "benchmark-pre-upload-cta" }}
             footnote="No fabricated peer data is ever shown — comparisons appear only once your own period is loaded."
             testid="benchmark-empty"
+          />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (isSamplePeriod) {
+    // Viewing the client-side sample/demo company. Benchmarking needs a real
+    // uploaded period (backend percentiles for the company's CAEN code), so
+    // we show an honest unlock state instead of a 500 + a dead-end picker.
+    return (
+      <AppShell>
+        <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
+          <PageHeader
+            eyebrow="Benchmark"
+            title="Benchmarking runs on your own trial balance."
+            subtitle="You're viewing the sample company. Upload your Romanian trial balance on the Dashboard and CFO AI will benchmark you against industry peers — revenue, margin, leverage, and working-capital percentiles for your CAEN code."
+            atmosphere
+            testid="benchmark-sample-header"
+          />
+          <BenchmarkPreviewStrip />
+          <EmptyState
+            icon={BarChart3}
+            title="Upload your trial balance to benchmark."
+            subtitle="Industry benchmarks compare your real numbers against seeded Romanian peer medians for your sector — and you pick your industry once the period is loaded. No fabricated peer data is ever shown."
+            primary={{
+              label: "Open Dashboard",
+              onClick: () => navigateToDashboard(navigate),
+              testid: "benchmark-sample-cta",
+            }}
+            testid="benchmark-sample-empty"
           />
         </div>
       </AppShell>
