@@ -17,8 +17,9 @@ node_modules/
 dist/
 .vite/
 
-# Local data dumps
-data/
+# Local data dumps (top-level only — must not match frontend/data/, which is
+# bundled source, e.g. frontend/data/dailyRun.ts)
+/data/
 
 # Runtime artifacts (do not commit)
 logs/
