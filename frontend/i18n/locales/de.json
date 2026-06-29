@@ -1,6 +1,7 @@
 {
   "sidebar": {
     "workflow": "Arbeitsablauf",
+    "language_label": "Sprache ändern",
     "dashboard": "Übersicht",
     "cash": "Liquidität",
     "profit": "Gewinn",

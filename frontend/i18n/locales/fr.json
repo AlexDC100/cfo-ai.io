@@ -1,6 +1,7 @@
 {
   "sidebar": {
     "workflow": "Flux de travail",
+    "language_label": "Changer de langue",
     "dashboard": "Tableau de bord",
     "cash": "Trésorerie",
     "profit": "Profit",

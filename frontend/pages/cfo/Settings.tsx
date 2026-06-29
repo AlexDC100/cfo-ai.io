@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
+import { NewsletterSettings } from "@/components/NewsletterSettings";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
 // useSubscription/isSubscriptionEntitled/planFor/trialDaysLeft + supabaseEnabled
@@ -149,6 +150,17 @@ export default function Settings() {
           subtitle="How CFO AI Learn appears across the app. Affects underlined numbers, page tours, and the first-run coach."
         >
           <LearningSettingsSection />
+        </Section>
+
+        {/* Newsletter — opt in/out of the product newsletter. Signed-in
+            email is already verified, so subscribing here confirms
+            immediately (no double opt-in). Backed by Resend; see
+            src/engine/api/_newsletter.py. */}
+        <Section
+          title="Newsletter"
+          subtitle="Product updates and Romanian SME finance insights, occasionally."
+        >
+          <NewsletterSettings />
         </Section>
 
         <Section title={t("settings.security_title")} subtitle={t("settings.security_subtitle")}>

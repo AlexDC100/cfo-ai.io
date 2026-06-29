@@ -1,6 +1,7 @@
 {
   "sidebar": {
     "workflow": "Workflow",
+    "language_label": "Taal wijzigen",
     "dashboard": "Dashboard",
     "cash": "Cash",
     "profit": "Profit",

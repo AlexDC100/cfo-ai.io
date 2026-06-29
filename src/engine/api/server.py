@@ -35,6 +35,7 @@ from ._billing import build_router as create_billing_router
 from ._features import build_router as create_features_router
 from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
+from ._newsletter import build_router as create_newsletter_router
 from ._pricing_routes import build_router as create_pricing_router
 from ._test_mode import build_router as create_test_mode_router
 from .cfo_ai import create_cfo_router
@@ -173,6 +174,11 @@ def create_app(
     # `GET /api/plan/state` drives the Settings usage card; admin
     # endpoint surfaces the below-COGS warnings.
     app.include_router(create_pricing_router())
+    # Email — newsletter (double opt-in subscribe / confirm / unsubscribe),
+    # admin broadcast to confirmed subscribers, and the renewal-email queue
+    # drain. All app-originated mail goes through Resend (see _email.py).
+    # Auth emails (reset/confirm) are delivered by Supabase via Resend SMTP.
+    app.include_router(create_newsletter_router())
     # NASDAQ-6 — public-company routes (/api/public/search,
     # /api/public/companies/:ticker, /api/public/companies/:ticker/sync,
     # /api/public/health). Requires NASDAQ_API_KEY in env for full

@@ -1,6 +1,7 @@
 {
   "sidebar": {
     "workflow": "Flux de lucru",
+    "language_label": "Schimbă limba",
     "dashboard": "Tablou de bord",
     "cash": "Numerar",
     "profit": "Profit",

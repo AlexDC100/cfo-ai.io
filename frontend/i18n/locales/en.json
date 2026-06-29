@@ -1,6 +1,7 @@
 {
   "sidebar": {
     "workflow": "Workflow",
+    "language_label": "Change language",
     "dashboard": "Dashboard",
     "cash": "Cash",
     "profit": "Profit",
@@ -628,5 +629,58 @@
     "notConfigured": "Authentication isn't configured on this build.",
     "retrySignup": "Request a new link",
     "backToSignin": "Back to sign in"
+  },
+  "buckets": {
+    "wind_down": "Wind down",
+    "watch": "Watch",
+    "protect": "Protect"
+  },
+  "decision_rules": {
+    "title": "Decision rules",
+    "trigger_subtitle": "Bucket thresholds (Protect / Watch / Wind down). Saved to this browser.",
+    "subtitle_multi": "Combine multiple rules to categorize SKUs. Changes apply instantly and are saved to this browser.",
+    "back_to_products": "Back to Products",
+    "reset": "Reset to defaults",
+    "combination_logic": "Combination logic",
+    "final_distribution": "Final bucket distribution (combined)",
+    "skus_total": "SKUs total",
+    "footer_note": "Changes apply instantly. Threshold values are saved to this browser.",
+    "changes_apply_instantly": "Changes apply instantly",
+    "done_see_results": "Done — see results",
+    "lower_better": "lower is better",
+    "partial_coverage": "Available for {{covered}} of {{total}} SKUs",
+    "slider_aria": "Bucket cutoffs",
+    "lower_cutoff": "Wind down ⟶ Watch",
+    "upper_cutoff_inv": "Protect ⟶ Watch",
+    "upper_cutoff": "Watch ⟶ Protect",
+    "lower_cutoff_inv": "Watch ⟶ Wind down",
+    "range_hint": "Range",
+    "weight": "Weight",
+    "missing_data": "Data missing",
+    "missing_data_body": "Requires columns: {{fields}}. Re-upload with these fields included or map them in the data import step.",
+    "mode": {
+      "worst_wins": "Worst bucket wins (recommended)",
+      "all_agree": "All must agree (most conservative)",
+      "weighted": "Weighted score",
+      "worst_wins_hint": "If any rule flags a SKU for Wind down, the SKU is Wind down. Recommended.",
+      "all_agree_hint": "Protect requires every active rule to agree. Most conservative.",
+      "weighted_hint": "Each rule contributes a score, weighted average decides the final bucket."
+    },
+    "preset": {
+      "title": "Preset",
+      "active": "Active",
+      "apply": "Apply preset",
+      "needs_data": "Load a dataset to apply (percentiles need SKU data)."
+    },
+    "financing": {
+      "title": "Financing assumptions",
+      "total_rate": "Total annual rate",
+      "portfolio_cost": "Portfolio cost",
+      "cost_label": "Cost of financing",
+      "cost_hint": "Annual interest rate on working capital. Typical RON corporate financing is 5–8%.",
+      "spread_label": "Bank margin spread",
+      "spread_hint": "Additional spread above the base rate the bank charges. Tune to model different banking relationships.",
+      "avg_per_sku": "Avg per SKU: {{avg}} · DIO and inventory required to compute; SKUs without either skip the financing rule."
+    }
   }
 }
