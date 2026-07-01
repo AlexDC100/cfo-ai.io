@@ -120,6 +120,43 @@ def newsletter_broadcast(*, heading: str, content_html: str, unsubscribe_url: st
     )
 
 
+# ── Auth: password reset (branded twin of the Supabase dashboard template) ──
+#
+# Supabase Auth owns the *real* reset mail (it holds the secure token and
+# delivers via Resend SMTP — see RESEND_SETUP.md Step 6). This function is
+# the same branded HTML expressed in code so it can be previewed/tested from
+# the in-app debug sender. When Alex wants to change the look, edit here and
+# paste the output into the Supabase dashboard template.
+
+def password_reset(*, reset_url: str) -> str:
+    body = f"""
+      <h1 style="font-size:20px;color:#003366;margin:0 0 12px 0;">Reset your password</h1>
+      <p style="font-size:14px;line-height:1.6;color:#33404f;margin:0 0 20px 0;">
+        We received a request to reset your CFO AI password. Click below to
+        choose a new one. This link expires in 60 minutes. If you didn't
+        request it, you can safely ignore this email — your password stays
+        unchanged.
+      </p>
+      <p style="margin:0 0 8px 0;">{_button("Reset password", reset_url)}</p>
+    """
+    return _layout(title="Reset your password", body_html=body)
+
+
+# ── Auth: signup confirmation (branded twin of the Supabase template) ───────
+
+def signup_confirm(*, confirm_url: str) -> str:
+    body = f"""
+      <h1 style="font-size:20px;color:#003366;margin:0 0 12px 0;">Confirm your email</h1>
+      <p style="font-size:14px;line-height:1.6;color:#33404f;margin:0 0 20px 0;">
+        Welcome to CFO AI. Confirm your email address to activate your account
+        and start turning trial balances into CFO-grade analysis. If you didn't
+        create this account, you can ignore this email.
+      </p>
+      <p style="margin:0 0 8px 0;">{_button("Confirm email", confirm_url)}</p>
+    """
+    return _layout(title="Confirm your email", body_html=body)
+
+
 # ── Subscription renewal reminder (drains renewal_email_queue) ──────────────
 
 def renewal_reminder(*, renewal_date: str, amount_label: str, manage_url: str,

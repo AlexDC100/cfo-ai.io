@@ -78,13 +78,24 @@ export default function Chat() {
     <AppShell>
       {/* The Shell takes the full available height of the AppShell main
        *  area. AppShell already pads top/bottom and offsets for the
-       *  sidebar, so the chat surface here gets the full content rect. */}
-      <div className="
-        -mx-5 sm:-mx-8 lg:-mx-10
-        -my-8 sm:-my-10 lg:-my-12
-        h-[calc(100dvh-4rem)]
-        flex
-      ">
+       *  sidebar, so the chat surface here gets the full content rect.
+       *
+       *  SINGLE SCROLLBAR: we cancel AppShell's inner padding on all four
+       *  sides and `overflow-hidden` the wrapper so the PAGE never scrolls
+       *  — the only scroller is CFOMessageList's own overflow-y-auto. The
+       *  top/side padding is cancelled with negative Tailwind margins; the
+       *  bottom padding is an inline `max(8rem, …)` expression on AppShell,
+       *  so we cancel it with an exactly-matching inline negative margin
+       *  (a Tailwind arbitrary value can't express the env()/max()). */}
+      <div
+        className="
+          -mx-5 sm:-mx-8 lg:-mx-10
+          -mt-8 sm:-mt-10 lg:-mt-12
+          h-[calc(100dvh-4rem)]
+          flex overflow-hidden
+        "
+        style={{ marginBottom: "calc(-1 * max(8rem, calc(env(safe-area-inset-bottom) + 6rem)))" }}
+      >
         <CFOChatShell
           ref={ref}
           variant="page"

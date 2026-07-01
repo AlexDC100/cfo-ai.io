@@ -17,17 +17,55 @@
 
 import { motion } from "framer-motion";
 import { Sparkles, Copy, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "./types";
 
 interface Props {
   message: ChatMessage;
+  /** Type the text out character-by-character on first appearance. Only
+   *  the list's freshly-arrived assistant turn gets this; ignored for
+   *  user turns and for history loaded from storage. */
+  animate?: boolean;
+  /** Called on each reveal tick so the list can keep the view pinned to
+   *  the bottom while the answer types out. */
+  onType?: () => void;
 }
 
-export function CFOMessageBubble({ message }: Props) {
+export function CFOMessageBubble({ message, animate = false, onType }: Props) {
   const isUser = message.role === "user";
   if (isUser) return <UserBubble message={message} />;
-  return <AssistantBubble message={message} />;
+  return <AssistantBubble message={message} animate={animate} onType={onType} />;
+}
+
+// ─── Typewriter hook ─────────────────────────────────────────────
+// Reveals `full` progressively when `enabled`. Long answers are revealed
+// in larger chunks so the total duration stays bounded (~4s cap) rather
+// than scaling linearly with length; short answers type per character.
+function useTypewriter(full: string, enabled: boolean, onTick?: () => void) {
+  const [count, setCount] = useState(enabled ? 0 : full.length);
+  const onTickRef = useRef(onTick);
+  onTickRef.current = onTick;
+
+  useEffect(() => {
+    if (!enabled) {
+      setCount(full.length);
+      return;
+    }
+    let i = 0;
+    setCount(0);
+    const step = Math.max(1, Math.ceil(full.length / 240));
+    const id = window.setInterval(() => {
+      i += step;
+      const next = Math.min(i, full.length);
+      setCount(next);
+      onTickRef.current?.();
+      if (next >= full.length) window.clearInterval(id);
+    }, 16);
+    return () => window.clearInterval(id);
+    // Re-run only if the text itself changes (or animation toggles).
+  }, [full, enabled]);
+
+  return { shown: full.slice(0, count), done: count >= full.length };
 }
 
 // ─── User bubble ─────────────────────────────────────────────────
@@ -40,7 +78,7 @@ function UserBubble({ message }: Props) {
       className="flex justify-end mb-5"
       data-role="user"
     >
-      <div className="max-w-[78%] sm:max-w-[68%]">
+      <div className="max-w-[88%] sm:max-w-[760px]">
         <div className="rounded-2xl rounded-tr-md bg-brand-tint/70 dark:bg-brand/[0.14] border border-brand/15 px-4 py-2.5 text-[14px] leading-relaxed text-ink whitespace-pre-wrap">
           {message.content}
         </div>
@@ -63,8 +101,15 @@ function UserBubble({ message }: Props) {
 }
 
 // ─── Assistant bubble ────────────────────────────────────────────
-function AssistantBubble({ message }: Props) {
+function AssistantBubble({ message, animate = false, onType }: Props) {
   const [copied, setCopied] = useState(false);
+  // Freeze the animate decision at mount. The list flips `animate` back to
+  // false on the very next render (once it's marked the id as seen); without
+  // this latch that flip would snap the reveal to full text instantly.
+  const animateAtMount = useRef(animate);
+  const { shown, done } = useTypewriter(message.content, animateAtMount.current, onType);
+  const typing = !done;
+
   async function onCopy() {
     try {
       await navigator.clipboard.writeText(message.content);
@@ -78,7 +123,7 @@ function AssistantBubble({ message }: Props) {
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: "easeOut" }}
-      className="group mb-6"
+      className="group mb-6 max-w-[760px]"
       data-role="assistant"
     >
       {/* Eyebrow — CFO AI mark + grounded caption */}
@@ -99,10 +144,18 @@ function AssistantBubble({ message }: Props) {
 
       {/* Body card */}
       <div className="relative rounded-2xl rounded-tl-md border border-rule bg-surface/80 dark:bg-bg-2/40 backdrop-blur-sm px-5 py-4 text-[14px] leading-[1.65] text-ink shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <MiniMarkdown text={message.content} />
+        <MiniMarkdown text={shown} />
+        {/* Blinking caret while the answer is still typing out. */}
+        {typing && (
+          <span
+            aria-hidden
+            className="inline-block w-[2px] h-[1.05em] translate-y-[0.15em] ml-0.5 bg-ink/70 animate-pulse"
+          />
+        )}
 
-        {/* Copy action — discoverable on hover, not loud */}
-        {message.content && !message.pending && (
+        {/* Copy action — discoverable on hover, not loud. Hidden until the
+            typewriter finishes so you don't copy a half-revealed answer. */}
+        {message.content && !message.pending && !typing && (
           <button
             type="button"
             onClick={onCopy}

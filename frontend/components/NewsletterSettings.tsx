@@ -49,6 +49,9 @@ export function NewsletterSettings() {
         <div className="min-w-0">
           <div className="text-[13.5px] text-ink font-medium">Product newsletter</div>
           <div className="text-[12px] text-ink-soft mt-0.5">
+            Product updates and Romanian SME finance insights, occasionally.
+          </div>
+          <div className="text-[12px] text-ink-soft mt-0.5">
             {status === "loading"
               ? "Checking your preference…"
               : subscribed

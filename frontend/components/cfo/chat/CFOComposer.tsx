@@ -142,9 +142,13 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   }
 
   return (
-    <div className={`w-full ${compact ? "px-3 pb-3" : "px-4 sm:px-6 pb-5 sm:pb-6"}`}>
+    <div className={`w-full ${compact ? "px-3 pb-3" : "px-4 sm:px-6 pb-2"}`}>
+      {/* Inner column mirrors CFOMessageList's `max-w-[820px] mx-auto`
+          (padding OUTSIDE the max-width) so the composer lines up to the
+          exact same width the message bubbles use. */}
+      <div className={compact ? "" : "max-w-[820px] mx-auto"}>
       {contextLine && (
-        <div className="mb-2 text-[11.5px] text-ink-mute text-center">
+        <div className="mb-2 text-[11.5px] text-ink-mute text-left selection:bg-transparent">
           {contextLine}
         </div>
       )}
@@ -179,7 +183,6 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
         relative rounded-2xl border border-rule
         bg-surface/85 dark:bg-bg-2/60 backdrop-blur-md
         shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]
-        focus-within:border-brand/40 focus-within:ring-2 focus-within:ring-brand/15
         transition-all
         ${compact ? "px-3 pt-2 pb-2" : "px-4 pt-3 pb-2.5"}
         ${blockedReason ? "opacity-70" : ""}
@@ -222,7 +225,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           className="
             w-full resize-none bg-transparent
             text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
-            placeholder:text-ink-mute focus:outline-none
+            placeholder:text-ink-mute focus:outline-none focus-visible:shadow-none
             disabled:opacity-60
             min-h-[48px] max-h-[170px]
           "
@@ -283,6 +286,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           {disclosure}
         </div>
       )}
+      </div>
     </div>
   );
 });

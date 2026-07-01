@@ -320,19 +320,26 @@ function WorkspaceIdentity({
   periodLabel: string | null;
 }) {
   return (
-    <div className="px-3 pt-4 pb-3 border-b border-rule/60">
-      <div className="flex items-center gap-2 mb-2.5">
-        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-gradient-to-br from-brand to-brand-d text-white shadow-[0_4px_12px_-4px_rgba(45,191,179,0.55)]">
-          <Sparkles size={11} strokeWidth={2.25} />
-        </span>
-        <span className="text-[12px] font-semibold tracking-[0.02em] text-ink">CFO AI</span>
-      </div>
-      <div className="text-[11.5px] font-medium text-ink truncate">
+    <div className="px-3 pt-4 pb-3 border-b border-rule/60 text-center">
+      {/* Brand mark (gradient Sparkles circle) removed per request — the
+          workspace identity block now leads straight with the centered
+          company name / "No workspace loaded" line. */}
+      <div
+        className={`font-medium truncate ${
+          companyName
+            ? "text-[11.5px] text-ink"
+            : "text-[10px] uppercase tracking-[0.08em] text-ink/50"
+        }`}
+      >
         {companyName ?? "No workspace loaded"}
       </div>
-      <div className="text-[10.5px] text-ink-mute truncate mt-px">
-        {periodLabel ?? "—"}
-      </div>
+      {/* Period line only renders when a period is loaded — no "—"
+          placeholder in the empty state. */}
+      {periodLabel && (
+        <div className="text-[10.5px] text-ink-mute truncate mt-px">
+          {periodLabel}
+        </div>
+      )}
     </div>
   );
 }

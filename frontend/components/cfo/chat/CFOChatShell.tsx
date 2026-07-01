@@ -315,42 +315,48 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // conversations via PageHeader's "New chat" button. Future enhancement:
   // expose history as a Sheet drawer triggered from PageHeader.
   return (
-    <div className="h-full flex bg-bg" data-testid="chat-page-shell">
-      <div className="hidden lg:flex">
-        <CFOHistorySidebar
-          store={store}
-          onAfterPick={onPickConversationFromHistory}
-        />
-      </div>
+    // Header spans the full width at the top; BELOW it a row holds the
+    // history sidebar (left) and the message column + composer (right).
+    // (Previously the sidebar was a full-height left column and the header
+    // sat only above the chat — moved per request so the header caps the
+    // whole page and the sidebar lives under it.)
+    <div className="h-full w-full flex flex-col bg-bg" data-testid="chat-page-shell">
+      <PageHeader
+        companyName={companyName}
+        periodLabel={periodLabel}
+        hasPeriod={hasPeriod}
+        conversationTitle={store.current?.title ?? null}
+      />
 
-      <div className="flex-1 min-w-0 flex flex-col">
-        <PageHeader
-          companyName={companyName}
-          periodLabel={periodLabel}
-          hasPeriod={hasPeriod}
-          conversationTitle={store.current?.title ?? null}
-          onNewChat={() => store.createNew({ periodId, periodLabel })}
-        />
-
-        <div className="flex-1 min-h-0 flex flex-col">
-          {!store.current || store.current.messages.length === 0 ? (
-            <div className="flex-1 overflow-y-auto px-6">
-              <CFOEmptyState hasPeriod={hasPeriod} companyName={companyName} onPick={pickPrompt} />
-            </div>
-          ) : (
-            <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} />
-          )}
+      <div className="flex-1 min-h-0 flex">
+        <div className="hidden lg:flex">
+          <CFOHistorySidebar
+            store={store}
+            onAfterPick={onPickConversationFromHistory}
+          />
         </div>
 
-        <CFOComposer
-          ref={composerRef}
-          pending={pending}
-          onSubmit={send}
-          placeholder={hasPeriod ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
-          contextLine={contextLine}
-          disclosure={disclosure}
-          blockedReason={capBlocked}
-        />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col">
+            {!store.current || store.current.messages.length === 0 ? (
+              <div className="flex-1 overflow-y-auto px-6">
+                <CFOEmptyState hasPeriod={hasPeriod} companyName={companyName} onPick={pickPrompt} />
+              </div>
+            ) : (
+              <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} />
+            )}
+          </div>
+
+          <CFOComposer
+            ref={composerRef}
+            pending={pending}
+            onSubmit={send}
+            placeholder={hasPeriod ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
+            contextLine={contextLine}
+            disclosure={disclosure}
+            blockedReason={capBlocked}
+          />
+        </div>
       </div>
     </div>
   );
@@ -358,13 +364,12 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
 
 // ─── Headers ──────────────────────────────────────────────────────
 function PageHeader({
-  companyName, periodLabel, hasPeriod, conversationTitle, onNewChat,
+  companyName, periodLabel, hasPeriod, conversationTitle,
 }: {
   companyName: string | null;
   periodLabel: string | null;
   hasPeriod: boolean;
   conversationTitle: string | null;
-  onNewChat: () => void;
 }) {
   return (
     <header className="flex items-center justify-between gap-3 px-6 py-3 border-b border-rule bg-surface/60 backdrop-blur-sm">
@@ -386,19 +391,9 @@ function PageHeader({
             <span className="truncate max-w-[200px]">{companyName || "Workspace"}{periodLabel ? ` · ${periodLabel}` : ""}</span>
           </span>
         )}
-        <button
-          type="button"
-          onClick={onNewChat}
-          className="
-            inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md
-            border border-rule bg-surface
-            text-[12px] text-ink hover:bg-bg-2/60
-            transition-colors
-          "
-          data-testid="chat-header-new"
-        >
-          New chat
-        </button>
+        {/* "New chat" button removed from the page header per request — a
+            "New chat" action still lives at the top of the history sidebar
+            (CFOHistorySidebar), so the capability isn't lost. */}
       </div>
     </header>
   );

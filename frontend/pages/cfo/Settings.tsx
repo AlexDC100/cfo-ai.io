@@ -8,10 +8,10 @@
 // disk so the change is fully reversible.
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
 import { NewsletterSettings } from "@/components/NewsletterSettings";
+import { debugSendMail, type DebugMailKind } from "@/lib/newsletterApi";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
 // useSubscription/isSubscriptionEntitled/planFor/trialDaysLeft + supabaseEnabled
@@ -52,9 +52,9 @@ import { useCurrency as useCurrencyContext } from "@/stores/currency";
 
 export default function Settings() {
   const { t } = useTranslation();
-  const { user, signOut } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  // Sign-out (and its navigate/toast) moved out with the old Security
+  // section — the single sign-out now lives in the top-right AccountMenu.
   // useSubscription / planFor / etc. were used by the removed standalone
   // `Subscription` section; <BillingSection/> manages its own state, so
   // the page-level subscription hook is no longer needed here.
@@ -90,8 +90,18 @@ export default function Settings() {
       */}
       <div className="space-y-6 max-w-[860px]">
         <ProfileCard />
-        <LanguageCard />
-        <CurrencyCard />
+        {/* Language — presented like Billing (Section title + card); the
+            card's own serif <h3> title was removed for the Section <h2>. */}
+        <Section title={t("settings.language")}>
+          <LanguageCard />
+        </Section>
+
+        {/* Display currency — presented like Billing: a Section title
+            header above the bordered card (the card's own serif <h3>
+            title was removed so the Section <h2> is the single heading). */}
+        <Section title={t("settings.currency", "Display currency")}>
+          <CurrencyCard />
+        </Section>
 
         {/* Workspace + Industry classification sections were removed per
             operator directive. Function defs kept on disk
@@ -127,18 +137,10 @@ export default function Settings() {
           <BillingSection />
         </Section>
 
-        {/* Data — workspace housekeeping. Only one control today: a safe
-            soft-delete sweep for the caller's own uploads. Reuses the
-            existing `deleted_at` mechanism via a new thin batch endpoint
-            (POST /api/documents/clear-mine) that intentionally does NOT
-            invoke _maybe_drop_empty_period — orphaned empty periods are
-            Bug A's domain and are left alone here. */}
-        <Section
-          title="Data"
-          subtitle="Manage the documents and analyses in your workspace."
-        >
-          <DataSection />
-        </Section>
+        {/* The old standalone "Data" section (clear-my-uploads) has moved
+            into the Danger Zone at the bottom of the page, alongside the
+            security actions. `DataSection` stays defined on disk for
+            revert. */}
 
         {/* F5.0 Step 3 (CFO AI Learn) — learning-mode picker. Lets the
             user switch between Guided / Subtle / Off and reset the
@@ -156,27 +158,29 @@ export default function Settings() {
             email is already verified, so subscribing here confirms
             immediately (no double opt-in). Backed by Resend; see
             src/engine/api/_newsletter.py. */}
-        <Section
-          title="Newsletter"
-          subtitle="Product updates and Romanian SME finance insights, occasionally."
-        >
+        {/* Subtitle moved inside the NewsletterSettings card (before the
+            status line) per request. */}
+        <Section title="Newsletter">
           <NewsletterSettings />
         </Section>
 
-        <Section title={t("settings.security_title")} subtitle={t("settings.security_subtitle")}>
-          <SecurityCard
-            email={user?.email ?? null}
-            onSignOut={async () => {
-              const { error } = await signOut();
-              toast({
-                title: error ? "Couldn't sign out" : "Signed out",
-                description: error?.message,
-                variant: error ? "destructive" : undefined,
-              });
-              if (!error) navigate("/", { replace: true });
-            }}
-          />
+        {/* Debug — email preview. Sends any branded mail type to the
+            signed-in user's OWN email (backend enforces self-send only).
+            Lets Alex eyeball every template end-to-end without triggering
+            the real flows. Backed by POST /api/newsletter/debug-send. */}
+        <Section
+          title="Debug — Email preview"
+          subtitle="Send any app email type to your own inbox to preview its styling. Delivered only to you."
+        >
+          <DebugEmailSection email={user?.email ?? null} />
         </Section>
+
+        {/* Danger Zone — GitHub-style. Consolidates the security actions
+            (password reset, 2FA) and the destructive clear-my-uploads sweep
+            that used to live in the separate Security / Data sections.
+            Rendered without a <Section> wrapper because it carries its own
+            danger-icon header. */}
+        <DangerZoneSection email={user?.email ?? null} />
 
         {/*
           REMOVED (still on disk for reversibility):
@@ -393,8 +397,7 @@ function LanguageCard() {
     <div className="rounded-2xl border border-rule bg-surface px-5 py-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h3 className="font-serif text-[18px] text-ink">{t("settings.language")}</h3>
-          <p className="mt-1 text-[12.5px] text-ink-soft max-w-[480px]">
+          <p className="text-[12.5px] text-ink-soft max-w-[480px]">
             {t("settings.language_description")}
           </p>
         </div>
@@ -447,10 +450,7 @@ function CurrencyCard() {
     <div className="rounded-2xl border border-rule bg-surface px-5 py-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h3 className="font-serif text-[18px] text-ink">
-            {t("settings.currency", "Display currency")}
-          </h3>
-          <p className="mt-1 text-[12.5px] text-ink-soft max-w-[520px]">
+          <p className="text-[12.5px] text-ink-soft max-w-[520px]">
             {t(
               "settings.currency_description",
               "Choose the currency every monetary figure in the app is displayed in. Values are stored in their native currency; conversion happens at display time only.",
@@ -926,6 +926,242 @@ function DataSection() {
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ───────── Debug — email preview (self-send) ────────────────────────────
+ *
+ * One "Send to me" button per app mail type. Each calls
+ * POST /api/newsletter/debug-send, which the backend delivers ONLY to the
+ * caller's own verified email (no recipient field on the wire), so this is
+ * safe to expose — you can only email yourself. Per-row busy state so
+ * clicking one doesn't spin the others.
+ */
+const DEBUG_MAIL_TYPES: { kind: DebugMailKind; label: string; description: string }[] = [
+  { kind: "signup_confirm", label: "Confirm signup", description: "Sent to verify a new account's email." },
+  { kind: "password_reset", label: "Password reset", description: "The reset-your-password link email." },
+  { kind: "newsletter_confirm", label: "Newsletter — confirm", description: "Double opt-in confirmation." },
+  { kind: "newsletter_welcome", label: "Newsletter — welcome", description: "Sent after a subscription is confirmed." },
+  { kind: "newsletter_broadcast", label: "Newsletter — broadcast", description: "Admin-composed broadcast wrapper (sample content)." },
+  { kind: "renewal_reminder", label: "Renewal reminder", description: "Subscription-renews-soon heads-up." },
+];
+
+function DebugEmailSection({ email }: { email: string | null }) {
+  const { toast } = useToast();
+  const [busyKind, setBusyKind] = useState<DebugMailKind | null>(null);
+
+  async function send(kind: DebugMailKind, label: string) {
+    if (!email) {
+      toast({ title: "Not signed in", description: "Sign in to send preview emails.", variant: "destructive" });
+      return;
+    }
+    setBusyKind(kind);
+    try {
+      const res = await debugSendMail(kind);
+      toast({ title: `"${label}" sent`, description: `Delivered to ${res.to}. Check your inbox.` });
+    } catch (e) {
+      toast({
+        title: `Couldn't send "${label}"`,
+        description: e instanceof Error ? e.message : "Unexpected error.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-rule bg-surface divide-y divide-rule/60">
+      {DEBUG_MAIL_TYPES.map((m) => (
+        <div key={m.kind} className="px-5 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-rule bg-bg-2 text-ink-soft shrink-0">
+              <Mail size={14} strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[13.5px] text-ink truncate">{m.label}</div>
+              <div className="text-[11.5px] text-ink-mute leading-snug">{m.description}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={busyKind !== null || !email}
+            onClick={() => void send(m.kind, m.label)}
+            data-testid={`settings-debug-email-${m.kind}`}
+            className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors"
+          >
+            {busyKind === m.kind
+              ? <><Loader2 size={13} className="animate-spin" />Sending…</>
+              : <><Mail size={13} strokeWidth={1.75} />Send to me</>}
+          </button>
+        </div>
+      ))}
+      <div className="px-5 py-3 text-[11.5px] text-ink-mute flex items-center gap-2">
+        <AlertTriangle size={12} strokeWidth={1.75} />
+        {email
+          ? <>Preview emails are delivered only to <span className="text-ink-soft">{email}</span>. Requires RESEND_API_KEY on the backend.</>
+          : "Sign in to send preview emails to yourself."}
+      </div>
+    </div>
+  );
+}
+
+/* ───────── Danger Zone — destructive + security-sensitive actions ───────
+ *
+ * GitHub-style danger zone: an animated gradient border (animate-danger-
+ * gradient, defined in tailwind.config.ts) framing a card with a danger-icon
+ * header. Consolidates the security actions (password reset, 2FA) and the
+ * destructive "clear all my uploads" sweep that previously lived in the
+ * separate Security and Data sections.
+ */
+function DangerZoneSection({ email }: { email: string | null }) {
+  const { toast } = useToast();
+  const sb = getSupabase();
+  const [pwBusy, setPwBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [clearBusy, setClearBusy] = useState(false);
+
+  async function sendPasswordReset() {
+    if (!sb || !email) return;
+    setPwBusy(true);
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/login",
+    });
+    setPwBusy(false);
+    if (error) toast({ title: "Couldn't send reset email", description: error.message, variant: "destructive" });
+    else toast({ title: "Password reset email sent", description: `Check ${email}.` });
+  }
+
+  async function clearMyUploads() {
+    setClearBusy(true);
+    try {
+      const { data: session } = sb
+        ? await sb.auth.getSession()
+        : { data: { session: null } };
+      const token = session?.session?.access_token;
+      if (!token) {
+        toast({
+          title: "Not signed in",
+          description: "Sign in to manage your uploads.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const apiUrl =
+        (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+      const r = await fetch(`${apiUrl}/api/documents/clear-mine`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) {
+        const body = await r.text().catch(() => "");
+        throw new Error(body || `HTTP ${r.status}`);
+      }
+      const { deleted_count } = (await r.json()) as { deleted_count: number };
+      toast({
+        title: deleted_count === 0
+          ? "No uploads to clear"
+          : `Cleared ${deleted_count} upload${deleted_count === 1 ? "" : "s"}`,
+        description: deleted_count === 0
+          ? "Your workspace is already empty."
+          : "Documents are hidden from the dashboard. Contact support if you need them restored within 30 days.",
+      });
+      setConfirming(false);
+      if (deleted_count > 0) window.location.assign("/dashboard");
+    } catch (e) {
+      toast({
+        title: "Couldn't clear uploads",
+        description: e instanceof Error ? e.message : "Unexpected error.",
+        variant: "destructive",
+      });
+    } finally {
+      setClearBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-red-500/40 bg-surface overflow-hidden shadow-[0_10px_40px_-16px_rgba(220,38,38,0.25)]">
+      <div className="rounded-[15px] bg-surface overflow-hidden">
+        {/* Header — danger icon + title */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-red-500/15 bg-red-500/[0.04]">
+          <span className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-red-500/10 text-red-600 ring-1 ring-red-500/20">
+            <AlertTriangle size={17} strokeWidth={2} />
+          </span>
+          <div>
+            <h3 className="text-[14.5px] font-semibold text-red-600">Danger zone</h3>
+            <p className="text-[11.5px] text-ink-mute">
+              Security-sensitive and destructive actions. Proceed carefully.
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="divide-y divide-rule/60">
+          <Row icon={Lock} title="Change password" description="Send a password-reset link to your email.">
+            <button
+              onClick={sendPasswordReset}
+              disabled={pwBusy || !email}
+              className="text-[12px] text-ink-soft hover:text-ink transition-colors disabled:opacity-50"
+            >
+              {pwBusy ? "Sending…" : "Send reset email"}
+            </button>
+          </Row>
+
+          <Row icon={Shield} title="Two-factor authentication" description="Add a second factor to your sign-in.">
+            <span className="text-[12px] text-ink-mute">Coming soon</span>
+          </Row>
+
+          {/* Clear all uploads — two-step confirm */}
+          <div className="px-5 py-4 flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-red-500/20 bg-red-500/5 text-red-600 shrink-0">
+                <Trash2 size={14} strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[13.5px] text-ink">Clear all my uploaded documents</div>
+                <div className="text-[11.5px] text-ink-mute leading-snug max-w-[440px]">
+                  Hides every document and analysis you've uploaded to this workspace.
+                  Reversible by support for 30 days. Doesn't affect other users.
+                </div>
+              </div>
+            </div>
+            {!confirming ? (
+              <button
+                type="button"
+                onClick={() => setConfirming(true)}
+                data-testid="settings-clear-uploads"
+                className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 text-[12.5px] font-medium text-red-600 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 size={13} strokeWidth={1.75} />
+                Clear uploads…
+              </button>
+            ) : (
+              <div className="shrink-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={clearBusy}
+                  onClick={() => setConfirming(false)}
+                  className="inline-flex items-center h-9 px-3 rounded-lg border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={clearBusy}
+                  onClick={() => { void clearMyUploads(); }}
+                  data-testid="settings-confirm-clear"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
+                >
+                  {clearBusy
+                    ? <><Loader2 size={13} className="animate-spin" />Clearing…</>
+                    : <><Trash2 size={13} strokeWidth={1.75} />Yes, clear them</>}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

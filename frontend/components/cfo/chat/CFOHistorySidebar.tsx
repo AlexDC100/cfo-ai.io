@@ -235,7 +235,7 @@ function ConversationRow({
 
       {/* Hover actions */}
       {!editing && (
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className={`absolute right-1 top-1/2 -translate-y-1/2 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"} focus-within:opacity-100 transition-opacity`}>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
@@ -245,9 +245,18 @@ function ConversationRow({
             <MoreHorizontal size={13} strokeWidth={2} />
           </button>
           {menuOpen && (
+            <>
+              {/* Outside-click catcher — replaces the fragile onMouseLeave
+                  that dismissed the menu the instant the pointer moved from
+                  the ⋯ button onto a menu item. Row hover also no longer
+                  hides it (wrapper is forced opacity-100 while open). */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
+                aria-hidden
+              />
             <div
               className="absolute right-0 top-7 z-20 w-32 rounded-md border border-rule bg-surface shadow-lg py-1"
-              onMouseLeave={() => setMenuOpen(false)}
             >
               <button
                 type="button"
@@ -264,6 +273,7 @@ function ConversationRow({
                 <Trash2 size={11} strokeWidth={1.75} /> Delete
               </button>
             </div>
+            </>
           )}
         </div>
       )}

@@ -124,3 +124,34 @@ export async function broadcast(input: {
   });
   return parse(resp, "POST", "/api/newsletter/broadcast");
 }
+
+// ── Debug: preview every mail type by sending it to yourself ────────────────
+//
+// Backed by POST /api/newsletter/debug-send. The backend always delivers to
+// the caller's own verified email (no recipient field), so this can never be
+// used to mail anyone else. Handy for eyeballing the branded templates.
+
+// Keep in step with _DEBUG_MAIL_KINDS in src/engine/api/_newsletter.py.
+export type DebugMailKind =
+  | "newsletter_confirm"
+  | "newsletter_welcome"
+  | "newsletter_broadcast"
+  | "renewal_reminder"
+  | "password_reset"
+  | "signup_confirm";
+
+export interface DebugSendResult {
+  status: "sent";
+  to: string;
+  kind: DebugMailKind;
+  id: string | null;
+}
+
+export async function debugSendMail(kind: DebugMailKind): Promise<DebugSendResult> {
+  const resp = await fetch(`${API_URL}/api/newsletter/debug-send`, {
+    method: "POST",
+    headers: { ...(await authHeader()), "Content-Type": "application/json" },
+    body: JSON.stringify({ kind }),
+  });
+  return parse(resp, "POST", "/api/newsletter/debug-send");
+}

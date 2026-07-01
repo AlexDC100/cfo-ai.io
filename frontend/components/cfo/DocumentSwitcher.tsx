@@ -308,8 +308,13 @@ export function DocumentSwitcher({ className, compact }: Props) {
     }
   }
 
-  // Empty state — render nothing rather than a confusing placeholder.
-  if (!isLoading && entries.length === 0) return null;
+  // Render nothing until we actually have entries to show. Previously this
+  // only bailed out AFTER loading finished (`!isLoading && empty`), so on a
+  // fresh dashboard with no documents the pill flashed a "Loading…" state and
+  // then vanished. Suppressing it while loading too means it simply never
+  // appears from the start when nothing is uploaded — it pops in only once
+  // real analyses exist (cached loads render instantly, no flash).
+  if (isLoading || entries.length === 0) return null;
 
   return (
     <div className={className} data-testid="document-switcher">

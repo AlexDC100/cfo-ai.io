@@ -49,7 +49,7 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick }: Props) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.32, ease: "easeOut" }}
-      className="max-w-[820px] mx-auto py-8 sm:py-12"
+      className="w-full max-w-[820px] mx-auto px-2 sm:px-4 py-8 sm:py-12"
       data-testid="chat-empty-state"
     >
       <div className="flex flex-col items-center text-center">

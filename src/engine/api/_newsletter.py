@@ -123,6 +123,85 @@ class BroadcastRequest(BaseModel):
     content_html: str
 
 
+class DebugSendRequest(BaseModel):
+    # One of the keys in _DEBUG_MAIL_KINDS. The email is always delivered to
+    # the *caller's own* verified address — never an arbitrary recipient — so
+    # this endpoint can't be turned into a spam relay.
+    kind: str
+
+
+# ── Debug/preview: every app-originated mail type, self-sent ────────────────
+#
+# Each entry renders the branded template with representative placeholder
+# data and returns (subject, html). Confirm/unsubscribe/reset links point at
+# harmless sample tokens — clicking them just hits the normal public routes
+# with an invalid token (→ friendly redirect), which is exactly right for a
+# preview. Keep this list in sync with _email_templates.py.
+
+def _debug_render(kind: str, *, request: Request, email: str) -> Dict[str, str]:
+    sample_confirm = _confirm_url(request, "sample-preview-token")
+    sample_unsub = _unsubscribe_url(request, "sample-preview-token")
+    sample_reset = f"{_app_url()}/login?type=recovery&token=sample-preview-token"
+    sample_signup = f"{_app_url()}/login?type=signup&token=sample-preview-token"
+
+    if kind == "newsletter_confirm":
+        return {
+            "subject": "Confirm your CFO AI newsletter subscription",
+            "html": _email_templates.newsletter_confirm(confirm_url=sample_confirm),
+        }
+    if kind == "newsletter_welcome":
+        return {
+            "subject": "Welcome to the CFO AI newsletter",
+            "html": _email_templates.newsletter_welcome(unsubscribe_url=sample_unsub),
+        }
+    if kind == "newsletter_broadcast":
+        return {
+            "subject": "Sample broadcast — CFO AI product update",
+            "html": _email_templates.newsletter_broadcast(
+                heading="Product update",
+                content_html=(
+                    "<p style='margin:0 0 12px 0;'>This is a preview of how a "
+                    "broadcast email looks. Admin-composed content lands here — "
+                    "paragraphs, <strong>bold</strong>, and links all render inline.</p>"
+                    "<p style='margin:0;'>Nothing was sent to your subscribers; "
+                    "this went only to you.</p>"
+                ),
+                unsubscribe_url=sample_unsub,
+            ),
+        }
+    if kind == "renewal_reminder":
+        return {
+            "subject": "Your CFO AI subscription renews soon",
+            "html": _email_templates.renewal_reminder(
+                renewal_date="15 August 2026",
+                amount_label="€99",
+                manage_url=f"{_app_url()}/settings",
+                days_ahead=7,
+            ),
+        }
+    if kind == "password_reset":
+        return {
+            "subject": "Reset your CFO AI password",
+            "html": _email_templates.password_reset(reset_url=sample_reset),
+        }
+    if kind == "signup_confirm":
+        return {
+            "subject": "Confirm your CFO AI email",
+            "html": _email_templates.signup_confirm(confirm_url=sample_signup),
+        }
+    raise HTTPException(422, f"Unknown mail kind: {kind!r}")
+
+
+_DEBUG_MAIL_KINDS = [
+    "newsletter_confirm",
+    "newsletter_welcome",
+    "newsletter_broadcast",
+    "renewal_reminder",
+    "password_reset",
+    "signup_confirm",
+]
+
+
 # ── Router ──────────────────────────────────────────────────────────────────
 
 def build_router() -> APIRouter:
@@ -283,6 +362,44 @@ def build_router() -> APIRouter:
                 filters={"email": f"eq.{email}"},
             )
         return {"status": "unsubscribed"}
+
+    # ─── PER-USER: debug send (self only) ──────────────────────────────
+    # Delivers a preview of any app mail type to the signed-in user's own
+    # verified email. Recipient is ALWAYS the caller — no `to` field — so
+    # this is safe to expose to any authenticated user; you can only email
+    # yourself. Useful for eyeballing the branded templates end-to-end.
+    @router.get("/api/newsletter/debug-kinds")
+    def debug_kinds() -> Dict[str, Any]:
+        return {"kinds": _DEBUG_MAIL_KINDS}
+
+    @router.post("/api/newsletter/debug-send")
+    def debug_send(req: DebugSendRequest, request: Request,
+                   authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        email = (user.get("email") or "").strip().lower()
+        if not email:
+            raise HTTPException(400, "No email on the signed-in account.")
+        if not _email.is_configured():
+            raise HTTPException(503, "RESEND_API_KEY is not configured on the backend.")
+
+        rendered = _debug_render(req.kind, request=request, email=email)
+        result = _email.send_email(
+            to=email,
+            subject=f"[Preview] {rendered['subject']}",
+            html=rendered["html"],
+        )
+        with _supabase.admin() as client:
+            _log_send(client, to=email, kind=f"debug:{req.kind}",
+                      subject=rendered["subject"], result=result)
+
+        if not result.get("ok"):
+            # Surface the provider error rather than a silent 200 so the
+            # debug button can show a real failure toast.
+            raise HTTPException(
+                502,
+                f"Send failed: {result.get('error') or result.get('reason') or 'unknown error'}",
+            )
+        return {"status": "sent", "to": email, "kind": req.kind, "id": result.get("id")}
 
     # ─── ADMIN: subscriber counts ──────────────────────────────────────
     @router.get("/api/newsletter/subscribers")
