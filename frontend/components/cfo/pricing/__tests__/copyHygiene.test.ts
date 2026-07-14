@@ -29,7 +29,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 
-const ROOT = resolve(__dirname, "../../../../..");  // → scandi-desk-main/
+const ROOT = resolve(__dirname, "../../../../..");  // → repo root
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -50,11 +50,11 @@ function walk(dir: string, out: string[] = []): string[] {
 
 function collectTargets(): string[] {
   const targets: string[] = [];
-  const pricingDir = join(ROOT, "src/components/cfo/pricing");
+  const pricingDir = join(ROOT, "frontend/components/cfo/pricing");
   walk(pricingDir, targets);
   // Pricing + Landing pages
-  targets.push(join(ROOT, "src/pages/cfo/Pricing.tsx"));
-  targets.push(join(ROOT, "src/pages/cfo/Landing.tsx"));
+  targets.push(join(ROOT, "frontend/pages/cfo/Pricing.tsx"));
+  targets.push(join(ROOT, "frontend/pages/cfo/Landing.tsx"));
   return targets.filter((p) => {
     try {
       return statSync(p).isFile();

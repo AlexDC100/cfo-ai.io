@@ -117,8 +117,8 @@ export default function Settings() {
             where the threshold sliders sit alongside the other data
             controls. Both component files
             (`FinancialAssumptionsCard.tsx` + `DataRulesCard.tsx`)
-            stay on disk for revert; the DataRulesCard import below
-            stays only so Command Center → Data can render it. */}
+            were removed in the 2026-07 dead-code cleanup
+            (recoverable from git history). */}
 
         {/* Plan & usage section removed per operator directive
             (May 2026). The same surface lives in three other
@@ -127,7 +127,8 @@ export default function Settings() {
               · /pricing — UsageThisMonth + status strip (full picture)
               · AccountMenu — docs-this-month + progress bar (glanceable)
               · Settings → Billing — current plan + price + email
-            `PlanUsageCard` component file stays on disk for revert. */}
+            `PlanUsageCard` was removed in the 2026-07 dead-code
+            cleanup (recoverable from git history). */}
 
         {/* Billing — simplified per operator directive (May 2026): just
             Current plan + Billing email + Manage subscription. The

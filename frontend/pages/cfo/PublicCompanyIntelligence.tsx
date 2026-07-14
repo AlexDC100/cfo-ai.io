@@ -4,8 +4,8 @@
 // top-right (single source of truth for live/demo/entitlement state).
 // `selectedTicker` lifted to page state. PUB-200 — clicking a row now
 // opens the StockDetailDrawer (slide-over with price chart + metrics),
-// not the inline PublicCompanySnapshotPanel (deprecated; component kept
-// for one release in case we need to revert).
+// not the inline PublicCompanySnapshotPanel (deprecated; removed in the
+// 2026-07 dead-code cleanup, recoverable from git history).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";

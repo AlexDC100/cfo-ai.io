@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "generate-template": "python3 ../scripts/generate_upload_template.py"
+    "generate-template": "python3 scripts/generate_upload_template.py"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

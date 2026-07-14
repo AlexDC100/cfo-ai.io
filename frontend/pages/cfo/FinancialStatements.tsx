@@ -171,7 +171,8 @@ import {
 // 9-tab restructure. Their canonical signals (customer concentration,
 // DSO, paid-on-time, net VAT) still surface as KPI tiles in the
 // `InvoiceKpiStrip` at the top of the page when invoice data is loaded.
-// The archived bottom-tab implementations live in src/_removed/tabs/.
+// The archived bottom-tab implementations were removed in the 2026-07
+// dead-code cleanup (recoverable from git history: frontend/_removed/tabs/).
 import { useToast } from "@/hooks/use-toast";
 
 export default function FinancialStatements() {

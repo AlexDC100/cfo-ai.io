@@ -26,14 +26,14 @@ import { Sidebar } from "./Sidebar";
 // App-shell cleanup Phase 4 — the legacy CommandDrawer is replaced by
 // CommandCenter (4 tabs: Workspace / Data / AI / Account, live state
 // card, registry-driven row gating, single sign-out). The old file
-// stays on disk one release for reversibility.
+// was removed in the 2026-07 dead-code cleanup (recoverable from git history).
 import { CommandCenter } from "./command";
 // NOTE: `ChatCopilot` is intentionally NOT imported here any more.
 // The new chat experience ships in two surfaces that share the same
 // components: the full `/chat` page (Chat.tsx → CFOChatShell variant=page)
 // and a right-anchored slide-over panel (CFOChatPanel) mounted here so
 // every other route can summon "Ask CFO AI" without losing context.
-// ChatCopilot.tsx remains on disk for reversibility.
+// ChatCopilot.tsx was removed in the 2026-07 dead-code cleanup (git history has it).
 import { SearchDialog } from "./SearchDialog";
 import { UploadDialog } from "./UploadDialog";
 import { DocsPanel } from "./DocsPanel";
@@ -276,7 +276,7 @@ export function AppShell({ children }: Props) {
           slide-over panel — invoked by Command Center → Workspace
           tab, by in-page chips that dispatch OPEN_ASK_CFO_AI_EVENT,
           and by the keyboard shortcut. Component file
-          FloatingAiButton.tsx remains on disk for revert. */}
+          FloatingAiButton.tsx was removed in the 2026-07 cleanup (git history has it). */}
 
       {/* Slide-over Ask CFO AI panel — shown from any non-/chat route.
        *  Reuses CFOChatShell (variant="panel") which mounts the same

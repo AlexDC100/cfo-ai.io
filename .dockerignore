@@ -16,7 +16,6 @@ dist/
 frontend/
 public/
 e2e/
-i18n-sweep/
 
 # Tests aren't needed in production
 tests/

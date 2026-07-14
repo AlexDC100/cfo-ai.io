@@ -275,7 +275,7 @@ def build_router() -> APIRouter:
     @router.get("/api/benchmarks/available-industries")
     def list_available_industries(authorization: Optional[str] = Header(None)) -> List[Dict[str, Any]]:
         """Return every distinct CAEN code present in `industry_benchmarks`.
-        Drives the dropdown in `IndustryConfirmModal`."""
+        Drives the industry dropdown in the frontend `IndustryPicker`."""
         # JWT is required (catalogue is readable by any authenticated
         # user per the RLS policy — we just need a valid session token).
         _require_jwt(authorization)

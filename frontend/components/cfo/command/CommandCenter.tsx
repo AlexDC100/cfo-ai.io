@@ -37,8 +37,8 @@ import { AccountTab } from "./tabs/AccountTab";
 // "Ask CFO AI" is reachable from the always-visible TopHeader pill and
 // the floating bottom-right button, so giving it a dedicated tab here
 // duplicated the affordance and pushed the more actionable Workspace /
-// Data / Account surfaces down. The AiTab file remains on disk for
-// revert (`./tabs/AiTab.tsx`).
+// Data / Account surfaces down. The AiTab file was removed in the
+// 2026-07 dead-code cleanup (recoverable from git history).
 import { DataTab } from "./tabs/DataTab";
 import { WorkspaceTab } from "./tabs/WorkspaceTab";
 
