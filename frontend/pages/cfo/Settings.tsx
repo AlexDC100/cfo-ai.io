@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/cfo/AppShell";
 import { NewsletterSettings } from "@/components/NewsletterSettings";
-import { debugSendMail, type DebugMailKind } from "@/lib/newsletterApi";
+import { debugSendMail, debugSendAllMail, type DebugMailKind } from "@/lib/newsletterApi";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
 // useSubscription/isSubscriptionEntitled/planFor/trialDaysLeft + supabaseEnabled
@@ -950,7 +950,7 @@ const DEBUG_MAIL_TYPES: { kind: DebugMailKind; label: string; description: strin
 
 function DebugEmailSection({ email }: { email: string | null }) {
   const { toast } = useToast();
-  const [busyKind, setBusyKind] = useState<DebugMailKind | null>(null);
+  const [busyKind, setBusyKind] = useState<DebugMailKind | "all" | null>(null);
 
   async function send(kind: DebugMailKind, label: string) {
     if (!email) {
@@ -972,8 +972,50 @@ function DebugEmailSection({ email }: { email: string | null }) {
     }
   }
 
+  async function sendAll() {
+    if (!email) {
+      toast({ title: "Not signed in", description: "Sign in to send preview emails.", variant: "destructive" });
+      return;
+    }
+    setBusyKind("all");
+    try {
+      const res = await debugSendAllMail();
+      toast({
+        title: "All preview emails sent",
+        description: `${res.sent} emails delivered to ${res.to}. Check your inbox.`,
+      });
+    } catch (e) {
+      toast({
+        title: "Couldn't send preview emails",
+        description: e instanceof Error ? e.message : "Unexpected error.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-rule bg-surface divide-y divide-rule/60">
+      <div className="px-5 py-4 flex items-center justify-between gap-3 bg-bg-2/40">
+        <div className="min-w-0">
+          <div className="text-[13.5px] font-medium text-ink">All email types</div>
+          <div className="text-[11.5px] text-ink-mute leading-snug">
+            Sends every template below to your address in one batch.
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={busyKind !== null || !email}
+          onClick={() => void sendAll()}
+          data-testid="settings-debug-email-send-all"
+          className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors"
+        >
+          {busyKind === "all"
+            ? <><Loader2 size={13} className="animate-spin" />Sending all…</>
+            : <><Mail size={13} strokeWidth={1.75} />Send all to me</>}
+        </button>
+      </div>
       {DEBUG_MAIL_TYPES.map((m) => (
         <div key={m.kind} className="px-5 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">

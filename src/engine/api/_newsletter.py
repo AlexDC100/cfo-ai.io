@@ -401,6 +401,38 @@ def build_router() -> APIRouter:
             )
         return {"status": "sent", "to": email, "kind": req.kind, "id": result.get("id")}
 
+    @router.post("/api/newsletter/debug-send-all")
+    def debug_send_all(request: Request,
+                       authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        # Same self-only guarantee as debug-send, but delivers every mail type
+        # in ONE Resend batch call (single request → immune to the per-request
+        # rate limit that six rapid debug-send calls would trip).
+        user = _user_from_jwt(_require_jwt(authorization))
+        email = (user.get("email") or "").strip().lower()
+        if not email:
+            raise HTTPException(400, "No email on the signed-in account.")
+        if not _email.is_configured():
+            raise HTTPException(503, "RESEND_API_KEY is not configured on the backend.")
+
+        rendered = {kind: _debug_render(kind, request=request, email=email)
+                    for kind in _DEBUG_MAIL_KINDS}
+        result = _email.send_batch([
+            {"to": email, "subject": f"[Preview] {r['subject']}", "html": r["html"]}
+            for r in rendered.values()
+        ])
+        with _supabase.admin() as client:
+            for kind, r in rendered.items():
+                _log_send(client, to=email, kind=f"debug:{kind}",
+                          subject=r["subject"], result=result)
+
+        if not result.get("ok"):
+            raise HTTPException(
+                502,
+                f"Send failed: {result.get('error') or result.get('reason') or 'unknown error'}",
+            )
+        return {"status": "sent", "to": email, "sent": result.get("sent", 0),
+                "kinds": _DEBUG_MAIL_KINDS}
+
     # ─── ADMIN: subscriber counts ──────────────────────────────────────
     @router.get("/api/newsletter/subscribers")
     def subscriber_counts(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:

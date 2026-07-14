@@ -155,3 +155,19 @@ export async function debugSendMail(kind: DebugMailKind): Promise<DebugSendResul
   });
   return parse(resp, "POST", "/api/newsletter/debug-send");
 }
+
+export interface DebugSendAllResult {
+  status: "sent";
+  to: string;
+  sent: number;
+  kinds: DebugMailKind[];
+}
+
+// Sends every mail type to the caller in one backend batch call.
+export async function debugSendAllMail(): Promise<DebugSendAllResult> {
+  const resp = await fetch(`${API_URL}/api/newsletter/debug-send-all`, {
+    method: "POST",
+    headers: await authHeader(),
+  });
+  return parse(resp, "POST", "/api/newsletter/debug-send-all");
+}
