@@ -59,8 +59,8 @@ function fmtMultiple(n: number | null | undefined): string {
 }
 
 function confidenceTone(c: PeriodValuation["confidence"]) {
-  if (c === "high") return { dot: "bg-emerald-500", text: "text-emerald-700", label: "High confidence" };
-  if (c === "medium") return { dot: "bg-amber-500", text: "text-amber-700", label: "Medium confidence" };
+  if (c === "high") return { dot: "bg-[#5CD3C5]", text: "text-[#2AA89B]", label: "High confidence" };
+  if (c === "medium") return { dot: "bg-[#5CD3C5]", text: "text-[#2AA89B]", label: "Medium confidence" };
   return { dot: "bg-slate-400", text: "text-slate-600", label: "Low confidence" };
 }
 

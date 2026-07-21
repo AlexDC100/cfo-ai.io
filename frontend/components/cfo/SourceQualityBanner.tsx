@@ -78,9 +78,9 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
       <div
         className="rounded-md mb-3 inline-flex items-center gap-2 px-3 py-1.5 text-[11px]"
         style={{
-          background: "rgba(26,84,144,0.06)",
-          border: "1px solid rgba(26,84,144,0.20)",
-          color: "#1a5490",
+          background: "rgba(42,168,155,0.06)",
+          border: "1px solid rgba(42,168,155,0.20)",
+          color: "#2AA89B",
         }}
         data-testid="source-quality-na-pill"
         role="note"
@@ -93,7 +93,7 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
           <a
             href="#recommendations"
             className="underline font-semibold"
-            style={{ color: "#1a5490" }}
+            style={{ color: "#2AA89B" }}
           >
             BS reconciliation
           </a>
@@ -116,9 +116,9 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
 
   // Amber accent palette — matches existing DataDepthBanner level-1
   // amber so the dashboard's warning vocabulary stays consistent.
-  const accent = "#7a5a00";
-  const accentBg = "rgba(243,156,18,0.10)";
-  const accentBorder = "rgba(243,156,18,0.40)";
+  const accent = "#2AA89B";
+  const accentBg = "rgba(92,211,197,0.10)";
+  const accentBorder = "rgba(92,211,197,0.40)";
 
   return (
     <div

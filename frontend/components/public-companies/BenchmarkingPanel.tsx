@@ -111,13 +111,13 @@ function BenchmarkTile({ metric, rows }: { metric: Metric; rows: WatchlistRow[] 
 
       <div className="mt-3 pt-3 border-t border-rule/60 space-y-1">
         <LeaderRow
-          icon={<ArrowUp size={11} className="text-emerald-700 dark:text-emerald-300" />}
+          icon={<ArrowUp size={11} className="text-[#2AA89B] dark:text-[#8FE3D9]" />}
           label="Leader"
           ticker={leader.ticker}
           value={formatMetric(values[idxBest], metric.unit)}
         />
         <LeaderRow
-          icon={<ArrowDown size={11} className="text-amber-700 dark:text-amber-300" />}
+          icon={<ArrowDown size={11} className="text-[#2AA89B] dark:text-[#8FE3D9]" />}
           label="Laggard"
           ticker={laggard.ticker}
           value={formatMetric(values[idxWorst], metric.unit)}

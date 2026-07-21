@@ -252,9 +252,9 @@ function FilterPill({
 }) {
   const toneStyles =
     tone === "critical" ? "data-[active=true]:bg-red-100 data-[active=true]:text-red-800 dark:data-[active=true]:bg-red-500/[0.18] dark:data-[active=true]:text-red-300"
-    : tone === "watch"  ? "data-[active=true]:bg-amber-100 data-[active=true]:text-amber-900 dark:data-[active=true]:bg-amber-500/[0.18] dark:data-[active=true]:text-amber-200"
-    : tone === "info"   ? "data-[active=true]:bg-blue-100 data-[active=true]:text-blue-800 dark:data-[active=true]:bg-blue-500/[0.18] dark:data-[active=true]:text-blue-300"
-    : tone === "rec"    ? "data-[active=true]:bg-emerald-100 data-[active=true]:text-emerald-800 dark:data-[active=true]:bg-emerald-500/[0.18] dark:data-[active=true]:text-emerald-300"
+    : tone === "watch"  ? "data-[active=true]:bg-[#E6F7F4] data-[active=true]:text-[#1B7268] dark:data-[active=true]:bg-[#5CD3C5]/[0.18] dark:data-[active=true]:text-[#8FE3D9]"
+    : tone === "info"   ? "data-[active=true]:bg-[#E6F7F4] data-[active=true]:text-[#1B7268] dark:data-[active=true]:bg-[#5CD3C5]/[0.18] dark:data-[active=true]:text-[#8FE3D9]"
+    : tone === "rec"    ? "data-[active=true]:bg-[#E6F7F4] data-[active=true]:text-[#1B7268] dark:data-[active=true]:bg-[#5CD3C5]/[0.18] dark:data-[active=true]:text-[#8FE3D9]"
     :                     "data-[active=true]:bg-ink/[0.08] data-[active=true]:text-ink";
 
   return (
@@ -291,15 +291,15 @@ function AlertCard({ deduped }: { deduped: DedupedAlert }) {
   const severityRule =
     alert.severity === "critical" ? "border-l-red-500"
     : alert.severity === "high"   ? "border-l-red-400"
-    : alert.severity === "medium" ? "border-l-amber-500"
-    : alert.severity === "low"    ? "border-l-blue-400"
+    : alert.severity === "medium" ? "border-l-[#5CD3C5]"
+    : alert.severity === "low"    ? "border-l-[#5CD3C5]"
     :                                "border-l-ink-mute";
 
   const iconColor =
     alert.severity === "critical" ? "text-red-600"
     : alert.severity === "high"   ? "text-red-500"
-    : alert.severity === "medium" ? "text-amber-600"
-    : alert.severity === "low"    ? "text-blue-600"
+    : alert.severity === "medium" ? "text-[#2AA89B]"
+    : alert.severity === "low"    ? "text-[#2AA89B]"
     :                                "text-ink-mute";
 
   return (
@@ -338,18 +338,18 @@ function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
   const Icon = isDone ? CheckCircle2 : Info;
 
   const ruleColor =
-    isDone                   ? "border-l-emerald-500"
+    isDone                   ? "border-l-[#5CD3C5]"
     : rec.urgency === "critical" ? "border-l-red-500"
     : rec.urgency === "high"     ? "border-l-red-400"
-    : rec.urgency === "medium"   ? "border-l-amber-500"
-    :                              "border-l-emerald-400";
+    : rec.urgency === "medium"   ? "border-l-[#5CD3C5]"
+    :                              "border-l-[#5CD3C5]";
 
   const iconColor =
-    isDone                       ? "text-emerald-600"
+    isDone                       ? "text-[#2AA89B]"
     : rec.urgency === "critical" ? "text-red-600"
     : rec.urgency === "high"     ? "text-red-500"
-    : rec.urgency === "medium"   ? "text-amber-600"
-    :                              "text-emerald-600";
+    : rec.urgency === "medium"   ? "text-[#2AA89B]"
+    :                              "text-[#2AA89B]";
 
   return (
     <li
@@ -363,7 +363,7 @@ function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
         <Icon size={14} className={`flex-shrink-0 mt-[3px] ${iconColor}`} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-[10px] uppercase tracking-[0.1em] text-emerald-700 dark:text-emerald-400 font-semibold">
+            <span className="text-[10px] uppercase tracking-[0.1em] text-[#2AA89B] dark:text-[#5CD3C5] font-semibold">
               Recommendation
             </span>
             <span className="text-[13px] text-ink font-medium leading-snug">

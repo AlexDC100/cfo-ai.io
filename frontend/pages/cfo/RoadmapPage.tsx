@@ -81,9 +81,9 @@ const BACKLOG: RoadmapEntry[] = [
 ];
 
 const STATUS_COLORS: Record<RoadmapStatus, string> = {
-  research: "bg-blue-500/10 text-blue-500 border-blue-500/30",
-  "in-design": "bg-violet-500/10 text-violet-500 border-violet-500/30",
-  planning: "bg-amber-500/10 text-amber-500 border-amber-500/30",
+  research: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
+  "in-design": "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
+  planning: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
   backlog: "bg-ink-soft/10 text-ink-soft border-ink-soft/30",
 };
 
@@ -116,7 +116,7 @@ export default function RoadmapPage() {
       </header>
 
       <main className="flex-1 mx-auto w-full max-w-[860px] px-5 sm:px-8 py-12">
-        <h1 className="text-[34px] sm:text-[40px] font-semibold tracking-tight text-ink">
+        <h1 className="text-[34px] sm:text-[40px] tracking-tight text-ink">
           Product Roadmap
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[560px]">

@@ -1,6 +1,5 @@
-import { ReactNode, useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import { ease, easeSlow } from "@/lib/motion";
+import { ReactNode } from "react";
+import { motion } from "framer-motion";
 
 interface Props {
   label: string;
@@ -36,22 +35,17 @@ const ACCENT_HALO: Record<NonNullable<Props["accent"]>, string> = {
  *   - Number renders in Instrument Serif italic (`num-hero`) at 44px instead
  *     of regular serif at 36px. The italic + tabular-nums combo reads like
  *     a financial publication tear-out, not a dashboard widget.
- *   - Card enters with a soft slide-up reveal when scrolled into view (once).
  *   - Subtle lift + shadow + accent-hued halo on hover. The halo is the
  *     "alive" cue — desktops feel responsive without being noisy.
  *   - Label still uses the existing label-eyebrow utility so the visual
  *     identity of cards across the app stays consistent.
+ *
+ * No entrance animation: cards render at full opacity immediately so
+ * switching into a tab never fades content in.
  */
 export function KpiCard({ label, value, hint, accent = "default" }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-40px" });
-
   return (
     <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 16 }}
-      animate={inView ? { opacity: 1, y: 0 } : undefined}
-      transition={ease}
       whileHover={{ y: -3, scale: 1.012 }}
       // Spring on the hover state — snappier than the entrance.
       style={{ transformStyle: "preserve-3d" }}
@@ -63,14 +57,11 @@ export function KpiCard({ label, value, hint, accent = "default" }: Props) {
           className={`pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${ACCENT_HALO[accent]}`}
         />
         <div className="relative label-eyebrow text-ink-soft">{label}</div>
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ ...easeSlow, delay: 0.08 }}
+        <div
           className={`relative mt-3 num-hero text-[clamp(28px,7vw,44px)] leading-[1.05] ${ACCENT_NUMBER[accent]}`}
         >
           {value}
-        </motion.div>
+        </div>
         {hint && <div className="relative mt-2 text-[13px] text-ink-soft">{hint}</div>}
       </div>
     </motion.div>

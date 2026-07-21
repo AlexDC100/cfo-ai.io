@@ -128,7 +128,7 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
                 className={cn(
                   "inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-medium transition-colors",
                   effectiveView === key
-                    ? "bg-[hsl(165,75%,55%)]/[0.14] text-[hsl(165,80%,34%)]"
+                    ? "bg-[hsl(173,57%,55%)]/[0.14] text-[hsl(173,57%,34%)]"
                     : "text-ink-mute hover:text-ink",
                   !trendAvailable && key === "trend" && "cursor-not-allowed hover:text-ink-mute",
                 )}
@@ -172,7 +172,7 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
                 "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-[12px] font-medium transition-colors",
                 atCardLimit
                   ? "text-ink-mute cursor-not-allowed"
-                  : "text-[hsl(165,80%,38%)] hover:bg-[hsl(165,75%,55%)]/[0.08]",
+                  : "text-[hsl(173,57%,38%)] hover:bg-[hsl(173,57%,55%)]/[0.08]",
               )}
               title={atCardLimit ? "Card limit reached (20)" : "Add a metric"}
             >
@@ -187,7 +187,7 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
             className={cn(
               "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-[12px] font-medium transition-colors",
               editMode
-                ? "bg-[hsl(165,75%,55%)]/[0.12] text-[hsl(165,80%,38%)]"
+                ? "bg-[hsl(173,57%,55%)]/[0.12] text-[hsl(173,57%,38%)]"
                 : "text-ink-soft hover:text-ink hover:bg-bg-2",
             )}
           >
@@ -237,7 +237,7 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-[hsl(165,75%,45%)] text-white text-[13px] font-medium"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-[hsl(173,57%,45%)] text-white text-[13px] font-medium"
           >
             <Plus className="w-4 h-4" /> Add metric
           </button>

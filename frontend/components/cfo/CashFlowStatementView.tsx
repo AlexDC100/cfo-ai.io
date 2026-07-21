@@ -54,19 +54,19 @@ export function CashFlowStatementView({ statement }: Props) {
       {showApproximationBanner && (
         <div
           data-testid="cf-approximation-banner"
-          className="rounded-xl border border-amber-300/50 bg-amber-50/40 dark:bg-amber-500/[0.08] px-4 py-3 mb-4"
+          className="rounded-xl border border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.08] px-4 py-3 mb-4"
         >
           <div className="flex items-start gap-2.5">
-            <span aria-hidden className="text-amber-700 dark:text-amber-300 mt-0.5">ⓘ</span>
+            <span aria-hidden className="text-[#2AA89B] dark:text-[#8FE3D9] mt-0.5">ⓘ</span>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-medium text-amber-900 dark:text-amber-100">
+              <div className="text-[13px] font-medium text-[#1B7268] dark:text-[#E6F7F4]">
                 {t("statements.cf.approximated.heading")}
               </div>
-              <p className="text-[12px] text-amber-900/85 dark:text-amber-100/85 mt-1 leading-relaxed">
+              <p className="text-[12px] text-[#1B7268]/85 dark:text-[#E6F7F4]/85 mt-1 leading-relaxed">
                 {t("statements.cf.approximated.body")}
               </p>
               {statement.approximationNotes.length > 0 && (
-                <ul className="text-[11.5px] text-amber-900/80 dark:text-amber-100/80 mt-2 ml-3 list-disc space-y-0.5">
+                <ul className="text-[11.5px] text-[#1B7268]/80 dark:text-[#E6F7F4]/80 mt-2 ml-3 list-disc space-y-0.5">
                   {statement.approximationNotes.map((note, i) => (
                     <li key={i}>{note}</li>
                   ))}
@@ -76,11 +76,11 @@ export function CashFlowStatementView({ statement }: Props) {
                 <a
                   href="/financials"
                   data-testid="cf-upload-prior-cta"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 text-[12px] font-medium transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#2AA89B] hover:bg-[#1B7268] text-white px-3 py-1.5 text-[12px] font-medium transition-colors"
                 >
                   {t("statements.cf.approximated.cta")}
                 </a>
-                <span className="text-[11.5px] text-amber-900/70 dark:text-amber-100/70">
+                <span className="text-[11.5px] text-[#1B7268]/70 dark:text-[#E6F7F4]/70">
                   {t("statements.cf.approximated.hint")}
                 </span>
               </div>

@@ -2099,6 +2099,32 @@ def _convert_briefing_facts(
     return out
 
 
+def stage_council(doc: Dict[str, Any], parsed: Dict[str, Any],
+                  assembled: Dict[str, Any]) -> Dict[str, Any]:
+    """Advisory AI-council review of EXTRACTION INTEGRITY (added 2026-07-20).
+
+    A panel of independent Claude personas — reconciliation / completeness /
+    classification auditors — scans the freshly-assembled statements; a
+    deterministic chair returns a consensus verdict (pass / warn / fail).
+
+    Advisory by design: this stage NEVER blocks the pipeline and NEVER
+    raises. Any failure (no API key, provider down, malformed output)
+    degrades to the deterministic baseline inside `_ai_council.run_council`,
+    which is itself exception-safe. The caller surfaces the verdict + any
+    findings by appending `council_findings_as_alerts(...)` to
+    `validation_alerts`, so they flow through the existing 'data_quality'
+    alerts channel with no schema migration.
+
+    Returns the full council result dict, or {} if the stage itself errors.
+    """
+    from . import _ai_council
+    try:
+        return _ai_council.run_council(assembled, parsed, document_id=doc.get("id"))
+    except Exception:  # noqa: BLE001 — advisory stage must never break analysis
+        logger.exception("[stage_council] failed (non-fatal)")
+        return {}
+
+
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
                   org: Dict[str, Any], period_id: str,
                   parsed: Optional[Dict[str, Any]] = None,
@@ -3245,6 +3271,25 @@ def _run_pipeline_sync(document_id: str) -> None:
                 except Exception:  # noqa: BLE001
                     logger.exception("[pipeline] statutory anchor override failed (non-fatal)")
             validation_alerts = stage_validate(doc, assembled, period_id)
+            # AI Council — advisory extraction-integrity review (2026-07-20).
+            # A panel of independent Claude personas scans the extraction and a
+            # deterministic chair returns a consensus verdict. Non-blocking:
+            # findings are appended to validation_alerts as 'data_quality'
+            # advisories and surface in the existing alerts UI. stage_council
+            # never raises; a missing API key degrades to a deterministic
+            # rule-based verdict.
+            council_result = stage_council(doc, parsed, assembled)
+            if council_result:
+                from . import _ai_council
+                logger.info(
+                    "[pipeline] ai_council verdict=%s confidence=%.2f findings=%d (doc=%s)",
+                    council_result.get("verdict"),
+                    council_result.get("confidence", 0.0),
+                    len(council_result.get("findings", []) or []),
+                    document_id,
+                )
+                validation_alerts = list(validation_alerts) + \
+                    _ai_council.council_findings_as_alerts(council_result)
             # Industry classification fallback. When the org's industry_key is
             # unset or "generic", run the auto-classifier on the assembled
             # statements — for EEI this detects real_estate_commercial from

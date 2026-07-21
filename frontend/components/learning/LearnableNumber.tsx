@@ -76,7 +76,7 @@ export function LearnableNumber({
           : "inline-flex items-baseline gap-1",
         "transition-colors",
         "focus-visible:outline-none",
-        "focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/35",
+        "focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/35",
         "focus-visible:rounded-sm",
         "cursor-pointer",
         className,

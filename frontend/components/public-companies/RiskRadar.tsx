@@ -98,9 +98,9 @@ const SOURCE_LABEL: Record<ExposureSource, string> = {
 
 const SOURCE_TINT: Record<ExposureSource, string> = {
   sector_model: "bg-bg-2/60 text-ink-mute border-rule/60",
-  sec_filing: "bg-sky-400/10 text-sky-500 border-sky-400/30",
-  operator_curated: "bg-amber-400/10 text-amber-500 border-amber-400/30",
-  bvb_override: "bg-indigo-400/10 text-indigo-500 border-indigo-400/30",
+  sec_filing: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
+  operator_curated: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
+  bvb_override: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
 };
 
 export function RiskRadar({ onDrillToCategory }: Props) {
@@ -304,9 +304,9 @@ function RadarCard({
           <div
             className={`h-full rounded-full transition-all ${
               data.level === "critical" ? "bg-alert" :
-              data.level === "high"     ? "bg-orange-400" :
-              data.level === "medium"   ? "bg-amber-400" :
-                                          "bg-emerald-400"
+              data.level === "high"     ? "bg-[#5CD3C5]" :
+              data.level === "medium"   ? "bg-[#5CD3C5]" :
+                                          "bg-[#5CD3C5]"
             }`}
             style={{ width: `${Math.max(2, Math.min(100, data.score))}%` }}
           />
@@ -561,8 +561,8 @@ function FeedStatusBadge({
 
   const tone =
     status === "live_feed_active"
-      ? "bg-emerald-400/10 text-emerald-400 border-emerald-400/30"
-      : "bg-amber-400/10 text-amber-400 border-amber-400/30";
+      ? "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30"
+      : "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30";
 
   let computedLabel = "";
   try {

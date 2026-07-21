@@ -32,37 +32,37 @@
   /* Brand ink — used by both light and "dark" because the EEI report
    * is monochromatic navy on warm white. We don't auto-invert in dark
    * mode; instead the dashboard scope forces light surfaces below.    */
-  --eei-ink:           #003366;
-  --eei-ink-soft:      #1a5490;
+  --eei-ink:           #0f5a52;   /* was navy #003366 — dark teal for white-on-band contrast */
+  --eei-ink-soft:      #2aa89b;   /* was #1a5490 */
   --eei-body:          #1a1a1a;
   --eei-mute:          #555555;
   --eei-mute-soft:     #666666;
   --eei-mute-meta:     #888888;
 
   --eei-paper:         #ffffff;
-  --eei-paper-soft:    #fafbfd;
-  --eei-bg-band:       #f7f9fc;
-  --eei-bg-header:     #f0f4f8;
+  --eei-paper-soft:    #fafafa;
+  --eei-bg-band:       #f7f7f7;
+  --eei-bg-header:     #f0f0f0;
 
   --eei-rule-hair:     #e0e0e0;
   --eei-rule-soft:     #ececec;
   --eei-rule-strong:   #cccccc;
 
-  --eei-pos:           #0a7c3a;
-  --eei-neg:           #c0392b;
+  --eei-pos:           #0f766a;   /* was green #0a7c3a — dark teal */
+  --eei-neg:           #c0392b;   /* red — unchanged */
 
-  --eei-callout-bg:    #fff8e1;
-  --eei-callout-rule:  #f39c12;
-  --eei-callout-lead:  #b8860b;
+  --eei-callout-bg:    #e6f7f4;   /* was amber tint */
+  --eei-callout-rule:  #5cd3c5;   /* was amber #f39c12 */
+  --eei-callout-lead:  #0f766a;   /* was dark gold #b8860b */
 
-  --eei-risk-bg:       #ffebee;
-  --eei-risk-rule:     #c62828;
+  --eei-risk-bg:       #ffebee;   /* red tint — unchanged */
+  --eei-risk-rule:     #c62828;   /* red — unchanged */
 
-  --eei-action-bg:     #e8f5e9;
-  --eei-action-rule:   #2e7d32;
+  --eei-action-bg:     #e6f7f4;   /* was green tint */
+  --eei-action-rule:   #2aa89b;   /* was green #2e7d32 */
 
-  --eei-insight-bg:    #1a5490;
-  --eei-insight-rule:  #ffc107;
+  --eei-insight-bg:    #0f5a52;   /* was navy #1a5490 — dark teal */
+  --eei-insight-rule:  #5cd3c5;   /* was amber #ffc107 */
 
   --eei-font-sans:     -apple-system, BlinkMacSystemFont, "Segoe UI",
                        system-ui, Arial, sans-serif;
@@ -89,19 +89,19 @@
   /* EEI palette mapped onto the existing Tailwind HSL variable names.
    * Values use the same `<h> <s>% <l>%` triplet shape the Tailwind
    * theme uses, so `hsl(var(--ink))` still resolves cleanly. */
-  --ink:            211 100% 20%;  /* #003366 */
-  --ink-soft:       210 53% 33%;   /* #1a5490 */
+  --ink:           173  70% 21%;   /* dark teal (was navy #003366) */
+  --ink-soft:      173  60% 36%;   /* dark teal (was #1a5490) */
   --ink-mute:        0   0% 33%;   /* #555555 */
   --surface:         0   0% 100%;  /* #ffffff */
   --bg:              0   0% 100%;
-  --bg-2:          218 31%  97%;   /* #f7f9fc */
+  --bg-2:            0   0%  97%;
   --rule-soft:       0   0%  88%;  /* #e0e0e0 */
   --rule-strong:     0   0%  80%;  /* #cccccc */
-  --brand:         211 100% 20%;   /* #003366 — EEI is monochromatic */
-  --brand-2:        43  88% 56%;   /* #f39c12 — callout accent */
-  --success:       141  85% 26%;   /* #0a7c3a */
-  --alert:           6  72% 47%;   /* #c0392b */
-  --caution:        37  87% 53%;   /* #f39c12 */
+  --brand:         173  70% 21%;   /* dark teal — EEI is monochromatic */
+  --brand-2:       173  57% 59%;   /* #5CD3C5 — callout accent */
+  --success:       173  70% 28%;   /* teal (was green) */
+  --alert:           6  72% 47%;   /* #c0392b — red, unchanged */
+  --caution:       173  57% 50%;   /* teal (was amber) */
 }
 .eei-scope,
 .eei-scope * {
@@ -353,7 +353,7 @@
 }
 
 .eei-table .reconciliation td {
-  background: #fbfcfd;
+  background: #fbfbfb;
   color: var(--eei-mute);
   border-top: 1px dashed var(--eei-rule-strong);
   font-size: 12.5px;
@@ -369,7 +369,7 @@
  * competing headline.                                                 */
 .eei-table .headline td {
   font-weight: 700;
-  background: #f1f6fb;
+  background: #eef7f5;
   border-top: 2px solid var(--eei-ink);
   border-bottom: 1px solid var(--eei-ink);
   padding-top: 10px;
@@ -430,9 +430,9 @@
   border: 1px solid;
   vertical-align: 1px;
 }
-.eei-chip.v-strong   { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
-.eei-chip.v-healthy  { background: #e8f0fb; color: #1a5490; border-color: #aac4e5; }
-.eei-chip.v-watch    { background: var(--eei-callout-bg); color: var(--eei-callout-lead); border-color: #f6c779; }
+.eei-chip.v-strong   { background: #e6f7f4; color: #0f766a; border-color: #9ad9d0; }
+.eei-chip.v-healthy  { background: #e6f7f4; color: #12796d; border-color: #9ad9d0; }
+.eei-chip.v-watch    { background: var(--eei-callout-bg); color: var(--eei-callout-lead); border-color: #8fe3d9; }
 .eei-chip.v-critical { background: #fbe6e6; color: #8e1818; border-color: #d39c9c; }
 
 /* ── Print niceties (dashboard print-friendly) ─────────────────────── */

@@ -7,12 +7,12 @@
 // not the inline PublicCompanySnapshotPanel (deprecated; removed in the
 // 2026-07 dead-code cleanup, recoverable from git history).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Activity, LayoutGrid } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { PublicShell } from "@/components/cfo/PublicShell";
+import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useAuth } from "@/lib/auth";
 import { CompanySearchPanel } from "@/components/public-companies/CompanySearchPanel";
 // PUB-UPG — `PublicCompaniesUniverseTable` is the 200-row sortable
@@ -254,20 +254,33 @@ export default function PublicCompanyIntelligence() {
     });
   }, []);
 
-  // Shell selection: authed visitors get the full AppShell (sidebar +
-  // top-header + access to the rest of the product). Anonymous visitors
-  // arriving via the landing-page "Quick try" chips or the Public
-  // Companies CTA get the slimmer PublicShell — Logo + Sign in + Get
-  // started CTAs and that's it. Same page body either way. The "no
-  // signup · 10s" promise on the landing page is literally true now.
+  // Shell selection: authed visitors are routed UNDER the shared AppLayout
+  // (App.tsx), which already provides the one persistent AppShell — so here we
+  // render content-only (Fragment) to avoid a second, remounting shell. That's
+  // what keeps navigating to /public-companies from refreshing the app.
+  // Anonymous visitors (landing-page "Quick try" chips / Public Companies CTA)
+  // hit the standalone route and get the slimmer PublicShell — Logo + Sign in +
+  // Get started CTAs. Same page body either way; "no signup · 10s" stays true.
   const { isAuthenticated } = useAuth();
-  const Shell = isAuthenticated ? AppShell : PublicShell;
+  const Shell = isAuthenticated ? Fragment : PublicShell;
 
   return (
     <Shell>
       <div
         data-testid="public-company-intelligence"
-        className="max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-8"
+        className={
+          // Authed: render content-only into the shared AppShell, which already
+          // supplies the left-anchored gutter (px-4 sm:px-8 lg:px-10 + py) AND
+          // the max-w-[1760px] clamp — so we add NOTHING here. The page then
+          // matches the dashboard exactly: same background, same sidebar gap,
+          // and the same content width (no narrower clamp leaving an empty
+          // background strip on the right).
+          // Anonymous: PublicShell gives no padding, so keep the self-contained
+          // centered layout that the standalone marketing route needs.
+          isAuthenticated
+            ? ""
+            : "max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-8"
+        }
       >
         {/* ── Section 1 — Compact header + status banner ───────────
             2026-05-26 (mobile fix): the prior layout used
@@ -284,40 +297,47 @@ export default function PublicCompanyIntelligence() {
             gets `sm:shrink-0` so it never forces the heading
             narrower than the heading needs. Heading also scales
             from 24px (mobile) → 28px → 34px. */}
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-          <div className="min-w-0">
-            <h1 className="font-serif text-[24px] sm:text-[28px] md:text-[34px] text-ink leading-[1.1] tracking-[-0.012em]">
-              Public Company Intelligence
-            </h1>
-            <p className="text-[13.5px] text-ink-soft mt-2 max-w-[640px] leading-relaxed">
-              Search listed companies, pull Nasdaq financials, and add them as
-              benchmark peers — alongside your private books.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap sm:shrink-0">
-            <PublicCompanyStatusBanner
-              keyConfigured={health?.key_configured ?? false}
-              subscriptionRequired={universeQuery.data?.mode === "demo"}
-              keyTag={health?.key_tag}
-            />
-            <a
-              href="https://data.nasdaq.com/databases/SF1"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="
-                inline-flex items-center gap-1.5
-                h-8 px-3 rounded-lg
-                border border-rule bg-surface
-                text-[12px] text-ink-soft
-                hover:bg-bg-2/50 hover:text-ink
-                transition-all
-              "
-            >
-              <BookOpen size={12} strokeWidth={1.75} />
-              Docs
-            </a>
-          </div>
-        </header>
+        {/* Dashboard-hero styling: the module name reads as a small
+            Sparkles eyebrow (like the dashboard's "Get started"), the
+            value proposition is promoted to the large semibold headline
+            (like "Upload your trial balance…"). Status banner + Docs sit
+            in the header's actions slot. */}
+        <PageHeader
+          hero
+          eyebrow="Public Company Intelligence"
+          title={
+            <>
+              Search listed companies and add them as{" "}
+              <span className="text-grad">benchmark peers</span>.
+            </>
+          }
+          subtitle="Official SEC-filing financials for US-listed companies — revenue, EBITDA, margins, leverage, and valuation multiples, pulled from Nasdaq's SF1 fundamentals. Add any ticker as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views. Every figure traces back to the filing it came from — no estimates, no fabricated peers."
+          actions={
+            <>
+              <PublicCompanyStatusBanner
+                keyConfigured={health?.key_configured ?? false}
+                subscriptionRequired={universeQuery.data?.mode === "demo"}
+                keyTag={health?.key_tag}
+              />
+              <a
+                href="https://data.nasdaq.com/databases/SF1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="
+                  inline-flex items-center gap-1.5
+                  h-8 px-3 rounded-lg
+                  border border-rule bg-surface
+                  text-[12px] text-ink-soft
+                  hover:bg-bg-2/50 hover:text-ink
+                  transition-all
+                "
+              >
+                <BookOpen size={12} strokeWidth={1.75} />
+                Docs
+              </a>
+            </>
+          }
+        />
 
         {/* ── Tab strip — Overview / Risk Radar ──────────────────────
               Segmented control sits between the header and the per-tab

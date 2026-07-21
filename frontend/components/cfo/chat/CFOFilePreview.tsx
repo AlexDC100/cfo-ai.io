@@ -51,7 +51,7 @@ export function CFOFilePreview({
 }
 
 function StatusGlyph({ status }: { status: ChatAttachment["status"] }) {
-  if (status === "ready") return <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />;
+  if (status === "ready") return <CheckCircle2 size={12} className="text-[#2AA89B] shrink-0" />;
   if (status === "error") return <AlertCircle size={12} className="text-red-600 shrink-0" />;
   if (status === "queued") return null;
   return <Loader2 size={12} className="animate-spin text-ink-mute shrink-0" />;

@@ -42,9 +42,9 @@ interface Props {
 
 /** Tier accent class — top contributor accented, next two 70%, rest 40%. */
 function tierBarClass(rank: number): string {
-  if (rank === 0) return "bg-[hsl(165,75%,55%)]";
-  if (rank < 3) return "bg-[hsl(165,75%,55%)]/70";
-  return "bg-[hsl(165,75%,55%)]/40";
+  if (rank === 0) return "bg-[hsl(173,57%,55%)]";
+  if (rank < 3) return "bg-[hsl(173,57%,55%)]/70";
+  return "bg-[hsl(173,57%,55%)]/40";
 }
 
 export function CompositionBreakdown({ accounts, currency, locale = "en" }: Props) {

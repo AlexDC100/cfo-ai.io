@@ -50,8 +50,8 @@ export function PublicCompanyStatusBanner({
   }[status];
 
   const toneClass = config.tone === "emerald"
-    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
-    : "bg-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-500/30";
+    ? "bg-[#5CD3C5]/10 text-[#2AA89B] dark:text-[#8FE3D9] border-[#5CD3C5]/20"
+    : "bg-[#5CD3C5]/10 text-[#1B7268] dark:text-[#8FE3D9] border-[#5CD3C5]/30";
 
   const Icon = config.icon;
   return (

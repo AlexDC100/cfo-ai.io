@@ -193,7 +193,7 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         <div className="flex items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2">
-            <BookOpen className="w-3.5 h-3.5 text-[hsl(165,75%,68%)]" />
+            <BookOpen className="w-3.5 h-3.5 text-[hsl(173,57%,68%)]" />
             <h2 className="text-[14px] font-semibold leading-none tracking-tight">
               Finance glossary
             </h2>
@@ -232,7 +232,7 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
               w-full pl-9 pr-3 py-2 rounded-lg
               bg-white/[0.05] border border-white/[0.08]
               text-[13px] text-white placeholder:text-white/35
-              focus:outline-none focus:border-[hsl(165,75%,55%)]/30 focus:bg-white/[0.08]
+              focus:outline-none focus:border-[hsl(173,57%,55%)]/30 focus:bg-white/[0.08]
               transition-colors
             "
           />

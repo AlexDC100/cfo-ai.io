@@ -70,14 +70,14 @@ export function LearningLayerSection() {
         >
           <div
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full
-                       bg-[hsl(165,75%,55%)]/[0.08] border border-[hsl(165,75%,55%)]/[0.25]
+                       bg-[hsl(173,57%,55%)]/[0.08] border border-[hsl(173,57%,55%)]/[0.25]
                        mb-5"
           >
             <span
-              className="h-1.5 w-1.5 rounded-full bg-[hsl(165,80%,40%)]"
+              className="h-1.5 w-1.5 rounded-full bg-[hsl(173,57%,40%)]"
               aria-hidden
             />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(165,80%,30%)]">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(173,57%,30%)]">
               {t("landing.learn.badge", "CFO AI Learn")}
             </span>
           </div>
@@ -99,8 +99,8 @@ export function LearningLayerSection() {
           {/* Connecting line — desktop only. Same pattern as BridgeSection. */}
           <div
             className="hidden md:block absolute top-[3.25rem] left-[16.66%] right-[16.66%]
-                       h-px bg-gradient-to-r from-[hsl(165,75%,55%)]/0
-                       via-[hsl(165,75%,55%)]/40 to-[hsl(165,75%,55%)]/0 pointer-events-none"
+                       h-px bg-gradient-to-r from-[hsl(173,57%,55%)]/0
+                       via-[hsl(173,57%,55%)]/40 to-[hsl(173,57%,55%)]/0 pointer-events-none"
             aria-hidden
           />
 
@@ -118,10 +118,10 @@ export function LearningLayerSection() {
               <div
                 className="
                   w-7 h-7 rounded-full
-                  bg-[hsl(165,75%,55%)]/[0.16]
-                  border border-[hsl(165,75%,55%)]/[0.3]
+                  bg-[hsl(173,57%,55%)]/[0.16]
+                  border border-[hsl(173,57%,55%)]/[0.3]
                   grid place-items-center
-                  text-[11.5px] font-semibold text-[hsl(165,80%,30%)]
+                  text-[11.5px] font-semibold text-[hsl(173,57%,30%)]
                   shadow-[0_1px_2px_rgba(0,0,0,0.04)]
                   relative z-10 mb-5
                 "
@@ -192,7 +192,7 @@ function DefinitionIllustration() {
         fontFamily="system-ui, sans-serif"
         fontSize="22"
         fontWeight="600"
-        fill="hsl(220, 30%, 12%)"
+        fill="hsl(0, 0%, 12%)"
       >
         54.4M
       </text>
@@ -201,7 +201,7 @@ function DefinitionIllustration() {
         y1="62"
         x2="86"
         y2="62"
-        stroke="hsl(165, 75%, 45%)"
+        stroke="hsl(173, 57%, 45%)"
         strokeWidth="1.5"
         strokeDasharray="2,2"
       />
@@ -212,17 +212,17 @@ function DefinitionIllustration() {
         height="56"
         rx="8"
         fill="white"
-        stroke="hsl(220, 15%, 85%)"
+        stroke="hsl(0, 0%, 85%)"
         strokeWidth="1"
       />
-      <text x="105" y="42" fontFamily="system-ui, sans-serif" fontSize="9" fontWeight="600" fill="hsl(165, 80%, 30%)">
+      <text x="105" y="42" fontFamily="system-ui, sans-serif" fontSize="9" fontWeight="600" fill="hsl(173, 57%, 30%)">
         EBITDA
       </text>
-      <line x1="105" y1="48" x2="175" y2="48" stroke="hsl(220, 15%, 90%)" />
-      <text x="105" y="60" fontFamily="system-ui, sans-serif" fontSize="8" fill="hsl(220, 20%, 40%)">
+      <line x1="105" y1="48" x2="175" y2="48" stroke="hsl(0, 0%, 90%)" />
+      <text x="105" y="60" fontFamily="system-ui, sans-serif" fontSize="8" fill="hsl(0, 0%, 40%)">
         Operating profit
       </text>
-      <text x="105" y="71" fontFamily="system-ui, sans-serif" fontSize="8" fill="hsl(220, 20%, 40%)">
+      <text x="105" y="71" fontFamily="system-ui, sans-serif" fontSize="8" fill="hsl(0, 0%, 40%)">
         before interest
       </text>
     </svg>
@@ -244,36 +244,36 @@ function FormulaIllustration() {
         fontFamily="system-ui, sans-serif"
         fontSize="14"
         fontWeight="600"
-        fill="hsl(220, 30%, 12%)"
+        fill="hsl(0, 0%, 12%)"
       >
         EBITDA
       </text>
-      <text x="75" y="38" fontFamily="system-ui, sans-serif" fontSize="14" fill="hsl(220, 20%, 40%)">
+      <text x="75" y="38" fontFamily="system-ui, sans-serif" fontSize="14" fill="hsl(0, 0%, 40%)">
         =
       </text>
-      <rect x="90" y="24" width="42" height="20" rx="4" fill="hsl(165, 75%, 55%)" fillOpacity="0.08" stroke="hsl(165, 75%, 45%)" strokeWidth="1" />
-      <text x="98" y="38" fontFamily="system-ui, sans-serif" fontSize="13" fontWeight="500" fill="hsl(165, 80%, 30%)">
+      <rect x="90" y="24" width="42" height="20" rx="4" fill="hsl(173, 57%, 55%)" fillOpacity="0.08" stroke="hsl(173, 57%, 45%)" strokeWidth="1" />
+      <text x="98" y="38" fontFamily="system-ui, sans-serif" fontSize="13" fontWeight="500" fill="hsl(173, 57%, 30%)">
         EBIT
       </text>
-      <text x="138" y="38" fontFamily="system-ui, sans-serif" fontSize="14" fill="hsl(220, 20%, 40%)">
+      <text x="138" y="38" fontFamily="system-ui, sans-serif" fontSize="14" fill="hsl(0, 0%, 40%)">
         +
       </text>
-      <rect x="150" y="24" width="40" height="20" rx="4" fill="hsl(165, 75%, 55%)" fillOpacity="0.08" stroke="hsl(165, 75%, 45%)" strokeWidth="1" />
-      <text x="158" y="38" fontFamily="system-ui, sans-serif" fontSize="13" fontWeight="500" fill="hsl(165, 80%, 30%)">
+      <rect x="150" y="24" width="40" height="20" rx="4" fill="hsl(173, 57%, 55%)" fillOpacity="0.08" stroke="hsl(173, 57%, 45%)" strokeWidth="1" />
+      <text x="158" y="38" fontFamily="system-ui, sans-serif" fontSize="13" fontWeight="500" fill="hsl(173, 57%, 30%)">
         D&A
       </text>
 
       {/* Drill arrow — EBIT opens to its own sub-formula. */}
       <path
         d="M111 48 L111 62"
-        stroke="hsl(165, 75%, 45%)"
+        stroke="hsl(173, 57%, 45%)"
         strokeWidth="1.25"
         strokeDasharray="2,2"
       />
       <path
         d="M107 60 L111 64 L115 60"
         fill="none"
-        stroke="hsl(165, 75%, 45%)"
+        stroke="hsl(173, 57%, 45%)"
         strokeWidth="1.25"
       />
       <text
@@ -281,7 +281,7 @@ function FormulaIllustration() {
         y="80"
         fontFamily="system-ui, sans-serif"
         fontSize="9"
-        fill="hsl(220, 20%, 50%)"
+        fill="hsl(0, 0%, 50%)"
       >
         Revenue − OpEx
       </text>
@@ -297,31 +297,31 @@ function SourceIllustration() {
       aria-hidden
     >
       {/* Three RAS account codes with a tiny D/C indicator. */}
-      <rect x="20" y="20" width="160" height="68" rx="6" fill="white" stroke="hsl(220, 15%, 85%)" strokeWidth="1" />
-      <text x="30" y="35" fontFamily="ui-monospace, monospace" fontSize="10" fontWeight="600" fill="hsl(220, 30%, 12%)">
+      <rect x="20" y="20" width="160" height="68" rx="6" fill="white" stroke="hsl(0, 0%, 85%)" strokeWidth="1" />
+      <text x="30" y="35" fontFamily="ui-monospace, monospace" fontSize="10" fontWeight="600" fill="hsl(0, 0%, 12%)">
         701
       </text>
-      <text x="60" y="35" fontFamily="system-ui, sans-serif" fontSize="9" fill="hsl(220, 20%, 40%)">
+      <text x="60" y="35" fontFamily="system-ui, sans-serif" fontSize="9" fill="hsl(0, 0%, 40%)">
         Vânzare produse finite
       </text>
-      <text x="155" y="35" fontFamily="ui-monospace, monospace" fontSize="9" fontWeight="600" fill="hsl(165, 80%, 30%)">
+      <text x="155" y="35" fontFamily="ui-monospace, monospace" fontSize="9" fontWeight="600" fill="hsl(173, 57%, 30%)">
         C
       </text>
 
-      <text x="30" y="55" fontFamily="ui-monospace, monospace" fontSize="10" fontWeight="600" fill="hsl(220, 30%, 12%)">
+      <text x="30" y="55" fontFamily="ui-monospace, monospace" fontSize="10" fontWeight="600" fill="hsl(0, 0%, 12%)">
         602
       </text>
-      <text x="60" y="55" fontFamily="system-ui, sans-serif" fontSize="9" fill="hsl(220, 20%, 40%)">
+      <text x="60" y="55" fontFamily="system-ui, sans-serif" fontSize="9" fill="hsl(0, 0%, 40%)">
         Cheltuieli materiale
       </text>
       <text x="155" y="55" fontFamily="ui-monospace, monospace" fontSize="9" fontWeight="600" fill="hsl(0, 60%, 45%)">
         D
       </text>
 
-      <text x="30" y="75" fontFamily="ui-monospace, monospace" fontSize="10" fontWeight="600" fill="hsl(220, 30%, 12%)">
+      <text x="30" y="75" fontFamily="ui-monospace, monospace" fontSize="10" fontWeight="600" fill="hsl(0, 0%, 12%)">
         5121
       </text>
-      <text x="60" y="75" fontFamily="system-ui, sans-serif" fontSize="9" fill="hsl(220, 20%, 40%)">
+      <text x="60" y="75" fontFamily="system-ui, sans-serif" fontSize="9" fill="hsl(0, 0%, 40%)">
         Conturi la bănci RON
       </text>
       <text x="155" y="75" fontFamily="ui-monospace, monospace" fontSize="9" fontWeight="600" fill="hsl(0, 60%, 45%)">

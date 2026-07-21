@@ -278,7 +278,7 @@ function PlanCard({
         relative rounded-2xl bg-surface/85 backdrop-blur-sm
         overflow-hidden
         ${highlight
-          ? "border-2 border-brand/45 shadow-[0_24px_60px_-22px_rgba(45,191,179,0.55)] lg:-translate-y-2"
+          ? "border-2 border-brand/45 shadow-[0_24px_60px_-22px_rgba(92,211,197,0.55)] lg:-translate-y-2"
           : "border border-rule"}
         transition-transform
       `}
@@ -376,7 +376,7 @@ function PlanCard({
                 text-[13.5px] font-medium transition-colors
                 disabled:opacity-60 disabled:cursor-wait
                 ${highlight
-                  ? "bg-brand text-paper hover:bg-brand-d shadow-[0_8px_18px_-8px_rgba(45,191,179,0.6)]"
+                  ? "bg-brand text-paper hover:bg-brand-d shadow-[0_8px_18px_-8px_rgba(92,211,197,0.6)]"
                   : "bg-ink text-paper hover:bg-ink/90"}
               `}
             >

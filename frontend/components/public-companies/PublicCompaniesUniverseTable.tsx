@@ -333,7 +333,7 @@ export function PublicCompaniesUniverseTable({
       </ul>
 
       {mode === "demo" && (
-        <footer className="border-t border-rule px-5 sm:px-6 py-2.5 bg-amber-50/30 dark:bg-amber-500/[0.05] text-[11px] text-amber-800 dark:text-amber-200">
+        <footer className="border-t border-rule px-5 sm:px-6 py-2.5 bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.05] text-[11px] text-[#1B7268] dark:text-[#8FE3D9]">
           Demo data shown. Connect <code className="font-mono">NASDAQ_DATA_LINK_API_KEY</code> on the backend for live SF1 fundamentals across the full universe.
         </footer>
       )}
@@ -473,9 +473,9 @@ function AiRiskChip({
 }) {
   const palette =
     level === "critical" ? "bg-alert/15 text-alert border-alert/30" :
-    level === "high"     ? "bg-orange-400/15 text-orange-400 border-orange-400/30" :
-    level === "medium"   ? "bg-amber-400/15 text-amber-400 border-amber-400/30" :
-                           "bg-emerald-400/15 text-emerald-400 border-emerald-400/30";
+    level === "high"     ? "bg-[#5CD3C5]/15 text-[#5CD3C5] border-[#5CD3C5]/30" :
+    level === "medium"   ? "bg-[#5CD3C5]/15 text-[#5CD3C5] border-[#5CD3C5]/30" :
+                           "bg-[#5CD3C5]/15 text-[#5CD3C5] border-[#5CD3C5]/30";
   return (
     <span
       className={`
@@ -553,10 +553,10 @@ function EbitdaBadge({ value }: { value?: number | null }) {
   const isHigh = value >= 20;
   const isLow = value < 5;
   const tone = isHigh
-    ? "text-emerald-700 dark:text-emerald-300"
+    ? "text-[#2AA89B] dark:text-[#8FE3D9]"
     : isLow
     ? "text-red-700 dark:text-red-300"
-    : "text-amber-700 dark:text-amber-300";
+    : "text-[#2AA89B] dark:text-[#8FE3D9]";
   const Icon = isLow ? TrendingDown : TrendingUp;
   return (
     <span className={`inline-flex items-center gap-1 text-[13px] font-medium tabular-nums ${tone}`}>

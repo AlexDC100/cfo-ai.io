@@ -466,7 +466,7 @@ function MoverColumn({
   const Icon = tone === "positive" ? TrendingUp : TrendingDown;
   const toneCls =
     tone === "positive"
-      ? "text-emerald-700 dark:text-emerald-300"
+      ? "text-[#2AA89B] dark:text-[#8FE3D9]"
       : "text-red-700 dark:text-red-300";
   return (
     <div className="bg-surface">

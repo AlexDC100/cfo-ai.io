@@ -19,9 +19,8 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "next-themes";
-import { motion } from "framer-motion";
 import { usePrefetchPeriod, useActivePeriod } from "@/lib/activePeriod";
-import { springSnappy } from "@/lib/motion";
+import { useWorkspaceName } from "@/lib/workspaceName";
 import { DECISIONS_ALERTS_ENABLED } from "@/config/features";
 import {
   LayoutDashboard,
@@ -38,7 +37,6 @@ import {
   SlidersHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
-  MoreHorizontal,
   Globe,
   // LogOut import dropped — sign-out moved to AccountMenu. Re-add if
   // the sidebar row is ever restored (see comment near the System group).
@@ -89,6 +87,10 @@ interface WorkflowItem {
    *  feature is `hidden` or unknown, the item does not render. If it's
    *  `coming_soon`, the item renders disabled with a soft "Soon" hint. */
   featureKey?: FeatureKey;
+  /** Exact-match the active highlight (NavLink `end`). Required for any item
+   *  whose path is a prefix of another item's — e.g. `/dashboard` must NOT
+   *  light up on `/dashboard/scenarios`. */
+  end?: boolean;
 }
 
 // App-shell cleanup §2/§3 — Inventory and Invoices stay registry-gated
@@ -99,9 +101,11 @@ interface WorkflowItem {
 // the dashboard already exposes; keeping it as a top-level item created
 // menu repetition without unique value.
 const WORKFLOW_ALL: WorkflowItem[] = [
-  // Intelligence — overview + open-domain Q&A. Dashboard is the
-  // financial command-center; chat is the universal CFO assistant.
-  { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "intelligence" },
+  // Intelligence — overview + open-domain Q&A. Dashboard is the financial
+  // command-center; chat is the universal CFO assistant. The Workspace hub
+  // (/workspace) is no longer a rail item — it's reached via the "No workspace
+  // loaded" affordance in the WorkspaceIdentity header instead.
+  { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "intelligence", end: true },
   { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "intelligence" },
   // Public Company Intelligence — first-class module, sits in Intelligence
   // group right next to Dashboard + Ask CFO AI. Lands on the hub page
@@ -164,13 +168,16 @@ const SIDEBAR_COLLAPSED_KEY = "cfo-ai-sidebar-collapsed-v1";
 
 export function Sidebar({
   onSettings: _onSettings,
-  onOpenCommandCenter,
+  // onOpenCommandCenter intentionally NOT destructured — the sidebar's
+  // Command Center button was removed. It stays on Props so AppShell can
+  // keep passing it and a restore is one line.
   onSignOut,
   inDrawer = false,
   onItemClick,
 }: Props) {
   const { t } = useTranslation();
   const period = useActivePeriod();
+  const workspaceName = useWorkspaceName();
 
   // Collapsed-rail mode (lg+ only). Persists across reloads. In drawer
   // mode (mobile slide-over) the user already has explicit close so
@@ -209,22 +216,27 @@ export function Sidebar({
   return (
     <aside
       className={`
-        ${inDrawer ? "" : "hidden lg:flex fixed left-0 top-16 bottom-0 z-30"}
-        ${inDrawer ? "w-full" : widthClass}
+        ${inDrawer ? "" : "hidden lg:flex fixed left-3 top-[76px] bottom-3 z-30 rounded-2xl border border-rule shadow-2"}
+        ${inDrawer ? "w-full border-r border-rule" : widthClass}
         bg-bg-2/40 backdrop-blur-md
-        border-r border-rule
         flex flex-col
         transition-[width] duration-200 ease-out
       `}
       data-collapsed={effectivelyCollapsed ? "true" : "false"}
     >
-      {/* Workspace identity — visible when expanded. Three-line stack:
-          product · workspace · active period. Replaces the previous
-          empty top space. */}
+      {/* Workspace identity — visible when expanded. Product mark +
+          active workspace (company) + loaded period. Sits above the
+          nav; hidden in the collapsed 68px rail so the icon column
+          stays uncluttered. */}
       {!effectivelyCollapsed && (
         <WorkspaceIdentity
-          companyName={period.statements?.companyName ?? null}
+          // Prefer the loaded period's company; fall back to the selected
+          // workspace name (mirrored into useWorkspaceName by the workspaces
+          // store) so the rail shows the chosen workspace even before a
+          // trial-balance period is loaded — instead of "No workspace loaded".
+          companyName={period.statements?.companyName ?? (workspaceName || null)}
           periodLabel={period.label}
+          onNavigate={onItemClick}
         />
       )}
 
@@ -235,7 +247,7 @@ export function Sidebar({
             label={g.label}
             collapsed={effectivelyCollapsed}
           >
-            {g.items.map(({ to, labelKey, icon: Icon, testId }) => (
+            {g.items.map(({ to, labelKey, icon: Icon, testId, end }) => (
               <SidebarLink
                 key={to}
                 to={to}
@@ -244,27 +256,14 @@ export function Sidebar({
                 icon={Icon}
                 label={t(labelKey)}
                 collapsed={effectivelyCollapsed}
+                end={end}
               />
             ))}
-            {/* System group — append the Command Center action directly
-                below Settings. This is a relocation of the top-right
-                header trigger; the drawer state still lives in
-                AppShell so opening from here renders the same panel
-                with the same period-grounded context. Only mounts
-                in the `workspace` group (the System rail), and only
-                when a callback was supplied. */}
-            {g.key === "workspace" && onOpenCommandCenter && (
-              <SidebarAction
-                icon={MoreHorizontal}
-                label="Command Center"
-                testId="sidebar-command-center"
-                onClick={() => {
-                  onOpenCommandCenter();
-                  onItemClick?.();
-                }}
-                collapsed={effectivelyCollapsed}
-              />
-            )}
+            {/* Command Center action removed from the sidebar per the
+                operator's directive. The drawer still opens from the
+                top-right account avatar (AppShell wires that trigger);
+                `onOpenCommandCenter` stays on the Sidebar interface for a
+                one-line JSX restore if it's ever wanted back here. */}
             {/* Sign-out moved (May 2026 redesign) — it now lives in the
                 top-right <AccountMenu/> (data-testid="account-menu-sign-out")
                 as the THE single sign-out in the app. The Sidebar System
@@ -306,40 +305,56 @@ export function Sidebar({
   );
 }
 
-// ─── Workspace identity ──────────────────────────────────────────
-// Three-line header at the top of the expanded sidebar. Surfaces the
-// product mark, the active workspace/company name, and the active
-// period — answering "where am I, in which company, on which year"
-// without needing to look up at the page header.
-
+// Workspace identity header — product mark + the currently loaded
+// workspace (company) + active period. Rendered at the top of the
+// expanded rail. Values come from useActivePeriod(); when nothing is
+// loaded it reads "No workspace loaded / —".
 function WorkspaceIdentity({
   companyName,
   periodLabel,
+  onNavigate,
 }: {
   companyName: string | null;
   periodLabel: string | null;
+  /** Close the mobile drawer after navigating (shared with SidebarLink). */
+  onNavigate?: () => void;
 }) {
   return (
-    <div className="px-3 pt-4 pb-3 border-b border-rule/60 text-center">
-      {/* Brand mark (gradient Sparkles circle) removed per request — the
-          workspace identity block now leads straight with the centered
-          company name / "No workspace loaded" line. */}
-      <div
-        className={`font-medium truncate ${
-          companyName
-            ? "text-[11.5px] text-ink"
-            : "text-[10px] uppercase tracking-[0.08em] text-ink/50"
-        }`}
+    <div className="px-3 pt-4 pb-3 border-b border-rule/60">
+      {/* The identity block IS the entry point to the Workspace hub
+          (/workspace) — the only one since the rail item was removed. It shows
+          the selected workspace (company + period) when one is loaded and
+          "No workspace loaded" otherwise, and carries the selected-tab styling
+          (brand border + tint) when the user is on /workspace. */}
+      <NavLink
+        to="/workspace"
+        onClick={onNavigate}
+        data-testid="sidebar-no-workspace"
+        className={({ isActive }) =>
+          `block rounded-lg border px-2 py-1 transition-colors ${
+            isActive
+              ? "border-brand/40 bg-brand/10"
+              : "border-transparent hover:bg-bg-2/70"
+          }`
+        }
       >
-        {companyName ?? "No workspace loaded"}
-      </div>
-      {/* Period line only renders when a period is loaded — no "—"
-          placeholder in the empty state. */}
-      {periodLabel && (
-        <div className="text-[10.5px] text-ink-mute truncate mt-px">
-          {periodLabel}
-        </div>
-      )}
+        {companyName ? (
+          <>
+            <div className="text-[11.5px] font-medium text-ink truncate text-center">
+              {companyName}
+            </div>
+            {periodLabel && (
+              <div className="text-[10.5px] text-ink-mute truncate mt-px text-center">
+                {periodLabel}
+              </div>
+            )}
+          </>
+        ) : (
+          <span className="block text-[11.5px] font-medium text-ink-mute/60 text-center">
+            No workspace loaded
+          </span>
+        )}
+      </NavLink>
     </div>
   );
 }
@@ -356,6 +371,7 @@ function SidebarLink({
   icon: Icon,
   label,
   collapsed = false,
+  end = false,
 }: {
   to: string;
   testId: string;
@@ -363,6 +379,7 @@ function SidebarLink({
   icon: LucideIcon;
   label: string;
   collapsed?: boolean;
+  end?: boolean;
 }) {
   const [params] = useSearchParams();
   const period = params.get("period");
@@ -382,47 +399,27 @@ function SidebarLink({
       title={collapsed ? label : undefined}
       // Active match keys off the pathname only — query param
       // differences (?period=eei vs none) don't affect the highlight.
-      end={false}
+      // `end` exact-matches so a parent path (e.g. /dashboard) doesn't stay
+      // highlighted on nested routes (e.g. /dashboard/scenarios).
+      end={end}
       className={({ isActive }) =>
-        `group relative flex items-center min-h-[44px] sm:min-h-0 ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2.5 sm:py-2"} rounded-lg text-[13px] transition-all duration-150 ${
+        `group relative flex items-center min-h-[44px] sm:min-h-0 ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2.5 sm:py-2"} rounded-lg border text-[13px] transition-all duration-150 ${
           isActive
-            ? "text-ink font-medium [&>svg]:text-brand-d"
-            : "text-ink-soft hover:text-ink hover:bg-bg-2/70 active:bg-bg-2/50 [&>svg]:text-ink-mute hover:[&>svg]:text-ink-soft"
+            ? "ask-ai-anim-fill [animation-duration:10s] text-ink font-medium border-brand/40"
+            : "border-transparent text-ink-soft hover:text-ink hover:bg-bg-2/70 active:bg-bg-2/50"
         }`
       }
     >
-      {({ isActive }) => (
+      {() => (
         <>
-          {/* Active state — three layered cues, spring-animated across
-           *  the rail via shared layoutIds:
-           *    1. soft gradient fill (brand-tint → transparent)
-           *    2. thin left accent bar in brand color
-           *    3. subtle outer glow (only when expanded — collapsed rail
-           *       keeps the visual quiet so the icon does the work) */}
-          {isActive && (
-            <motion.div
-              layoutId="sidebar-active-pill"
-              transition={springSnappy}
-              className="
-                absolute inset-0 rounded-lg
-                bg-gradient-to-r from-brand-tint via-brand-tint/60 to-transparent
-                ring-1 ring-inset ring-brand/15
-              "
-              aria-hidden
-            />
-          )}
-          {isActive && (
-            <motion.span
-              layoutId="sidebar-active-bar"
-              transition={springSnappy}
-              className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r bg-brand-d shadow-[0_0_10px_rgba(45,191,179,0.45)]"
-              aria-hidden
-            />
-          )}
+          {/* Active row uses the same treatment as the "Ask CFO AI" pill —
+           *  `ask-ai-anim-fill` (animated teal gradient) + a static brand
+           *  border. A transparent border on the resting state keeps the 1px
+           *  from shifting layout. */}
           <Icon
             size={collapsed ? 16 : 15}
             strokeWidth={1.75}
-            className="relative z-10 transition-transform group-hover:scale-[1.04]"
+            className="relative z-10"
           />
           {!collapsed && <span className="relative z-10 truncate">{label}</span>}
         </>

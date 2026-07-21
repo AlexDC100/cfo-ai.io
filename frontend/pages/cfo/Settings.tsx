@@ -9,8 +9,8 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AppShell } from "@/components/cfo/AppShell";
 import { NewsletterSettings } from "@/components/NewsletterSettings";
+import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { debugSendMail, debugSendAllMail, type DebugMailKind } from "@/lib/newsletterApi";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
@@ -60,16 +60,14 @@ export default function Settings() {
   // the page-level subscription hook is no longer needed here.
 
   return (
-    <AppShell>
-      <header className="mb-7">
-        <div className="label-eyebrow">{t("sidebar.settings")}</div>
-        <h1 className="mt-2 font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">
-          {t("settings.title")}
-        </h1>
-        <p className="mt-3 text-[15px] text-ink-soft max-w-[640px]">
-          {t("settings.subtitle")}
-        </p>
-      </header>
+    <>
+      <PageHeader
+        hero
+        eyebrow={t("sidebar.settings")}
+        title={t("settings.title")}
+        subtitle={t("settings.subtitle")}
+        testid="settings-header"
+      />
 
       {/*
         Settings IA, after cleanup:
@@ -198,7 +196,7 @@ export default function Settings() {
               entry was a confused second seat. Function def kept.
         */}
       </div>
-    </AppShell>
+    </>
   );
 }
 
@@ -260,8 +258,6 @@ function IndustrySection() {
 interface Profile {
   full_name: string | null;
   display_name: string | null;
-  company_name: string | null;
-  role: string | null;
 }
 
 function ProfileCard() {
@@ -271,8 +267,6 @@ function ProfileCard() {
   const [, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
-  const [company, setCompany] = useState("");
-  const [role, setRole] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -281,18 +275,16 @@ function ProfileCard() {
     void (async () => {
       const { data } = await sb
         .from("profiles")
-        .select("full_name, display_name, company_name, role")
+        .select("full_name, display_name")
         .eq("id", user.id)
         .maybeSingle();
       const p = (data ?? {}) as Profile;
       setProfile(p);
       // Fall back to user_metadata for first-time users who haven't saved
-      // a profile row yet (signUp seeds display_name + company_name into
-      // user_metadata but doesn't always backfill the profiles table).
+      // a profile row yet (signUp seeds display_name into user_metadata but
+      // doesn't always backfill the profiles table).
       const meta = (user.user_metadata ?? {}) as Record<string, string | undefined>;
       setName(p.full_name ?? p.display_name ?? meta.display_name ?? "");
-      setCompany(p.company_name ?? meta.company_name ?? "");
-      setRole(p.role ?? "member");
     })();
   }, [user]);
 
@@ -305,17 +297,18 @@ function ProfileCard() {
     // seconds. UPDATE with no matching row silently succeeds with 0 affected
     // rows, the user clicks Save, sees the toast, but nothing persists.
     // The upsert with `id` as the conflict target fixes both cases.
+    // Company + role were removed from the profile per the operator's
+    // directive — the account no longer collects them.
     const { error: pErr } = await sb
       .from("profiles")
       .upsert(
-        { id: user.id, full_name: name, company_name: company, role, email: user.email },
+        { id: user.id, full_name: name, email: user.email },
         { onConflict: "id" },
       );
-    // Also mirror into user_metadata so `useAuth().displayName` /
-    // `companyName` / `workspaceLabel` reflect the change without a full
-    // session refresh (those memo'd values read from user_metadata).
+    // Also mirror into user_metadata so `useAuth().displayName` reflects the
+    // change without a full session refresh.
     const { error: aErr } = await sb.auth.updateUser({
-      data: { display_name: name, company_name: company },
+      data: { display_name: name },
     });
     setBusy(false);
     const error = pErr ?? aErr;
@@ -338,12 +331,6 @@ function ProfileCard() {
       <div className="rounded-2xl border border-rule bg-surface px-5 py-5 space-y-4">
         <Field label={t("settings.full_name")}>
           <Input value={name} onChange={setName} placeholder="Alex Maier" />
-        </Field>
-        <Field label={t("settings.company")}>
-          <Input value={company} onChange={setCompany} placeholder="Acme Romania SRL" />
-        </Field>
-        <Field label={t("settings.role")}>
-          <Input value={role} onChange={setRole} placeholder="CFO" />
         </Field>
         <div className="flex items-center justify-between pt-1">
           <p className="text-[11px] text-ink-mute">{t("settings.email")} <span className="text-ink-soft">{user.email}</span></p>
@@ -489,7 +476,7 @@ function CurrencyCard() {
             {t("settings.currency_source", "Source")}: {sourceLabel} ·{" "}
             {t("settings.currency_updated", "Updated")} {fetchedAtLabel}
             {rates?.stale && (
-              <span className="ml-1 text-amber-600">
+              <span className="ml-1 text-[#2AA89B]">
                 · {t("settings.currency_stale", "offline fallback")}
               </span>
             )}

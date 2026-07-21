@@ -80,7 +80,7 @@ export function BudgetUploadCard({ uploaded, isDemo, onSave, onClear }: Props) {
               </span>
             ) : isDemo ? (
               <span data-testid="budget-source-demo">
-                Showing an <span className="text-amber-600 dark:text-amber-400">illustrative demo budget</span> — upload yours to compare real figures.
+                Showing an <span className="text-[#2AA89B] dark:text-[#5CD3C5]">illustrative demo budget</span> — upload yours to compare real figures.
               </span>
             ) : (
               <span data-testid="budget-source-none">

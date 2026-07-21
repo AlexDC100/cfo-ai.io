@@ -141,8 +141,8 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
             h-12 px-5 rounded-xl
             bg-gradient-to-b from-brand to-brand-d text-paper
             text-[13.5px] font-medium
-            shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
-            hover:shadow-[0_10px_26px_-8px_rgba(45,191,179,0.75)]
+            shadow-[0_8px_22px_-8px_rgba(42,168,155,0.6)]
+            hover:shadow-[0_10px_26px_-8px_rgba(42,168,155,0.75)]
             ring-1 ring-inset ring-white/15
             disabled:opacity-50 disabled:cursor-not-allowed
             transition-all
@@ -187,7 +187,7 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
                 onClick={(e) => { e.preventDefault(); removePeer(p.ticker); }}
                 aria-label={`Remove ${p.ticker} from peers`}
                 className="
-                  px-1.5 py-1 text-brand-d/60 hover:text-amber-700 hover:bg-amber-500/10
+                  px-1.5 py-1 text-brand-d/60 hover:text-[#2AA89B] hover:bg-[#5CD3C5]/10
                   transition-colors
                 "
               >
@@ -246,9 +246,9 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
       {/* Source caveat */}
       {source !== "nasdaq" && (
         <div className="
-          mt-4 rounded-xl border border-amber-300/40 bg-amber-50/30
-          dark:bg-amber-500/[0.05]
-          px-4 py-3 text-[12.5px] text-amber-900 dark:text-amber-100
+          mt-4 rounded-xl border border-[#8FE3D9]/40 bg-[#E6F7F4]/30
+          dark:bg-[#5CD3C5]/[0.05]
+          px-4 py-3 text-[12.5px] text-[#1B7268] dark:text-[#E6F7F4]
         ">
           <strong className="font-semibold">{SOURCES.find((s) => s.code === source)?.label} is coming soon.</strong>{" "}
           For now, Nasdaq Data Link covers 16,000+ US-listed tickers.

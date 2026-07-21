@@ -1,1501 +1,589 @@
-// CFO AI — public landing page.
+// CFO AI marketing website.
 //
-// Dark fintech style. Sections:
-//   1. Header — logo + nav + Sign in + Get started — free
-//   2. Hero (left)  + AuthCard (right, embedded — desktop only)
-//   3. Flagship modules — 3 product pillars
-//   4. Product preview — AI CFO Briefing dashboard mock
-//   5. How it works — 3 steps
-//   6. Use cases — CFO / CEO / Procurement / Commercial / Operations
-//   7. Pricing
-//   8. Final CTA
-//   9. Footer
+// Ported from the "CFO AI Website" design canvas: a dark, self-contained
+// marketing site (home / pricing / privacy / cookies / terms / contact) plus
+// a GDPR cookie-consent modal. The design's palette already matches our
+// teal (#5CD3C5) / greyscale / red system.
 //
-// Typography rule: serif headlines are UPRIGHT only (no italic). Eyebrows
-// across the page use the techy UPPERCASE monospace style with a brand-teal
-// square bullet — the user's preferred eyebrow treatment.
+// Implementation notes:
+//   · The large section markup is static, so it's rendered as scoped HTML
+//     strings (keeping the design's exact inline styles verbatim) into a
+//     `.cfo-site` wrapper. All CSS variables (--bg, --brand, …) are scoped to
+//     that wrapper so this always-dark site never clobbers the app theme.
+//   · Interactivity is wired via ONE delegated click handler that reads
+//     `data-act` attributes — internal page switches, router navigation
+//     (Sign in → /login, Get started → /signup, App → /dashboard), and the
+//     cookie-consent actions.
+//   · The design's `.dc.html` canvas directives (`{{ handler }}`, `sc-if`,
+//     `style-hover`) are replaced with `data-act`, conditional string
+//     assembly, and scoped `:hover` CSS classes respectively.
 
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { AnimatePresence, motion } from "framer-motion";
-import { CompanyLogo } from "@/components/public-companies/CompanyLogo";
-// 2026-05-27 — strategic repositioning. The prior PublicCompanyShowcase
-// led with AAPL/MSFT/NVDA/TSLA/GOOGL mega-caps, implicitly pitching "this
-// tool analyzes Apple." Real users are SMB / mid-market operators who
-// want benchmarks against companies their size. These three sections
-// replace that showcase: BridgeSection (3-step illustration) sells the
-// mental model; RealPeersSection (sector grid, $50M-$5B tickers) gives
-// relatable starting points; PrivateBusinessDemo shows "Acme Foods SRL +
-// 3 real peers + multi-dot benchmark + insight callout" — the product's
-// value in one frame. PublicCompanyShowcase function stays in the file
-// for tree-shaking only; it's no longer rendered.
-import { BridgeSection } from "@/components/landing/BridgeSection";
-// F5.0 Phase 9 — Landing-side packaging of the CFO AI Learn layer.
-// Lives between ProductPreview and HowItWorks so it lands right after
-// the visitor sees the product output — the click-to-learn proof is
-// fresh in their mind.
-import { LearningLayerSection } from "@/components/landing/LearningLayerSection";
-import { RealPeersSection } from "@/components/landing/RealPeersSection";
-import { PrivateBusinessDemo } from "@/components/landing/PrivateBusinessDemo";
-import {
-  ArrowRight,
-  BarChart3,
-  CheckCircle2,
-  ChevronDown,
-  CircleDollarSign,
-  LineChart,
-  ShieldCheck,
-  Globe2,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-  Truck,
-  Upload,
-  Users,
-  Wallet,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
-import { Logo } from "@/components/cfo/Logo";
-// AuthCard import retired — the rev3 twin-card hero replaces the
-// embedded sign-in card; users hit /signup or /signin via the header
-// nav. Kept this comment so the next reader doesn't re-add it on autopilot.
-import { PricingTableV2 } from "@/components/cfo/PricingTableV2";
-import { ThemeToggle } from "@/components/cfo/ThemeToggle";
-import { FooterSocial } from "@/components/marketing/FooterSocial";
-import { EntryCard } from "@/components/landing/EntryCard";
-import { ReassuranceCard } from "@/components/landing/ReassuranceCard";
-import { useAuth } from "@/lib/auth";
-import {
-  ease,
-  easeSlow,
-  enterFromBelow,
-  enterFromBelowSoft,
-  enterScale,
-  springSnappy,
-  staggerChildren,
-} from "@/lib/motion";
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-export default function Landing() {
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+type Page = "home" | "pricing" | "privacy" | "cookies" | "terms" | "contact";
+const VALID_PAGES: Page[] = ["home", "pricing", "privacy", "cookies", "terms", "contact"];
 
-  // Already authed? Don't make them re-sign-in — bounce to the app.
-  useEffect(() => {
-    if (isAuthenticated) navigate("/dashboard", { replace: true });
-  }, [isAuthenticated, navigate]);
+const CONSENT_KEY = "cfoai_consent";
 
-  return (
-    <div className="min-h-screen bg-bg text-ink selection:bg-brand/30 selection:text-ink">
-      <Header />
-      <Hero />
-      {/* The repositioning trio — replaces the AAPL/MSFT/NVDA showcase.
-          Order matters: Bridge sets the mental model (upload → pick peers
-          → see context), then Real Peers shows what "your-sized" public
-          companies actually look like, then the Private Business Demo
-          shows the product output (Acme Foods + 3 peers + insight). */}
-      <BridgeSection />
-      <RealPeersSection />
-      <PrivateBusinessDemo />
-      <FlagshipUseCases />
-      <ProductPreview />
-      {/* F5.0 Phase 9 — landing-side packaging of CFO AI Learn. Sits
-          immediately after the product preview so the click-to-learn
-          differentiator lands while the visitor still has the dashboard
-          mental model in their head. */}
-      <LearningLayerSection />
-      <HowItWorks />
-      <UseCases />
-      {/* V2 pricing — single source of truth pulled from GET /api/pricing/config
-          (trial / intro / starter / pro). Wrapped in a section with id="pricing"
-          so the in-page anchors in the header nav + footer still resolve. */}
-      <section id="pricing" className="border-t border-rule/40">
-        <PricingTableV2 />
-      </section>
-      <FinalCTA />
-      <Footer />
-    </div>
-  );
+// ── Scoped design system + hover rules ────────────────────────────────────
+const SITE_CSS = `
+.cfo-site{
+  --bg:#0A0A0A; --bg-2:#0F0F0F; --surface:#141414; --surface-hi:#1C1C1C;
+  --ink:#F5F5F5; --ink-2:#DBDBDB; --ink-soft:#ABABAB; --ink-mute:#8C8C8C;
+  --rule:#292929; --rule-soft:#1A1A1A; --rule-strong:#3D3D3D;
+  --brand:#5CD3C5; --brand-d:#2AA89B; --brand-l:#8FE3D9; --brand-deep:#1B7268;
+  --alert:#FF6B6B;
+  --serif:"Instrument Serif",Georgia,serif;
+  --sans:"Inter Variable","Inter",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --grad:linear-gradient(135deg,#1B7268 0%,#22897E 25%,#2AA89B 55%,#45C6B8 80%,#5CD3C5 100%);
+  --grad-text:linear-gradient(120deg,#2AA89B 0%,#5CD3C5 55%,#8FE3D9 100%);
+  --maxw:1200px;
+  min-height:100vh;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1;
+}
+.cfo-site *{box-sizing:border-box}
+.cfo-site a{color:var(--brand);text-decoration:none;transition:color .15s ease;cursor:pointer}
+.cfo-site a:hover{color:var(--brand-l)}
+.cfo-site p{margin:0 0 1em}
+.cfo-site h1,.cfo-site h2,.cfo-site h3,.cfo-site h4{margin:0}
+.cfo-site ::selection{background:rgba(92,211,197,.28);color:#fff}
+.cfo-site summary::-webkit-details-marker{display:none}
+.cfo-site summary::marker{content:""}
+.cfo-site .grad-text{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.cfo-site .btn-grad{transition:filter .15s ease,transform .15s ease}
+.cfo-site .btn-grad:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.cfo-site .btn-ghost2{transition:border-color .15s ease,background .15s ease}
+.cfo-site .btn-ghost2:hover{border-color:var(--ink-mute);background:var(--surface-hi)}
+.cfo-site .hv-brand:hover{border-color:var(--brand);color:var(--brand)}
+.cfo-site .card-hl{transition:border-color .15s ease}
+.cfo-site .card-hl:hover{border-color:rgba(92,211,197,.4)}
+.cfo-site nav button:hover,.cfo-site nav a:hover{color:var(--ink)}
+.cfo-site footer a:hover,.cfo-site footer button:hover{color:var(--ink)}
+.cfo-site .navbtn{background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)}
+@keyframes cfo-floatglow{0%,100%{opacity:.5;transform:translateY(0)}50%{opacity:.8;transform:translateY(-12px)}}
+`;
+
+const LOGO = `<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><path d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z" fill="#5CD3C5"></path><path d="M 38 14 L 60 60 L 48 60 L 38 38 Z" fill="#F4F6F8"></path><rect x="34" y="34" width="14" height="3" fill="#F4F6F8"></rect></svg>`;
+
+function eyebrow(label: string) {
+  return `<div style="display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-soft);font-weight:500"><span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${label}</div>`;
 }
 
-/* ───────── Reusable techy eyebrow ──────────────────────────────────────
-   UPPERCASE monospace with a small brand-teal square bullet. */
+const HEADER = `
+<header style="position:sticky;top:0;z-index:50;backdrop-filter:blur(18px);background:rgba(10,10,10,.72);border-bottom:1px solid var(--rule-soft)">
+  <div style="max-width:var(--maxw);margin:0 auto;padding:0 24px;height:66px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+    <button data-act="home" style="display:inline-flex;align-items:center;gap:11px;background:none;border:none;cursor:pointer;padding:0">
+      ${LOGO}
+      <span style="display:inline-flex;flex-direction:column;line-height:1"><span style="font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--ink)">CFO <span style="color:var(--brand)">AI</span></span></span>
+      <span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-mute);padding-left:12px;border-left:1px solid var(--rule);height:22px;display:inline-flex;align-items:center">Financial Intelligence</span>
+    </button>
+    <nav style="display:flex;align-items:center;gap:26px;margin-left:8px;flex-wrap:wrap">
+      <button class="navbtn" data-act="scroll:product">Product</button>
+      <button class="navbtn" data-act="pricing">Pricing</button>
+      <button class="navbtn" data-act="scroll:faq">FAQ</button>
+      <button class="navbtn" data-act="contact">Contact</button>
+      <button class="navbtn" data-act="app" style="color:var(--brand)">App</button>
+    </nav>
+    <div style="flex:1"></div>
+    <button class="navbtn" data-act="signin">Sign in</button>
+    <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;background:var(--grad);color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 16px -6px rgba(92,211,197,.5)">Get started — free →</a>
+  </div>
+</header>`;
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="inline-flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-soft font-medium">
-      <span className="inline-block h-[7px] w-[7px] bg-[hsl(var(--brand))]" aria-hidden />
-      {children}
-    </div>
-  );
-}
-
-/* ───────── Header ──────────────────────────────────────────────────────── */
-
-function Header() {
-  return (
-    <header
-      className="
-        sticky top-0 z-40
-        backdrop-blur-xl
-        bg-bg/70
-        border-b border-rule/40
-      "
-    >
-      <div className="mx-auto max-w-[1280px] px-5 sm:px-8 h-16 flex items-center gap-6">
-        <Link to="/" className="flex items-center gap-3 shrink-0">
-          <Logo size={26} compact />
-          <span className="hidden sm:inline-flex font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink-soft pl-3 border-l border-rule h-6 items-center">
-            Financial Intelligence
-          </span>
-        </Link>
-        <nav className="hidden md:flex items-center gap-7 ml-2 font-mono text-[11.5px] uppercase tracking-[0.14em] text-ink-soft">
-          <a href="#preview" className="hover:text-ink transition-colors">Product</a>
-          <a href="#use-cases" className="hover:text-ink transition-colors">Use cases</a>
-          <a href="#pricing" className="hover:text-ink transition-colors">Pricing</a>
-        </nav>
-        <div className="flex-1" />
-        <ThemeToggle compact />
-        <Link
-          to="/login"
-          className="hidden sm:inline-flex items-center font-mono text-[11.5px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink transition-colors"
-        >
-          Sign in
-        </Link>
-        <motion.div whileHover={{ y: -1, scale: 1.03 }} whileTap={{ scale: 0.97 }} transition={springSnappy}>
-          <Link
-            to="/signup"
-            className="
-              inline-flex items-center gap-1.5
-              h-9 px-4 rounded-full
-              bg-gradient-cfo text-white
-              text-[13px] font-medium
-              shadow-1 hover:shadow-2
-              transition-shadow
-            "
-          >
-            Get started — free
-            <ArrowRight size={13} strokeWidth={2.25} />
-          </Link>
-        </motion.div>
+const HOME = `
+<main>
+  <section style="position:relative;overflow:hidden">
+    <div aria-hidden="true" style="position:absolute;top:-160px;left:-120px;width:620px;height:620px;border-radius:50%;background:rgba(92,211,197,.11);filter:blur(120px);pointer-events:none"></div>
+    <div aria-hidden="true" style="position:absolute;top:-120px;right:-80px;width:500px;height:500px;border-radius:50%;background:rgba(43,168,155,.10);filter:blur(120px);pointer-events:none;animation:cfo-floatglow 9s ease-in-out infinite"></div>
+    <div style="position:relative;max-width:1000px;margin:0 auto;padding:72px 24px 76px;display:flex;flex-direction:column;align-items:center;text-align:center">
+      ${eyebrow("CFO AI · Built for private businesses")}
+      <h1 style="margin-top:26px;font-family:var(--serif);font-weight:400;font-size:clamp(40px,6.4vw,66px);line-height:1.04;letter-spacing:-.025em;max-width:920px;color:var(--ink)">Turn a trial balance into a <span class="grad-text">CFO-grade analysis</span> in 90 seconds.</h1>
+      <p style="margin-top:22px;font-size:clamp(16px,2vw,18px);line-height:1.6;color:var(--ink-soft);max-width:660px">Upload your books. CFO AI reconstructs your P&amp;L, balance sheet, cash flow, 100+ ratios, valuation and credit score — then benchmarks you against public companies your size, in your sector. Named comparisons, not vague industry averages.</p>
+      <div style="margin-top:34px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
+        <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">Start free — no credit card →</a>
+        <button data-act="pricing" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px;cursor:pointer;font-family:inherit">See pricing</button>
       </div>
-    </header>
-  );
-}
-
-/* ───────── Hero — twin entry points ────────────────────────────────────────
-
-   2026-05-24 rev3 per operator spec: replace the single-CTA hero with a
-   pair of co-equal entry-point cards (Upload-your-data vs Public-Companies).
-   Equal weight is the design contract — neither card overshadows the
-   other; only the accent colour (brand-green vs info-blue) differentiates
-   them. Below the cards, a row of quick-try ticker chips lets visitors
-   jump straight into the public-company snapshot with no signup gate.
-
-   The embedded AuthCard from rev2 moved out — sign-in / sign-up are still
-   one click away via the Header's existing top-right buttons, and the
-   twin-card layout needs the full hero width to read as balanced. */
-
-/** Featured ticker chips on the hero quick-try strip + the showcase
- *  ticker switcher. Kept in one place so the two surfaces always agree
- *  on the recommended starter set. AAPL leads because the public-company
- *  canonical synthesis is calibrated against it. */
-const FEATURED_TICKERS: ReadonlyArray<{ ticker: string; name: string }> = [
-  { ticker: "AAPL",  name: "Apple" },
-  { ticker: "MSFT",  name: "Microsoft" },
-  { ticker: "NVDA",  name: "NVIDIA" },
-  { ticker: "TSLA",  name: "Tesla" },
-  { ticker: "GOOGL", name: "Alphabet" },
-];
-
-function Hero() {
-  // ── 2026-05-27 rev4: single-workflow hero ────────────────────────────
-  // The prior twin-card hero ("Upload your data" + "Analyze a public
-  // company") presented two parallel choices with an "OR" between them.
-  // That mental model was wrong — a private-business owner doesn't
-  // decide between "analyze Apple" vs "analyze myself," those are
-  // different mental tasks entirely.
-  //
-  // The real product is ONE workflow with two inputs: your private
-  // books + your chosen public peers → benchmarked together. The
-  // public-company side isn't a separate destination, it's the
-  // comparison anchor for the user's business.
-  //
-  // This hero now communicates: upload → we match peers → see how you
-  // compare. Single primary CTA ("Start free — no card required") that
-  // is the conversion path. Tertiary "Browse the public-company
-  // library" link acknowledges the explore-first audience
-  // (researchers, students, advisors) without making them primary.
-  //
-  // Removed entirely: twin EntryCard grid, "Quick try" ticker chips
-  // (FEATURED_TICKERS still exists in the file but no longer rendered
-  // from the hero — kept for any future explore surface).
-  const navigate = useNavigate();
-  const { t } = useTranslation();
-
-  return (
-    <section
-      data-testid="landing-hero-workflow"
-      className="relative overflow-hidden"
-    >
-      {/* Ambient glow plumbing — preserved verbatim from rev2/3 so the
-       *  hero retains its Apple-style light wash. */}
-      <motion.div
-        aria-hidden
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ ...easeSlow, duration: 1.6 }}
-        className="pointer-events-none absolute -top-40 -left-32 w-[640px] h-[640px] rounded-full bg-brand/10 blur-[120px]"
-      />
-      <motion.div
-        aria-hidden
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ ...easeSlow, duration: 1.6, delay: 0.2 }}
-        className="pointer-events-none absolute -top-32 right-0 w-[520px] h-[520px] rounded-full bg-info/10 blur-[120px]"
-      />
-      <motion.div
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.5 }}
-        transition={{ duration: 2 }}
-        className="pointer-events-none absolute top-[260px] left-1/2 -translate-x-1/2 w-[780px] h-[420px] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(139,92,246,0.18),_transparent_70%)] blur-[80px]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent"
-      />
-
-      <div className="relative mx-auto max-w-[1100px] px-5 sm:px-8 pt-14 sm:pt-20 pb-14 sm:pb-20 flex flex-col items-center text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...ease, delay: 0.04 }}
-        >
-          <Eyebrow>CFO AI · {t("landing.hero.eyebrow", "Built for private businesses")}</Eyebrow>
-        </motion.div>
-
-        {/* Defensive render: plain elements (no motion wrappers) for
-            the critical above-the-fold copy + workflow card. The hero
-            content MUST be visible immediately; entrance animation is
-            nice-to-have, not must-have. (Prior version had motion.h1 +
-            motion.div here; the dev preview's framer-motion stalled
-            at opacity:0 on these specific elements while the inner
-            button's springSnappy/whileHover still worked. Plain DOM
-            elements avoid any animation-trigger risk; prod is safe
-            either way.) */}
-        <h1 className="mt-7 font-serif text-[40px] sm:text-[54px] lg:text-[64px] leading-[1.05] tracking-[-0.025em] text-ink max-w-[920px]">
-          {t(
-            "landing.hero.headline",
-            "The first benchmark tool built for private businesses.",
-          )}
-        </h1>
-
-        <p className="mt-5 text-[16px] sm:text-[17.5px] leading-relaxed text-ink-soft max-w-[680px]">
-          {t(
-            "landing.hero.subhead",
-            "Upload your trial balance. We match you with public companies your size, in your sector. See exactly how you compare on margin, growth, leverage, and cash — with named comparisons, not vague industry averages.",
-          )}
-        </p>
-
-        {/* Workflow card — single unified surface that holds the 3-step
-         *  visualization, primary CTA, reassurance row, and tertiary
-         *  link. One mental model: this card IS the product story. */}
-        <div
-          className="
-            mt-12 sm:mt-14 w-full max-w-[680px]
-            rounded-3xl border border-rule
-            bg-surface/80 backdrop-blur-xl
-            p-6 sm:p-8
-            shadow-[0_24px_80px_-40px_rgba(0,0,0,0.5)]
-          "
-          data-testid="landing-hero-workflow-card"
-        >
-          {/* Workflow label */}
-          <div className="text-[10.5px] uppercase tracking-[0.18em] text-ink-mute font-mono font-medium text-center mb-7">
-            {t("landing.hero.workflowLabel", "The full workflow")}
+      <ul style="margin:26px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:center;font-size:12.5px;color:var(--ink-soft)">
+        <li style="display:inline-flex;align-items:center;gap:7px"><span style="color:var(--brand)">✓</span> 30-day trial</li>
+        <li style="display:inline-flex;align-items:center;gap:7px"><span style="color:var(--brand)">✓</span> RAS / EU filings supported</li>
+        <li style="display:inline-flex;align-items:center;gap:7px"><span style="color:var(--brand)">✓</span> Cancel anytime</li>
+      </ul>
+      <div style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
+          <span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span>
+          <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">cfo-ai · today's briefing · 06:14</span>
+        </div>
+        <div style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
+            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">EBITDA margin</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">11.4<span style="font-size:18px;color:var(--ink-soft)">%</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">+1.8pp vs sector</div></div>
+            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Altman Z″</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">3.12</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Safe zone</div></div>
+            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Net debt / EBITDA</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">1.8<span style="font-size:18px;color:var(--ink-soft)">×</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Comfortable</div></div>
+            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">ROIC</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">17.7<span style="font-size:18px;color:var(--ink-soft)">%</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">+2.1pp YoY</div></div>
           </div>
-
-          {/* 3-step inline visualization. CSS grid with
-              [step][arrow][step][arrow][step] columns; gap shrinks on
-              mobile but never collapses (steps stay readable). */}
-          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] gap-1 sm:gap-3 items-start mb-8">
-            <WorkflowStep
-              n="1"
-              icon={Upload}
-              title={t("landing.hero.step1.title", "Upload your books")}
-              sub={t("landing.hero.step1.sub", "Bilanț, P&L, any format · 90s")}
-            />
-            <WorkflowConnector />
-            <WorkflowStep
-              n="2"
-              icon={Sparkles}
-              title={t("landing.hero.step2.title", "Get peer matches")}
-              sub={t("landing.hero.step2.sub", "Public companies your size in your sector")}
-              accent
-            />
-            <WorkflowConnector />
-            <WorkflowStep
-              n="3"
-              icon={BarChart3}
-              title={t("landing.hero.step3.title", "See yourself in context")}
-              sub={t("landing.hero.step3.sub", "Named peers, not vague averages")}
-            />
-          </div>
-
-          {/* Primary CTA — single conversion path */}
-          <motion.div
-            whileHover={{ y: -1, scale: 1.01 }}
-            whileTap={{ scale: 0.985 }}
-            transition={springSnappy}
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/signup?plan=trial")}
-              data-testid="landing-hero-primary-cta"
-              className="
-                w-full min-h-[52px] py-3.5 px-6 rounded-full
-                bg-gradient-cfo text-white font-medium text-[15px]
-                shadow-1 hover:shadow-2 transition-shadow
-                inline-flex items-center justify-center gap-2
-              "
-            >
-              {t("landing.hero.primaryCta", "Start free — no card required")}
-              <ArrowRight size={15} strokeWidth={2.25} />
-            </button>
-          </motion.div>
-
-          {/* Reassurance row — three checks, brand-coloured dots */}
-          <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11.5px] text-ink-soft">
-            <li className="inline-flex items-center gap-1.5">
-              <CheckCircle2 size={11} className="text-brand" />
-              {t("landing.hero.noCard", "No credit card")}
-            </li>
-            <li className="inline-flex items-center gap-1.5">
-              <CheckCircle2 size={11} className="text-brand" />
-              {t("landing.hero.fast", "90 seconds")}
-            </li>
-            <li className="inline-flex items-center gap-1.5">
-              <CheckCircle2 size={11} className="text-brand" />
-              {t("landing.hero.cancel", "Cancel anytime")}
-            </li>
-          </ul>
-
-          {/* Tertiary link — for the explore-first audience that's not
-              ready to upload yet. Below the dividing line so it reads
-              as a secondary option, not a parallel choice. */}
-          <div className="mt-6 pt-5 border-t border-rule/50 text-center">
-            <p className="text-[12.5px] text-ink-mute mb-1.5">
-              {t(
-                "landing.hero.alreadyExploring",
-                "Just exploring? Researching a public company first?",
-              )}
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/public-companies")}
-              data-testid="landing-hero-browse-public"
-              className="
-                inline-flex items-center gap-1.5
-                text-[12.5px] font-medium text-ink-soft hover:text-ink
-                transition-colors
-              "
-            >
-              {t("landing.hero.browsePublicCompanies", "Browse the public-company library")}
-              <ArrowRight size={12} strokeWidth={2.25} />
-            </button>
+          <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:18px">
+            <div style="display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">✦ AI CFO Briefing</div>
+            <p style="margin-top:12px;font-size:13.5px;line-height:1.6;color:var(--ink-2)">Profitability is above sector median, and the balance sheet is conservatively levered. Two watch-items: receivable days drifting up, and one supplier concentration above 30%.</p>
+            <ul style="margin:10px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:8px">
+              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> DSO up 6 days — tighten collections</li>
+              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> Refinance short-term line before Q3</li>
+              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> Benchmark vs 3 named peers ready</li>
+            </ul>
           </div>
         </div>
+      </div>
+      <p style="margin-top:22px;font-size:11.5px;color:var(--ink-mute);max-width:520px">Illustrative dashboard. AI-assisted analysis — final decisions remain with your management team.</p>
+    </div>
+  </section>
 
-        {/* Disclaimer — defensive plain div, see workflow-card note above */}
-        <div
-          className="mt-8 flex items-center justify-center gap-2 text-[11.5px] text-ink-soft/75 max-w-md text-center"
-        >
-          <ShieldCheck size={12} strokeWidth={1.75} className="text-brand/70 flex-shrink-0" />
-          {t(
-            "landing.hero.disclaimer",
-            "AI-assisted analysis. Final decisions remain with your management team.",
-          )}
+  <section style="border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
+    <div style="max-width:var(--maxw);margin:0 auto;padding:26px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:22px;text-align:center">
+      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">≤1%</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Balance-sheet drift</div></div>
+      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">100+</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Financial ratios</div></div>
+      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">16,000+</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Public-company peers</div></div>
+      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">90s</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Upload to report</div></div>
+    </div>
+  </section>
+
+  <section id="product" style="max-width:var(--maxw);margin:0 auto;padding:80px 24px 20px;scroll-margin-top:88px">
+    <div style="text-align:center;max-width:680px;margin:0 auto 42px">
+      ${eyebrow("Four flagship modules")}
+      <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em">One platform. <span class="grad-text">Your books, or any public company.</span></h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px">
+      ${[
+        ["▤", "Trial balance → board-ready report", "Financial Statement Intelligence", "Ministry-of-Finance filings, accountant exports, annual reports — from any European country. Auto-detected, normalized, ratioed, valued and explained."],
+        ["◎", "Nasdaq tickers → analysis", "Public Company Intelligence", "Search 16,000+ US-listed companies on official SEC EDGAR data. Same dashboard, ratios, valuation and CFO chat as your private books — add any as a benchmark peer."],
+        ["▦", "ERP exports → cash forecast", "Invoice Intelligence", "Customer &amp; supplier concentration, margin by client, VAT reconciliation and payment timing — surfaced as dedicated tabs inside your statements."],
+        ["✦", "Ask questions → grounded answers", "Ask CFO AI", "A financial copilot grounded in your numbers. Ask why margin moved, what a ratio means, or what to do next — with the reasoning and source lines shown."],
+      ].map(([icon, kicker, title, body]) => `
+      <div class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px;display:flex;flex-direction:column">
+        <div style="width:44px;height:44px;border-radius:12px;background:rgba(92,211,197,.12);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:20px">${icon}</div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-top:18px">${kicker}</div>
+        <h3 style="font-family:var(--serif);font-weight:400;font-size:21px;margin-top:6px">${title}</h3>
+        <p style="margin-top:8px;font-size:13.5px;color:var(--ink-soft);flex:1">${body}</p>
+      </div>`).join("")}
+    </div>
+  </section>
+
+  <section style="max-width:var(--maxw);margin:0 auto;padding:70px 24px">
+    ${eyebrow("How it works")}
+    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:680px">Three steps from spreadsheet to <span class="grad-text">action plan.</span></h2>
+    <div style="margin-top:38px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
+      ${[
+        ["01", "Upload your books", "Trial balance, bilanț, P&amp;L or balance sheet — Excel, CSV, or PDF. Columns and RAS accounts are mapped automatically."],
+        ["02", "CFO AI computes the economics", "P&amp;L, balance sheet, cash flow, 100+ ratios, EBITDA variants, Altman Z, valuation and credit score — reconciled to your source to ≤1% drift."],
+        ["03", "You act with context", "Ranked, quantified recommendations plus named public-company peers — export to HTML, an 8-sheet Excel model, or a board summary."],
+      ].map(([n, title, body]) => `
+      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:18px;padding:28px"><div style="font-family:var(--serif);font-size:30px" class="grad-text">${n}</div><h3 style="font-family:var(--serif);font-weight:400;font-size:21px;margin-top:16px">${title}</h3><p style="margin-top:8px;font-size:13.5px;color:var(--ink-soft)">${body}</p></div>`).join("")}
+    </div>
+  </section>
+
+  <section style="border-top:1px solid var(--rule-soft);background:var(--bg-2)">
+    <div style="max-width:var(--maxw);margin:0 auto;padding:74px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:44px;align-items:center">
+      <div>
+        ${eyebrow("Defensible by design")}
+        <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,42px);line-height:1.08;letter-spacing:-.02em">Numbers a lender, auditor or investor can trust.</h2>
+        <p style="margin-top:16px;font-size:15px;color:var(--ink-soft)">The RAS-compliant engine reconciles all eight calibration fixtures to ≤1% balance-sheet drift — five of eight to exactly 0.00% — and reproduces filed-P&amp;L EBITDA across three named variants (reported, strict, cash). When a source file has an imbalance, CFO AI surfaces it explicitly rather than smoothing it over.</p>
+        <ul style="margin:20px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
+          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">Reproducible.</strong> <span style="color:var(--ink-soft)">The same trial balance always produces the same output.</span></div></li>
+          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">Traceable.</strong> <span style="color:var(--ink-soft)">Every number links back to the source line it came from.</span></div></li>
+          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">Honest about uncertainty.</strong> <span style="color:var(--ink-soft)">Approximations are marked, never buried.</span></div></li>
+        </ul>
+      </div>
+      <div style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px">
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:16px">Peer benchmark · EBITDA margin</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--brand);font-weight:600">Your Co.</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:64%;height:100%;background:var(--brand)"></div></div><span style="font-size:12px;color:var(--ink-2);width:44px;text-align:right">11.4%</span></div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">Peer A</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:52%;height:100%;background:var(--rule-strong)"></div></div><span style="font-size:12px;color:var(--ink-soft);width:44px;text-align:right">9.2%</span></div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">Peer B</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:81%;height:100%;background:var(--rule-strong)"></div></div><span style="font-size:12px;color:var(--ink-soft);width:44px;text-align:right">14.3%</span></div>
+          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">Peer C</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:47%;height:100%;background:var(--rule-strong)"></div></div><span style="font-size:12px;color:var(--ink-soft);width:44px;text-align:right">8.3%</span></div>
         </div>
-      </div>
-
-      <div className="hidden sm:flex justify-center pb-6 -mt-2 text-ink-soft/60">
-        <ChevronDown size={18} strokeWidth={1.5} className="animate-pulse" />
-      </div>
-    </section>
-  );
-}
-
-/* ───────── WorkflowStep — one tile in the hero's 3-step strip ──────────
-   Each tile is a centered icon-circle (with a small ribbon-style step
-   number) + bold title + a sub line that collapses to icon-only on
-   very small viewports via the `hidden sm:block` on the sub. */
-interface WorkflowStepProps {
-  n: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-  title: string;
-  sub: string;
-  accent?: boolean;
-}
-
-function WorkflowStep({ n, icon: Icon, title, sub, accent = false }: WorkflowStepProps) {
-  return (
-    <div className="text-center px-0.5 sm:px-1 min-w-0">
-      <div
-        className={`
-          relative inline-flex items-center justify-center
-          w-10 h-10 sm:w-11 sm:h-11 rounded-full mb-2.5
-          ${accent ? "bg-info/15 text-info" : "bg-surface border border-rule text-ink-soft"}
-        `}
-      >
-        <span
-          className="
-            absolute -top-1 -right-1
-            w-4 h-4 rounded-full bg-bg
-            text-[9px] font-mono font-semibold text-ink
-            flex items-center justify-center
-            border border-rule
-          "
-        >
-          {n}
-        </span>
-        <Icon size={16} strokeWidth={2} />
-      </div>
-      <div className="text-[12.5px] sm:text-[13.5px] font-semibold text-ink leading-tight mb-1 break-words">
-        {title}
-      </div>
-      <div className="text-[10.5px] sm:text-[11px] text-ink-mute leading-snug hidden sm:block">
-        {sub}
+        <p style="margin:18px 0 0;font-size:12px;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:14px">You sit in the top quartile of your matched peer set on operating profitability.</p>
       </div>
     </div>
-  );
-}
+  </section>
 
-function WorkflowConnector() {
-  return (
-    <div className="flex items-center justify-center pt-4 sm:pt-4">
-      <ArrowRight size={12} strokeWidth={2} className="text-ink-mute" />
+  <section style="max-width:var(--maxw);margin:0 auto;padding:74px 24px">
+    ${eyebrow("Who it's for")}
+    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:680px">Built for whoever reads the <span class="grad-text">numbers.</span></h2>
+    <div style="margin-top:36px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+      ${[
+        ["Founders &amp; owners", "Understand your own financials the way an analyst would — and see exactly where you stand against real peers."],
+        ["Finance teams", "Turn a month-end trial balance into board-ready statements, ratios and a credit score without rebuilding a model."],
+        ["Investors &amp; analysts", "Run due diligence on private targets and public comparables through the same engine, side by side."],
+        ["Advisors &amp; accountants", "Deliver CFO-grade analyses across a portfolio of client companies — consistently, in minutes each."],
+        ["Lenders", "Screen credit with Altman Z″, coverage ratios and covenant-ready strict EBITDA — with the source reconciliation shown."],
+        ["Family offices", "Review multiple group entities and holdings on one consistent framework, including NAV for asset-heavy vehicles."],
+      ].map(([title, body]) => `
+      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">${title}</div><p style="margin-top:10px;font-size:14px;color:var(--ink-2)">${body}</p></div>`).join("")}
     </div>
-  );
+  </section>
+
+  <section id="faq" style="border-top:1px solid var(--rule-soft);background:var(--bg-2);scroll-margin-top:88px">
+    <div style="max-width:820px;margin:0 auto;padding:74px 24px">
+      <div style="text-align:center;margin-bottom:36px">
+        ${eyebrow("Questions")}
+        <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,42px);line-height:1.06;letter-spacing:-.02em">Frequently asked</h2>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${[
+          ["What file formats can I upload?", "Trial balances (balanță de verificare), balance sheets, P&amp;L statements and annual reports as Excel, CSV or PDF. Exports from SAGA, WinMENTOR and standard Romanian and European accounting software are supported, with accounts mapped automatically."],
+          ["How accurate is the analysis?", "On clean trial balances, the engine reconciles balance-sheet totals to within 1% drift across its eight calibration fixtures — five of eight to exactly 0.00%. It computes three named EBITDA variants that match byte-for-byte between the methodology layer and the code. It is a decision-support tool, not a substitute for professional judgement."],
+          ["Is my financial data secure?", `Your data is stored on EU-region infrastructure with row-level security so only your account can access it. We never sell your data. See our <button data-act="privacy" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Privacy Policy</button> for the full detail on sub-processors and your rights under the GDPR.`],
+          ["Do you offer a free trial?", "Yes — every plan starts with a 30-day trial. Founding members pay just €1 for their first month. You can cancel any time before renewal."],
+          ["Which countries and accounting standards are supported?", "The engine is calibrated for Romanian RAS (OMFP 1802) today, with a country-agnostic canonical schema designed to extend to other European charts of accounts. Public-company analysis covers 16,000+ US-listed companies via official SEC EDGAR data."],
+          ["Is this financial or investment advice?", `No. CFO AI produces AI-assisted analysis and decision support. It is not financial, investment, legal, tax or accounting advice, and final decisions remain with you and your management team. See our <button data-act="terms" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Terms of Service</button>.`],
+        ].map(([q, a]) => `
+        <details style="border:1px solid var(--rule);background:var(--surface);border-radius:14px;padding:18px 20px"><summary style="cursor:pointer;font-weight:600;font-size:15px;color:var(--ink);list-style:none">${q}</summary><p style="margin:12px 0 0;font-size:14px;color:var(--ink-soft)">${a}</p></details>`).join("")}
+      </div>
+    </div>
+  </section>
+
+  <section style="position:relative;overflow:hidden;border-top:1px solid var(--rule-soft)">
+    <div aria-hidden="true" style="position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(92,211,197,.10),transparent 62%);pointer-events:none"></div>
+    <div style="position:relative;max-width:820px;margin:0 auto;padding:88px 24px;text-align:center">
+      <h2 style="font-family:var(--serif);font-weight:400;font-size:clamp(34px,5.5vw,58px);line-height:1.03;letter-spacing:-.03em">See your business the way a <span class="grad-text">CFO would.</span></h2>
+      <p style="margin-top:18px;font-size:16px;color:var(--ink-soft);max-width:520px;margin-left:auto;margin-right:auto">Upload your first trial balance and get a full analysis in under five minutes. No credit card required.</p>
+      <div style="margin-top:32px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
+        <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">Get started — free →</a>
+        <a href="/login" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">Sign in</a>
+      </div>
+    </div>
+  </section>
+</main>`;
+
+const PRICING = `
+<main style="max-width:var(--maxw);margin:0 auto;padding:64px 24px 40px">
+  <div style="text-align:center;max-width:680px;margin:0 auto 44px">
+    ${eyebrow("Pricing")}
+    <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,52px);line-height:1.05;letter-spacing:-.025em">Simple plans that <span class="grad-text">scale with you.</span></h1>
+    <p style="margin-top:16px;font-size:16px;color:var(--ink-soft)">Every plan starts with a 30-day trial. Founding members pay €1 for their first month. Cancel anytime.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;align-items:stretch;max-width:1040px;margin:0 auto">
+    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
+      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">Solo</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€19.99</span><span style="font-size:14px;color:var(--ink-soft)">/mo</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">or €199 / year — save €41</div>
+      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">Individual investors, freelance analysts and founders doing personal due diligence.</p>
+      <a href="/signup?plan=solo" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">Start Solo trial</a>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+        ${["1 company · 10 uploads / month", "P&amp;L, balance sheet &amp; cash flow", "Essential ratios &amp; EBITDA", "Altman Z bankruptcy screen", "30 Ask CFO AI messages / month", "12-month history · email support"].map(x => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`).join("")}
+      </ul>
+    </div>
+    <div style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(92,211,197,.5)">
+      <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:#04110F;background:var(--brand);padding:4px 12px;border-radius:999px">Most popular</span>
+      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">Business</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€59</span><span style="font-size:14px;color:var(--ink-soft)">/mo</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">or €590 / year — save €118</div>
+      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">SMB owners, internal finance teams, real-estate holdings and family-group portfolios.</p>
+      <a href="/signup?plan=business" data-act="signup:business" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">Start Business trial</a>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> 5 companies · 2 users · 25 uploads / month</li>
+        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> <strong>Everything in Solo, plus:</strong></li>
+        ${["Full 100+ ratio suite", "Altman Z + Piotroski F-score", "Valuation suite &amp; NAV cascade", "Industry benchmarks &amp; peer comparison", "Recommendations engine &amp; monthly reports", "100 AI messages/mo · share links · live chat"].map(x => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`).join("")}
+      </ul>
+    </div>
+    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
+      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">Professional</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink)">Custom</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">Contact sales — priced per contract</div>
+      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">Advisory firms, accountants, multi-entity holdings and M&amp;A boutiques managing 5+ companies.</p>
+      <button data-act="contact" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">Contact sales</button>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> Up to 25 companies · 10 users</li>
+        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> <strong>Everything in Business, plus:</strong></li>
+        ${["Multi-entity consolidated view", "API access", "Dedicated onboarding", "Priority phone support · 4h SLA"].map(x => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`).join("")}
+      </ul>
+    </div>
+  </div>
+  <p style="text-align:center;margin-top:28px;font-size:12.5px;color:var(--ink-mute)">All prices exclude VAT where applicable. Overage documents are billed per-document and always confirmed before processing.</p>
+</main>`;
+
+function legalHeader(title: string, note?: string) {
+  return `
+  <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-soft)">Legal</div>
+  <h1 style="margin-top:12px;font-family:var(--serif);font-weight:400;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-.02em">${title}</h1>
+  <p style="margin-top:10px;font-size:13px;color:var(--ink-mute)">Last updated: 20 July 2026</p>
+  ${note ? `<div style="margin-top:14px;padding:16px 18px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;font-size:13px;color:var(--ink-mute)">${note}</div>` : ""}`;
 }
+const h2 = (t: string) => `<h2 style="font-family:var(--serif);font-weight:400;font-size:24px;margin:34px 0 10px;color:var(--ink)">${t}</h2>`;
 
-/* ───────── Public Company Intelligence showcase ────────────────────────────
+const PRIVACY = `
+<main style="max-width:820px;margin:0 auto;padding:56px 24px 40px">
+  ${legalHeader("Privacy Policy", `This template is GDPR-oriented and reflects CFO AI's actual infrastructure. Replace every <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholder with your registered company details and have it reviewed by a qualified lawyer before publishing.`)}
+  <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
+    ${h2("1. Who we are")}
+    <p>CFO AI ("we", "us", "our") operates the cfo-ai.io platform. The data controller is <strong style="color:var(--ink)">[Company Legal Name]</strong>, registered at <strong style="color:var(--ink)">[Registered Address, City, Country]</strong>, company registration number <strong style="color:var(--ink)">[Reg. No.]</strong>, VAT <strong style="color:var(--ink)">[VAT No.]</strong>. For any privacy question, contact <a href="mailto:privacy@cfo-ai.io">privacy@cfo-ai.io</a>.</p>
+    ${h2("2. What data we process")}
+    <p>We process the following categories of personal data:</p>
+    <ul style="padding-left:20px;color:var(--ink-soft)">
+      <li><strong style="color:var(--ink-2)">Account data</strong> — name, email address, company name, password (stored hashed), and subscription status.</li>
+      <li><strong style="color:var(--ink-2)">Financial documents you upload</strong> — trial balances, balance sheets, P&amp;L statements and related files, together with the figures extracted from them.</li>
+      <li><strong style="color:var(--ink-2)">Usage data</strong> — pages viewed, features used, uploads and AI messages, for security, billing and product improvement.</li>
+      <li><strong style="color:var(--ink-2)">Technical data</strong> — IP address, browser type, device information and cookie identifiers.</li>
+    </ul>
+    ${h2("3. How and why we use it (legal bases)")}
+    <ul style="padding-left:20px;color:var(--ink-soft)">
+      <li><strong style="color:var(--ink-2)">To provide the service</strong> (Art. 6(1)(b) GDPR — contract): analysing your documents, generating reports and running your account.</li>
+      <li><strong style="color:var(--ink-2)">To bill you</strong> (contract / legal obligation): managing subscriptions and issuing invoices.</li>
+      <li><strong style="color:var(--ink-2)">To secure and improve the service</strong> (Art. 6(1)(f) — legitimate interests): fraud prevention, debugging and analytics.</li>
+      <li><strong style="color:var(--ink-2)">Optional cookies &amp; communications</strong> (Art. 6(1)(a) — consent): analytics and marketing cookies, and product emails you can opt out of at any time.</li>
+    </ul>
+    <p>We do <strong style="color:var(--ink)">not</strong> sell your personal data, and we do not use your uploaded financial documents to train third-party AI models.</p>
+    ${h2("4. Sub-processors")}
+    <p>We rely on the following processors, each bound by a data-processing agreement:</p>
+    <div style="overflow-x:auto;margin-top:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+        <thead><tr style="text-align:left;color:var(--ink-mute)"><th style="padding:8px 10px;border-bottom:1px solid var(--rule)">Processor</th><th style="padding:8px 10px;border-bottom:1px solid var(--rule)">Purpose</th><th style="padding:8px 10px;border-bottom:1px solid var(--rule)">Region</th></tr></thead>
+        <tbody style="color:var(--ink-soft)">
+          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Supabase</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Database, authentication &amp; file storage</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">EU (Ireland)</td></tr>
+          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Anthropic</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">AI analysis &amp; narrative generation</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">USA (SCCs)</td></tr>
+          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Stripe</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Payment processing</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">EU / USA (SCCs)</td></tr>
+          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Resend</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Transactional email</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">EU / USA (SCCs)</td></tr>
+          <tr><td style="padding:8px 10px">Hostinger</td><td style="padding:8px 10px">Application hosting</td><td style="padding:8px 10px">EU</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:10px">Where data is transferred outside the EEA, we use the European Commission's Standard Contractual Clauses (SCCs) as the transfer mechanism.</p>
+    ${h2("5. How long we keep it")}
+    <p>Uploaded documents and derived analyses are retained for the history-retention window of your plan (12 to 60 months) and deleted or anonymised thereafter, unless a longer period is required by law (e.g. tax records). You can delete documents at any time from your workspace.</p>
+    ${h2("6. Your rights")}
+    <p>Under the GDPR you have the right to access, rectify, erase, restrict and port your data, to object to processing, and to withdraw consent at any time. To exercise any right, email <a href="mailto:privacy@cfo-ai.io">privacy@cfo-ai.io</a>. You also have the right to lodge a complaint with your supervisory authority — in Romania, the <strong style="color:var(--ink)">ANSPDCP</strong> (dataprotection.ro).</p>
+    ${h2("7. Cookies")}
+    <p>We use strictly necessary cookies plus optional analytics and marketing cookies subject to your consent. See our <button data-act="cookies" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Cookie Policy</button>, and change your choices anytime via <button data-act="consent" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Cookie settings</button>.</p>
+    ${h2("8. Changes")}
+    <p>We may update this policy from time to time. Material changes will be notified by email or an in-app notice. The "last updated" date above always reflects the current version.</p>
+  </div>
+</main>`;
 
-   Sits directly under the hero and exists to make the second entry-point
-   feel real before anyone signs up. Operator spec: visitors see a live
-   preview frame (browser-chrome window with the actual hub UI), a ticker
-   switcher to swap the preview, three reassurance tiles, and a soft
-   transition back to "upload your own data" so the path doesn't dead-end.
+const COOKIES = `
+<main style="max-width:820px;margin:0 auto;padding:56px 24px 40px">
+  ${legalHeader("Cookie Policy")}
+  <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
+    <p>Cookies and similar technologies (including browser <em>localStorage</em>) are small pieces of data stored on your device. We use them to keep you signed in, remember your preferences, and — only with your consent — to understand usage and measure marketing.</p>
+    ${h2("Categories we use")}
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:6px">
+      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Strictly necessary</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--brand);border:1px solid rgba(92,211,197,.4);padding:3px 9px;border-radius:999px">Always on</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Authentication session, security, load balancing and your cookie-consent choice. The site cannot function without these, so they do not require consent.</p></div>
+      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Analytics</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-mute);border:1px solid var(--rule-strong);padding:3px 9px;border-radius:999px">Optional</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Help us understand which features are used so we can improve the product. Set only if you accept analytics cookies.</p></div>
+      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Marketing</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-mute);border:1px solid var(--rule-strong);padding:3px 9px;border-radius:999px">Optional</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Measure the effectiveness of our campaigns and show relevant messaging. Set only if you accept marketing cookies.</p></div>
+    </div>
+    ${h2("Managing your choices")}
+    <p>You gave (or declined) consent when you first visited. You can change your preferences at any time using the button below or via "Cookie settings" in the footer. You can also block or delete cookies in your browser settings.</p>
+    <button data-act="consent" class="btn-grad" style="margin-top:8px;display:inline-flex;align-items:center;height:44px;padding:0 22px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Open cookie settings</button>
+  </div>
+</main>`;
 
-   Preview surface: ideally autoplay-muted-loop MP4s recorded against the
-   real product. Until those land in `public/landing/preview-<ticker>.mp4`
-   we fall back to a clean placeholder card that mirrors the hub's KPI-
-   strip layout — same Apple-quality "this is what you'll get" framing. */
+const TERMS = `
+<main style="max-width:820px;margin:0 auto;padding:56px 24px 40px">
+  ${legalHeader("Terms of Service", `Replace <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholders with your legal entity and governing-law details, and have these terms reviewed by a lawyer before publishing.`)}
+  <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
+    ${h2("1. Agreement")}
+    <p>These Terms govern your use of CFO AI, operated by <strong style="color:var(--ink)">[Company Legal Name]</strong>. By creating an account or using the service, you agree to these Terms and to our <button data-act="privacy" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Privacy Policy</button>.</p>
+    ${h2("2. The service")}
+    <p>CFO AI provides AI-assisted financial analysis, benchmarking and reporting from data you upload and from public-company sources. Features and limits depend on your subscription plan.</p>
+    ${h2("3. Accounts")}
+    <p>You are responsible for the accuracy of your account information, for keeping your credentials secure, and for all activity under your account. You must be at least 18 and authorised to accept these Terms on behalf of your organisation.</p>
+    ${h2("4. Subscriptions &amp; billing")}
+    <p>Paid plans are billed in advance on a monthly or annual basis. Trials convert to a paid subscription unless cancelled before they end. Fees are non-refundable except where required by law. Overage documents are charged per-document at the rate shown and confirmed before processing. We may change pricing with reasonable notice.</p>
+    ${h2("5. Acceptable use")}
+    <p>You may not misuse the service, including by attempting to breach security, reverse-engineering the platform, reselling access without authorisation, or uploading data you have no right to process. You retain ownership of the data you upload and grant us a limited licence to process it solely to provide the service.</p>
+    ${h2("6. Not professional advice")}
+    <p>CFO AI produces AI-assisted analysis and decision support. It is <strong style="color:var(--ink)">not</strong> financial, investment, legal, tax or accounting advice. Outputs may contain errors or approximations, which we flag where identified. Final decisions remain with you and your management team, and you should consult qualified professionals before acting.</p>
+    ${h2("7. Intellectual property")}
+    <p>The platform, its software and its branding are owned by <strong style="color:var(--ink)">[Company Legal Name]</strong>. These Terms grant you a limited, non-exclusive, non-transferable right to use the service during your subscription.</p>
+    ${h2("8. Disclaimers &amp; liability")}
+    <p>The service is provided "as is" to the fullest extent permitted by law. To the maximum extent permitted, our total liability arising out of the service is limited to the fees you paid in the 12 months preceding the claim. Nothing in these Terms excludes liability that cannot be excluded by law.</p>
+    ${h2("9. Termination")}
+    <p>You may cancel at any time from your account settings. We may suspend or terminate access for breach of these Terms. On termination, your data is handled as described in the Privacy Policy.</p>
+    ${h2("10. Governing law")}
+    <p>These Terms are governed by the laws of <strong style="color:var(--ink)">[Country/Jurisdiction]</strong>, and disputes are subject to the exclusive jurisdiction of the courts of <strong style="color:var(--ink)">[City, Country]</strong>, without prejudice to your mandatory consumer rights.</p>
+    ${h2("11. Contact")}
+    <p>Questions about these Terms? Email <a href="mailto:legal@cfo-ai.io">legal@cfo-ai.io</a>.</p>
+  </div>
+</main>`;
 
-function PublicCompanyShowcase() {
-  const navigate = useNavigate();
-  const [selectedTicker, setSelectedTicker] = useState<string>("AAPL");
+const CONTACT = `
+<main style="max-width:760px;margin:0 auto;padding:64px 24px 40px">
+  <div style="text-align:center;margin-bottom:40px">
+    ${eyebrow("Contact")}
+    <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-.02em">Talk to us.</h1>
+    <p style="margin-top:14px;font-size:16px;color:var(--ink-soft)">Whether you're evaluating CFO AI for a portfolio of companies or just have a question — we'd like to hear from you.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+    <a href="mailto:sales@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Sales &amp; Professional plan</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">sales@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">Custom limits, multi-entity and API access.</p></a>
+    <a href="mailto:support@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Support</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">support@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">Help with your account, uploads or analyses.</p></a>
+    <a href="mailto:privacy@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Privacy &amp; data</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">privacy@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">Exercise your GDPR rights or ask about data.</p></a>
+    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Registered office</div><div style="margin-top:8px;font-size:14px;color:var(--ink-2)">[Company Legal Name]<br>[Registered Address]<br>[City, Country]</div></div>
+  </div>
+  <div style="margin-top:32px;text-align:center"><a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:50px;padding:0 26px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px">Or just start free →</a></div>
+</main>`;
 
-  return (
-    <section
-      id="public-company-intelligence"
-      data-testid="landing-public-company-showcase"
-      className="relative border-t border-rule/40"
-    >
-      <div className="relative mx-auto max-w-[1100px] px-5 sm:px-8 py-20 sm:py-28">
-        <div className="text-center max-w-[760px] mx-auto mb-12 sm:mb-14">
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={ease}
-          >
-            <Eyebrow>Public Company Intelligence</Eyebrow>
-          </motion.div>
-          <motion.h2
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ ...easeSlow, delay: 0.06 }}
-            className="mt-5 font-serif text-[34px] sm:text-[44px] lg:text-[50px] leading-[1.08] tracking-[-0.02em] text-ink"
-          >
-            Read 5,000+ public companies the way a CFO does.
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ ...ease, delay: 0.14 }}
-            className="mt-4 text-[15.5px] sm:text-[17px] leading-relaxed text-ink-soft"
-          >
-            No upload. No signup. Pick a ticker, see the full analysis in under
-            10 seconds.
-          </motion.p>
-        </div>
-
-        {/* Preview frame — browser-chrome wrapper. Inside: an autoplaying
-         *  MP4 when the asset exists, else a graceful KPI-strip placeholder
-         *  so visitors still see a "live" hub-looking surface. */}
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ ...easeSlow, delay: 0.1 }}
-          className="relative rounded-2xl overflow-hidden border border-rule bg-surface shadow-[0_24px_80px_-30px_rgba(0,0,0,0.45)]"
-        >
-          {/* Chrome strip */}
-          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-rule bg-bg-2/60 backdrop-blur">
-            <div className="flex gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-400/45" />
-              <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/45" />
-              <span className="h-2.5 w-2.5 rounded-full bg-green-400/45" />
-            </div>
-            <div className="flex-1 text-center text-[11px] text-ink-mute font-mono tabular-nums">
-              cfo-ai.io / {selectedTicker} · Live preview
-            </div>
-            <div className="w-12" /> {/* spacer to balance the chrome dots */}
-          </div>
-
-          <PreviewSurface ticker={selectedTicker} />
-
-          <div className="border-t border-rule bg-bg-2/40 px-4 py-3 text-center">
-            <button
-              type="button"
-              onClick={() => navigate(`/public-companies?ticker=${selectedTicker}`)}
-              data-testid={`landing-showcase-open-${selectedTicker.toLowerCase()}`}
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-info hover:text-info/80 transition-colors"
-            >
-              Open full {selectedTicker} analysis
-              <ArrowRight size={13} strokeWidth={2.25} />
-            </button>
-          </div>
-        </motion.div>
-
-        {/* Ticker switcher — same FEATURED_TICKERS list as the hero chips
-         *  so the showcase reinforces the muscle memory the visitor just
-         *  built one section above. */}
-        <div className="mt-8 flex flex-col items-center gap-3">
-          <span className="text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
-            Try another
-          </span>
-          <div className="flex flex-wrap justify-center gap-2 max-w-[640px]">
-            {FEATURED_TICKERS.map((c) => {
-              const isActive = c.ticker === selectedTicker;
-              return (
-                <button
-                  key={c.ticker}
-                  type="button"
-                  onClick={() => setSelectedTicker(c.ticker)}
-                  data-testid={`landing-showcase-pick-${c.ticker.toLowerCase()}`}
-                  className={`
-                    inline-flex items-center gap-2
-                    h-8 px-3 rounded-full
-                    text-[12.5px]
-                    border transition-all
-                    ${isActive
-                      ? "bg-info/[0.08] border-info/40 text-ink"
-                      : "bg-surface border-rule text-ink-soft hover:text-ink hover:border-rule-strong"
-                    }
-                  `}
-                >
-                  <span className="font-mono font-semibold tabular-nums">{c.ticker}</span>
-                  <span className="text-ink-mute">{c.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Three reassurance tiles. */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-14">
-          <ReassuranceCard
-            stat="5,000+"
-            label="Tickers covered"
-            detail="All NASDAQ + NYSE-listed companies, latest 10-K and 10-Q filings."
-            testid="landing-reassurance-coverage"
-          />
-          <ReassuranceCard
-            stat="Official"
-            label="SEC EDGAR data"
-            detail="Direct from the regulator's XBRL feed via Nasdaq Sharadar — always current."
-            testid="landing-reassurance-source"
-          />
-          <ReassuranceCard
-            stat="Identical"
-            label="Same as your data"
-            detail="What you see for Apple is what you'll see for your own trial balance — same engine."
-            testid="landing-reassurance-engine"
-          />
-        </div>
-
-        {/* Soft transition back to the upload funnel. */}
-        <div className="mt-16 text-center">
-          <p className="text-[14.5px] text-ink-soft mb-3">
-            Want to compare your own business?
-          </p>
-          <Link
-            to="/signup?plan=trial"
-            data-testid="landing-showcase-back-to-upload"
-            className="inline-flex items-center gap-2 text-[14.5px] font-medium text-brand hover:text-brand-dark transition-colors"
-          >
-            Upload your trial balance
-            <ArrowRight size={15} strokeWidth={2.25} />
-          </Link>
+function footer(year: number) {
+  return `
+<footer style="border-top:1px solid var(--rule-soft);background:var(--bg-2)">
+  <div style="max-width:var(--maxw);margin:0 auto;padding:44px 24px 30px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:32px">
+      <div style="min-width:200px">
+        <div style="display:inline-flex;align-items:center;gap:10px">${LOGO}<span style="font-size:15px;font-weight:600;color:var(--ink)">CFO <span style="color:var(--brand)">AI</span></span></div>
+        <p style="margin-top:14px;font-size:13px;color:var(--ink-soft);max-width:260px">CFO-grade financial analysis and benchmarking for private businesses.</p>
+      </div>
+      <div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">Product</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
+          <button data-act="home" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Overview</button>
+          <button data-act="pricing" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Pricing</button>
+          <button data-act="app" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Open the app</button>
+          <a href="/signup" data-act="signup" style="color:var(--ink-soft)">Get started</a>
         </div>
       </div>
-    </section>
-  );
+      <div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">Legal</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
+          <button data-act="privacy" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Privacy Policy</button>
+          <button data-act="cookies" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Cookie Policy</button>
+          <button data-act="terms" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Terms of Service</button>
+          <button data-act="consent" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Cookie settings</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">Contact</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
+          <button data-act="contact" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Contact us</button>
+          <a href="mailto:sales@cfo-ai.io" style="color:var(--ink-soft)">sales@cfo-ai.io</a>
+          <a href="mailto:support@cfo-ai.io" style="color:var(--ink-soft)">support@cfo-ai.io</a>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:36px;padding-top:22px;border-top:1px solid var(--rule-soft);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-mute)">
+      <span>© ${year} CFO AI · [Company Legal Name]. All rights reserved.</span>
+      <span>Made in the EU · GDPR-compliant</span>
+    </div>
+  </div>
+</footer>`;
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// PreviewSurface — the inside of the landing page's "Live preview" frame.
-//
-// 2026-05-27 rewrite. The prior version tried to render an autoplaying
-// MP4 (`/landing/preview-<ticker>.mp4`) that doesn't actually exist on
-// disk, so every visitor saw the bare placeholder layer behind it: a
-// label-on-top-of-value KPI strip plus a half-empty "Snapshot · trend
-// · peer benchmark" stub with no actual chart. Read as a broken table.
-//
-// New design — three layered surfaces that genuinely sell the product:
-//   1. Company header (logo + name + sector chip)
-//   2. Three KPI cards with deltas (revenue TTM, EBITDA TTM, P/E)
-//   3. Sparkline of revenue trend (12 normalized bars; CSS-only, no chart lib)
-//   4. Peer benchmark bars (4 tickers, the active one highlighted)
-//   5. Open-full CTA
-//
-// All data hardcoded. We do NOT fetch from the backend on the marketing
-// surface — the LCP hit would punish landing-page conversion. Strings
-// stay in English here matching the rest of Landing.tsx; i18n sweep
-// for Landing is its own ticket (already pending: I18n batch 2).
-// ──────────────────────────────────────────────────────────────────────
-
-interface CompanyData {
-  ticker: string;
-  name: string;
-  sector: string;
-  revenue: { value: string; delta: string };
-  ebitda: { value: string; delta: string };
-  pe: string;
-  /** 12 quarter values normalized 0-1 for the sparkline. Last bar = latest. */
-  trend: number[];
-  /** Peer comparison rows. First entry should match the company itself. */
-  peers: Array<{ ticker: string; ebitdaMargin: number }>;
+function consentModal(expanded: boolean, analytics: boolean, marketing: boolean) {
+  const on = "#2AA89B", off = "#3D3D3D";
+  const track = (v: boolean) => (v ? on : off);
+  const knob = (v: boolean) => (v ? "21px" : "3px");
+  const toggleRow = (act: string, title: string, desc: string, v: boolean) => `
+      <button data-act="${act}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;font:inherit"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">${title}</div><div style="font-size:12px;color:var(--ink-mute)">${desc}</div></div><span style="width:42px;height:24px;border-radius:999px;flex-shrink:0;position:relative;transition:background .15s;background:${track(v)}"><span style="position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;left:${knob(v)}"></span></span></button>`;
+  return `
+<div style="position:fixed;inset:0;z-index:90;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);padding:0 16px 16px">
+  <div style="width:100%;max-width:640px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:18px;padding:24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8)">
+    <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;background:var(--brand);display:inline-block"></span><strong style="font-size:16px;color:var(--ink)">We value your privacy</strong></div>
+    <p style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">We use strictly necessary cookies to run CFO AI, and — only with your consent — optional analytics and marketing cookies. You can accept all, reject optional ones, or choose. Read our <button data-act="cookies" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Cookie Policy</button>.</p>
+    ${expanded ? `
+    <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">Strictly necessary</div><div style="font-size:12px;color:var(--ink-mute)">Required for sign-in, security and saving your choice.</div></div><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--brand)">Always on</span></div>
+      ${toggleRow("consent:analytics", "Analytics", "Helps us improve the product.", analytics)}
+      ${toggleRow("consent:marketing", "Marketing", "Measures campaigns and relevance.", marketing)}
+    </div>` : ""}
+    <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px">
+      <button data-act="consent:acceptAll" class="btn-grad" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px;border:none;cursor:pointer;font-family:inherit">Accept all</button>
+      <button data-act="consent:rejectAll" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Reject optional</button>
+      ${expanded
+        ? `<button data-act="consent:save" class="hv-brand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--surface-hi);border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">Save choices</button>`
+        : `<button data-act="consent:expand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule);color:var(--ink-soft);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Customise</button>`}
+    </div>
+  </div>
+</div>`;
 }
 
-const PREVIEW_COMPANIES: Record<string, CompanyData> = {
-  AAPL: {
-    ticker: "AAPL", name: "Apple Inc.", sector: "Consumer Electronics",
-    revenue: { value: "$391.0B", delta: "+2.0%" },
-    ebitda:  { value: "$131.8B", delta: "+3.2%" },
-    pe: "31.5×",
-    trend: [0.55, 0.58, 0.62, 0.61, 0.65, 0.68, 0.71, 0.72, 0.75, 0.78, 0.82, 0.85],
-    peers: [
-      { ticker: "AAPL",  ebitdaMargin: 33.7 },
-      { ticker: "MSFT",  ebitdaMargin: 36.1 },
-      { ticker: "GOOGL", ebitdaMargin: 32.8 },
-      { ticker: "META",  ebitdaMargin: 52.0 },
-    ],
-  },
-  MSFT: {
-    ticker: "MSFT", name: "Microsoft Corp.", sector: "Software · Cloud",
-    revenue: { value: "$245.1B", delta: "+11.2%" },
-    ebitda:  { value: "$133.6B", delta: "+14.5%" },
-    pe: "37.8×",
-    trend: [0.42, 0.48, 0.51, 0.55, 0.58, 0.62, 0.68, 0.71, 0.75, 0.80, 0.85, 0.90],
-    peers: [
-      { ticker: "MSFT",  ebitdaMargin: 48.1 },
-      { ticker: "ORCL",  ebitdaMargin: 41.2 },
-      { ticker: "AAPL",  ebitdaMargin: 33.7 },
-      { ticker: "GOOGL", ebitdaMargin: 32.8 },
-    ],
-  },
-  NVDA: {
-    ticker: "NVDA", name: "NVIDIA Corp.", sector: "Semiconductors · AI",
-    revenue: { value: "$130.5B", delta: "+125.9%" },
-    ebitda:  { value: " $84.5B", delta: "+248.3%" },
-    pe: "65.2×",
-    trend: [0.18, 0.20, 0.24, 0.28, 0.35, 0.45, 0.55, 0.68, 0.78, 0.85, 0.92, 0.98],
-    peers: [
-      { ticker: "NVDA", ebitdaMargin: 55.7 },
-      { ticker: "TSM",  ebitdaMargin: 41.5 },
-      { ticker: "AMD",  ebitdaMargin: 14.2 },
-      { ticker: "INTC", ebitdaMargin: 11.8 },
-    ],
-  },
-  TSLA: {
-    ticker: "TSLA", name: "Tesla Inc.", sector: "Auto · Energy",
-    revenue: { value: " $97.7B", delta: "+18.8%" },
-    ebitda:  { value: " $14.7B", delta: "-12.4%" },
-    pe: "85.4×",
-    trend: [0.45, 0.52, 0.58, 0.64, 0.68, 0.72, 0.75, 0.78, 0.74, 0.71, 0.68, 0.70],
-    peers: [
-      { ticker: "TSLA", ebitdaMargin: 13.6 },
-      { ticker: "TM",   ebitdaMargin: 14.7 },
-      { ticker: "GM",   ebitdaMargin: 10.2 },
-      { ticker: "F",    ebitdaMargin:  7.8 },
-    ],
-  },
-  GOOGL: {
-    ticker: "GOOGL", name: "Alphabet Inc.", sector: "Internet · Cloud",
-    revenue: { value: "$350.0B", delta: "+8.7%" },
-    ebitda:  { value: "$131.0B", delta: "+22.1%" },
-    pe: "23.6×",
-    trend: [0.50, 0.54, 0.58, 0.61, 0.64, 0.68, 0.71, 0.74, 0.78, 0.82, 0.85, 0.88],
-    peers: [
-      { ticker: "GOOGL", ebitdaMargin: 32.8 },
-      { ticker: "META",  ebitdaMargin: 52.0 },
-      { ticker: "AAPL",  ebitdaMargin: 33.7 },
-      { ticker: "AMZN",  ebitdaMargin: 18.4 },
-    ],
-  },
+const MAINS: Record<Page, string> = {
+  home: HOME, pricing: PRICING, privacy: PRIVACY, cookies: COOKIES, terms: TERMS, contact: CONTACT,
 };
 
+export default function Landing() {
+  const navigate = useNavigate();
+  const [page, setPage] = useState<Page>("home");
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [consentExpanded, setConsentExpanded] = useState(false);
+  const [analytics, setAnalytics] = useState(false);
+  const [marketing, setMarketing] = useState(false);
 
-function PreviewSurface({ ticker }: { ticker: string }) {
-  const company = PREVIEW_COMPANIES[ticker] ?? PREVIEW_COMPANIES.AAPL;
-  const peerMax = Math.max(...company.peers.map((p) => p.ebitdaMargin));
+  // First-visit consent gate + hash deep-linking (#/pricing etc.).
+  useEffect(() => {
+    let hasConsent = false;
+    try {
+      const saved = localStorage.getItem(CONSENT_KEY);
+      if (saved) {
+        hasConsent = true;
+        const p = JSON.parse(saved);
+        setAnalytics(!!p.analytics);
+        setMarketing(!!p.marketing);
+      }
+    } catch { /* private mode */ }
+    if (!hasConsent) setConsentOpen(true);
 
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={ticker}
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -4 }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-bg p-5 sm:p-7 space-y-5 sm:space-y-6"
-      >
-        {/* Company header — logo, ticker, name, sector, SAMPLE pill */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <CompanyLogo ticker={company.ticker} size={40} className="shrink-0" />
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="font-mono font-semibold text-[15px] text-ink tabular-nums">
-                  {company.ticker}
-                </span>
-                <span className="text-[15px] font-medium text-ink truncate">
-                  {company.name}
-                </span>
-              </div>
-              <div className="text-[11.5px] text-ink-soft mt-0.5">
-                {company.sector} · NASDAQ
-              </div>
-            </div>
-          </div>
-          <span className="
-            text-[9.5px] uppercase tracking-[0.14em] font-semibold
-            px-2 py-1 rounded-full shrink-0
-            bg-info/[0.10] text-info border border-info/20
-          ">
-            Sample preview
-          </span>
-        </div>
+    const applyHash = () => {
+      const h = (location.hash || "").replace(/^#\/?/, "").trim() as Page;
+      setPage(VALID_PAGES.includes(h) ? h : "home");
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
 
-        {/* KPI cards — three, side-by-side even on mobile (375px-tested). */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <PreviewKpi
-            label="Revenue (TTM)"
-            value={company.revenue.value}
-            delta={company.revenue.delta}
-          />
-          <PreviewKpi
-            label="EBITDA (TTM)"
-            value={company.ebitda.value}
-            delta={company.ebitda.delta}
-          />
-          <PreviewKpi
-            label="P / E ratio"
-            value={company.pe}
-          />
-        </div>
+  const goPage = useCallback((p: Page) => {
+    setPage(p);
+    try { location.hash = p === "home" ? "" : `#/${p}`; } catch { /* noop */ }
+    try { window.scrollTo(0, 0); } catch { /* noop */ }
+  }, []);
 
-        {/* Mini revenue trend — 12 CSS bars, staggered grow-in animation.
-            Intentionally NOT recharts: 12 divs are smaller + faster + look
-            identical at this size. Save the JS budget. */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <TrendingUp size={12} strokeWidth={2.25} className="text-ink-mute" />
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
-              Revenue trend · last 12 quarters
-            </span>
-          </div>
-          <div className="flex items-end gap-1 h-10 sm:h-12" aria-hidden>
-            {company.trend.map((v, i) => (
-              <motion.div
-                key={i}
-                initial={{ height: 0 }}
-                animate={{ height: `${Math.max(v * 100, 4)}%` }}
-                transition={{
-                  delay: i * 0.035,
-                  duration: 0.45,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                className={`
-                  flex-1 rounded-sm
-                  ${i === company.trend.length - 1 ? "bg-info" : "bg-info/35"}
-                `}
-              />
-            ))}
-          </div>
-        </div>
+  const persist = (a: boolean, m: boolean) => {
+    try { localStorage.setItem(CONSENT_KEY, JSON.stringify({ analytics: a, marketing: m, ts: Date.now() })); }
+    catch { /* private mode */ }
+  };
 
-        {/* Peer benchmark — 4 horizontal bars, active company highlighted */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <BarChart3 size={12} strokeWidth={2.25} className="text-ink-mute" />
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
-              Peer benchmark · EBITDA margin
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            {company.peers.map((peer) => (
-              <PreviewPeerBar
-                key={peer.ticker}
-                ticker={peer.ticker}
-                value={peer.ebitdaMargin}
-                max={peerMax}
-                highlight={peer.ticker === company.ticker}
-              />
-            ))}
-          </div>
-        </div>
+  const scrollTo = (id: string) => {
+    setPage("home");
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  };
 
-        {/* Footer note — the reassurance that this is REAL data the user
-            will get on their own. Quiet typography; not a billboard. */}
-        <p className="text-[11.5px] text-ink-mute text-center leading-relaxed pt-2 border-t border-rule/40">
-          Snapshot · 12-quarter trend · peer benchmark — all live in the
-          full hub. <span className="text-info font-medium">No sign-in required.</span>
-        </p>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
+  const onClick = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
+    if (!el) return;
+    const act = el.getAttribute("data-act") || "";
+    // Router / internal-page actions all preventDefault so anchor hrefs
+    // (kept for right-click "open in new tab" affordance) don't full-navigate.
+    if (act === "app") { e.preventDefault(); navigate("/dashboard"); return; }
+    if (act === "signin") { e.preventDefault(); navigate("/login"); return; }
+    if (act === "signup") { e.preventDefault(); navigate("/signup"); return; }
+    if (act === "signup:solo") { e.preventDefault(); navigate("/signup?plan=solo"); return; }
+    if (act === "signup:business") { e.preventDefault(); navigate("/signup?plan=business"); return; }
+    if (act.startsWith("scroll:")) { e.preventDefault(); scrollTo(act.slice(7)); return; }
+    if (VALID_PAGES.includes(act as Page)) { e.preventDefault(); goPage(act as Page); return; }
+    // Cookie-consent actions.
+    if (act === "consent") { e.preventDefault(); setConsentExpanded(true); setConsentOpen(true); return; }
+    if (act === "consent:expand") { e.preventDefault(); setConsentExpanded(true); return; }
+    if (act === "consent:analytics") { e.preventDefault(); setAnalytics((v) => !v); return; }
+    if (act === "consent:marketing") { e.preventDefault(); setMarketing((v) => !v); return; }
+    if (act === "consent:acceptAll") { e.preventDefault(); persist(true, true); setAnalytics(true); setMarketing(true); setConsentOpen(false); setConsentExpanded(false); return; }
+    if (act === "consent:rejectAll") { e.preventDefault(); persist(false, false); setAnalytics(false); setMarketing(false); setConsentOpen(false); setConsentExpanded(false); return; }
+    if (act === "consent:save") { e.preventDefault(); persist(analytics, marketing); setConsentOpen(false); setConsentExpanded(false); return; }
+  }, [navigate, goPage, analytics, marketing]);
 
-// KPI card with optional delta. Delta is sign-derived (+/-) — green for
-// positive, red for negative. Tight padding so 3 fit at 375px viewport.
-function PreviewKpi({ label, value, delta }: { label: string; value: string; delta?: string }) {
-  const positive = delta?.trim().startsWith("+");
-  const negative = delta?.trim().startsWith("-");
-  return (
-    <div className="
-      rounded-xl border border-rule/60 bg-surface/60
-      px-3 py-3 sm:px-4 sm:py-3.5
-      transition-colors hover:border-rule
-    ">
-      <div className="text-[9.5px] uppercase tracking-[0.1em] text-ink-mute font-semibold leading-tight">
-        {label}
-      </div>
-      <div className="font-serif text-[17px] sm:text-[20px] text-ink leading-none tabular-nums mt-2 sm:mt-2.5">
-        {value}
-      </div>
-      {delta && (
-        <div className={`
-          text-[10.5px] font-medium mt-1.5 inline-flex items-center gap-0.5 tabular-nums
-          ${positive ? "text-success" : negative ? "text-alert" : "text-ink-mute"}
-        `}>
-          {positive && <TrendingUp size={9} strokeWidth={2.5} />}
-          {negative && <TrendingDown size={9} strokeWidth={2.5} />}
-          {delta.replace(/^[+-]/, "")}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Single peer-comparison bar. The active company's ticker gets the
-// brand colour; peers get a muted tone. Bar width is proportional to
-// peerMax, NOT to 100%, so even the lowest peer reads as a real bar
-// (otherwise META at 52% would make AAPL at 33% look tiny).
-function PreviewPeerBar({
-  ticker,
-  value,
-  max,
-  highlight,
-}: {
-  ticker: string;
-  value: number;
-  max: number;
-  highlight: boolean;
-}) {
-  const widthPct = Math.min((value / max) * 100, 100);
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className={`
-        font-mono text-[11px] font-semibold w-12 flex-shrink-0 tabular-nums
-        ${highlight ? "text-info" : "text-ink-soft"}
-      `}>
-        {ticker}
-      </span>
-      <div className="flex-1 h-5 sm:h-6 rounded bg-bg-2/60 relative overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${widthPct}%` }}
-          transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-          className={`
-            h-full rounded
-            ${highlight ? "bg-info" : "bg-ink-mute/30"}
-          `}
-        />
-        <span className={`
-          absolute top-1/2 -translate-y-1/2 right-2
-          text-[10.5px] font-medium tabular-nums
-          ${highlight ? "text-info" : "text-ink-soft"}
-        `}>
-          {value.toFixed(1)}%
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* ───────── Flagship Use Cases — 3 product pillars ──────────────────────── */
-
-function FlagshipUseCases() {
-  const cards = [
-    {
-      icon: LineChart,
-      title: "Financial Statement Intelligence",
-      tagline: "Trial balance → board-ready report",
-      body: "Ministry-of-Finance filings, accountant exports, annual reports — from any European country. Auto-detected, normalized, ratioed, valued, and explained.",
-      href: "/dashboard",
-      cta: "Open module",
-      live: true,
-    },
-    {
-      icon: Wallet,
-      title: "Inventory Intelligence",
-      tagline: "Cash trapped → recovered",
-      body: "Stock days, working capital, SKU bucketing. Tells your team what to protect, fix, reduce, liquidate, or scale.",
-      href: "/dashboard",
-      cta: "Open module",
-      live: true,
-    },
-    {
-      icon: Upload,
-      title: "Invoice Intelligence",
-      tagline: "ERP exports → cash forecast",
-      body: "Customer & supplier concentration, margin by client, VAT reconciliation, payment timing — built into Financial Statements as dedicated tabs.",
-      href: "/dashboard?tab=customers",
-      cta: "Open module",
-      live: true,
-    },
-    // NASDAQ-7 — public-company analysis surfaced on the public landing page
-    // so prospects see the dual-path positioning ("upload your books OR analyse
-    // any Nasdaq-listed company") before they sign up.
-    {
-      icon: Globe2,
-      title: "Public Company Intelligence",
-      tagline: "Nasdaq tickers → board-ready analysis",
-      body: "Search any of 16,000+ US-listed companies on Sharadar. Same dashboard, ratios, valuation, and CFO chat as your private books. Add as a benchmark peer next to your own.",
-      href: "/dashboard/public/search",
-      cta: "Search Nasdaq",
-      live: true,
-    },
-  ];
+  const html = useMemo(() => {
+    const year = new Date().getFullYear();
+    return HEADER + MAINS[page] + footer(year) + (consentOpen ? consentModal(consentExpanded, analytics, marketing) : "");
+  }, [page, consentOpen, consentExpanded, analytics, marketing]);
 
   return (
-    <section className="relative">
+    <>
+      <style>{SITE_CSS}</style>
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+        className="cfo-site"
+        onClick={onClick}
+        dangerouslySetInnerHTML={{ __html: html }}
       />
-      <div className="mx-auto max-w-[1280px] px-5 sm:px-8 py-16 sm:py-20">
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={enterFromBelow}
-          transition={easeSlow}
-          className="text-center max-w-[680px] mx-auto mb-10"
-        >
-          <Eyebrow>Four flagship modules</Eyebrow>
-          <h2 className="mt-4 font-serif text-[32px] sm:text-[44px] leading-[1.05] tracking-[-0.02em]">
-            One platform. <span className="text-gradient-cfo">Your books, or any public company.</span>
-          </h2>
-        </motion.div>
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={staggerChildren}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
-        >
-          {cards.map(({ icon: Icon, title, tagline, body, href, cta, live }) => (
-            <motion.div
-              key={title}
-              variants={enterFromBelowSoft}
-              transition={ease}
-              whileHover={{ y: -4 }}
-            >
-              <Link
-                to={href}
-                className="group rounded-2xl border border-rule bg-bg-2/30 hover:border-brand/40 hover:bg-bg-2/50 p-6 transition-colors flex flex-col h-full"
-              >
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="h-11 w-11 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
-                    <Icon size={20} strokeWidth={1.75} />
-                  </div>
-                  {live ? (
-                    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] font-medium text-emerald-800 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
-                      <Sparkles size={10} strokeWidth={2} /> Live
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] font-medium text-ink-mute bg-bg-2 px-2 py-0.5 rounded-full">
-                      Soon
-                    </span>
-                  )}
-                </div>
-                <div className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium mb-1.5">
-                  {tagline}
-                </div>
-                <h3 className="font-serif text-[20px] text-ink leading-tight">{title}</h3>
-                <p className="mt-2 text-[13.5px] text-ink-soft leading-relaxed flex-1">{body}</p>
-                <div className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] font-medium text-brand-d group-hover:text-brand transition-colors">
-                  {cta}
-                  <ArrowRight size={13} strokeWidth={2} />
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={staggerChildren}
-          className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center"
-        >
-          {[
-            ["100+", "Financial ratios"],
-            ["EBITDA×", "Multiple-based valuation"],
-            ["Altman Z", "Bankruptcy screen"],
-            ["8-sheet", "Excel model export"],
-          ].map(([n, l]) => (
-            <motion.div
-              key={l}
-              variants={enterFromBelowSoft}
-              transition={ease}
-              whileHover={{ y: -3, scale: 1.02 }}
-              className="rounded-xl border border-rule bg-bg-2/20 p-4"
-            >
-              <div className="num-hero text-[32px] text-gradient-cfo leading-none">{n}</div>
-              <div className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-ink-soft mt-3">{l}</div>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────── Product Preview ─────────────────────────────────────────────── */
-
-function ProductPreview() {
-  return (
-    <section id="preview" className="relative">
-      <div
-        aria-hidden
-        className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent"
-      />
-      <div className="mx-auto max-w-[1280px] px-5 sm:px-8 py-16 sm:py-24">
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={enterFromBelow}
-          transition={easeSlow}
-          className="text-center max-w-[680px] mx-auto"
-        >
-          <Eyebrow>What CFO AI sees</Eyebrow>
-          <h2 className="mt-4 font-serif text-[32px] sm:text-[44px] leading-[1.05] tracking-[-0.02em]">
-            Every morning, your CFO briefing — <span className="text-gradient-cfo">already written.</span>
-          </h2>
-          <p className="mt-4 text-[15px] text-ink-soft leading-relaxed">
-            Real margin, capital trapped, urgent actions. Across categories,
-            customers, suppliers, and channels. Computed on your data, with the
-            reasoning shown.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 40, rotateX: 4 }}
-          whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ ...easeSlow, duration: 0.9 }}
-          style={{ perspective: 1200 }}
-          className="mt-12 rounded-3xl border border-rule bg-surface shadow-[0_60px_120px_-30px_rgba(0,0,0,0.6)] overflow-hidden"
-        >
-          <div className="px-5 py-3 border-b border-rule/40 flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-bg-2/90" />
-            <span className="h-2.5 w-2.5 rounded-full bg-bg-2/90" />
-            <span className="h-2.5 w-2.5 rounded-full bg-bg-2/90" />
-            <div className="ml-3 font-mono text-[10.5px] uppercase tracking-[0.16em] text-ink-soft/70">
-              cfo-ai · today's briefing · 06:14
-            </div>
-          </div>
-
-          <div className="p-6 sm:p-8 grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
-              <Stat label="Cash trapped"      value="11.2" unit="M RON"   trend="down" delta="−0.8M vs Apr"        Icon={Wallet}            accent="#3BA7FF" />
-              <Stat label="Recoverable cash"  value="2.4"  unit="M RON"   trend="up"   delta="liquidate + reduce" Icon={CircleDollarSign}  accent="#2ED3C6" />
-              <Stat label="Urgent decisions"  value="12"   unit=""        trend="flat" delta="3 critical"          Icon={Zap}               accent="#D6A84F" />
-              <Stat label="ROIC"              value="17.7" unit="%"       trend="up"   delta="+2.1pp YoY"          Icon={LineChart}         accent="#2ED3C6" />
-            </div>
-
-            <div className="rounded-2xl border border-rule bg-bg-2/40 p-5">
-              <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-brand">
-                <Sparkles size={12} strokeWidth={2} />
-                AI CFO Briefing
-              </div>
-              <p className="mt-3 text-[14px] text-ink leading-relaxed">
-                Your anchor products remain healthy, but long-tail SKUs are
-                tying up capital. The system recommends{" "}
-                <span className="text-brand">liquidations</span>,{" "}
-                <span className="text-info">supplier renegotiations</span>,
-                and{" "}
-                <span className="text-accent2">reorder reductions</span> today.
-              </p>
-              <ul className="mt-4 space-y-2 text-[12.5px] text-ink-soft">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 size={13} className="mt-0.5 text-brand shrink-0" strokeWidth={2} />
-                  Liquidate Specialty Imports (−92% real margin, 6k EUR trapped)
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 size={13} className="mt-0.5 text-info shrink-0" strokeWidth={2} />
-                  Renegotiate Core Range supplier — 4pp margin upside
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 size={13} className="mt-0.5 text-accent2 shrink-0" strokeWidth={2} />
-                  Cut Pantry Essentials reorder by 25% → release ~120k
-                </li>
-              </ul>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function Stat({
-  label, value, unit, trend, delta, Icon, accent,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-  trend: "up" | "down" | "flat";
-  delta: string;
-  Icon: LucideIcon;
-  accent: string;
-}) {
-  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : null;
-  return (
-    <motion.div
-      whileHover={{ y: -3, scale: 1.015 }}
-      transition={springSnappy}
-      className="relative rounded-2xl border border-rule bg-bg-2/40 p-5 overflow-hidden group"
-    >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-0 group-hover:opacity-30 transition-opacity duration-500 blur-2xl"
-        style={{ backgroundColor: accent }}
-      />
-      <div className="relative flex items-center justify-between">
-        <div className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-ink-soft">{label}</div>
-        <Icon size={14} strokeWidth={1.75} className="text-ink-soft/80" />
-      </div>
-      <div className="relative mt-3 flex items-baseline gap-1.5">
-        <div className="num-hero text-[44px] leading-none" style={{ color: accent }}>
-          {value}
-        </div>
-        {unit && <div className="text-[12.5px] text-ink-soft">{unit}</div>}
-      </div>
-      <div className="relative mt-2 flex items-center gap-1.5 text-[11.5px] text-ink-soft">
-        {TrendIcon && <TrendIcon size={11} strokeWidth={2} />}
-        {delta}
-      </div>
-    </motion.div>
-  );
-}
-
-/* ───────── How It Works ────────────────────────────────────────────────── */
-
-function HowItWorks() {
-  const steps = [
-    { n: "01", title: "Upload your data",                  body: "Excel, CSV, ERP export, or live connector. We map columns automatically.",                       Icon: Upload },
-    { n: "02", title: "CFO AI calculates real economics",  body: "Real margin, DIO, CCC, ROIC, GMROII, capital trapped — every SKU, every category.",              Icon: LineChart },
-    { n: "03", title: "Your team acts",                    body: "Protect, fix, reduce, liquidate, or scale. With reasoning for every recommendation.",            Icon: CheckCircle2 },
-  ];
-  return (
-    <section className="border-t border-rule/40">
-      <div className="mx-auto max-w-[1280px] px-5 sm:px-8 py-16 sm:py-24">
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={enterFromBelow}
-          transition={easeSlow}
-        >
-          <Eyebrow>How it works</Eyebrow>
-          <h2 className="mt-4 font-serif text-[32px] sm:text-[44px] leading-[1.05] tracking-[-0.02em] max-w-[680px]">
-            Three steps from spreadsheet to <span className="text-gradient-cfo">action plan.</span>
-          </h2>
-        </motion.div>
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={staggerChildren}
-          className="mt-12 grid md:grid-cols-3 gap-6"
-        >
-          {steps.map(({ n, title, body, Icon }) => (
-            <motion.div
-              key={n}
-              variants={enterFromBelowSoft}
-              transition={ease}
-              whileHover={{ y: -4, scale: 1.01 }}
-              className="rounded-2xl border border-rule bg-bg-2/40 p-7 hover:border-rule-strong/80 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div className="num-hero text-[28px] text-gradient-cfo leading-none">{n}</div>
-                <Icon size={16} strokeWidth={1.75} className="text-ink-soft" />
-              </div>
-              <h3 className="mt-5 font-serif text-[20px] leading-[1.2] tracking-[-0.01em]">{title}</h3>
-              <p className="mt-2 text-[13.5px] text-ink-soft leading-relaxed">{body}</p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────── Use Cases ───────────────────────────────────────────────────── */
-
-function UseCases() {
-  const cards = [
-    { role: "CFO",         body: "See where capital is trapped, what's eroding margin, and what to do this week.",   Icon: Wallet },
-    { role: "CEO",         body: "One executive briefing per day with the moves that matter most.",                  Icon: LineChart },
-    { role: "Procurement", body: "Reorder smarter — never pile on slow-movers, always restock the scale candidates.", Icon: Truck },
-    { role: "Commercial",  body: "Spot price-action SKUs and customers running below the portfolio average.",         Icon: TrendingUp },
-    { role: "Operations",  body: "Drive DIO down without breaking service. Track recoverable cash week over week.",   Icon: Users },
-  ];
-  return (
-    <section id="use-cases" className="border-t border-rule/40">
-      <div className="mx-auto max-w-[1280px] px-5 sm:px-8 py-16 sm:py-24">
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={enterFromBelow}
-          transition={easeSlow}
-        >
-          <Eyebrow>Built for the team that decides</Eyebrow>
-          <h2 className="mt-4 font-serif text-[32px] sm:text-[44px] leading-[1.05] tracking-[-0.02em] max-w-[680px]">
-            One product, <span className="text-gradient-cfo">five seats</span> at the table.
-          </h2>
-        </motion.div>
-        <motion.div
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={staggerChildren}
-          className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
-        >
-          {cards.map(({ role, body, Icon }) => (
-            <motion.div
-              key={role}
-              variants={enterFromBelowSoft}
-              transition={ease}
-              whileHover={{ y: -3, scale: 1.01 }}
-              className="rounded-2xl border border-rule bg-bg-2/40 p-6 hover:border-rule-strong/80 transition-colors"
-            >
-              <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-soft">
-                <Icon size={14} strokeWidth={1.75} className="text-brand" />
-                {role}
-              </div>
-              <p className="mt-3 text-[14px] text-ink leading-relaxed">{body}</p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────── Final CTA ───────────────────────────────────────────────────── */
-
-function FinalCTA() {
-  return (
-    <section className="relative border-t border-rule/40">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(46,211,198,0.08),_transparent_60%)]"
-      />
-      <motion.div
-        initial="initial"
-        whileInView="animate"
-        viewport={{ once: true, margin: "-80px" }}
-        variants={enterFromBelow}
-        transition={easeSlow}
-        className="relative mx-auto max-w-[1280px] px-5 sm:px-8 py-20 sm:py-28 text-center"
-      >
-        <h2 className="font-serif text-[40px] sm:text-[64px] leading-[1.02] tracking-[-0.03em] max-w-[820px] mx-auto">
-          Inventory is not storage. It is <span className="text-gradient-cfo">deployed capital</span>.
-        </h2>
-        <p className="mt-5 text-[15px] text-ink-soft max-w-[560px] mx-auto">
-          Spin up CFO AI on your data in under five minutes. No credit card.
-        </p>
-        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <motion.div whileHover={{ y: -2, scale: 1.04 }} whileTap={{ scale: 0.96 }} transition={springSnappy}>
-            <Link
-              to="/signup"
-              className="
-                inline-flex items-center gap-2
-                h-12 px-6 rounded-full
-                bg-gradient-cfo text-white
-                text-[14px] font-medium
-                shadow-2 hover:shadow-3
-                transition-shadow
-              "
-            >
-              Get started — free
-              <ArrowRight size={14} strokeWidth={2.25} />
-            </Link>
-          </motion.div>
-          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={springSnappy}>
-            <Link
-              to="/login"
-              className="
-                inline-flex items-center
-                h-12 px-5 rounded-full
-                border border-rule hover:border-rule-strong
-                text-[14px] text-ink/90 hover:text-ink
-                transition-colors
-              "
-            >
-              Sign in
-            </Link>
-          </motion.div>
-        </div>
-
-        {/* Watch-the-demo escape hatch — rendered only when the demo video
-            URL is configured. Visitors who aren't ready to sign up but want
-            to evaluate the product first end here. */}
-        <DemoVideoLine />
-
-        {/* Building-in-public follow row — three platforms only (LinkedIn,
-            X, YouTube — the channels where the B2B audience lives). The
-            top-of-funnel ones (Instagram, TikTok) stay in the footer.
-            Renders only if at least one of the three env vars is set. */}
-        <BuildingInPublic />
-      </motion.div>
-    </section>
-  );
-}
-
-function DemoVideoLine() {
-  const url = import.meta.env.VITE_DEMO_VIDEO_URL as string | undefined;
-  if (!url) return null;
-  return (
-    <p className="mt-6 text-[13.5px] text-ink-soft/80">
-      Or — if you'd rather watch first:{" "}
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-ink hover:opacity-80 underline underline-offset-4 decoration-rule"
-      >
-        Watch the 60-second demo →
-      </a>
-    </p>
-  );
-}
-
-function BuildingInPublic() {
-  const linkedin = import.meta.env.VITE_SOCIAL_LINKEDIN as string | undefined;
-  const x        = import.meta.env.VITE_SOCIAL_X as string | undefined;
-  const youtube  = import.meta.env.VITE_SOCIAL_YOUTUBE as string | undefined;
-  const links = [
-    linkedin && { label: "LinkedIn", href: linkedin },
-    x        && { label: "X",        href: x },
-    youtube  && { label: "YouTube",  href: youtube },
-  ].filter(Boolean) as { label: string; href: string }[];
-  if (links.length === 0) return null;
-  return (
-    <div className="mt-12 pt-8 border-t border-rule/40 max-w-[420px] mx-auto">
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-ink-mute mb-3">
-        Building in public
-      </p>
-      <div className="flex items-center justify-center gap-3 text-[14px] text-ink-soft">
-        {links.map(({ label, href }, i) => (
-          <span key={label} className="inline-flex items-center gap-3">
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-ink hover:text-brand transition-colors"
-            >
-              {label}
-            </a>
-            {i < links.length - 1 && <span aria-hidden className="text-ink-mute">·</span>}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ───────── Footer ──────────────────────────────────────────────────────── */
-
-function Footer() {
-  return (
-    <footer className="border-t border-rule/40">
-      <div className="mx-auto max-w-[1280px] px-5 sm:px-8 py-10">
-        {/* Top row — content nav, unchanged. */}
-        <div className="flex flex-wrap items-center justify-between gap-4 text-[12px] text-ink-soft/80">
-          <div className="flex items-center gap-3">
-            <Logo size={20} compact />
-            <span>© {new Date().getFullYear()} CFO AI</span>
-            <span className="text-ink-soft/40">·</span>
-            <span>Inventory Intelligence</span>
-          </div>
-          <div className="flex items-center gap-5 font-mono text-[10.5px] uppercase tracking-[0.16em]">
-            <a href="#preview" className="hover:text-ink transition-colors">Product</a>
-            <a href="#use-cases" className="hover:text-ink transition-colors">Use cases</a>
-            <a href="#pricing" className="hover:text-ink transition-colors">Pricing</a>
-            <Link to="/login" className="hover:text-ink transition-colors">Sign in</Link>
-          </div>
-        </div>
-
-        {/* Bottom row — social icons. Renders only when at least one social
-            URL is configured in env (hard rule: never ship dead links). */}
-        <FooterSocialRow />
-      </div>
-    </footer>
-  );
-}
-
-function FooterSocialRow() {
-  // Read once on first paint to know whether to render the row at all.
-  const anyConfigured =
-    !!import.meta.env.VITE_SOCIAL_LINKEDIN ||
-    !!import.meta.env.VITE_SOCIAL_X ||
-    !!import.meta.env.VITE_SOCIAL_YOUTUBE ||
-    !!import.meta.env.VITE_SOCIAL_INSTAGRAM ||
-    !!import.meta.env.VITE_SOCIAL_TIKTOK;
-
-  if (!anyConfigured) return null;
-
-  return (
-    <div className="mt-8 pt-6 border-t border-rule/30 flex flex-wrap items-center justify-between gap-4">
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-ink-mute">
-        Stay updated
-      </p>
-      <FooterSocial tone="muted" />
-    </div>
+    </>
   );
 }

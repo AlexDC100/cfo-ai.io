@@ -13,7 +13,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, ChevronRight, FileText, ShieldCheck, X } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import {
@@ -38,8 +37,8 @@ const SEVERITY_FROM_PRIORITY: Record<RecommendationPriority, Severity> = {
 
 const SEVERITY_TONE: Record<Severity, string> = {
   critical: "bg-red-50 text-red-700 border-red-200",
-  high:     "bg-amber-50 text-amber-700 border-amber-200",
-  medium:   "bg-blue-50 text-blue-700 border-blue-200",
+  high:     "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
+  medium:   "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
   low:      "bg-bg-2 text-ink-soft border-rule",
   info:     "bg-bg-2 text-ink-soft border-rule",
 };
@@ -59,15 +58,15 @@ export default function Alerts() {
   const period = useActivePeriod();
   if (!period.isLoaded || !period.statements) {
     return (
-      <AppShell>
+      <>
         <AlertsEmptyState />
-      </AppShell>
+      </>
     );
   }
   return (
-    <AppShell>
+    <>
       <AlertsLoaded statements={period.statements} />
-    </AppShell>
+    </>
   );
 }
 
@@ -77,7 +76,7 @@ function AlertsEmptyState() {
       <div className="mx-auto h-14 w-14 rounded-2xl bg-bg-2 text-ink-mute flex items-center justify-center mb-4">
         <FileText size={22} strokeWidth={1.5} />
       </div>
-      <h1 className="font-serif text-[34px] sm:text-[40px] leading-[1.1] tracking-[-0.02em] text-ink">
+      <h1 className="font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
         No alerts yet
       </h1>
       <p className="mt-4 text-[15px] text-ink-soft max-w-[480px] mx-auto">
@@ -173,7 +172,7 @@ function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeo
     <div className="space-y-7" data-testid="alerts-body">
       <header>
         <div className="label-eyebrow">Alerts</div>
-        <h1 className="mt-2 font-serif text-[36px] leading-[1.1] tracking-[-0.02em]">
+        <h1 className="mt-2 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em]">
           {visible.length} active alert{visible.length === 1 ? "" : "s"}
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[640px]">
@@ -205,7 +204,7 @@ function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeo
 
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-rule bg-surface px-6 py-16 text-center">
-          <ShieldCheck size={28} className="mx-auto text-emerald-600 mb-3" strokeWidth={1.5} />
+          <ShieldCheck size={28} className="mx-auto text-[#2AA89B] mb-3" strokeWidth={1.5} />
           <h3 className="text-[15px] font-medium text-ink">No alerts in this severity</h3>
           <p className="mt-1 text-[13px] text-ink-soft">
             Either nothing crossed the threshold, or every flagged item has been resolved or dismissed.
@@ -288,7 +287,7 @@ function AlertCard({
         {linkifyAlertBody(rec.rationale, factsBacking?.facts)}
       </p>
       {rec.estimatedImpact && (
-        <div className="mt-2 inline-flex items-center text-[11.5px] font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
+        <div className="mt-2 inline-flex items-center text-[11.5px] font-medium text-[#2AA89B] bg-[#E6F7F4] px-3 py-1 rounded-md">
           Estimated impact: ~<Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / year
         </div>
       )}
@@ -329,7 +328,7 @@ function AlertCard({
           onClick={onResolve}
           className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
             isResolved
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              ? "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]"
               : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
           }`}
         >

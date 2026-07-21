@@ -92,7 +92,7 @@ export function IndustryBadge({ periodId, variant = "inline", onClickChange }: P
         type="button"
         data-testid="industry-badge-unset"
         onClick={onClickChange}
-        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-amber-300/70 bg-amber-50/50 text-[11.5px] font-medium text-amber-800 hover:bg-amber-100/60 transition-colors animate-pulse"
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[#8FE3D9]/70 bg-[#E6F7F4]/50 text-[11.5px] font-medium text-[#1B7268] hover:bg-[#E6F7F4]/60 transition-colors animate-pulse"
       >
         <AlertCircle size={12} strokeWidth={1.75} />
         No industry set
@@ -133,7 +133,7 @@ export function IndustryBadge({ periodId, variant = "inline", onClickChange }: P
           <div className={`text-[10.5px] uppercase tracking-[0.1em] ${tone.text} font-medium inline-flex items-center gap-1.5`}>
             {isSuggestion ? "Suggested industry" : "Active industry"}
             {assignment?.locked_by_user && (
-              <span className="inline-flex items-center gap-0.5 text-[9.5px] text-blue-700 bg-blue-100/70 rounded px-1 py-0.5">
+              <span className="inline-flex items-center gap-0.5 text-[9.5px] text-[#2AA89B] bg-[#E6F7F4]/70 rounded px-1 py-0.5">
                 <Lock size={9} /> Locked
               </span>
             )}

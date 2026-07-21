@@ -149,7 +149,7 @@ function Slider({
           [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
           [&::-webkit-slider-thumb]:rounded-full
           [&::-webkit-slider-thumb]:bg-brand
-          [&::-webkit-slider-thumb]:shadow-[0_2px_6px_-2px_rgba(45,191,179,0.6)]
+          [&::-webkit-slider-thumb]:shadow-[0_2px_6px_-2px_rgba(42,168,155,0.6)]
           [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4
           [&::-moz-range-thumb]:rounded-full
           [&::-moz-range-thumb]:bg-brand [&::-moz-range-thumb]:border-0
@@ -216,7 +216,7 @@ function PlanEstimate({
         </li>
         <li
           data-testid={`estimator-${plan.key}-chat-verdict`}
-          className={`flex justify-between pt-1 ${chatOver ? "text-amber-700" : ""}`}
+          className={`flex justify-between pt-1 ${chatOver ? "text-[#2AA89B]" : ""}`}
         >
           <span>
             Ask CFO AI: {chat} / {plan.chat_monthly_cap ?? "—"} per month

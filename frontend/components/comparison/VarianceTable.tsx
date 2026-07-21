@@ -22,7 +22,7 @@ interface Props {
 }
 
 function sentimentText(s: DeltaSentiment | null): string {
-  if (s === "positive") return "text-[hsl(165,80%,42%)] dark:text-[hsl(165,70%,60%)]";
+  if (s === "positive") return "text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]";
   if (s === "negative") return "text-rose-600 dark:text-rose-400";
   return "text-ink-mute";
 }

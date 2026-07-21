@@ -511,7 +511,7 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
           {error && (
             <div
               data-testid="industry-picker-error"
-              className="rounded-md border border-amber-300/60 bg-amber-50/60 px-3 py-2 text-[12px] text-amber-800"
+              className="rounded-md border border-[#8FE3D9]/60 bg-[#E6F7F4]/60 px-3 py-2 text-[12px] text-[#1B7268]"
             >
               {humanizeError(error)}
             </div>
@@ -595,10 +595,10 @@ function StaleUrlBanner({
   return (
     <section
       data-testid="industry-picker-stale-url"
-      className="rounded-xl border border-amber-300/60 bg-amber-50/50 p-4 space-y-3"
+      className="rounded-xl border border-[#8FE3D9]/60 bg-[#E6F7F4]/50 p-4 space-y-3"
     >
       <div>
-        <div className="text-[10.5px] uppercase tracking-[0.1em] text-amber-700 font-medium">
+        <div className="text-[10.5px] uppercase tracking-[0.1em] text-[#2AA89B] font-medium">
           Analysis no longer exists
         </div>
         <h3 className="mt-1 text-[15px] font-medium text-ink">
@@ -685,7 +685,7 @@ function PendingIndustryContext({ detail }: { detail: IndustryProfileDetail }) {
       {internalBrands.length > 0 && (
         <div
           data-testid="industry-internal-brand-note"
-          className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[12px] text-blue-900"
+          className="rounded-lg border border-[#8FE3D9] bg-[#E6F7F4]/60 px-3 py-2 text-[12px] text-[#1B7268]"
         >
           <strong className="font-semibold">
             {internalBrands.map((b) => b.company_name).join(", ")}

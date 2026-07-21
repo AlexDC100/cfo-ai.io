@@ -46,7 +46,7 @@ export function PublicCompanyResultCard({ hit, onSelect }: Props) {
           </span>
           <span className="text-[13px] text-ink truncate">{hit.name}</span>
           {!hit.is_active && (
-            <span className="text-[10px] uppercase tracking-[0.08em] font-semibold text-amber-600">
+            <span className="text-[10px] uppercase tracking-[0.08em] font-semibold text-[#2AA89B]">
               Delisted
             </span>
           )}

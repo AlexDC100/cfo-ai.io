@@ -11,16 +11,21 @@
 // for the user to confirm or edit.
 
 import { motion } from "framer-motion";
-import { Sparkles, TrendingUp, Calculator, FileText, AlertTriangle, GitCompare, LineChart, ShieldAlert, HelpCircle } from "lucide-react";
+import { TrendingUp, Calculator, FileText, AlertTriangle, GitCompare, LineChart, ShieldAlert, HelpCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 interface Props {
   hasPeriod: boolean;
   companyName?: string | null;
   onPick: (prompt: string) => void;
+  /** When true, skip the built-in centered serif headline + subtitle and
+   *  render only the left-aligned prompt grid. The full /chat page passes
+   *  this because it renders a dashboard-style PageHeader above instead;
+   *  the compact slide-over panel keeps the built-in header. */
+  hideHeader?: boolean;
 }
 
-const WORKSPACE_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string }> = [
+export const WORKSPACE_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string }> = [
   { icon: AlertTriangle, title: "Biggest financial risk", prompt: "What is our biggest financial risk right now? Cite the period and figures you used." },
   { icon: LineChart,     title: "Cash flow position",      prompt: "Explain our current cash flow position in plain language for the management team." },
   { icon: FileText,      title: "Summarize latest P&L",    prompt: "Summarize the latest P&L: revenue, EBITDA, net profit, and what changed." },
@@ -31,7 +36,7 @@ const WORKSPACE_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string
   { icon: HelpCircle,    title: "Liquidity questions",     prompt: "What questions should I be asking about liquidity for the next board meeting?" },
 ];
 
-const GENERAL_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string }> = [
+export const GENERAL_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string }> = [
   { icon: FileText,    title: "Read a Romanian RAS trial balance", prompt: "How do I read a Romanian RAS trial balance? Walk me through classes 1–7." },
   { icon: Calculator,  title: "EV/EBITDA for food manufacturing",   prompt: "What's a typical EV/EBITDA range for food manufacturing in Romania, and what drives the spread?" },
   { icon: LineChart,   title: "Damodaran ERP for emerging markets", prompt: "Explain Damodaran's approach to estimating equity risk premium for emerging markets." },
@@ -42,20 +47,56 @@ const GENERAL_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string }
   { icon: AlertTriangle, title: "Distress signals",                 prompt: "What are the early distress signals a CFO should watch for in a working-capital-heavy business?" },
 ];
 
-export function CFOEmptyState({ hasPeriod, companyName, onPick }: Props) {
+export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = false }: Props) {
   const prompts = hasPeriod ? WORKSPACE_PROMPTS : GENERAL_PROMPTS;
+
+  const grid = (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+      {prompts.map((p) => {
+        const Icon = p.icon;
+        return (
+          <button
+            key={p.title}
+            type="button"
+            onClick={() => onPick(p.prompt)}
+            className="
+              group text-center flex flex-col items-center gap-2.5
+              rounded-xl border border-rule bg-surface/70
+              px-4 py-5
+              hover:border-brand/30 hover:bg-surface
+              focus:outline-none focus:ring-2 focus:ring-brand/30
+              transition-all
+            "
+            data-testid="chat-prompt-card"
+          >
+            <span className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-bg-2/60 text-ink-soft group-hover:bg-brand/10 group-hover:text-brand-d transition-colors">
+              <Icon size={22} strokeWidth={1.75} />
+            </span>
+            <span className="block text-[14px] font-medium text-ink">{p.title}</span>
+            <span className="block text-[12px] text-ink-soft leading-relaxed line-clamp-2">{p.prompt}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // Full /chat page — header is a dashboard-style PageHeader rendered by the
+  // shell above; here we render only the left-aligned prompt grid.
+  if (hideHeader) {
+    return (
+      <div className="w-full max-w-[1040px]" data-testid="chat-empty-state">
+        {grid}
+      </div>
+    );
+  }
+
+  // Compact slide-over panel — keep the built-in centered header.
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.32, ease: "easeOut" }}
       className="w-full max-w-[820px] mx-auto px-2 sm:px-4 py-8 sm:py-12"
       data-testid="chat-empty-state"
     >
       <div className="flex flex-col items-center text-center">
-        <span className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gradient-to-br from-brand/20 to-brand-2/20 text-brand-d mb-4">
-          <Sparkles size={20} strokeWidth={1.75} />
-        </span>
         <h2 className="font-serif text-[28px] sm:text-[32px] text-ink leading-tight">
           {hasPeriod
             ? <>Ask anything about <span className="text-ink-soft italic">{companyName || "your company"}</span>.</>
@@ -68,35 +109,7 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick }: Props) {
         </p>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2.5">
-        {prompts.map((p) => {
-          const Icon = p.icon;
-          return (
-            <button
-              key={p.title}
-              type="button"
-              onClick={() => onPick(p.prompt)}
-              className="
-                group text-left flex items-start gap-3
-                rounded-xl border border-rule bg-surface/70
-                px-4 py-3
-                hover:border-brand/30 hover:bg-surface
-                focus:outline-none focus:ring-2 focus:ring-brand/30
-                transition-all
-              "
-              data-testid="chat-prompt-card"
-            >
-              <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-bg-2/60 text-ink-soft group-hover:bg-brand/10 group-hover:text-brand-d transition-colors shrink-0">
-                <Icon size={14} strokeWidth={1.75} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[13px] font-medium text-ink truncate">{p.title}</span>
-                <span className="block text-[12px] text-ink-soft mt-0.5 line-clamp-2">{p.prompt}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <div className="mt-8">{grid}</div>
     </motion.div>
   );
 }

@@ -25,7 +25,7 @@ interface Props {
 export function Sparkline({ data, idKey, positive = true, height = 34 }: Props) {
   if (!data || data.length < 2) return null;
 
-  const color = positive ? "#0a7c3a" : "#c62828";
+  const color = positive ? "#1B7268" : "#c62828";
   // Sanitize idKey to a valid SVG id fragment (concept keys are already
   // snake_case, but guard anyway).
   const gradId = `spark-grad-${idKey.replace(/[^a-zA-Z0-9_-]/g, "")}`;

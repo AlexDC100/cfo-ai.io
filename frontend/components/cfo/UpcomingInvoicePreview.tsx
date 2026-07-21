@@ -80,7 +80,7 @@ export function UpcomingInvoicePreview() {
             </dt>
             <dd
               data-testid="upcoming-invoice-extras"
-              className="font-medium text-amber-700 tabular-nums"
+              className="font-medium text-[#2AA89B] tabular-nums"
             >
               +{formatEur(extras_amount)}
             </dd>

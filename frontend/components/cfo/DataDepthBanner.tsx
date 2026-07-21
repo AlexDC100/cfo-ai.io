@@ -24,15 +24,15 @@ interface Props {
 export function DataDepthBanner({ depth, subject, compact }: Props) {
   const [open, setOpen] = useState(false);
 
-  const accent = depth.level >= 3 ? "#0a7c3a" : depth.level === 2 ? "#1a5490" : "#7a5a00";
+  const accent = depth.level >= 3 ? "#2AA89B" : depth.level === 2 ? "#2AA89B" : "#2AA89B";
   const accentBg =
-    depth.level >= 3 ? "rgba(10,124,58,0.08)" :
-    depth.level === 2 ? "rgba(26,84,144,0.08)" :
-    "rgba(243,156,18,0.10)";
+    depth.level >= 3 ? "rgba(42,168,155,0.08)" :
+    depth.level === 2 ? "rgba(42,168,155,0.08)" :
+    "rgba(92,211,197,0.10)";
   const accentBorder =
-    depth.level >= 3 ? "rgba(10,124,58,0.30)" :
-    depth.level === 2 ? "rgba(26,84,144,0.30)" :
-    "rgba(243,156,18,0.40)";
+    depth.level >= 3 ? "rgba(42,168,155,0.30)" :
+    depth.level === 2 ? "rgba(42,168,155,0.30)" :
+    "rgba(92,211,197,0.40)";
 
   if (compact) {
     return (

@@ -92,7 +92,7 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
                 w-full h-10 pl-9 pr-3 rounded-lg
                 bg-bg-2 border border-rule
                 text-[14px] text-ink placeholder:text-ink-mute
-                outline-none focus:border-[hsl(165,75%,55%)]/50
+                outline-none focus:border-[hsl(173,57%,55%)]/50
               "
             />
           </div>

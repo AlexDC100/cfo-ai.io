@@ -18,14 +18,18 @@ import { CurrencyToggle } from "./CurrencyToggle";
 import { LanguageToggle } from "./LanguageToggle";
 import { LearningHubMenu } from "@/components/learning/LearningHubMenu";
 import { useAuth } from "@/lib/auth";
+import { useWorkspaceName } from "@/lib/workspaceName";
 
 interface Props {
   onOpenAi: () => void;
   /** Mobile-only: opens the sidebar as a slide-over drawer. */
   onOpenSidebar: () => void;
+  /** Click the account avatar → open the Command Center (instead of the
+   *  legacy dropdown). */
+  onOpenAccount?: () => void;
 }
 
-export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
+export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
   // May 2026 redesign — the inline dropdown was replaced by <AccountMenu/>
   // which carries THE single sign-out. The "Ask CFO AI" pill is restored
   // here per the operator's directive (May 2026 follow-up): it sits
@@ -33,15 +37,31 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
   // (an "Ask AI" pill + a small AC initials circle). Clicking it fires
   // the same OPEN_ASK_CFO_AI_EVENT path that AppShell wires today.
   const { status, user, workspaceLabel } = useAuth();
+  // The tagline beside the logo reflects the workspace name the user set in
+  // the Workspace onboarding. Falls back to the auth-derived workspace label,
+  // then a neutral default.
+  const workspaceName = useWorkspaceName();
   const navigate = useNavigate();
 
   return (
     <header
+      // `inset-x-0` pins the bar to the scrollport's edges. On non-/chat
+      // routes <html> reserves a scrollbar gutter (index.css) so tab switches
+      // never flash a scrollbar — but that leaves an empty ~17px strip at the
+      // right on short pages, and `right-0` stops at the gutter's inner edge,
+      // reading as a gap in the bar. The `after:` strip bleeds the header's
+      // background over that gutter to the true window edge (clipped past the
+      // edge, so its width just needs to exceed any real scrollbar). Content
+      // stays at the scrollport width, so nothing shifts.
       className="
         fixed top-0 inset-x-0 z-40 h-16
-        bg-[hsl(var(--surface)/0.86)]
-        backdrop-blur-md
-        border-b border-rule
+        bg-[hsl(var(--bg)/0.72)]
+        backdrop-blur-[18px]
+        border-b border-rule-soft
+        after:content-[''] after:pointer-events-none
+        after:absolute after:top-0 after:bottom-[-1px] after:left-full after:w-6
+        after:bg-[hsl(var(--bg)/0.72)] after:backdrop-blur-[18px]
+        after:border-b after:border-rule-soft
       "
       style={{
         paddingLeft: "env(safe-area-inset-left)",
@@ -59,17 +79,19 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
           <Menu size={20} strokeWidth={1.75} />
         </button>
 
-        {/* Brand + workspace label */}
+        {/* Brand + workspace label — mirrors the landing-page header:
+            logo + "CFO AI" wordmark (rendered by <Logo>) + a mono, uppercase,
+            letter-spaced workspace tagline behind a hairline divider. */}
         <button
           onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-3 shrink-0"
+          className="flex items-center gap-2.5 shrink-0"
           aria-label="Go to dashboard"
         >
           <Logo size={26} compact />
         </button>
-        <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-rule h-7">
-          <span className="text-[11px] uppercase tracking-[0.14em] text-ink-mute font-medium truncate max-w-[180px]">
-            {workspaceLabel ?? "Financial Intelligence"}
+        <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-rule h-[22px]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-mute truncate max-w-[180px]">
+            {workspaceName || workspaceLabel || "Financial Intelligence"}
           </span>
         </div>
 
@@ -97,10 +119,11 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
             data-testid="topheader-ask-cfo-ai"
             aria-label="Ask CFO AI"
             className="
+              ask-ai-anim-fill
               inline-flex items-center justify-center gap-1.5
-              h-10 sm:h-9 min-w-[40px] sm:min-w-0 px-3 rounded-full
-              bg-brand-tint text-brand-d
-              hover:bg-brand-tint/80 active:bg-brand-tint/70
+              h-10 sm:h-9 min-w-[40px] sm:min-w-0 px-3.5 rounded-full
+              border border-brand/40 text-ink
+              hover:border-brand/60
               text-[12.5px] font-medium
               transition-colors
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
@@ -144,11 +167,11 @@ export function TopHeader({ onOpenAi, onOpenSidebar }: Props) {
         )}
 
         {status === "signed_in" && user ? (
-          <AccountMenu />
+          <AccountMenu onOpen={onOpenAccount} />
         ) : (
           <button
             onClick={() => navigate("/login")}
-            className="ml-1 inline-flex items-center h-9 px-3 rounded-md text-[13px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors"
+            className="ml-1 inline-flex items-center h-9 px-3 rounded-md font-mono text-[11.5px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors"
           >
             Sign in
           </button>

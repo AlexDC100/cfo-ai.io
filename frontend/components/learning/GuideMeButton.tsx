@@ -63,10 +63,10 @@ export function GuideMeButton({
           `
             inline-flex items-center gap-1.5
             text-[11px] uppercase tracking-[0.1em] font-semibold
-            text-[hsl(165,80%,38%)] hover:text-[hsl(165,80%,30%)]
+            text-[hsl(173,57%,38%)] hover:text-[hsl(173,57%,30%)]
             px-2.5 py-1 rounded-md
-            bg-[hsl(165,75%,55%)]/[0.08] hover:bg-[hsl(165,75%,55%)]/[0.14]
-            border border-[hsl(165,75%,55%)]/[0.20]
+            bg-[hsl(173,57%,55%)]/[0.08] hover:bg-[hsl(173,57%,55%)]/[0.14]
+            border border-[hsl(173,57%,55%)]/[0.20]
             transition-colors
           `
         }

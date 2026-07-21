@@ -59,7 +59,7 @@ export function LearningSettingsSection() {
               className={cn(
                 "text-left p-3.5 rounded-xl border transition-all",
                 active
-                  ? "border-[hsl(165,75%,55%)]/40 bg-[hsl(165,75%,55%)]/[0.08]"
+                  ? "border-[hsl(173,57%,55%)]/40 bg-[hsl(173,57%,55%)]/[0.08]"
                   : "border-rule bg-surface hover:bg-bg-2",
               )}
             >
@@ -67,13 +67,13 @@ export function LearningSettingsSection() {
                 <span
                   className={cn(
                     "text-[13.5px] font-semibold",
-                    active ? "text-[hsl(165,80%,38%)]" : "text-ink",
+                    active ? "text-[hsl(173,57%,38%)]" : "text-ink",
                   )}
                 >
                   {opt.label}
                 </span>
                 {active && (
-                  <Sparkles className="w-3.5 h-3.5 text-[hsl(165,80%,38%)]" />
+                  <Sparkles className="w-3.5 h-3.5 text-[hsl(173,57%,38%)]" />
                 )}
               </div>
               <div className="text-[11.5px] leading-snug text-ink-soft">

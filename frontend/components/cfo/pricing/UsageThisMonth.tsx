@@ -173,7 +173,7 @@ function UsageCard({
       {pct !== null && (
         <div className="mt-3 h-1.5 rounded-full bg-rule overflow-hidden">
           <div
-            className={`h-full rounded-full transition-[width] ${pct >= 100 ? "bg-amber-500" : "bg-brand"}`}
+            className={`h-full rounded-full transition-[width] ${pct >= 100 ? "bg-[#5CD3C5]" : "bg-brand"}`}
             style={{ width: `${pct}%` }}
             role="progressbar"
             aria-valuenow={pct}

@@ -14,7 +14,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Loader2, TrendingUp, TrendingDown, Building2, Hash, MapPin, Globe } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { DataDepthBanner } from "@/components/cfo/DataDepthBanner";
@@ -93,15 +92,15 @@ export default function MultiYearHistory() {
   }, [docId, toast]);
 
   if (loading) return (
-    <AppShell>
+    <>
       <div className="flex items-center justify-center py-32 text-ink-mute">
         <Loader2 size={20} className="animate-spin mr-2" />Loading multi-year history…
       </div>
-    </AppShell>
+    </>
   );
 
   if (!extract) return (
-    <AppShell>
+    <>
       <div className="max-w-[640px] mx-auto py-24 text-center">
         <Building2 size={28} className="mx-auto text-ink-mute mb-3" />
         <h1 className="font-serif text-[28px] text-ink">No public-records data yet</h1>
@@ -110,15 +109,15 @@ export default function MultiYearHistory() {
           extracts the 6-aggregate × N-year history into this view.
         </p>
       </div>
-    </AppShell>
+    </>
   );
 
   const years = extract.years.slice().sort((a, b) => b.year - a.year);
   const latest = years[0];
 
   return (
-    <AppShell>
-      <div className="max-w-[1200px] mx-auto" data-testid="multi-year-history">
+    <>
+      <div className="max-w-[1200px]" data-testid="multi-year-history">
         {/* DocumentSwitcher — lets the user jump between any analyzed
             doc (trial-balance period OR public-records upload) WITHOUT
             leaving this page. Picking a TB period navigates back to
@@ -136,7 +135,7 @@ export default function MultiYearHistory() {
 
         {/* Header card matching the institutional-memo pattern */}
         <header className="rounded-2xl px-6 py-6 mb-6 text-white"
-                style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}>
+                style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}>
           {/* 2026-05-26 (mobile fix): stack vertically on mobile so
               the 32px serif company name doesn't get column-stacked
               by the Print/Save PDF button cluster on iPhone widths. */}
@@ -248,7 +247,7 @@ export default function MultiYearHistory() {
                     <td className="px-3 py-2 text-right tabular-nums">
                       {fmtCur(y.cifra_afaceri)}
                       {revGrowth != null && (
-                        <span className={`ml-1 text-[10px] ${revGrowth >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        <span className={`ml-1 text-[10px] ${revGrowth >= 0 ? "text-[#2AA89B]" : "text-red-600"}`}>
                           {revGrowth >= 0 ? "+" : ""}{revGrowth.toFixed(0)}%
                         </span>
                       )}
@@ -283,7 +282,7 @@ export default function MultiYearHistory() {
           internal balanță de verificare separately.
         </p>
       </div>
-    </AppShell>
+    </>
   );
 }
 
@@ -317,7 +316,7 @@ function useFmtCur() {
 function KpiTile({ label, value, sub, positive, neutral }: {
   label: string; value: string; sub: string; positive: boolean; neutral?: boolean;
 }) {
-  const Color = neutral ? "text-ink" : (positive ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400");
+  const Color = neutral ? "text-ink" : (positive ? "text-[#2AA89B] dark:text-[#5CD3C5]" : "text-red-700 dark:text-red-400");
   const Trend = neutral ? null : (positive ? TrendingUp : TrendingDown);
   return (
     <div className="rounded-xl border border-rule bg-surface p-4">
@@ -398,8 +397,8 @@ function InsightsSection({ years, company }: { years: YearRow[]; company: string
     return { tone: "warn" as const, text: `Margins compressed — review the cost structure.` };
   })();
   const verdictColor =
-    verdict.tone === "ok" ? "border-emerald-300/50 bg-emerald-50/40 dark:bg-emerald-500/[0.06]"
-    : verdict.tone === "warn" ? "border-amber-300/50 bg-amber-50/40 dark:bg-amber-500/[0.06]"
+    verdict.tone === "ok" ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
+    : verdict.tone === "warn" ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
     : "border-red-300/50 bg-red-50/40 dark:bg-red-500/[0.06]";
 
   // Bullets — pick the meaningful ones; never invent.
@@ -482,8 +481,8 @@ function TrendChart({ years }: { years: YearRow[] }) {
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-serif text-[15px] text-ink">Revenue + net profit · {xs[0]} → {xs[xs.length-1]}</h3>
         <div className="flex items-center gap-3 text-[11.5px]">
-          <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-600"></span>Revenue</span>
-          <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-emerald-600"></span>Net profit</span>
+          <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-[#2AA89B]"></span>Revenue</span>
+          <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-[#2AA89B]"></span>Net profit</span>
         </div>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="xMidYMid meet">
@@ -492,9 +491,9 @@ function TrendChart({ years }: { years: YearRow[] }) {
           <line x1={padL} y1={zeroY} x2={w - padR} y2={zeroY} stroke="#d1d5db" strokeDasharray="2 3" />
         )}
         {/* Revenue area + line */}
-        <path d={revPath} fill="none" stroke="#2563eb" strokeWidth="2" />
+        <path d={revPath} fill="none" stroke="#5CD3C5" strokeWidth="2" />
         {/* Profit line */}
-        <path d={profPath} fill="none" stroke="#059669" strokeWidth="2" />
+        <path d={profPath} fill="none" stroke="#2AA89B" strokeWidth="2" />
         {/* X-axis labels — every other year to keep it readable */}
         {xs.map((y, i) => (
           (i % 2 === 0 || i === xs.length - 1) && (

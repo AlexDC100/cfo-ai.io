@@ -33,8 +33,29 @@ import { getSupabase } from "@/lib/supabase";
 import { SITE } from "@/config/site";
 import { isPublicTestMode } from "@/lib/testMode";
 import { DEMO_SAMPLE_ID } from "@/lib/demo/demoCompany";
+import { useAuth } from "@/lib/auth";
+import {
+  readPeriodVerdict,
+  writePeriodVerdict,
+  forgetPeriodVerdict,
+} from "@/lib/dataPresence";
 
 type ResolutionStatus = "ready" | "resolving" | "none";
+
+// UUID-shape check — mirrors lib/activePeriod.ts. Distinguishes a real backend
+// period (worth caching as proof the org has documents) from a sample/demo id.
+function isUuid(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
+// The active-period resolution is remembered per user in lib/dataPresence
+// (in-memory + localStorage, uid-scoped). A /api/org/periods-with-documents
+// round-trip previously ran fresh on every page that landed without ?period= —
+// so opening /benchmark with no data flashed a ~1s spinner every time, even
+// across reloads. Now the verdict persists: once we know the user has no
+// periods, this hook returns `status: "none"` on the very first paint and makes
+// ZERO API calls. The verdict is refreshed when a real period appears in the
+// URL and cleared on sign-out (see lib/dataPresence.clearDataPresence).
 
 interface UseActivePeriodFallbackOptions {
   /** When set, append this path to the URL after canonicalization
@@ -48,6 +69,8 @@ export function useActivePeriodFallback(
 ): { periodId: string | null; status: ResolutionStatus } {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const uid = user?.id ?? null;
   const periodId = params.get("period");
   // After resetWorkspace() deletes the current period, FinancialStatements
   // appends `?empty=1` to the URL so the user lands on the empty state
@@ -61,17 +84,35 @@ export function useActivePeriodFallback(
   // resolves to a concrete value (canonicalize URL) or `none` (no docs).
   // emptyFlag overrides — we stay on the empty state without a fetch.
   const [status, setStatus] = useState<ResolutionStatus>(
-    periodId ? "ready" : emptyFlag ? "none" : "resolving",
+    periodId
+      ? "ready"
+      : emptyFlag
+        ? "none"
+        // Persisted verdict already says this user has no periods → skip the
+        // spinner entirely and paint the empty state on the very first render,
+        // with no network call (even on a hard refresh / deep link).
+        : uid && readPeriodVerdict(uid) === null
+          ? "none"
+          : "resolving",
   );
 
   useEffect(() => {
     // Already have a period from the URL? Mark ready and exit.
     if (periodId) {
       setStatus("ready");
+      // Keep the verdict fresh: a real (uuid) period in the URL is proof the org
+      // has at least this period, so a later bare-URL visit can skip the lookup
+      // and canonicalize straight to it. Covers the just-uploaded case, where
+      // the app navigates to ?period=<new uuid> directly.
+      if (uid && isUuid(periodId)) writePeriodVerdict(uid, periodId);
       return;
     }
     // User just deleted/reset a period — show empty state, don't auto-resolve.
+    // Forget the verdict so the next bare-URL visit re-resolves rather than
+    // trusting a now-stale id (the period it points at may have just been
+    // deleted).
     if (emptyFlag) {
+      if (uid) forgetPeriodVerdict(uid);
       setStatus("none");
       return;
     }
@@ -90,6 +131,25 @@ export function useActivePeriodFallback(
       );
       return;
     }
+    // Persisted verdict hit — no network needed.
+    //   · null   → user has no periods: paint the empty state immediately.
+    //   · string → known active period: canonicalize the URL without a fetch.
+    const verdict = uid ? readPeriodVerdict(uid) : undefined;
+    if (verdict === null) {
+      setStatus("none");
+      return;
+    }
+    if (typeof verdict === "string") {
+      const target = opts.basePath ?? window.location.pathname;
+      navigate(
+        `${target}?period=${encodeURIComponent(verdict)}${window.location.hash || ""}`,
+        { replace: true },
+      );
+      return;
+    }
+    // Verdict unknown — one network resolution, then remember it so this and
+    // every sibling page skip the round-trip for the rest of the session (and,
+    // via localStorage, across future reloads too).
     let cancelled = false;
     (async () => {
       try {
@@ -114,6 +174,8 @@ export function useActivePeriodFallback(
         const body = (await resp.json()) as { active_period_id?: string | null };
         if (cancelled) return;
         if (body.active_period_id) {
+          // Remember the id so a later bare-URL visit skips the round-trip.
+          if (uid) writePeriodVerdict(uid, body.active_period_id);
           // Canonicalize URL so deep links + browser back/forward stay
           // consistent. Use `replace` so back-button doesn't bounce
           // between the bare and canonical URLs.
@@ -126,6 +188,9 @@ export function useActivePeriodFallback(
           // mark "ready" here because the URL change is what carries the
           // signal forward.
         } else {
+          // Remember "no periods" so this + sibling pages render the empty
+          // state instantly (and callless) instead of re-running this lookup.
+          if (uid) writePeriodVerdict(uid, null);
           setStatus("none");
         }
       } catch {
@@ -138,7 +203,7 @@ export function useActivePeriodFallback(
     // Intentionally exclude opts.basePath from deps — it's read once on
     // resolution; changing it during a session shouldn't re-trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodId, emptyFlag, navigate]);
+  }, [periodId, emptyFlag, navigate, uid]);
 
   return { periodId, status };
 }

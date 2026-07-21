@@ -161,7 +161,7 @@ export function Level1BenchmarkView({ documentId }: Props) {
 
       {/* Company identity header */}
       <header className="rounded-2xl px-6 py-6 mb-6 text-white"
-              style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}>
+              style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}>
         <div className="flex flex-col gap-3">
           <div className="text-[10.5px] uppercase tracking-[0.14em] opacity-80">
             Industry benchmark — Level 1 (Public Financial Summary)
@@ -178,7 +178,7 @@ export function Level1BenchmarkView({ documentId }: Props) {
           </div>
           <div className="flex flex-wrap gap-2 mt-1">
             <span className="inline-block text-[10.5px] uppercase tracking-[0.08em] font-semibold px-2 py-0.5 rounded-md"
-                  style={{ background: "rgba(243,156,18,0.18)", color: "#f8c361", border: "1px solid rgba(243,156,18,0.30)" }}>
+                  style={{ background: "rgba(92,211,197,0.18)", color: "#8FE3D9", border: "1px solid rgba(92,211,197,0.30)" }}>
               Industry: {data.industry.category}
               {data.industry.source === "mapped_2digit" ? " · auto-detected from CAEN" : ""}
             </span>
@@ -295,7 +295,7 @@ interface BigKPIProps {
   tone?: "neutral" | "positive" | "negative";
 }
 function BigKPI({ label, value, fmt, tone = "neutral" }: BigKPIProps) {
-  const color = tone === "negative" ? "#c62828" : tone === "positive" ? "#0a7c3a" : "#1a1a1a";
+  const color = tone === "negative" ? "#c62828" : tone === "positive" ? "#2AA89B" : "#1a1a1a";
   return (
     <div className="rounded-lg border border-rule bg-bg-2/30 p-3">
       <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-soft">{label}</div>
@@ -321,9 +321,9 @@ function fmtVal(v: number | null | undefined, fmt: "currency" | "pct" | "ratio" 
 
 function VerdictPill({ verdict }: { verdict: Comparison["verdict"] }) {
   const map: Record<typeof verdict, { label: string; bg: string; fg: string }> = {
-    top_quartile:    { label: "Top quartile",    bg: "#e6f5ec", fg: "#0a7c3a" },
-    above_median:    { label: "Above median",    bg: "#f0f7e8", fg: "#3d6e1f" },
-    below_median:    { label: "Below median",    bg: "#fff5e0", fg: "#7a5a00" },
+    top_quartile:    { label: "Top quartile",    bg: "#E6F7F4", fg: "#2AA89B" },
+    above_median:    { label: "Above median",    bg: "#E6F7F4", fg: "#2AA89B" },
+    below_median:    { label: "Below median",    bg: "#E6F7F4", fg: "#2AA89B" },
     bottom_quartile: { label: "Bottom quartile", bg: "#fde8e8", fg: "#c62828" },
     not_available:   { label: "n/a",             bg: "#f0f4f8", fg: "#5a6577" },
   };

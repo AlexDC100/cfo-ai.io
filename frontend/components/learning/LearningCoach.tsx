@@ -54,23 +54,23 @@ export function LearningCoach({ onShowGuide }: Props) {
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           className={cn(
             "relative rounded-2xl",
-            "bg-[hsl(165,75%,55%)]/[0.08] dark:bg-[hsl(165,75%,55%)]/[0.06]",
-            "border border-[hsl(165,75%,55%)]/[0.18]",
+            "bg-[hsl(173,57%,55%)]/[0.08] dark:bg-[hsl(173,57%,55%)]/[0.06]",
+            "border border-[hsl(173,57%,55%)]/[0.18]",
             "px-4 py-3.5 sm:px-5 sm:py-4",
             "flex items-start gap-3.5",
             "mb-4",
-            "shadow-[0_2px_12px_-4px_hsl(165,75%,55%/0.18)]",
+            "shadow-[0_2px_12px_-4px_hsl(173,57%,55%/0.18)]",
           )}
         >
           <span
             className="
               shrink-0 mt-0.5 w-7 h-7 rounded-full
-              bg-[hsl(165,75%,55%)]/[0.16]
+              bg-[hsl(173,57%,55%)]/[0.16]
               grid place-items-center
             "
             aria-hidden
           >
-            <Sparkles className="w-3.5 h-3.5 text-[hsl(165,80%,40%)]" />
+            <Sparkles className="w-3.5 h-3.5 text-[hsl(173,57%,40%)]" />
           </span>
 
           <div className="min-w-0 flex-1">
@@ -90,7 +90,7 @@ export function LearningCoach({ onShowGuide }: Props) {
                   className="
                     inline-flex items-center gap-1.5
                     text-[12px] font-semibold
-                    text-white bg-[hsl(165,80%,38%)] hover:bg-[hsl(165,80%,33%)]
+                    text-white bg-[hsl(173,57%,38%)] hover:bg-[hsl(173,57%,33%)]
                     px-3 py-1.5 rounded-md
                     transition-colors
                   "

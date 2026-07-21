@@ -13,8 +13,9 @@
 // access isn't needed.
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { CommandCenter } from "../CommandCenter";
 import {
@@ -86,15 +87,20 @@ const FULL_REGISTRY: FeatureRegistry = {
 };
 
 function renderCenter() {
+  // All sections (incl. DataTab's useQuery) render at once now, so a
+  // QueryClientProvider is required. Retries off + no network in tests.
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
-      <CommandCenter
-        open
-        onOpenChange={() => {}}
-        onOpenAi={() => {}}
-        onOpenUpload={() => {}}
-      />
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <CommandCenter
+          open
+          onOpenChange={() => {}}
+          onOpenAi={() => {}}
+          onOpenUpload={() => {}}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -106,48 +112,25 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("CommandCenter — cleanup invariants", () => {
-  it("renders exactly 3 tabs and NO Rules / AI tabs", () => {
+  it("has NO tab switcher and stacks all sections in one column", () => {
+    // The tab switcher was removed — every section (Account, Workspace,
+    // Data) renders at once in a single scroll column. There should be no
+    // tablist / tabs anywhere.
     renderCenter();
-    const tablist = screen.getByRole("tablist");
-    const tabs = within(tablist).getAllByRole("tab");
-    expect(tabs).toHaveLength(3);
-    const labels = tabs.map((t) => t.textContent?.trim());
-    expect(labels).toEqual(["Workspace", "Data", "Account"]);
-    expect(labels).not.toContain("Rules");
-    expect(labels).not.toContain("AI");
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(screen.getByTestId("command-content")).toBeTruthy();
   });
 
-  it("contains ZERO sign-outs across all 3 tabs (sign-out moved to Sidebar)", () => {
+  it("contains ZERO sign-outs (sign-out moved to Sidebar)", () => {
     // Operator directive: the single sign-out lives in the Sidebar's
-    // System group below Command Center. The Command Center's Account
-    // tab MUST NOT render its own sign-out, or the "exactly one"
-    // invariant breaks. This test guards the Command Center side; a
-    // sidebar-level test guards the other end (positive presence).
-    const tabs: Array<"workspace" | "data" | "account"> = [
-      "workspace",
-      "data",
-      "account",
-    ];
-    let total = 0;
-    for (const initial of tabs) {
-      cleanup();
-      render(
-        <MemoryRouter>
-          <CommandCenter
-            open
-            onOpenChange={() => {}}
-            onOpenAi={() => {}}
-            onOpenUpload={() => {}}
-            initialTab={initial}
-          />
-        </MemoryRouter>,
-      );
-      // Neither the legacy test-id nor any visible "Sign out" text
-      // should be reachable from any tab.
-      total += screen.queryAllByTestId("cmd-account-sign-out").length;
-      total += screen.queryAllByText(/^sign out$/i).length;
-    }
-    expect(total).toBe(0);
+    // System group below Command Center. With every section rendered at
+    // once, the Account section MUST NOT render its own sign-out, or the
+    // "exactly one" invariant breaks. This test guards the Command Center
+    // side; a sidebar-level test guards the other end (positive presence).
+    renderCenter();
+    expect(screen.queryAllByTestId("cmd-account-sign-out")).toHaveLength(0);
+    expect(screen.queryAllByText(/^sign out$/i)).toHaveLength(0);
   });
 
   it("shows the StateCard with 'No dataset connected' when period is null", () => {

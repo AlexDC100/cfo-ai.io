@@ -15,10 +15,12 @@
 //     Chat.tsx used before this redesign.
 
 import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { CFOComposer, type CFOComposerHandle } from "./CFOComposer";
 import { CFOMessageList } from "./CFOMessageList";
-import { CFOEmptyState } from "./CFOEmptyState";
+import { CFOEmptyState, WORKSPACE_PROMPTS, GENERAL_PROMPTS } from "./CFOEmptyState";
 import { CFOHistorySidebar } from "./CFOHistorySidebar";
+import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useChatStore } from "./useChatStore";
 import { CfoApiError, cfoApi } from "@/lib/cfoApi";
 import { useCurrency } from "@/stores/currency";
@@ -112,6 +114,17 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
 
   const hasPeriod = Boolean(periodId && workspaceSnapshot);
   const groundedLabel = periodLabel ?? null;
+  // Quick-prompt pills shown above the composer during an active conversation
+  // (the empty state already shows the full prompt cards). Same set the empty
+  // state uses — workspace-grounded when a period is loaded, general otherwise.
+  const promptPills = hasPeriod ? WORKSPACE_PROMPTS : GENERAL_PROMPTS;
+  // Pyramid arrangement — two rows tall, fewer pills up top and more on the
+  // bottom (e.g. 8 pills → 3 on top / 5 on the bottom). Left-aligned.
+  const pyramidRows = ((items: typeof promptPills) => {
+    const n = items.length;
+    const topCount = Math.floor((n - 1) / 2); // strictly fewer than the bottom
+    return [items.slice(0, topCount), items.slice(topCount)];
+  })(promptPills);
 
   // ── Send pipeline ───────────────────────────────────────────────
   const send = useCallback(async (text: string, attachments: ChatAttachment[]) => {
@@ -310,52 +323,136 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     );
   }
 
-  // Full /chat page — three-column workspace on lg+, single-column on mobile.
-  // History sidebar hidden below lg (1024px); users can still create new
-  // conversations via PageHeader's "New chat" button. Future enhancement:
-  // expose history as a Sheet drawer triggered from PageHeader.
+  // Full /chat page — history sidebar (lg+) + message column. The page
+  // scrolls at the DOCUMENT level (like every other tab): the conversation
+  // flows in the page and the standard document scrollbar (under the top bar)
+  // scrolls it. Nothing is sticky — the sidebar, messages and composer all
+  // scroll with the page.
+  const noConversations = store.conversations.length === 0;
+  // With the sidebar present, the message content hugs closer to it (tighter
+  // left gap); with no sidebar (the empty no-chats screen) it keeps the wider
+  // padding so the header still lines up with the dashboard.
+  const contentPadX = noConversations ? "px-4 sm:px-8 lg:px-10" : "px-4 sm:px-6 lg:px-8";
+  // The composer matches the MESSAGE list's padding (not the tighter empty/
+  // prompt padding) so the input box spans the same content box as the bubbles
+  // — its right edge then lines up with the right-aligned user message bubbles,
+  // while still honoring the px-6 side padding.
+  const composerPadX = noConversations ? "px-4 sm:px-8 lg:px-10" : "px-4 sm:px-6 lg:px-8";
   return (
-    // Header spans the full width at the top; BELOW it a row holds the
-    // history sidebar (left) and the message column + composer (right).
-    // (Previously the sidebar was a full-height left column and the header
-    // sat only above the chat — moved per request so the header caps the
-    // whole page and the sidebar lives under it.)
-    <div className="h-full w-full flex flex-col bg-bg" data-testid="chat-page-shell">
-      <PageHeader
-        companyName={companyName}
-        periodLabel={periodLabel}
-        hasPeriod={hasPeriod}
-        conversationTitle={store.current?.title ?? null}
-      />
+    // Cancel AppShell's large bottom padding for this page only (it lives on
+    // the shared content wrapper) so the composer sits near the bottom instead
+    // of leaving a tall empty gap below it.
+    <div
+      // Fully cancel AppShell's content-wrapper left padding (px-4/8/10) so the
+      // chat's own inner padding (empty-state header, messages, composer — each
+      // px-4/8/10) lands at exactly the same left edge as the dashboard header,
+      // rather than double-padding. Also pulls the conversation list flush to
+      // the app nav rail when the sidebar is shown.
+      // No flex `gap` here — the space between the sidebar and the message
+      // column is an animated margin ON the sidebar instead, so it collapses
+      // smoothly with the width on exit (a static gap would snap away only
+      // when the sidebar unmounts, stuttering at the end of the animation).
+      className="flex -ml-4 sm:-ml-8 lg:-ml-10"
+      style={{ marginBottom: "calc(-1 * max(8rem, calc(env(safe-area-inset-bottom) + 6rem)))" }}
+      data-testid="chat-page-shell"
+    >
+      {/* History sidebar (lg+). Own internal list scroller for long histories.
+          `relative z-20` keeps it (and its slightly-outset scrollbar) painted
+          above the message column. The negative left margin on the row above
+          pulls the conversation list closer to the app's nav rail. Hidden
+          entirely on the no-conversations screen — there's nothing to list or
+          search yet, so the empty-state header gets the full width. */}
+      {/* The conversation list appears only once there's at least one chat.
+          `AnimatePresence initial={false}` skips the enter animation on page
+          loads that already have chats, but when the user creates their FIRST
+          chat (noConversations → false) the panel smoothly slides open from
+          the left (width reveal), emerging from alongside the main app nav
+          rail. It pins at 76px — level with the main nav sidebar's top edge —
+          with a matching resting top so it never settles on scroll. */}
+      <AnimatePresence initial={false}>
+        {!noConversations && (
+          <motion.div
+            key="chat-history-sidebar"
+            initial={{ width: 0, opacity: 0, marginRight: 0 }}
+            animate={{ width: 280, opacity: 1, marginRight: 0 }}
+            exit={{ width: 0, opacity: 0, marginRight: 0 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="relative z-20 hidden lg:block shrink-0 self-start sticky top-[76px] -mt-3 sm:-mt-7 lg:-mt-9 h-[calc(100dvh-76px)] overflow-hidden"
+          >
+            <div className="w-[280px] h-full">
+              <CFOHistorySidebar
+                store={store}
+                onAfterPick={onPickConversationFromHistory}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="flex-1 min-h-0 flex">
-        <div className="hidden lg:flex">
-          <CFOHistorySidebar
-            store={store}
-            onAfterPick={onPickConversationFromHistory}
-          />
-        </div>
-
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 min-h-0 flex flex-col">
-            {!store.current || store.current.messages.length === 0 ? (
-              <div className="flex-1 overflow-y-auto px-6">
-                <CFOEmptyState hasPeriod={hasPeriod} companyName={companyName} onPick={pickPrompt} />
-              </div>
-            ) : (
-              <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} />
-            )}
+      <div className="relative flex-1 min-w-0 flex flex-col min-h-[calc(100dvh-7rem)]">
+        {!store.current || store.current.messages.length === 0 ? (
+          // An empty conversation shows the SAME content as the no-chats
+          // screen: the dashboard-style header + prompt starters.
+          <div className={`flex-1 ${contentPadX} pb-8`}>
+            <PageHeader
+              hero
+              eyebrow="Ask CFO AI"
+              title={<>Ask anything about your <span className="text-grad">company, documents, or finance</span>.</>}
+              subtitle="CFO AI answers from your loaded workspace — P&L, Balance Sheet, Cash Flow, ratios, valuation, risk and recommendations — citing the period and the figures it used. With no workspace loaded it still answers open-domain finance, accounting and strategy questions. Pick a starter below or type your own."
+              testid="chat-empty-header"
+            />
+            <CFOEmptyState hasPeriod={hasPeriod} companyName={companyName} onPick={pickPrompt} hideHeader />
           </div>
+        ) : (
+          <div className="flex-1 -mt-3 sm:-mt-7 lg:-mt-9">
+            <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} bottomInset wideContent documentScroll />
+          </div>
+        )}
 
-          <CFOComposer
-            ref={composerRef}
-            pending={pending}
-            onSubmit={send}
-            placeholder={hasPeriod ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
-            contextLine={contextLine}
-            disclosure={disclosure}
-            blockedReason={capBlocked}
-          />
+        {/* Composer + context pill are pinned to the bottom of the viewport
+            (sticky) so they stay visible while the conversation scrolls behind
+            them. The gradient fades the conversation into the input. */}
+        <div className={`sticky bottom-0 z-10 ${composerPadX} bg-gradient-to-t from-bg via-bg/90 to-transparent pt-6 pb-1`}>
+          {/* Quick-prompt pills — only inside an active conversation (the empty
+              state shows the full prompt cards). Single scrollable row so they
+              stay compact above the input. */}
+          {store.current && store.current.messages.length > 0 && (
+            <div className="max-w-[1760px] flex flex-col items-start gap-1.5 pb-2">
+              {pyramidRows.map((row, r) => (
+                <div key={r} className="flex flex-wrap justify-start gap-1.5">
+                  {row.map((p) => (
+                    <button
+                      key={p.title}
+                      type="button"
+                      onClick={() => pickPrompt(p.prompt)}
+                      className="shrink-0 whitespace-nowrap inline-flex items-center rounded-full border border-rule bg-surface px-3 py-1 text-[11.5px] text-ink-soft hover:border-brand/30 hover:text-ink hover:bg-surface transition-colors"
+                      data-testid="chat-prompt-pill"
+                    >
+                      {p.title}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="max-w-[1760px]">
+            <CFOComposer
+              ref={composerRef}
+              pending={pending}
+              onSubmit={send}
+              placeholder={hasPeriod ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
+              blockedReason={capBlocked}
+            />
+          </div>
+          {/* Context pill + general-answer disclosure — in line, under the input. */}
+          <div className="max-w-[1760px] pt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-bg-2 border border-rule text-[11.5px] text-ink-soft whitespace-nowrap">
+              {contextLine}
+            </span>
+            <span className="min-w-0 text-[11px] text-ink-mute leading-snug">
+              {disclosure}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -363,42 +460,6 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
 });
 
 // ─── Headers ──────────────────────────────────────────────────────
-function PageHeader({
-  companyName, periodLabel, hasPeriod, conversationTitle,
-}: {
-  companyName: string | null;
-  periodLabel: string | null;
-  hasPeriod: boolean;
-  conversationTitle: string | null;
-}) {
-  return (
-    <header className="flex items-center justify-between gap-3 px-6 py-3 border-b border-rule bg-surface/60 backdrop-blur-sm">
-      <div className="min-w-0">
-        <h1 className="text-[15px] font-medium text-ink truncate">
-          {conversationTitle && conversationTitle !== "New conversation"
-            ? conversationTitle
-            : "Ask CFO AI"}
-        </h1>
-        <p className="text-[11.5px] text-ink-mute mt-0.5 truncate">
-          Ask about your company, documents, strategy, or finance.
-        </p>
-      </div>
-
-      <div className="flex items-center gap-2">
-        {hasPeriod && (
-          <span className="hidden md:inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-bg-2/50 border border-rule text-[11.5px] text-ink-soft">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <span className="truncate max-w-[200px]">{companyName || "Workspace"}{periodLabel ? ` · ${periodLabel}` : ""}</span>
-          </span>
-        )}
-        {/* "New chat" button removed from the page header per request — a
-            "New chat" action still lives at the top of the history sidebar
-            (CFOHistorySidebar), so the capability isn't lost. */}
-      </div>
-    </header>
-  );
-}
-
 function PanelHeader({
   conversationTitle, onNewChat, onExpandToPage,
 }: {

@@ -339,17 +339,17 @@ export function sourceTone(source: DetectionSource): {
 } {
   switch (source) {
     case "user_override":
-      return { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200" };
+      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
     case "auto_caen":
-      return { text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" };
+      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
     case "auto_keyword":
     case "auto_activity_text":
-      return { text: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200" };
+      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
     case "auto_account_structure":
-      return { text: "text-sky-700", bg: "bg-sky-50", border: "border-sky-200" };
+      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
     case "fallback":
     default:
-      return { text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200" };
+      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
   }
 }
 

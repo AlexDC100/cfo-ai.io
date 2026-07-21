@@ -7,6 +7,9 @@ __pycache__/
 output/*.json
 .DS_Store
 
+# Local dev compose override — never deployed
+docker-compose.override.yml
+
 # Production secrets — never commit
 .env
 .env.local

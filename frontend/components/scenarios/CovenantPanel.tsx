@@ -79,7 +79,7 @@ export function CovenantPanel({ baseline, scenario, covenants, active }: Props) 
           </span>
         )}
         {active && breachCount === 0 && (
-          <span className="text-[10.5px] font-semibold text-[hsl(165,80%,42%)] dark:text-[hsl(165,70%,60%)]">
+          <span className="text-[10.5px] font-semibold text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]">
             All clear
           </span>
         )}
@@ -125,7 +125,7 @@ export function CovenantPanel({ baseline, scenario, covenants, active }: Props) 
                         status === "breach"
                           ? "text-rose-600 dark:text-rose-400"
                           : status === "near"
-                            ? "text-amber-600 dark:text-amber-400"
+                            ? "text-[#2AA89B] dark:text-[#5CD3C5]"
                             : "text-ink",
                       )}
                     >
@@ -156,12 +156,12 @@ function StatusPill({ status }: { status: Status }) {
   const map: Record<Status, { label: string; cls: string; Icon: typeof ShieldCheck }> = {
     pass: {
       label: "Pass",
-      cls: "bg-[hsl(165,75%,55%)]/10 text-[hsl(165,80%,42%)] dark:text-[hsl(165,70%,60%)]",
+      cls: "bg-[hsl(173,57%,55%)]/10 text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]",
       Icon: ShieldCheck,
     },
     near: {
       label: "Near limit",
-      cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      cls: "bg-[#5CD3C5]/10 text-[#2AA89B] dark:text-[#5CD3C5]",
       Icon: ShieldAlert,
     },
     breach: {

@@ -25,7 +25,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { Download, FileText, Printer, Loader2 } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
@@ -210,16 +209,16 @@ export default function ComprehensiveReport() {
 
   if (loading) {
     return (
-      <AppShell>
+      <>
         <div className="flex items-center justify-center py-32 text-ink-mute">
           <Loader2 size={20} className="animate-spin mr-2" /> Loading report…
         </div>
-      </AppShell>
+      </>
     );
   }
   if (!periodId || !report) {
     return (
-      <AppShell>
+      <>
         <div className="max-w-[640px] mx-auto py-24 text-center">
           <FileText size={28} className="mx-auto text-ink-mute mb-3" />
           <h1 className="font-serif text-[28px] text-ink">No period selected</h1>
@@ -227,7 +226,7 @@ export default function ComprehensiveReport() {
             Open a financial period from the dashboard, then click "View report" to land here.
           </p>
         </div>
-      </AppShell>
+      </>
     );
   }
 
@@ -258,11 +257,11 @@ export default function ComprehensiveReport() {
   });
 
   return (
-    <AppShell>
-      <div className="max-w-[1100px] mx-auto" data-testid="comprehensive-report">
+    <>
+      <div className="max-w-[1100px]" data-testid="comprehensive-report">
         {/* ── Header card (navy gradient, matches the EEI v5 reference) ── */}
         <header className="rounded-2xl px-6 py-6 mb-6 text-white"
-                style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}>
+                style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}>
           {/* 2026-05-26 mobile fix: stack vertically below sm: so the
               company-name headline (34px serif) stays on one line. */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -410,7 +409,7 @@ export default function ComprehensiveReport() {
           source + confidence labels — see Section 5.
         </footer>
       </div>
-    </AppShell>
+    </>
   );
 }
 
@@ -949,7 +948,7 @@ function ValuationView({ metrics, pl, bs, currency }: {
   return (
     <div className="space-y-3">
       {ebitda <= 0 && (
-        <div className="rounded-xl border border-amber-300/50 bg-amber-50/40 dark:bg-amber-500/[0.08] px-4 py-3 text-[12.5px] text-amber-900 dark:text-amber-100">
+        <div className="rounded-xl border border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.08] px-4 py-3 text-[12.5px] text-[#1B7268] dark:text-[#E6F7F4]">
           EBITDA is non-positive — EV/EBITDA multiples produce meaningless values.
           For asset-heavy or distressed cases, prefer NAV (book equity) as the
           floor and revenue-multiple as a cross-check.
@@ -1006,9 +1005,9 @@ function RecommendationsList({ recs }: { recs: PeriodResponse["recommendations"]
         const sev = r.severity?.toLowerCase() ?? "medium";
         const sevColor =
           sev === "critical" ? "border-red-400"
-          : sev === "high"   ? "border-orange-400"
-          : sev === "medium" ? "border-amber-400"
-          : "border-blue-300";
+          : sev === "high"   ? "border-[#5CD3C5]"
+          : sev === "medium" ? "border-[#5CD3C5]"
+          : "border-[#8FE3D9]";
         return (
           <li key={i} className={`rounded-xl border-l-[3px] ${sevColor} bg-surface border border-rule px-4 py-3`}>
             <div className="flex items-center gap-2 mb-1.5">

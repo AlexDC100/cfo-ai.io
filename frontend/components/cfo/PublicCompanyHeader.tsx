@@ -39,8 +39,8 @@ export function PublicCompanyHeader({ ticker, info, syncedAt, onRefresh, refresh
       data-testid="public-company-header"
       className="
         sticky top-0 z-10
-        bg-surface/85 backdrop-blur-md
-        border-b border-rule
+        bg-[hsl(var(--bg)/0.72)] backdrop-blur-[18px]
+        border-b border-rule-soft
         px-4 sm:px-6 py-3 sm:py-4
         flex items-center gap-3 sm:gap-4
       "
@@ -106,7 +106,7 @@ export function PublicCompanyHeader({ ticker, info, syncedAt, onRefresh, refresh
             transition-all
             ${alreadyPeer
               ? "bg-brand/10 text-brand-d ring-brand/30 hover:bg-brand/15"
-              : "bg-gradient-to-b from-brand to-brand-d text-paper ring-white/15 shadow-[0_6px_18px_-8px_rgba(45,191,179,0.55)] hover:shadow-[0_8px_22px_-8px_rgba(45,191,179,0.7)]"
+              : "bg-gradient-to-b from-brand to-brand-d text-paper ring-white/15 shadow-[0_6px_18px_-8px_rgba(92,211,197,0.55)] hover:shadow-[0_8px_22px_-8px_rgba(92,211,197,0.7)]"
             }
           `}
         >

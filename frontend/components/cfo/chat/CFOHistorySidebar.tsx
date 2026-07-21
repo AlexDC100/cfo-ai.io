@@ -12,8 +12,8 @@
 // panel mount it (the panel uses the same store).
 
 import { useMemo, useState } from "react";
-import { MessageSquarePlus, Search, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
-import { bucketize, relativeTime, type ChatStore, type HistoryBucket } from "./useChatStore";
+import { Plus, Search, Trash2, X } from "lucide-react";
+import { relativeTime, type ChatStore } from "./useChatStore";
 import type { ChatConversation } from "./types";
 
 interface Props {
@@ -26,12 +26,6 @@ interface Props {
   compact?: boolean;
 }
 
-const BUCKET_LABEL: Record<HistoryBucket, string> = {
-  today: "Today",
-  previous_7_days: "Previous 7 days",
-  older: "Older",
-};
-
 export function CFOHistorySidebar({ store, onAfterPick, compact = false }: Props) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
@@ -43,45 +37,19 @@ export function CFOHistorySidebar({ store, onAfterPick, compact = false }: Props
     );
   }, [store.conversations, query]);
 
-  const grouped = useMemo(() => {
-    const now = Date.now();
-    const groups: Record<HistoryBucket, ChatConversation[]> = {
-      today: [],
-      previous_7_days: [],
-      older: [],
-    };
-    for (const c of filtered) groups[bucketize(c, now)].push(c);
-    return groups;
-  }, [filtered]);
-
   return (
     <aside
       className={`
-        h-full flex flex-col bg-bg-2/30 border-r border-rule
+        h-full flex flex-col pl-7 pr-2
         ${compact ? "w-[280px]" : "w-[280px]"}
       `}
       data-testid="chat-history-sidebar"
       aria-label="Conversation history"
     >
-      {/* Header: New chat + search */}
-      <div className="px-3 pt-3 pb-2 border-b border-rule/60 space-y-2">
-        <button
-          type="button"
-          onClick={() => { store.createNew(); onAfterPick?.(); }}
-          className="
-            w-full inline-flex items-center gap-2 h-9 px-3 rounded-lg
-            border border-rule bg-surface
-            text-[13px] font-medium text-ink
-            hover:border-brand/30 hover:bg-surface/90
-            transition-colors
-          "
-          data-testid="chat-new-conversation"
-        >
-          <MessageSquarePlus size={14} strokeWidth={1.75} />
-          <span>New chat</span>
-        </button>
-
-        <div className="relative">
+      {/* Header: search + icon-only New chat button (flush to the section
+          edges — no left/right gutter). */}
+      <div className="pb-1.5 flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
           <Search
             size={12}
             strokeWidth={2}
@@ -95,7 +63,7 @@ export function CFOHistorySidebar({ store, onAfterPick, compact = false }: Props
             data-testid="chat-history-search"
             className="
               w-full h-8 pl-7 pr-7 rounded-md
-              bg-bg-2/50 border border-transparent
+              bg-bg-2/50 border border-rule
               text-[12.5px] text-ink placeholder:text-ink-mute
               focus:outline-none focus:bg-surface focus:border-rule
               transition-colors
@@ -112,86 +80,61 @@ export function CFOHistorySidebar({ store, onAfterPick, compact = false }: Props
             </button>
           )}
         </div>
+
+        {/* Icon-only New chat button — brand accent. */}
+        <button
+          type="button"
+          onClick={() => { store.createNew(); onAfterPick?.(); }}
+          aria-label="New chat"
+          title="New chat"
+          className="
+            shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md
+            bg-brand text-[#06302b]
+            hover:bg-brand-dark hover:text-white
+            transition-colors
+          "
+          data-testid="chat-new-conversation"
+        >
+          <Plus size={16} strokeWidth={2} />
+        </button>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto px-2 py-2">
+      {/* List — thin app-themed inside scrollbar (kept within the panel so it's
+          never clipped by the slide-in animation's overflow), soft top/bottom
+          fade on the scroll edges. */}
+      <div className="chat-scroll chat-list-fade flex-1 overflow-y-auto px-0 pb-2 pt-1.5">
         {store.conversations.length === 0 ? (
           <EmptyHistory />
         ) : filtered.length === 0 ? (
           <NoMatch query={query} />
         ) : (
-          (["today", "previous_7_days", "older"] as HistoryBucket[]).map((b) =>
-            grouped[b].length > 0 ? (
-              <Group
-                key={b}
-                label={BUCKET_LABEL[b]}
-                items={grouped[b]}
-                currentId={store.currentId}
-                onPick={(id) => { store.select(id); onAfterPick?.(); }}
-                onRename={store.rename}
-                onDelete={store.remove}
+          // Flat list, most-recent first — no time-period section headers.
+          <ul className="space-y-0.5">
+            {filtered.map((c) => (
+              <ConversationRow
+                key={c.id}
+                conv={c}
+                active={c.id === store.currentId}
+                onPick={() => { store.select(c.id); onAfterPick?.(); }}
+                onDelete={() => store.remove(c.id)}
               />
-            ) : null,
-          )
+            ))}
+          </ul>
         )}
       </div>
     </aside>
   );
 }
 
-// ─── Group ─────────────────────────────────────────────────────────
-function Group({
-  label, items, currentId, onPick, onRename, onDelete,
-}: {
-  label: string;
-  items: ChatConversation[];
-  currentId: string | null;
-  onPick: (id: string) => void;
-  onRename: (id: string, t: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <div className="mb-3">
-      <div className="px-2 mb-1 text-[10px] uppercase tracking-[0.14em] text-ink-mute font-medium">
-        {label}
-      </div>
-      <ul className="space-y-0.5">
-        {items.map((c) => (
-          <ConversationRow
-            key={c.id}
-            conv={c}
-            active={c.id === currentId}
-            onPick={() => onPick(c.id)}
-            onRename={(t) => onRename(c.id, t)}
-            onDelete={() => onDelete(c.id)}
-          />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 // ─── Row ───────────────────────────────────────────────────────────
 function ConversationRow({
-  conv, active, onPick, onRename, onDelete,
+  conv, active, onPick, onDelete,
 }: {
   conv: ChatConversation;
   active: boolean;
   onPick: () => void;
-  onRename: (t: string) => void;
   onDelete: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(conv.title);
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  function commitRename() {
-    setEditing(false);
-    setMenuOpen(false);
-    if (draft.trim() && draft.trim() !== conv.title) onRename(draft.trim());
-  }
-
   return (
     <li
       className={`
@@ -200,83 +143,39 @@ function ConversationRow({
         transition-colors
       `}
     >
-      {editing ? (
-        <div className="px-2.5 py-1.5">
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
-              if (e.key === "Escape") { setEditing(false); setDraft(conv.title); }
-            }}
-            onBlur={commitRename}
-            className="w-full bg-transparent text-[12.5px] text-ink focus:outline-none"
-          />
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={onPick}
-          className="w-full text-left px-2.5 py-1.5 flex items-center gap-2 min-w-0"
-          data-testid="chat-history-item"
-          data-active={active ? "true" : "false"}
-        >
-          <span className="min-w-0 flex-1">
-            <span className={`block text-[12.5px] truncate ${active ? "text-ink font-medium" : "text-ink-soft"}`}>
-              {conv.title}
-            </span>
-            <span className="block text-[10.5px] text-ink-mute mt-px">
-              {relativeTime(conv.updatedAt)} · {conv.messages.filter((m) => m.role === "user").length || 0} msg
-            </span>
+      <button
+        type="button"
+        onClick={onPick}
+        className="w-full text-left pl-3 pr-7 py-2.5 flex items-center gap-2 min-w-0"
+        data-testid="chat-history-item"
+        data-active={active ? "true" : "false"}
+      >
+        <span className="min-w-0 flex-1">
+          <span className={`block text-[12.5px] truncate ${active ? "text-ink font-medium" : "text-ink-soft"}`}>
+            {conv.title}
           </span>
-        </button>
-      )}
+          <span className="block text-[10.5px] text-ink-mute mt-px">
+            {relativeTime(conv.updatedAt)} · {conv.messages.filter((m) => m.role === "user").length || 0} msg
+          </span>
+        </span>
+      </button>
 
-      {/* Hover actions */}
-      {!editing && (
-        <div className={`absolute right-1 top-1/2 -translate-y-1/2 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"} focus-within:opacity-100 transition-opacity`}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-            aria-label="Conversation actions"
-            className="inline-flex h-6 w-6 items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-bg-2"
-          >
-            <MoreHorizontal size={13} strokeWidth={2} />
-          </button>
-          {menuOpen && (
-            <>
-              {/* Outside-click catcher — replaces the fragile onMouseLeave
-                  that dismissed the menu the instant the pointer moved from
-                  the ⋯ button onto a menu item. Row hover also no longer
-                  hides it (wrapper is forced opacity-100 while open). */}
-              <div
-                className="fixed inset-0 z-10"
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
-                aria-hidden
-              />
-            <div
-              className="absolute right-0 top-7 z-20 w-32 rounded-md border border-rule bg-surface shadow-lg py-1"
-            >
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setEditing(true); setMenuOpen(false); }}
-                className="w-full text-left px-3 py-1.5 text-[12.5px] text-ink-soft hover:bg-bg-2/60 inline-flex items-center gap-2"
-              >
-                <Pencil size={11} strokeWidth={1.75} /> Rename
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onDelete(); setMenuOpen(false); }}
-                className="w-full text-left px-3 py-1.5 text-[12.5px] text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 inline-flex items-center gap-2"
-              >
-                <Trash2 size={11} strokeWidth={1.75} /> Delete
-              </button>
-            </div>
-            </>
-          )}
-        </div>
-      )}
+      {/* Delete button — appears on hover (always visible for the active
+          row), sits at the right edge, and never triggers row selection. */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        aria-label="Delete conversation"
+        className={`
+          absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded
+          text-ink-mute hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10
+          transition-opacity
+          opacity-0 group-hover:opacity-100
+          focus-visible:opacity-100
+        `}
+      >
+        <Trash2 size={13} strokeWidth={1.75} />
+      </button>
     </li>
   );
 }

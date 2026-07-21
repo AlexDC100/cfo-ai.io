@@ -33,8 +33,8 @@ export function PublicShell({ children }: Props) {
         data-testid="public-shell-header"
         className="
           sticky top-0 z-40
-          backdrop-blur-xl bg-bg/70
-          border-b border-rule/40
+          bg-[hsl(var(--bg)/0.72)] backdrop-blur-[18px]
+          border-b border-rule-soft
         "
       >
         <div className="mx-auto max-w-[1280px] px-5 sm:px-8 h-16 flex items-center gap-6">

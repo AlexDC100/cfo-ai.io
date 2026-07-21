@@ -86,8 +86,8 @@ export function EmptyState({
                 className="
                   inline-flex items-center gap-2 h-10 px-4 rounded-lg
                   bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
-                  shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
-                  hover:shadow-[0_10px_26px_-8px_rgba(45,191,179,0.75)]
+                  shadow-[0_8px_22px_-8px_rgba(42,168,155,0.6)]
+                  hover:shadow-[0_10px_26px_-8px_rgba(42,168,155,0.75)]
                   ring-1 ring-inset ring-white/15
                   transition-all
                 "

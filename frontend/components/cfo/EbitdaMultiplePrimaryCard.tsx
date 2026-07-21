@@ -105,7 +105,7 @@ export function EbitdaMultiplePrimaryCard({
         relative overflow-hidden rounded-3xl
         border border-brand/30 bg-surface
         ring-1 ring-inset ring-brand/10
-        shadow-[0_24px_48px_-30px_rgba(45,191,179,0.25)]
+        shadow-[0_24px_48px_-30px_rgba(92,211,197,0.25)]
         p-6 sm:p-7
       "
     >

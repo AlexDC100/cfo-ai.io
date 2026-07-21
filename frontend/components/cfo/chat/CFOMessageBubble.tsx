@@ -16,7 +16,6 @@
 // caption when the assistant turn was sent with workspace context.
 
 import { motion } from "framer-motion";
-import { Sparkles, Copy, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "./types";
 
@@ -72,9 +71,6 @@ function useTypewriter(full: string, enabled: boolean, onTick?: () => void) {
 function UserBubble({ message }: Props) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
       className="flex justify-end mb-5"
       data-role="user"
     >
@@ -102,7 +98,6 @@ function UserBubble({ message }: Props) {
 
 // ─── Assistant bubble ────────────────────────────────────────────
 function AssistantBubble({ message, animate = false, onType }: Props) {
-  const [copied, setCopied] = useState(false);
   // Freeze the animate decision at mount. The list flips `animate` back to
   // false on the very next render (once it's marked the id as seen); without
   // this latch that flip would snap the reveal to full text instantly.
@@ -110,40 +105,13 @@ function AssistantBubble({ message, animate = false, onType }: Props) {
   const { shown, done } = useTypewriter(message.content, animateAtMount.current, onType);
   const typing = !done;
 
-  async function onCopy() {
-    try {
-      await navigator.clipboard.writeText(message.content);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    } catch { /* no-op — clipboard blocked in some contexts */ }
-  }
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: "easeOut" }}
-      className="group mb-6 max-w-[760px]"
+      className="mb-6 max-w-[1000px]"
       data-role="assistant"
     >
-      {/* Eyebrow — CFO AI mark + grounded caption */}
-      <div className="flex items-center gap-1.5 mb-1.5 text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
-        <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-brand/15 text-brand-d">
-          <Sparkles size={9} strokeWidth={2.25} />
-        </span>
-        <span className="text-ink-soft">CFO AI</span>
-        {message.groundedPeriod && !message.pending && (
-          <>
-            <span className="text-ink-mute/60">·</span>
-            <span className="normal-case tracking-normal text-ink-mute">
-              grounded in <span className="text-ink-soft">{message.groundedPeriod}</span>
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* Body card */}
-      <div className="relative rounded-2xl rounded-tl-md border border-rule bg-surface/80 dark:bg-bg-2/40 backdrop-blur-sm px-5 py-4 text-[14px] leading-[1.65] text-ink shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+      {/* Body — plain text, no card / label / copy button. */}
+      <div className="text-[14px] leading-[1.65] text-ink">
         <MiniMarkdown text={shown} />
         {/* Blinking caret while the answer is still typing out. */}
         {typing && (
@@ -151,19 +119,6 @@ function AssistantBubble({ message, animate = false, onType }: Props) {
             aria-hidden
             className="inline-block w-[2px] h-[1.05em] translate-y-[0.15em] ml-0.5 bg-ink/70 animate-pulse"
           />
-        )}
-
-        {/* Copy action — discoverable on hover, not loud. Hidden until the
-            typewriter finishes so you don't copy a half-revealed answer. */}
-        {message.content && !message.pending && !typing && (
-          <button
-            type="button"
-            onClick={onCopy}
-            aria-label="Copy message"
-            className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center h-7 w-7 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/60"
-          >
-            {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} strokeWidth={1.75} />}
-          </button>
         )}
       </div>
     </motion.div>
@@ -217,7 +172,7 @@ function MiniMarkdown({ text }: { text: string }) {
   return (
     <div className="space-y-3 first:mt-0 last:mb-0">
       {blocks.map((b, i) => {
-        if (b.kind === "h3") return <h3 key={i} className="font-serif text-[16.5px] text-ink mt-1 first:mt-0">{renderInline(b.text)}</h3>;
+        if (b.kind === "h3") return <h3 key={i} className="font-semibold text-[16.5px] text-ink mt-1 first:mt-0">{renderInline(b.text)}</h3>;
         if (b.kind === "h4") return <h4 key={i} className="font-semibold text-[14.5px] text-ink mt-0.5 first:mt-0">{renderInline(b.text)}</h4>;
         if (b.kind === "ul") return (
           <ul key={i} className="space-y-1 pl-4 list-disc marker:text-ink-mute/70">
@@ -252,7 +207,7 @@ function renderInline(text: string): React.ReactNode {
 
   return tokens.map((t, k) => {
     if (t.kind === "bold") return <strong key={k} className="font-semibold text-ink">{t.v}</strong>;
-    if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded text-[12.5px] bg-bg-2/70 font-mono text-ink break-all">{t.v}</code>;
+    if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded text-[12.5px] bg-bg-2/70 text-ink break-all">{t.v}</code>;
     if (t.kind === "link") return <a key={k} href={t.v} target="_blank" rel="noreferrer" className="text-brand-d underline underline-offset-2 hover:text-brand break-all">{t.v}</a>;
     return <span key={k}>{t.v}</span>;
   });

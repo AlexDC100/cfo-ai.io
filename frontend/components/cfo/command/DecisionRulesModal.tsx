@@ -122,7 +122,6 @@ function formatVal(value: number, unit: string): string {
 
 export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" }: Props) {
   const { t } = useTranslation();
-  const state = useDecisionRules();
   const navigate = useNavigate();
 
   // Single close path. Used by the sticky Done buttons (top + bottom)
@@ -137,41 +136,6 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
       setTimeout(() => navigate(returnTo), 0);
     }
   };
-
-  const { data: datasetsList } = useQuery<ActiveDatasetPayload>({
-    queryKey: ["sales-datasets"],
-    enabled: open,
-  });
-  const activeId = datasetsList?.active_dataset_id ?? null;
-  const { data: dsPayload } = useQuery<DatasetSkusPayload | null>({
-    queryKey: ["sales-dataset", activeId],
-    enabled: open && !!activeId,
-  });
-  const skus = useMemo<SkuLite[]>(() => dsPayload?.skus ?? [], [dsPayload]);
-
-  // Threaded into compute() for rules that depend on user-tunable
-  // assumptions (Adjusted GM% reads financing rate off here). Falls
-  // back to DEFAULT_FINANCING for stores persisted before the field
-  // existed.
-  const financing = state.financing ?? DEFAULT_FINANCING;
-  const ctx: BucketContext = useMemo(() => ({ financing }), [financing]);
-  // Combined final-bucket distribution — live recompute on any rule OR
-  // financing change. Same useMemo pattern as Products.tsx uses (and
-  // that page shares the same store, so its KPI tiles update in lock-
-  // step).
-  const combined = useMemo(() => countFinalBuckets(skus, RULES, state, ctx), [skus, state, ctx]);
-  const isWeighted = state.combinationMode === "weighted";
-
-  // Portfolio-wide financing cost (sum of per-SKU when computable) —
-  // shown live in the FinancingSection summary line.
-  const totalFinancingCost = useMemo(() => {
-    let total = 0;
-    for (const s of skus) {
-      const fc = computeFinancingCost(s, financing);
-      if (fc !== null) total += fc;
-    }
-    return total;
-  }, [skus, financing]);
 
   return (
     <Dialog
@@ -275,105 +239,9 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
               "Combine multiple rules to categorize SKUs. Changes apply instantly and are saved to this browser.",
             )}
           </p>
-          <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
-          {/* Preset picker — one-click rule packages with percentile-based
-              thresholds so the chosen preset behaves sensibly on any
-              dataset. Apply writes the full state atomically; subsequent
-              manual edits trigger the "· modified" drift indicator. */}
-          <PresetPicker skus={skus} />
-
-          {/* Combination-mode selector */}
-          <section>
-            <label
-              htmlFor="dr-mode"
-              className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5"
-            >
-              {t("decision_rules.combination_logic", "Combination logic")}
-            </label>
-            <select
-              id="dr-mode"
-              value={state.combinationMode}
-              onChange={(e) => setCombinationMode(e.currentTarget.value as CombinationMode)}
-              data-testid="decision-rules-mode"
-              className="
-                w-full h-9 px-3 rounded-lg
-                border border-rule bg-surface
-                text-[13px] text-ink
-                focus:outline-none focus:ring-2 focus:ring-brand/40
-              "
-            >
-              <option value="worst_wins">
-                {t("decision_rules.mode.worst_wins", "Worst bucket wins (recommended)")}
-              </option>
-              <option value="all_agree">
-                {t("decision_rules.mode.all_agree", "All must agree (most conservative)")}
-              </option>
-              <option value="weighted">
-                {t("decision_rules.mode.weighted", "Weighted score")}
-              </option>
-            </select>
-            <p className="mt-1.5 text-[11.5px] text-ink-soft">
-              {state.combinationMode === "worst_wins" &&
-                t(
-                  "decision_rules.mode.worst_wins_hint",
-                  "If any rule flags a SKU for Wind down, the SKU is Wind down. Recommended.",
-                )}
-              {state.combinationMode === "all_agree" &&
-                t(
-                  "decision_rules.mode.all_agree_hint",
-                  "Protect requires every active rule to agree. Most conservative.",
-                )}
-              {state.combinationMode === "weighted" &&
-                t(
-                  "decision_rules.mode.weighted_hint",
-                  "Each rule contributes a score, weighted average decides the final bucket.",
-                )}
-            </p>
-          </section>
-
-          {/* Financing assumptions — applied to the Adjusted GM% rule
-              below. Dragging either slider live-rebuckets every SKU that
-              uses adjusted_gm_pct via the same useMemo path as the
-              other rule edits. */}
-          <FinancingSection
-            financing={financing}
-            totalCost={totalFinancingCost}
-            skuCount={skus.length}
-          />
-
-          {/* Rule cards */}
-          <section className="space-y-3">
-            {RULES.map((rule) => (
-              <RuleCard
-                key={rule.id}
-                rule={rule}
-                ruleState={state.rules[rule.id]!}
-                skus={skus}
-                showWeight={isWeighted}
-                ctx={ctx}
-              />
-            ))}
-          </section>
-
-          {/* Combined distribution + footer */}
-          <section className="rounded-xl border border-rule bg-bg-2 px-4 py-3" data-testid="decision-rules-final">
-            <h3 className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
-              {t("decision_rules.final_distribution", "Final bucket distribution (combined)")}
-            </h3>
-            <div className="flex items-baseline gap-4 flex-wrap">
-              <FinalCount label={t("buckets.wind_down", "Wind down")} count={combined.wind_down} dot="bg-orange-500" />
-              <FinalCount label={t("buckets.watch",     "Watch")}     count={combined.watch}     dot="bg-amber-500" />
-              <FinalCount label={t("buckets.protect",   "Protect")}   count={combined.protect}   dot="bg-emerald-500" />
-              {skus.length > 0 && (
-                <span className="ml-auto text-[11px] text-ink-mute tabular-nums">
-                  {skus.length.toLocaleString("en-GB")} {t("decision_rules.skus_total", "SKUs total")}
-                </span>
-              )}
-            </div>
-          </section>
-
-        </div>
-        {/* end scrollable body */}
+          <div className="px-4 sm:px-6 py-4 sm:py-5">
+            <DecisionRulesPanel />
+          </div>
         </div>
 
         {/* ── STICKY FOOTER ─────────────────────────────────────────
@@ -417,6 +285,140 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
         </footer>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── DecisionRulesPanel ──────────────────────────────────────────────────────
+//
+// The decision-rules body WITHOUT any dialog chrome — preset picker,
+// combination-mode selector, financing assumptions, rule cards, and the
+// combined distribution. Rendered inside `DecisionRulesModal` above AND
+// inline elsewhere (e.g. the Workspace onboarding step 2) so the same
+// controls appear in a plain page section, not a modal.
+
+export function DecisionRulesPanel() {
+  const { t } = useTranslation();
+  const state = useDecisionRules();
+
+  const { data: datasetsList } = useQuery<ActiveDatasetPayload>({
+    queryKey: ["sales-datasets"],
+  });
+  const activeId = datasetsList?.active_dataset_id ?? null;
+  const { data: dsPayload } = useQuery<DatasetSkusPayload | null>({
+    queryKey: ["sales-dataset", activeId],
+    enabled: !!activeId,
+  });
+  const skus = useMemo<SkuLite[]>(() => dsPayload?.skus ?? [], [dsPayload]);
+
+  // Threaded into compute() for rules that depend on user-tunable
+  // assumptions (Adjusted GM% reads financing rate off here). Falls back to
+  // DEFAULT_FINANCING for stores persisted before the field existed.
+  const financing = state.financing ?? DEFAULT_FINANCING;
+  const ctx: BucketContext = useMemo(() => ({ financing }), [financing]);
+  const combined = useMemo(() => countFinalBuckets(skus, RULES, state, ctx), [skus, state, ctx]);
+  const isWeighted = state.combinationMode === "weighted";
+  const totalFinancingCost = useMemo(() => {
+    let total = 0;
+    for (const s of skus) {
+      const fc = computeFinancingCost(s, financing);
+      if (fc !== null) total += fc;
+    }
+    return total;
+  }, [skus, financing]);
+
+  return (
+    <div className="space-y-4 sm:space-y-5">
+      {/* Preset picker — one-click rule packages with percentile-based
+          thresholds so the chosen preset behaves sensibly on any dataset. */}
+      <PresetPicker skus={skus} />
+
+      {/* Combination-mode selector */}
+      <section>
+        <label
+          htmlFor="dr-mode"
+          className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5"
+        >
+          {t("decision_rules.combination_logic", "Combination logic")}
+        </label>
+        <select
+          id="dr-mode"
+          value={state.combinationMode}
+          onChange={(e) => setCombinationMode(e.currentTarget.value as CombinationMode)}
+          data-testid="decision-rules-mode"
+          className="
+            w-full h-9 px-3 rounded-lg
+            border border-rule bg-surface
+            text-[13px] text-ink
+            focus:outline-none focus:ring-2 focus:ring-brand/40
+          "
+        >
+          <option value="worst_wins">
+            {t("decision_rules.mode.worst_wins", "Worst bucket wins (recommended)")}
+          </option>
+          <option value="all_agree">
+            {t("decision_rules.mode.all_agree", "All must agree (most conservative)")}
+          </option>
+          <option value="weighted">
+            {t("decision_rules.mode.weighted", "Weighted score")}
+          </option>
+        </select>
+        <p className="mt-1.5 text-[11.5px] text-ink-soft">
+          {state.combinationMode === "worst_wins" &&
+            t(
+              "decision_rules.mode.worst_wins_hint",
+              "If any rule flags a SKU for Wind down, the SKU is Wind down. Recommended.",
+            )}
+          {state.combinationMode === "all_agree" &&
+            t(
+              "decision_rules.mode.all_agree_hint",
+              "Protect requires every active rule to agree. Most conservative.",
+            )}
+          {state.combinationMode === "weighted" &&
+            t(
+              "decision_rules.mode.weighted_hint",
+              "Each rule contributes a score, weighted average decides the final bucket.",
+            )}
+        </p>
+      </section>
+
+      {/* Financing assumptions — applied to the Adjusted GM% rule below. */}
+      <FinancingSection
+        financing={financing}
+        totalCost={totalFinancingCost}
+        skuCount={skus.length}
+      />
+
+      {/* Rule cards */}
+      <section className="space-y-3">
+        {RULES.map((rule) => (
+          <RuleCard
+            key={rule.id}
+            rule={rule}
+            ruleState={state.rules[rule.id]!}
+            skus={skus}
+            showWeight={isWeighted}
+            ctx={ctx}
+          />
+        ))}
+      </section>
+
+      {/* Combined distribution */}
+      <section className="rounded-xl border border-rule bg-bg-2 px-4 py-3" data-testid="decision-rules-final">
+        <h3 className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
+          {t("decision_rules.final_distribution", "Final bucket distribution (combined)")}
+        </h3>
+        <div className="flex items-baseline gap-4 flex-wrap">
+          <FinalCount label={t("buckets.wind_down", "Wind down")} count={combined.wind_down} dot="bg-[#5CD3C5]" />
+          <FinalCount label={t("buckets.watch",     "Watch")}     count={combined.watch}     dot="bg-[#5CD3C5]" />
+          <FinalCount label={t("buckets.protect",   "Protect")}   count={combined.protect}   dot="bg-[#5CD3C5]" />
+          {skus.length > 0 && (
+            <span className="ml-auto text-[11px] text-ink-mute tabular-nums">
+              {skus.length.toLocaleString("en-GB")} {t("decision_rules.skus_total", "SKUs total")}
+            </span>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -479,7 +481,7 @@ function RuleCard({
             )}
           </div>
           {availability.status === "partial" && (
-            <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+            <div className="mt-1 text-[11px] text-[#2AA89B] dark:text-[#5CD3C5]">
               {t("decision_rules.partial_coverage", "Available for {{covered}} of {{total}} SKUs", {
                 covered: availability.coveredCount.toLocaleString("en-GB"),
                 total:   availability.totalCount.toLocaleString("en-GB"),
@@ -548,9 +550,9 @@ function RuleCard({
               />
             </div>
             <div className="flex items-baseline gap-4 flex-wrap text-[11.5px] text-ink-soft tabular-nums">
-              <span><span className="inline-block w-2 h-2 rounded-full bg-orange-500 mr-1.5 align-baseline" />{t("buckets.wind_down","Wind down")}: <span className="text-ink font-medium">{perRule.wind_down}</span></span>
-              <span><span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1.5 align-baseline" />{t("buckets.watch","Watch")}: <span className="text-ink font-medium">{perRule.watch}</span></span>
-              <span><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5 align-baseline" />{t("buckets.protect","Protect")}: <span className="text-ink font-medium">{perRule.protect}</span></span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-[#5CD3C5] mr-1.5 align-baseline" />{t("buckets.wind_down","Wind down")}: <span className="text-ink font-medium">{perRule.wind_down}</span></span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-[#5CD3C5] mr-1.5 align-baseline" />{t("buckets.watch","Watch")}: <span className="text-ink font-medium">{perRule.watch}</span></span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-[#5CD3C5] mr-1.5 align-baseline" />{t("buckets.protect","Protect")}: <span className="text-ink font-medium">{perRule.protect}</span></span>
               <span className="ml-auto text-[10.5px] text-ink-mute">
                 {t("decision_rules.range_hint", "Range")}: {formatVal(bounds.min, unit)} – {formatVal(bounds.max, unit)}
               </span>
@@ -592,7 +594,7 @@ function MissingDataNotice({
   const { t } = useTranslation();
   return (
     <div
-      className="px-4 py-3 flex items-start gap-2 text-[12px] text-amber-700 dark:text-amber-400 bg-amber-500/5"
+      className="px-4 py-3 flex items-start gap-2 text-[12px] text-[#2AA89B] dark:text-[#5CD3C5] bg-[#5CD3C5]/5"
       data-testid={`rule-missing-${rule.id}`}
     >
       <AlertTriangle size={14} strokeWidth={2} className="mt-0.5 shrink-0" />
@@ -744,7 +746,7 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
         </h3>
         {activePresetLabel && (
           <span
-            className={`text-[11px] tabular-nums ${drifted ? "text-amber-700 dark:text-amber-400" : "text-ink-mute"}`}
+            className={`text-[11px] tabular-nums ${drifted ? "text-[#2AA89B] dark:text-[#5CD3C5]" : "text-ink-mute"}`}
             data-testid="preset-active-label"
           >
             {t("decision_rules.preset.active", "Active")}: <span className="font-medium">{activePresetLabel}</span>

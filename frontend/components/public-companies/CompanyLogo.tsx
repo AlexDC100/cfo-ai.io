@@ -20,14 +20,14 @@ interface Props {
 // Eight tones picked so adjacent rows don't visually collide. Derived
 // from the ticker's char codes so ABCD always gets the same colour.
 const AVATAR_BG_TONES = [
-  "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-200",
-  "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200",
-  "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200",
+  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
+  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
+  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
   "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-200",
-  "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200",
-  "bg-cyan-100 text-cyan-800 dark:bg-cyan-500/20 dark:text-cyan-200",
+  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
+  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
   "bg-stone-200 text-stone-800 dark:bg-stone-500/20 dark:text-stone-200",
-  "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-200",
+  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
 ];
 
 function tickerToneIndex(ticker: string): number {

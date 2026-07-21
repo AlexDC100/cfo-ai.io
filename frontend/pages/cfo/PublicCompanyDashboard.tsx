@@ -14,7 +14,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Loader2, AlertTriangle } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { Money } from "@/components/ui/Money";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PublicCompanyHeader } from "@/components/cfo/PublicCompanyHeader";
@@ -122,7 +121,7 @@ export default function PublicCompanyDashboard() {
   };
 
   return (
-    <AppShell>
+    <>
       <div data-testid="public-company-dashboard">
         <PublicCompanyHeader
           ticker={ticker}
@@ -132,7 +131,7 @@ export default function PublicCompanyDashboard() {
           refreshing={refreshing}
         />
 
-        <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-[1180px]">
           {/* Period toggle row */}
           <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
             <div className="text-[11px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
@@ -172,7 +171,7 @@ export default function PublicCompanyDashboard() {
           )}
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }
 
@@ -584,18 +583,18 @@ function ErrorBlock({
   const message = friendly[error.code] ?? error.message;
   return (
     <div className="
-      rounded-2xl border border-amber-300/50 bg-amber-50/40
-      dark:bg-amber-500/[0.08]
+      rounded-2xl border border-[#8FE3D9]/50 bg-[#E6F7F4]/40
+      dark:bg-[#5CD3C5]/[0.08]
       px-5 py-4 mb-6
     ">
       <div className="flex items-start gap-3">
-        <AlertTriangle size={18} className="text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
+        <AlertTriangle size={18} className="text-[#2AA89B] dark:text-[#8FE3D9] shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold text-amber-900 dark:text-amber-100">
+          <div className="text-[13px] font-semibold text-[#1B7268] dark:text-[#E6F7F4]">
             {message}
           </div>
           {error.message && error.message !== message && (
-            <div className="text-[11.5px] text-amber-900/70 dark:text-amber-100/70 mt-1 font-mono">
+            <div className="text-[11.5px] text-[#1B7268]/70 dark:text-[#E6F7F4]/70 mt-1 font-mono">
               {error.message}
             </div>
           )}

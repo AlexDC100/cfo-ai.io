@@ -272,7 +272,7 @@ function CategoryCard({
           hover:shadow-sm hover:bg-bg-2/30 hover:-translate-y-[1px]
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
           ${dioOverYear
-            ? "border-amber-300/60 dark:border-amber-500/30"
+            ? "border-[#8FE3D9]/60 dark:border-[#5CD3C5]/30"
             : "border-rule"
           }
         `}
@@ -352,7 +352,7 @@ function CategoryCard({
         {dioOverYear && (
           <div
             data-testid="category-card-dio-warning"
-            className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] text-amber-700 dark:text-amber-300"
+            className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] text-[#2AA89B] dark:text-[#8FE3D9]"
           >
             <AlertTriangle size={12} strokeWidth={2} />
             DIO &gt; 365 days · capital trapped &gt; 1 year
@@ -378,12 +378,12 @@ function BucketBadge({ bucket }: { bucket: "protect" | "watch" | "wind_down" }) 
   const map = {
     protect: {
       label: "PROTECT",
-      cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200",
+      cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
       Icon: TrendingUp,
     },
     watch: {
       label: "WATCH",
-      cls: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200",
+      cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
       Icon: AlertTriangle,
     },
     wind_down: {
@@ -418,8 +418,8 @@ function KpiCell({
 }) {
   const valueClass =
     tone === "danger" ? "text-red-700 dark:text-red-300"
-    : tone === "warning" ? "text-amber-700 dark:text-amber-300"
-    : tone === "positive" ? "text-emerald-700 dark:text-emerald-300"
+    : tone === "warning" ? "text-[#2AA89B] dark:text-[#8FE3D9]"
+    : tone === "positive" ? "text-[#2AA89B] dark:text-[#8FE3D9]"
     : "text-ink";
   return (
     <div className="space-y-0.5">

@@ -1008,11 +1008,11 @@ export function formatRatio(r: Ratio): string {
 export function verdictColor(v: RatioVerdict): { bg: string; text: string } {
   switch (v) {
     case "strong":
-      return { bg: "#ecfdf5", text: "#047857" };
+      return { bg: "#E6F7F4", text: "#1B7268" };
     case "healthy":
-      return { bg: "#eff6ff", text: "#1d4ed8" };
+      return { bg: "#E6F7F4", text: "#2AA89B" };
     case "watch":
-      return { bg: "#fef3c7", text: "#92400e" };
+      return { bg: "#E6F7F4", text: "#1B7268" };
     case "critical":
       return { bg: "#fee2e2", text: "#991b1b" };
   }
@@ -1074,10 +1074,10 @@ export function renderReportHtml(s: Statements): string {
     }
 
     :root {
-      --ink: #0B2A4A;
-      --ink-soft: #3D4D63;
+      --ink: #1B7268;
+      --ink-soft: #1B7268;
       --ink-mute: #6B7280;
-      --accent: #3F6E8E;
+      --accent: #2AA89B;
       --rule: #C9CDD2;
       --rule-soft: #E5E7EB;
       --paper: #FFFFFF;
@@ -1240,9 +1240,9 @@ export function renderReportHtml(s: Statements): string {
       border: 1px solid;
       vertical-align: 1px;
     }
-    .badge.v-strong   { background: #EEF4F0; color: #1E5C3F; border-color: #C4D7C8; }
-    .badge.v-healthy  { background: #EDF1F6; color: #1E3A5F; border-color: #B7C5D6; }
-    .badge.v-watch    { background: #F6EFE2; color: #6F5400; border-color: #D9C189; }
+    .badge.v-strong   { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
+    .badge.v-healthy  { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
+    .badge.v-watch    { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
     .badge.v-critical { background: #F4E8E8; color: #7A1F1F; border-color: #C7A6A6; }
 
     /* Callouts — minimal hairline, no fill */
@@ -1256,9 +1256,9 @@ export function renderReportHtml(s: Statements): string {
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .commentary { border-left-color: #B98F30; }
+    .commentary { border-left-color: #2AA89B; }
     .risk       { border-left-color: #8B1A1A; }
-    .action     { border-left-color: #1E5C3F; }
+    .action     { border-left-color: #1B7268; }
     .commentary strong, .risk strong, .action strong { color: var(--ink); font-weight: 600; }
 
     /* Executive verdict band — rule-bracketed, not a coloured block */
@@ -1378,8 +1378,8 @@ export function renderReportHtml(s: Statements): string {
       border: 1px solid;
     }
     .priority-critical { background: #FAF1F1; color: #7A1F1F; border-color: #C7A6A6; }
-    .priority-high     { background: #FAF3E5; color: #6F5400; border-color: #D9C189; }
-    .priority-medium   { background: #EDF1F6; color: #1E3A5F; border-color: #B7C5D6; }
+    .priority-high     { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
+    .priority-medium   { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
     .priority-info     { background: #F1F2F4; color: #4B5563; border-color: #C7CCD3; }
 
     /* Recommendations — hairline-separated, no card boxes */

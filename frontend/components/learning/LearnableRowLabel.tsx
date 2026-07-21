@@ -69,8 +69,8 @@ export function LearnableRowLabel({
         "text-inherit font-inherit",
         // Subtle hover affordance — dotted underline so the row looks
         // like a clean financial line until the user discovers it.
-        "hover:text-[hsl(165,75%,42%)] hover:underline hover:decoration-dotted hover:underline-offset-2",
-        "focus-visible:outline-none focus-visible:text-[hsl(165,75%,42%)] focus-visible:underline focus-visible:decoration-dotted focus-visible:underline-offset-2",
+        "hover:text-[hsl(173,57%,42%)] hover:underline hover:decoration-dotted hover:underline-offset-2",
+        "focus-visible:outline-none focus-visible:text-[hsl(173,57%,42%)] focus-visible:underline focus-visible:decoration-dotted focus-visible:underline-offset-2",
         "transition-colors",
         className,
       )}

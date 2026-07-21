@@ -67,3 +67,9 @@ export interface ChatConversation {
  *  shape-breaking changes; minor field additions can be tolerated
  *  by the migration in `loadConversations()`.                       */
 export const CHAT_STORAGE_KEY = "cfo-ai-chat-history-v1";
+
+/** Localstorage key for the id of the conversation the user last had
+ *  open. Persisted separately from the history array so switching tabs
+ *  (which unmounts the chat) and coming back restores the SAME
+ *  conversation — not just the most-recently-updated one. */
+export const CHAT_CURRENT_KEY = "cfo-ai-chat-current-v1";

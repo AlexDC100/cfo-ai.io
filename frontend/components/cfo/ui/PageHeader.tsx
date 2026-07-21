@@ -26,6 +26,12 @@ interface Props {
   /** Soft brand-tinted blur glow behind the title. Default false; turn
    *  on for hero-style pages (Dashboard pre-upload, Benchmark pre-upload). */
   atmosphere?: boolean;
+  /** Match the Dashboard pre-upload hero's larger type scale (title
+   *  40/48px, subtitle 15.5px) instead of the default page-header scale
+   *  (title 32/40px, subtitle 14.5/15px). Opt-in so only the surfaces
+   *  that want the big hero (Benchmark pre-upload) grow — every other
+   *  PageHeader consumer keeps the standard scale. */
+  hero?: boolean;
   /** data-testid passthrough for e2e. */
   testid?: string;
 }
@@ -36,6 +42,7 @@ export function PageHeader({
   subtitle,
   actions,
   atmosphere = false,
+  hero = false,
   testid,
 }: Props) {
   return (
@@ -57,11 +64,19 @@ export function PageHeader({
               {eyebrow}
             </div>
           )}
-          <h1 className="mt-3 text-[32px] sm:text-[40px] leading-[1.05] tracking-[-0.02em] text-ink max-w-[820px] font-semibold">
+          <h1
+            className={`mt-3 ${
+              hero ? "text-[44px] sm:text-[56px]" : "text-[36px] sm:text-[44px]"
+            } leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif`}
+          >
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-4 text-[14.5px] sm:text-[15px] text-ink-soft max-w-[640px] leading-relaxed">
+            <p
+              className={`mt-4 ${
+                hero ? "text-[15.5px]" : "text-[14.5px] sm:text-[15px]"
+              } text-ink-soft max-w-[640px] leading-relaxed`}
+            >
               {subtitle}
             </p>
           )}

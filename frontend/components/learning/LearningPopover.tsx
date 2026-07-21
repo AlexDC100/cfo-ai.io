@@ -550,10 +550,10 @@ function PopoverContent({
       {/* ── Plain-English layer (guided/subtle modes only) ─────────── */}
       {showPlainEnglish && (
         <div
-          className="px-5 py-4 border-b border-white/[0.06] bg-[hsl(165,75%,55%)]/[0.04]"
+          className="px-5 py-4 border-b border-white/[0.06] bg-[hsl(173,57%,55%)]/[0.04]"
           data-testid="learn-pop-plain-english"
         >
-          <div className="text-[10px] uppercase tracking-[0.14em] text-[hsl(165,75%,65%)]/80 font-medium mb-1.5">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[hsl(173,57%,65%)]/80 font-medium mb-1.5">
             In plain English
           </div>
           <p className="text-[13.5px] leading-relaxed text-white/90">
@@ -722,7 +722,7 @@ function PopoverContent({
         <div
           className={cn(
             "px-5 py-4",
-            sentiment === "positive" && "bg-[hsl(150,55%,50%)]/[0.04]",
+            sentiment === "positive" && "bg-[hsl(173,57%,50%)]/[0.04]",
             sentiment === "negative" && "bg-[hsl(0,75%,60%)]/[0.04]",
             sentiment === "neutral" && "bg-white/[0.02]",
           )}
@@ -731,7 +731,7 @@ function PopoverContent({
             <Sparkles
               className={cn(
                 "w-3.5 h-3.5 shrink-0 mt-0.5",
-                sentiment === "positive" && "text-[hsl(150,55%,68%)]",
+                sentiment === "positive" && "text-[hsl(173,57%,68%)]",
                 sentiment === "negative" && "text-[hsl(0,75%,72%)]",
                 sentiment === "neutral" && "text-white/55",
               )}
@@ -927,7 +927,7 @@ function AskCfoAiAction({
       className="
         w-full flex items-center justify-between gap-3
         px-5 py-3.5
-        bg-[hsl(165,75%,55%)]/[0.08] hover:bg-[hsl(165,75%,55%)]/[0.14]
+        bg-[hsl(173,57%,55%)]/[0.08] hover:bg-[hsl(173,57%,55%)]/[0.14]
         border-t border-white/[0.06]
         text-left
         transition-colors
@@ -935,7 +935,7 @@ function AskCfoAiAction({
       "
     >
       <span className="inline-flex items-start gap-2.5">
-        <MessageCircle className="w-3.5 h-3.5 mt-0.5 text-[hsl(165,75%,68%)] shrink-0" />
+        <MessageCircle className="w-3.5 h-3.5 mt-0.5 text-[hsl(173,57%,68%)] shrink-0" />
         <span className="min-w-0">
           <span className="block text-[12.5px] font-medium text-white/95 leading-tight">
             Ask CFO AI about this
@@ -945,7 +945,7 @@ function AskCfoAiAction({
           </span>
         </span>
       </span>
-      <ArrowRight className="w-3.5 h-3.5 text-white/45 group-hover:text-[hsl(165,75%,68%)] transition-colors shrink-0" />
+      <ArrowRight className="w-3.5 h-3.5 text-white/45 group-hover:text-[hsl(173,57%,68%)] transition-colors shrink-0" />
     </button>
   );
 }
@@ -1028,7 +1028,7 @@ function SourceTraceBlock({
             className="
               inline-flex items-center px-1.5 py-0.5 rounded
               text-[10px] font-semibold uppercase tracking-[0.1em]
-              bg-amber-500/20 text-amber-200 border border-amber-400/30
+              bg-[#5CD3C5]/20 text-[#8FE3D9] border border-[#5CD3C5]/30
             "
           >
             Demo
@@ -1081,7 +1081,7 @@ function SentimentBadge({
         "text-[10.5px] uppercase tracking-[0.1em] font-semibold",
         "px-2 py-0.5 rounded-full",
         sentiment === "positive"
-          ? "bg-[hsl(150,55%,55%)]/15 text-[hsl(150,55%,75%)]"
+          ? "bg-[hsl(173,57%,55%)]/15 text-[hsl(173,57%,75%)]"
           : "bg-[hsl(0,75%,60%)]/15 text-[hsl(0,75%,78%)]",
       )}
     >
@@ -1089,7 +1089,7 @@ function SentimentBadge({
         className={cn(
           "w-1.5 h-1.5 rounded-full",
           sentiment === "positive"
-            ? "bg-[hsl(150,55%,60%)]"
+            ? "bg-[hsl(173,57%,60%)]"
             : "bg-[hsl(0,75%,65%)]",
         )}
       />
@@ -1133,7 +1133,7 @@ function BenchmarkBar({
         />
         {/* User marker */}
         <div
-          className="absolute -top-1 h-3.5 w-1 rounded-full bg-[hsl(165,75%,60%)] shadow-[0_0_12px_hsl(165,75%,60%/0.6)]"
+          className="absolute -top-1 h-3.5 w-1 rounded-full bg-[hsl(173,57%,60%)] shadow-[0_0_12px_hsl(173,57%,60%/0.6)]"
           style={{ left: `calc(${userPct * 100}% - 2px)` }}
         />
       </div>

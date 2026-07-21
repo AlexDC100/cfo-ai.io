@@ -164,7 +164,7 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
         "relative rounded-xl border bg-surface px-4 py-3 min-w-0 overflow-hidden",
         SIZE_GRID[card.size],
         editMode
-          ? "border-[hsl(165,75%,55%)]/40 ring-1 ring-[hsl(165,75%,55%)]/20"
+          ? "border-[hsl(173,57%,55%)]/40 ring-1 ring-[hsl(173,57%,55%)]/20"
           : "border-rule",
       )}
     >
@@ -260,7 +260,7 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
                 className={cn(
                   "inline-flex items-center gap-0.5 text-[10.5px] font-semibold tabular-nums whitespace-nowrap",
                   trendBadge.positive
-                    ? "text-[hsl(150,68%,32%)]"
+                    ? "text-[hsl(173,57%,32%)]"
                     : "text-[hsl(0,70%,46%)]",
                 )}
               >

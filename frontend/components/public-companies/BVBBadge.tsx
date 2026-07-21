@@ -40,9 +40,9 @@ export function BVBBadge({ variant = "inline", label = "BVB · RON" }: Props) {
       className={`
         inline-flex items-center gap-1 rounded-full
         font-medium tracking-[0.02em] uppercase
-        bg-emerald-50 text-emerald-700
-        ring-1 ring-inset ring-emerald-600/15
-        dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-400/20
+        bg-[#E6F7F4] text-[#2AA89B]
+        ring-1 ring-inset ring-[#2AA89B]/15
+        dark:bg-[#1B7268]/30 dark:text-[#8FE3D9] dark:ring-[#5CD3C5]/20
         ${sizeCls}
       `}
     >

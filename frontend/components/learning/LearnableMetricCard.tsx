@@ -33,8 +33,8 @@ interface Props {
 
 const toneClass: Record<NonNullable<Props["tone"]>, string> = {
   default: "border-l-rule",
-  positive: "border-l-[hsl(150,55%,55%)]/70",
-  warn: "border-l-[hsl(40,90%,55%)]/80",
+  positive: "border-l-[hsl(173,57%,55%)]/70",
+  warn: "border-l-[hsl(173,57%,55%)]/80",
   critical: "border-l-[hsl(0,75%,60%)]/80",
 };
 
@@ -80,7 +80,7 @@ export function LearnableMetricCard({
         "min-w-0 overflow-hidden",
         "hover:bg-surface/95 hover:border-rule/80",
         "transition-all duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/30",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/30",
         className,
       )}
     >

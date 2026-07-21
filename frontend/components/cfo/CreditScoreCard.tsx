@@ -117,8 +117,8 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
   const zone = altmanZone(data.altmanZ);
 
   const gradeColor =
-    data.composite >= 70 ? "text-emerald-700 dark:text-emerald-400"
-    : data.composite >= 50 ? "text-amber-700 dark:text-amber-400"
+    data.composite >= 70 ? "text-[#2AA89B] dark:text-[#5CD3C5]"
+    : data.composite >= 50 ? "text-[#2AA89B] dark:text-[#5CD3C5]"
     : "text-red-700 dark:text-red-400";
 
   const zoneLabel = zone === "safe" ? "Safe" : zone === "grey" ? "Grey" : "Distress";
@@ -238,8 +238,8 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
 function ScoreBar({ label, value, weight }: { label: string; value: number; weight: number }) {
   const pct = Math.max(0, Math.min(100, value));
   const color =
-    value >= 70 ? "bg-emerald-500"
-    : value >= 50 ? "bg-amber-500"
+    value >= 70 ? "bg-[#5CD3C5]"
+    : value >= 50 ? "bg-[#5CD3C5]"
     : "bg-red-500";
   return (
     <div className="grid grid-cols-[140px_1fr_56px_44px] items-center gap-3 text-[12px]">

@@ -57,8 +57,8 @@ export function AIMarketReadPanel({ ticker }: Props) {
     :                                          "Feed not connected";
   const feedTone =
     r.feed_status === "live_feed_active"
-      ? "bg-emerald-400/10 text-emerald-400 border-emerald-400/30"
-      : "bg-amber-400/10 text-amber-400 border-amber-400/30";
+      ? "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30"
+      : "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30";
 
   // Detect deterministic placeholder vs real Claude. Today the BE returns
   // model_id="deterministic_v1"; Phase B swaps in "claude-opus-4-7" etc.
@@ -145,7 +145,7 @@ export function AIMarketReadPanel({ ticker }: Props) {
                 key={opp.key}
                 className="flex items-start gap-2 px-3 py-2 rounded-lg border border-rule/60 bg-bg-2/30"
               >
-                <span className="mt-0.5 inline-flex items-center justify-center h-5 w-5 rounded bg-emerald-400/15 border border-emerald-400/30 text-emerald-400 shrink-0">
+                <span className="mt-0.5 inline-flex items-center justify-center h-5 w-5 rounded bg-[#5CD3C5]/15 border border-[#5CD3C5]/30 text-[#5CD3C5] shrink-0">
                   <TrendingUp size={10} strokeWidth={2} />
                 </span>
                 <div className="flex-1 min-w-0">

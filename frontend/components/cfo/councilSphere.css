@@ -1,0 +1,75 @@
+/* Minimal styling for CouncilSphere. The original design bundle shipped a
+   large `csx-*` stylesheet that we don't have; these rules cover only what
+   the component needs to render correctly inside the dashboard drop zone:
+   a relatively-positioned stage, a block canvas, JS-positioned member labels
+   (the draw loop sets each label's left/top in canvas px), and a phase line.
+   The end-of-run "It is decided!" story card + core hit-target are hidden —
+   they belong to the standalone Timeline layout, not the inline drop-zone use. */
+
+.csx-stagewrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.csx-canvas {
+  display: block;
+  pointer-events: none;
+}
+
+.csx-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.csx-label-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--ink, 222 47% 11%));
+}
+
+.csx-label-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  display: inline-block;
+}
+
+.csx-label-role {
+  font-size: 9px;
+  color: hsl(var(--ink-mute, 215 16% 47%));
+}
+
+.csx-label-stat {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.csx-phase {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(var(--ink-soft, 215 20% 35%));
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+/* The standalone finale UI is not used in the inline drop-zone context. */
+.csx-core-hit,
+.csx-core-hint,
+.csx-story {
+  display: none;
+}

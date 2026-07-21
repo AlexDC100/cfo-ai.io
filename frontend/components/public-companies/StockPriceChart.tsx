@@ -90,7 +90,7 @@ export function StockPriceChart({ data, range, isLoading, isError, unavailable }
   }
 
   // ── Chart ──
-  const lineColor = delta && delta.abs >= 0 ? "#0a7c3a" : "#c62828";
+  const lineColor = delta && delta.abs >= 0 ? "#1B7268" : "#c62828";
   const areaGradientId = `area-grad-${data?.ticker ?? "x"}-${range}`;
 
   return (

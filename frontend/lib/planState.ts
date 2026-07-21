@@ -95,6 +95,33 @@ async function authedFetch<T>(method: "GET" | "POST", path: string): Promise<T> 
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Session cache — keep the last-fetched plan so re-mounting the hook (e.g.
+// re-opening the Command Center, which remounts AccountTab) renders the plan
+// INSTANTLY from cache and revalidates in the background instead of flashing
+// an empty section for the ~1s the request takes.
+// ─────────────────────────────────────────────────────────────────────
+
+const PLAN_CACHE_KEY = "cfo-ai-plan-state-v1";
+
+let cachedState: PlanState | null = (() => {
+  try {
+    const raw = localStorage.getItem(PLAN_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as PlanState) : null;
+  } catch {
+    return null;
+  }
+})();
+
+function setCachedState(s: PlanState): void {
+  cachedState = s;
+  try {
+    localStorage.setItem(PLAN_CACHE_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Hook + one-shot helpers
 // ─────────────────────────────────────────────────────────────────────
 
@@ -104,8 +131,10 @@ export function usePlanState(): {
   error: PlanApiError | null;
   refresh: () => Promise<void>;
 } {
-  const [state, setState] = useState<PlanState | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Seed from the session cache so the plan is on screen immediately; only
+  // show the loading state when we have nothing cached to render.
+  const [state, setState] = useState<PlanState | null>(cachedState);
+  const [loading, setLoading] = useState<boolean>(cachedState === null);
   const [error, setError] = useState<PlanApiError | null>(null);
 
   const refresh = useCallback(async () => {
@@ -113,6 +142,7 @@ export function usePlanState(): {
     setError(null);
     try {
       const s = await authedFetch<PlanState>("GET", "/api/plan/state");
+      setCachedState(s);
       setState(s);
     } catch (e) {
       if (e instanceof PlanApiError) setError(e);
@@ -127,7 +157,7 @@ export function usePlanState(): {
     void (async () => {
       try {
         const s = await authedFetch<PlanState>("GET", "/api/plan/state");
-        if (mounted) { setState(s); setLoading(false); }
+        if (mounted) { setCachedState(s); setState(s); setLoading(false); }
       } catch (e) {
         if (!mounted) return;
         if (e instanceof PlanApiError) setError(e);

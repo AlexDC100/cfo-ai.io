@@ -68,7 +68,7 @@ export function IndustryAuditTrail({ periodId, limit = 50, title }: Props) {
       {error && (
         <div
           data-testid="industry-audit-trail-error"
-          className="rounded-md border border-amber-300/60 bg-amber-50/60 px-3 py-2.5 text-[12.5px] text-amber-800 inline-flex items-center gap-2"
+          className="rounded-md border border-[#8FE3D9]/60 bg-[#E6F7F4]/60 px-3 py-2.5 text-[12.5px] text-[#1B7268] inline-flex items-center gap-2"
         >
           <ShieldAlert size={13} strokeWidth={1.75} />
           {error.status === 403

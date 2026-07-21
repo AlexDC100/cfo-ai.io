@@ -2,6 +2,7 @@
   "sidebar": {
     "workflow": "Flux de travail",
     "language_label": "Changer de langue",
+    "workspace": "Espace de travail",
     "dashboard": "Tableau de bord",
     "cash": "Trésorerie",
     "profit": "Profit",
@@ -137,6 +138,8 @@
     "welcome": "Bienvenue chez CFO AI"
   },
   "settings": {
+    "title": "Compte",
+    "subtitle": "Votre profil, langue, secteur et forfait — le tout au même endroit. Les modifications sont enregistrées dans votre compte et s'appliquent instantanément à tous les onglets.",
     "language": "Langue",
     "language_description": "Choisissez la langue pour l'interface et l'analyse générée par IA."
   },

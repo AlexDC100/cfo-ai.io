@@ -55,7 +55,7 @@ import { planUsagePct, usePlanState, type PlanState } from "@/lib/planState";
 // Public component — wires hooks + DropdownMenu, used in TopHeader.
 // ─────────────────────────────────────────────────────────────────────
 
-export function AccountMenu() {
+export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
   const { user, displayName, initials, signOut } = useAuth();
   const { state, refresh: refreshPlan } = usePlanState();
   const { theme, setTheme } = useTheme();
@@ -66,6 +66,33 @@ export function AccountMenu() {
   if (!user) return null;
 
   const isDark = theme === "dark";
+
+  // When an `onOpen` handler is supplied, the avatar becomes a plain button
+  // that runs it (the top bar wires this to open the Command Center — the
+  // single account surface: profile, plan, settings, log out). The legacy
+  // dropdown below is skipped entirely in that mode.
+  if (onOpen) {
+    return (
+      <button
+        type="button"
+        aria-label={`Account · ${displayName ?? user.email}`}
+        title={displayName ?? user.email ?? "Account"}
+        data-testid="account-menu-trigger"
+        onClick={onOpen}
+        className="
+          ml-1 inline-flex items-center justify-center
+          h-9 w-9 rounded-full
+          bg-brand text-paper
+          text-[12px] font-semibold tracking-tight
+          hover:bg-brand-d
+          transition-colors
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
+        "
+      >
+        {initials ?? <UserIcon size={14} strokeWidth={1.75} />}
+      </button>
+    );
+  }
 
   async function handleSignOut() {
     setOpen(false);
@@ -241,7 +268,7 @@ export function AccountMenuContent({
             <div className="mt-1.5 h-1.5 rounded-full bg-rule overflow-hidden">
               <div
                 className={`h-full rounded-full transition-[width] ${
-                  plan.docs_used >= plan.included_docs ? "bg-amber-500" : "bg-brand"
+                  plan.docs_used >= plan.included_docs ? "bg-[#5CD3C5]" : "bg-brand"
                 }`}
                 style={{
                   width: `${planUsagePct(plan.docs_used, plan.included_docs)}%`,

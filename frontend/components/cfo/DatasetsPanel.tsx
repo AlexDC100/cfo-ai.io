@@ -638,7 +638,7 @@ function DatasetCard({
             {new Date(ds.uploaded_at).toLocaleDateString("en-GB", { dateStyle: "medium" })}
           </div>
           {ds.document_status && ds.document_status !== "analyzed" && (
-            <div className="text-[10px] uppercase tracking-[0.06em] font-medium text-amber-700 mt-1">
+            <div className="text-[10px] uppercase tracking-[0.06em] font-medium text-[#2AA89B] mt-1">
               · {ds.document_status}
             </div>
           )}

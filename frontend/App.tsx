@@ -6,6 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import {
   BrowserRouter,
   Navigate,
+  Outlet,
   Route,
   Routes,
   useLocation,
@@ -19,6 +20,7 @@ import { PopoverStackProvider } from "@/components/learning/PopoverStackProvider
 import { PopoverStackRenderer } from "@/components/learning/PopoverStackRenderer";
 import { MetricGlossaryDrawer } from "@/components/learning/MetricGlossaryDrawer";
 import { LearningModeProvider } from "@/stores/learningMode";
+import { readPeriodVerdict } from "@/lib/dataPresence";
 import "@/styles/learning.css";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ import NotFound from "./pages/NotFound";
 // The previously-deleted standalone /dashboard's Overview content lives
 // inside FinancialStatements.tsx's Overview tab.
 const Dashboard = lazy(() => import("./pages/cfo/FinancialStatements"));
+const Workspace = lazy(() => import("./pages/cfo/Workspace"));
 const Decisions = lazy(() => import("./pages/cfo/Decisions"));
 const Products = lazy(() => import("./pages/cfo/Products"));
 // F6.0.5 — Scenario planning / what-if (/dashboard/scenarios).
@@ -95,8 +98,9 @@ const PublicCompanyIntelligence = lazy(() => import("./pages/cfo/PublicCompanyIn
 
 import { PUBLIC_RECORDS_ENABLED, DECISIONS_ALERTS_ENABLED } from "./config/features";
 import { heartbeatIfIdentified } from "@/lib/identity";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { AuthGuard } from "@/components/cfo/AuthGuard";
+import { AppShell } from "@/components/cfo/AppShell";
 import { ErrorBoundary } from "@/components/cfo/ErrorBoundary";
 import { RouteErrorBoundary } from "@/components/cfo/RouteErrorBoundary";
 import { LanguageSync } from "@/i18n/LanguageSync";
@@ -124,6 +128,48 @@ function App() {
     heartbeatIfIdentified();
     const t = window.setInterval(heartbeatIfIdentified, 5 * 60 * 1000);
     return () => window.clearInterval(t);
+  }, []);
+
+  // Warm every lazy page chunk in the background once the app is idle. The
+  // specifiers below are IDENTICAL to the lazy() thunks, so they populate the
+  // SAME module cache — after this runs, navigating to any tab resolves its
+  // React.lazy() synchronously (no network wait, no visible fallback → the
+  // content appears instantly). This does NOT hurt initial load: it fires
+  // after first paint on idle, and failed prefetches fall back to on-demand.
+  useEffect(() => {
+    let cancelled = false;
+    const warm = () => {
+      if (cancelled) return;
+      const jobs: Array<() => Promise<unknown>> = [
+        () => import("./pages/cfo/FinancialStatements"),
+        () => import("./pages/cfo/Products"),
+        () => import("./pages/cfo/Chat"),
+        () => import("./pages/cfo/BenchmarkReport"),
+        () => import("./pages/cfo/Scenarios"),
+        () => import("./pages/cfo/Variance"),
+        () => import("./pages/cfo/Settings"),
+        () => import("./pages/cfo/Decisions"),
+        () => import("./pages/cfo/Alerts"),
+        () => import("./pages/cfo/ComprehensiveReport"),
+        () => import("./pages/cfo/PeerComparisonReport"),
+        () => import("./pages/cfo/MultiYearHistory"),
+        () => import("./pages/cfo/Onboarding"),
+        () => import("./pages/cfo/PublicCompanySearchPage"),
+        () => import("./pages/cfo/PublicCompanyDashboard"),
+        () => import("./pages/cfo/PublicCompanyIntelligence"),
+      ];
+      // Light stagger so we don't fire 16 chunk requests in a single burst.
+      jobs.forEach((job, i) =>
+        window.setTimeout(() => { if (!cancelled) job().catch(() => {}); }, i * 120),
+      );
+    };
+    const ric = window.requestIdleCallback;
+    const id = ric ? ric(warm) : window.setTimeout(warm, 1500);
+    return () => {
+      cancelled = true;
+      if (ric && window.cancelIdleCallback) window.cancelIdleCallback(id as number);
+      else window.clearTimeout(id as number);
+    };
   }, []);
 
   return (
@@ -210,22 +256,31 @@ function App() {
  * generic "this page hit an error" copy.
  */
 function AppRoutes() {
-  const { pathname } = useLocation();
+  // NOTE: the outer error boundary is intentionally UNKEYED. Keying it by
+  // pathname (as before) tore down the entire route subtree — including the
+  // authenticated AppShell — on every navigation, which is exactly what made
+  // tab switches feel like a full-page refresh. The per-navigation reset now
+  // lives on the INNER boundary inside <AppLayout> (around the page <Outlet>),
+  // so authed content resets on nav while the shell stays mounted.
+  //
+  // `isAuthenticated` decides WHERE /public-companies mounts: under the shared
+  // AppLayout for signed-in users (so it reuses the one persistent AppShell and
+  // never remounts on nav), or as a standalone route for anonymous visitors
+  // (the page renders its own PublicShell there).
+  const { isAuthenticated } = useAuth();
   return (
-    <RouteErrorBoundary key={pathname}>
+    <RouteErrorBoundary>
+      {/* Outer Suspense: only for lazy routes that are NOT under the shared
+          shell (today just PublicCompanyIntelligence, which picks its own
+          shell). Authed pages suspend against the INNER boundary in AppLayout,
+          so the shell never unmounts while the next page chunk loads. */}
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          {/* PUBLIC_TEST_MODE — the Landing page assumes a sign-up funnel
-              (CTAs, pricing teasers, account hooks). In test mode there's
-              no auth, so landing on `/` should drop the visitor straight
-              into the app shell with the synthetic identity. */}
+          {/* ── Public / unauthenticated routes ─────────────────────────── */}
           <Route
             path="/"
             element={isPublicTestMode ? <Navigate to="/dashboard" replace /> : <Landing />}
           />
-          {/* PUBLIC_TEST_MODE — /login + /signup are dead-ends when auth is
-              disabled; redirect to the dashboard so any bookmark or stale
-              link still works for visitors. */}
           <Route
             path="/login"
             element={isPublicTestMode ? <Navigate to="/dashboard" replace /> : <Login />}
@@ -234,23 +289,10 @@ function AppRoutes() {
             path="/signup"
             element={isPublicTestMode ? <Navigate to="/dashboard" replace /> : <Signup />}
           />
-          {/* /auth/callback — Supabase confirmation/recovery/magic-link
-              redirect target. The SDK exchanges the URL fragment for a
-              session as soon as createClient() runs; AuthCallback just
-              waits for the SIGNED_IN event then forwards to /onboarding
-              (or /login?reset=1 for password recovery). See
-              src/lib/auth.tsx signUp() — emailRedirectTo points here.
-              In test mode the email-confirm flow can never trigger (sign-up
-              is disabled), but we keep the route as a no-op redirect so any
-              stale email link lands safely on /dashboard instead of 404. */}
           <Route
             path="/auth/callback"
             element={isPublicTestMode ? <Navigate to="/dashboard" replace /> : <AuthCallback />}
           />
-          {/* /pricing is public — but signed-in users see it as the
-              upgrade picker. Used as the post-signup destination too.
-              In PUBLIC_TEST_MODE, billing is disabled — redirect to the
-              dashboard so the visitor never sees plan tiers / Stripe CTAs. */}
           <Route
             path="/pricing"
             element={isPublicTestMode ? <Navigate to="/dashboard" replace /> : <Pricing />}
@@ -258,129 +300,65 @@ function AppRoutes() {
           <Route path="/roadmap" element={<RoadmapPage />} />
           <Route path="/contact-sales" element={<ContactSalesPage />} />
 
-          {/* Onboarding: industry pick + workspace name. Reached after
-              signup or when AuthGuard sees an org without industry_key. */}
+          {/* Onboarding: industry pick + workspace name. Its own layout. */}
           <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
 
-          {/* Authenticated app — gated by AuthGuard. Visiting any of these
-              paths without sign-in OR demo-mode redirects to "/". */}
-          <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
-          {/* F6.0.5 — Scenario planning / what-if. Cascades the live period
-              through revenue/cost/working-capital levers and shows the impact
-              on leverage + covenants. AuthGuard like the rest of the app. */}
-          <Route path="/dashboard/scenarios" element={<AuthGuard><Scenarios /></AuthGuard>} />
-          {/* F6.0.1b — Budget vs Actual vs Last-Year variance report. */}
-          <Route path="/dashboard/variance" element={<AuthGuard><Variance /></AuthGuard>} />
-          {/* NASDAQ-8 — public-company search surface. Reached from the
-              DashboardPublicCompanyCard on the empty-state dashboard.
-              /dashboard/public/:ticker (the per-company dashboard) lands
-              in NASDAQ-9; until then the search results temporarily route
-              to /dashboard with a query param hint. */}
-          <Route path="/dashboard/public/search" element={<AuthGuard><PublicCompanySearchPage /></AuthGuard>} />
-          {/* NASDAQ-9 — per-company dashboard. Renders Overview headline
-              KPIs from the assembled_canonical_v1 envelope returned by
-              /api/public/companies/:ticker. Other tabs (P&L / BS / CF /
-              Ratios / Valuation) land in NASDAQ-10 by feeding the same
-              envelope into the existing private-side renderers. */}
-          <Route path="/dashboard/public/:ticker" element={<AuthGuard><PublicCompanyDashboard /></AuthGuard>} />
-          {/* Public Company Intelligence hub — first-class module page.
-              Watchlist + benchmarking + AI interpretation, with demo
-              data fallback when SF1 isn't entitled.
-              2026-05-24 — DROPPED AuthGuard. The landing-page "Quick try"
-              ticker chips + the Public Companies entry card promise
-              "no signup · 10s". The page itself reads from the open
-              `/api/public/*` routes (no auth required), and the
-              page picks its own shell at render time:
-                · isAuthenticated → AppShell (full sidebar + nav)
-                · anonymous       → PublicShell (Logo + Sign in CTAs)
-              See PublicCompanyIntelligence.tsx for the shell-pick
-              logic. */}
-          <Route path="/public-companies" element={<PublicCompanyIntelligence />} />
-          {/* /upload was a separate page; consolidated into Dashboard's
-              empty-state zone + Replace dropdown. Legacy redirect kept so
-              bookmarks / external links / onboarding redirects all land
-              on the canonical surface without a 404. */}
+          {/* Public Company Intelligence — auth-optional. Anonymous visitors
+              get the standalone route (the page renders PublicShell). Signed-in
+              visitors get it as a child of AppLayout below, so it shares the one
+              persistent AppShell (no refresh when navigating in-app). */}
+          {!isAuthenticated && (
+            <Route path="/public-companies" element={<PublicCompanyIntelligence />} />
+          )}
+
+          {/* ── Authenticated app — ONE persistent shell ──────────────────
+              AppLayout mounts AuthGuard + AppShell a single time and renders
+              the matched page into its <Outlet>. Switching between these routes
+              swaps only the page content; the sidebar/header never remount, so
+              navigation is instant and shell state (sidebar collapse, open
+              chat panel, etc.) is preserved. */}
+          <Route element={<AppLayout />}>
+            <Route path="/workspace" element={<Workspace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/scenarios" element={<Scenarios />} />
+            <Route path="/dashboard/variance" element={<Variance />} />
+            <Route path="/dashboard/public/search" element={<PublicCompanySearchPage />} />
+            <Route path="/dashboard/public/:ticker" element={<PublicCompanyDashboard />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/benchmark" element={<BenchmarkReport />} />
+            <Route path="/report" element={<ComprehensiveReport />} />
+            <Route path="/peer-report" element={<PeerComparisonReport />} />
+            <Route path="/settings" element={<Settings />} />
+            {/* Flag-gated: render the page when enabled, else redirect. */}
+            <Route
+              path="/decisions"
+              element={DECISIONS_ALERTS_ENABLED ? <Decisions /> : <RedirectPreservingQuery to="/dashboard" />}
+            />
+            <Route
+              path="/alerts"
+              element={DECISIONS_ALERTS_ENABLED ? <Alerts /> : <RedirectPreservingQuery to="/dashboard" />}
+            />
+            <Route
+              path="/multi-year-history"
+              element={PUBLIC_RECORDS_ENABLED ? <MultiYearHistory /> : <Navigate to="/dashboard" replace />}
+            />
+            {/* Signed-in: share the persistent shell (see anonymous route above). */}
+            {isAuthenticated && (
+              <Route path="/public-companies" element={<PublicCompanyIntelligence />} />
+            )}
+          </Route>
+
+          {/* ── Legacy redirects (query string preserved where relevant) ─── */}
           <Route path="/upload" element={<RedirectPreservingQuery to="/dashboard" />} />
-          {/* Legacy /cash and /profit routes — Cash + Profit are now
-              sections inside the Dashboard. Redirect preserves any
-              external bookmarks while landing the user on the right
-              section anchor (the Statements tab handles the actual
-              rendering). */}
           <Route path="/cash" element={<Navigate to="/dashboard?tab=statements#cash-flow" replace />} />
           <Route path="/profit" element={<Navigate to="/dashboard?tab=statements#profit-loss" replace />} />
-          {/* /decisions and /alerts — gated by DECISIONS_ALERTS_ENABLED.
-              When the flag is off (current product positioning), direct
-              navigation to either redirects cleanly to /dashboard with
-              ?period= preserved by RedirectPreservingQuery. The Decisions
-              and Alerts components, their data hooks, and the underlying
-              backend endpoints all remain functional on disk — flipping
-              the flag to `true` restores both surfaces with zero further
-              change. */}
-          <Route
-            path="/decisions"
-            element={
-              DECISIONS_ALERTS_ENABLED
-                ? <AuthGuard><Decisions /></AuthGuard>
-                : <RedirectPreservingQuery to="/dashboard" />
-            }
-          />
-          <Route path="/products" element={<AuthGuard><Products /></AuthGuard>} />
-          <Route
-            path="/alerts"
-            element={
-              DECISIONS_ALERTS_ENABLED
-                ? <AuthGuard><Alerts /></AuthGuard>
-                : <RedirectPreservingQuery to="/dashboard" />
-            }
-          />
-          {/* /chat — Ask CFO AI universal open-domain chat. Reuses the
-              /api/cfo/chat/llm endpoint that powers the Opus briefing
-              and grounds responses in the active period's workspace
-              context (statements, ratios, briefing, recommendations).
-              No new persistence: session history lives in component
-              state for the lifetime of the tab. */}
-          <Route path="/chat" element={<AuthGuard><Chat /></AuthGuard>} />
-          <Route path="/benchmark" element={<AuthGuard><BenchmarkReport /></AuthGuard>} />
-          {/* /report — the 8-section institutional memo (Section 1 Overview
-              → Section 8 Recommendations + 90-day plan). Reads from the
-              same /api/period endpoint as the dashboard, so no extra
-              compute. Export PDF button hits /api/report/:period/pdf
-              (WeasyPrint). */}
-          <Route path="/report" element={<AuthGuard><ComprehensiveReport /></AuthGuard>} />
-          {/* /peer-report — Transavia-style side-by-side memo. Reads the
-              same /api/benchmarks/report payload BenchmarkReport uses, but
-              renders as a printable institutional memo with: headline
-              verdict, row-by-row P&L gap (with financial impact in RON),
-              named peer landscape, why-the-leader-leads reasons, target
-              tiers, and industry dynamics. Export PDF = browser print. */}
-          <Route path="/peer-report" element={<AuthGuard><PeerComparisonReport /></AuthGuard>} />
-          {/* /multi-year-history — listafirme.ro / termene.ro / firme.info
-              public-records summary view. Gated behind PUBLIC_RECORDS_ENABLED.
-              When the flag is off (current product positioning), any direct
-              navigation here redirects to /dashboard rather than rendering
-              the public-records view. The component remains imported and
-              importable so flipping the flag back on restores the route
-              with zero code change. */}
-          <Route
-            path="/multi-year-history"
-            element={
-              PUBLIC_RECORDS_ENABLED
-                ? <AuthGuard><MultiYearHistory /></AuthGuard>
-                : <Navigate to="/dashboard" replace />
-            }
-          />
-          <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
-
-          {/* UNIFY: legacy paths redirect to /dashboard. The query string
-              (?period=, ?tab=) carries through so deep links survive. */}
           <Route path="/financial-statements" element={<RedirectPreservingQuery to="/dashboard" />} />
           <Route path="/today"                element={<RedirectPreservingQuery to="/dashboard" />} />
           <Route path="/app"                  element={<RedirectPreservingQuery to="/dashboard" />} />
           <Route path="/briefing"             element={<RedirectPreservingQuery to="/dashboard" />} />
-          {/* /reports + /invoices map onto specific Dashboard tabs. */}
           <Route path="/reports"   element={<RedirectPreservingQuery to="/dashboard" tab="export" />} />
           <Route path="/invoices"  element={<RedirectPreservingQuery to="/dashboard" tab="invoices" />} />
-
           <Route path="/configuration" element={<Navigate to="/settings" replace />} />
           <Route path="/skus" element={<Navigate to="/products" replace />} />
           <Route path="/category/:slug" element={<Navigate to="/products" replace />} />
@@ -391,6 +369,66 @@ function AppRoutes() {
         </Routes>
       </Suspense>
     </RouteErrorBoundary>
+  );
+}
+
+/**
+ * AppLayout — the ONE authenticated shell. Mounts AuthGuard + AppShell a single
+ * time; child routes render into <Outlet>. The keyed inner boundary + a
+ * content-only Suspense fallback reset per navigation WITHOUT tearing down the
+ * shell, so switching tabs never remounts the sidebar/header (no full refresh).
+ */
+function AppLayout() {
+  const { pathname } = useLocation();
+  return (
+    <AuthGuard>
+      <AppShell>
+        <RouteErrorBoundary key={pathname}>
+          <Suspense fallback={<ContentFallback />}>
+            <Outlet />
+          </Suspense>
+        </RouteErrorBoundary>
+      </AppShell>
+    </AuthGuard>
+  );
+}
+
+/**
+ * Content-only skeleton for the in-shell Suspense. The full-shell RouteFallback
+ * would paint a second sidebar/header inside the already-mounted AppShell, so
+ * this fallback covers just the content area while the next page chunk loads.
+ */
+function ContentFallback() {
+  // No-data users: the page being loaded (Dashboard, Benchmark, Products…)
+  // paints its own empty/upload state the instant its chunk mounts. Drawing
+  // the KPI-card skeleton first would flash a "loaded dashboard" that then
+  // collapses to the upload panel — the operator-reported half-second of
+  // phantom content. When the persisted verdict already says this user has
+  // no periods, render a neutral placeholder so the empty state is the first
+  // real thing they see. (verdict: null = no data, string = has data,
+  // undefined = unknown → keep the informative skeleton.)
+  const { user } = useAuth();
+  if (user?.id && readPeriodVerdict(user.id) === null) {
+    return <div aria-hidden className="min-h-[30vh]" />;
+  }
+  return (
+    <div role="status" aria-busy="true" aria-label="Loading" className="space-y-4">
+      <span className="sr-only">Loading…</span>
+      <div className="h-8 w-56 rounded-md bg-bg-2 animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-24 rounded-2xl border border-rule bg-bg-2/30 animate-pulse"
+            style={{ animationDelay: `${i * 80}ms` }}
+          />
+        ))}
+      </div>
+      <div
+        className="rounded-2xl border border-rule bg-bg-2/20 h-[480px] animate-pulse"
+        style={{ animationDelay: "260ms" }}
+      />
+    </div>
   );
 }
 

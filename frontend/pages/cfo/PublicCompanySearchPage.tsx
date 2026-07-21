@@ -12,7 +12,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, AlertTriangle, Search as SearchIcon } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { PublicCompanySearchInput } from "@/components/cfo/PublicCompanySearchInput";
 import { PublicCompanyResultCard } from "@/components/cfo/PublicCompanyResultCard";
 import {
@@ -76,8 +75,8 @@ export default function PublicCompanySearchPage() {
   const showStartState = !query.trim();
 
   return (
-    <AppShell>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12" data-testid="public-company-search-page">
+    <>
+      <div className="max-w-3xl" data-testid="public-company-search-page">
         {/* Back link */}
         <Link
           to="/dashboard"
@@ -155,7 +154,7 @@ export default function PublicCompanySearchPage() {
           <span>US-listed only in v1</span>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }
 
@@ -166,18 +165,18 @@ function KeyMissingPanel() {
     <div
       data-testid="public-company-key-missing"
       className="
-        rounded-2xl border border-amber-300/50 bg-amber-50/40 dark:bg-amber-500/[0.08]
+        rounded-2xl border border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.08]
         px-5 py-4
       "
     >
       <div className="flex items-start gap-3">
-        <AlertTriangle size={18} className="text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
+        <AlertTriangle size={18} className="text-[#2AA89B] dark:text-[#8FE3D9] shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold text-amber-900 dark:text-amber-100">
+          <div className="text-[13px] font-semibold text-[#1B7268] dark:text-[#E6F7F4]">
             Nasdaq API key is not configured
           </div>
-          <p className="text-[12.5px] text-amber-900/85 dark:text-amber-100/85 mt-1 leading-relaxed">
-            The operator needs to set <code className="font-mono text-[11.5px] px-1 py-0.5 rounded bg-amber-100/50 dark:bg-amber-500/10">NASDAQ_API_KEY</code>
+          <p className="text-[12.5px] text-[#1B7268]/85 dark:text-[#E6F7F4]/85 mt-1 leading-relaxed">
+            The operator needs to set <code className="font-mono text-[11.5px] px-1 py-0.5 rounded bg-[#E6F7F4]/50 dark:bg-[#5CD3C5]/10">NASDAQ_API_KEY</code>
             {" "}on the backend host before public-company search becomes available.
           </p>
         </div>

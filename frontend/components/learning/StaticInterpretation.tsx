@@ -179,10 +179,10 @@ export function StaticInterpretation({ conceptKey, accounts, locale = "en" }: Pr
   return (
     <div
       data-testid="static-interpretation"
-      className="px-5 py-4 border-b border-white/[0.06] bg-[hsl(165,75%,55%)]/[0.04]"
+      className="px-5 py-4 border-b border-white/[0.06] bg-[hsl(173,57%,55%)]/[0.04]"
     >
       <div className="flex items-start gap-2.5">
-        <Sparkles className="w-3.5 h-3.5 text-[hsl(165,80%,45%)] flex-shrink-0 mt-0.5" />
+        <Sparkles className="w-3.5 h-3.5 text-[hsl(173,57%,45%)] flex-shrink-0 mt-0.5" />
         <p className="text-[13px] leading-relaxed text-white/85">
           {sentence}
         </p>

@@ -175,11 +175,11 @@ function TokenRender({ token }: { token: FormulaToken }) {
         inline-flex items-baseline gap-1
         tabular-nums
         text-white/95 dark:text-white/95
-        hover:text-[hsl(165,75%,60%)] focus-visible:text-[hsl(165,75%,60%)]
+        hover:text-[hsl(173,57%,60%)] focus-visible:text-[hsl(173,57%,60%)]
         transition-colors
         relative
         cursor-pointer
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/40 focus-visible:rounded-sm
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40 focus-visible:rounded-sm
       "
       data-testid={`formula-value-${token.conceptKey}`}
       aria-label={`${token.label ?? token.conceptKey} — drill in`}

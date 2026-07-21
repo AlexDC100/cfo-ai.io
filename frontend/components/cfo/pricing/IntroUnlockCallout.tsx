@@ -100,7 +100,7 @@ export function IntroUnlockCallout({ plan, onUnlock }: Props) {
             inline-flex items-center gap-1.5 h-9 px-4 rounded-full
             bg-brand text-paper text-[12.5px] font-medium
             hover:bg-brand-d transition-colors
-            shadow-[0_6px_14px_-6px_rgba(45,191,179,0.6)]
+            shadow-[0_6px_14px_-6px_rgba(42,168,155,0.6)]
           "
         >
           <Sparkles size={12} strokeWidth={2} />

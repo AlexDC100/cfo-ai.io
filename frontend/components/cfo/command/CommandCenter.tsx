@@ -22,7 +22,6 @@
 // + tab switcher. Each tab is its own file (WorkspaceTab / DataTab /
 // AiTab / AccountTab) so renames / additions stay surgical.
 
-import { useState } from "react";
 import { X } from "lucide-react";
 
 import {
@@ -40,15 +39,10 @@ import { AccountTab } from "./tabs/AccountTab";
 // Data / Account surfaces down. The AiTab file was removed in the
 // 2026-07 dead-code cleanup (recoverable from git history).
 import { DataTab } from "./tabs/DataTab";
-import { WorkspaceTab } from "./tabs/WorkspaceTab";
 
+// Retained for API compatibility (re-exported from ./index) even though the
+// panel no longer uses a tab switcher.
 export type CommandCenterTab = "workspace" | "data" | "account";
-
-const TABS: { id: CommandCenterTab; label: string }[] = [
-  { id: "workspace", label: "Workspace" },
-  { id: "data",      label: "Data" },
-  { id: "account",   label: "Account" },
-];
 
 interface Props {
   open: boolean;
@@ -57,18 +51,15 @@ interface Props {
   onOpenAi: () => void;
   /** Open the upload flow. */
   onOpenUpload: () => void;
-  /** Initial tab to land on. Defaults to "workspace". */
-  initialTab?: CommandCenterTab;
 }
 
 export function CommandCenter({
   open,
   onOpenChange,
-  onOpenAi,
+  // onOpenAi is still accepted (AppShell passes it) but no longer used
+  // here — the Workspace section that hosted "Ask CFO AI" was removed.
   onOpenUpload,
-  initialTab = "workspace",
 }: Props) {
-  const [tab, setTab] = useState<CommandCenterTab>(initialTab);
   const close = () => onOpenChange(false);
 
   return (
@@ -94,76 +85,44 @@ export function CommandCenter({
           maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem)",
         }}
       >
-        {/* ── Header ────────────────────────────────────────── */}
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-center justify-between mb-4">
-            <SheetTitle className="text-[15px] font-medium text-ink">
-              Command Center
-            </SheetTitle>
-            <button
-              type="button"
-              onClick={close}
-              aria-label="Close"
-              className="inline-flex items-center justify-center text-ink-mute hover:text-ink active:bg-bg-2/60 h-11 w-11 sm:h-7 sm:w-7 -m-2 sm:m-0 rounded-md transition-colors"
-            >
-              <X size={18} className="sm:hidden" strokeWidth={1.75} />
-              <X size={16} className="hidden sm:block" strokeWidth={1.75} />
-            </button>
-          </div>
-
-          {/* Live workspace state — single source of truth via
-              useActivePeriod. Replaces the legacy hardcoded
-              "No dataset connected" string the user complained about. */}
-          <StateCard onUpload={() => { close(); setTimeout(onOpenUpload, 220); }} />
-
-          {/* Segmented control — 4 tabs only. The previous CommandDrawer
-              had 5 (with a Rules tab). Rules moved to /settings. */}
-          <div
-            role="tablist"
-            aria-label="Command Center tabs"
-            data-testid="command-tabs"
-            className="mt-4 grid grid-cols-3 gap-0.5 p-0.5 rounded-lg bg-bg-2 border border-rule"
+        {/* ── Header ──────────────────────────────────────────
+            The close button is absolutely positioned (top-right) so it no
+            longer occupies its own row — the account credentials below sit at
+            the same vertical level as the X. */}
+        <SheetTitle className="sr-only">Command Center</SheetTitle>
+        {/* Wrapped in a div so the button is NOT a direct child button.absolute
+            of SheetContent — that selector ([&>button.absolute]:hidden) hides
+            Radix's default close, and would hide this one too if unwrapped. */}
+        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Close"
+            className="inline-flex items-center justify-center text-ink-mute hover:text-ink active:bg-bg-2/60 h-11 w-11 sm:h-7 sm:w-7 rounded-md transition-colors"
           >
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={tab === t.id}
-                aria-controls={`command-panel-${t.id}`}
-                data-testid={`command-tab-${t.id}`}
-                onClick={() => setTab(t.id)}
-                className={`
-                  rounded-md py-1.5 text-[12px] font-medium transition-colors
-                  ${tab === t.id
-                    ? "bg-surface text-ink shadow-1"
-                    : "text-ink-soft hover:text-ink"}
-                `}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+            <X size={18} className="sm:hidden" strokeWidth={1.75} />
+            <X size={16} className="hidden sm:block" strokeWidth={1.75} />
+          </button>
         </div>
 
-        {/* ── Content ───────────────────────────────────────── */}
+        {/* ── Content ───────────────────────────────────────────────────
+            Stacked in one scroll column: Account (profile + plan + actions)
+            at the top, then the Workspace state card, then Data. */}
         <div
-          className="px-5 pb-6 overflow-y-auto flex-1"
-          id={`command-panel-${tab}`}
-          role="tabpanel"
+          className="px-5 pt-3 pb-6 overflow-y-auto flex-1 divide-y divide-rule"
+          data-testid="command-content"
         >
-          {tab === "workspace" && (
-            <WorkspaceTab
-              onClose={close}
-              onOpenAi={onOpenAi}
-              onOpenUpload={onOpenUpload}
-            />
-          )}
-          {tab === "data" && (
-            <DataTab onClose={close} onOpenUpload={onOpenUpload} />
-          )}
-          {tab === "account" && (
+          <div className="pb-6">
             <AccountTab onClose={close} />
-          )}
+          </div>
+          {/* Workspace section — live workspace state (single source of
+              truth via useActivePeriod). Sits under the account block. */}
+          <div className="py-6">
+            <StateCard onUpload={() => { close(); setTimeout(onOpenUpload, 220); }} />
+          </div>
+          <div className="pt-6">
+            <DataTab onClose={close} onOpenUpload={onOpenUpload} />
+          </div>
         </div>
       </SheetContent>
     </Sheet>

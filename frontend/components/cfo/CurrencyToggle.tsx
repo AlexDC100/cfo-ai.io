@@ -68,10 +68,9 @@ export function CurrencyToggle() {
                 layoutId="currency-toggle-indicator"
                 aria-hidden="true"
                 className="
+                  ask-ai-anim-fill
                   absolute inset-0 z-[-1]
-                  rounded-full
-                  bg-[hsl(var(--surface))]
-                  shadow-[0_1px_2px_rgba(15,23,42,0.08),0_0_0_0.5px_hsl(var(--rule))]
+                  rounded-full border border-brand/40
                 "
                 transition={{
                   type: "spring",
@@ -94,7 +93,7 @@ export function CurrencyToggle() {
           title={`Exchange rates from ${rates.as_of} (offline fallback). Refresh in Settings.`}
           className="
             absolute -top-0.5 -right-0.5
-            h-2 w-2 rounded-full bg-amber-500
+            h-2 w-2 rounded-full bg-[#5CD3C5]
             ring-1 ring-[hsl(var(--surface))]
           "
         />

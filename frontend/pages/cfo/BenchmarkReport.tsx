@@ -12,11 +12,10 @@
 // isn't in our catalogue yet.
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, BarChart3, Info, Layers as LayersIcon, LineChart, Loader2, ShieldAlert } from "lucide-react";
 
-import { AppShell } from "@/components/cfo/AppShell";
 import { Money } from "@/components/ui/Money";
 // 2026-05-24 — first-time `caen_not_set` gate now opens IndustryPicker too
 // (not the legacy IndustryConfirmModal). Operator feedback: the legacy
@@ -37,6 +36,7 @@ import { LearnableMetricCard } from "@/components/learning/LearnableMetricCard";
 import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
 import { benchmarkMetricToConcept } from "@/lib/learning/benchmarkMetricToConcept";
 import { getSupabase } from "@/lib/supabase";
+import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { PUBLIC_RECORDS_ENABLED } from "@/config/features";
 
 // ─── Types (mirror the backend payload from _benchmark_engine.py) ───────────
@@ -299,45 +299,32 @@ function detectClassificationMismatch(report: Report): { mismatch: boolean; reas
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
+// Module-level cache of the benchmark report, keyed by period id. Benchmark
+// fetches manually (not via React Query), so without this the report refetched
+// — and flashed the loader — on every visit. Seeding component state from this
+// cache makes re-opening /benchmark instant; the fetch still runs in the
+// background to pick up any changes.
+const reportCache = new Map<string, Report | ApiError>();
+
 export default function BenchmarkReportPage() {
-  const [params] = useSearchParams();
   const navigate = useNavigate();
-  const periodId = params.get("period");
-  const [data, setData] = useState<Report | ApiError | null>(null);
-  const [loading, setLoading] = useState(true);
-  // 2026-05-24 — fallback to active period when URL has no ?period= param.
-  // Previously: landing on /benchmark from the sidebar (which doesn't
-  // preserve the query) silently showed "No analysis open yet" even when
-  // the user had documents loaded. Now we fetch active_period_id from
-  // /api/org/periods-with-documents and canonicalize the URL.
-  const [activeLookup, setActiveLookup] = useState<"idle" | "pending" | "none">(
-    periodId ? "idle" : "pending",
+  // Resolve the active period via the shared, module-cached hook. When the URL
+  // has no ?period=, it reads the org's active period from a cache shared with
+  // the dashboard and every other page — so a no-data user hits the empty state
+  // instantly instead of waiting on a per-page /periods-with-documents fetch.
+  const { periodId, status } = useActivePeriodFallback();
+  const [data, setData] = useState<Report | ApiError | null>(
+    () => (periodId ? reportCache.get(periodId) ?? null : null),
   );
-  useEffect(() => {
-    if (periodId || activeLookup !== "pending") return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const h = await authHeaders();
-        if (!h) { if (!cancelled) setActiveLookup("none"); return; }
-        const r = await fetch(`${apiBase()}/api/org/periods-with-documents`, { headers: h });
-        if (!r.ok) { if (!cancelled) setActiveLookup("none"); return; }
-        const body = await r.json() as { active_period_id?: string | null };
-        if (cancelled) return;
-        if (body.active_period_id) {
-          // Canonicalize URL so deep links + browser back/forward stay
-          // consistent. The query param is the source of truth for the
-          // rest of this component.
-          navigate(`/benchmark?period=${encodeURIComponent(body.active_period_id)}`, { replace: true });
-        } else {
-          setActiveLookup("none");
-        }
-      } catch {
-        if (!cancelled) setActiveLookup("none");
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [periodId, activeLookup, navigate]);
+  // Only start in the "loading" (blocking spinner) state when we have NOTHING
+  // cached for this period. A cached report renders immediately, no loader.
+  const [loading, setLoading] = useState<boolean>(
+    () => !(periodId && reportCache.has(periodId)),
+  );
+  // Active-period fallback (URL canonicalization + the "no documents" verdict)
+  // is handled by useActivePeriodFallback above — its `status` drives the
+  // resolving-spinner vs empty-state branch below.
+
   // 2026-05-24 — single industry-edit surface. IndustryPicker now opens
   // for BOTH the first-time caen_not_set auto-trigger AND every user-
   // initiated change-industry button. The legacy IndustryConfirmModal
@@ -351,9 +338,18 @@ export default function BenchmarkReportPage() {
           setLoading(false);
           return;
         }
-        setLoading(true);
+        // Seed instantly from cache when we have it; only show the blocking
+        // loader on a genuine cold load. The fetch below still runs to refresh.
+        const cached = reportCache.get(periodId);
+        if (cached) {
+          setData(cached);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
         try {
           const result = await fetchReport(periodId);
+          if (result) reportCache.set(periodId, result);
           setData(result);
           // 2026-05-24 — auto-open the NEW IndustryPicker (search + grouped
           // catalog + one-click save) on first-time caen_not_set, instead
@@ -387,15 +383,16 @@ export default function BenchmarkReportPage() {
   if (!periodId) {
     // Still resolving active period from /api/org/periods-with-documents?
     // Show a quiet spinner instead of flashing the "no analysis" empty
-    // state before the redirect lands.
-    if (activeLookup === "pending") {
+    // state before the redirect lands. (When the cache already knows the org
+    // has no documents, `status` is "none" from the first paint — no spinner.)
+    if (status === "resolving") {
       return (
-        <AppShell>
+        <>
           <div className="max-w-[680px] mx-auto py-16 text-center">
             <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
             <p className="text-[13px] text-ink-soft">Loading benchmark report…</p>
           </div>
-        </AppShell>
+        </>
       );
     }
     // No financial_period in scope (resolved to none — user genuinely has
@@ -406,19 +403,20 @@ export default function BenchmarkReportPage() {
     //     references the listafirme.ro workflow that's currently hidden.
     if (PUBLIC_RECORDS_ENABLED) {
       return (
-        <AppShell>
+        <>
           <Level1BenchmarkView />
-        </AppShell>
+        </>
       );
     }
     return (
-      <AppShell>
-        <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
+      <>
+        <div className="max-w-[1080px]">
           <PageHeader
             eyebrow="Benchmark"
             title="See how your company compares to peers."
             subtitle="Upload a Romanian trial balance on the Dashboard and CFO AI will surface where you stand against industry-typical revenue, margin, leverage, and working-capital metrics."
             atmosphere
+            hero
             testid="benchmark-pre-upload-header"
           />
           <BenchmarkPreviewStrip />
@@ -431,18 +429,18 @@ export default function BenchmarkReportPage() {
             testid="benchmark-empty"
           />
         </div>
-      </AppShell>
+      </>
     );
   }
 
   if (loading) {
     return (
-      <AppShell>
+      <>
         <div className="max-w-[680px] mx-auto py-16 text-center">
           <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
           <p className="text-[13px] text-ink-soft">Loading benchmark report…</p>
         </div>
-      </AppShell>
+      </>
     );
   }
 
@@ -454,13 +452,14 @@ export default function BenchmarkReportPage() {
     // with two explicit recovery actions: retry the fetch, or fall back to
     // the Dashboard where the user can re-pick a period.
     return (
-      <AppShell>
-        <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
+      <>
+        <div className="max-w-[1080px]">
           <PageHeader
             eyebrow="Benchmark"
             title="Couldn't load the benchmark report."
             subtitle="The backend is unreachable, or your account doesn't have access to this period. Try again, or open the Dashboard to confirm the period is still loaded."
             atmosphere
+            hero
             testid="benchmark-error-header"
           />
           <EmptyState
@@ -481,7 +480,7 @@ export default function BenchmarkReportPage() {
             testid="benchmark-error-empty"
           />
         </div>
-      </AppShell>
+      </>
     );
   }
 
@@ -496,22 +495,23 @@ export default function BenchmarkReportPage() {
       // Same flag check as the `!periodId` branch above — see comment there.
       if (PUBLIC_RECORDS_ENABLED) {
         return (
-          <AppShell>
+          <>
             <Level1BenchmarkView />
-          </AppShell>
+          </>
         );
       }
       // period_not_found — referenced UUID was deleted or never existed.
       // Same visual vocabulary as the other empty states: PageHeader +
       // BenchmarkPreviewStrip + EmptyState with an explicit recovery path.
       return (
-        <AppShell>
-          <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
+        <>
+          <div className="max-w-[1080px]">
             <PageHeader
               eyebrow="Benchmark"
               title="Period not found."
               subtitle="The period referenced in the URL no longer exists. It may have been deleted, or the link is from another workspace. Open the Dashboard to pick an analysis that still exists."
               atmosphere
+              hero
               testid="benchmark-period-not-found-header"
             />
             <BenchmarkPreviewStrip />
@@ -527,7 +527,7 @@ export default function BenchmarkReportPage() {
               testid="benchmark-period-not-found-empty"
             />
           </div>
-        </AppShell>
+        </>
       );
     }
     // caen_not_set / benchmarks_not_available — the user has a period but
@@ -538,8 +538,8 @@ export default function BenchmarkReportPage() {
     // primary action and Open Dashboard as escape hatch.
     const isCaenMissing = data.error === "caen_not_set";
     return (
-      <AppShell>
-        <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
+      <>
+        <div className="max-w-[1080px]">
           <PageHeader
             eyebrow="Benchmark"
             title={isCaenMissing
@@ -549,6 +549,7 @@ export default function BenchmarkReportPage() {
               ? "Your trial balance is loaded. One more step: confirm which industry to benchmark against. We use industry to pick the right peer median, working-capital norms, and leverage bands — picking the wrong one gives misleading comparisons, so we ask once instead of guessing."
               : "The industry you've picked doesn't have benchmark data yet. Switch to a related industry that is seeded, or contact support and we'll prioritise yours."}
             atmosphere
+            hero
             testid="benchmark-needs-industry-header"
           />
           <BenchmarkPreviewStrip />
@@ -586,13 +587,13 @@ export default function BenchmarkReportPage() {
             onChanged={() => void refresh()}
           />
         )}
-      </AppShell>
+      </>
     );
   }
 
   const r = data;
   return (
-    <AppShell>
+    <>
       <section className="space-y-6 max-w-[1200px]">
         {/* 2026-05-26 (mobile fix): stack vertically on mobile so the
             CAEN industry headline doesn't get squeezed by the action
@@ -604,7 +605,7 @@ export default function BenchmarkReportPage() {
         <header data-testid="benchmark-header" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <div className="label-eyebrow">Industry benchmark · your company</div>
-            <h1 className="mt-2 font-serif text-[34px] sm:text-[40px] leading-[1.05] tracking-[-0.02em] text-ink">
+            <h1 className="mt-2 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
               {r.caen_label}
             </h1>
             <p className="mt-1 text-[12.5px] text-ink-mute inline-flex items-center gap-2 flex-wrap">
@@ -672,9 +673,9 @@ export default function BenchmarkReportPage() {
           return (
             <div
               data-testid="benchmark-mismatch-warning"
-              className="flex items-start gap-3 rounded-lg border border-amber-300/60 bg-amber-50/60 dark:bg-amber-500/[0.08] px-4 py-3"
+              className="flex items-start gap-3 rounded-lg border border-[#8FE3D9]/60 bg-[#E6F7F4]/60 dark:bg-[#5CD3C5]/[0.08] px-4 py-3"
             >
-              <AlertTriangle size={18} strokeWidth={1.75} className="text-amber-600 mt-0.5 shrink-0" />
+              <AlertTriangle size={18} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
               <div className="flex-1 text-[12.5px] leading-relaxed text-ink-soft">
                 <strong className="text-ink">Possible industry misclassification.</strong>
                 <p className="mt-1">{m.reason}</p>
@@ -682,7 +683,7 @@ export default function BenchmarkReportPage() {
                   type="button"
                   data-testid="benchmark-mismatch-cta"
                   onClick={() => setShowPicker(true)}
-                  className="mt-1.5 inline-flex items-center text-[12.5px] font-semibold text-amber-800 hover:text-amber-900 underline-offset-2 hover:underline"
+                  className="mt-1.5 inline-flex items-center text-[12.5px] font-semibold text-[#1B7268] hover:text-[#1B7268] underline-offset-2 hover:underline"
                 >
                   Change industry →
                 </button>
@@ -758,7 +759,7 @@ export default function BenchmarkReportPage() {
           onChanged={() => void refresh()}
         />
       )}
-    </AppShell>
+    </>
   );
 }
 
@@ -768,10 +769,10 @@ function DisclosureBox({ text }: { text: string }) {
   return (
     <div
       data-testid="benchmark-disclosure"
-      className="rounded-lg border-l-[3px] border-blue-400 bg-blue-50/40 dark:bg-blue-500/[0.06] px-4 py-3"
+      className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3"
     >
       <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
-        <Info size={13} strokeWidth={1.75} className="text-blue-600 mt-0.5 shrink-0" />
+        <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
         <div>
           <strong className="text-ink">Estimated typical · methodology note.</strong> {text}
         </div>
@@ -920,10 +921,10 @@ function SourceChip({
   const tier = (confidence ?? "directional").toLowerCase();
   const tierStyle =
     tier === "verified"
-      ? "border-emerald-300/50 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-500/[0.10] dark:text-emerald-300"
+      ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/60 text-[#1B7268] dark:bg-[#5CD3C5]/[0.10] dark:text-[#8FE3D9]"
       : tier === "estimated"
-      ? "border-amber-300/50 bg-amber-50/50 text-amber-800 dark:bg-amber-500/[0.10] dark:text-amber-300"
-      : "border-blue-200/60 bg-blue-50/40 text-blue-800 dark:bg-blue-500/[0.08] dark:text-blue-300";
+      ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/50 text-[#1B7268] dark:bg-[#5CD3C5]/[0.10] dark:text-[#8FE3D9]"
+      : "border-[#8FE3D9]/60 bg-[#E6F7F4]/40 text-[#1B7268] dark:bg-[#5CD3C5]/[0.08] dark:text-[#8FE3D9]";
   const tierLabel =
     tier === "verified" ? "Verified"
     : tier === "estimated" ? "Estimated"
@@ -952,9 +953,9 @@ function SourceChip({
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
   const meta: Record<Verdict, { label: string; cls: string }> = {
-    top_quartile: { label: "Top 25%", cls: "bg-emerald-100 text-emerald-800 border-emerald-200" },
-    above_median: { label: "Peste median", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    below_median: { label: "Sub median", cls: "bg-amber-50 text-amber-800 border-amber-200" },
+    top_quartile: { label: "Top 25%", cls: "bg-[#E6F7F4] text-[#1B7268] border-[#8FE3D9]" },
+    above_median: { label: "Peste median", cls: "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]" },
+    below_median: { label: "Sub median", cls: "bg-[#E6F7F4] text-[#1B7268] border-[#8FE3D9]" },
     bottom_quartile: { label: "Sub 25%", cls: "bg-red-50 text-red-800 border-red-200" },
     not_available: { label: "N/A", cls: "bg-stone-100 text-ink-mute border-rule" },
   };
@@ -976,10 +977,10 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
 // translated at render time via t('benchmarkPage.peersTable.tiers.<tier>'),
 // not baked in here, so EN→RO/DE/FR/ES toggle re-paints the badge text.
 const TIER_META: Record<DeepPeer["tier"], { cls: string }> = {
-  leader:       { cls: "bg-emerald-700 text-white" },
-  strong:       { cls: "bg-blue-700 text-white" },
+  leader:       { cls: "bg-[#2AA89B] text-white" },
+  strong:       { cls: "bg-[#2AA89B] text-white" },
   median:       { cls: "bg-stone-500 text-white" },
-  thin_margin:  { cls: "bg-amber-500 text-white" },
+  thin_margin:  { cls: "bg-[#5CD3C5] text-white" },
   distressed:   { cls: "bg-red-700 text-white" },
   self:         { cls: "bg-ink text-paper" },
 };
@@ -1017,7 +1018,7 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
     <section data-testid="benchmark-deep-peers" className="space-y-3">
       <h2 className="font-serif text-[20px] text-ink">{t("benchmarkPage.peersTable.heading")}</h2>
       {deep.leader_company && (
-        <div className="rounded-lg border-l-[3px] border-blue-400 bg-blue-50/40 dark:bg-blue-500/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
+        <div className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
           <strong className="text-ink">{t("benchmarkPage.peersTable.leaderIntro")}</strong>{" "}
           {deep.leader_company}
           {deep.leader_year ? (
@@ -1054,7 +1055,7 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
           <tbody>
             {deep.peers.map((p, idx) => {
               const positive = (p.net_margin_pct ?? 0) >= 0;
-              const profitColor = positive ? "text-emerald-700" : "text-red-700";
+              const profitColor = positive ? "text-[#2AA89B]" : "text-red-700";
               const isSelf = p.tier === "self";
               const isLeader = p.tier === "leader";
               // Self-row specialization is set by backend to a localized
@@ -1068,7 +1069,7 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
                 <tr
                   key={`${p.company_name}-${p.fiscal_year}-${idx}`}
                   data-testid={`peer-row-${p.tier}`}
-                  className={`border-t border-rule/60 ${isLeader ? "bg-amber-50/30" : isSelf ? "bg-ink/[0.03] font-medium" : ""}`}
+                  className={`border-t border-rule/60 ${isLeader ? "bg-[#E6F7F4]/30" : isSelf ? "bg-ink/[0.03] font-medium" : ""}`}
                 >
                   <td className="px-4 py-2.5">{p.company_name}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-ink-mute">{p.fiscal_year ?? "—"}</td>
@@ -1114,7 +1115,7 @@ function DeepLeaderWhySection({ deep }: { deep: DeepReport }) {
           <div
             key={reason.rank}
             data-testid={`leader-reason-${reason.rank}`}
-            className="rounded-xl border-l-[3px] border-amber-400 bg-surface px-4 py-3.5"
+            className="rounded-xl border-l-[3px] border-[#5CD3C5] bg-surface px-4 py-3.5"
           >
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <strong className="text-[13.5px] text-ink leading-tight">
@@ -1155,7 +1156,7 @@ function DeepGapSection({ deep }: { deep: DeepReport }) {
               const fmt = (v: number): string =>
                 row.unit === "pct" ? fmtPct1(v) : fmtRatio2(v);
               const arrow = row.gap >= 0 ? "↑" : "↓";
-              const gapColor = row.favorable ? "text-emerald-700" : "text-red-700";
+              const gapColor = row.favorable ? "text-[#2AA89B]" : "text-red-700";
               return (
                 <tr key={row.key} className="border-t border-rule/60">
                   <td className="px-4 py-2.5 text-ink">{row.label}</td>
@@ -1178,8 +1179,8 @@ function DeepTargetTiersSection({ deep }: { deep: DeepReport }) {
   const t = deep.target_tiers;
   if (!t) return null;
   const rows: Array<{ tier: TargetTier; bg: string; icon: string }> = [];
-  if (t.aspirational) rows.push({ tier: t.aspirational, bg: "bg-amber-50/60", icon: "🎯" });
-  if (t.realistic) rows.push({ tier: t.realistic, bg: "bg-emerald-50/60", icon: "✓" });
+  if (t.aspirational) rows.push({ tier: t.aspirational, bg: "bg-[#E6F7F4]/60", icon: "🎯" });
+  if (t.realistic) rows.push({ tier: t.realistic, bg: "bg-[#E6F7F4]/60", icon: "✓" });
   if (t.minimum_viable) rows.push({ tier: t.minimum_viable, bg: "bg-red-50/40", icon: "⚠" });
   return (
     <section data-testid="benchmark-deep-tiers" className="space-y-3">
@@ -1209,7 +1210,7 @@ function DeepTargetTiersSection({ deep }: { deep: DeepReport }) {
           </tbody>
         </table>
       </div>
-      <div className="rounded-lg border-l-[3px] border-amber-400 bg-amber-50/30 dark:bg-amber-500/[0.06] px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
+      <div className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.06] px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
         <strong className="text-ink">How to read the table:</strong>{" "}
         Aspirational is the top-quartile threshold (10-15% of the industry); it requires the kind of
         structural advantages described above plus 5-10+ years of execution. Realistic is the
@@ -1288,7 +1289,7 @@ function DeepMarketContextSection({ text }: { text: string }) {
   return (
     <section data-testid="benchmark-deep-market" className="space-y-2">
       <h2 className="font-serif text-[20px] text-ink">8. Romania market context</h2>
-      <div className="rounded-lg border-l-[3px] border-blue-400 bg-blue-50/40 dark:bg-blue-500/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
+      <div className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
         {text}
       </div>
     </section>
@@ -1338,14 +1339,21 @@ function BenchmarkPreviewStrip() {
               px-4 py-4
             "
           >
-            <div className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-brand-tint text-brand-d ring-1 ring-brand/15">
-              <Icon size={14} strokeWidth={1.75} />
+            <div className="flex items-center gap-2.5">
+              <div className="inline-flex shrink-0 items-center justify-center h-8 w-8 rounded-xl bg-brand-tint text-brand-d ring-1 ring-brand/15">
+                <Icon size={14} strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-ink leading-tight">{it.title}</div>
+                <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                  {it.eyebrow}
+                </div>
+              </div>
             </div>
-            <div className="mt-2 text-[10px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-              {it.eyebrow}
-            </div>
-            <div className="mt-1 text-[14px] font-medium text-ink">{it.title}</div>
-            <p className="mt-1 text-[12px] text-ink-soft leading-relaxed">{it.body}</p>
+            {/* Divider with edges faded to transparent — separates the
+                title/eyebrow header from the descriptive body. */}
+            <div className="my-2.5 h-px bg-gradient-to-r from-transparent via-rule-strong to-transparent" />
+            <p className="text-[12px] text-ink-soft leading-relaxed">{it.body}</p>
           </div>
         );
       })}

@@ -863,7 +863,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
         <span className="truncate flex-1 min-w-0">{doc.display_name}</span>
       )}
       {!renaming && doc.status !== "analyzed" && (
-        <span className={`text-[9.5px] uppercase tracking-[0.06em] font-medium shrink-0 ${doc.status === "failed" ? "text-red-700" : "text-amber-700"}`}>
+        <span className={`text-[9.5px] uppercase tracking-[0.06em] font-medium shrink-0 ${doc.status === "failed" ? "text-red-700" : "text-[#2AA89B]"}`}>
           · {doc.status}
         </span>
       )}

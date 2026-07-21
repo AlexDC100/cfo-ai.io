@@ -77,14 +77,14 @@ function RiskRow({ risk, ordinal }: { risk: RiskInventoryItem; ordinal: number }
   const sev = risk.severity;
   const sevColor =
     sev === "critical" ? "border-red-300 bg-red-50/60 dark:bg-red-500/[0.08]"
-    : sev === "high"   ? "border-orange-300 bg-orange-50/60 dark:bg-orange-500/[0.08]"
-    : sev === "medium" ? "border-amber-300 bg-amber-50/40 dark:bg-amber-500/[0.06]"
-    : "border-blue-200 bg-blue-50/40 dark:bg-blue-500/[0.06]";
+    : sev === "high"   ? "border-[#8FE3D9] bg-[#E6F7F4]/60 dark:bg-[#5CD3C5]/[0.08]"
+    : sev === "medium" ? "border-[#8FE3D9] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
+    : "border-[#8FE3D9] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]";
   const sevText =
     sev === "critical" ? "text-red-800 dark:text-red-300"
-    : sev === "high"   ? "text-orange-800 dark:text-orange-300"
-    : sev === "medium" ? "text-amber-800 dark:text-amber-300"
-    : "text-blue-800 dark:text-blue-300";
+    : sev === "high"   ? "text-[#1B7268] dark:text-[#8FE3D9]"
+    : sev === "medium" ? "text-[#1B7268] dark:text-[#8FE3D9]"
+    : "text-[#1B7268] dark:text-[#8FE3D9]";
   const SevIcon = sev === "critical" || sev === "high" ? AlertTriangle
     : sev === "medium" ? AlertCircle
     : Info;

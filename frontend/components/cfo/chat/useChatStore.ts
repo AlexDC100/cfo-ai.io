@@ -14,7 +14,7 @@
 // In practice this is one tab, but it costs nothing.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CHAT_STORAGE_KEY, type ChatConversation, type ChatMessage } from "./types";
+import { CHAT_STORAGE_KEY, CHAT_CURRENT_KEY, type ChatConversation, type ChatMessage } from "./types";
 
 // ── Storage helpers ────────────────────────────────────────────────
 function safeReadAll(): ChatConversation[] {
@@ -72,16 +72,69 @@ function safeWriteAll(conversations: ChatConversation[]): void {
   }
 }
 
+// The id the user last had open. Persisted so switching tabs (which
+// unmounts /chat) and returning restores the SAME conversation rather than
+// snapping to the most-recently-updated one.
+function safeReadCurrentId(all: ChatConversation[]): string | null {
+  const fallback = all.length > 0 ? all[0].id : null;
+  if (typeof window === "undefined") return fallback;
+  try {
+    const saved = window.localStorage.getItem(CHAT_CURRENT_KEY);
+    // Only honor it if it still points at a conversation that exists.
+    if (saved && all.some((c) => c.id === saved)) return saved;
+  } catch {
+    /* private mode — fall through */
+  }
+  return fallback;
+}
+
+function safeWriteCurrentId(id: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (id) window.localStorage.setItem(CHAT_CURRENT_KEY, id);
+    else window.localStorage.removeItem(CHAT_CURRENT_KEY);
+  } catch {
+    /* private mode — ignore */
+  }
+}
+
 // ── Title derivation ──────────────────────────────────────────────
-const TITLE_MAX = 56;
+// Produce a concise, Claude-Code-style label from the first user message:
+// strip a leading filler phrase ("can you…", "what is…"), capitalize, drop
+// trailing punctuation, and cap on a word boundary. Deterministic — same
+// message always yields the same title (no LLM round-trip needed).
+const TITLE_MAX = 48;
+const LEADING_FILLERS = [
+  "can you", "could you", "would you", "please", "i want to", "i need to",
+  "i'd like to", "i would like to", "help me", "tell me about", "tell me",
+  "what is", "what's", "what are", "whats", "how do i", "how can i",
+  "how do you", "how to", "give me", "show me", "explain", "describe",
+  "let's", "lets", "do a", "run a", "generate a", "create a", "write a",
+];
 function deriveTitle(message: string): string {
-  const trimmed = message.replace(/\s+/g, " ").trim();
-  if (!trimmed) return "New conversation";
-  if (trimmed.length <= TITLE_MAX) return trimmed;
+  const base = message.replace(/\s+/g, " ").trim();
+  if (!base) return "New conversation";
+
+  // Strip a leading filler phrase for a punchier title.
+  let t = base;
+  const lower = t.toLowerCase();
+  for (const f of LEADING_FILLERS) {
+    if (lower.startsWith(f + " ")) { t = t.slice(f.length).trim(); break; }
+  }
+  // Remove leftover leading punctuation, then fall back if we stripped it all.
+  t = t.replace(/^[\s:,.\-–—]+/, "");
+  if (!t) t = base;
+
+  // Capitalize the first character; trim trailing punctuation.
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  t = t.replace(/[?.!,;:\s]+$/, "");
+  if (!t) return "New conversation";
+
+  if (t.length <= TITLE_MAX) return t;
   // Cut on a word boundary near the limit.
-  const slice = trimmed.slice(0, TITLE_MAX);
+  const slice = t.slice(0, TITLE_MAX);
   const lastSpace = slice.lastIndexOf(" ");
-  return (lastSpace > 24 ? slice.slice(0, lastSpace) : slice).trim() + "…";
+  return (lastSpace > 20 ? slice.slice(0, lastSpace) : slice).trim() + "…";
 }
 
 // ── ID generator ──────────────────────────────────────────────────
@@ -131,10 +184,7 @@ export interface ChatStore {
 
 export function useChatStore(): ChatStore {
   const [conversations, setConversations] = useState<ChatConversation[]>(() => safeReadAll());
-  const [currentId, setCurrentId] = useState<string | null>(() => {
-    const all = safeReadAll();
-    return all.length > 0 ? all[0].id : null;
-  });
+  const [currentId, setCurrentId] = useState<string | null>(() => safeReadCurrentId(safeReadAll()));
 
   // Persist on every change. Use a ref-guarded effect so we don't write
   // back what we just read on first render.
@@ -143,6 +193,13 @@ export function useChatStore(): ChatStore {
     if (!initialised.current) { initialised.current = true; return; }
     safeWriteAll(conversations);
   }, [conversations]);
+
+  // Remember which conversation is open so a tab switch (chat unmounts)
+  // returns to the same one. Runs on mount too, which is harmless — it
+  // just re-affirms the restored id.
+  useEffect(() => {
+    safeWriteCurrentId(currentId);
+  }, [currentId]);
 
   // Sync across tabs.
   useEffect(() => {
@@ -160,6 +217,21 @@ export function useChatStore(): ChatStore {
   );
 
   const createNew: ChatStore["createNew"] = useCallback((ctx) => {
+    // Don't spawn a duplicate blank chat — if an empty conversation already
+    // exists, just focus it (matches ChatGPT/Claude: "New chat" is a no-op
+    // when you're already sitting on a fresh, unused conversation).
+    //
+    // DEV-ONLY escape hatch: on localhost (`import.meta.env.DEV`) we skip this
+    // guard so you can spin up multiple empty chats while testing. The check is
+    // compiled out of production builds, so a deploy always keeps the guard.
+    if (!import.meta.env.DEV) {
+      const existingEmpty = conversations.find((c) => c.messages.length === 0);
+      if (existingEmpty) {
+        setCurrentId(existingEmpty.id);
+        return existingEmpty.id;
+      }
+    }
+
     const id = newId();
     const now = Date.now();
     const conv: ChatConversation = {

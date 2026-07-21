@@ -19,6 +19,7 @@ import {
 import type { Session, User, AuthError } from "@supabase/supabase-js";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
+import { clearDataPresence } from "@/lib/dataPresence";
 import {
   isPublicTestMode,
   TEST_USER_ID,
@@ -174,10 +175,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // hour when Supabase rotates the access_token.
       if (priorUserId !== null && priorUserId !== nextUserId) {
         queryClient.clear();
+        // The data-presence verdicts (period + SKU) live outside React Query,
+        // so clear them in lockstep — otherwise the next user inherits the
+        // prior user's "no data" / period-id verdict.
+        clearDataPresence();
       } else if (event === "SIGNED_OUT" && priorUserId !== null) {
         // Defensive belt-and-braces: SIGNED_OUT with a prior user id should
         // always clear, even if the user-id-equality check somehow missed.
         queryClient.clear();
+        clearDataPresence();
       }
       priorUserId = nextUserId;
 

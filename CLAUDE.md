@@ -459,6 +459,60 @@ The helper lives in `scripts/_pgrst_visibility.py` (extracted from `run_3b5_back
 
 ---
 
+## 15. Frontend work log — Ask CFO AI chat surface (2026-07-21)
+
+> Frontend-only UI work (Vite bundle, no engine/backend impact). Recorded here
+> per the owner's request to track what changed since the last CLAUDE.md update
+> (§14 protocols were the prior tail, dated 2026-05-26). The engine deploy
+> protocol (§14) does **not** apply to any of this — every change ships through
+> `docker compose build frontend`; there is no `docker cp` shortcut for FE code.
+
+**Scope:** redesign of the `/chat` "Ask CFO AI" surface and the app chrome
+around it. All files under `frontend/`:
+
+- **`pages/cfo/Chat.tsx` + `components/cfo/chat/CFOChatShell.tsx`** — full-bleed
+  chat layout. Removed the "Ask CFO AI / Ask about your company, documents,
+  strategy, or finance." page header. The conversation now uses the full width
+  and full height and extends up **under** the translucent top header (the chat
+  wrapper cancels AppShell's `pt-16` and runs a full `100dvh`; the sidebar and
+  message list carry matching top insets so their content clears the header).
+- **`components/cfo/chat/CFOComposer.tsx`** — the composer floats as a
+  transparent overlay pinned to the bottom (input field `bg-transparent` with a
+  `bg → transparent` fade behind it); the conversation scrolls underneath it.
+  Send button recolored from `bg-ink` to the brand accent (`bg-brand`).
+- **`components/cfo/chat/CFOMessageList.tsx`** — `topInset` / `bottomInset` props
+  pad the first/last message clear of the overlaid header/composer. App-themed
+  thin scrollbar (`.chat-scroll`, defined in `index.css`) that hugs the screen's
+  right edge; the `/chat` route opts out of AppShell's `max-w-[1760px]` clamp so
+  the scrollbar reaches the absolute right edge. The bottom fade overlay stops
+  short of the scrollbar gutter (`right-[10px]`) so the scrollbar stays visible.
+- **Context grounding** ("Grounded in … / No workspace loaded — open-domain
+  mode") moved into a pill directly above the composer.
+- **`components/cfo/chat/CFOMessageBubble.tsx` + `CFOTypingIndicator.tsx`** —
+  removed the Sparkles badge before the "CFO AI" eyebrow label.
+- **`components/cfo/chat/CFOHistorySidebar.tsx`** — background removed; the "⋯"
+  dropdown (rename/delete) replaced by a single hover **delete** button; "New
+  chat" is now an **icon-only** brand-accent button beside the search field; the
+  "Older" bucket label was dropped.
+- **`components/cfo/chat/useChatStore.ts`** — `deriveTitle()` now generates
+  concise, Claude-Code-style conversation titles from the first message (strips
+  leading filler like "can you…"/"what is…", capitalizes, trims trailing
+  punctuation, caps on a word boundary at 48 chars).
+- **`components/cfo/TopHeader.tsx`** — navbar restyled toward the landing-page
+  aesthetic: translucent glass (`surface/0.55` + `backdrop-blur-xl`),
+  mono/uppercase workspace tagline, "Ask CFO AI" pill uses the teal
+  `bg-gradient-cfo` with glow, "Sign in" mono-uppercased. Removed a duplicate
+  "CFO AI" wordmark (the `<Logo>` component already renders one).
+- **`components/cfo/Sidebar.tsx`** — removed the "CFO AI" mark + label from the
+  workspace-identity header of the main left nav rail.
+
+**Note on CLAUDE.md files:** the repo has two — this root `CLAUDE.md` (the
+financial-analysis operating manual) and `files/CLAUDE.md` (a *separate* doc:
+"SKU Decision Engine — Scandia Trading Division"). They are **not** duplicates,
+so they were not merged. This work log lives in the root file only.
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*

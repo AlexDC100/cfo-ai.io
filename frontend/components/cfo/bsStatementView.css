@@ -108,7 +108,7 @@
 }
 .bs-row[data-learnable-row="true"]:hover,
 .bs-total-row[data-learnable-row="true"]:hover {
-  background: hsl(165 75% 55% / 0.04);
+  background: hsl(173 57% 55% / 0.04);
 }
 :root[data-learning-mode="off"] .bs-row[data-learnable-row="true"]:hover,
 :root[data-learning-mode="off"] .bs-total-row[data-learnable-row="true"]:hover {

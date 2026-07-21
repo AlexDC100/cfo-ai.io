@@ -347,11 +347,11 @@ function MenuRow({
       onClick={onClick}
       className={cn(
         "w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-bg-2/60 transition-colors min-h-[40px]",
-        active && "bg-[hsl(165,75%,55%)]/[0.10]",
+        active && "bg-[hsl(173,57%,55%)]/[0.10]",
       )}
     >
       <span className="mt-0.5 text-ink-mute shrink-0">
-        {active ? <Check className="w-3.5 h-3.5 text-[hsl(165,80%,34%)]" /> : icon}
+        {active ? <Check className="w-3.5 h-3.5 text-[hsl(173,57%,34%)]" /> : icon}
       </span>
       <span className="min-w-0">
         <span className={cn("block text-[12.5px] truncate", active ? "text-ink font-semibold" : "text-ink-soft")}>

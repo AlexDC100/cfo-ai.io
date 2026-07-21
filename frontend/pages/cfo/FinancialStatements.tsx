@@ -24,7 +24,6 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
-import { AppShell } from "@/components/cfo/AppShell";
 import { Money } from "@/components/ui/Money";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
@@ -43,10 +42,6 @@ import { DemoBanner } from "@/components/dashboard/DemoBanner";
 import { buildMultiYearSeries } from "@/lib/learning/multiPeriodSeries";
 import { DEMO_SAMPLE_ID } from "@/lib/demo/demoCompany";
 import type { Currency } from "@/lib/rates";
-// First-class Public Company Intelligence module on the empty-state dashboard.
-// Renders as a full premium module card (same weight as Trial Balances)
-// rather than a small CTA. Clicks navigate to /public-companies (the hub).
-import { PublicCompaniesLandingCard } from "@/components/public-companies/PublicCompaniesLandingCard";
 import { useDisplayCurrency, useRates } from "@/stores/currency";
 import { convertFromTo } from "@/lib/money";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
@@ -96,6 +91,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   FileSpreadsheet,
   FileText,
   Info,
@@ -105,7 +101,9 @@ import {
   Sparkles,
   TrendingUp,
   UploadCloud,
+  X,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   computeRatios,
   deriveTotals,
@@ -143,6 +141,7 @@ import {
   useUploadStore,
 } from "@/lib/uploadStore";
 import { InlineErrorBoundary } from "@/components/cfo/InlineErrorBoundary";
+import { CouncilVisualizer } from "@/components/cfo/CouncilVisualizer";
 import { StatementNotes } from "@/components/cfo/StatementNotes";
 import { ValuationSection } from "@/components/cfo/ValuationSection";
 import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
@@ -151,7 +150,6 @@ import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliation
 import { SourceQualityBanner } from "@/components/cfo/SourceQualityBanner";
 import { DocsToggle, useDocsCount } from "@/components/cfo/DocsPanel";
 import { PublicRecordsQuickCard } from "@/components/cfo/PublicRecordsQuickCard";
-import { DocumentSwitcher } from "@/components/cfo/DocumentSwitcher";
 import { PUBLIC_RECORDS_ENABLED } from "@/config/features";
 import {
   allTabs,
@@ -575,6 +573,13 @@ export default function FinancialStatements() {
     }
   }, [hasPeriodLoaded, uploadInFlight?.status]);
 
+  // Files staged for scanning. Choosing/dropping files ADDS them here;
+  // nothing is uploaded until the user clicks "Start scan" (no auto-scan).
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [scanning, setScanning] = useState(false);
+
+  // Stage one file (budget decks route straight to Variance; oversize is
+  // rejected). Does NOT upload — that happens on Start scan via scanOneFile.
   async function onFileChosen(file: File) {
     // F6.0.1c — Budget-deck interception. A PowerPoint / budget workbook is
     // NOT a trial balance and must not go to the engine extraction pipeline.
@@ -600,7 +605,6 @@ export default function FinancialStatements() {
       return;
     }
 
-    setUploadName(file.name);
     const MAX_BYTES = 25 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
       toast({
@@ -610,122 +614,168 @@ export default function FinancialStatements() {
       });
       return;
     }
-    startUpload({ docId: "", filename: file.name, status: "queued" });
-    const { uploadDocument, subscribeToDocumentStatus, getSupabase } =
-      await import("@/lib/supabase");
-    // Dashboard surface = financial-statement documents (trial balance,
-    // P&L, balance sheet). Mirror Products.tsx's explicit `scope: "sku"`
-    // pattern so the call-site advertises the intent — no relying on
-    // uploadDocument's default. Matches the "scope set at upload time,
-    // not inferred" rule.
-    const { row, error } = await uploadDocument(file, { scope: "financial" });
-    if (!row) {
-      clearUpload();
-      toast({
-        title: "Upload failed",
-        description: error ?? "Unknown error.",
-        variant: "destructive",
-      });
-      return;
-    }
-    startUpload({ docId: row.id, filename: file.name, status: "queued" });
-    // Pricing V3 — `enqueuePipeline` now returns a discriminated union.
-    // queued                → start polling status.
-    // extra_doc_required    → 402; the useUploadEnqueue hook opens the
-    //                         confirm dialog and re-enqueues on confirm.
-    //                         Here we treat any non-queued outcome as
-    //                         "don't start polling".
-    // quota_blocked         → 429; user is over cap with no extras path.
-    // transport_failed      → backend down / network error.
-    const enq = await uploadEnqueue.enqueue(row.id);
-    if (enq.kind !== "queued") {
-      const reason =
-        enq.kind === "quota_blocked"
-          ? enq.message
-          : enq.kind === "transport_failed"
-          ? enq.message
-          : "Upload was cancelled.";
-      patchUpload({ status: "failed", error: reason });
-      return;
-    }
-    const unsub = subscribeToDocumentStatus(row.id, (next) => {
-      patchUpload({ status: next.status, error: next.error, periodId: next.period_id ?? null });
-      if (next.status === "analyzed") {
-        unsub();
-        void (async () => {
-          // Three terminal outcomes for "analyzed":
-          //   1. Public-records summary (listafirme/termene/firme.info)
-          //      → no period; route to /multi-year-history.
-          //   2. Financial doc with a period_id → /dashboard?period=<id>.
-          //   3. Analyzed with no period_id and not a public-records doc
-          //      → degraded; show toast + stay on this page (empty state).
-          //
-          // We probe for case 1 by hitting the public-records endpoint.
-          // DB CHECK constraint on documents.detected_type doesn't accept
-          // `public_records_summary`, so we can't rely on that column —
-          // the briefing.kind in sku_analyses is the canonical signal,
-          // surfaced via /api/public-records/by-document/{id}.
-          if (!next.period_id) {
-            try {
-              const sb = getSupabase();
-              const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
-              const token = session?.session?.access_token;
-              const apiUrl =
-                (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
-              const r = await fetch(`${apiUrl}/api/public-records/by-document/${row.id}`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-              });
-              if (r.ok) {
-                toast({
-                  title: "Multi-year history ready",
-                  description: `${file.name} parsed — view the trends.`,
-                });
-                window.location.href = `/multi-year-history?doc=${row.id}`;
-                return;
-              }
-            } catch { /* fall through */ }
-          }
-          if (next.period_id) {
-            toast({
-              title: "Analysis ready",
-              description: `${file.name} loaded into Dashboard.`,
-            });
-            setSearchParams((prev) => {
-              const sp = new URLSearchParams(prev);
-              sp.set("period", next.period_id!);
-              return sp;
-            }, { replace: true });
-          } else {
-            toast({
-              title: "Analysis complete",
-              description: `${file.name} processed but no financial period was created. The document type may not be supported.`,
-            });
-          }
-          // F3-FE-FIX-1 (root cause B): clear uploadInFlight once analysis
-          // terminates and we've handed off to State B (or toasted a
-          // degraded outcome). Without this, the loader stayed mounted
-          // with status="analyzed" — invisible in State B but ready to
-          // re-appear the moment statements cleared (Reset, error, etc.),
-          // showing "Analyzing your document… Step 6 of 6 · Analysis
-          // ready" indefinitely.
+    // Stage the file — do NOT upload yet (dedupe by name + size). The scan
+    // starts only when the user clicks "Start scan".
+    setStagedFiles((prev) =>
+      prev.some((f) => f.name === file.name && f.size === file.size) ? prev : [...prev, file],
+    );
+  }
+
+  function discardStagedFile(index: number) {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function dismissAllStaged() {
+    setStagedFiles([]);
+  }
+
+  // Upload + enqueue + await terminal status for ONE staged file. Hand-off to
+  // State B (navigation / toast) happens only when navigateOnDone — the last
+  // file in a batch; earlier files are processed silently, periods persist.
+  function scanOneFile(file: File, navigateOnDone: boolean): Promise<void> {
+    return new Promise<void>((resolve) => {
+      void (async () => {
+        setUploadName(file.name);
+        startUpload({ docId: "", filename: file.name, status: "queued" });
+        const { uploadDocument, subscribeToDocumentStatus, getSupabase } =
+          await import("@/lib/supabase");
+        const { row, error } = await uploadDocument(file, { scope: "financial" });
+        if (!row) {
           clearUpload();
-        })();
-      }
-      if (next.status === "failed") {
-        unsub();
-        toast({
-          title: "Analysis failed",
-          description: next.error ?? "Unknown error.",
-          variant: "destructive",
+          toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
+          resolve();
+          return;
+        }
+        startUpload({ docId: row.id, filename: file.name, status: "queued" });
+        const enq = await uploadEnqueue.enqueue(row.id);
+        if (enq.kind !== "queued") {
+          const reason =
+            enq.kind === "quota_blocked" ? enq.message
+            : enq.kind === "transport_failed" ? enq.message
+            : "Upload was cancelled.";
+          patchUpload({ status: "failed", error: reason });
+          resolve();
+          return;
+        }
+        const unsub = subscribeToDocumentStatus(row.id, (next) => {
+          patchUpload({ status: next.status, error: next.error, periodId: next.period_id ?? null });
+          if (next.status === "analyzed") {
+            unsub();
+            void (async () => {
+              if (navigateOnDone) {
+                // Public-records summary → route to multi-year history.
+                if (!next.period_id) {
+                  try {
+                    const sb = getSupabase();
+                    const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
+                    const token = session?.session?.access_token;
+                    const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+                    const r = await fetch(`${apiUrl}/api/public-records/by-document/${row.id}`, {
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    });
+                    if (r.ok) {
+                      toast({ title: "Multi-year history ready", description: `${file.name} parsed — view the trends.` });
+                      window.location.href = `/multi-year-history?doc=${row.id}`;
+                      return;
+                    }
+                  } catch { /* fall through */ }
+                }
+                if (next.period_id) {
+                  toast({ title: "Analysis ready", description: `${file.name} loaded into Dashboard.` });
+                  setSearchParams((prev) => {
+                    const sp = new URLSearchParams(prev);
+                    sp.set("period", next.period_id!);
+                    return sp;
+                  }, { replace: true });
+                } else {
+                  toast({ title: "Analysis complete", description: `${file.name} processed but no financial period was created. The document type may not be supported.` });
+                }
+              }
+              clearUpload();
+              resolve();
+            })();
+          }
+          if (next.status === "failed") {
+            unsub();
+            toast({ title: "Analysis failed", description: next.error ?? "Unknown error.", variant: "destructive" });
+            resolve();
+          }
         });
-      }
+      })();
     });
+  }
+
+  // Scan every staged file sequentially; the last one navigates into its
+  // result. Clears the staged list when the batch finishes.
+  async function startScan() {
+    if (scanning || stagedFiles.length === 0) return;
+    setScanning(true);
+    const batch = [...stagedFiles];
+    for (let i = 0; i < batch.length; i++) {
+      await scanOneFile(batch[i], i === batch.length - 1);
+    }
+    setStagedFiles([]);
+    setScanning(false);
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) void onFileChosen(file);
+    Array.from(e.dataTransfer.files ?? []).forEach((f) => void onFileChosen(f));
+  }
+
+  // DEV-only: simulate the upload → analysis pipeline without a real file
+  // or backend call. Drives the global upload store through the same
+  // DocumentStatus sequence the real pipeline emits (queued → extracting →
+  // mapping → computing → narrating → analyzed), so UploadProgressCard
+  // animates end-to-end exactly as it would for a genuine upload. The
+  // existing auto-clear effect (analyzed + !hasPeriodLoaded) resets the
+  // card back to the dropzone when the walk completes. Never ships to
+  // production — gated behind import.meta.env.DEV at the call site.
+  async function simulateFileProcess() {
+    if (uploadInFlight) return; // don't clobber a real in-flight upload
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const steps: Array<import("@/lib/supabase").DocumentStatus> = [
+      "extracting", "mapping", "computing", "narrating", "analyzed",
+    ];
+    startUpload({
+      docId: `debug-${Date.now()}`,
+      filename: "debug_simulation.xlsx",
+      status: "queued",
+    });
+    await sleep(900);
+    for (const status of steps) {
+      patchUpload({ status });
+      await sleep(status === "analyzed" ? 500 : 1300);
+    }
+    // Dismiss the progress card. In the empty state the auto-clear effect
+    // (analyzed + !hasPeriodLoaded) already fires; in State B (period
+    // loaded) it does not, so clear explicitly to reset either way.
+    await sleep(1000);
+    clearUpload();
+  }
+
+  // DEV-only: reset the dashboard back to its empty state for testing.
+  // Deliberately LOCAL-ONLY — unlike resetWorkspace() it does NOT delete
+  // the period server-side and shows no confirm dialog. It wipes local
+  // component state + the upload store and flips the URL to empty=1 so the
+  // dashboard returns to the upload/sample picker instantly. Pairs with
+  // simulateFileProcess for quick manual test cycles.
+  function debugResetData() {
+    clearUpload();
+    setStatements(null);
+    setInvoices(null);
+    setAvailableTypes(new Set());
+    setActiveSampleId(null);
+    setUploadName(null);
+    setParseSource(null);
+    setSearchParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      sp.delete("tab");
+      sp.delete("period");
+      sp.set("empty", "1");
+      return sp;
+    }, { replace: true });
+    toast({ title: "Debug: data reset", description: "Local workspace cleared (no server delete)." });
   }
 
   // F5.0 Phase 1.5 — Reporting metrics snapshot for LearnableNumber
@@ -753,7 +803,7 @@ export default function FinancialStatements() {
       // from staticSourceAccounts().
       lineItems={remotePeriod.lineItems ?? []}
     >
-    <AppShell>
+    <>
     {/* F5.0 Step 3 (CFO AI Learn) — first-run coach. Renders only for
         guided-mode users who haven't dismissed yet. "Show me" deep-links
         to /financials → Balance Sheet tab where the page guide auto-opens. */}
@@ -799,14 +849,13 @@ export default function FinancialStatements() {
       <input
         ref={fileRef}
         type="file"
+        multiple
         accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif,.pptx,.ppt,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
         className="hidden"
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) {
-            void onFileChosen(f);
-            e.target.value = "";  // allow re-picking the same file later
-          }
+          const files = Array.from(e.target.files ?? []);
+          files.forEach((f) => void onFileChosen(f));
+          e.target.value = "";  // allow re-picking the same file later
         }}
       />
 
@@ -819,49 +868,6 @@ export default function FinancialStatements() {
           translucent enough that the user can still see the dashboard
           re-bucketing in the background, but the upload card commands
           the eye. */}
-      {hasPeriodLoaded && uploadInFlight && (
-        <div
-          aria-live="polite"
-          role="status"
-          data-testid="upload-progress-overlay"
-          className="
-            fixed inset-0 z-50
-            flex items-center justify-center
-            p-4
-            bg-bg-2/40 backdrop-blur-[3px]
-            animate-in fade-in duration-200
-          "
-        >
-          <div
-            className="
-              w-full max-w-[560px]
-              shadow-[0_24px_64px_-12px_rgba(0,0,0,0.35)]
-              animate-in zoom-in-95 fade-in duration-200
-            "
-          >
-            {/* P0-FIX (2026-06-01) — granular boundary around the
-                progress card render. Previous behaviour: a render
-                crash here (stale-statements field access, malformed
-                status string from the BE during a fast transition,
-                etc.) propagated up to RouteErrorBoundary and took the
-                entire dashboard down to "This page hit an error." See
-                RouteErrorBoundary.tsx comment block — the team
-                already documented this class of bug; this boundary is
-                the surgical containment.
-                onReset clears the persisted upload state via
-                clearUpload(), which is the same recovery the
-                RouteErrorBoundary's "Clear & restart" button performs
-                — except in-place so the rest of the page stays alive. */}
-            <InlineErrorBoundary
-              tag="UploadProgressOverlay"
-              label="Upload progress display crashed. Your file is still being processed on the server — click Reset to dismiss this and let the dashboard refresh on its own."
-              onReset={() => clearUpload()}
-            >
-              <UploadProgressCard inflight={uploadInFlight} statements={statements} />
-            </InlineErrorBoundary>
-          </div>
-        </div>
-      )}
 
       <TooltipProvider delayDuration={150}>
         {hasPeriodLoaded ? (
@@ -872,25 +878,41 @@ export default function FinancialStatements() {
             onPickSample={pickSample}
             onTriggerFile={() => fileRef.current?.click()}
             onReset={resetWorkspace}
+            onSimulate={simulateFileProcess}
+            onDebugReset={debugResetData}
           />
         ) : (
           <section className="mb-10 transition-opacity duration-200 relative">
-            {/* Soft atmospheric brand glow behind the hero — visual
-             *  texture only, no information. Sits behind the headline. */}
-            <div aria-hidden className="pointer-events-none absolute -top-12 -left-12 h-72 w-72 rounded-full bg-brand/10 blur-3xl" />
+            {/* Atmospheric brand glow now lives in AppShell (applied app-wide
+             *  behind every tab's content), so the hero no longer paints its
+             *  own — that would double the glow only on the dashboard. */}
 
             <div className="relative">
               <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
                 <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
                 {t("dashboard.label_eyebrow")}
               </div>
-              <h1 className="mt-3 text-[40px] sm:text-[48px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-semibold">
+              <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif">
                 {t("dashboard.hero_pre")}{" "}
-                <span className="text-grad font-semibold">{t("dashboard.hero_highlight")}</span>
+                <span className="text-grad">{t("dashboard.hero_highlight")}</span>
                 {" "}{t("dashboard.hero_post")}
               </h1>
+              {/* File-type words rendered as pills, so this is hardcoded JSX
+                  rather than the plain-text i18n string. */}
               <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
-                {t("dashboard.hero_subtitle")}
+                <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
+                {" "}or{" "}
+                <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
+                , exported from your accounting system —{" "}
+                {["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"].map((sys, i, arr) => (
+                  <span key={sys}>
+                    <span className="font-semibold text-brand-d">{sys}</span>
+                    {i < arr.length - 1 ? ", " : ""}
+                  </span>
+                ))}
+                . This is the document the full analysis is built for: P&amp;L, Balance Sheet, Cash Flow,
+                Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every
+                upload is auto-checked — clean trial balances reconcile within 0.5% of source.
               </p>
             </div>
           </section>
@@ -1133,7 +1155,7 @@ export default function FinancialStatements() {
               hover:border-brand/40 hover:bg-bg-2/40 transition-colors
             "
           >
-            <span className="grid place-items-center h-9 w-9 rounded-lg bg-[hsl(165,75%,55%)]/[0.12] text-[hsl(165,80%,34%)] shrink-0">
+            <span className="grid place-items-center h-9 w-9 rounded-lg bg-[hsl(173,57%,55%)]/[0.12] text-[hsl(173,57%,34%)] shrink-0">
               <Scale className="w-4 h-4" />
             </span>
             <span className="flex-1 min-w-0">
@@ -1165,17 +1187,21 @@ export default function FinancialStatements() {
         )}
         <div className={hasPeriodLoaded ? "mb-8" : ""} />
 
+        {/* Width is governed site-wide by AppShell's content clamp — no
+            per-page max-width here (see AppShell.tsx). */}
         <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-          {/* Phase F: every tab is always visible — disabled tabs render with
-              the same width but at 45% opacity, cursor-not-allowed, and a
-              tooltip explaining the data needed to enable them. The user
-              can see the platform's full capability surface on first visit. */}
+          {/* The tab bar (Overview · Statements · … · Recommendations ·
+              Export) is hidden until a document is loaded — the empty state
+              is just the upload surface, so the tab strip only appears once
+              there's data to navigate. Enabled tabs render normally; tabs
+              still missing their data render disabled (45% opacity + tooltip). */}
+          {hasPeriodLoaded && (
           <div className="relative">
             <TabsList
               data-testid="tabs-list"
               className="
                 h-auto bg-transparent p-0
-                flex flex-nowrap sm:flex-wrap gap-1
+                flex flex-nowrap sm:flex-wrap justify-start gap-1
                 overflow-x-auto sm:overflow-visible scrollbar-none
               "
             >
@@ -1231,18 +1257,10 @@ export default function FinancialStatements() {
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 left-0 w-6 bg-gradient-to-r from-bg to-transparent" />
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 right-0 w-6 bg-gradient-to-l from-bg to-transparent" />
           </div>
+          )}
 
         {/* OVERVIEW ─────────────────────────────────────────────────────── */}
         <TabsContent value="overview" className="mt-6 space-y-6">
-          {/* DocumentSwitcher — single control listing every analyzed
-              document (trial-balance + public-records uploads) with
-              type badges and per-entry delete. Picking an entry sets
-              ?period= / ?doc= which the existing useActivePeriod hook
-              + Multi-Year History page consume. Renders nothing when
-              the org has no analyses yet (so the upload hero is the
-              only thing visible on a brand-new account). */}
-          <DocumentSwitcher className="max-w-[480px]" />
-
           {/* F3.11 — Source-data quality WARN banner. Renders only when
               `sourceDataQuality.warn === true` (closing-side imbalance >2%)
               — see SourceQualityBanner for the hide-when-OK logic. Placed
@@ -1266,42 +1284,34 @@ export default function FinancialStatements() {
           {parseSource && <ExtractionConfidenceBanner source={parseSource} />}
 
           {!hasPeriodLoaded ? (
-            // STATE A — entry surface. Upload zone + sample picker.
-            // While a pipeline run is in flight, swap the dropzone for an
-            // in-place progress card so the user sees the analysis is
-            // happening without leaving the page.
+            // STATE A — entry surface. The drop zone stays mounted during a
+            // scan and renders the progress in-place (steps animate to the
+            // top); there is no separate progress modal/card.
             //
             // ABOVE the dropzone, we surface the user's most recent public-
-            // records upload (listafirme.ro / termene.ro / firme.info PDF)
-            // as a Level-1 quick card. Without this, returning users who
-            // only uploaded a public-summary PDF see an empty dashboard
-            // even though their data is parsed and available. The card
-            // renders nothing when there's no public-records data — so
-            // first-time visitors still see the clean upload hero.
-            uploadInFlight ? (
-              <InlineErrorBoundary
-                tag="UploadProgressInline"
-                label="Upload progress display crashed. Your file is still being processed on the server — click Reset to dismiss this and let the dashboard refresh on its own."
-                onReset={() => clearUpload()}
-              >
-                <UploadProgressCard inflight={uploadInFlight} statements={statements} />
-              </InlineErrorBoundary>
-            ) : (
-              <>
-                <PublicRecordsQuickCard />
-                <UploadAndSamplePanel
-                  statements={statements}
-                  activeSampleId={activeSampleId}
-                  uploadName={uploadName}
-                  onPickSample={pickSample}
-                  onReset={undefined}
-                  onTriggerFile={() => fileRef.current?.click()}
-                  onDrop={onDrop}
-                  fileRef={fileRef}
-                  onFileChosen={onFileChosen}
-                />
-              </>
-            )
+            // records upload as a Level-1 quick card (renders nothing when
+            // there's no public-records data).
+            <>
+              <PublicRecordsQuickCard />
+              <UploadAndSamplePanel
+                statements={statements}
+                activeSampleId={activeSampleId}
+                uploadName={uploadName}
+                onPickSample={pickSample}
+                onReset={undefined}
+                onTriggerFile={() => fileRef.current?.click()}
+                onDrop={onDrop}
+                fileRef={fileRef}
+                onFileChosen={onFileChosen}
+                onSimulate={simulateFileProcess}
+                stagedFiles={stagedFiles}
+                onDiscardStaged={discardStagedFile}
+                onDismissAll={dismissAllStaged}
+                onStartScan={startScan}
+                scanning={scanning}
+                inflight={uploadInFlight}
+              />
+            </>
           ) : (
             <StateBOverview
               statements={statements}
@@ -1708,7 +1718,7 @@ export default function FinancialStatements() {
 
           <div className="rounded-2xl border border-rule bg-surface p-6">
             <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-[#E6F7F4] text-[#2AA89B] flex items-center justify-center shrink-0">
                 <FileSpreadsheet size={18} strokeWidth={1.75} />
               </div>
               <div className="flex-1">
@@ -1752,7 +1762,7 @@ export default function FinancialStatements() {
       </Tabs>
       </TooltipProvider>
 
-    </AppShell>
+    </>
     </ReportingContextProvider>
   );
 }
@@ -1813,11 +1823,11 @@ function ExtractionConfidenceBanner({
     <div
       className={`rounded-2xl border px-4 py-3.5 flex items-start gap-3 ${
         low
-          ? "border-amber-300/60 bg-amber-50 text-amber-800"
-          : "border-emerald-300/60 bg-emerald-50 text-emerald-800"
+          ? "border-[#8FE3D9]/60 bg-[#E6F7F4] text-[#1B7268]"
+          : "border-[#8FE3D9]/60 bg-[#E6F7F4] text-[#1B7268]"
       }`}
     >
-      <Sparkles size={16} className={`mt-0.5 shrink-0 ${low ? "text-amber-600" : "text-emerald-600"}`} strokeWidth={1.75} />
+      <Sparkles size={16} className={`mt-0.5 shrink-0 ${low ? "text-[#2AA89B]" : "text-[#2AA89B]"}`} strokeWidth={1.75} />
       <div className="flex-1 text-[13px] leading-relaxed">
         <div>
           <strong>{low ? "Verify the extracted data" : "Extracted from"}</strong> ·{" "}
@@ -1946,7 +1956,7 @@ function CFOBriefingCard({
           {text}
         </p>
         {error && (
-          <p className="mt-2 text-[11px] text-amber-700">
+          <p className="mt-2 text-[11px] text-[#2AA89B]">
             Couldn't regenerate in {display} ({error}). Showing RON version.
           </p>
         )}
@@ -2088,7 +2098,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
         }}
         className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink mb-3"
       >
-        <CheckCircle2 size={11} strokeWidth={1.75} className="text-emerald-600" />
+        <CheckCircle2 size={11} strokeWidth={1.75} className="text-[#2AA89B]" />
         Quality checks passed · About data accuracy
       </button>
     );
@@ -2100,17 +2110,17 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
   const tone =
     band === "clean"
       ? {
-          border: "border-emerald-300/40",
-          bg: "bg-emerald-50/40 dark:bg-emerald-500/[0.06]",
-          icon: <CheckCircle2 size={13} strokeWidth={1.75} className="text-emerald-600 mt-0.5 shrink-0" />,
-          headline: "text-emerald-700 dark:text-emerald-500",
+          border: "border-[#8FE3D9]/40",
+          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
         }
       : band === "watch"
       ? {
-          border: "border-amber-300/50",
-          bg: "bg-amber-50/40 dark:bg-amber-500/[0.06]",
-          icon: <Info size={13} strokeWidth={1.75} className="text-amber-600 mt-0.5 shrink-0" />,
-          headline: "text-amber-700 dark:text-amber-500",
+          border: "border-[#8FE3D9]/50",
+          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
         }
       : band === "problem"
       ? {
@@ -2226,10 +2236,10 @@ function StatutoryFormatBanner() {
   return (
     <div
       data-testid="statutory-format-banner"
-      className="mb-3 rounded-lg border-l-[3px] border-blue-400 bg-blue-50/40 dark:bg-blue-500/[0.06] px-4 py-3"
+      className="mb-3 rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3"
     >
       <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
-        <Info size={13} strokeWidth={1.75} className="text-blue-600 mt-0.5 shrink-0" />
+        <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
         <div className="flex-1">
           <strong className="text-ink">Statutory format detected (Formular F30 + F10).</strong>{" "}
           Headline figures (revenue, EBITDA, debt, equity) extracted from your filed
@@ -2238,7 +2248,7 @@ function StatutoryFormatBanner() {
             type="button"
             data-testid="statutory-banner-toggle"
             onClick={() => setExpanded((v) => !v)}
-            className="ml-1 text-[12px] text-blue-700 hover:text-blue-900 underline-offset-2 hover:underline"
+            className="ml-1 text-[12px] text-[#2AA89B] hover:text-[#1B7268] underline-offset-2 hover:underline"
           >
             {expanded ? "Hide details" : "What's not available with this format"}
           </button>
@@ -2302,6 +2312,8 @@ function CompactPeriodHeader({
   onPickSample,
   onTriggerFile,
   onReset,
+  onSimulate,
+  onDebugReset,
 }: {
   statements: Statements | null;
   invoices: Invoice[] | null;
@@ -2309,6 +2321,13 @@ function CompactPeriodHeader({
   onPickSample: (id: string, opts?: { additive?: boolean }) => void;
   onTriggerFile: () => void;
   onReset: () => void;
+  /** DEV-only: simulate the upload → analysis pipeline. Renders a debug
+   *  button next to the header actions when supplied (gated by the caller
+   *  behind import.meta.env.DEV). */
+  onSimulate?: () => void;
+  /** DEV-only: reset the workspace to its empty state (local-only, no
+   *  server delete). Renders a second debug button when supplied. */
+  onDebugReset?: () => void;
 }) {
   const docsCount = useDocsCount();
   const companyName =
@@ -2339,6 +2358,26 @@ function CompactPeriodHeader({
         </h1>
       </div>
       <div className="flex items-center gap-2 flex-wrap sm:shrink-0">
+        {import.meta.env.DEV && onSimulate && (
+          <button
+            type="button"
+            data-testid="debug-simulate-upload"
+            onClick={onSimulate}
+            className="inline-flex items-center h-9 px-3 rounded-lg border border-dashed border-rule bg-surface text-[12.5px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
+          >
+            Debug: simulate file process
+          </button>
+        )}
+        {import.meta.env.DEV && onDebugReset && (
+          <button
+            type="button"
+            data-testid="debug-reset-data"
+            onClick={onDebugReset}
+            className="inline-flex items-center h-9 px-3 rounded-lg border border-dashed border-rule bg-surface text-[12.5px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
+          >
+            Debug: reset data
+          </button>
+        )}
         <DocsToggle count={docsCount} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -2732,7 +2771,7 @@ function RiskOpsList({
   onJumpToTab: (tab: string) => void;
   jumpTab: string;
 }) {
-  const headerColor = tone === "warn" ? "text-amber-700" : "text-emerald-700";
+  const headerColor = tone === "warn" ? "text-[#2AA89B]" : "text-[#2AA89B]";
   return (
     <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
       <div className="px-5 py-3 border-b border-rule">
@@ -2751,7 +2790,7 @@ function RiskOpsList({
                 <div className="text-[13px] text-ink font-medium leading-tight">{rec.title}</div>
                 <div className="text-[12px] text-ink-soft mt-0.5 line-clamp-2 leading-snug">{rec.rationale}</div>
                 {rec.estimatedImpact && (
-                  <div className="text-[11.5px] text-emerald-700 mt-1">
+                  <div className="text-[11.5px] text-[#2AA89B] mt-1">
                     Estimated impact: <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / yr
                   </div>
                 )}
@@ -2778,9 +2817,9 @@ function CalloutCard({
   metricLabel?: string;
 }) {
   const tones: Record<string, { ring: string; chip: string; chipText: string; label: string }> = {
-    strong: { ring: "border-emerald-300/60", chip: "bg-emerald-50", chipText: "text-emerald-700", label: "Strong" },
-    healthy: { ring: "border-blue-300/60", chip: "bg-blue-50", chipText: "text-blue-700", label: "Healthy" },
-    watch: { ring: "border-amber-300/60", chip: "bg-amber-50", chipText: "text-amber-700", label: "Watch" },
+    strong: { ring: "border-[#8FE3D9]/60", chip: "bg-[#E6F7F4]", chipText: "text-[#2AA89B]", label: "Strong" },
+    healthy: { ring: "border-[#8FE3D9]/60", chip: "bg-[#E6F7F4]", chipText: "text-[#2AA89B]", label: "Healthy" },
+    watch: { ring: "border-[#8FE3D9]/60", chip: "bg-[#E6F7F4]", chipText: "text-[#2AA89B]", label: "Watch" },
     critical: { ring: "border-red-300/60", chip: "bg-red-50", chipText: "text-red-700", label: "Critical" },
   };
   const t = tones[tone];
@@ -2799,271 +2838,6 @@ function CalloutCard({
         </div>
       )}
       <p className="text-[13px] text-ink-soft leading-snug">{body}</p>
-    </div>
-  );
-}
-
-/**
- * In-flight pipeline progress card. Replaces the dropzone while an upload
- * is being analyzed so the user sees status without navigating away.
- */
-function UploadProgressCard({
-  inflight,
-  statements,
-}: {
-  inflight: { docId: string; filename: string; status: import("@/lib/supabase").DocumentStatus; error?: string | null };
-  /** Available once analysis completes — used to compute REAL extraction
-   *  accuracy from the BS reconciliation, not the old hardcoded "90%+" claim. */
-  statements?: (Statements & { assembled_bs?: Record<string, number> }) | null;
-}) {
-  const STAGES: Record<string, { label: string; ordinal: number }> = {
-    queued:     { label: "Queued for analysis…",  ordinal: 0 },
-    extracting: { label: "Reading the document…", ordinal: 1 },
-    mapping:    { label: "Mapping accounts…",     ordinal: 2 },
-    computing:  { label: "Computing ratios…",     ordinal: 3 },
-    narrating:  { label: "Generating insights…",  ordinal: 4 },
-    analyzed:   { label: "Analysis ready",        ordinal: 6 },
-    failed:     { label: "Analysis failed",       ordinal: 0 },
-  };
-  const total = 6;
-  const stage = STAGES[inflight.status] ?? { label: inflight.status, ordinal: 0 };
-  const isFailed = inflight.status === "failed";
-  // F3-FE-FIX-1: explicit branch for the terminal success state so the
-  // header text never contradicts the stage sub-label. Without this,
-  // status="analyzed" rendered the bold header "Analyzing your
-  // document…" alongside the sub-label "Analysis ready" — two
-  // contradictory statements in one card.
-  const isAnalyzed = inflight.status === "analyzed";
-
-  // ── Hang detector ────────────────────────────────────────────────────────
-  // Show a clear "stuck" message + retry button after 60s of no progress past
-  // status='queued'. The /api/pipeline/run handler should always advance to
-  // 'extracting' within a second; if we're still at 'queued' a minute later
-  // the worker thread never picked up the job (typically a transient backend
-  // failure right at upload moment). Without this, the user stares at
-  // "Step 0 of 6 · Queued for analysis…" forever with no recourse.
-  const HANG_TIMEOUT_MS = 60_000;
-  const [hangSuspected, setHangSuspected] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  const { toast } = useToast();
-  useEffect(() => {
-    setHangSuspected(false);
-    if (inflight.status !== "queued") return;
-    const t = setTimeout(() => setHangSuspected(true), HANG_TIMEOUT_MS);
-    return () => clearTimeout(t);
-  }, [inflight.status, inflight.docId]);
-
-  const handleRetry = async () => {
-    setRetrying(true);
-    const { recoverStuckPipelines, retryPipeline } = await import("@/lib/supabase");
-    // Try the watchdog first — for the common "/api/pipeline/run failed at
-    // upload" case it re-enqueues without wiping the doc's row. If nothing
-    // got recovered (so this doc wasn't actually stuck on a missing worker),
-    // fall through to a hard retry which resets the row + re-enqueues.
-    const recovered = await recoverStuckPipelines();
-    let ok = (recovered?.recovered_count ?? 0) > 0;
-    if (!ok && inflight.docId) ok = await retryPipeline(inflight.docId);
-    setRetrying(false);
-    if (ok) {
-      toast({ title: "Retrying analysis", description: inflight.filename });
-      setHangSuspected(false);
-    } else {
-      toast({
-        title: "Retry failed",
-        description: "Backend is unreachable. Refresh the page or try again in a moment.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // 2026-05-26 — match the rich 6-step UI from Products page InflightCard.
-  // Server statuses (extracting/mapping/computing/narrating) map onto
-  // ordinals 1..4; ordinals 5..6 are visual sub-phases of `narrating`
-  // (the engine doesn't emit distinct statuses for "validating BS = E+L"
-  // vs "generating CFO briefing" — they happen back-to-back during the
-  // final stage). Mirrors the SKU pipeline's stage count so both screens
-  // feel identical.
-  const STEPS: Array<{ ordinal: number; label: string; sub: string }> = [
-    { ordinal: 1, label: "Reading workbook",         sub: "Picking the trial-balance sheet" },
-    { ordinal: 2, label: "Detecting accounts",       sub: "Romanian RAS · IFRS chart mapping" },
-    { ordinal: 3, label: "Building statements",      sub: "Balance Sheet · P&L · Cash Flow" },
-    { ordinal: 4, label: "Computing ratios",         sub: "Liquidity · leverage · profitability" },
-    { ordinal: 5, label: "Reconciling balances",     sub: "BS balance check · drift tolerance" },
-    { ordinal: 6, label: "Generating CFO briefing",  sub: "Executive summary + recommendations" },
-  ];
-  const totalSteps = STEPS.length;
-
-  return (
-    <div
-      data-testid="dashboard-upload-progress"
-      className="
-        relative overflow-hidden rounded-3xl
-        border border-rule
-        bg-gradient-to-br from-bg-2/40 via-surface to-surface
-        ring-1 ring-inset ring-white/[0.03]
-        shadow-[0_24px_48px_-30px_rgba(0,0,0,0.25)]
-        px-6 sm:px-8 py-7 sm:py-8
-        max-w-[760px] mx-auto
-      "
-    >
-        <div aria-hidden className="pointer-events-none absolute -top-24 -right-20 h-56 w-56 rounded-full bg-brand/10 blur-3xl" />
-
-        <div className="relative flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className={`inline-flex items-center justify-center h-8 w-8 rounded-xl ${
-              isFailed || hangSuspected
-                ? "bg-alert/10 text-alert"
-                : isAnalyzed
-                ? "bg-success/10 text-success"
-                : "bg-brand-tint text-brand-d"
-            }`}>
-              {isFailed || hangSuspected
-                ? <AlertCircle size={15} strokeWidth={2} />
-                : isAnalyzed
-                ? <CheckCircle2 size={15} strokeWidth={2} />
-                : <Loader2 size={15} strokeWidth={2.25} className="animate-spin" />}
-            </span>
-            <span className="text-[14.5px] font-semibold text-ink truncate">
-              {isFailed
-                ? "Couldn't finish analysis"
-                : hangSuspected
-                ? "Upload appears stuck"
-                : isAnalyzed
-                ? "Analysis ready"
-                : "Analyzing your document…"}
-            </span>
-          </div>
-          {!isFailed && !hangSuspected && !isAnalyzed && (
-            <span className="text-[11px] text-ink-mute tabular-nums uppercase tracking-[0.08em]">
-              Step {Math.max(1, stage.ordinal)} of {totalSteps}
-            </span>
-          )}
-        </div>
-
-        <div className="relative text-[12.5px] text-ink-soft mb-5 truncate">
-          <span className="text-ink font-medium">{inflight.filename}</span>
-          <span className="mx-1.5 text-ink-mute">·</span>
-          <span>{stage.label}</span>
-        </div>
-
-        {!isFailed && !hangSuspected && (
-          <ol className="relative space-y-3" data-testid="dashboard-upload-progress-steps">
-            {STEPS.map((step) => {
-              const effectiveOrdinal = isAnalyzed ? totalSteps : stage.ordinal;
-              const isDone = effectiveOrdinal > step.ordinal || isAnalyzed;
-              const isActive =
-                !isAnalyzed
-                && (effectiveOrdinal === step.ordinal
-                    || (effectiveOrdinal === 0 && step.ordinal === 1));
-              return (
-                <li
-                  key={step.ordinal}
-                  className={`
-                    relative flex items-start gap-3
-                    transition-opacity duration-300
-                    ${isDone || isActive ? "opacity-100" : "opacity-55"}
-                  `}
-                  data-step-state={isDone ? "done" : isActive ? "active" : "pending"}
-                >
-                  <span className={`
-                    inline-flex items-center justify-center
-                    h-6 w-6 rounded-full shrink-0
-                    transition-colors duration-200
-                    ${isDone
-                      ? "bg-brand text-paper"
-                      : isActive
-                      ? "bg-brand/15 text-brand-d ring-2 ring-brand/40"
-                      : "bg-bg-2 text-ink-mute"}
-                  `}>
-                    {isDone
-                      ? <Check size={12} strokeWidth={2.75} />
-                      : isActive
-                      ? <Loader2 size={11} strokeWidth={2.5} className="animate-spin" />
-                      : <span className="text-[10px] font-semibold tabular-nums">{step.ordinal}</span>}
-                  </span>
-                  <span className="min-w-0">
-                    <span className={`block text-[13px] ${isDone || isActive ? "text-ink" : "text-ink-soft"} ${isActive ? "font-medium" : ""}`}>
-                      {step.label}
-                    </span>
-                    <span className="block text-[11.5px] text-ink-mute mt-0.5">{step.sub}</span>
-                  </span>
-                  {step.ordinal < totalSteps && (
-                    <span
-                      aria-hidden
-                      className="absolute left-[11px] top-7 bottom-[-12px] w-px bg-rule/70"
-                    />
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      {isFailed && (
-        // Failed-state actions. Without these the user is trapped under
-        // the full-screen overlay above (see line 697 `fixed inset-0
-        // z-50`) — no way to dismiss the card means the dashboard
-        // beneath is unreachable. "Upload was cancelled" (extra-doc
-        // dialog dismissed), "Couldn't start analysis" (transport),
-        // "Document quota reached" (429), and pipeline failures all
-        // land here; Dismiss must always be available.
-        <div className="mt-2 space-y-2.5">
-          {inflight.error && (
-            <div className="rounded-md border border-alert/30 bg-alert/5 px-3 py-2 text-[12px] text-alert">
-              {inflight.error}
-            </div>
-          )}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => clearUpload()}
-              data-testid="dashboard-upload-progress-dismiss"
-              className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-surface px-3 py-1.5 text-[12px] font-medium text-ink-soft hover:bg-bg-2 transition-colors"
-            >
-              Dismiss
-            </button>
-            {inflight.docId && (
-              <button
-                type="button"
-                onClick={handleRetry}
-                disabled={retrying}
-                data-testid="dashboard-upload-progress-retry-failed"
-                className="inline-flex items-center gap-1.5 rounded-md border border-alert/40 bg-surface px-3 py-1.5 text-[12px] font-medium text-alert hover:bg-alert/10 transition-colors disabled:opacity-50"
-              >
-                {retrying ? <Loader2 size={12} className="animate-spin" /> : null}
-                {retrying ? "Retrying…" : "Retry analysis"}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-      {hangSuspected && !isFailed && (
-        <div
-          data-testid="dashboard-upload-progress-hang"
-          className="mt-2 rounded-md border border-alert/30 bg-alert/5 px-3 py-2.5 text-[12.5px] text-alert space-y-2"
-        >
-          <p>
-            The upload reached the server but analysis hasn't started for more than 60 seconds.
-            This usually means the worker thread never picked up the job (a brief backend hiccup
-            right at upload moment). Click below to re-queue it.
-          </p>
-          <button
-            type="button"
-            onClick={handleRetry}
-            disabled={retrying}
-            data-testid="dashboard-upload-progress-retry"
-            className="inline-flex items-center gap-1.5 rounded-md border border-alert/40 bg-surface px-3 py-1.5 text-[12px] font-medium text-alert hover:bg-alert/10 transition-colors disabled:opacity-50"
-          >
-            {retrying ? <Loader2 size={12} className="animate-spin" /> : null}
-            {retrying ? "Retrying…" : "Retry analysis"}
-          </button>
-        </div>
-      )}
-      {!isFailed && !hangSuspected && (
-        <ExtractionAccuracyBanner
-          analyzed={isAnalyzed}
-          assembledBs={statements?.assembled_bs}
-        />
-      )}
     </div>
   );
 }
@@ -3141,17 +2915,17 @@ function ExtractionAccuracyBanner({
   const tone =
     band === "high"
       ? {
-          border: "border-emerald-300/40",
-          bg: "bg-emerald-50/40 dark:bg-emerald-500/[0.06]",
-          icon: <CheckCircle2 size={13} strokeWidth={1.75} className="text-emerald-600 mt-0.5 shrink-0" />,
-          headline: "text-emerald-700 dark:text-emerald-500",
+          border: "border-[#8FE3D9]/40",
+          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
         }
       : band === "medium"
       ? {
-          border: "border-amber-300/40",
-          bg: "bg-amber-50/30 dark:bg-amber-500/[0.06]",
-          icon: <Info size={13} strokeWidth={1.75} className="text-amber-600 mt-0.5 shrink-0" />,
-          headline: "text-amber-700 dark:text-amber-500",
+          border: "border-[#8FE3D9]/40",
+          bg: "bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
         }
       : {
           border: "border-alert/40",
@@ -3197,6 +2971,13 @@ function UploadAndSamplePanel({
   onDrop,
   fileRef,
   onFileChosen,
+  onSimulate,
+  stagedFiles,
+  onDiscardStaged,
+  onDismissAll,
+  onStartScan,
+  scanning,
+  inflight,
 }: {
   statements: Statements | null;
   activeSampleId: string | null;
@@ -3207,23 +2988,172 @@ function UploadAndSamplePanel({
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   fileRef: React.RefObject<HTMLInputElement>;
   onFileChosen: (file: File) => void;
+  /** Localhost-only: simulate a scan without a real file/backend. Renders a
+   *  debug button over the drop zone when supplied AND running on localhost. */
+  onSimulate?: () => void;
+  /** Files staged for scanning (choosing/dropping adds; nothing uploads until
+   *  onStartScan). When non-empty, the list replaces the example-files list. */
+  stagedFiles: File[];
+  onDiscardStaged: (index: number) => void;
+  onDismissAll: () => void;
+  onStartScan: () => void;
+  scanning: boolean;
+  /** Live per-file scan progress. When set, the drop zone renders progress
+   *  in-place (council visualizer + steps) instead of the idle upload UI. */
+  inflight: { status: import("@/lib/supabase").DocumentStatus; filename: string; docId: string } | null;
 }) {
+  // Drag-over state — drives the dropzone's "file hovering" styling and the
+  // "Drop your file to upload" affordance text.
+  const [dragActive, setDragActive] = useState(false);
+
+  // In-flight scan progress. `scanActive` flips the drop zone from its idle
+  // upload UI to the in-place progress view (no separate modal/card).
+  const scanActive = !!inflight;
+  const PIPELINE_STEPS = [
+    "Detect format",
+    "Extract data",
+    "Rebuild statements",
+    "Calculate ratios",
+    "Generate recs",
+  ];
+  const STATUS_ORDINAL: Record<string, number> = {
+    queued: 0, extracting: 1, mapping: 2, computing: 3, narrating: 4, analyzed: 5, failed: 0,
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    queued: "Queued for analysis…",
+    extracting: "Reading the document…",
+    mapping: "Mapping accounts…",
+    computing: "Computing ratios…",
+    narrating: "Generating insights…",
+    analyzed: "Analysis ready",
+    failed: "Analysis failed",
+  };
+  const currentOrdinal = inflight ? (STATUS_ORDINAL[inflight.status] ?? 0) : 0;
+  const statusLabel = inflight ? (STATUS_LABEL[inflight.status] ?? inflight.status) : "";
+
+  // Localhost-only gate for the "simulate scan" debug button — it must never
+  // appear on the deployed site, only when developing against localhost.
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+
+  // Preview an example workbook in a NEW TAB without downloading it. A plain
+  // <a href="*.xlsx" target="_blank"> just triggers a download (browsers
+  // can't render xlsx inline), so we parse the sheet with SheetJS and open a
+  // rendered HTML table instead. The tab is opened synchronously inside the
+  // click gesture (so it isn't popup-blocked) and filled once parsed.
+  async function previewExampleInNewTab(file: string) {
+    const tab = window.open("", "_blank");
+    if (tab) {
+      tab.document.write(
+        "<!doctype html><title>Loading preview…</title>" +
+        "<body style=\"font:14px system-ui;padding:24px\">Loading preview…</body>",
+      );
+    }
+    try {
+      const res = await fetch(`/examples/${file}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = await res.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheetName = wb.SheetNames[0];
+      const tableHtml = XLSX.utils.sheet_to_html(wb.Sheets[sheetName]);
+      const doc =
+        `<!doctype html><html><head><meta charset="utf-8"><title>${file}</title><style>` +
+        "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
+        "h1{font-size:15px;margin:0 0 12px;color:#1B7268}" +
+        "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
+        "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
+        "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
+        `</style></head><body><h1>${file} · sheet "${sheetName}" (example — fictional data)</h1>${tableHtml}</body></html>`;
+      if (tab) {
+        tab.document.open();
+        tab.document.write(doc);
+        tab.document.close();
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      if (tab) {
+        tab.document.open();
+        tab.document.write(
+          `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
+          `Couldn't load preview: ${msg}. ` +
+          `<a href="/examples/${file}" download>Download instead</a>.</body>`,
+        );
+        tab.document.close();
+      }
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* ── HERO CALLOUT — empty-state primary CTA ──────────────────────
-          Two variants, picked by the PUBLIC_RECORDS_ENABLED flag:
-            · Flag ON  → UploadHeroCallout: legacy listafirme.ro pitch
-                          ("free in 60 seconds, Print PDF, drop here").
-            · Flag OFF (current) → TrialBalanceHeroCallout: positions
-                          the trial balance (balanță de verificare) as
-                          THE document to upload, lists the accepted
-                          formats (SAGA, WinMentor, SmartBill, etc.),
-                          and offers two downloadable example XLSX
-                          fixtures so the user can match the structure
-                          before uploading their real export.
-          Rendered only on the empty state so the dashboard isn't
-          crowded once the user has data. */}
-      {PUBLIC_RECORDS_ENABLED ? <UploadHeroCallout /> : <TrialBalanceHeroCallout />}
+          Only the legacy listafirme.ro pitch (UploadHeroCallout) renders as
+          a separate hero, and only when PUBLIC_RECORDS_ENABLED is on. In the
+          current product (flag off) the guided trial-balance copy is NOT a
+          separate card — it's folded into the drop-zone below as that card's
+          header (see the header block inside data-testid="upload-dropzone").
+          Rendered only on the empty state so the dashboard isn't crowded
+          once the user has data. */}
+      {PUBLIC_RECORDS_ENABLED && <UploadHeroCallout />}
+
+      {/* Document-type guide — always-visible grid above the drop section.
+          Header label intentionally omitted per request; the cards speak
+          for themselves. */}
+      <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="upload-document-guide">
+        <DocGuideCard
+          title="Trial balance (balanță de verificare)"
+          format="XLSX · CSV · PDF"
+          shows="Per-account drilldown, full P&L + BS + cash flow reconciliation, 25+ ratios, valuation, credit score, peer benchmarks"
+          where={[
+            { label: "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)", href: null },
+            { label: "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)", href: null },
+          ]}
+          tone="best"
+        />
+        {PUBLIC_RECORDS_ENABLED && (
+          <DocGuideCard
+            title="Public records summary"
+            format="PDF only"
+            shows="Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history."
+            where={[
+              { label: "listafirme.ro/<company-slug>-<CUI>", href: "https://listafirme.ro" },
+              { label: "termene.ro/firma/<CUI>", href: "https://termene.ro" },
+              { label: "firme.info/<CUI>", href: "https://firme.info" },
+              { label: "risco.ro/cui-<CUI>", href: "https://risco.ro" },
+            ]}
+            tone="free"
+          />
+        )}
+        <DocGuideCard
+          title="Statutory ANAF filing"
+          format="XLSX (Formular F30 + F10)"
+          shows="Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers."
+          where={[
+            { label: "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX", href: "https://anaf.ro" },
+            { label: "Your accountant's archive — the annual filing they sent to ANAF", href: null },
+          ]}
+          tone="ok"
+        />
+        <DocGuideCard
+          title="Sales / trading analysis"
+          format="XLSX export"
+          shows="SKU-level portfolio classification (anchor / scale / watch / eliminate), DIO + capital trap detection. Renders in /products."
+          where={[
+            { label: "Your ERP's Trading Analysis report (XLSX)", href: null },
+            { label: "Pivot of monthly sales with: SKU, volume, revenue, GM, DIO, customer category", href: null },
+          ]}
+          tone="ok"
+        />
+      </div>
+
+      {/* Footer guidance under the document-type cards. */}
+      <p className="text-[11px] text-ink-mute leading-relaxed max-w-3xl">
+        Trial balance (balanță de verificare) is the document that unlocks the full
+        analysis. Most Romanian accounting systems export it as XLSX from{" "}
+        <em>Rapoarte → Balanța de verificare</em> or equivalent. The download buttons
+        at the top of the page show the two structures we accept.
+      </p>
 
       <div className={`grid grid-cols-1 ${SAMPLES_ENABLED ? "lg:grid-cols-[1.2fr_1fr]" : ""} gap-4`}>
       {/* Upload zone — premium AI ingestion surface. Same logic, same
@@ -3232,189 +3162,266 @@ function UploadAndSamplePanel({
        *  ring-glow on drag-over, refined chip styling. */}
       <div
         data-testid="upload-dropzone"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={onDrop}
-        className="
+        onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+        onDrop={(e) => { setDragActive(false); onDrop(e); }}
+        data-drag-active={dragActive ? "true" : "false"}
+        className={`
           relative overflow-hidden
-          rounded-2xl border-2 border-dashed border-rule/80
-          bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40
+          rounded-2xl border-2 border-dashed
           backdrop-blur-sm
           p-6 sm:p-7
           flex flex-col items-center justify-center text-center
           min-h-[240px]
-          hover:border-rule-strong hover:from-bg-2/50 transition-all
-        "
+          transition-all duration-150
+          ${dragActive
+            ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
+            : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
+        `}
       >
         {/* Atmospheric brand glow */}
         <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-brand/8 blur-3xl" />
 
-        <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-brand/20 to-brand-d/25 text-brand-d flex items-center justify-center mb-3 ring-1 ring-brand/15">
-          <UploadCloud size={20} strokeWidth={1.75} />
-        </div>
-        <h3 className="relative text-[18px] font-semibold text-ink tracking-[-0.005em]">Upload financial documents</h3>
-        <p className="relative text-[12.5px] text-ink-soft mt-1 max-w-[440px] leading-relaxed">
-          PDF · XLSX · CSV · JPG · PNG — invoices, balance sheets, P&amp;L, trial balance,
-          annual reports. CFO AI auto-detects the format on drop.
-        </p>
-        {/* Recognized invoice-export formats — visual hint for accountants. */}
-        <div className="relative mt-3 flex flex-wrap items-center justify-center gap-1.5 max-w-[480px] mx-auto">
-          {["SAF-T", "e-Factura XML", "SmartBill CSV", "WinMentor", "Saga", "generic CSV"].map((f) => (
-            <span
-              key={f}
-              className="
-                inline-flex items-center
-                text-[10.5px] uppercase tracking-[0.08em] font-semibold
-                text-ink
-                bg-bg-2 border border-rule-strong
-                rounded-full px-2.5 py-0.5
-              "
-            >
-              {f}
-            </span>
-          ))}
-        </div>
-        <div className="relative mt-5 flex items-center gap-2 flex-wrap justify-center">
+        {/* Localhost-only debug button — simulate a scan without a real file
+            or backend. Never rendered on the deployed site. */}
+        {isLocalhost && onSimulate && (
           <button
-            onClick={onTriggerFile}
-            className="
-              inline-flex items-center gap-2
-              h-10 px-4 rounded-lg
-              bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
-              shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
-              hover:shadow-[0_10px_26px_-8px_rgba(45,191,179,0.75)]
-              ring-1 ring-inset ring-white/15
-              transition-all
-            "
+            type="button"
+            data-testid="debug-simulate-upload"
+            onClick={onSimulate}
+            className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
           >
-            <UploadCloud size={13} strokeWidth={2} />
-            Choose a file
+            Debug: simulate scan
           </button>
-        </div>
-        {/* Hidden <input type="file" ref={fileRef}> is rendered at page
-            level so it persists across State A ↔ State B. See FinancialStatements
-            root — same ref, no duplicate needed here. */}
-        {uploadName && (
-          <div className="mt-3 text-[11.5px] text-ink-mute">
-            Received: <span className="text-ink">{uploadName}</span>
-          </div>
         )}
-        {/* "What happens next" — premium 5-step pipeline. Replaces the
-         *  single cramped tagline with a calm visual flow that explains
-         *  what CFO AI does to the uploaded file. The connector line
-         *  threads through the dots so the eye reads it as a pipeline,
-         *  not a tag cloud. */}
-        <ol
-          className="relative mt-6 w-full max-w-[560px] flex items-start justify-between gap-2"
+
+        {/* Idle head — drag & drop + Choose a file. Fades/collapses out when a
+            scan starts (the progress steps then take over the drop zone). */}
+        <AnimatePresence initial={false}>
+          {!scanActive && (
+            <motion.div
+              key="dz-head"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.25 }}
+              className="relative flex flex-col items-center overflow-hidden"
+            >
+              <p className="text-[14px] font-medium text-ink">
+                {dragActive ? "Drop your file to upload" : "Drag & drop your file here"}
+              </p>
+              <p className="mt-0.5 text-[12px] text-ink-mute">or</p>
+              <div className="mt-2 flex items-center gap-2 flex-wrap justify-center">
+                <button
+                  onClick={onTriggerFile}
+                  className="
+                    inline-flex items-center gap-2
+                    h-10 px-4 rounded-lg
+                    bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
+                    shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)]
+                    hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)]
+                    ring-1 ring-inset ring-white/15
+                    transition-all
+                  "
+                >
+                  <UploadCloud size={13} strokeWidth={2} />
+                  Choose a file
+                </button>
+              </div>
+              {uploadName && (
+                <div className="mt-3 text-[11.5px] text-ink-mute">
+                  Received: <span className="text-ink">{uploadName}</span>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* AI Council visualizer — the live "thinking" sphere, driven by the
+         *  council's Supabase Realtime broadcast for this document. Renders
+         *  only during a scan, scaled into the drop zone; wrapped so a canvas
+         *  error degrades to the step progress below instead of crashing. */}
+        <AnimatePresence initial={false}>
+          {scanActive && inflight?.docId && (
+            <motion.div
+              key="dz-council"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="relative w-full"
+            >
+              <InlineErrorBoundary
+                tag="CouncilVisualizer"
+                label="The council visualizer hit a snag — analysis is still running; watch the steps below."
+                onReset={() => { /* visual-only; nothing to reset */ }}
+              >
+                <CouncilVisualizer documentId={inflight.docId} />
+              </InlineErrorBoundary>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Pipeline steps. Idle: a preview of what CFO AI will do. During a
+         *  scan: the idle head above fades out and (via layout animation)
+         *  these steps glide to the TOP of the drop zone, lighting up to the
+         *  current stage — the in-place progress that replaces the old modal. */}
+        <motion.ol
+          layout
+          transition={{ type: "spring", stiffness: 260, damping: 30 }}
+          className={`relative w-full max-w-[560px] mx-auto flex items-start justify-between gap-2 ${scanActive ? "mt-1" : "mt-6"}`}
           aria-label="Analysis pipeline"
           data-testid="upload-pipeline"
         >
           {/* Connector line — drawn behind the dots */}
           <span aria-hidden className="absolute top-3 left-3 right-3 h-px bg-gradient-to-r from-transparent via-rule to-transparent" />
-          {[
-            "Detect format",
-            "Extract data",
-            "Rebuild statements",
-            "Calculate ratios",
-            "Generate recs",
-          ].map((label, i) => (
-            <li key={label} className="relative flex-1 min-w-0 flex flex-col items-center text-center">
-              <span className={`
-                relative z-10 inline-flex items-center justify-center
-                h-6 w-6 rounded-full
-                bg-surface border border-rule
-                text-[10px] font-semibold tabular-nums text-ink-soft
-                shadow-[0_1px_2px_rgba(0,0,0,0.04)]
-              `}>
-                {i + 1}
-              </span>
-              <span className="mt-1.5 text-[10px] uppercase tracking-[0.08em] text-ink-mute font-medium leading-tight max-w-[80px]">
-                {label}
-              </span>
-            </li>
-          ))}
-        </ol>
+          {PIPELINE_STEPS.map((label, i) => {
+            const done = scanActive && i < currentOrdinal;
+            const active = scanActive && i === currentOrdinal;
+            return (
+              <li key={label} className="relative flex-1 min-w-0 flex flex-col items-center text-center">
+                <span className={`
+                  relative z-10 inline-flex items-center justify-center
+                  h-6 w-6 rounded-full text-[10px] font-semibold tabular-nums
+                  shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors
+                  ${done
+                    ? "bg-brand text-paper border border-brand"
+                    : active
+                    ? "bg-brand/15 text-brand-d border border-brand ring-2 ring-brand/30 animate-pulse"
+                    : "bg-surface text-ink-soft border border-rule"}
+                `}>
+                  {done ? "✓" : i + 1}
+                </span>
+                <span className={`mt-1.5 text-[10px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[80px] ${active ? "text-ink" : "text-ink-mute"}`}>
+                  {label}
+                </span>
+              </li>
+            );
+          })}
+        </motion.ol>
 
-        {/* ── Document-type guide ──────────────────────────────────────────
-            What the platform actually accepts AND where the customer can
-            download each format. This block is the trust-rail that
-            replaces "magical AI" with "here are the four sources, here's
-            what each one unlocks". Without it, users guess what to upload
-            and we get garbage extractions (PRO TV regression: a public-
-            records summary stuffed into the trial-balance pipeline).      */}
-        <details className="mt-5 w-full max-w-[640px] text-left" data-testid="upload-document-guide">
-          <summary className="cursor-pointer text-[12.5px] font-medium text-ink-soft hover:text-ink list-none flex items-center justify-center gap-2">
-            <span>What can I upload? Where do I get it?</span>
-            <span className="text-[10px] text-ink-mute">▼</span>
-          </summary>
-          <div className="mt-3 grid sm:grid-cols-2 gap-2">
-            <DocGuideCard
-              title="Trial balance (balanță de verificare)"
-              format="XLSX · CSV · PDF"
-              shows="Per-account drilldown, full P&L + BS + cash flow reconciliation, 25+ ratios, valuation, credit score, peer benchmarks"
-              where={[
-                { label: "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)", href: null },
-                { label: "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)", href: null },
-              ]}
-              tone="best"
-            />
-            {/* Public-records card gated behind PUBLIC_RECORDS_ENABLED — when
-                the flag is off (current product positioning) the listafirme/
-                termene/firme.info/risco entries are hidden so the doc guide
-                only shows accepted-document categories. */}
-            {PUBLIC_RECORDS_ENABLED && (
-              <DocGuideCard
-                title="Public records summary"
-                format="PDF only"
-                shows="Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history."
-                where={[
-                  { label: "listafirme.ro/<company-slug>-<CUI>", href: "https://listafirme.ro" },
-                  { label: "termene.ro/firma/<CUI>", href: "https://termene.ro" },
-                  { label: "firme.info/<CUI>", href: "https://firme.info" },
-                  { label: "risco.ro/cui-<CUI>", href: "https://risco.ro" },
-                ]}
-                tone="free"
-              />
-            )}
-            <DocGuideCard
-              title="Statutory ANAF filing"
-              format="XLSX (Formular F30 + F10)"
-              shows="Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers."
-              where={[
-                { label: "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX", href: "https://anaf.ro" },
-                { label: "Your accountant's archive — the annual filing they sent to ANAF", href: null },
-              ]}
-              tone="ok"
-            />
-            <DocGuideCard
-              title="Sales / trading analysis"
-              format="XLSX export"
-              shows="SKU-level portfolio classification (anchor / scale / watch / eliminate), DIO + capital trap detection. Renders in /products."
-              where={[
-                { label: "Your ERP's Trading Analysis report (XLSX)", href: null },
-                { label: "Pivot of monthly sales with: SKU, volume, revenue, GM, DIO, customer category", href: null },
-              ]}
-              tone="ok"
-            />
-          </div>
-          {/* The "no document handy? try listafirme.ro" footer is gated
-              behind the flag (same as the doc-guide card above). When OFF,
-              show neutral accepted-document guidance instead. */}
-          {PUBLIC_RECORDS_ENABLED ? (
-            <p className="mt-3 text-[11px] text-ink-mute leading-relaxed">
-              Don't have any of these handy? <strong className="text-ink-soft">listafirme.ro</strong>{" "}
-              is free and instant — search any Romanian SRL/SA by name or CUI, hit "Date de
-              bilanț" → "Print PDF", drop the file above. You'll get a 20-year financial
-              history in under a minute.
-            </p>
-          ) : (
-            <p className="mt-3 text-[11px] text-ink-mute leading-relaxed">
-              Trial balance (balanță de verificare) is the document that unlocks the full
-              analysis. Most Romanian accounting systems export it as XLSX from{" "}
-              <em>Rapoarte → Balanța de verificare</em> or equivalent. The download buttons
-              at the top of the page show the two structures we accept.
-            </p>
+        {/* Live status line during a scan. */}
+        <AnimatePresence initial={false}>
+          {scanActive && (
+            <motion.p
+              key="dz-status"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              aria-live="polite"
+              className="relative mt-4 text-[13px] font-medium text-ink"
+            >
+              {statusLabel}
+            </motion.p>
           )}
-        </details>
+        </AnimatePresence>
+
+        {!scanActive && (stagedFiles.length > 0 ? (
+          /* Staged files — replaces the example list once files are added.
+             Each has an X to discard; nothing uploads until Start scan. */
+          <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
+            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+              {stagedFiles.length} file{stagedFiles.length === 1 ? "" : "s"} ready to scan
+            </div>
+            <div className="space-y-2">
+              {stagedFiles.map((f, i) => (
+                <div
+                  key={`${f.name}-${f.size}-${i}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
+                      <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onDiscardStaged(i)}
+                    disabled={scanning}
+                    aria-label={`Remove ${f.name}`}
+                    data-testid={`discard-staged-${i}`}
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                  >
+                    <X size={14} strokeWidth={2} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={onDismissAll}
+                disabled={scanning}
+                data-testid="dismiss-all-staged"
+                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+              >
+                <X size={13} strokeWidth={2} />
+                Dismiss all
+              </button>
+              <button
+                type="button"
+                onClick={onStartScan}
+                disabled={scanning}
+                data-testid="start-scan"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)] hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)] ring-1 ring-inset ring-white/15 transition-all disabled:opacity-60"
+              >
+                {scanning ? <Loader2 size={13} strokeWidth={2} className="animate-spin" /> : <Sparkles size={13} strokeWidth={2} />}
+                {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ── Example trial balances ───────────────────────────────────
+             "View" opens the XLSX in a new browser tab; "Download" saves it. */
+          <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="trial-balance-examples">
+            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+              Example trial balances
+            </div>
+            <div className="space-y-2">
+              {[
+                { label: "Multi-column format", file: "example_trial_balance_8col.xlsx", testid: "8col" },
+                { label: "Standard SAGA format", file: "example_trial_balance_6col.xlsx", testid: "6col" },
+              ].map((ex) => (
+                <div
+                  key={ex.file}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-medium text-ink truncate">
+                      {ex.label} <span className="text-ink-mute font-normal">(XLSX)</span>
+                    </div>
+                    <div className="text-[10.5px] text-ink-mute">
+                      Fictional data; demonstrates the required structure.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void previewExampleInNewTab(ex.file)}
+                      data-testid={`view-example-${ex.testid}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                    >
+                      <ExternalLink size={12} strokeWidth={2} />
+                      View
+                    </button>
+                    <a
+                      href={`/examples/${ex.file}`}
+                      download={ex.file}
+                      data-testid={`download-example-${ex.testid}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                    >
+                      <ArrowDownToLine size={12} strokeWidth={2} />
+                      Download
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
       </div>
 
       {/* Sample picker — production default OFF (set VITE_ENABLE_SAMPLES=true
@@ -3468,142 +3475,22 @@ function UploadAndSamplePanel({
       )}
       </div>
 
-      {/* Public Company Intelligence — full-bleed module card. Equal visual
-          weight to the upload zone above: ticker chips, mini KPI tiles,
-          premium teal CTA. Clicks route to /public-companies (hub page). */}
-      <div className="mt-6">
-        <PublicCompaniesLandingCard />
+      {/* Every upload is auto-checked — moved below the drop section and
+          spanning the full panel width per request. */}
+      <div className="w-full flex items-start gap-2 rounded-lg border border-[#8FE3D9]/40 bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.06] px-3 py-2.5 text-[12px] leading-relaxed text-ink-soft">
+        <CheckCircle2 size={13} strokeWidth={2} className="text-[#2AA89B] mt-0.5 shrink-0" />
+        <div>
+          <strong className="text-ink">Every upload is auto-checked.</strong>{" "}
+          Clean trial balances reconcile within 0.5% of source — you'll see a green
+          "Quality checks passed" badge. If anything's off (source debits don't equal credits,
+          accounts can't be classified, balance sheet doesn't reconcile), you'll get a specific
+          warning naming the issue before you act on any number.
+        </div>
       </div>
     </div>
   );
 }
 
-// Trial-balance guided setup. Refined from the previous loud navy-blue
-// gradient block into a premium app-native panel: deep ink card with a
-// subtle brand glow, modern sans hierarchy, framed download-example
-// control group. EVERY download link, label, fictional-data note, and
-// data-testid is preserved verbatim — only the chrome changed.
-function TrialBalanceHeroCallout() {
-  return (
-    <section
-      data-testid="trial-balance-hero"
-      className="
-        relative overflow-hidden rounded-3xl
-        border border-rule
-        bg-surface
-        text-ink
-        ring-1 ring-inset ring-rule-soft
-        shadow-[0_24px_48px_-30px_rgba(0,0,0,0.20)]
-        px-6 sm:px-8 py-6 sm:py-7
-      "
-    >
-      {/* Atmospheric brand glow — purely visual */}
-      <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-brand/25 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-brand-2/15 blur-3xl" />
-
-      <div className="relative flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
-        <span className="inline-flex items-center justify-center h-11 w-11 rounded-2xl bg-gradient-to-br from-brand/25 to-brand-d/30 text-brand-d ring-1 ring-inset ring-brand/20 shrink-0">
-          <FileSpreadsheet size={18} strokeWidth={1.75} />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-soft font-semibold">
-            <Sparkles size={10} strokeWidth={2.25} className="text-brand" />
-            Guided setup
-          </div>
-          <h2 className="mt-2 text-[20px] sm:text-[22px] leading-tight font-semibold tracking-[-0.01em] m-0">
-            Upload your trial balance (balanță de verificare)
-          </h2>
-          <p className="mt-2 text-[13.5px] sm:text-[14px] leading-relaxed text-ink-soft">
-            XLSX or PDF, exported from your accounting system —{" "}
-            <strong className="text-ink">SAGA</strong>,{" "}
-            <strong className="text-ink">WinMentor</strong>,{" "}
-            <strong className="text-ink">SmartBill</strong>,{" "}
-            <strong className="text-ink">NEXTUP</strong>,{" "}
-            <strong className="text-ink">CIEL</strong>. This is the document the full
-            analysis is built for: P&amp;L, Balance Sheet, Cash Flow, Ratios, Valuation,
-            Risk, and Recommendations are all reconstructed from it.
-          </p>
-          <p className="mt-2 text-[12.5px] leading-relaxed text-ink-mute">
-            Not sure your export is in the right shape? Download the example below and match its
-            structure (account code, account name, debit/credit columns for opening balances,
-            period movements, and total sums).
-          </p>
-
-          {/* 2026-05-24 — pre-upload quality disclosure. Sets expectations
-              before the user uploads: clean trial balances pass under 0.5%
-              drift; anything off gets a SPECIFIC warning naming the issue
-              (source imbalance, account misclassification). Replaces the
-              old "~90%+ accuracy" marketing claim with the actual quality
-              contract. */}
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-300/40 bg-emerald-50/30 dark:bg-emerald-500/[0.06] px-3 py-2 text-[12px] leading-relaxed text-ink-soft">
-            <CheckCircle2 size={12} strokeWidth={2} className="text-emerald-600 mt-0.5 shrink-0" />
-            <div>
-              <strong className="text-ink">Every upload is auto-checked.</strong>{" "}
-              Clean trial balances reconcile within 0.5% of source — you'll see a green
-              "Quality checks passed" badge. If anything's off (source debits don't equal credits,
-              accounts can't be classified, balance sheet doesn't reconcile), you'll get a specific
-              warning naming the issue before you act on any number.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="
-          relative mt-5 rounded-2xl
-          bg-bg-2/60 border border-rule
-          backdrop-blur-sm
-          px-4 py-3
-          flex flex-col sm:flex-row sm:items-center gap-3
-        "
-      >
-        <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute sm:mr-1 shrink-0">
-          Download example
-        </div>
-        <div className="flex flex-wrap gap-2 flex-1">
-          <a
-            href="/examples/example_trial_balance_8col.xlsx"
-            download="example_trial_balance_8col.xlsx"
-            data-testid="download-example-8col"
-            className="
-              inline-flex items-center gap-1.5
-              rounded-lg px-3 py-1.5
-              text-[12.5px] font-medium text-ink
-              bg-gradient-to-b from-brand-2 to-brand-2/90
-              hover:from-brand-2/95 hover:to-brand-2/80
-              shadow-1
-              ring-1 ring-inset ring-rule
-              transition-all
-            "
-          >
-            <ArrowDownToLine size={12} strokeWidth={2} />
-            Multi-column format (XLSX)
-          </a>
-          <a
-            href="/examples/example_trial_balance_6col.xlsx"
-            download="example_trial_balance_6col.xlsx"
-            data-testid="download-example-6col"
-            className="
-              inline-flex items-center gap-1.5
-              rounded-lg px-3 py-1.5
-              text-[12.5px] font-medium text-ink
-              bg-surface hover:bg-bg-2
-              shadow-1
-              ring-1 ring-inset ring-rule
-              transition-all
-            "
-          >
-            <ArrowDownToLine size={12} strokeWidth={2} />
-            Standard SAGA format (XLSX)
-          </a>
-        </div>
-        <span className="text-[10.5px] text-ink-mute sm:ml-auto sm:text-right shrink-0">
-          Fictional data; demonstrates the required structure.
-        </span>
-      </div>
-    </section>
-  );
-}
 
 // Hero callout — listafirme.ro as the primary "no document?" CTA.
 // Rendered ABOVE the dropzone on the empty state (UploadAndSamplePanel
@@ -3617,7 +3504,7 @@ function UploadHeroCallout() {
     <div
       data-testid="upload-hero-callout"
       className="rounded-2xl px-6 py-6 sm:px-8 sm:py-7 text-white flex flex-col sm:flex-row items-start gap-4 sm:gap-5"
-      style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}
+      style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}
     >
       <div className="text-[36px] sm:text-[42px] leading-none shrink-0" aria-hidden>
         📊
@@ -3640,7 +3527,7 @@ function UploadHeroCallout() {
             rel="noopener noreferrer"
             data-testid="upload-hero-cta"
             className="inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold transition-colors"
-            style={{ background: "#f39c12", color: "#1a1a1a" }}
+            style={{ background: "#5CD3C5", color: "#1a1a1a" }}
           >
             Open listafirme.ro ↗
           </a>
@@ -3664,12 +3551,12 @@ function DocGuideCard({ title, format, shows, where, tone }: {
   tone: "best" | "ok" | "free";
 }) {
   const borderClass =
-    tone === "best" ? "border-l-emerald-500"
-    : tone === "free" ? "border-l-blue-500"
+    tone === "best" ? "border-l-[#5CD3C5]"
+    : tone === "free" ? "border-l-[#5CD3C5]"
     : "border-l-rule-strong";
   const toneBadge =
-    tone === "best" ? { label: "MOST DATA", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/[0.18] dark:text-emerald-300" }
-    : tone === "free" ? { label: "FREE / INSTANT", cls: "bg-blue-100 text-blue-800 dark:bg-blue-500/[0.18] dark:text-blue-300" }
+    tone === "best" ? { label: "MOST DATA", cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
+    : tone === "free" ? { label: "FREE / INSTANT", cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
     : { label: "AGGREGATE", cls: "bg-bg-2 text-ink-soft" };
   return (
     <div className={`rounded-lg border border-rule border-l-[3px] ${borderClass} bg-surface p-3 text-left`}>
@@ -3688,7 +3575,7 @@ function DocGuideCard({ title, format, shows, where, tone }: {
             <span className="text-ink-mute mr-1">·</span>
             {w.href ? (
               <a href={w.href} target="_blank" rel="noopener noreferrer"
-                 className="text-blue-700 dark:text-blue-300 hover:underline underline-offset-2">
+                 className="text-[#2AA89B] dark:text-[#8FE3D9] hover:underline underline-offset-2">
                 {w.label}
               </a>
             ) : (
@@ -3833,8 +3720,8 @@ function RatioTile({
 function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: string }) {
   const tones: Record<string, { pillBg: string; pillText: string }> = {
     critical: { pillBg: "bg-red-600", pillText: "text-white" },
-    high:     { pillBg: "bg-amber-500", pillText: "text-white" },
-    medium:   { pillBg: "bg-blue-600", pillText: "text-white" },
+    high:     { pillBg: "bg-[#5CD3C5]", pillText: "text-white" },
+    medium:   { pillBg: "bg-[#2AA89B]", pillText: "text-white" },
     info:     { pillBg: "bg-ink-mute", pillText: "text-white" },
   };
   const t = tones[rec.priority];
@@ -3964,7 +3851,7 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
 
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         {rec.estimatedImpact && (
-          <div className="inline-flex items-center text-[11.5px] font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
+          <div className="inline-flex items-center text-[11.5px] font-medium text-[#2AA89B] bg-[#E6F7F4] px-3 py-1 rounded-md">
             <LearnableRowLabel conceptKey="recommendation_impact">Estimated impact</LearnableRowLabel>:{" "}
             <LearnableNumber conceptKey="recommendation_impact" value={rec.estimatedImpact}>
               <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact />
@@ -4288,7 +4175,7 @@ function ValuationPanel({
                   {dcf.scenarios.map((sc) => (
                     <tr
                       key={sc.label}
-                      className={`border-t border-rule ${sc.label === "Central" ? "bg-amber-50/40 font-semibold" : ""}`}
+                      className={`border-t border-rule ${sc.label === "Central" ? "bg-[#E6F7F4]/40 font-semibold" : ""}`}
                     >
                       <td className="py-2 px-3 text-ink">{sc.label}</td>
                       <td className="py-2 px-3 text-right tabular-nums text-ink">{pct(sc.wacc, 2)}</td>
@@ -4370,7 +4257,7 @@ function ValuationPanel({
                     {row.values.map((v) => (
                       <td key={v.period} className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(v.value, cur)}</td>
                     ))}
-                    <td className={`py-2 px-4 text-right tabular-nums font-medium ${row.cagr >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                    <td className={`py-2 px-4 text-right tabular-nums font-medium ${row.cagr >= 0 ? "text-[#2AA89B]" : "text-red-700"}`}>
                       {row.cagr >= 0 ? "+" : ""}{(row.cagr * 100).toFixed(1)}%
                     </td>
                   </tr>
@@ -4411,10 +4298,10 @@ function RisksPanel({
   const altman = credit.altman;
 
   const ratingTone = (rating: string): string => {
-    if (rating.startsWith("AAA") || rating.startsWith("AA") || rating === "A") return "bg-emerald-50 text-emerald-700 border-emerald-300/60";
-    if (rating.startsWith("BBB")) return "bg-blue-50 text-blue-700 border-blue-300/60";
-    if (rating.startsWith("BB")) return "bg-amber-50 text-amber-700 border-amber-300/60";
-    if (rating.startsWith("B") || rating === "CCC") return "bg-orange-50 text-orange-700 border-orange-300/60";
+    if (rating.startsWith("AAA") || rating.startsWith("AA") || rating === "A") return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
+    if (rating.startsWith("BBB")) return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
+    if (rating.startsWith("BB")) return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
+    if (rating.startsWith("B") || rating === "CCC") return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
     return "bg-red-50 text-red-700 border-red-300/60";
   };
 
@@ -4502,7 +4389,7 @@ function RisksPanel({
               {piotroski.checks.map((c) => {
                 const tone =
                   c.result === "pass"
-                    ? "text-emerald-700"
+                    ? "text-[#2AA89B]"
                     : c.result === "fail"
                       ? "text-red-700"
                       : "text-ink-mute";
@@ -4537,9 +4424,9 @@ function RisksPanel({
             <span
               className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full ${
                 altman.zone === "safe"
-                  ? "bg-emerald-50 text-emerald-700"
+                  ? "bg-[#E6F7F4] text-[#2AA89B]"
                   : altman.zone === "grey"
-                    ? "bg-amber-50 text-amber-700"
+                    ? "bg-[#E6F7F4] text-[#2AA89B]"
                     : "bg-red-50 text-red-700"
               }`}
             >
@@ -4574,9 +4461,9 @@ function RisksPanel({
                   <td
                     className={`py-2 px-3 text-right tabular-nums font-semibold ${
                       altman.zone === "safe"
-                        ? "text-emerald-700"
+                        ? "text-[#2AA89B]"
                         : altman.zone === "grey"
-                          ? "text-amber-700"
+                          ? "text-[#2AA89B]"
                           : "text-red-700"
                     }`}
                   >

@@ -70,7 +70,7 @@ export function AdjustmentEditor() {
                 className={cn(
                   "text-left rounded-lg border px-3 py-2.5 transition-colors min-h-[44px]",
                   isActive
-                    ? "border-[hsl(165,75%,55%)]/60 bg-[hsl(165,75%,55%)]/[0.06] ring-1 ring-[hsl(165,75%,55%)]/20"
+                    ? "border-[hsl(173,57%,55%)]/60 bg-[hsl(173,57%,55%)]/[0.06] ring-1 ring-[hsl(173,57%,55%)]/20"
                     : "border-rule bg-surface hover:bg-bg-2/50",
                 )}
               >
@@ -103,7 +103,7 @@ export function AdjustmentEditor() {
                 className={cn(
                   "rounded-lg border px-3 py-2.5 transition-colors",
                   showActive
-                    ? "border-[hsl(165,75%,55%)]/40 bg-[hsl(165,75%,55%)]/[0.04]"
+                    ? "border-[hsl(173,57%,55%)]/40 bg-[hsl(173,57%,55%)]/[0.04]"
                     : "border-rule bg-surface",
                 )}
               >
@@ -115,7 +115,7 @@ export function AdjustmentEditor() {
                       className={cn(
                         "text-[12px] tabular-nums font-semibold px-1.5 py-0.5 rounded",
                         showActive
-                          ? "text-[hsl(165,80%,42%)] dark:text-[hsl(165,70%,60%)] bg-[hsl(165,75%,55%)]/10"
+                          ? "text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)] bg-[hsl(173,57%,55%)]/10"
                           : "text-ink-mute",
                       )}
                     >
@@ -143,7 +143,7 @@ export function AdjustmentEditor() {
                   onChange={(e) => setLever(lever.key, Number(e.target.value))}
                   data-testid={`lever-slider-${lever.key}`}
                   aria-label={lever.label}
-                  className="w-full mt-2 accent-[hsl(165,75%,45%)] cursor-pointer touch-none"
+                  className="w-full mt-2 accent-[hsl(173,57%,45%)] cursor-pointer touch-none"
                 />
                 <div className="text-[10.5px] text-ink-mute leading-snug mt-1">
                   {lever.hint}

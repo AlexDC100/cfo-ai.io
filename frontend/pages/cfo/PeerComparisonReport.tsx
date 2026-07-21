@@ -20,7 +20,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { Download, Printer, Loader2, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { IndustryBadge } from "@/components/cfo/industry";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -207,18 +206,18 @@ export default function PeerComparisonReport() {
   const periodLabel = useMemoPeriodLabel(report);
 
   if (loading) {
-    return <AppShell><div className="flex items-center justify-center py-32 text-ink-mute"><Loader2 size={20} className="animate-spin mr-2" />Loading peer comparison…</div></AppShell>;
+    return <><div className="flex items-center justify-center py-32 text-ink-mute"><Loader2 size={20} className="animate-spin mr-2" />Loading peer comparison…</div></>;
   }
   if (!report) {
     return (
-      <AppShell>
+      <>
         <div className="max-w-[640px] mx-auto py-24 text-center">
           <h1 className="font-serif text-[28px] text-ink">No peer data available</h1>
           <p className="mt-2 text-[14px] text-ink-soft">
             Open a financial period first, then return to this page.
           </p>
         </div>
-      </AppShell>
+      </>
     );
   }
 
@@ -226,11 +225,11 @@ export default function PeerComparisonReport() {
   const revenue = report.company_metrics_raw?.revenue ?? 0;
 
   return (
-    <AppShell>
-      <div className="max-w-[1100px] mx-auto" data-testid="peer-comparison-report">
+    <>
+      <div className="max-w-[1100px]" data-testid="peer-comparison-report">
         {/* Navy gradient header — matches the Transavia memo + /report page */}
         <header className="rounded-2xl px-6 py-6 mb-6 text-white"
-                style={{ background: "linear-gradient(135deg, #003366 0%, #1a5490 100%)" }}>
+                style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}>
           {/* 2026-05-26 mobile fix: stack vertically below sm: so the
               three-company "A vs B vs C" headline doesn't column-stack
               when the Export PDF button competes for width. */}
@@ -305,7 +304,7 @@ export default function PeerComparisonReport() {
           </footer>
         </article>
       </div>
-    </AppShell>
+    </>
   );
 }
 
@@ -409,8 +408,8 @@ function HeadlineVerdict({ report, revenue, companyName, currency }: {
 }
 
 function KpiBox({ label, value, sub, favorable }: { label: string; value: string; sub: string; favorable: boolean }) {
-  const valueColor = favorable ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400";
-  const borderColor = favorable ? "border-emerald-300/50" : "border-amber-300/50";
+  const valueColor = favorable ? "text-[#2AA89B] dark:text-[#5CD3C5]" : "text-[#2AA89B] dark:text-[#5CD3C5]";
+  const borderColor = favorable ? "border-[#8FE3D9]/50" : "border-[#8FE3D9]/50";
   return (
     <div className={`rounded-xl border ${borderColor} bg-bg-2/40 px-3 py-3`}>
       <div className="text-[10px] uppercase tracking-[0.1em] text-ink-mute font-medium">{label}</div>
@@ -457,15 +456,15 @@ function PnlGapTable({ report, revenue, companyName, currency }: {
 
   const sevStyle: Record<string, string> = {
     critical: "bg-red-50/60 dark:bg-red-500/[0.08] border-red-300/50",
-    high:     "bg-orange-50/60 dark:bg-orange-500/[0.08] border-orange-300/50",
-    medium:   "bg-amber-50/40 dark:bg-amber-500/[0.06] border-amber-300/50",
-    strong:   "bg-emerald-50/40 dark:bg-emerald-500/[0.06] border-emerald-300/50",
+    high:     "bg-[#E6F7F4]/60 dark:bg-[#5CD3C5]/[0.08] border-[#8FE3D9]/50",
+    medium:   "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] border-[#8FE3D9]/50",
+    strong:   "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] border-[#8FE3D9]/50",
   };
   const sevText: Record<string, string> = {
     critical: "text-red-800 dark:text-red-300",
-    high:     "text-orange-800 dark:text-orange-300",
-    medium:   "text-amber-800 dark:text-amber-300",
-    strong:   "text-emerald-800 dark:text-emerald-300",
+    high:     "text-[#1B7268] dark:text-[#8FE3D9]",
+    medium:   "text-[#1B7268] dark:text-[#8FE3D9]",
+    strong:   "text-[#1B7268] dark:text-[#8FE3D9]",
   };
 
   function fmtPct(v: number | null): string {
@@ -539,10 +538,10 @@ function PnlGapTable({ report, revenue, companyName, currency }: {
 
 function PeerLandscape({ deep, companyName }: { deep: DeepPayload; companyName: string }) {
   const tierStyle: Record<string, string> = {
-    leader:     "bg-emerald-100/80 text-emerald-900 border-emerald-300",
-    strong:     "bg-emerald-50/80 text-emerald-800 border-emerald-200",
-    median:     "bg-blue-50/80 text-blue-800 border-blue-200",
-    thin_margin:"bg-amber-50/80 text-amber-800 border-amber-200",
+    leader:     "bg-[#E6F7F4]/80 text-[#1B7268] border-[#8FE3D9]",
+    strong:     "bg-[#E6F7F4]/80 text-[#1B7268] border-[#8FE3D9]",
+    median:     "bg-[#E6F7F4]/80 text-[#1B7268] border-[#8FE3D9]",
+    thin_margin:"bg-[#E6F7F4]/80 text-[#1B7268] border-[#8FE3D9]",
     distressed: "bg-red-50/80 text-red-800 border-red-200",
     self:       "bg-ink/10 text-ink border-ink/30",
   };
@@ -609,14 +608,14 @@ function LeaderReasons({ deep }: { deep: DeepPayload }) {
         {deep.leader_reasons.map((r) => (
           <li key={r.rank}
               data-testid="peer-leader-reason"
-              className="rounded-xl border-l-[3px] border-emerald-400 bg-surface border border-rule px-4 py-3">
+              className="rounded-xl border-l-[3px] border-[#5CD3C5] bg-surface border border-rule px-4 py-3">
             <div className="flex items-start justify-between gap-3 mb-1">
               <div className="flex items-center gap-2 min-w-0">
-                <TrendingUp size={14} strokeWidth={2} className="text-emerald-600 shrink-0" />
+                <TrendingUp size={14} strokeWidth={2} className="text-[#2AA89B] shrink-0" />
                 <span className="font-medium text-ink">{r.rank}. {r.title}</span>
               </div>
               {r.margin_impact_pp != null && (
-                <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 shrink-0 tabular-nums">
+                <span className="text-[11px] font-medium text-[#2AA89B] dark:text-[#5CD3C5] shrink-0 tabular-nums">
                   +{r.margin_impact_pp.toFixed(1)} pp
                 </span>
               )}
@@ -637,9 +636,9 @@ function LeaderReasons({ deep }: { deep: DeepPayload }) {
 function TargetTiers({ tiers }: { tiers: NonNullable<DeepPayload["target_tiers"]> }) {
   const order: Array<keyof NonNullable<DeepPayload["target_tiers"]>> = ["aspirational", "realistic", "minimum_viable"];
   const labelMap: Record<string, { color: string; description: string }> = {
-    aspirational:   { color: "border-emerald-400 bg-emerald-50/30",  description: "Where leaders run today" },
-    realistic:      { color: "border-blue-400 bg-blue-50/30",        description: "Achievable in 18-24 months" },
-    minimum_viable: { color: "border-amber-400 bg-amber-50/30",      description: "Floor before refinancing risk" },
+    aspirational:   { color: "border-[#5CD3C5] bg-[#E6F7F4]/30",  description: "Where leaders run today" },
+    realistic:      { color: "border-[#5CD3C5] bg-[#E6F7F4]/30",        description: "Achievable in 18-24 months" },
+    minimum_viable: { color: "border-[#5CD3C5] bg-[#E6F7F4]/30",      description: "Floor before refinancing risk" },
   };
   return (
     <section data-testid="peer-target-tiers">
@@ -679,7 +678,7 @@ function IndustryDynamics({ deep }: { deep: DeepPayload }) {
         §5. Industry dynamics
       </h2>
       {deep.market_context && (
-        <div className="rounded-xl border-l-[3px] border-blue-400 bg-blue-50/30 dark:bg-blue-500/[0.06] px-4 py-3 mb-4">
+        <div className="rounded-xl border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.06] px-4 py-3 mb-4">
           <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1">
             Market context
           </div>
@@ -690,13 +689,13 @@ function IndustryDynamics({ deep }: { deep: DeepPayload }) {
         {deep.success_patterns.length > 0 && (
           <div className="rounded-xl border border-rule bg-surface p-4">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingUp size={14} className="text-emerald-600" />
+              <TrendingUp size={14} className="text-[#2AA89B]" />
               <h3 className="font-medium text-ink text-[14px]">Success patterns</h3>
             </div>
             <ul className="space-y-1.5 text-[12.5px] text-ink-soft">
               {deep.success_patterns.map((p, i) => (
                 <li key={i} className="flex items-start gap-2">
-                  <span className="text-emerald-600 mt-0.5">+</span>
+                  <span className="text-[#2AA89B] mt-0.5">+</span>
                   <span>{p}</span>
                 </li>
               ))}
@@ -722,7 +721,7 @@ function IndustryDynamics({ deep }: { deep: DeepPayload }) {
       </div>
       {(!deep.success_patterns.length && !deep.failure_modes.length && !deep.market_context) && (
         <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
-          <AlertTriangle size={14} className="inline mr-1 text-amber-600" />
+          <AlertTriangle size={14} className="inline mr-1 text-[#2AA89B]" />
           No qualitative industry data seeded for this CAEN yet. Coverage expands —
           the percentile + named-peer comparisons above are the primary read.
         </div>

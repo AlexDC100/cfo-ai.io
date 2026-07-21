@@ -354,7 +354,7 @@ function CurrentPlanStrip() {
               <span
                 data-testid="current-plan-status"
                 className={`text-[11px] uppercase tracking-[0.08em] font-semibold ${
-                  cancelling ? "text-amber-700" : "text-brand-d"
+                  cancelling ? "text-[#2AA89B]" : "text-brand-d"
                 }`}
               >
                 {statusLabel}

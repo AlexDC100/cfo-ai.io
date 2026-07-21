@@ -26,7 +26,7 @@ export function PublicCompaniesLandingCard({ className = "" }: Props) {
         bg-gradient-to-br from-surface via-surface to-bg-2/40
         p-7 sm:p-8
         transition-all
-        hover:border-brand/40 hover:shadow-[0_20px_60px_-20px_rgba(45,191,179,0.25)]
+        hover:border-brand/40 hover:shadow-[0_20px_60px_-20px_rgba(42,168,155,0.25)]
         hover:-translate-y-[1px]
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50
         ${className}
@@ -123,9 +123,9 @@ export function PublicCompaniesLandingCard({ className = "" }: Props) {
             h-10 px-4 rounded-lg
             bg-gradient-to-b from-brand to-brand-d text-paper
             text-[13px] font-medium
-            shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
+            shadow-[0_8px_22px_-8px_rgba(42,168,155,0.6)]
             ring-1 ring-inset ring-white/15
-            group-hover:shadow-[0_12px_28px_-8px_rgba(45,191,179,0.75)]
+            group-hover:shadow-[0_12px_28px_-8px_rgba(42,168,155,0.75)]
             transition-all
           ">
             Open Public Companies

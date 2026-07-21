@@ -2,6 +2,7 @@
   "sidebar": {
     "workflow": "Workflow",
     "language_label": "Change language",
+    "workspace": "Workspace",
     "dashboard": "Dashboard",
     "cash": "Cash",
     "profit": "Profit",
@@ -66,7 +67,7 @@
     "hero_pre": "Upload your",
     "hero_highlight": "trial balance",
     "hero_post": "to unlock the full CFO analysis.",
-    "hero_subtitle": "CFO AI reconstructs financial statements, calculates 25+ ratios, flags risks, and prepares board-ready recommendations from your accounting export. Language and format are auto-detected.",
+    "hero_subtitle": "XLSX or PDF, exported from your accounting system — SAGA, WinMentor, SmartBill, NEXTUP, CIEL. This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is auto-checked — clean trial balances reconcile within 0.5% of source.",
     "kpi": {
       "revenue": "Revenue",
       "ebitda": "EBITDA",
@@ -168,7 +169,7 @@
     "language": "Language",
     "language_description": "Choose the language for the interface and AI-generated analysis.",
     "title": "Account",
-    "subtitle": "Manage your profile, workspace, subscription, and security in one place.",
+    "subtitle": "Your profile, language, industry and plan — all in one place. Changes save to your account and apply across every tab instantly.",
     "profile_title": "Profile",
     "profile_subtitle": "How CFO AI introduces you across the app.",
     "full_name": "Full name",

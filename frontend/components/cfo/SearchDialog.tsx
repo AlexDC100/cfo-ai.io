@@ -266,11 +266,11 @@ export function SearchDialog({ open, onOpenChange }: Props) {
                         <r.icon size={14} strokeWidth={1.75} />
                       </span>
                     ) : r.kind === "glossary" ? (
-                      <span className="w-7 h-7 rounded-md bg-[hsl(165,75%,55%)]/15 grid place-items-center shrink-0 text-[hsl(165,75%,55%)]">
+                      <span className="w-7 h-7 rounded-md bg-[hsl(173,57%,55%)]/15 grid place-items-center shrink-0 text-[hsl(173,57%,55%)]">
                         <r.icon size={14} strokeWidth={1.75} />
                       </span>
                     ) : r.kind === "concept" ? (
-                      <span className="w-7 h-7 rounded-md bg-[hsl(165,75%,55%)]/10 grid place-items-center shrink-0 text-[hsl(165,75%,55%)]">
+                      <span className="w-7 h-7 rounded-md bg-[hsl(173,57%,55%)]/10 grid place-items-center shrink-0 text-[hsl(173,57%,55%)]">
                         <Sparkles size={14} strokeWidth={1.75} />
                       </span>
                     ) : (
@@ -288,7 +288,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
                       <BucketChip bucket={r.bucket as import("@/lib/cfoApi").Bucket} />
                     )}
                     {r.kind === "concept" && (
-                      <span className="text-[10px] uppercase tracking-[0.12em] text-[hsl(165,75%,55%)]/70 font-medium shrink-0">
+                      <span className="text-[10px] uppercase tracking-[0.12em] text-[hsl(173,57%,55%)]/70 font-medium shrink-0">
                         Learn
                       </span>
                     )}

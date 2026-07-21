@@ -67,10 +67,10 @@ export function LearningHubMenu() {
             "text-ink-soft hover:text-ink",
             "hover:bg-bg-2 data-[state=open]:bg-bg-2 data-[state=open]:text-ink",
             "transition-colors",
-            "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/40",
+            "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
           )}
         >
-          <Sparkles className="w-3.5 h-3.5 text-[hsl(165,75%,45%)]" />
+          <Sparkles className="w-3.5 h-3.5 text-[hsl(173,57%,45%)]" />
           <span>Learn</span>
           <ChevronDown
             className={cn(
@@ -143,9 +143,9 @@ export function LearningHubMenu() {
                     "px-3 py-2 rounded-xl",
                     "transition-colors",
                     active
-                      ? "bg-[hsl(165,75%,55%)]/[0.08] text-ink"
+                      ? "bg-[hsl(173,57%,55%)]/[0.08] text-ink"
                       : "hover:bg-bg-2 text-ink-soft hover:text-ink",
-                    "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/40",
+                    "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
                   )}
                 >
                   <span
@@ -154,7 +154,7 @@ export function LearningHubMenu() {
                       "mt-[3px] inline-flex items-center justify-center",
                       "w-3.5 h-3.5 rounded-full shrink-0",
                       active
-                        ? "bg-[hsl(165,75%,45%)] text-white"
+                        ? "bg-[hsl(173,57%,45%)] text-white"
                         : "border border-rule bg-transparent",
                     )}
                   >
@@ -164,7 +164,7 @@ export function LearningHubMenu() {
                     <span
                       className={cn(
                         "block text-[13px] font-medium leading-tight",
-                        active && "text-[hsl(165,80%,32%)] dark:text-[hsl(165,70%,60%)]",
+                        active && "text-[hsl(173,57%,32%)] dark:text-[hsl(173,57%,60%)]",
                       )}
                     >
                       {row.label}
@@ -200,7 +200,7 @@ export function LearningHubMenu() {
               "px-3 py-2 rounded-xl",
               "text-[13px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2",
               "transition-colors",
-              "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/40",
+              "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
             )}
           >
             <BookOpen className="w-3.5 h-3.5 shrink-0" />
@@ -228,7 +228,7 @@ export function LearningHubMenu() {
                 "px-3 py-1.5 mt-0.5 rounded-xl",
                 "text-[11.5px] text-ink-soft hover:text-ink hover:bg-bg-2",
                 "transition-colors",
-                "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/40",
+                "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
               )}
             >
               <RotateCcw className="w-3 h-3 shrink-0" />

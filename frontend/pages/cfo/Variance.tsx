@@ -8,7 +8,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Scale } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { EmptyState } from "@/components/cfo/ui/EmptyState";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
@@ -107,12 +106,12 @@ function VarianceInner({
   const hasLastYear = !!effectiveDataset && Object.keys(effectiveDataset.lastYear).length > 0;
 
   return (
-    <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-6 space-y-5">
+    <div className="max-w-[1180px] space-y-5">
       <div>
         <div className="text-[10.5px] uppercase tracking-[0.18em] text-ink-mute font-semibold">
           Management reporting
         </div>
-        <h1 className="text-[26px] sm:text-[30px] leading-tight font-semibold tracking-[-0.01em] text-ink mt-0.5">
+        <h1 className="text-[44px] sm:text-[56px] leading-[1.04] font-serif tracking-[-0.02em] text-ink mt-0.5">
           Budget vs Actual vs Last year
         </h1>
         <p className="text-[13px] text-ink-soft mt-1.5 max-w-[680px]">
@@ -198,7 +197,7 @@ export default function Variance() {
 
   if (!period.statements) {
     return (
-      <AppShell>
+      <>
         <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-10">
           <EmptyState
             icon={Scale}
@@ -217,18 +216,18 @@ export default function Variance() {
             footnote="Budget data is saved on this device and never alters your actuals."
           />
         </div>
-      </AppShell>
+      </>
     );
   }
 
   return (
-    <AppShell>
+    <>
       <VarianceInner
         statements={period.statements}
         periodLabel={period.label}
         lineItems={period.lineItems ?? []}
         metricRows={period.metrics ?? []}
       />
-    </AppShell>
+    </>
   );
 }

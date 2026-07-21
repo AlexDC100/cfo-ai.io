@@ -83,7 +83,7 @@ const OVERRIDE_META: Record<string, { label: string; tone: string }> = {
   },
   strategic_override: {
     label: "MARKED STRATEGIC (override)",
-    tone: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    tone: "bg-[#E6F7F4] text-[#1B7268] border-[#8FE3D9]",
   },
 };
 

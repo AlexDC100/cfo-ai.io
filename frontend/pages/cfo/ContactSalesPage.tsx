@@ -96,7 +96,7 @@ export default function ContactSalesPage() {
       </header>
 
       <main className="flex-1 mx-auto w-full max-w-[640px] px-5 sm:px-8 py-12">
-        <h1 className="text-[32px] sm:text-[38px] font-semibold tracking-tight text-ink">
+        <h1 className="text-[32px] sm:text-[38px] tracking-tight text-ink">
           Let's talk Professional
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft">
@@ -105,7 +105,7 @@ export default function ContactSalesPage() {
         </p>
 
         {done ? (
-          <div className="mt-8 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6">
+          <div className="mt-8 rounded-xl border border-[#5CD3C5]/30 bg-[#5CD3C5]/5 p-6">
             <h2 className="text-[18px] font-semibold text-ink">
               Got it — talk soon
             </h2>

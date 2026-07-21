@@ -212,6 +212,7 @@ export function AppShell({ children }: Props) {
       <TopHeader
         onOpenAi={openAskCfoAi}
         onOpenSidebar={() => setSidebarOpen(true)}
+        onOpenAccount={() => setDrawerOpen(true)}
       />
 
       {/* Persistent sidebar (lg+) */}
@@ -257,16 +258,30 @@ export function AppShell({ children }: Props) {
       {/* Main content — offset for the fixed header + sidebar. When any
           slide-out is open on wide screens (≥1280px) the content shifts
           left by the panel's width so nothing is hidden. */}
-      <main className={`pt-16 ${sidebarCollapsed ? "lg:pl-[68px]" : "lg:pl-[244px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
+      <main className={`pt-16 ${sidebarCollapsed ? "lg:pl-[92px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
         {/* WS1 — sticky usage warning when caller is at 80%+ of any
             cap. Renders null when under threshold, off, dismissed, or
             no plan state. Stays at top of the main scroll region so it
             doesn't fight with the fixed TopHeader. */}
         <UsageWarningBanner />
+        {/* Site-wide content-width clamp. Every in-app page renders through
+            this wrapper, so the max-width here is the single rule that keeps
+            content from stretching across ultra-wide monitors. Left-anchored
+            (no mx-auto) so content aligns to the left edge just under the
+            sidebar. Individual pages should NOT re-clamp — they inherit this.
+            /chat renders here too now (document-level scroll, same as every
+            other tab) — its shell cancels this wrapper's bottom padding. */}
         <div
-          className="px-4 sm:px-8 lg:px-10 py-6 sm:py-10 lg:py-12"
+          className="px-4 sm:px-8 lg:px-10 py-6 sm:py-10 lg:py-12 relative isolate max-w-[1760px]"
           style={{ paddingBottom: "max(8rem, calc(env(safe-area-inset-bottom) + 6rem))" }}
         >
+          {/* Shared atmospheric brand glow behind every page's content — the
+              "dashboard background" applied app-wide so all tabs read with the
+              exact same subtle backdrop. -z-10 keeps it behind content. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-12 -left-12 h-72 w-72 rounded-full bg-brand/10 blur-3xl z-[-10]"
+          />
           {children}
         </div>
       </main>

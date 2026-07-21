@@ -142,11 +142,12 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   }
 
   return (
-    <div className={`w-full ${compact ? "px-3 pb-3" : "px-4 sm:px-6 pb-2"}`}>
-      {/* Inner column mirrors CFOMessageList's `max-w-[820px] mx-auto`
-          (padding OUTSIDE the max-width) so the composer lines up to the
-          exact same width the message bubbles use. */}
-      <div className={compact ? "" : "max-w-[820px] mx-auto"}>
+    <div className={`w-full ${compact ? "px-3 pb-3" : "pb-2"}`}>
+      {/* The full /chat page provides its own horizontal padding + max-width on
+          the wrapper around this composer, so here we DON'T re-pad (that would
+          push the input box right of the context pill + messages). The compact
+          panel keeps its own padding + full width. */}
+      <div className="w-full">
       {contextLine && (
         <div className="mb-2 text-[11.5px] text-ink-mute text-left selection:bg-transparent">
           {contextLine}
@@ -161,9 +162,9 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
         <div
           data-testid="chat-blocked-banner"
           className="
-            mb-2 rounded-xl border border-amber-300/70 bg-amber-50 px-3 py-2
-            text-[12px] text-amber-900 flex items-start gap-2
-            dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-700/50
+            mb-2 rounded-xl border border-[#8FE3D9]/70 bg-[#E6F7F4] px-3 py-2
+            text-[12px] text-[#1B7268] flex items-start gap-2
+            dark:bg-[#1B7268]/20 dark:text-[#8FE3D9] dark:border-[#2AA89B]/50
           "
         >
           <span className="font-medium">{blockedReason.headline}.</span>
@@ -181,7 +182,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
 
       <div className={`
         relative rounded-2xl border border-rule
-        bg-surface/85 dark:bg-bg-2/60 backdrop-blur-md
+        bg-transparent backdrop-blur-md
         shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]
         transition-all
         ${compact ? "px-3 pt-2 pb-2" : "px-4 pt-3 pb-2.5"}
@@ -231,7 +232,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           "
         />
 
-        <div className="mt-1.5 flex items-center justify-between gap-2">
+        <div className="mt-1.5 -mx-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -270,8 +271,8 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             aria-label="Send message"
             className="
               inline-flex items-center justify-center h-8 w-8 rounded-lg
-              bg-ink text-paper
-              hover:bg-ink-soft
+              bg-brand text-[#06302b]
+              hover:bg-brand-dark hover:text-white
               disabled:bg-bg-2 disabled:text-ink-mute disabled:cursor-not-allowed
               transition-colors
             "

@@ -68,7 +68,7 @@ function formatStatic(
 
 function sentimentClasses(s: DeltaSentiment): string {
   if (s === "positive")
-    return "bg-[hsl(165,75%,55%)]/10 text-[hsl(165,80%,42%)] dark:text-[hsl(165,70%,60%)]";
+    return "bg-[hsl(173,57%,55%)]/10 text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]";
   if (s === "negative") return "bg-rose-500/10 text-rose-600 dark:text-rose-400";
   return "bg-white/[0.04] text-ink-mute";
 }

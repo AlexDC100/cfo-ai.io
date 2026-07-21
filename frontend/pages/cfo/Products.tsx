@@ -31,7 +31,6 @@ import {
   Cpu,
   FileText,
 } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { CategoriesOverview, BackToCategoriesPill } from "@/components/cfo/products/CategoriesOverview";
 import { DioPersistenceBanner } from "@/components/cfo/products/DioPersistenceBanner";
 import { ViewToggle, type ProductsView } from "@/components/cfo/products/ViewToggle";
@@ -41,6 +40,8 @@ import { SkuDetailDrawer } from "@/components/cfo/SkuDetailDrawer";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
+import { useAuth } from "@/lib/auth";
+import { readSkuVerdict, writeSkuVerdict } from "@/lib/dataPresence";
 import {
   DEFAULT_FINANCING,
   RULES,
@@ -234,23 +235,23 @@ async function fetchInflight(): Promise<InflightDoc | null> {
 
 const BUCKET_META: Record<Classification, { label: string; dot: string; rowTint: string }> = {
   eliminate:    { label: "Eliminate",    dot: "bg-red-500",     rowTint: "" },
-  wind_down:    { label: "Wind down",    dot: "bg-orange-500",  rowTint: "" },
-  watch:        { label: "Watch",        dot: "bg-amber-500",   rowTint: "" },
+  wind_down:    { label: "Wind down",    dot: "bg-[#5CD3C5]",  rowTint: "" },
+  watch:        { label: "Watch",        dot: "bg-[#5CD3C5]",   rowTint: "" },
   keep:         { label: "Keep",         dot: "bg-ink-mute",    rowTint: "" },
-  anchor_alert: { label: "Anchor alert", dot: "bg-amber-500",   rowTint: "" },
-  scale:        { label: "Scale",        dot: "bg-blue-500",    rowTint: "" },
-  anchor:       { label: "Anchor",       dot: "bg-emerald-500", rowTint: "" },
+  anchor_alert: { label: "Anchor alert", dot: "bg-[#5CD3C5]",   rowTint: "" },
+  scale:        { label: "Scale",        dot: "bg-[#5CD3C5]",    rowTint: "" },
+  anchor:       { label: "Anchor",       dot: "bg-[#5CD3C5]", rowTint: "" },
 };
 
 const FILTER_ORDER: Classification[] = ["eliminate", "wind_down", "watch", "anchor_alert", "scale", "anchor", "keep"];
 
 // Display metadata for the 3-bucket filter chips. Kept in this file (not in
-// bucket3.ts) so the chip-specific Tailwind tokens (`bg-emerald-500` etc.)
+// bucket3.ts) so the chip-specific Tailwind tokens (`bg-[#5CD3C5]` etc.)
 // stay co-located with the other Products-page UI tokens.
 const BUCKET3_FILTER_META: Record<Bucket3, { label: string; dot: string }> = {
-  protect:   { label: "Protect",   dot: "bg-emerald-500" },
-  watch:     { label: "Watch",     dot: "bg-amber-500" },
-  wind_down: { label: "Wind down", dot: "bg-orange-500" },
+  protect:   { label: "Protect",   dot: "bg-[#5CD3C5]" },
+  watch:     { label: "Watch",     dot: "bg-[#5CD3C5]" },
+  wind_down: { label: "Wind down", dot: "bg-[#5CD3C5]" },
 };
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -284,6 +285,18 @@ export default function Products() {
   const [params, setParams] = useSearchParams();
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  // Data-presence gate for the SKU (sales-dataset) domain. When the persisted
+  // verdict for this user is `false` ("no datasets"), the datasets + inflight
+  // queries below stay DISABLED so Products renders its empty dropzone instantly
+  // with ZERO API calls — even on a hard refresh / deep link. `undefined` means
+  // "unknown, resolve once"; the resolution effect then records the verdict.
+  const { user } = useAuth();
+  const uid = user?.id ?? null;
+  const [skuGate, setSkuGate] = useState<boolean | undefined>(
+    () => (uid ? readSkuVerdict(uid) : undefined),
+  );
+  const skuQueriesEnabled = skuGate !== false;
   const [search, setSearch] = useState("");
   // 2026-05-26 (perf pass) — replaced the prior setTimeout-200ms debounce
   // with React 18's useDeferredValue. Both make the search input feel
@@ -332,6 +345,9 @@ export default function Products() {
     }
     const enq = await uploadEnqueue.enqueue(row.id);
     if (enq.kind === "queued") {
+      // Data now exists — re-enable the gated datasets/inflight queries so the
+      // invalidations below actually refetch (they no-op while disabled).
+      if (uid) { writeSkuVerdict(uid, true); setSkuGate(true); }
       // 2026-05-26 — invalidate BOTH the inflight query (so the
       // big-middle <InflightCard/> takeover at line 544 triggers — that
       // component renders only when useQuery(["sku-analysis","inflight"])
@@ -342,17 +358,29 @@ export default function Products() {
       void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
       void qc.invalidateQueries({ queryKey: ["sales-datasets"] });
     }
-  }, [toast, uploadEnqueue, qc]);
+  }, [toast, uploadEnqueue, qc, uid]);
 
   // (Search debounce removed — replaced by useDeferredValue above. No
   // setTimeout/clearTimeout needed; React schedules the deferred work
   // itself based on input pressure and device speed.)
 
-  // Datasets list — drives the dataset selector and the active id
+  // Datasets list — drives the dataset selector and the active id. Gated by the
+  // SKU data-presence verdict: when we already know the user has no datasets the
+  // query stays disabled (no call, no loader) and Products falls straight to the
+  // empty state below.
   const { data: datasetsPayload, isLoading: loadingDatasets } = useQuery({
     queryKey: ["sales-datasets"],
     queryFn: fetchDatasets,
+    enabled: skuQueriesEnabled,
   });
+  // Record the verdict once the query resolves, so future loads (this session
+  // and, via localStorage, future ones) skip the round-trip entirely.
+  useEffect(() => {
+    if (!uid || datasetsPayload === undefined) return;
+    const has = (datasetsPayload?.datasets.length ?? 0) > 0;
+    writeSkuVerdict(uid, has);
+    setSkuGate(has);
+  }, [uid, datasetsPayload]);
   const activeDatasetId = params.get("dataset") ?? datasetsPayload?.active_dataset_id ?? null;
 
   // Active dataset's SKUs
@@ -365,6 +393,7 @@ export default function Products() {
   const { data: inflight } = useQuery({
     queryKey: ["sku-analysis", "inflight"],
     queryFn: fetchInflight,
+    enabled: skuQueriesEnabled,
   });
 
   // Dismissed-inflight-IDs state. Without this, a failed-status doc returned
@@ -444,12 +473,15 @@ export default function Products() {
   }, [inflight?.id, qc]);
 
   const refresh = useCallback(async () => {
+    // A refresh follows an upload, so data now exists — re-enable the gated
+    // queries (the resolution effect reconciles the verdict from the refetch).
+    if (uid) { writeSkuVerdict(uid, true); setSkuGate(true); }
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["sales-datasets"] }),
       qc.invalidateQueries({ queryKey: ["sales-dataset", activeDatasetId] }),
       qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] }),
     ]);
-  }, [qc, activeDatasetId]);
+  }, [qc, activeDatasetId, uid]);
 
   // ── Hooks above any early return (rules of hooks)
   // Datasets badge count — hook MUST be called unconditionally on every render.
@@ -582,23 +614,23 @@ export default function Products() {
   // ── Render branches
   if (loadingDatasets) {
     return (
-      <AppShell>
+      <>
         <div className="max-w-[680px] mx-auto py-16 text-center">
           <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
           <p className="text-[13px] text-ink-soft">Loading datasets…</p>
         </div>
-      </AppShell>
+      </>
     );
   }
 
   if (inflight && !dismissedInflightIds.has(inflight.id)) {
     return (
-      <AppShell>
+      <>
         <InflightCard
           inflight={inflight}
           onDismiss={() => dismissInflight(inflight.id)}
         />
-      </AppShell>
+      </>
     );
   }
 
@@ -606,30 +638,30 @@ export default function Products() {
 
   if (!hasAnyDataset) {
     return (
-      <AppShell>
+      <>
         <EmptyState
           onUploaded={refresh}
           datasets={datasetsPayload?.datasets ?? []}
         />
-      </AppShell>
+      </>
     );
   }
 
   if (loadingSkus || !dsPayload) {
     return (
-      <AppShell>
+      <>
         <div className="max-w-[680px] mx-auto py-16 text-center">
           <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
           <p className="text-[13px] text-ink-soft">Loading SKUs…</p>
         </div>
-      </AppShell>
+      </>
     );
   }
 
   const { totals, dataset } = dsPayload;
 
   return (
-    <AppShell>
+    <>
       {/* 2026-05-26 — always-mounted file input + extra-doc dialog.
           DatasetsPanel's "Upload sales dataset" button dispatches
           `cfo:request-sku-upload`; the useEffect above forwards to
@@ -649,7 +681,7 @@ export default function Products() {
         }}
       />
       {uploadEnqueue.dialog}
-      <section className="space-y-6 max-w-[1200px]">
+      <section className="space-y-6">
         <header data-testid="portfolio-header">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
@@ -912,7 +944,7 @@ export default function Products() {
             .reduce((acc, s) => acc + (s.niv_krn ?? 0), 0);
         })()}
       />
-    </AppShell>
+    </>
   );
 }
 
@@ -958,8 +990,8 @@ function ReconciliationChip({
 
   if (!recon) return null;
   const cls = recon.isClean
-    ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
-    : "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400";
+    ? "border-[#5CD3C5]/30 bg-[#5CD3C5]/5 text-[#2AA89B] dark:text-[#8FE3D9]"
+    : "border-[#5CD3C5]/30 bg-[#5CD3C5]/5 text-[#2AA89B] dark:text-[#5CD3C5]";
   return (
     <div
       data-testid="reconciliation-chip"
@@ -1000,7 +1032,7 @@ function KpiCard({
   tone?: "critical" | "warn" | "strong";
   conceptKey?: string;
 } & React.HTMLAttributes<HTMLDivElement>) {
-  const ring = tone === "critical" ? "border-red-300/60" : tone === "warn" ? "border-amber-300/60" : tone === "strong" ? "border-emerald-300/60" : "border-rule";
+  const ring = tone === "critical" ? "border-red-300/60" : tone === "warn" ? "border-[#8FE3D9]/60" : tone === "strong" ? "border-[#8FE3D9]/60" : "border-rule";
   const labelEl = conceptKey ? (
     <LearnableRowLabel
       conceptKey={conceptKey}
@@ -1404,7 +1436,7 @@ function MoversList({
               <div className="text-[12px] text-ink truncate">{r.product_name}</div>
               <div className="text-[10.5px] text-ink-mute truncate">{r.brand} · {r.category}</div>
             </div>
-            <div className={`text-right tabular-nums text-[12px] font-medium ${dir === "up" ? "text-emerald-700" : "text-red-700"}`}>
+            <div className={`text-right tabular-nums text-[12px] font-medium ${dir === "up" ? "text-[#2AA89B]" : "text-red-700"}`}>
               {dir === "up" ? "+" : ""}{fmtKron(r.gm_delta)}
             </div>
           </li>
@@ -2001,7 +2033,7 @@ function EmptyState({
   })();
 
   return (
-    <section className="max-w-[1080px] mx-auto py-10 sm:py-12" data-testid="products-empty">
+    <section data-testid="products-empty">
       {/* Pricing V3 — extra-doc confirm dialog mount. */}
       {uploadEnqueue.dialog}
 
@@ -2062,14 +2094,7 @@ function EmptyState({
        *  premium dropzone live in a 2-column split that stacks under lg.
        *  The wrapper card adds the gradient + ring so the hero reads as
        *  a single integrated surface rather than two loose blocks. */}
-      <div className="
-        relative overflow-hidden rounded-3xl
-        border border-rule
-        bg-gradient-to-br from-bg-2/40 via-surface to-surface
-        ring-1 ring-inset ring-white/[0.03]
-        shadow-[0_24px_48px_-30px_rgba(0,0,0,0.25)]
-        px-6 sm:px-8 py-8 sm:py-10
-      ">
+      <div className="relative">
         {/* Decorative top-right brand glow — purely visual, no real data */}
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
 
@@ -2079,10 +2104,10 @@ function EmptyState({
               <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
               Product intelligence
             </div>
-            <h1 className="mt-3 text-[34px] sm:text-[42px] leading-[1.05] tracking-[-0.02em] text-ink font-semibold">
+            <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink font-serif">
               Upload your data. CFO AI finds what matters.
             </h1>
-            <p className="mt-4 text-[14.5px] text-ink-soft leading-relaxed max-w-[520px]">
+            <p className="mt-4 text-[15.5px] text-ink-soft leading-relaxed max-w-[520px]">
               Drop a trading analysis or sales-by-SKU export. CFO AI streams every row, rolls them
               up to the SKU, classifies into anchor / scale / watch / wind-down, and surfaces
               loss-makers — with optional per-SKU DIO when{" "}
@@ -2099,8 +2124,8 @@ function EmptyState({
                 className="
                   inline-flex items-center gap-2 h-10 px-4 rounded-lg
                   bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
-                  shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
-                  hover:shadow-[0_10px_26px_-8px_rgba(45,191,179,0.75)]
+                  shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)]
+                  hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)]
                   disabled:opacity-50 transition-all
                   ring-1 ring-inset ring-white/15
                 "
@@ -2126,17 +2151,27 @@ function EmptyState({
             </div>
           </div>
 
-          {/* Dropzone — glass, brand-glow on drag-over */}
+          {/* Start from the official template — swapped into the hero's
+              right column (the file dropzone now sits below the grid). */}
+          <div className="relative">
+            <TemplateDownloadCard variant="prominent" />
+          </div>
+        </div>
+
+        {/* File drop zone — swapped below the hero grid (the template card
+            now occupies the hero's right column). Glass, brand-glow on
+            drag-over. */}
+        <div className="mt-6 relative">
           <div
             data-testid="products-upload-dropzone"
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
             className={`
-              relative rounded-2xl border-2 border-dashed transition-all
+              relative overflow-hidden rounded-2xl border-2 border-dashed transition-all duration-150
               ${drag
-                ? "border-brand bg-brand/[0.06] shadow-[0_0_0_4px_rgba(45,191,179,0.12)]"
-                : "border-rule/80 bg-bg-2/30 hover:bg-bg-2/50 hover:border-rule-strong"}
+                ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
+                : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
               px-6 py-10 text-center
               backdrop-blur-sm
             `}
@@ -2171,20 +2206,11 @@ function EmptyState({
             </p>
           </div>
         </div>
-
-        {/* Canonical template download — sits inside the hero card so it
-            reads as part of the same "how to get started" surface as the
-            dropzone above. The prominent variant gives it the same visual
-            weight as the buttons without competing with the dropzone itself.
-            Surfaced here (not in a separate section) so first-time users
-            see the recommended path before scrolling. */}
-        <div className="mt-6 relative">
-          <TemplateDownloadCard variant="prominent" />
-        </div>
       </div>
 
-      {/* ── Contextual Ask CFO AI prompt chips ─────────────────────── */}
-      <ProductsPromptChips />
+      {/* ── Contextual Ask CFO AI prompt chips — only once a dataset
+       *  exists; hidden in the pre-upload (no files) state. ─────────── */}
+      {datasets.length > 0 && <ProductsPromptChips />}
 
       {/* ── Stats strip — REAL or absent (no fabrication) ──────────── */}
       <ProductsStatsStrip stats={stats} hasData={datasets.length > 0} />
@@ -2195,8 +2221,10 @@ function EmptyState({
       {/* ── Accepted formats — limits match the real parser/handler ── */}
       <ProductsAcceptedFormats />
 
-      {/* ── Recent imports — REAL history or honest empty state ───── */}
-      <ProductsRecentImports datasets={sortedDatasets} />
+      {/* ── Recent imports — only once a dataset exists; hides the
+       *  "No imports yet. Your uploads will appear here." placeholder in
+       *  the pre-upload (no files) state. ─────────────────────────── */}
+      {datasets.length > 0 && <ProductsRecentImports datasets={sortedDatasets} />}
 
       {/* ── Expected format card — preserves the columnar source-doc
        *  example, anchor for the example download link. The card was
@@ -2565,8 +2593,8 @@ function DocumentStatusPill({ status, active }: { status: DocumentStatus | null;
   const s = (status ?? "").toLowerCase();
   let label = status ?? "unknown";
   let cls = "border-rule text-ink-soft bg-bg-2/40";
-  if (s === "analyzed") { label = active ? "Active" : "Analyzed"; cls = "border-emerald-300/60 text-emerald-700 bg-emerald-50 dark:bg-emerald-500/10"; }
-  else if (s === "queued" || s === "extracting" || s === "ingesting") { label = "Processing"; cls = "border-amber-300/60 text-amber-800 bg-amber-50 dark:bg-amber-500/10"; }
+  if (s === "analyzed") { label = active ? "Active" : "Analyzed"; cls = "border-[#8FE3D9]/60 text-[#2AA89B] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
+  else if (s === "queued" || s === "extracting" || s === "ingesting") { label = "Processing"; cls = "border-[#8FE3D9]/60 text-[#1B7268] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
   else if (s === "failed") { label = "Failed"; cls = "border-red-300/60 text-red-700 bg-red-50 dark:bg-red-500/10"; }
   return (
     <span className={`inline-flex items-center h-5 px-2 rounded-full border text-[10.5px] font-medium uppercase tracking-[0.04em] ${cls}`}>

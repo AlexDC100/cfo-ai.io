@@ -55,9 +55,9 @@ const COLUMNS: ColumnSpec[] = [
 ];
 
 const TONE_STYLES: Record<ColumnSpec["tone"], { dot: string; label: string }> = {
-  asset:     { dot: "bg-[hsl(165,75%,55%)]",  label: "text-[hsl(165,75%,42%)]" },
-  liability: { dot: "bg-[hsl(35,85%,55%)]",   label: "text-[hsl(35,85%,42%)]" },
-  equity:    { dot: "bg-[hsl(215,80%,60%)]",  label: "text-[hsl(215,80%,46%)]" },
+  asset:     { dot: "bg-[hsl(173,57%,55%)]",  label: "text-[hsl(173,57%,42%)]" },
+  liability: { dot: "bg-[hsl(173,57%,55%)]",   label: "text-[hsl(173,57%,42%)]" },
+  equity:    { dot: "bg-[hsl(173,57%,60%)]",  label: "text-[hsl(173,57%,46%)]" },
 };
 
 export function BalanceSheetMap() {
@@ -83,7 +83,7 @@ export function BalanceSheetMap() {
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.14em] text-[hsl(165,75%,55%)] font-semibold">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[hsl(173,57%,55%)] font-semibold">
             Learning rail
           </div>
           <h3 className="mt-0.5 text-[14px] font-semibold text-ink leading-tight">
@@ -127,7 +127,7 @@ export function BalanceSheetMap() {
                         group w-full text-left rounded-md
                         px-2 py-1.5 -mx-2
                         hover:bg-bg-2/50 transition-colors
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(165,75%,55%)]/30
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/30
                       "
                     >
                       <div className="flex items-center gap-1.5">
@@ -137,7 +137,7 @@ export function BalanceSheetMap() {
                         <ArrowRight
                           size={11}
                           strokeWidth={2}
-                          className="text-ink-mute/50 group-hover:text-[hsl(165,75%,55%)] group-hover:translate-x-0.5 transition-all shrink-0"
+                          className="text-ink-mute/50 group-hover:text-[hsl(173,57%,55%)] group-hover:translate-x-0.5 transition-all shrink-0"
                         />
                       </div>
                       {entry.sub && (

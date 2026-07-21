@@ -16,7 +16,6 @@
 // re-navigating. (See `AppShell.openAskCfoAi`.)
 
 import { useEffect, useMemo, useRef } from "react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod, type PeriodMetric } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { CFOChatShell, type CFOChatShellHandle } from "@/components/cfo/chat/CFOChatShell";
@@ -74,38 +73,18 @@ export default function Chat() {
   const workspaceSnapshot = useMemo(() => buildWorkspaceSnapshot(period), [period]);
   const companyName = period.statements?.companyName ?? null;
 
+  // The chat now renders like every other tab: it flows in AppShell's normal
+  // padded content area and scrolls at the DOCUMENT level (the shell owns a
+  // sticky sidebar + sticky composer). No full-bleed / inner-scroller wrapper.
   return (
-    <AppShell>
-      {/* The Shell takes the full available height of the AppShell main
-       *  area. AppShell already pads top/bottom and offsets for the
-       *  sidebar, so the chat surface here gets the full content rect.
-       *
-       *  SINGLE SCROLLBAR: we cancel AppShell's inner padding on all four
-       *  sides and `overflow-hidden` the wrapper so the PAGE never scrolls
-       *  — the only scroller is CFOMessageList's own overflow-y-auto. The
-       *  top/side padding is cancelled with negative Tailwind margins; the
-       *  bottom padding is an inline `max(8rem, …)` expression on AppShell,
-       *  so we cancel it with an exactly-matching inline negative margin
-       *  (a Tailwind arbitrary value can't express the env()/max()). */}
-      <div
-        className="
-          -mx-5 sm:-mx-8 lg:-mx-10
-          -mt-8 sm:-mt-10 lg:-mt-12
-          h-[calc(100dvh-4rem)]
-          flex overflow-hidden
-        "
-        style={{ marginBottom: "calc(-1 * max(8rem, calc(env(safe-area-inset-bottom) + 6rem)))" }}
-      >
-        <CFOChatShell
-          ref={ref}
-          variant="page"
-          workspaceSnapshot={workspaceSnapshot}
-          periodLabel={period.label}
-          periodId={period.id}
-          companyName={companyName}
-        />
-      </div>
-    </AppShell>
+    <CFOChatShell
+      ref={ref}
+      variant="page"
+      workspaceSnapshot={workspaceSnapshot}
+      periodLabel={period.label}
+      periodId={period.id}
+      companyName={companyName}
+    />
   );
 }
 

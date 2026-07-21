@@ -27,7 +27,7 @@
 // dominating. Two variants: `compact` (modal) and `prominent` (page).
 
 import { motion } from "framer-motion";
-import { Download, FileSpreadsheet, ArrowRight, Info } from "lucide-react";
+import { Download, FileSpreadsheet, ExternalLink, Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 
@@ -42,6 +42,55 @@ interface Props {
 const TEMPLATE_HREF = "/templates/cfo_ai_upload_template.xlsx";
 const TEMPLATE_FILENAME = "cfo_ai_upload_template.xlsx";
 
+// Open the template workbook in a NEW TAB as a rendered table — same approach
+// as the dashboard's example-trial-balance "View" button. A plain
+// <a href="*.xlsx" target="_blank"> just triggers a download (browsers can't
+// render xlsx inline), so we parse every sheet with SheetJS and write an HTML
+// preview instead. The tab is opened synchronously inside the click gesture
+// (before the first await) so it isn't popup-blocked, then filled once parsed.
+async function previewTemplateInNewTab(): Promise<void> {
+  const tab = window.open("", "_blank");
+  if (tab) {
+    tab.document.write(
+      "<!doctype html><title>Loading preview…</title>" +
+      "<body style=\"font:14px system-ui;padding:24px\">Loading preview…</body>",
+    );
+  }
+  try {
+    const res = await fetch(TEMPLATE_HREF);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const XLSX = await import("xlsx");
+    const wb = XLSX.read(buf, { type: "array" });
+    const sections = wb.SheetNames
+      .map((name) => `<h2>${name}</h2>${XLSX.utils.sheet_to_html(wb.Sheets[name])}`)
+      .join("");
+    const doc =
+      `<!doctype html><html><head><meta charset="utf-8"><title>${TEMPLATE_FILENAME}</title><style>` +
+      "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
+      "h1{font-size:15px;margin:0 0 4px;color:#1B7268}" +
+      "h2{font-size:13px;margin:20px 0 8px;color:#1B7268}" +
+      "table{border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:8px}" +
+      "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
+      "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
+      `</style></head><body><h1>${TEMPLATE_FILENAME} — upload template</h1>${sections}</body></html>`;
+    if (tab) {
+      tab.document.open();
+      tab.document.write(doc);
+      tab.document.close();
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    if (tab) {
+      tab.document.open();
+      tab.document.write(
+        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">Couldn't load preview: ${msg}</body>`,
+      );
+      tab.document.close();
+    }
+  }
+}
+
 export function TemplateDownloadCard({ variant = "compact", onDownload }: Props) {
   const { t } = useTranslation();
   // Inline "what's in the template" disclosure — kept collapsed by
@@ -52,9 +101,6 @@ export function TemplateDownloadCard({ variant = "compact", onDownload }: Props)
   if (variant === "prominent") {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
         data-testid="template-download-card-prominent"
         className="
           relative overflow-hidden rounded-2xl
@@ -96,8 +142,8 @@ export function TemplateDownloadCard({ variant = "compact", onDownload }: Props)
                   inline-flex items-center gap-1.5
                   h-9 px-3.5 rounded-lg
                   bg-brand text-bg font-medium text-[12.5px]
-                  shadow-[0_6px_16px_-6px_rgba(45,191,179,0.55)]
-                  hover:brightness-110 hover:shadow-[0_8px_20px_-6px_rgba(45,191,179,0.7)]
+                  shadow-[0_6px_16px_-6px_rgba(42,168,155,0.55)]
+                  hover:brightness-110 hover:shadow-[0_8px_20px_-6px_rgba(42,168,155,0.7)]
                   transition-all
                   ring-1 ring-inset ring-white/15
                 "
@@ -107,35 +153,24 @@ export function TemplateDownloadCard({ variant = "compact", onDownload }: Props)
               </a>
               <button
                 type="button"
-                onClick={() => setShowFormat((v) => !v)}
-                data-testid="template-format-toggle"
-                aria-expanded={showFormat}
+                onClick={() => void previewTemplateInNewTab()}
+                data-testid="template-view"
                 className="
-                  inline-flex items-center gap-1
-                  h-9 px-2.5 rounded-lg
-                  text-[12.5px] text-ink-soft hover:text-ink
+                  inline-flex items-center gap-1.5
+                  h-9 px-3.5 rounded-lg
+                  border border-rule bg-surface
+                  text-[12.5px] font-medium text-ink
+                  hover:bg-bg-2/60 hover:border-rule-strong
                   transition-colors
                 "
               >
-                {t("upload.template.formatDocs")}
-                <ArrowRight
-                  size={11}
-                  strokeWidth={2}
-                  className={`transition-transform ${showFormat ? "rotate-90" : ""}`}
-                />
+                <ExternalLink size={13} strokeWidth={2} />
+                View
               </button>
             </div>
 
-            {showFormat && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <FormatSummary />
-              </motion.div>
-            )}
+            {/* "What's inside" — always shown now (no longer behind a toggle). */}
+            <FormatSummary />
           </div>
         </div>
       </motion.div>

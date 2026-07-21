@@ -11,7 +11,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Clock, FileText, X } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { usePeriodFacts } from "@/lib/periodFacts";
@@ -37,8 +36,8 @@ const PRIORITY_LABEL: Record<RecommendationPriority, string> = {
 };
 const PRIORITY_TONE: Record<RecommendationPriority, string> = {
   critical: "bg-red-50 text-red-700 border-red-200",
-  high:     "bg-amber-50 text-amber-700 border-amber-200",
-  medium:   "bg-blue-50 text-blue-700 border-blue-200",
+  high:     "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
+  medium:   "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
   info:     "bg-bg-2 text-ink-soft border-rule",
 };
 
@@ -50,13 +49,13 @@ export default function Decisions() {
   const facts = usePeriodFacts();
   if (!period.isLoaded || !period.statements) {
     return (
-      <AppShell>
+      <>
         <DecisionsEmptyState />
-      </AppShell>
+      </>
     );
   }
   return (
-    <AppShell>
+    <>
       {/* Single-source-of-truth recommendations driven by deterministic
           rule detection over PeriodFacts. Same facts always produce the
           same conditions; each card's numbers come straight from the
@@ -67,12 +66,12 @@ export default function Decisions() {
           working until the server-side recommendations table is migrated
           to consume the rule output. */}
       {facts && (
-        <section className="max-w-[860px] mx-auto pt-6 mb-10">
+        <section className="max-w-[860px] mb-10">
           <RecommendationsView facts={facts} />
         </section>
       )}
       <DecisionsLoaded statements={period.statements} />
-    </AppShell>
+    </>
   );
 }
 
@@ -82,7 +81,7 @@ function DecisionsEmptyState() {
       <div className="mx-auto h-14 w-14 rounded-2xl bg-bg-2 text-ink-mute flex items-center justify-center mb-4">
         <FileText size={22} strokeWidth={1.5} />
       </div>
-      <h1 className="font-serif text-[34px] sm:text-[40px] leading-[1.1] tracking-[-0.02em] text-ink">
+      <h1 className="font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
         No decisions yet
       </h1>
       <p className="mt-4 text-[15px] text-ink-soft max-w-[480px] mx-auto">
@@ -161,7 +160,7 @@ function DecisionsLoaded({ statements }: { statements: NonNullable<ReturnType<ty
     <div className="space-y-7" data-testid="decisions-body">
       <header>
         <div className="label-eyebrow">Decisions</div>
-        <h1 className="mt-2 font-serif text-[36px] leading-[1.1] tracking-[-0.02em]">
+        <h1 className="mt-2 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em]">
           {visible.length} prioritized action{visible.length === 1 ? "" : "s"}
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[640px]">
@@ -253,7 +252,7 @@ function DecisionCard({
         {linkifyAlertBody(rec.action, rec.factsCited as Record<string, number> | undefined)}
       </p>
       {rec.estimatedImpact && (
-        <div className="mt-3 inline-flex items-center text-[11.5px] font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
+        <div className="mt-3 inline-flex items-center text-[11.5px] font-medium text-[#2AA89B] bg-[#E6F7F4] px-3 py-1 rounded-md">
           Estimated impact: ~<Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / year
         </div>
       )}
@@ -262,7 +261,7 @@ function DecisionCard({
           onClick={() => onStatusChange(inProgress ? "open" : "in_progress")}
           data-testid="rec-action-progress"
           className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
-            inProgress ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+            inProgress ? "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
           }`}
         >
           <Clock size={12} strokeWidth={2} />
@@ -272,7 +271,7 @@ function DecisionCard({
           onClick={() => onStatusChange(done ? "open" : "done")}
           data-testid="rec-action-done"
           className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
-            done ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+            done ? "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
           }`}
         >
           <Check size={12} strokeWidth={2} />

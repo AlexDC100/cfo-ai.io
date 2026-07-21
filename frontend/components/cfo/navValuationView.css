@@ -223,7 +223,7 @@
   color: hsl(var(--ink-soft));
   max-width: 280px;
 }
-.nav-adjustment-table .pos { color: hsl(var(--accent-sage, 142 36% 36%)); font-weight: 500; }
+.nav-adjustment-table .pos { color: hsl(var(--accent-sage, 173 57% 36%)); font-weight: 500; }
 .nav-adjustment-table .neg { color: hsl(var(--alert)); font-weight: 500; }
 .nav-adjustment-table .total-row {
   background: hsl(var(--bg-2) / 0.6);
@@ -309,7 +309,7 @@
   background: hsl(var(--surface));
   font-size: 12.5px;
 }
-.nav-hidden-asset { border-left-color: hsl(var(--accent-sage, 142 36% 36%)); }
+.nav-hidden-asset { border-left-color: hsl(var(--accent-sage, 173 57% 36%)); }
 .nav-hidden-liability { border-left-color: hsl(var(--alert)); }
 .nav-confidence { font-size: 11px; color: hsl(var(--ink-mute)); }
 .nav-evidence { font-size: 11.5px; color: hsl(var(--ink-soft)); margin-top: 4px; }

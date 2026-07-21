@@ -334,7 +334,7 @@ export function StockDetailDrawer({
               <div
                 data-testid="stock-drawer-delta"
                 className={`text-[13px] font-medium tabular-nums ${
-                  positiveDelta ? "text-green-700" : "text-red-700"
+                  positiveDelta ? "text-[#2AA89B]" : "text-red-700"
                 }`}
               >
                 {positiveDelta ? "+" : ""}

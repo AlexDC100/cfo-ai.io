@@ -4,38 +4,17 @@
 // when the actual answer arrives.
 
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
 
-export function CFOTypingIndicator({ grounded }: { grounded?: string | null }) {
+export function CFOTypingIndicator(_props: { grounded?: string | null }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
       className="mb-6"
       data-testid="chat-typing"
     >
-      <div className="flex items-center gap-1.5 mb-1.5 text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
-        <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-brand/15 text-brand-d">
-          <Sparkles size={9} strokeWidth={2.25} />
-        </span>
-        <span className="text-ink-soft">CFO AI</span>
-        {grounded && (
-          <>
-            <span className="text-ink-mute/60">·</span>
-            <span className="normal-case tracking-normal text-ink-mute">
-              grounded in <span className="text-ink-soft">{grounded}</span>
-            </span>
-          </>
-        )}
-      </div>
-
-      <div className="rounded-2xl rounded-tl-md border border-rule bg-surface/80 dark:bg-bg-2/40 backdrop-blur-sm px-5 py-4">
-        <div className="flex items-center gap-1.5">
-          <Dot delay={0} />
-          <Dot delay={0.15} />
-          <Dot delay={0.3} />
-        </div>
+      <div className="flex items-center gap-1.5 py-1.5">
+        <Dot delay={0} />
+        <Dot delay={0.15} />
+        <Dot delay={0.3} />
       </div>
     </motion.div>
   );

@@ -42,29 +42,27 @@
      out in light mode; these 700-series stops keep the same hue sweep but
      stay legible against #FAFAF7. The .dark block below restores the
      bright variant for the navy background. */
-  --grad-from: #4338CA;    /* indigo-700 */
-  --grad-via:  #7E22CE;    /* purple-700 */
-  --grad-to:   #BE185D;    /* pink-700 */
+  /* Monochrome teal sweep — the single accent colour (#5CD3C5) in shades. */
+  --grad-from: #2AA89B;    /* teal-dark */
+  --grad-via:  #45C6B8;    /* teal-mid */
+  --grad-to:   #5CD3C5;    /* teal */
   --grad-hero: linear-gradient(135deg, var(--grad-from) 0%, var(--grad-via) 50%, var(--grad-to) 100%);
-  --grad-warm: linear-gradient(135deg, #B45309 0%, #BE185D 100%);
-  --grad-cool: linear-gradient(135deg, #4338CA 0%, #0E7490 100%);
-  --grad-money: linear-gradient(135deg, #047857 0%, #059669 50%, #10B981 100%);
-  /* CFO brand-aligned hero gradient — bridges the platform's teal CTA color
-     into the indigo/violet/pink sweep. Light-mode stops are 700-series so
-     thin serif strokes still read against cream. */
-  --grad-cfo: linear-gradient(135deg, #0F766E 0%, #155E75 25%, #3730A3 55%, #6B21A8 80%, #9D174D 100%);
+  --grad-warm: linear-gradient(135deg, #1B7268 0%, #5CD3C5 100%);
+  --grad-cool: linear-gradient(135deg, #2AA89B 0%, #5CD3C5 100%);
+  --grad-money: linear-gradient(135deg, #1B7268 0%, #2AA89B 50%, #5CD3C5 100%);
+  --grad-cfo: linear-gradient(135deg, #1B7268 0%, #22897E 25%, #2AA89B 55%, #45C6B8 80%, #5CD3C5 100%);
 }
 .dark {
   /* Dark-mode override — bright 500-series colors that pop on the #05070A
      navy background. Same hue sequence as light, just brighter. */
-  --grad-from: #6366F1;
-  --grad-via:  #8B5CF6;
-  --grad-to:   #EC4899;
+  --grad-from: #45C6B8;
+  --grad-via:  #5CD3C5;
+  --grad-to:   #8FE3D9;
   --grad-hero: linear-gradient(135deg, var(--grad-from) 0%, var(--grad-via) 50%, var(--grad-to) 100%);
-  --grad-warm: linear-gradient(135deg, #F59E0B 0%, #EC4899 100%);
-  --grad-cool: linear-gradient(135deg, #6366F1 0%, #06B6D4 100%);
-  --grad-money: linear-gradient(135deg, #10B981 0%, #34D399 50%, #6EE7B7 100%);
-  --grad-cfo: linear-gradient(135deg, #2ED3C6 0%, #06B6D4 25%, #6366F1 55%, #8B5CF6 80%, #EC4899 100%);
+  --grad-warm: linear-gradient(135deg, #2AA89B 0%, #5CD3C5 100%);
+  --grad-cool: linear-gradient(135deg, #45C6B8 0%, #8FE3D9 100%);
+  --grad-money: linear-gradient(135deg, #2AA89B 0%, #5CD3C5 50%, #8FE3D9 100%);
+  --grad-cfo: linear-gradient(135deg, #2AA89B 0%, #3BBFB0 25%, #5CD3C5 55%, #78DCD0 80%, #8FE3D9 100%);
 }
 .dark {
   /* Gradients render at the same hex; perceived saturation lifts on dark
@@ -181,56 +179,60 @@
        Token names align with the canonical theme spec (bg / surface /
        border / text / primary / gold / danger / warning / success / info).
        ───────────────────────────────────────────────────────── */
-    --bg:           42 17% 97%;        /* #FAFAF7 — page bg */
-    --bg-2:         42 11% 93%;        /* #F3F1EC — surface-muted / inset */
-    --surface:      0  0%  100%;       /* #FFFFFF — cards */
-    --surface-soft: 42 22% 95%;        /* #F5F3EE — elevated card variant */
-    --surface-hi:   42 17% 95%;        /* #F1EFEA — card hover */
-    --surface-hover:42 17% 95%;        /* alias of surface-hi */
+    /* Neutrals — pure greyscale (saturation 0), warm/cool tint stripped. */
+    --bg:           0 0% 97%;          /* page bg */
+    --bg-2:         0 0% 93%;          /* surface-muted / inset */
+    --surface:      0 0% 100%;         /* cards */
+    --surface-soft: 0 0% 95%;          /* elevated card variant */
+    --surface-hi:   0 0% 95%;          /* card hover */
+    --surface-hover:0 0% 95%;          /* alias of surface-hi */
 
-    --ink:          240 10% 9%;        /* #14141A — primary text */
-    --ink-2:        240 8%  18%;
-    --ink-soft:     36  5%  41%;       /* #6E6A63 — secondary text */
-    --ink-mute:     36  6%  58%;       /* #9B978E — tertiary text */
-    --ink-faint:    36  10% 80%;
+    --ink:          0 0% 9%;           /* primary text */
+    --ink-2:        0 0% 18%;
+    --ink-soft:     0 0% 41%;          /* secondary text */
+    --ink-mute:     0 0% 58%;          /* tertiary text */
+    --ink-faint:    0 0% 80%;
 
     /* Canonical text aliases for the spec-compliant token names. */
     --text:         var(--ink);
     --text-muted:   var(--ink-soft);
     --text-soft:    var(--ink-mute);
 
-    --rule:         38 22% 87%;        /* #E7E1D7 — warm hairline */
-    --rule-soft:    38 22% 92%;
-    --rule-strong:  38 18% 78%;        /* #D7D1C5 */
+    --rule:         0 0% 87%;          /* hairline */
+    --rule-soft:    0 0% 92%;
+    --rule-strong:  0 0% 78%;
 
     /* Spec aliases. */
     --border:       var(--rule);
     --border-strong:var(--rule-strong);
 
-    /* Brand — teal primary, gold premium accent */
-    --brand:        175 64% 46%;       /* #2DBFB3 — teal */
-    --brand-d:      175 73% 32%;       /* #168C83 — teal-dark */
-    --brand-l:      175 56% 60%;
-    --brand-tint:   175 50% 94%;       /* very subtle teal wash for hover/active */
-    --primary-hover:175 67% 40%;       /* #23A89D */
+    /* Brand — the single accent colour #5CD3C5, in shades. */
+    --brand:        173 57% 59%;       /* #5CD3C5 — teal */
+    --brand-d:      173 60% 42%;       /* teal-dark */
+    --brand-l:      173 58% 72%;
+    --brand-tint:   173 45% 93%;       /* subtle teal wash for hover/active */
+    --primary-hover:173 60% 46%;
 
-    --brand-2:      42 53% 54%;        /* #C9A24A — metallic gold */
-    --brand-2-d:    38 49% 44%;
-    --brand-2-l:    44 60% 63%;
-    --brand-2-tint: 42 53% 93%;
+    /* Gold accent collapsed into the teal accent. */
+    --brand-2:      173 57% 59%;
+    --brand-2-d:    173 60% 42%;
+    --brand-2-l:    173 58% 72%;
+    --brand-2-tint: 173 45% 93%;
 
-    --silver:       38 8% 78%;
+    --silver:       0 0% 78%;
 
-    --success:      152 54% 31%;       /* #257A4F */
-    --success-tint: 152 40% 90%;
-    --caution:      36 71% 42%;        /* #B7791F */
-    --caution-tint: 38 60% 92%;
-    --alert:        7  62% 44%;        /* #B83A2A */
+    /* Semantic states — every non-red state becomes the teal accent; only
+       alert (red) keeps its hue. */
+    --success:      173 60% 38%;
+    --success-tint: 173 45% 90%;
+    --caution:      173 60% 38%;
+    --caution-tint: 173 45% 92%;
+    --alert:        7  62% 44%;        /* #B83A2A — red, unchanged */
     --alert-tint:   7  60% 93%;
-    --info:         207 50% 37%;       /* #2F5F8F */
-    --info-tint:    207 40% 92%;
-    --warning-2:    32 90% 45%;
-    --warning-2-tint: 32 70% 92%;
+    --info:         173 60% 38%;
+    --info-tint:    173 45% 92%;
+    --warning-2:    173 60% 38%;
+    --warning-2-tint: 173 45% 92%;
 
     --paper:        var(--bg);
     --burgundy:     var(--brand);
@@ -247,7 +249,7 @@
     --popover:              var(--surface);
     --popover-foreground:   var(--ink);
     --primary:              var(--brand);
-    --primary-foreground:   222 47% 11%;
+    --primary-foreground:   0 0% 10%;
     --secondary:            var(--bg-2);
     --secondary-foreground: var(--ink);
     --muted:                var(--bg-2);
@@ -265,18 +267,18 @@
     --radius-lg: 20px;
 
     --shadow-1:
-      0 1px 2px hsl(222 47% 11% / 0.05),
-      0 1px 1px hsl(222 47% 11% / 0.03);
+      0 1px 2px hsl(0 0% 0% / 0.05),
+      0 1px 1px hsl(0 0% 0% / 0.03);
     --shadow-2:
-      0 2px 4px hsl(222 47% 11% / 0.04),
-      0 8px 16px hsl(222 47% 11% / 0.06);
+      0 2px 4px hsl(0 0% 0% / 0.04),
+      0 8px 16px hsl(0 0% 0% / 0.06);
     --shadow-3:
-      0 4px 8px hsl(222 47% 11% / 0.04),
-      0 16px 32px hsl(222 47% 11% / 0.08);
+      0 4px 8px hsl(0 0% 0% / 0.04),
+      0 16px 32px hsl(0 0% 0% / 0.08);
     --shadow-4:
-      0 8px 16px hsl(222 47% 11% / 0.06),
-      0 32px 64px hsl(222 47% 11% / 0.12);
-    --shadow-inset: inset 0 1px 2px hsl(222 47% 11% / 0.06);
+      0 8px 16px hsl(0 0% 0% / 0.06),
+      0 32px 64px hsl(0 0% 0% / 0.12);
+    --shadow-inset: inset 0 1px 2px hsl(0 0% 0% / 0.06);
     --ring-focus:   0 0 0 3px hsl(var(--brand) / 0.28);
     --shadow-glow:  0 0 32px hsl(var(--brand) / 0.20);
 
@@ -296,11 +298,11 @@
     --bucket-scale-fg:      var(--success);
     --bucket-scale-bg:      var(--success-tint);
 
-    --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--info)) 100%);
-    --grad-hero:   linear-gradient(135deg, hsl(174 67% 51%) 0%, hsl(189 95% 55%) 50%, hsl(210 100% 62%) 100%);
+    --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-d)) 100%);
+    --grad-hero:   linear-gradient(135deg, hsl(173 57% 50%) 0%, hsl(173 57% 59%) 50%, hsl(173 57% 70%) 100%);
     --grad-mesh:
       radial-gradient(at 18% 16%, hsl(var(--brand) / 0.08) 0px, transparent 55%),
-      radial-gradient(at 82% 8%,  hsl(var(--info) / 0.07)  0px, transparent 55%);
+      radial-gradient(at 82% 8%,  hsl(var(--brand) / 0.07)  0px, transparent 55%);
   }
 
   /* ─────────────────────────────────────────────────────────
@@ -308,53 +310,56 @@
      gold/silver, teal CTA. Inspired by Vitalis AI landing.
      ───────────────────────────────────────────────────────── */
   .dark {
-    --bg:           215 33% 4%;        /* #05070A — page bg */
-    --bg-2:         215 30% 6%;        /* #080D12 — soft inset */
-    --surface:      213 27% 8%;        /* #0D131A — cards */
-    --surface-soft: 213 30% 11%;       /* #111A24 — elevated card variant */
-    --surface-hi:   213 30% 14%;       /* #18222E — card hover */
-    --surface-hover:213 30% 14%;       /* alias */
+    /* Neutrals — pure greyscale (saturation 0), navy tint stripped. */
+    --bg:           0 0% 4%;           /* page bg */
+    --bg-2:         0 0% 6%;           /* soft inset */
+    --surface:      0 0% 8%;           /* cards */
+    --surface-soft: 0 0% 11%;          /* elevated card variant */
+    --surface-hi:   0 0% 14%;          /* card hover */
+    --surface-hover:0 0% 14%;          /* alias */
 
-    --ink:          210 16% 96%;       /* #F4F6F8 — primary text */
-    --ink-2:        212 13% 86%;
-    --ink-soft:     215 13% 67%;       /* #A2ACB8 — muted */
-    --ink-mute:     217 11% 55%;       /* #7F8B99 — tertiary */
-    --ink-faint:    215 20% 30%;       /* #2E3D4C */
+    --ink:          0 0% 96%;          /* primary text */
+    --ink-2:        0 0% 86%;
+    --ink-soft:     0 0% 67%;          /* muted */
+    --ink-mute:     0 0% 55%;          /* tertiary */
+    --ink-faint:    0 0% 30%;
 
     --text:         var(--ink);
     --text-muted:   var(--ink-soft);
     --text-soft:    var(--ink-mute);
 
-    --rule:         213 30% 16%;       /* #1E2A36 — default hairline */
-    --rule-soft:    215 30% 10%;
-    --rule-strong:  215 22% 24%;       /* #2E3D4C */
+    --rule:         0 0% 16%;          /* default hairline */
+    --rule-soft:    0 0% 10%;
+    --rule-strong:  0 0% 24%;
 
     --border:       var(--rule);
     --border-strong:var(--rule-strong);
 
-    --brand:        174 67% 51%;       /* #2ED3C6 — teal CTA */
-    --brand-d:      174 75% 42%;
-    --brand-l:      174 70% 62%;
-    --brand-tint:   174 50% 12%;
-    --primary-hover:174 71% 43%;       /* #20BEB2 */
+    --brand:        173 57% 59%;       /* #5CD3C5 — teal CTA */
+    --brand-d:      173 60% 46%;
+    --brand-l:      173 57% 72%;
+    --brand-tint:   173 45% 12%;
+    --primary-hover:173 60% 50%;
 
-    --brand-2:      40  62% 57%;       /* #D6A84F — metallic gold */
-    --brand-2-d:    36  60% 45%;
-    --brand-2-l:    44  82% 67%;       /* #F0C96A — gold-soft */
-    --brand-2-tint: 40  40% 14%;
+    /* Gold accent collapsed into the teal accent. */
+    --brand-2:      173 57% 59%;
+    --brand-2-d:    173 60% 46%;
+    --brand-2-l:    173 57% 72%;
+    --brand-2-tint: 173 45% 14%;
 
-    --silver:       220 9%  80%;       /* #C6CCD4 */
+    --silver:       0 0% 80%;
 
-    --success:      147 60% 50%;       /* #35C77B */
-    --success-tint: 147 50% 14%;
-    --caution:      32  95% 60%;
-    --caution-tint: 32  60% 16%;
-    --alert:        0   100% 65%;      /* #FF4D4D */
+    /* Semantic states — non-red states become teal; alert stays red. */
+    --success:      173 60% 55%;
+    --success-tint: 173 45% 14%;
+    --caution:      173 60% 55%;
+    --caution-tint: 173 45% 16%;
+    --alert:        0   100% 65%;      /* #FF4D4D — red, unchanged */
     --alert-tint:   0   60% 18%;
-    --info:         210 100% 62%;      /* #3BA7FF */
-    --info-tint:    210 50% 16%;
-    --warning-2:    36  92% 55%;       /* #F6A623 */
-    --warning-2-tint: 36 60% 16%;
+    --info:         173 60% 55%;
+    --info-tint:    173 45% 16%;
+    --warning-2:    173 60% 55%;
+    --warning-2-tint: 173 45% 16%;
 
     --shadow-1:
       0 1px 0 hsl(0 0% 100% / 0.04) inset,
@@ -385,19 +390,17 @@
     --bucket-scale-fg:      var(--success);
     --bucket-scale-bg:      var(--success-tint);
 
-    --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--info)) 100%);
-    --grad-hero:   linear-gradient(135deg, hsl(174 67% 51%) 0%, hsl(189 95% 55%) 50%, hsl(210 100% 62%) 100%);
-    --grad-gold:   linear-gradient(135deg, hsl(40 62% 57%) 0%, hsl(44 82% 67%) 100%);
-    /* Dark-mode mesh — Cleo "lit room at night" feel. Brand teal in the
-       upper-left, indigo bleed top-right, violet glow center-low, and a
-       pink whisper bottom-right. Opacities stay ≤8% so data surfaces never
-       have to fight the ambient. */
+    --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-d)) 100%);
+    --grad-hero:   linear-gradient(135deg, hsl(173 57% 50%) 0%, hsl(173 57% 59%) 50%, hsl(173 57% 72%) 100%);
+    --grad-gold:   linear-gradient(135deg, hsl(173 57% 50%) 0%, hsl(173 60% 65%) 100%);
+    /* Dark-mode mesh — monochrome teal ambient. Opacities stay ≤12% so data
+       surfaces never have to fight the ambient. */
     --grad-mesh:
       radial-gradient(at 12% 14%, hsl(var(--brand) / 0.12) 0px, transparent 50%),
-      radial-gradient(at 88% 8%,  hsl(217 91% 60% / 0.10) 0px, transparent 55%),
-      radial-gradient(at 50% 90%, hsl(258 90% 66% / 0.10) 0px, transparent 55%),
-      radial-gradient(at 95% 80%, hsl(330 90% 65% / 0.06) 0px, transparent 55%),
-      radial-gradient(at 8% 70%,  hsl(189 95% 55% / 0.06) 0px, transparent 55%);
+      radial-gradient(at 88% 8%,  hsl(173 57% 59% / 0.10) 0px, transparent 55%),
+      radial-gradient(at 50% 90%, hsl(173 57% 59% / 0.10) 0px, transparent 55%),
+      radial-gradient(at 95% 80%, hsl(173 57% 59% / 0.06) 0px, transparent 55%),
+      radial-gradient(at 8% 70%,  hsl(173 57% 59% / 0.06) 0px, transparent 55%);
   }
 }
 
@@ -410,6 +413,33 @@
        works because we set touch-action on actionable elements only,
        and we leave the default (auto) on html/body. */
     -webkit-text-size-adjust: 100%;
+    /* App-themed document scrollbar — same treatment as the Ask CFO AI
+       column (`.chat-scroll`) so every tab's scrollbar reads identically:
+       thin, transparent track, ink-toned thumb inset from the edge. Firefox
+       honors these two; WebKit/Chromium uses the ::-webkit rules below. */
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--ink-mute) / 0.35) transparent;
+  }
+
+  /* Document scrollbar (Chromium/WebKit) — mirrors `.chat-scroll` exactly,
+     but its track starts below the fixed top bar so the scrollbar renders
+     under the bar instead of running alongside it. */
+  html::-webkit-scrollbar {
+    width: 10px;
+  }
+  html::-webkit-scrollbar-track {
+    background: transparent;
+    margin-top: 4rem;                 /* clear the 64px fixed top bar */
+  }
+  html::-webkit-scrollbar-thumb {
+    background: hsl(var(--ink-mute) / 0.3);
+    border-radius: 9999px;
+    border: 3px solid transparent;    /* inset the thumb from the edge */
+    background-clip: padding-box;
+  }
+  html::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--ink-mute) / 0.55);
+    background-clip: padding-box;
   }
 
   /* Snappy taps on actionable elements — removes any vestigial 300ms
@@ -602,7 +632,7 @@
     @apply inline-flex items-center justify-center gap-2;
     @apply rounded-lg px-5 py-3 font-medium text-[14px];
     background: hsl(var(--brand));
-    color: hsl(215 33% 4%);
+    color: hsl(0 0% 4%);
     transition: filter 160ms var(--ease-quint), transform 160ms var(--ease-quint);
   }
   .btn-primary:hover { filter: brightness(1.08); }
@@ -633,6 +663,86 @@
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;                    /* Chromium / WebKit */
+  }
+
+  /* App-themed thin scrollbar — used by the Ask CFO AI chat column so the
+   * scroll track sits flush at the right edge and the thumb picks up the
+   * app's ink/rule tokens (works in both light and dark themes). */
+  .chat-scroll {
+    scrollbar-width: thin;                                   /* Firefox */
+    scrollbar-color: hsl(var(--ink-mute) / 0.35) transparent;
+  }
+  .chat-scroll::-webkit-scrollbar {
+    width: 10px;
+  }
+  .chat-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .chat-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--ink-mute) / 0.3);
+    border-radius: 9999px;
+    border: 3px solid transparent;    /* inset the thumb from the edge */
+    background-clip: padding-box;
+  }
+  .chat-scroll::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--ink-mute) / 0.55);
+    background-clip: padding-box;
+  }
+
+  /* Full-page chat only: inset the scrollbar TRACK from the top so its top end
+   * clears the translucent header the conversation scrolls under (the content
+   * itself still scrolls all the way up). Margin applies to the scrollbar
+   * alone — content layout is untouched. */
+  .chat-scroll-header-inset::-webkit-scrollbar-track {
+    margin-top: 4rem;
+  }
+
+  /* Soft fade at the top and bottom edges of a scroll section so content
+   * dissolves rather than hard-cutting. A second mask layer keeps the right
+   * 12px (the scrollbar gutter) fully opaque so the SCROLLBAR is never faded —
+   * only the content dissolves. Applied to the chat-items list. */
+  .chat-list-fade {
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%),
+      linear-gradient(to left, #000 12px, transparent 12px);
+            mask-image:
+      linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%),
+      linear-gradient(to left, #000 12px, transparent 12px);
+    -webkit-mask-composite: source-over;
+            mask-composite: add;
+  }
+
+  /* Animated gradient border — a teal gradient ring that slowly sweeps around
+   * the element. The mask trick paints only the 1.5px border band so the fill
+   * stays untouched. Used by the "Ask CFO AI" pill in the top header. */
+  @keyframes ask-ai-border-sweep {
+    to { background-position: 200% center; }
+  }
+  /* Animated gradient FILL — a translucent teal gradient that slowly sweeps
+   * across the element. Pair it with a STATIC border on the element. Kept
+   * subtle so label text stays readable. Used by the "Ask CFO AI" pill and the
+   * selected currency segment. */
+  .ask-ai-anim-fill {
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--brand) / 0.26),
+      hsl(var(--brand-l) / 0.12),
+      hsl(var(--brand-d) / 0.26),
+      hsl(var(--brand-l) / 0.12),
+      hsl(var(--brand) / 0.26)
+    );
+    background-size: 200% 100%;
+    animation: ask-ai-border-sweep 4s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ask-ai-anim-fill { animation: none; }
+  }
+
+  /* Push the scrollbar just outside the section (via a negative right margin
+   * equal to the scrollbar width) so the rows themselves use the full width.
+   * The parent must not clip horizontally. Used by the chat-items list. */
+  .chat-scroll-outside {
+    margin-right: -10px;
   }
 }
 

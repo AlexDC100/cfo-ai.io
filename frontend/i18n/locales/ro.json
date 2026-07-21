@@ -2,6 +2,7 @@
   "sidebar": {
     "workflow": "Flux de lucru",
     "language_label": "Schimbă limba",
+    "workspace": "Spațiu de lucru",
     "dashboard": "Tablou de bord",
     "cash": "Numerar",
     "profit": "Profit",
@@ -162,7 +163,7 @@
     "language": "Limbă",
     "language_description": "Alege limba pentru interfață și analiza generată de AI.",
     "title": "Cont",
-    "subtitle": "Gestionează profilul, spațiul de lucru, abonamentul și securitatea într-un singur loc.",
+    "subtitle": "Profilul, limba, industria și planul tău — toate într-un singur loc. Modificările se salvează în contul tău și se aplică instantaneu în toate filele.",
     "profile_title": "Profil",
     "profile_subtitle": "Cum te prezintă CFO AI în aplicație.",
     "full_name": "Nume complet",

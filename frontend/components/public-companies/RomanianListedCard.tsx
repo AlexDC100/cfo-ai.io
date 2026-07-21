@@ -151,7 +151,7 @@ export function RomanianListedCard({ rows, onExplore, onSelectTicker }: Props) {
   return (
     <section
       data-testid="romanian-listed-card"
-      className="rounded-3xl border border-emerald-600/15 bg-surface overflow-hidden ring-1 ring-emerald-600/10"
+      className="rounded-3xl border border-[#2AA89B]/15 bg-surface overflow-hidden ring-1 ring-[#2AA89B]/10"
     >
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="px-5 sm:px-6 pt-4 pb-3 flex items-baseline justify-between gap-3">
@@ -168,12 +168,12 @@ export function RomanianListedCard({ rows, onExplore, onSelectTicker }: Props) {
 
       {/* ── Peer-pair callout (CFH ↔ Scandia) ──────────────────────────── */}
       {activePair && (
-        <div className="px-5 sm:px-6 py-3 bg-emerald-50/40 dark:bg-emerald-900/10 border-y border-emerald-600/10">
+        <div className="px-5 sm:px-6 py-3 bg-[#E6F7F4]/40 dark:bg-[#1B7268]/10 border-y border-[#2AA89B]/10">
           <div className="flex items-start gap-3">
             <Sparkles
               size={15}
               strokeWidth={2}
-              className="text-emerald-600 dark:text-emerald-300 shrink-0 mt-0.5"
+              className="text-[#2AA89B] dark:text-[#8FE3D9] shrink-0 mt-0.5"
             />
             <div className="flex-1 min-w-0">
               <div className="text-[12.5px] font-semibold text-ink mb-0.5">
@@ -191,8 +191,8 @@ export function RomanianListedCard({ rows, onExplore, onSelectTicker }: Props) {
               className="
                 shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-full
                 text-[11.5px] font-medium
-                bg-emerald-600 text-white hover:bg-emerald-700
-                dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-emerald-950
+                bg-[#2AA89B] text-white hover:bg-[#2AA89B]
+                dark:bg-[#5CD3C5] dark:hover:bg-[#5CD3C5] dark:text-[#1B7268]
                 transition-colors
               "
             >

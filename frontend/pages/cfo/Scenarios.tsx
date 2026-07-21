@@ -17,9 +17,8 @@
 
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { SlidersHorizontal, TrendingDown } from "lucide-react";
-import { AppShell } from "@/components/cfo/AppShell";
-import { EmptyState } from "@/components/cfo/ui/EmptyState";
+import { TrendingDown } from "lucide-react";
+import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { ScenarioProvider, useScenario } from "@/stores/scenario";
@@ -49,7 +48,7 @@ function ImpactSummary({
   return (
     <div
       data-testid="scenario-impact-summary"
-      className="rounded-xl border border-rule bg-bg-2/40 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2"
+      className="flex flex-wrap items-center gap-x-6 gap-y-2 py-1"
     >
       <div className="flex items-center gap-2">
         <TrendingDown
@@ -71,7 +70,7 @@ function ImpactSummary({
             {breachCount} breached
           </span>
         ) : (
-          <span className="text-[13px] font-semibold text-[hsl(165,80%,42%)] dark:text-[hsl(165,70%,60%)]">
+          <span className="text-[13px] font-semibold text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]">
             all holding
           </span>
         )}
@@ -118,23 +117,21 @@ function ScenariosInner({
     : 0;
 
   return (
-    <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-      {/* Header */}
-      <div>
-        <div className="text-[10.5px] uppercase tracking-[0.18em] text-ink-mute font-semibold">
-          What-if scenarios
-        </div>
-        <h1 className="text-[26px] sm:text-[30px] leading-tight font-semibold tracking-[-0.01em] text-ink mt-0.5">
-          Scenario planning
-        </h1>
-        <p className="text-[13px] text-ink-soft mt-1.5 max-w-[640px]">
-          Model a change — rent or revenue drops, costs rise, payments slow —
-          and see instantly what it does to EBITDA, leverage, and your bank
-          covenants. Built on{" "}
-          <span className="text-ink">{periodLabel ?? "the loaded period"}</span>;
-          your actuals are never changed.
-        </p>
-      </div>
+    <div className="max-w-[1180px] space-y-5">
+      {/* Header — dashboard-style hero */}
+      <PageHeader
+        hero
+        eyebrow="Scenario planning"
+        title={<>Stress-test your numbers <span className="text-grad">before they happen</span>.</>}
+        subtitle={
+          <>
+            Model a change — rent or revenue drops, costs rise, payments slow — and see
+            instantly what it does to EBITDA, leverage, and your bank covenants. Built on{" "}
+            <span className="text-ink">{periodLabel ?? "the loaded period"}</span>; your
+            actuals are never changed.
+          </>
+        }
+      />
 
       {active && (
         <ImpactSummary
@@ -182,31 +179,40 @@ export default function Scenarios() {
 
   if (!period.statements) {
     return (
-      <AppShell>
-        <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-10">
-          <EmptyState
-            icon={SlidersHorizontal}
-            title="Load a period to run scenarios"
-            subtitle="Scenario planning models what-if changes on top of a real trial balance — revenue or rent drops, cost shocks, slower collections — and shows the impact on EBITDA, leverage and covenants. Upload or open a period first."
-            primary={{
-              label: "Go to dashboard",
-              onClick: () => navigate("/dashboard"),
-              testid: "scenarios-empty-dashboard",
-            }}
-            secondary={{
-              label: "Upload a trial balance",
-              onClick: () => navigate("/dashboard?upload=1"),
-              testid: "scenarios-empty-upload",
-            }}
-            footnote="Your scenarios are saved on this device and never alter your actuals."
-          />
+      <div className="max-w-[1180px] space-y-8">
+        <PageHeader
+          hero
+          eyebrow="Scenario planning"
+          title={<>Stress-test your numbers <span className="text-grad">before they happen</span>.</>}
+          subtitle="Model what-if changes on top of a real trial balance — revenue or rent drops, cost shocks, slower collections — and see the impact on EBITDA, leverage and covenants. Upload or open a period to begin; your actuals are never changed."
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            data-testid="scenarios-empty-dashboard"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-5 py-2.5 text-[13.5px] font-medium text-[#06302b] hover:bg-brand-dark hover:text-white transition-colors"
+          >
+            Go to dashboard
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard?upload=1")}
+            data-testid="scenarios-empty-upload"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-rule px-5 py-2.5 text-[13.5px] font-medium text-ink hover:bg-bg-2 transition-colors"
+          >
+            Upload a trial balance
+          </button>
         </div>
-      </AppShell>
+        <p className="text-[12px] text-ink-mute">
+          Your scenarios are saved on this device and never alter your actuals.
+        </p>
+      </div>
     );
   }
 
   return (
-    <AppShell>
+    <>
       <ScenarioProvider>
         <ScenariosInner
           statements={period.statements}
@@ -215,6 +221,6 @@ export default function Scenarios() {
           metricRows={period.metrics ?? []}
         />
       </ScenarioProvider>
-    </AppShell>
+    </>
   );
 }

@@ -18,15 +18,15 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
       data-testid="public-company-subscription-required"
       className="
         max-w-2xl mx-auto my-12
-        rounded-2xl border border-amber-300/40
-        bg-gradient-to-br from-amber-50/40 to-surface
-        dark:from-amber-500/[0.06] dark:to-surface
+        rounded-2xl border border-[#8FE3D9]/40
+        bg-gradient-to-br from-[#E6F7F4]/40 to-surface
+        dark:from-[#5CD3C5]/[0.06] dark:to-surface
         p-7 sm:p-9
       "
     >
       <div className="
         flex h-12 w-12 items-center justify-center
-        rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-300
+        rounded-2xl bg-[#5CD3C5]/15 text-[#2AA89B] dark:text-[#8FE3D9]
         mb-4
       ">
         <Lock size={22} strokeWidth={1.75} />
@@ -57,11 +57,11 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
           </ul>
         </div>
         <div className="
-          rounded-xl border border-amber-300/40 bg-amber-50/40
-          dark:bg-amber-500/[0.06]
+          rounded-xl border border-[#8FE3D9]/40 bg-[#E6F7F4]/40
+          dark:bg-[#5CD3C5]/[0.06]
           p-4
         ">
-          <div className="text-[11px] uppercase tracking-[0.1em] font-semibold text-amber-800 dark:text-amber-300">
+          <div className="text-[11px] uppercase tracking-[0.1em] font-semibold text-[#1B7268] dark:text-[#8FE3D9]">
             Unlocked with SF1 (~$49/mo)
           </div>
           <ul className="mt-2 text-[12.5px] text-ink-soft space-y-1">
@@ -82,8 +82,8 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
           h-10 px-5 rounded-lg
           bg-gradient-to-b from-brand to-brand-d text-paper
           text-[13px] font-medium
-          shadow-[0_8px_22px_-8px_rgba(45,191,179,0.6)]
-          hover:shadow-[0_10px_26px_-8px_rgba(45,191,179,0.75)]
+          shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)]
+          hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)]
           ring-1 ring-inset ring-white/15
           transition-all
         "

@@ -225,7 +225,7 @@ export function PageGuideOverlay({ open, pageId, title, steps, onClose }: Props)
               height: spotlight.height,
               borderRadius: 14,
               pointerEvents: "none",
-              boxShadow: "0 0 0 1.5px hsl(165, 80%, 60%)",
+              boxShadow: "0 0 0 1.5px hsl(173, 57%, 60%)",
             }}
           />
         )}
@@ -275,7 +275,7 @@ export function PageGuideOverlay({ open, pageId, title, steps, onClose }: Props)
           <header className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               {step.eyebrow && (
-                <div className="text-[10px] uppercase tracking-[0.14em] text-[hsl(165,75%,60%)] font-semibold mb-1.5">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-[hsl(173,57%,60%)] font-semibold mb-1.5">
                   {step.eyebrow}
                 </div>
               )}
@@ -312,7 +312,7 @@ export function PageGuideOverlay({ open, pageId, title, steps, onClose }: Props)
                   className={cn(
                     "h-1 rounded-full transition-all",
                     i === idx
-                      ? "w-5 bg-[hsl(165,75%,60%)]"
+                      ? "w-5 bg-[hsl(173,57%,60%)]"
                       : "w-1.5 bg-white/25",
                   )}
                 />
@@ -360,7 +360,7 @@ export function PageGuideOverlay({ open, pageId, title, steps, onClose }: Props)
                   className="
                     inline-flex items-center gap-1
                     text-[12px] font-semibold
-                    text-[rgba(18,20,22,0.95)] bg-[hsl(165,75%,60%)] hover:bg-[hsl(165,75%,55%)]
+                    text-[rgba(18,20,22,0.95)] bg-[hsl(173,57%,60%)] hover:bg-[hsl(173,57%,55%)]
                     px-3 py-1.5 rounded-md
                     transition-colors
                   "
