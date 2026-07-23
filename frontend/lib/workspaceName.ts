@@ -1,8 +1,15 @@
-// workspaceName.ts — the user-chosen workspace name (set in the Workspace
-// onboarding). Stored in localStorage and exposed as a tiny reactive hook so
-// surfaces like the TopHeader tagline update the instant it changes (same tab
-// via a custom event, other tabs via the native `storage` event) without a
-// page reload.
+// workspaceName.ts — the active workspace's display name.
+//
+// Historically this was a standalone localStorage string, written during
+// onboarding and read by the TopHeader tagline + sidebar identity. Now that a
+// workspace IS an organization (lib/org.ts), the name belongs to the
+// `organizations` row and this module is a thin read-through so those surfaces
+// didn't have to change.
+//
+// The localStorage copy is kept purely as a first-paint cache: the org list
+// resolves asynchronously, and without it the header would flash empty on
+// every reload. lib/org.ts pushes the authoritative name in via
+// `writeWorkspaceName` whenever the active workspace resolves or changes.
 
 import { useEffect, useState } from "react";
 
@@ -31,8 +38,8 @@ export function writeWorkspaceName(name: string): void {
   }
 }
 
-/** Reactive read of the workspace name. Re-renders on change (this tab or
- *  another tab). Empty string when unset. */
+/** Reactive read of the active workspace name. Re-renders on change (this tab
+ *  or another tab). Empty string when unset. */
 export function useWorkspaceName(): string {
   const [name, setName] = useState<string>(readWorkspaceName);
   useEffect(() => {

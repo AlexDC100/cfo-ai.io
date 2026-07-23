@@ -94,15 +94,23 @@ export interface UniverseResponse {
 
 // ── Fetch ───────────────────────────────────────────────────────────────
 
-/** Fetch the default 50+ universe. Backend handles live-vs-demo fallback
- *  per-ticker. Throws on transport error so React Query can surface it. */
+/** Fetch the universe. Backend handles live-vs-demo fallback per-ticker.
+ *  Throws on transport error so React Query can surface it.
+ *
+ *  Romania-only coverage (2026-07-23, operator directive): the product
+ *  surface shows BVB-listed companies ONLY. The backend still merges the
+ *  NASDAQ universe into the response (other consumers may need it), so the
+ *  restriction is applied here at the single fetch chokepoint — every
+ *  downstream consumer (universe table, MarketsOverview themes/sectors/
+ *  movers, search-within-universe) inherits it. */
 export async function fetchUniverse(opts: { refresh?: boolean } = {}): Promise<UniverseResponse> {
   const qs = opts.refresh ? "?refresh=true" : "";
   const res = await fetch(`${API_URL}/api/public/universe${qs}`);
   if (!res.ok) {
     throw new Error(`Universe fetch failed: HTTP ${res.status}`);
   }
-  return (await res.json()) as UniverseResponse;
+  const data = (await res.json()) as UniverseResponse;
+  return { ...data, companies: data.companies.filter((c) => c.exchange === "BVB") };
 }
 
 /** Sector chips for the filter row. Live source-of-truth lives in

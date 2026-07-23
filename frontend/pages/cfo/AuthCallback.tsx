@@ -111,12 +111,13 @@ export default function AuthCallback() {
         if (cancelled) return;
         // Recovery flow lands the user on a reset-password page; for now we
         // route to /login with a hint until that page ships. Everything else
-        // (signup confirm, magic link, email change) goes to onboarding so
-        // first-runners pick an industry before hitting the dashboard.
+        // (signup confirm, magic link, email change) goes to the /workspace
+        // setup wizard so first-runners pick a name + industry before the
+        // dashboard.
         if (flowType === "recovery") {
           navigate("/login?reset=1", { replace: true });
         } else {
-          navigate("/onboarding", { replace: true });
+          navigate("/workspace", { replace: true });
         }
       }, 700);
     };

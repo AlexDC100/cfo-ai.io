@@ -46,7 +46,7 @@ export function PublicCompanyHeader({ ticker, info, syncedAt, onRefresh, refresh
       "
     >
       <Link
-        to="/dashboard/public/search"
+        to="/public-companies"
         className="
           flex items-center gap-1.5
           h-9 px-2.5 rounded-lg

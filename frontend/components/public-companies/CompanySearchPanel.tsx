@@ -1,88 +1,100 @@
 // Compact market-search bar — financial workspace style.
 //
-// Redesign per spec: drops "Step 1" label, removes the standalone API-key
-// status badge (moved up to the page-level StatusBanner), inlines the
-// saved-peers chips so search + peers feel like one bar, not two
-// stacked sections.
+// Romania-only rework (2026-07-23, operator directive): the old panel
+// searched Nasdaq Data Link server-side and carried a data-source dropdown
+// (Nasdaq / SEC / Manual). The universe is now BVB-only, so:
+//   · the dropdown is gone;
+//   · search runs CLIENT-SIDE over the loaded Romanian universe rows —
+//     ticker or company name, diacritic-insensitive ("tara" finds Țara),
+//     instant, no API key required;
+//   · quick-pick chips are the largest Romanian companies by market cap
+//     instead of the US watchlist.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  ChevronDown,
-  Loader2,
-  Search,
-  Upload,
-  X,
-  CheckCircle2,
-} from "lucide-react";
-import {
-  searchPublicCompanies,
-  type NasdaqErrorEnvelope,
-  type PublicCompanyHealth,
-  type PublicCompanyHit,
-} from "@/lib/publicCompanyApi";
-import { watchlistAsHits } from "@/lib/publicCompanyWatchlist";
+import { ArrowRight, Search, X, CheckCircle2 } from "lucide-react";
+import type { PublicCompanyHit } from "@/lib/publicCompanyApi";
+import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
 import { PublicCompanyResultCard } from "@/components/cfo/PublicCompanyResultCard";
-import {
-  removePeer, useBenchmarkPeers,
-} from "@/lib/benchmarkPeersStore";
-
-type Source = "nasdaq" | "sec" | "manual";
+import { removePeer, useBenchmarkPeers } from "@/lib/benchmarkPeersStore";
+import { staticBvbRows } from "@/lib/bvbStaticUniverse";
 
 interface Props {
-  health: PublicCompanyHealth | null;
+  /** The loaded (Romania-only) universe — the search corpus. */
+  rows: PublicCompanyFinancialSnapshot[];
   /** When set, picking a result selects it instead of navigating away. */
   onSelect?: (ticker: string) => void;
 }
 
-const SOURCES: { code: Source; label: string; sub: string; disabled?: boolean }[] = [
-  { code: "nasdaq", label: "Nasdaq Data Link", sub: "Sharadar SF1 + DAILY" },
-  { code: "sec",    label: "SEC EDGAR",        sub: "Coming soon", disabled: true },
-  { code: "manual", label: "Manual / CSV",     sub: "Coming soon", disabled: true },
-];
+/** Diacritic-insensitive, case-insensitive normalizer. */
+const norm = (s: string | null | undefined): string =>
+  (s ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
-export function CompanySearchPanel({ health, onSelect }: Props) {
+function toHit(r: PublicCompanyFinancialSnapshot): PublicCompanyHit {
+  return {
+    ticker: r.ticker,
+    name: r.companyName,
+    sector: r.sector ?? null,
+    industry: r.industry ?? null,
+    exchange: r.exchange ?? "BVB",
+    country: r.country ?? "RO",
+    currency: r.currency,
+    is_active: true,
+  };
+}
+
+export function CompanySearchPanel({ rows, onSelect }: Props) {
   const [query, setQuery] = useState("");
-  const [source, setSource] = useState<Source>("nasdaq");
-  const [results, setResults] = useState<PublicCompanyHit[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [error, setError] = useState<NasdaqErrorEnvelope["error"] | null>(null);
   const navigate = useNavigate();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const peers = useBenchmarkPeers();
 
-  const suggestions = useMemo(() => watchlistAsHits().slice(0, 9), []);
-  const keyMissing = !health?.key_configured;
+  // Search corpus: the live universe when loaded; otherwise the bundled
+  // static BVB list, so search always finds Romanian companies even while
+  // the universe fetch is loading / failing.
+  const corpus = rows.length > 0 ? rows : staticBvbRows();
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (abortRef.current) abortRef.current.abort();
-    const q = query.trim();
-    if (!q || source !== "nasdaq") {
-      setResults([]);
-      setError(null);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    debounceRef.current = setTimeout(async () => {
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-      const r = await searchPublicCompanies(q, { limit: 10, signal: ctrl.signal });
-      if (ctrl.signal.aborted) return;
-      if (r.ok) { setResults(r.value.results); setError(null); }
-      else      { setResults([]); setError(r.error); }
-      setSearching(false);
-    }, 250);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, source]);
+  // Quick picks — the largest Romanian companies by market cap.
+  const suggestions = useMemo(
+    () =>
+      [...corpus]
+        .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0))
+        .slice(0, 9),
+    [corpus],
+  );
+
+  // Client-side search: ticker prefix matches rank first, then ticker
+  // substring, then company-name substring. Diacritic-insensitive.
+  const results = useMemo(() => {
+    const q = norm(query.trim());
+    if (!q) return [];
+    const scored = corpus
+      .map((r) => {
+        const t = norm(r.ticker);
+        const n = norm(r.companyName);
+        let score = -1;
+        if (t.startsWith(q)) score = 0;
+        else if (t.includes(q)) score = 1;
+        else if (n.startsWith(q)) score = 2;
+        else if (n.includes(q)) score = 3;
+        return { r, score };
+      })
+      .filter((x) => x.score >= 0)
+      .sort(
+        (a, b) =>
+          a.score - b.score || (b.r.marketCap ?? 0) - (a.r.marketCap ?? 0),
+      );
+    return scored.slice(0, 10).map((x) => toHit(x.r));
+  }, [corpus, query]);
 
   const handleHitClick = (ticker: string) => {
     if (onSelect) onSelect(ticker);
     else navigate(`/dashboard/public/${encodeURIComponent(ticker)}`);
   };
+
+  const noMatches = query.trim().length > 0 && results.length === 0;
 
   return (
     <section
@@ -107,12 +119,7 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            // 2026-05-26 (mobile fix): the prior 50-char placeholder
-            // "Search ticker or company — AAPL, Microsoft, Nvidia"
-            // truncated mid-word on iPhone widths (input never wraps,
-            // visible region was ~35 chars). The shorter form below
-            // still cues the user but reads cleanly end-to-end at 375px.
-            placeholder="Search ticker or company"
+            placeholder="Search Romanian companies"
             spellCheck={false}
             autoCapitalize="characters"
             data-testid="public-companies-search-input"
@@ -122,19 +129,23 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
               tracking-[-0.005em]
             "
           />
-          {searching && (
-            <Loader2 size={14} strokeWidth={1.75} className="shrink-0 text-brand-d animate-spin" />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="shrink-0 text-ink-mute hover:text-ink transition-colors"
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
           )}
         </div>
 
-        <SourceSelector value={source} onChange={setSource} />
-
         <button
           onClick={() => {
-            const top = results[0] ?? suggestions[0];
+            const top = results[0] ?? (suggestions[0] ? toHit(suggestions[0]) : null);
             if (top) handleHitClick(top.ticker);
           }}
-          disabled={keyMissing || (results.length === 0 && !suggestions.length)}
+          disabled={results.length === 0 && suggestions.length === 0}
           data-testid="public-companies-fetch"
           className="
             inline-flex items-center justify-center gap-1.5
@@ -148,9 +159,8 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
             transition-all
             shrink-0
           "
-          title={keyMissing ? "Demo mode — connect NASDAQ_DATA_LINK_API_KEY for live data" : undefined}
         >
-          Fetch Data
+          Open Company
           <ArrowRight size={14} strokeWidth={2} />
         </button>
       </div>
@@ -196,7 +206,7 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
             </span>
           ))}
         </div>
-      ) : !query.trim() && source === "nasdaq" ? (
+      ) : !query.trim() ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="text-[10px] uppercase tracking-[0.12em] text-ink-mute mr-1">
             Quick pick
@@ -205,6 +215,7 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
             <button
               key={h.ticker}
               onClick={() => handleHitClick(h.ticker)}
+              title={h.companyName}
               className="
                 inline-flex items-center
                 h-7 px-2 rounded-md
@@ -236,95 +247,13 @@ export function CompanySearchPanel({ health, onSelect }: Props) {
         </div>
       )}
 
-      {/* Inline error */}
-      {error && (
+      {/* No-match note */}
+      {noMatches && (
         <div className="mt-4 rounded-xl border border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink">
-          {friendlyError(error)}
-        </div>
-      )}
-
-      {/* Source caveat */}
-      {source !== "nasdaq" && (
-        <div className="
-          mt-4 rounded-xl border border-[#8FE3D9]/40 bg-[#E6F7F4]/30
-          dark:bg-[#5CD3C5]/[0.05]
-          px-4 py-3 text-[12.5px] text-[#1B7268] dark:text-[#E6F7F4]
-        ">
-          <strong className="font-semibold">{SOURCES.find((s) => s.code === source)?.label} is coming soon.</strong>{" "}
-          For now, Nasdaq Data Link covers 16,000+ US-listed tickers.
+          No BVB-listed company matches “{query.trim()}”. Try the ticker
+          (e.g. TLV, SNP, H2O) or part of the company name.
         </div>
       )}
     </section>
   );
-}
-
-
-// ── Source selector dropdown ─────────────────────────────────────────
-
-function SourceSelector({ value, onChange }: { value: Source; onChange: (s: Source) => void }) {
-  const [open, setOpen] = useState(false);
-  const current = SOURCES.find((s) => s.code === value)!;
-  return (
-    <div className="relative shrink-0">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="
-          inline-flex items-center gap-2
-          h-12 px-3.5 rounded-xl
-          border border-rule bg-surface
-          text-[12.5px] text-ink
-          hover:bg-bg-2/40
-          transition-colors
-        "
-      >
-        <Upload size={14} strokeWidth={1.75} className="text-ink-mute" />
-        <span className="hidden sm:inline">{current.label}</span>
-        <span className="sm:hidden">Source</span>
-        <ChevronDown size={13} strokeWidth={1.75} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="
-            absolute right-0 mt-1 z-20 min-w-[220px]
-            rounded-xl border border-rule bg-surface
-            shadow-[0_12px_32px_-12px_rgba(0,0,0,0.18)]
-            py-1
-          ">
-            {SOURCES.map((s) => (
-              <button
-                key={s.code}
-                disabled={s.disabled}
-                onClick={() => { onChange(s.code); setOpen(false); }}
-                className="
-                  w-full text-left px-3 py-2
-                  flex items-start justify-between gap-3
-                  hover:bg-bg-2/50
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  transition-colors
-                "
-              >
-                <div>
-                  <div className="text-[12.5px] text-ink font-medium">{s.label}</div>
-                  <div className="text-[10.5px] text-ink-mute mt-0.5">{s.sub}</div>
-                </div>
-                {value === s.code && <CheckCircle2 size={14} className="text-brand-d mt-0.5" />}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function friendlyError(err: NasdaqErrorEnvelope["error"]): string {
-  const map: Record<string, string> = {
-    nasdaq_key_missing: "Nasdaq API key is not configured on the backend.",
-    nasdaq_entitlement_missing: "Your Nasdaq subscription does not include this dataset.",
-    nasdaq_not_found: "No matching public company found. Try the ticker or a different name.",
-    nasdaq_rate_limited: "Nasdaq rate limit reached. Try again in a minute.",
-    nasdaq_error: "Couldn't reach Nasdaq right now. Try again in a moment.",
-  };
-  return map[err.code] ?? err.message;
 }

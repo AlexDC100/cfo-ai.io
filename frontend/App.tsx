@@ -20,6 +20,7 @@ import { PopoverStackProvider } from "@/components/learning/PopoverStackProvider
 import { PopoverStackRenderer } from "@/components/learning/PopoverStackRenderer";
 import { MetricGlossaryDrawer } from "@/components/learning/MetricGlossaryDrawer";
 import { LearningModeProvider } from "@/stores/learningMode";
+import { LanguageSwitchOverlay } from "@/components/LanguageSwitchOverlay";
 import { readPeriodVerdict } from "@/lib/dataPresence";
 import "@/styles/learning.css";
 
@@ -85,10 +86,11 @@ const BenchmarkReport = lazy(() => import("./pages/cfo/BenchmarkReport"));
 const ComprehensiveReport = lazy(() => import("./pages/cfo/ComprehensiveReport"));
 const PeerComparisonReport = lazy(() => import("./pages/cfo/PeerComparisonReport"));
 const MultiYearHistory = lazy(() => import("./pages/cfo/MultiYearHistory"));
-const Onboarding = lazy(() => import("./pages/cfo/Onboarding"));
+// Settings without the app shell — reached from the landing account menu.
+const AccountSettings = lazy(() => import("./pages/cfo/AccountSettings"));
 const Chat = lazy(() => import("./pages/cfo/Chat"));
-// NASDAQ-8 — public-company search page (/dashboard/public/search).
-const PublicCompanySearchPage = lazy(() => import("./pages/cfo/PublicCompanySearchPage"));
+// NASDAQ-8's standalone US search page was removed 2026-07-23 (Romania-only
+// coverage) — /dashboard/public/search now redirects to /public-companies.
 // NASDAQ-9 — per-company dashboard at /dashboard/public/:ticker.
 const PublicCompanyDashboard = lazy(() => import("./pages/cfo/PublicCompanyDashboard"));
 // Public Company Intelligence hub — first-class module at /public-companies.
@@ -153,8 +155,6 @@ function App() {
         () => import("./pages/cfo/ComprehensiveReport"),
         () => import("./pages/cfo/PeerComparisonReport"),
         () => import("./pages/cfo/MultiYearHistory"),
-        () => import("./pages/cfo/Onboarding"),
-        () => import("./pages/cfo/PublicCompanySearchPage"),
         () => import("./pages/cfo/PublicCompanyDashboard"),
         () => import("./pages/cfo/PublicCompanyIntelligence"),
       ];
@@ -181,6 +181,11 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          {/* Fullscreen brand-accent spinner shown while the user switches
+              the UI language — covers both the landing site and the app.
+              Mounted above BrowserRouter so it survives route transitions;
+              renders into document.body via a portal. */}
+          <LanguageSwitchOverlay />
           {/* TestModeBanner — mounted ABOVE BrowserRouter so it persists
               across route transitions without re-mounting and without
               depending on any route-scoped context. Renders null when
@@ -300,8 +305,13 @@ function AppRoutes() {
           <Route path="/roadmap" element={<RoadmapPage />} />
           <Route path="/contact-sales" element={<ContactSalesPage />} />
 
-          {/* Onboarding: industry pick + workspace name. Its own layout. */}
-          <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
+          {/* /onboarding was removed (2026-07-23) — the /workspace setup
+              wizard owns first-run naming + industry now. Old links land on
+              the redirect below. */}
+          <Route path="/onboarding" element={<Navigate to="/workspace" replace />} />
+
+          {/* Settings without the app shell (landing account menu → Settings). */}
+          <Route path="/account/settings" element={<AuthGuard><AccountSettings /></AuthGuard>} />
 
           {/* Public Company Intelligence — auth-optional. Anonymous visitors
               get the standalone route (the page renders PublicShell). Signed-in
@@ -322,7 +332,7 @@ function AppRoutes() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/scenarios" element={<Scenarios />} />
             <Route path="/dashboard/variance" element={<Variance />} />
-            <Route path="/dashboard/public/search" element={<PublicCompanySearchPage />} />
+            <Route path="/dashboard/public/search" element={<Navigate to="/public-companies" replace />} />
             <Route path="/dashboard/public/:ticker" element={<PublicCompanyDashboard />} />
             <Route path="/products" element={<Products />} />
             <Route path="/chat" element={<Chat />} />

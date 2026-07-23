@@ -25,6 +25,19 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    // Dev-only proxy for BVB price charts (2026-07-23): Yahoo's chart API
+    // has no CORS headers, so the browser can't call it directly. In dev,
+    // /yahoo/* is proxied server-side; publicCompanyPriceHistory.ts uses
+    // it as a fallback when the engine isn't running locally. Production
+    // never hits this path — the deployed engine serves BVB history via
+    // providers/yahoo_bvb.py.
+    proxy: {
+      "/yahoo": {
+        target: "https://query1.finance.yahoo.com",
+        changeOrigin: true,
+        rewrite: (p: string) => p.replace(/^\/yahoo/, ""),
+      },
+    },
   },
   plugins: [react()],
   resolve: {

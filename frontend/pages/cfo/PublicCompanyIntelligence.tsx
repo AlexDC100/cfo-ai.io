@@ -10,7 +10,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, Activity, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Activity, LayoutGrid, Globe } from "lucide-react";
 import { PublicShell } from "@/components/cfo/PublicShell";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useAuth } from "@/lib/auth";
@@ -22,22 +22,19 @@ import { PublicCompaniesUniverseTable } from "@/components/public-companies/Publ
 import { MarketsOverview, type ExploreFilter } from "@/components/public-companies/MarketsOverview";
 import { BenchmarkingPanel } from "@/components/public-companies/BenchmarkingPanel";
 import { AIInvestmentInterpretation } from "@/components/public-companies/AIInvestmentInterpretation";
-import { PublicCompanyStatusBanner } from "@/components/public-companies/PublicCompanyStatusBanner";
 import { StockDetailDrawer } from "@/components/public-companies/StockDetailDrawer";
 // Phase A — AI Intelligence layer. RiskRadar is the new 8-card radar
 // driven by /api/public/intelligence/risk-radar. Lives on its own tab so
 // it never competes with the existing Markets Overview / Universe table.
 import { RiskRadar } from "@/components/public-companies/RiskRadar";
+// Geographic Map — Romania county (județ) choropleth (design port, 2026-07-23).
+import { GeographicMapPanel } from "@/components/public-companies/GeographicMapPanel";
+import { staticBvbRows } from "@/lib/bvbStaticUniverse";
 // Universe-wide risk-score batch — one call gives us a score per ticker
 // so the universe table can show an AI Risk chip + sort by it without
 // firing 200 per-ticker requests.
 import { fetchUniverseRiskScores } from "@/lib/publicCompanyIntelligence";
-import {
-  getPublicCompanyHealth,
-  type PublicCompanyHealth,
-} from "@/lib/publicCompanyApi";
 import { fetchUniverse } from "@/lib/publicCompanyUniverse";
-import { isDemoMode } from "@/lib/publicCompanyWatchlist";
 import type { PriceRange } from "@/lib/publicCompanyPriceHistory";
 import {
   setPublicCompanyChatContext,
@@ -45,7 +42,6 @@ import {
 } from "@/lib/publicCompanyChatStore";
 
 export default function PublicCompanyIntelligence() {
-  const [health, setHealth] = useState<PublicCompanyHealth | null>(null);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   // PUB-200 — chart range is per-session preference, persisted in URL
   // so a drawer reopen lands on the same range and so deep links carry
@@ -60,10 +56,10 @@ export default function PublicCompanyIntelligence() {
   // the existing markets-overview + universe + benchmark + AI-interp stack;
   // "risk-radar" shows the new 8-card AI risk radar. Persisted to ?tab=
   // so deep-links land on the right view + browser back/forward works.
-  type IntelView = "overview" | "risk-radar";
+  type IntelView = "overview" | "risk-radar" | "map";
   const [view, setView] = useState<IntelView>(() => {
     const t = searchParams.get("tab");
-    return t === "risk-radar" ? "risk-radar" : "overview";
+    return t === "risk-radar" ? "risk-radar" : t === "map" ? "map" : "overview";
   });
 
   // Deep-link support: `/public-companies?ticker=X&range=1Y` auto-opens
@@ -80,6 +76,7 @@ export default function PublicCompanyIntelligence() {
     }
     const t2 = searchParams.get("tab");
     if (t2 === "risk-radar" && view !== "risk-radar") setView("risk-radar");
+    else if (t2 === "map" && view !== "map") setView("map");
     else if ((!t2 || t2 === "overview") && view !== "overview") setView("overview");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, selectedTicker, chartRange]);
@@ -89,8 +86,8 @@ export default function PublicCompanyIntelligence() {
     (next: IntelView) => {
       setView(next);
       const sp = new URLSearchParams(searchParams);
-      if (next === "risk-radar") sp.set("tab", "risk-radar");
-      else sp.delete("tab");
+      if (next === "overview") sp.delete("tab");
+      else sp.set("tab", next);
       setSearchParams(sp, { replace: true });
     },
     [searchParams, setSearchParams],
@@ -113,19 +110,6 @@ export default function PublicCompanyIntelligence() {
     },
     [switchView],
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    getPublicCompanyHealth().then((r) => {
-      if (cancelled) return;
-      if (r.ok) setHealth(r.value);
-      else setHealth({
-        service: "public-company-pipeline", key_configured: false,
-        key_tag: "key=unset", daily_budget_remaining: 0,
-      });
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   // PUB-UPG / PUB-200-FIX-F — fetch the 200-row universe. React Query
   // caches it for the session AND auto-refetches every 5 minutes to
@@ -159,16 +143,9 @@ export default function PublicCompanyIntelligence() {
     retry: 1,
   });
 
-  // PUB-200 — demo mode is now driven by the universe payload itself
-  // (`/api/public/universe` returns `mode: "demo" | "live"`). The
-  // legacy AAPL entitlement probe is no longer needed; the universe
-  // response is the single source of truth. Falls back to the health
-  // probe while the universe query is in flight so we don't briefly
-  // flash a stale badge.
-  const universeMode = universeQuery.data?.mode;
-  const demoMode = universeMode
-    ? universeMode === "demo"
-    : isDemoMode(health?.key_configured ?? false, true);
+  // Demo mode is driven by the universe payload itself
+  // (`/api/public/universe` returns `mode: "demo" | "live"`).
+  const demoMode = universeQuery.data?.mode === "demo";
 
   // NASDAQ-13 — feed the chat store whenever the selected ticker
   // changes (either via row-click or via deep link). CFOChatShell reads
@@ -222,8 +199,21 @@ export default function PublicCompanyIntelligence() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  // Universe rows with static fallback (2026-07-23): while the live fetch
+  // is loading/failing, every consumer — Romanian Listed card, sector
+  // tallies, featured comparisons, universe table, search, map — renders
+  // from the bundled BVB list (real FY2024 financials, no prices) instead
+  // of an empty page. Live rows take over the moment they arrive.
+  // Declared BEFORE selectedSnapshot below, which reads it.
+  const liveCompanies = universeQuery.data?.companies;
+  const allCompanies = liveCompanies?.length ? liveCompanies : staticBvbRows();
+
+  // Drawer snapshot resolves from allCompanies, which already falls back
+  // to the bundled static BVB rows — so quick-pick / search / map clicks
+  // always open the drawer, with financials from the static seed when the
+  // live universe isn't available.
   const selectedSnapshot = selectedTicker
-    ? universeQuery.data?.companies.find((c) => c.ticker === selectedTicker) ?? null
+    ? allCompanies.find((c) => c.ticker === selectedTicker) ?? null
     : null;
 
   // ── Layer 1 / Layer 2 rows ──────────────────────────────────────────
@@ -232,7 +222,6 @@ export default function PublicCompanyIntelligence() {
   // sector / featured comparison card the filter is set and the table
   // appears with rows narrowed to that subset. `kind: "all"` is the
   // escape hatch — the user explicitly asked for the full universe.
-  const allCompanies = universeQuery.data?.companies ?? [];
   const filteredRows = useMemo(() => {
     if (!exploreFilter) return allCompanies;
     if (exploreFilter.kind === "all") return allCompanies;
@@ -311,32 +300,7 @@ export default function PublicCompanyIntelligence() {
               <span className="text-grad">benchmark peers</span>.
             </>
           }
-          subtitle="Official SEC-filing financials for US-listed companies — revenue, EBITDA, margins, leverage, and valuation multiples, pulled from Nasdaq's SF1 fundamentals. Add any ticker as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views. Every figure traces back to the filing it came from — no estimates, no fabricated peers."
-          actions={
-            <>
-              <PublicCompanyStatusBanner
-                keyConfigured={health?.key_configured ?? false}
-                subscriptionRequired={universeQuery.data?.mode === "demo"}
-                keyTag={health?.key_tag}
-              />
-              <a
-                href="https://data.nasdaq.com/databases/SF1"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="
-                  inline-flex items-center gap-1.5
-                  h-8 px-3 rounded-lg
-                  border border-rule bg-surface
-                  text-[12px] text-ink-soft
-                  hover:bg-bg-2/50 hover:text-ink
-                  transition-all
-                "
-              >
-                <BookOpen size={12} strokeWidth={1.75} />
-                Docs
-              </a>
-            </>
-          }
+          subtitle="Statutory financials for every company listed on the Bucharest Stock Exchange — revenue, margins, equity and valuation, from issuer disclosures and official ANAF filings, with live BVB prices. Add any company as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views."
         />
 
         {/* ── Tab strip — Overview / Risk Radar ──────────────────────
@@ -364,6 +328,13 @@ export default function PublicCompanyIntelligence() {
             label="Risk Radar"
             testid="tab-risk-radar"
           />
+          <TabPill
+            active={view === "map"}
+            onClick={() => switchView("map")}
+            icon={Globe}
+            label="Geographic Map"
+            testid="tab-map"
+          />
         </div>
 
         {/* Risk Radar tab — short-circuit before the overview block.
@@ -373,11 +344,16 @@ export default function PublicCompanyIntelligence() {
           <div className="space-y-5">
             <RiskRadar onDrillToCategory={handleRadarDrill} />
           </div>
+        ) : view === "map" ? (
+          /* Geographic Map — Romania county choropleth. Company clicks open
+             the same StockDetailDrawer via handleSelectTicker, so the drawer
+             rendered at the bottom of this page works from this tab too. */
+          <GeographicMapPanel rows={allCompanies} onSelectTicker={handleSelectTicker} />
         ) : (
         <>
         {/* ── Section 2 — Market Search ──────────────────────────── */}
         <div className="space-y-5">
-          <CompanySearchPanel health={health} onSelect={handleSelectTicker} />
+          <CompanySearchPanel rows={allCompanies} onSelect={handleSelectTicker} />
 
           {/* ── Section 3 — Markets overview (Layer 1) / drill-down (Layer 2)
                 ─────────────────────────────────────────────────────────
@@ -481,7 +457,7 @@ export default function PublicCompanyIntelligence() {
 interface TabPillProps {
   active: boolean;
   onClick: () => void;
-  icon: typeof BookOpen;
+  icon: typeof Activity;
   label: string;
   testid?: string;
 }

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { supabaseEnabled } from "@/lib/supabase";
-import { Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
+import { Check, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
 import {
   getPlan,
   formatPriceLabel,
@@ -22,6 +22,34 @@ import {
 } from "@/lib/billing";
 
 type Mode = "sign_in" | "sign_up";
+
+// Client-side-only heuristic — Supabase still enforces its own minimum
+// server-side. This is purely a "how strong does this look" nudge. The
+// checklist and the strength score are derived from the SAME signals so
+// the two never disagree (e.g. "Strong" while a checkbox is still unmet).
+interface PasswordCheck { label: string; met: boolean }
+
+function getPasswordChecks(pw: string): PasswordCheck[] {
+  return [
+    { label: "At least 10 characters", met: pw.length >= 10 },
+    { label: "Upper & lowercase letters", met: /[a-z]/.test(pw) && /[A-Z]/.test(pw) },
+    { label: "At least one number", met: /\d/.test(pw) },
+    { label: "At least one symbol", met: /[^A-Za-z0-9]/.test(pw) },
+  ];
+}
+
+function getPasswordStrength(pw: string): { level: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
+  if (!pw) return { level: 0, label: "", color: "" };
+  // Met-count above, plus one point just for clearing Supabase's own
+  // 6-char floor, so a 6-9 char password with every other box checked
+  // doesn't max out the bar before it's actually hit 10 characters.
+  const metCount = getPasswordChecks(pw).filter((c) => c.met).length;
+  const score = metCount + (pw.length >= 6 ? 1 : 0);
+  if (score <= 1) return { level: 1, label: "Weak", color: "bg-alert" };
+  if (score === 2) return { level: 2, label: "Fair", color: "bg-amber-500" };
+  if (score === 3) return { level: 3, label: "Good", color: "bg-brand/70" };
+  return { level: 4, label: "Strong", color: "bg-brand" };
+}
 
 interface Props {
   /** Initial tab. Tabs are visible by default; pass `tabsHidden` for the
@@ -60,7 +88,9 @@ export function AuthCard({
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +104,12 @@ export function AuthCard({
   const [resendInfo, setResendInfo] = useState<string | null>(null);
 
   // Derived view-model — pure useMemo, deterministic.
+  const displayName = useMemo(
+    () => `${firstName.trim()} ${lastName.trim()}`.trim(),
+    [firstName, lastName],
+  );
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
+  const passwordChecks = useMemo(() => getPasswordChecks(password), [password]);
   const selectedPlan = useMemo(
     () => (subscription ? getPlan(subscription.planId) : null),
     [subscription],
@@ -153,11 +189,11 @@ export function AuthCard({
       return;
     }
     // Brand-new signup with no preselection AND no explicit next — push them
-    // through onboarding (industry pick) then on to /upload. The AuthGuard
-    // will keep them on /onboarding until they finish, even if they try to
-    // jump to /dashboard manually.
+    // to the /workspace setup wizard (name + industry pick). The AuthGuard
+    // keeps bouncing them back there until the industry is set, even if
+    // they try to jump to /dashboard manually.
     if (mode === "sign_up" && !next) {
-      navigate("/onboarding");
+      navigate("/workspace");
       return;
     }
     target();
@@ -210,6 +246,10 @@ export function AuthCard({
     setError(null);
     if (mode === "sign_up" && !companyName.trim()) {
       setError("Company name is required for new accounts.");
+      return;
+    }
+    if (mode === "sign_up" && password !== confirmPassword) {
+      setError("Passwords don't match.");
       return;
     }
     setBusy(true);
@@ -391,7 +431,12 @@ export function AuthCard({
       ) : (
         <>
           {!tabsHidden && (
-            <div className="grid grid-cols-2 gap-1 p-1 mb-5 rounded-xl bg-bg-2/80 border border-rule/40">
+            <div className="relative grid grid-cols-2 gap-1 p-1 mb-5 rounded-xl bg-bg-2/80 border border-rule/40">
+              <div
+                aria-hidden
+                className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-brand/15 border border-brand/40 shadow-[0_2px_10px_-2px_rgba(92,211,197,0.35)] transition-transform duration-200 ease-out"
+                style={{ transform: mode === "sign_up" ? "translateX(calc(100% + 4px))" : "translateX(0)" }}
+              />
               <Tab active={mode === "sign_in"} onClick={() => { setMode("sign_in"); setError(null); }}>Sign in</Tab>
               <Tab active={mode === "sign_up"} onClick={() => { setMode("sign_up"); setError(null); }}>Create account</Tab>
             </div>
@@ -403,16 +448,11 @@ export function AuthCard({
               there's no provider to redirect to in disabled mode). */}
           {supabaseEnabled && (
             <>
-              <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="grid grid-cols-1 gap-2 mb-3">
                 <OAuthButton
                   provider="google"
                   busy={busy}
                   onClick={() => handleOAuth("google")}
-                />
-                <OAuthButton
-                  provider="apple"
-                  busy={busy}
-                  onClick={() => handleOAuth("apple")}
                 />
               </div>
               <div className="flex items-center gap-3 mb-3" aria-hidden>
@@ -428,14 +468,24 @@ export function AuthCard({
           <form className="space-y-3" onSubmit={handleSubmit}>
             {mode === "sign_up" && (
               <>
-                <Field label="Full name">
-                  <Input
-                    value={displayName}
-                    onChange={(v) => setDisplayName(v)}
-                    placeholder="Alex Maier"
-                    autoComplete="name"
-                  />
-                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="First name">
+                    <Input
+                      value={firstName}
+                      onChange={(v) => setFirstName(v)}
+                      placeholder="Alex"
+                      autoComplete="given-name"
+                    />
+                  </Field>
+                  <Field label="Last name">
+                    <Input
+                      value={lastName}
+                      onChange={(v) => setLastName(v)}
+                      placeholder="Maier"
+                      autoComplete="family-name"
+                    />
+                  </Field>
+                </div>
                 <Field label="Company name" required>
                   <Input
                     value={companyName}
@@ -448,7 +498,7 @@ export function AuthCard({
               </>
             )}
 
-            <Field label="Work email" required>
+            <Field label="Email" required>
               <Input
                 type="email"
                 value={email}
@@ -469,7 +519,51 @@ export function AuthCard({
                 required
                 minLength={6}
               />
+              {mode === "sign_up" && password && (
+                <div className="mt-2">
+                  <div className="grid grid-cols-4 gap-1">
+                    {[1, 2, 3, 4].map((seg) => (
+                      <div
+                        key={seg}
+                        className={`h-1 rounded-full transition-colors ${
+                          seg <= passwordStrength.level ? passwordStrength.color : "bg-rule"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-1 text-[11px] text-ink-soft">{passwordStrength.label}</div>
+                  <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                    {passwordChecks.map((check) => (
+                      <li
+                        key={check.label}
+                        className={`flex items-center gap-1.5 text-[11px] ${check.met ? "text-brand" : "text-ink-soft/70"}`}
+                      >
+                        <Check size={11} strokeWidth={2.5} className={check.met ? "opacity-100" : "opacity-30"} />
+                        {check.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </Field>
+
+            {mode === "sign_up" && (
+              <Field label="Repeat password" required>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(v) => setConfirmPassword(v)}
+                  placeholder="Re-enter your password"
+                  autoComplete="new-password"
+                  required
+                  minLength={6}
+                />
+              </Field>
+            )}
+
+            <p className="text-[10.5px] text-ink-mute">
+              <span className="text-brand">*</span> Required
+            </p>
 
             {error && (
               <div className="rounded-lg border border-alert/30 bg-alert/10 px-3 py-2 text-[12px] text-alert">
@@ -512,9 +606,9 @@ export function AuthCard({
 
 // Issue #7 (2026-06-16) — OAuth provider button.
 //
-// Two providers supported: Google + Apple. Each ships its own brand mark via
-// inline SVG (no external dependency, no icon-font load) so the button looks
-// right on the first paint with no FOUC.
+// Google only — the Apple OAuth option was removed from this UI. Ships its
+// own brand mark via inline SVG (no external dependency, no icon-font load)
+// so the button looks right on the first paint with no FOUC.
 //
 // Visual treatment: matches the existing app aesthetic (rounded, border,
 // frosted) rather than the official Google "Sign in with Google" brand
@@ -528,18 +622,17 @@ function OAuthButton({
   busy,
   onClick,
 }: {
-  provider: "google" | "apple";
+  provider: "google";
   busy: boolean;
   onClick: () => void;
 }) {
-  const label = provider === "google" ? "Google" : "Apple";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={busy}
       data-testid={`oauth-${provider}`}
-      aria-label={`Continue with ${label}`}
+      aria-label="Continue with Google"
       className="
         inline-flex items-center justify-center gap-2
         h-11 rounded-xl
@@ -550,8 +643,8 @@ function OAuthButton({
         transition-colors
       "
     >
-      {provider === "google" ? <GoogleLogo /> : <AppleLogo />}
-      <span>{label}</span>
+      <GoogleLogo />
+      <span>Google</span>
     </button>
   );
 }
@@ -580,16 +673,6 @@ function GoogleLogo() {
   );
 }
 
-function AppleLogo() {
-  // Apple silhouette logo — single path. Uses currentColor so it follows
-  // the text-ink token (dark glass-mode → bright, light-mode → near-black).
-  return (
-    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden focusable="false" fill="currentColor">
-      <path d="M11.6 8.5c0-2 1.6-3 1.7-3-.9-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.7-.7C3.4 3.9 2 4.7 1.2 6.1c-1.3 2.3-.3 5.6 1 7.4.6.9 1.4 1.9 2.4 1.9.9 0 1.3-.6 2.4-.6 1.1 0 1.5.6 2.4.6 1 0 1.7-.9 2.3-1.8.7-1 1-2.1 1-2.1s-2.1-.8-2.1-3zM9.5 2.7c.5-.6.9-1.5.8-2.3-.8 0-1.7.5-2.3 1.2-.5.6-.9 1.5-.8 2.3.8.1 1.8-.5 2.3-1.2z" />
-    </svg>
-  );
-}
-
 function Tab({
   active, children, onClick,
 }: {
@@ -602,10 +685,8 @@ function Tab({
       type="button"
       onClick={onClick}
       className={`
-        h-9 rounded-lg text-[12.5px] font-medium transition-colors
-        ${active
-          ? "bg-bg-2/90 text-ink shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]"
-          : "text-ink-soft hover:text-ink"}
+        relative z-10 h-9 rounded-lg text-[12.5px] font-medium transition-colors
+        ${active ? "text-brand" : "text-ink-soft hover:text-ink"}
       `}
     >
       {children}

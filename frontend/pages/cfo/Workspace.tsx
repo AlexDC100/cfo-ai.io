@@ -17,7 +17,7 @@
 // company/period + quick-access cards into every analysis view. A "Restart
 // setup" link re-runs the flow.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -25,23 +25,37 @@ import {
   FileSpreadsheet,
   Pencil,
   Plus,
+  RotateCcw,
   Trash2,
   UploadCloud,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
+import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { toast } from "@/components/ui/sonner";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { uploadExcelToBackend } from "@/lib/api";
 import { setActiveRun, setAnalysis, setUploadAlerts } from "@/lib/runStore";
+import { updateActiveOrg } from "@/lib/org";
 import { readWorkspaceName, writeWorkspaceName } from "@/lib/workspaceName";
+import { setPref, usePrefSync } from "@/lib/prefs";
 import { useWorkspaces, type Workspace } from "@/lib/workspaces";
 
 // ── Local persistence — the "onboarding done" flag lives in the browser.
 //    The workspace name is owned by lib/workspaceName (shared with the
 //    TopHeader tagline, which reflects it live).
 const ONBOARDED_KEY = "cfoai:v1:workspace-onboarded";
+/** Key inside `org_prefs.prefs` — see supabase/schema_phase_prefs.sql. */
+const ONBOARDED_PREF_KEY = "workspace_onboarded";
 
 function readDone(): boolean {
   try { return localStorage.getItem(ONBOARDED_KEY) === "1"; } catch { return false; }
@@ -75,14 +89,39 @@ export default function Workspace() {
     setDone(false);
   }
 
-  function finishOnboarding() {
+  function finishOnboarding(industry: OnboardingIndustry | null) {
     const name = readWorkspaceName();
-    if (creatingNew) ws.create(name);
-    else ws.upsertCurrentName(name);
+    if (creatingNew) {
+      // create_workspace() stores the industry on the new organizations row,
+      // so AuthGuard doesn't bounce the fresh workspace to /onboarding.
+      void ws.create(name, industry);
+    } else {
+      void ws.upsertCurrentName(name);
+      // Restart run on the current workspace — persist a changed industry the
+      // same way /onboarding does. Separate call from the rename on purpose:
+      // both target different columns of the same row, so neither clobbers.
+      if (industry && industry.key !== ws.current?.industryKey) {
+        void updateActiveOrg({
+          industry_key: industry.key,
+          industry_display_name: industry.label,
+        });
+      }
+    }
     setCreatingNew(false);
     writeDone(true);
     setDone(true);
+    // Per WORKSPACE, not per user: a newly added SRL should run its own setup
+    // rather than inherit "already onboarded" from the previous company.
+    setPref("org", ONBOARDED_PREF_KEY, true);
   }
+
+  // Adopt the flag for whichever workspace is active (another device, or a
+  // workspace this browser has never opened).
+  const adoptOnboarded = useCallback((remote: boolean) => {
+    writeDone(remote === true);
+    setDone(remote === true);
+  }, []);
+  usePrefSync<boolean>("org", ONBOARDED_PREF_KEY, done, adoptOnboarded);
 
   // Settings "tab" — its own header + description, replacing the hub view.
   if (editingWorkspace) {
@@ -100,10 +139,20 @@ export default function Workspace() {
         />
         <WorkspaceSettings
           workspace={editingWorkspace}
-          canDelete={ws.workspaces.length > 1}
+          canDelete={ws.canDelete}
           onBack={() => setEditingId(null)}
-          onRename={(name) => ws.rename(editingWorkspace.id, name)}
-          onDelete={() => { ws.remove(editingWorkspace.id); setEditingId(null); }}
+          onRename={(name) => { void ws.rename(editingWorkspace.id, name); }}
+          onDelete={() => {
+            const name = editingWorkspace.name;
+            setEditingId(null);
+            void ws.remove(editingWorkspace.id).then((ok) => {
+              toast[ok ? "success" : "error"](
+                ok
+                  ? `“${name || "Workspace"}” deleted — restorable for 30 days.`
+                  : "Couldn't delete that workspace.",
+              );
+            });
+          }}
         />
       </section>
     );
@@ -152,6 +201,9 @@ export default function Workspace() {
       ) : (
         <Onboarding
           onDone={finishOnboarding}
+          // A restart on the current workspace prefills its industry; a
+          // brand-new SRL starts blank and must pick its own.
+          initialIndustryKey={creatingNew ? null : (ws.current?.industryKey ?? null)}
           // Only offer "exit to the workspace listing" when there IS a listing
           // to return to (i.e. at least one workspace already exists — this run
           // is a create-additional / restart, not the very first setup).
@@ -170,10 +222,31 @@ export default function Workspace() {
 
 const STEP_LABELS = ["Name", "Decision rules", "Upload"] as const;
 
-function Onboarding({ onDone, onExit }: { onDone: () => void; onExit?: () => void }) {
+export interface OnboardingIndustry {
+  key: string;
+  label: string;
+}
+
+function Onboarding({
+  onDone,
+  onExit,
+  initialIndustryKey = null,
+}: {
+  onDone: (industry: OnboardingIndustry | null) => void;
+  onExit?: () => void;
+  /** Prefill when restarting setup on a workspace that already has one. */
+  initialIndustryKey?: string | null;
+}) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [name, setName] = useState<string>(readWorkspaceName);
+  const [industryKey, setIndustryKey] = useState<string | null>(initialIndustryKey);
   const [busy, setBusy] = useState(false);
+
+  // What finishOnboarding writes to organizations.industry_key /
+  // industry_display_name — the same pair /onboarding saves.
+  const industry: OnboardingIndustry | null = industryKey
+    ? { key: industryKey, label: orgIndustryLabel(industryKey) }
+    : null;
 
   function next() {
     if (step === 0) writeWorkspaceName(name.trim());
@@ -215,7 +288,7 @@ function Onboarding({ onDone, onExit }: { onDone: () => void; onExit?: () => voi
       toast.success("Workbook imported", {
         description: `${skuCount} SKUs classified. Your workspace is ready.`,
       });
-      onDone();
+      onDone(industry);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload failed";
       toast.error("Upload failed", {
@@ -232,7 +305,14 @@ function Onboarding({ onDone, onExit }: { onDone: () => void; onExit?: () => voi
       <Stepper step={step} />
 
       <div className="rounded-2xl border border-rule bg-surface p-5 sm:p-6">
-        {step === 0 && <StepName name={name} setName={setName} />}
+        {step === 0 && (
+          <StepName
+            name={name}
+            setName={setName}
+            industryKey={industryKey}
+            setIndustryKey={setIndustryKey}
+          />
+        )}
         {step === 1 && <StepRules />}
         {step === 2 && <StepUpload busy={busy} onUpload={handleUpload} />}
       </div>
@@ -255,7 +335,7 @@ function Onboarding({ onDone, onExit }: { onDone: () => void; onExit?: () => voi
           {step === 2 && (
             <button
               type="button"
-              onClick={onDone}
+              onClick={() => onDone(industry)}
               data-testid="onboarding-skip"
               className="text-[12.5px] text-ink-mute hover:text-ink transition-colors"
             >
@@ -266,7 +346,7 @@ function Onboarding({ onDone, onExit }: { onDone: () => void; onExit?: () => voi
             <button
               type="button"
               onClick={next}
-              disabled={step === 0 && name.trim().length === 0}
+              disabled={step === 0 && (name.trim().length === 0 || !industryKey)}
               data-testid="onboarding-next"
               className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand text-bg text-[13px] font-medium shadow-[0_6px_16px_-6px_rgba(42,168,155,0.55)] hover:brightness-110 ring-1 ring-inset ring-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
@@ -320,7 +400,17 @@ function StepHeading({ title, body }: { title: string; body: string }) {
   );
 }
 
-function StepName({ name, setName }: { name: string; setName: (v: string) => void }) {
+function StepName({
+  name,
+  setName,
+  industryKey,
+  setIndustryKey,
+}: {
+  name: string;
+  setName: (v: string) => void;
+  industryKey: string | null;
+  setIndustryKey: (k: string) => void;
+}) {
   return (
     <div>
       <StepHeading
@@ -341,6 +431,19 @@ function StepName({ name, setName }: { name: string; setName: (v: string) => voi
           className="w-full h-11 px-3.5 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
         />
       </label>
+
+      {/* Same catalog + pills as /onboarding — the pick lands on this
+          workspace's organization row and drives its benchmarks. */}
+      <div className="mt-5">
+        <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
+          Industry
+        </span>
+        <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
+        <p className="mt-2 text-[11.5px] text-ink-mute leading-snug">
+          Pick the closest match — CFO AI applies industry-appropriate benchmarks. A 4×
+          Debt/EBITDA is normal in real estate and alarming in B2B SaaS.
+        </p>
+      </div>
     </div>
   );
 }
@@ -427,7 +530,9 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
 function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
   const period = useActivePeriod();
   const navigate = useNavigate();
-  const { workspaces, currentId, select, setPeriod } = useWorkspaces();
+  const { workspaces, archived, currentId, select, setPeriod, restore, purge } = useWorkspaces();
+  // Which archived workspace the permanent-delete dialog is open for.
+  const [purgeTarget, setPurgeTarget] = useState<Workspace | null>(null);
 
   // What the ACTIVE workspace is currently showing (company + period), used to
   // enrich the highlighted row.
@@ -440,12 +545,22 @@ function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
     if (currentId) setPeriod(currentId, period.id ?? null);
   }, [currentId, period.id, setPeriod]);
 
-  function switchTo(id: string) {
+  // Switching re-scopes every query to the other company, so wait for the
+  // switch to land before navigating — otherwise the destination renders
+  // against the outgoing workspace's cache for a frame.
+  async function switchTo(id: string) {
     if (id === currentId) return;
-    select(id);
+    await select(id);
     const target = workspaces.find((w) => w.id === id);
     const qs = target?.periodId ? `?period=${encodeURIComponent(target.periodId)}` : "";
     navigate(`/workspace${qs}`, { replace: true });
+  }
+
+  async function restoreWorkspace(id: string, name: string) {
+    const ok = await restore(id);
+    toast[ok ? "success" : "error"](
+      ok ? `“${name || "Workspace"}” restored.` : "Couldn't restore that workspace.",
+    );
   }
 
   return (
@@ -467,24 +582,37 @@ function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
                     : "border-rule bg-surface hover:border-rule-strong hover:bg-bg-2/40"
                 }`}
               >
+                {/* Active marker — a brand-accent dot pinned to the card's
+                    top-right corner. Visual only; screen readers get the
+                    sr-only label since a colored circle says nothing aloud. */}
+                {isActive && (
+                  <span
+                    className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
+                    title="Active workspace"
+                  >
+                    <span className="sr-only">Active workspace</span>
+                  </span>
+                )}
+
                 <button
                   type="button"
                   onClick={() => switchTo(w.id)}
                   data-testid="workspace-list-item"
                   data-active={isActive ? "true" : "false"}
-                  className="w-full text-left pr-10"
+                  className="w-full text-left pr-16"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="font-serif text-[19px] text-ink leading-tight truncate">
-                      {w.name || "Untitled workspace"}
-                    </span>
-                    {isActive && (
-                      <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-brand-d">
-                        <Check size={13} strokeWidth={2.5} />
-                        Active
-                      </span>
-                    )}
-                  </div>
+                  <span className="block font-serif text-[19px] text-ink leading-tight truncate">
+                    {w.name || "Untitled workspace"}
+                  </span>
+                  {/* Industry — the pick from the setup wizard / onboarding. */}
+                  {w.industryKey && (
+                    <div className="mt-0.5 text-[12px] text-ink-mute">
+                      {orgIndustryLabel(w.industryKey)}
+                    </div>
+                  )}
+                  {/* Data line — rendered for every workspace. Only the active
+                      one can name what's loaded (period state is per-active-
+                      workspace); the others say what switching will do. */}
                   {isActive ? (
                     activeCompany && activeCompany !== w.name ? (
                       <div className="mt-1 text-[13px] text-ink-soft">
@@ -506,8 +634,12 @@ function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
                         .
                       </div>
                     )
+                  ) : w.periodId ? (
+                    <div className="mt-1 text-[13px] text-ink-soft">
+                      Saved analysis — switching reopens it.
+                    </div>
                   ) : (
-                    <div className="mt-1 text-[12.5px] text-ink-mute">Tap to switch</div>
+                    <div className="mt-1 text-[13px] text-ink-soft">No data loaded yet.</div>
                   )}
                 </button>
 
@@ -527,7 +659,155 @@ function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
           );
         })}
       </ul>
+
+      {/* Recently deleted — recoverable until the 30-day window closes. */}
+      {archived.length > 0 && (
+        <div className="pt-4 space-y-3" data-testid="workspace-archived">
+          <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+            Recently deleted
+          </div>
+          <ul className="space-y-2">
+            {archived.map((w) => (
+              <li key={w.id}>
+                <div className="flex items-center gap-3 rounded-2xl border border-rule border-dashed bg-bg-2/30 px-5 py-3.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] text-ink-soft truncate">
+                      {w.name || "Untitled workspace"}
+                    </div>
+                    <div className="mt-0.5 text-[12px] text-ink-mute">
+                      {w.daysLeft && w.daysLeft > 0
+                        ? `Deleted permanently in ${w.daysLeft} ${w.daysLeft === 1 ? "day" : "days"} — its data is still recoverable.`
+                        : "Scheduled for permanent deletion."}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void restoreWorkspace(w.id, w.name)}
+                    data-testid="workspace-restore"
+                    className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 transition-colors"
+                  >
+                    <RotateCcw size={14} strokeWidth={1.75} />
+                    Restore
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPurgeTarget(w)}
+                    data-testid="workspace-purge"
+                    className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 text-[13px] font-medium text-red-600 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 size={14} strokeWidth={1.75} />
+                    Delete forever
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <PurgeWorkspaceDialog
+        workspace={purgeTarget}
+        onClose={() => setPurgeTarget(null)}
+        onConfirm={async (w) => {
+          const ok = await purge(w.id);
+          setPurgeTarget(null);
+          toast[ok ? "success" : "error"](
+            ok
+              ? `“${w.name || "Workspace"}” permanently deleted.`
+              : "Couldn't delete that workspace.",
+          );
+        }}
+      />
     </div>
+  );
+}
+
+// ─── Permanent-delete confirmation ───────────────────────────────────────────
+// GitHub-style: the destructive button stays disabled until the user types
+// the workspace name exactly. Deliberate friction — this erases the SRL's
+// documents, periods, analyses and chats with no recovery window.
+function PurgeWorkspaceDialog({
+  workspace,
+  onClose,
+  onConfirm,
+}: {
+  workspace: Workspace | null;
+  onClose: () => void;
+  onConfirm: (w: Workspace) => Promise<void>;
+}) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const name = workspace?.name?.trim() ?? "";
+  const match = name.length > 0 && typed.trim() === name;
+
+  // Fresh dialog per target — the typed confirmation must never carry over
+  // from one workspace to another.
+  useEffect(() => {
+    setTyped("");
+    setBusy(false);
+  }, [workspace?.id]);
+
+  async function confirm() {
+    if (!workspace || !match || busy) return;
+    setBusy(true);
+    try {
+      await onConfirm(workspace);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!workspace} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
+      <DialogContent className="sm:max-w-[440px]" data-testid="workspace-purge-dialog">
+        <DialogHeader>
+          <DialogTitle>Permanently delete “{name || "this workspace"}”?</DialogTitle>
+          <DialogDescription>
+            This erases the workspace and everything in it — uploaded documents,
+            financial periods, analyses, alerts and chat history. There is no
+            30-day recovery for this action. It cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <label className="block">
+          <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
+            Type <span className="font-mono normal-case tracking-normal text-ink">{name}</span> to confirm
+          </span>
+          <input
+            type="text"
+            value={typed}
+            onChange={(e) => setTyped(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void confirm(); }}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            data-testid="workspace-purge-input"
+            className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500/40"
+          />
+        </label>
+
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 disabled:opacity-40 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void confirm()}
+            disabled={!match || busy}
+            data-testid="workspace-purge-confirm"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 text-white text-[13px] font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 size={14} strokeWidth={1.75} />
+            {busy ? "Deleting…" : "Permanently delete"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -595,7 +875,14 @@ function WorkspaceSettings({
 
       {/* Actions */}
       <div className="rounded-2xl border border-rule bg-surface p-5">
-        <StepHeading title="Setup & data" body="Remove this workspace entirely." />
+        <StepHeading
+          title="Setup & data"
+          body={
+            canDelete
+              ? "Deleting hides this workspace and everything in it. You can restore it for 30 days, after which its documents, periods and analyses are erased permanently."
+              : "This is your only workspace, so it can't be deleted. Create another one first."
+          }
+        />
         <div className="flex flex-wrap items-center gap-3">
           {canDelete && (
             <button

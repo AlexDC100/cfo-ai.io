@@ -38,7 +38,7 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
       <p className="text-[13.5px] text-ink-soft mt-3 leading-relaxed max-w-[480px]">
         Nasdaq returned the column schema for SF1 fundamentals but no row data —
         the standard signal that the operator's API key is on the free tier and
-        doesn't include the paid Sharadar Equities Bundle.
+        doesn't include this dataset.
       </p>
 
       <div className="

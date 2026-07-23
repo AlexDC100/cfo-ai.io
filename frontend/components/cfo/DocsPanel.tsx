@@ -363,9 +363,9 @@ export function DocsPanel() {
         id="docs-panel"
         data-testid="docs-panel"
         className="
-          fixed right-0 top-16 bottom-0 z-50
+          fixed right-0 top-0 bottom-0 z-50
           w-[90vw] max-w-[420px] lg:w-[360px]
-          bg-surface border-l border-rule shadow-2xl
+          bg-surface/85 backdrop-blur-2xl border-l border-rule shadow-2xl
           flex flex-col
           motion-safe:animate-in motion-safe:slide-in-from-right
           motion-safe:duration-200 motion-safe:ease-out
@@ -399,7 +399,7 @@ export function DocsPanel() {
               user scrolls older periods. Filter to non-empty periods only
               (Step 5 defense — empty periods should never reach the UI). */}
           {activePeriod && activePeriod.documents.length > 0 && (
-            <section data-testid="docs-panel-section-active" className="sticky top-0 z-10 -mx-3 px-3 pb-3 bg-surface">
+            <section data-testid="docs-panel-section-active" className="sticky top-0 z-10 -mx-3 px-3 pb-3 bg-surface/85 backdrop-blur-xl">
               <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">Active period</div>
               <PeriodCard
                 period={activePeriod}

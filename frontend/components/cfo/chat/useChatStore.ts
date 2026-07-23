@@ -1,27 +1,51 @@
-// useChatStore — localStorage-backed conversation store for CFO AI chat.
+// useChatStore — Supabase-backed conversation store for CFO AI chat.
 //
-// Why localStorage (not a backend table yet):
-//   The spec says: "If chat persistence already exists, use it. If
-//   not, create frontend/local placeholder history with structure
-//   ready for backend." That's this. The shape mirrors what a future
-//   `chat_conversations` + `chat_messages` Supabase pair would carry,
-//   so swapping the persistence layer later is a single-file change
-//   (replace this hook with a React-Query-backed version, keep the
-//   API the consumers use).
+// Conversations live in `chat_threads` / `chat_messages` (see
+// supabase/schema_phase_chat.sql) and are scoped to the ACTIVE WORKSPACE:
+// switching to another company shows that company's chats, because a
+// conversation's answers are grounded in one company's numbers and would be
+// misleading anywhere else. RLS also scopes them to the signed-in user.
 //
-// Cross-tab safety: every write also fires a `storage` event; other
-// open tabs listening with the same key get the update for free.
-// In practice this is one tab, but it costs nothing.
+// localStorage remains as a per-workspace CACHE so the sidebar paints
+// instantly and the chat keeps working signed-out / offline / before the
+// migration is applied. The store is optimistic: every mutation updates React
+// state immediately and persists in the background — the UI never waits on the
+// network mid-conversation.
+//
+// Threads are written LAZILY, on the first real message. Clicking "New chat"
+// creates nothing server-side; an empty placeholder isn't worth a row and
+// would litter the sidebar on every other device.
+//
+// Ids are client-generated UUIDs reused as primary keys, so persistence never
+// has to remap them and a repeated import collides on the PK instead of
+// duplicating history.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useActiveOrg } from "@/lib/org";
+import {
+  chatIdentity,
+  deleteMessages,
+  deleteThread,
+  fetchConversations,
+  importLocalConversations,
+  insertMessage,
+  insertThread,
+  updateThread,
+} from "./chatRemote";
 import { CHAT_STORAGE_KEY, CHAT_CURRENT_KEY, type ChatConversation, type ChatMessage } from "./types";
 
 // ── Storage helpers ────────────────────────────────────────────────
-function safeReadAll(): ChatConversation[] {
-  if (typeof window === "undefined") return [];
+// The cache is keyed per workspace; the bare legacy key is the pre-workspace
+// history, read once and imported into the active workspace.
+function cacheKey(orgId: string | null): string {
+  return orgId ? `${CHAT_STORAGE_KEY}:${orgId}` : CHAT_STORAGE_KEY;
+}
+
+const LEGACY_IMPORTED_KEY = "cfo-ai-chat-history-imported-v1";
+
+function parseConversations(raw: string | null): ChatConversation[] {
+  if (!raw) return [];
   try {
-    const raw = window.localStorage.getItem(CHAT_STORAGE_KEY);
-    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     // Defensive shape filter — drop any malformed entries quietly so
@@ -57,7 +81,16 @@ function safeReadAll(): ChatConversation[] {
   }
 }
 
-function safeWriteAll(conversations: ChatConversation[]): void {
+function safeReadAll(orgId: string | null): ChatConversation[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return parseConversations(window.localStorage.getItem(cacheKey(orgId)));
+  } catch {
+    return [];
+  }
+}
+
+function safeWriteAll(orgId: string | null, conversations: ChatConversation[]): void {
   if (typeof window === "undefined") return;
   try {
     // Strip transient flags before persisting.
@@ -65,16 +98,35 @@ function safeWriteAll(conversations: ChatConversation[]): void {
       ...c,
       messages: c.messages.map((m) => ({ ...m, pending: false })),
     }));
-    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(cleaned));
+    window.localStorage.setItem(cacheKey(orgId), JSON.stringify(cleaned));
   } catch {
     // Quota exceeded / private-mode: fail soft so the chat still works
     // in-memory for the session. Next message just won't survive a refresh.
   }
 }
 
+/** Pre-workspace history, or [] once it has been imported. */
+function readLegacyConversations(): ChatConversation[] {
+  if (typeof window === "undefined") return [];
+  try {
+    if (window.localStorage.getItem(LEGACY_IMPORTED_KEY) === "1") return [];
+    return parseConversations(window.localStorage.getItem(CHAT_STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function markLegacyImported(): void {
+  try {
+    window.localStorage.setItem(LEGACY_IMPORTED_KEY, "1");
+  } catch {
+    /* private mode — the PK collision on re-import is the real safety net */
+  }
+}
+
 // The id the user last had open. Persisted so switching tabs (which
 // unmounts /chat) and returning restores the SAME conversation rather than
-// snapping to the most-recently-updated one.
+// snapping to the most-recently-updated one. Device-local by design.
 function safeReadCurrentId(all: ChatConversation[]): string | null {
   const fallback = all.length > 0 ? all[0].id : null;
   if (typeof window === "undefined") return fallback;
@@ -138,6 +190,8 @@ function deriveTitle(message: string): string {
 }
 
 // ── ID generator ──────────────────────────────────────────────────
+// UUIDs, because they become the `chat_threads.id` / `chat_messages.id`
+// primary keys verbatim.
 function newId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -183,20 +237,105 @@ export interface ChatStore {
 }
 
 export function useChatStore(): ChatStore {
-  const [conversations, setConversations] = useState<ChatConversation[]>(() => safeReadAll());
-  const [currentId, setCurrentId] = useState<string | null>(() => safeReadCurrentId(safeReadAll()));
+  const { org } = useActiveOrg();
+  const orgId = org?.id ?? null;
 
-  // Persist on every change. Use a ref-guarded effect so we don't write
-  // back what we just read on first render.
-  const initialised = useRef(false);
+  const [conversations, setConversations] = useState<ChatConversation[]>(() => safeReadAll(null));
+  const [currentId, setCurrentId] = useState<string | null>(() =>
+    safeReadCurrentId(safeReadAll(null)),
+  );
+
+  // Mirror of state for the mutation callbacks. Persisting needs to know what
+  // a conversation looked like BEFORE the update (was it new? is this its
+  // first message?), and reading that inside a setState updater would mean
+  // firing network calls from a reducer.
+  const convsRef = useRef<ChatConversation[]>(conversations);
+  useEffect(() => { convsRef.current = conversations; }, [conversations]);
+
+  // Threads known to exist server-side, so appendUserTurn knows whether to
+  // INSERT the thread or just append to it.
+  const persisted = useRef<Set<string>>(new Set());
+  const identityRef = useRef<{ userId: string; orgId: string } | null>(null);
+  // In-flight thread inserts, keyed by conversation id.
+  //
+  // The assistant turn can complete before its thread row lands (a cached or
+  // errored reply returns in milliseconds, the INSERT takes a round-trip).
+  // Without this, completeAssistantTurn would find the thread "not persisted
+  // yet" and silently drop the answer from history. Everything that writes a
+  // message awaits this promise first.
+  const threadInserts = useRef<Map<string, Promise<boolean>>>(new Map());
+
+  const ensureThread = useCallback(async (conv: ChatConversation): Promise<boolean> => {
+    if (persisted.current.has(conv.id)) return true;
+    const inflight = threadInserts.current.get(conv.id);
+    if (inflight) return inflight;
+
+    const promise = (async () => {
+      const identity = identityRef.current ?? (await chatIdentity());
+      identityRef.current = identity;
+      if (!identity) return false;
+      // A conversation restored from the pre-workspace cache has no
+      // organizationId; it belongs to whichever workspace is open now. Only
+      // refuse when it explicitly names a DIFFERENT one, which means the user
+      // switched workspaces while a reply was in flight.
+      if (conv.organizationId && conv.organizationId !== identity.orgId) return false;
+      const ok = await insertThread(identity, conv);
+      if (ok) persisted.current.add(conv.id);
+      return ok;
+    })();
+    threadInserts.current.set(conv.id, promise);
+    void promise.finally(() => threadInserts.current.delete(conv.id));
+    return promise;
+  }, []);
+
+  const applyConversations = useCallback(
+    (next: ChatConversation[]) => {
+      convsRef.current = next;
+      setConversations(next);
+      safeWriteAll(orgId, next);
+    },
+    [orgId],
+  );
+
+  // Load the workspace's conversations: cache first (instant), then the
+  // server (authoritative). A failed fetch leaves the cache in place rather
+  // than blanking the sidebar.
   useEffect(() => {
-    if (!initialised.current) { initialised.current = true; return; }
-    safeWriteAll(conversations);
-  }, [conversations]);
+    let cancelled = false;
+
+    const cached = safeReadAll(orgId);
+    convsRef.current = cached;
+    setConversations(cached);
+    setCurrentId(safeReadCurrentId(cached));
+    persisted.current = new Set();
+
+    void (async () => {
+      const identity = await chatIdentity();
+      if (cancelled) return;
+      identityRef.current = identity;
+      if (!identity || identity.orgId !== orgId) return;
+
+      // One-time lift of the pre-workspace history into this workspace.
+      const legacy = readLegacyConversations();
+      if (legacy.length > 0) {
+        const imported = await importLocalConversations(identity, legacy);
+        if (imported > 0) markLegacyImported();
+      }
+
+      const remote = await fetchConversations(identity.orgId);
+      if (cancelled || remote === null) return;
+      for (const c of remote) persisted.current.add(c.id);
+      convsRef.current = remote;
+      setConversations(remote);
+      safeWriteAll(orgId, remote);
+      setCurrentId((prev) => (prev && remote.some((c) => c.id === prev) ? prev : remote[0]?.id ?? null));
+    })();
+
+    return () => { cancelled = true; };
+  }, [orgId]);
 
   // Remember which conversation is open so a tab switch (chat unmounts)
-  // returns to the same one. Runs on mount too, which is harmless — it
-  // just re-affirms the restored id.
+  // returns to the same one.
   useEffect(() => {
     safeWriteCurrentId(currentId);
   }, [currentId]);
@@ -204,12 +343,14 @@ export function useChatStore(): ChatStore {
   // Sync across tabs.
   useEffect(() => {
     function onStorage(e: StorageEvent) {
-      if (e.key !== CHAT_STORAGE_KEY) return;
-      setConversations(safeReadAll());
+      if (e.key !== cacheKey(orgId)) return;
+      const next = safeReadAll(orgId);
+      convsRef.current = next;
+      setConversations(next);
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [orgId]);
 
   const current = useMemo(
     () => conversations.find((c) => c.id === currentId) ?? null,
@@ -225,7 +366,7 @@ export function useChatStore(): ChatStore {
     // guard so you can spin up multiple empty chats while testing. The check is
     // compiled out of production builds, so a deploy always keeps the guard.
     if (!import.meta.env.DEV) {
-      const existingEmpty = conversations.find((c) => c.messages.length === 0);
+      const existingEmpty = convsRef.current.find((c) => c.messages.length === 0);
       if (existingEmpty) {
         setCurrentId(existingEmpty.id);
         return existingEmpty.id;
@@ -239,34 +380,36 @@ export function useChatStore(): ChatStore {
       title: "New conversation",
       createdAt: now,
       updatedAt: now,
-      organizationId: ctx?.organizationId ?? null,
+      organizationId: ctx?.organizationId ?? orgId,
       periodId: ctx?.periodId ?? null,
       periodLabel: ctx?.periodLabel ?? null,
       messages: [],
     };
-    setConversations((cs) => [conv, ...cs]);
+    // Not persisted here — the thread row is written on the first message.
+    applyConversations([conv, ...convsRef.current]);
     setCurrentId(id);
     return id;
-  }, []);
+  }, [applyConversations, orgId]);
 
   const select: ChatStore["select"] = useCallback((id) => setCurrentId(id), []);
 
   const rename: ChatStore["rename"] = useCallback((id, title) => {
     const clean = title.trim() || "Untitled conversation";
-    setConversations((cs) =>
-      cs.map((c) => (c.id === id ? { ...c, title: clean, updatedAt: Date.now() } : c)),
+    applyConversations(
+      convsRef.current.map((c) => (c.id === id ? { ...c, title: clean, updatedAt: Date.now() } : c)),
     );
-  }, []);
+    if (persisted.current.has(id)) void updateThread(id, { title: clean, touch: true });
+  }, [applyConversations]);
 
   const remove: ChatStore["remove"] = useCallback((id) => {
-    setConversations((cs) => {
-      const next = cs.filter((c) => c.id !== id);
-      if (currentId === id) {
-        setCurrentId(next.length > 0 ? next[0].id : null);
-      }
-      return next;
-    });
-  }, [currentId]);
+    const next = convsRef.current.filter((c) => c.id !== id);
+    applyConversations(next);
+    setCurrentId((prev) => (prev === id ? (next.length > 0 ? next[0].id : null) : prev));
+    if (persisted.current.has(id)) {
+      persisted.current.delete(id);
+      void deleteThread(id);
+    }
+  }, [applyConversations]);
 
   const appendUserTurn: ChatStore["appendUserTurn"] = useCallback((input) => {
     const now = Date.now();
@@ -286,91 +429,115 @@ export function useChatStore(): ChatStore {
       pending: true,
     };
 
-    let targetId = currentId;
-    let createdId: string | null = null;
+    const existing = currentId
+      ? convsRef.current.find((c) => c.id === currentId) ?? null
+      : null;
 
-    setConversations((cs) => {
-      let target = targetId ? cs.find((c) => c.id === targetId) ?? null : null;
-      if (!target) {
-        // Auto-create on first message.
-        createdId = newId();
-        target = {
-          id: createdId,
+    const target: ChatConversation = existing
+      ? {
+          ...existing,
+          // First user message → seed the title. Subsequent messages keep
+          // whatever title was set (auto or user-renamed).
+          title: existing.messages.length === 0 ? deriveTitle(input.content) : existing.title,
+          updatedAt: now,
+          organizationId: existing.organizationId ?? input.organizationId ?? orgId,
+          periodId: existing.periodId ?? input.periodId ?? null,
+          periodLabel: existing.periodLabel ?? input.periodLabel ?? null,
+          messages: [...existing.messages, userMsg, assistantMsg],
+        }
+      : {
+          // Auto-create on first message.
+          id: newId(),
           title: deriveTitle(input.content),
           createdAt: now,
           updatedAt: now,
-          organizationId: input.organizationId ?? null,
+          organizationId: input.organizationId ?? orgId,
           periodId: input.periodId ?? null,
           periodLabel: input.periodLabel ?? null,
-          messages: [],
+          messages: [userMsg, assistantMsg],
         };
-        return [
-          { ...target, messages: [userMsg, assistantMsg], updatedAt: now },
-          ...cs.filter((c) => c.id !== target!.id),
-        ];
-      }
-      const updated: ChatConversation = {
-        ...target,
-        // First user message → seed the title. Subsequent messages keep
-        // whatever title was set (auto or user-renamed).
-        title: target.messages.length === 0 ? deriveTitle(input.content) : target.title,
-        updatedAt: now,
-        organizationId: target.organizationId ?? input.organizationId ?? null,
-        periodId: target.periodId ?? input.periodId ?? null,
-        periodLabel: target.periodLabel ?? input.periodLabel ?? null,
-        messages: [...target.messages, userMsg, assistantMsg],
-      };
-      return [updated, ...cs.filter((c) => c.id !== target!.id)];
-    });
 
-    if (createdId) {
-      targetId = createdId;
-      setCurrentId(createdId);
-    }
-    return { conversationId: targetId ?? createdId ?? newId(), assistantId: assistantMsg.id };
-  }, [currentId]);
+    applyConversations([target, ...convsRef.current.filter((c) => c.id !== target.id)]);
+    if (!existing) setCurrentId(target.id);
+
+    // Persist: create the thread on its first message, then the user turn.
+    // The assistant placeholder is deliberately NOT written — it has no
+    // content yet and completeAssistantTurn writes the real one.
+    const wasPersisted = persisted.current.has(target.id);
+    void (async () => {
+      const ok = await ensureThread(target);
+      if (!ok) return;
+      // The title is derived from the first message, which only exists now.
+      if (wasPersisted && existing && existing.messages.length === 0) {
+        await updateThread(target.id, { title: target.title });
+      }
+      await insertMessage(target.id, userMsg);
+    })();
+
+    return { conversationId: target.id, assistantId: assistantMsg.id };
+  }, [applyConversations, currentId, orgId, ensureThread]);
 
   const completeAssistantTurn: ChatStore["completeAssistantTurn"] = useCallback((params) => {
-    setConversations((cs) =>
-      cs.map((c) => {
-        if (c.id !== params.conversationId) return c;
-        return {
-          ...c,
-          updatedAt: Date.now(),
-          messages: c.messages.map((m) =>
-            m.id === params.assistantId
-              ? {
-                  ...m,
-                  content: params.content,
-                  groundedPeriod: params.groundedPeriod ?? m.groundedPeriod ?? null,
-                  pending: false,
-                }
-              : m,
-          ),
-        };
-      }),
-    );
-  }, []);
+    let finished: ChatMessage | null = null;
+    const next = convsRef.current.map((c) => {
+      if (c.id !== params.conversationId) return c;
+      return {
+        ...c,
+        updatedAt: Date.now(),
+        messages: c.messages.map((m) => {
+          if (m.id !== params.assistantId) return m;
+          const done: ChatMessage = {
+            ...m,
+            content: params.content,
+            groundedPeriod: params.groundedPeriod ?? m.groundedPeriod ?? null,
+            pending: false,
+          };
+          finished = done;
+          return done;
+        }),
+      };
+    });
+    applyConversations(next);
+
+    // An errored turn stays in the UI (so the user sees what happened) but is
+    // not written to history — a reopened conversation shouldn't replay it.
+    const conv = next.find((c) => c.id === params.conversationId);
+    if (finished && !params.error && conv) {
+      const msg = finished as ChatMessage;
+      void (async () => {
+        // Awaits the thread INSERT if it's still in flight, so a fast reply
+        // can't outrun its own conversation row.
+        const ok = await ensureThread(conv);
+        if (!ok) return;
+        await insertMessage(params.conversationId, msg);
+        await updateThread(params.conversationId, { touch: true });
+      })();
+    }
+  }, [applyConversations, ensureThread]);
 
   const rollbackLastPair: ChatStore["rollbackLastPair"] = useCallback((conversationId) => {
     let restoredUserContent: string | null = null;
-    setConversations((cs) =>
-      cs.map((c) => {
-        if (c.id !== conversationId) return c;
-        // Drop trailing assistant + user pair.
-        const ms = [...c.messages];
-        const last = ms[ms.length - 1];
-        if (last && last.role === "assistant") ms.pop();
-        const userLast = ms[ms.length - 1];
-        if (userLast && userLast.role === "user") {
-          restoredUserContent = userLast.content;
-          ms.pop();
-        }
-        return { ...c, messages: ms, updatedAt: Date.now() };
-      }),
-    );
+    const dropped: string[] = [];
+    const next = convsRef.current.map((c) => {
+      if (c.id !== conversationId) return c;
+      // Drop trailing assistant + user pair.
+      const ms = [...c.messages];
+      const last = ms[ms.length - 1];
+      if (last && last.role === "assistant") { dropped.push(last.id); ms.pop(); }
+      const userLast = ms[ms.length - 1];
+      if (userLast && userLast.role === "user") {
+        restoredUserContent = userLast.content;
+        dropped.push(userLast.id);
+        ms.pop();
+      }
+      return { ...c, messages: ms, updatedAt: Date.now() };
+    });
+    applyConversations(next);
+    if (dropped.length > 0 && persisted.current.has(conversationId)) {
+      void deleteMessages(dropped);
+    }
     return restoredUserContent;
-  }, []);
+  }, [applyConversations]);
 
   return {
     conversations,

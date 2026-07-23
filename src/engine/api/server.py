@@ -38,6 +38,7 @@ from ._industry_intelligence import build_router as create_industry_router
 from ._newsletter import build_router as create_newsletter_router
 from ._pricing_routes import build_router as create_pricing_router
 from ._test_mode import build_router as create_test_mode_router
+from ._org import create_workspaces_router
 from .cfo_ai import create_cfo_router
 from .financial_statements import build_router as create_financial_statements_router
 from .frontend import create_frontend_router
@@ -196,6 +197,10 @@ def create_app(
     # returns 404 when the env flag is off so production posture
     # surfaces no test-mode endpoint.
     app.include_router(create_test_mode_router())
+    # Workspace lifecycle — POST /api/workspaces/cron/purge-expired.
+    # Scheduler-only (ENGINE_API_TOKEN); permanently deletes workspaces
+    # whose 30-day recovery window has closed.
+    app.include_router(create_workspaces_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

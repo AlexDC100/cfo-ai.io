@@ -322,9 +322,9 @@ export function DatasetsPanel() {
         id="datasets-panel"
         data-testid="datasets-panel"
         className="
-          fixed right-0 top-16 bottom-0 z-50
+          fixed right-0 top-0 bottom-0 z-50
           w-[90vw] max-w-[420px] lg:w-[360px]
-          bg-surface border-l border-rule shadow-2xl
+          bg-surface/85 backdrop-blur-2xl border-l border-rule shadow-2xl
           flex flex-col
           motion-safe:animate-in motion-safe:slide-in-from-right
           motion-safe:duration-200 motion-safe:ease-out

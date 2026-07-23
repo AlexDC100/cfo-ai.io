@@ -35,6 +35,7 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from . import _org
 from . import _supabase
 from . import _usage_limits
 from ._system_prompt import ASK_SYSTEM_PROMPT, APP_REFERENCE
@@ -754,8 +755,20 @@ def build_router() -> APIRouter:
     router = APIRouter(tags=["ask"])
 
     @router.post("/api/ask")
-    def ask(req: AskRequest, authorization: Optional[str] = Header(None)) -> StreamingResponse:
+    def ask(
+        req: AskRequest,
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> StreamingResponse:
         jwt = _require_jwt(authorization)
+        # Ground the answer in the workspace the user actually has open.
+        # `context.org_id` has always existed in the request shape but the
+        # frontend never populated it, so build_ask_context() fell back to its
+        # stub and every answer was company-less. The header is validated
+        # against membership, so a caller cannot read another tenant's data.
+        if not req.context.org_id and x_org_id:
+            _user_id, resolved_org = _org.resolve_org(jwt, x_org_id)
+            req.context.org_id = resolved_org
         # Pricing V3 (refined-spec gaps C + D) — atomic reserve before
         # the Opus request, commit on stream completion, release on
         # stream error.

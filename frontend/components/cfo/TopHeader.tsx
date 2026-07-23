@@ -90,7 +90,7 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
           <Logo size={26} compact />
         </button>
         <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-rule h-[22px]">
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-mute truncate max-w-[180px]">
+          <span className="font-mono text-[11.5px] uppercase tracking-[0.14em] font-semibold text-ink truncate max-w-[240px]">
             {workspaceName || workspaceLabel || "Financial Intelligence"}
           </span>
         </div>

@@ -29,7 +29,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import _pricing_tiers, _site, _supabase
+from . import _org, _pricing_tiers, _site, _supabase
 
 
 logger = logging.getLogger(__name__)
@@ -111,17 +111,22 @@ def _user_id_from_jwt(jwt: str) -> str:
 
 
 def _primary_org_for_user(user_id: str) -> Optional[Dict[str, Any]]:
+    """The user's OLDEST organization — their original workspace.
+
+    Billing is per user, not per workspace: one subscription and one shared
+    usage pool cover every company (SRL) the user runs. So "primary" here means
+    a stable anchor for invoices and Stripe customer records, deliberately NOT
+    "whichever workspace they happen to have open". Ordering by created_at
+    makes the anchor deterministic — an unordered limit-1 could return a
+    different org between two calls once a user has several.
+    """
+    org_id = _org.default_org_for_user(user_id)
+    if not org_id:
+        return None
     with _supabase.admin() as client:
-        rows = client.select(
-            "memberships",
-            filters={"user_id": f"eq.{user_id}"},
-            limit=1,
-        )
-        if not rows:
-            return None
         org_rows = client.select(
             "organizations",
-            filters={"id": f"eq.{rows[0]['org_id']}"},
+            filters={"id": f"eq.{org_id}"},
             single=True,
         )
         return org_rows[0] if org_rows else None

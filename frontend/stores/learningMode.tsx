@@ -38,6 +38,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { setPref, usePrefSync } from "@/lib/prefs";
+
 export type LearningMode = "guided" | "subtle" | "off";
 
 interface LearningModeState {
@@ -60,6 +62,8 @@ interface LearningModeContextValue extends LearningModeState {
 }
 
 const STORAGE_KEY = "cfo:learning-mode:v1";
+/** Key inside `user_prefs.prefs` — see supabase/schema_phase_prefs.sql. */
+const PREF_KEY = "learning_mode";
 
 const DEFAULT_STATE: LearningModeState = {
   mode: "guided",
@@ -116,14 +120,49 @@ export function LearningModeProvider({ children }: { children: ReactNode }) {
   // Persist on every change. Debounced via microtask so a burst of
   // updates (e.g. resetAll) only writes once per tick.
   const pendingPersistRef = useRef(false);
+  // `hydrating` suppresses the write-back that would otherwise fire the
+  // instant we adopt a remote value — echoing it straight back to the server.
+  const hydratingRef = useRef(false);
+  // The mount run only re-persists what was just read from localStorage —
+  // pushing that to the server would overwrite a newer value from another
+  // device with this device's stale copy before hydration even lands.
+  const firstPersistRef = useRef(true);
   useEffect(() => {
     if (pendingPersistRef.current) return;
     pendingPersistRef.current = true;
     queueMicrotask(() => {
       pendingPersistRef.current = false;
       persist(state);
+      if (firstPersistRef.current) {
+        firstPersistRef.current = false;
+        return;
+      }
+      if (hydratingRef.current) {
+        hydratingRef.current = false;
+        return;
+      }
+      // Personal, not company-level: how much coaching you want follows you
+      // into every workspace.
+      setPref("user", PREF_KEY, state);
     });
   }, [state]);
+
+  const adopt = useCallback((remote: LearningModeState) => {
+    if (!remote || typeof remote !== "object") return;
+    hydratingRef.current = true;
+    setState({
+      mode:
+        remote.mode === "subtle" || remote.mode === "off" || remote.mode === "guided"
+          ? remote.mode
+          : "guided",
+      coachDismissed: remote.coachDismissed === true,
+      tutorialsSeen:
+        remote.tutorialsSeen && typeof remote.tutorialsSeen === "object"
+          ? remote.tutorialsSeen
+          : {},
+    });
+  }, []);
+  usePrefSync<LearningModeState>("user", PREF_KEY, state, adopt);
 
   const setMode = useCallback((mode: LearningMode) => {
     setState((s) => ({ ...s, mode }));

@@ -11,8 +11,45 @@
 // brief `theme-flipping` class trick if we ever want to coordinate a more
 // elaborate transition than the 220ms CSS rule in index.css.
 
-import { ComponentProps } from "react";
-import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { ComponentProps, useCallback, useEffect, useRef } from "react";
+import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
+
+import { setPref, usePrefSync } from "@/lib/prefs";
+
+/**
+ * Bridges next-themes to `user_prefs.prefs.theme` so the choice follows the
+ * user to another device. Rendered inside the provider because it needs
+ * `useTheme()`; next-themes still owns the localStorage write, which keeps
+ * first paint synchronous and flash-free.
+ *
+ * Theme is PERSONAL — it stays the same whichever company you're looking at.
+ */
+function ThemePrefSync() {
+  const { theme, setTheme } = useTheme();
+  // Suppress the write-back that would immediately echo an adopted value.
+  const adopting = useRef(false);
+
+  useEffect(() => {
+    if (!theme) return;
+    if (adopting.current) {
+      adopting.current = false;
+      return;
+    }
+    setPref("user", "theme", theme);
+  }, [theme]);
+
+  const adopt = useCallback(
+    (remote: string) => {
+      if (remote !== "light" && remote !== "dark" && remote !== "system") return;
+      adopting.current = true;
+      setTheme(remote);
+    },
+    [setTheme],
+  );
+  usePrefSync<string>("user", "theme", theme ?? "system", adopt);
+
+  return null;
+}
 
 // next-themes ≥0.3 removed the named `ThemeProviderProps` export; derive
 // the prop type from the component itself so we don't break on upgrades.
@@ -51,6 +88,7 @@ export function ThemeProvider({
       storageKey={storageKey}
       {...rest}
     >
+      <ThemePrefSync />
       {children}
     </NextThemesProvider>
   );

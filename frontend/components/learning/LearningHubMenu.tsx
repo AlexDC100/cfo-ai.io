@@ -70,8 +70,9 @@ export function LearningHubMenu() {
             "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
           )}
         >
-          <Sparkles className="w-3.5 h-3.5 text-[hsl(173,57%,45%)]" />
+          <Sparkles className={cn("w-3.5 h-3.5", mode === "off" ? "text-ink-mute" : "text-[hsl(173,57%,45%)]")} />
           <span>Learn</span>
+          <span className="text-ink-mute font-normal">· {activeRow.label}</span>
           <ChevronDown
             className={cn(
               "w-3 h-3 opacity-60 transition-transform",

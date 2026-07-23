@@ -30,9 +30,13 @@ import {
   type SkuLite,
 } from "./decisionRules";
 import { resolvePreset, getPreset } from "./presets";
+import { getRemotePref, prefsHydrated, setPref, stableStringify, subscribePrefs } from "./prefs";
 import { DEFAULTS as LEGACY_THRESHOLDS_DEFAULTS, STORAGE_KEY as LEGACY_THRESHOLDS_KEY } from "./thresholds";
 
 export const STORAGE_KEY = "cfo-decision-rules-v3";
+/** Keys inside `org_prefs.prefs` — see supabase/schema_phase_prefs.sql. */
+const PREF_KEY = "decision_rules";
+const PRESET_PREF_KEY = "decision_rules_preset";
 const SAVE_DEBOUNCE_MS = 200;
 
 // ─── In-memory state ───────────────────────────────────────────────────────
@@ -130,6 +134,10 @@ function mergeRuleState(base: RuleState, persisted: Partial<RuleState>): RuleSta
 // ─── Persistence (debounced) ───────────────────────────────────────────────
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+// Set while adopting a value pushed from another device, so the write-back
+// below doesn't immediately echo it to the server.
+let adopting = false;
+
 function scheduleSave(state: DecisionRulesState) {
   if (saveTimer !== null) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
@@ -139,7 +147,24 @@ function scheduleSave(state: DecisionRulesState) {
       /* quota / private mode — UI state still works in-memory */
     }
     saveTimer = null;
+    if (adopting) {
+      adopting = false;
+      return;
+    }
+    // Company-level: these thresholds classify THIS company's products into
+    // Protect / Watch / Wind down. Carrying one workspace's cutoffs into
+    // another would silently re-grade a different business's catalog.
+    // The debounce above also keeps a slider drag to one write.
+    setPref("org", PREF_KEY, state);
   }, SAVE_DEBOUNCE_MS);
+}
+
+/** Adopt rules configured on another device / by a teammate. */
+export function adoptRemoteDecisionRules(state: DecisionRulesState): void {
+  adopting = true;
+  cached = state;
+  scheduleSave(state);
+  emit();
 }
 
 // ─── Subscribers ───────────────────────────────────────────────────────────
@@ -275,8 +300,83 @@ export function setActivePresetId(id: string | null): void {
   } catch {
     /* private mode */
   }
+  setPref("org", PRESET_PREF_KEY, id);
   emit();
 }
+
+/** Adopt a preset selected on another device — no write-back. */
+export function adoptRemotePresetId(id: string | null): void {
+  cachedPresetId = id;
+  try {
+    if (id === null) localStorage.removeItem(PRESET_STORAGE_KEY);
+    else localStorage.setItem(PRESET_STORAGE_KEY, id);
+  } catch {
+    /* private mode */
+  }
+  emit();
+}
+
+// ─── Cross-device sync ─────────────────────────────────────────────────────
+//
+// Decision rules are COMPANY-level, so this store has to react to the active
+// workspace changing, not just to a remote edit. Two cases when `org_prefs`
+// lands:
+//
+//   · the workspace HAS saved rules → adopt them.
+//   · the workspace has NONE → fall back to catalog defaults. Keeping what's
+//     in localStorage would carry the previous company's cutoffs into a fresh
+//     SRL and silently re-grade its catalog.
+//
+// The one exception is the very first hydration after this shipped: existing
+// users have tuned rules locally and no server copy yet. Rather than reset
+// them, we seed the workspace they were already in. `MIGRATED_KEY` makes that
+// a one-time event, so later switches get the reset behaviour.
+const MIGRATED_KEY = "cfo-decision-rules-synced-v1";
+
+function hasMigrated(): boolean {
+  try {
+    return localStorage.getItem(MIGRATED_KEY) === "1";
+  } catch {
+    return true; // private mode — don't seed a workspace we can't remember
+  }
+}
+
+function markMigrated(): void {
+  try {
+    localStorage.setItem(MIGRATED_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+}
+
+subscribePrefs((scope) => {
+  if (scope !== "org" || !prefsHydrated("org")) return;
+
+  // stableStringify, never plain JSON.stringify: the rules object round-trips
+  // through Postgres jsonb, which reorders keys — a naive compare would see
+  // "changed" on every hydration and re-adopt each time.
+  const remoteRules = getRemotePref<DecisionRulesState>("org", PREF_KEY);
+  if (remoteRules) {
+    if (stableStringify(remoteRules) !== stableStringify(getSnapshot())) {
+      adoptRemoteDecisionRules(remoteRules);
+    }
+  } else if (!hasMigrated()) {
+    markMigrated();
+    setPref("org", PREF_KEY, getSnapshot());
+    setPref("org", PRESET_PREF_KEY, readActivePresetId());
+  } else {
+    const defaults = defaultRulesState();
+    if (stableStringify(defaults) !== stableStringify(getSnapshot())) {
+      adoptRemoteDecisionRules(defaults);
+    }
+    if (readActivePresetId() !== null) adoptRemotePresetId(null);
+  }
+
+  const remotePreset = getRemotePref<string | null>("org", PRESET_PREF_KEY);
+  if (remotePreset !== undefined && remotePreset !== readActivePresetId()) {
+    adoptRemotePresetId(remotePreset);
+  }
+});
 
 /** Hook variant — re-renders on preset change via the same emit() that
  *  fires on rule edits. Reads through the cached presetId so a slider

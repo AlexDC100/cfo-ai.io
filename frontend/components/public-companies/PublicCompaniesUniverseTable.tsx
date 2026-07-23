@@ -188,7 +188,7 @@ export function PublicCompaniesUniverseTable({
           {lastUpdated && (
             <span
               className="text-[10.5px] text-ink-mute"
-              title="Sharadar SF1 + DAILY are end-of-day datasets. Auto-refreshes every 5 minutes; the latest US-market close lands here ~30 minutes after market close (21:30 UTC)."
+              title="Fundamentals are statutory (FY filings); BVB quotes auto-refresh every 5 minutes during trading hours."
             >
               Updated {new Date(lastUpdated).toLocaleTimeString(undefined, {
                 hour: "2-digit", minute: "2-digit",
@@ -209,7 +209,7 @@ export function PublicCompaniesUniverseTable({
                 disabled:opacity-50 disabled:cursor-not-allowed
                 transition-all
               "
-              title="Force a fresh server-side fetch from Nasdaq (bypasses the 5-min cache)"
+              title="Force a fresh server-side fetch (bypasses the 5-min cache)"
             >
               <RefreshCw
                 size={11}
@@ -287,7 +287,7 @@ export function PublicCompaniesUniverseTable({
             was that Nasdaq tickers should show in USD, not RON. */}
         <label
           className="inline-flex items-center gap-2 text-[11.5px] text-ink-soft cursor-pointer select-none"
-          title="When on, market caps + prices render in the company's reporting currency (USD for Nasdaq). When off, they convert to the global currency set in the top bar."
+          title="When on, market caps + prices render in the company's reporting currency (RON for BVB). When off, they convert to the global currency set in the top bar."
           data-testid="universe-native-currency-toggle"
         >
           <input
@@ -334,7 +334,7 @@ export function PublicCompaniesUniverseTable({
 
       {mode === "demo" && (
         <footer className="border-t border-rule px-5 sm:px-6 py-2.5 bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.05] text-[11px] text-[#1B7268] dark:text-[#8FE3D9]">
-          Demo data shown. Connect <code className="font-mono">NASDAQ_DATA_LINK_API_KEY</code> on the backend for live SF1 fundamentals across the full universe.
+          Some rows show seeded statutory disclosures while live market data hydrates.
         </footer>
       )}
     </section>

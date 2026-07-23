@@ -214,7 +214,7 @@ export function StockDetailDrawer({
   const currency = snapshotCurrency(snapshot);
   const alreadyPeer = isPeer(snapshot.ticker);
   const positiveDelta = (delta?.abs ?? 0) >= 0;
-  const exchange = snapshot.exchange ?? "NASDAQ";
+  const exchange = snapshot.exchange ?? "BVB";
   // BVB Phase 2 (2026-06-01) — strip the .BVB namespace suffix on
   // display. Storage keeps the namespaced form (e.g. "EL.BVB" to avoid
   // colliding with NASDAQ's Estée Lauder), but the user sees the bare
@@ -409,7 +409,7 @@ export function StockDetailDrawer({
                 <StockPriceChart
                   data={priceHistoryQuery.data}
                   range={range}
-                  isLoading={priceHistoryQuery.isLoading}
+                  isLoading={priceHistoryQuery.isLoading || priceHistoryQuery.isFetching}
                   isError={!!priceHistoryQuery.error}
                 />
               </div>

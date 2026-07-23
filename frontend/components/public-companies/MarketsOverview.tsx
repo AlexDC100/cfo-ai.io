@@ -156,49 +156,9 @@ const FEATURED_COMPARISONS: ReadonlyArray<ComparisonDef> = [
     description: "Transmission + distribution — Electrica · Transelectrica",
     tickers: ["EL.BVB", "TEL"],
   },
-  // ── NASDAQ groups (secondary universe) ──
-  {
-    key: "mag-7",
-    emoji: "🥇",
-    label: "The Mag 7",
-    description: "AAPL · MSFT · GOOGL · AMZN · META · NVDA · TSLA",
-    tickers: ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"],
-  },
-  {
-    key: "big-retail",
-    emoji: "🛒",
-    label: "Big retail",
-    description: "Mass-market retail — every household name",
-    tickers: ["WMT", "COST", "TGT", "HD", "LOW", "TJX"],
-  },
-  {
-    key: "pharma-giants",
-    emoji: "💊",
-    label: "Pharma giants",
-    description: "The largest pharma + biotech businesses",
-    tickers: ["LLY", "JNJ", "ABBV", "MRK", "PFE", "BMY", "AMGN", "GILD"],
-  },
-  {
-    key: "big-banks",
-    emoji: "🏦",
-    label: "Big banks",
-    description: "Wall Street's bulge bracket",
-    tickers: ["JPM", "BAC", "WFC", "C", "GS", "MS"],
-  },
-  {
-    key: "cloud-leaders",
-    emoji: "☁️",
-    label: "Cloud leaders",
-    description: "Public cloud, SaaS, data platforms",
-    tickers: ["AMZN", "MSFT", "GOOGL", "ORCL", "CRM", "NOW", "SNOW", "WDAY"],
-  },
-  {
-    key: "auto",
-    emoji: "🚗",
-    label: "Auto",
-    description: "Global automakers — ICE + EV",
-    tickers: ["TSLA", "F", "GM"],
-  },
+  // Romania-only coverage (2026-07-23): the NASDAQ comparison groups
+  // (Mag 7, big retail, pharma, banks, cloud, auto) were removed along
+  // with the US universe — the surface shows BVB-listed companies only.
 ];
 
 // ── Component ────────────────────────────────────────────────────────────
@@ -241,13 +201,14 @@ export function MarketsOverview({ rows, onExplore, onSelectTicker }: Props) {
     return m;
   }, [rows]);
 
-  // ── Featured comparison rows — auto-prune tickers not in universe ──
+  // ── Featured comparison rows — auto-prune tickers not in universe,
+  //    and drop groups that end up empty entirely. ──
   const comparisonRows = useMemo(() => {
     const have = new Set(rows.map((r) => r.ticker));
     return FEATURED_COMPARISONS.map((c) => ({
       ...c,
       tickers: c.tickers.filter((t) => have.has(t)),
-    }));
+    })).filter((c) => c.tickers.length > 0);
   }, [rows]);
 
   const hasAnyMovers = gainers.length > 0 || losers.length > 0;

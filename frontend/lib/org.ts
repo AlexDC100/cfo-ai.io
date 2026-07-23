@@ -1,18 +1,31 @@
-// Active organization resolution.
+// Workspace (organization) registry + switcher.
 //
-// Phase 3 introduced multi-tenancy: a user can be a member of multiple
-// orgs. For now (single-org-per-user), this hook returns the user's first
-// (and only) membership. The contract is forward-compatible — when a real
-// org-switcher lands, only this module needs to change.
+// A workspace IS an organization. One row per company (SRL), and because every
+// org-scoped table already enforces `is_member_of(org_id)` RLS, holding more
+// than one membership is what makes workspaces a real data-isolation boundary
+// — documents, periods, metrics, alerts and chats all re-scope on a switch.
 //
-// All RLS-scoped data reads (documents, financial_periods, calculated_metrics,
-// briefings, alerts, recommendations, invoices) are tagged with the active
-// org_id rather than auth.uid(). The bootstrap trigger guarantees every
-// auth.users row has at least one membership; this hook surfaces it.
+// Reads go through the `list_workspaces()` RPC and writes through
+// `create_workspace()` / `archive_workspace()` / `restore_workspace()`
+// (supabase/schema_phase_multi_workspace.sql). RPCs rather than plain inserts
+// because there is deliberately no client INSERT policy on `organizations` or
+// `memberships` — see the 42P17 recursion warning at schema_phase3.sql:193.
+//
+// Deleting a workspace is a SOFT delete: it is hidden, recoverable for 30
+// days, then purged permanently by the scheduler.
+//
+// The active workspace lives in lib/activeOrg.ts (uid-scoped localStorage, for
+// instant first paint) and is mirrored to `user_prefs.active_org_id` so it
+// follows the user to another device.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { clearActiveOrg, getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
+import { clearDataPresence } from "@/lib/dataPresence";
+import { queryClient } from "@/lib/queryClient";
+import { writeWorkspaceName } from "@/lib/workspaceName";
+import { hydrateOrgPrefs, hydrateUserPrefs, resetPrefs } from "@/lib/prefs";
 
 export interface Organization {
   id: string;
@@ -21,72 +34,151 @@ export interface Organization {
   industry_display_name: string | null;
   default_currency: string | null;
   role: "owner" | "admin" | "member";
+  /** Set when the workspace is soft-deleted; null for live workspaces. */
+  archived_at: string | null;
+  /** When an archived workspace is permanently deleted. */
+  purge_after: string | null;
+  created_at: string;
 }
 
-const ACTIVE_ORG_KEY = "cfoai.active_org_id";
-
-// In-memory cache so non-React callers (e.g. supabase.ts helpers) can read
-// the active org synchronously after the first useActiveOrg() resolves.
+// In-memory cache so non-React callers can read the active org synchronously
+// after the first resolution.
 let cachedOrg: Organization | null = null;
 let cachedOrgListPromise: Promise<Organization[]> | null = null;
 
-function readPersistedActiveId(): string | null {
-  try { return localStorage.getItem(ACTIVE_ORG_KEY); } catch { return null; }
-}
-
-function writePersistedActiveId(id: string): void {
-  try { localStorage.setItem(ACTIVE_ORG_KEY, id); } catch { /* quota */ }
+// Cross-instance change bus. Every useActiveOrg() instance owns private
+// useState copies of the list, so a mutation in one component must poke the
+// others or they render stale data until a page reload.
+const orgListeners = new Set<() => void>();
+function emitOrgChange(): void {
+  orgListeners.forEach((l) => l());
 }
 
 /**
- * Fetch every org the signed-in user is a member of. Returns [] when
- * Supabase isn't configured or the user isn't signed in.
+ * Drop every module-global. Called on sign-out and on a user switch —
+ * without this the memoised list promise below outlives the session and the
+ * next user on this browser reads the previous user's workspaces.
  */
+export function resetOrgCache(): void {
+  cachedOrg = null;
+  cachedOrgListPromise = null;
+  clearActiveOrg();
+  resetPrefs();
+}
+
+// Reset on sign-out / user switch. Owned here rather than in lib/auth.tsx
+// because this module already imports useAuth — reaching back the other way
+// would be an import cycle. Mirrors the narrow prior-vs-next identity check
+// at auth.tsx:176 so a token refresh doesn't needlessly dump the cache.
+{
+  const supabase = getSupabase();
+  if (supabase) {
+    let priorUserId: string | null = null;
+    supabase.auth.onAuthStateChange((event, session) => {
+      const nextUserId = session?.user?.id ?? null;
+      if ((priorUserId !== null && priorUserId !== nextUserId) || event === "SIGNED_OUT") {
+        resetOrgCache();
+      }
+      priorUserId = nextUserId;
+    });
+  }
+}
+
+/** Every workspace the signed-in user belongs to, archived ones included. */
 async function fetchOrgsForUser(): Promise<Organization[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
   const { data: session } = await supabase.auth.getSession();
   if (!session.session?.user) return [];
 
-  const { data, error } = await supabase
-    .from("memberships")
-    .select("role, org_id, organizations!inner(id,name,industry_key,industry_display_name,default_currency)")
-    .eq("user_id", session.session.user.id);
+  const { data, error } = await supabase.rpc("list_workspaces");
   if (error) {
-    console.warn("[org] fetchOrgsForUser failed:", error.message);
+    console.warn("[org] list_workspaces failed:", error.message);
     return [];
   }
-  // Supabase types the inner-join relation as an array even when cardinality
-  // is 1:1 — coerce the first element. Returning null-shape rows are
-  // filtered out below.
-  type OrgRow = {
-    role: Organization["role"];
-    organizations:
-      | { id: string; name: string; industry_key: string | null; industry_display_name: string | null; default_currency: string | null }
-      | Array<{ id: string; name: string; industry_key: string | null; industry_display_name: string | null; default_currency: string | null }>;
-  };
-  const rows = (data ?? []) as unknown as OrgRow[];
-  return rows.flatMap((row) => {
-    const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-    if (!org) return [];
-    return [{
-      id: org.id,
-      name: org.name,
-      industry_key: org.industry_key ?? null,
-      industry_display_name: org.industry_display_name ?? null,
-      default_currency: org.default_currency ?? null,
-      role: row.role,
-    }];
-  });
+  return (data ?? []) as Organization[];
+}
+
+/** Live (non-archived) workspaces — what the switcher shows. */
+export function activeWorkspaces(orgs: Organization[]): Organization[] {
+  return orgs.filter((o) => !o.archived_at);
+}
+
+/** Soft-deleted workspaces still inside their 30-day recovery window. */
+export function archivedWorkspaces(orgs: Organization[]): Organization[] {
+  return orgs.filter((o) => !!o.archived_at);
+}
+
+/** Whole days left before an archived workspace is purged; 0 once due. */
+export function daysUntilPurge(org: Organization): number {
+  if (!org.purge_after) return 0;
+  const ms = new Date(org.purge_after).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
 /**
  * Synchronous read of the cached active org. Returns null until the first
- * async resolution lands. Non-React code (the supabase.ts helpers) calls
- * this; React code should use useActiveOrg() so it re-renders on change.
+ * async resolution lands. Non-React code calls this; React code should use
+ * useActiveOrg() so it re-renders on change.
  */
 export function getCachedActiveOrg(): Organization | null {
   return cachedOrg;
+}
+
+// ── user_prefs.active_org_id — the cross-device record ──────────────────
+
+async function readRemoteActiveOrgId(userId: string): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("user_prefs")
+    .select("active_org_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    // Migration not applied yet / PostgREST cache stale — fall back to the
+    // device-local value rather than breaking the app.
+    console.warn("[org] read user_prefs failed:", error.message);
+    return null;
+  }
+  return (data?.active_org_id as string | null) ?? null;
+}
+
+async function writeRemoteActiveOrgId(userId: string, orgId: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("user_prefs")
+    .upsert({ user_id: userId, active_org_id: orgId }, { onConflict: "user_id" });
+  if (error) console.warn("[org] write user_prefs failed:", error.message);
+}
+
+/**
+ * Pick the workspace to open: the device-local choice wins (it's what the user
+ * last touched *here*), then the cross-device preference, then the oldest live
+ * workspace. Archived workspaces are never auto-selected.
+ */
+async function resolveActive(
+  userId: string,
+  orgs: Organization[],
+): Promise<Organization | null> {
+  const live = activeWorkspaces(orgs);
+  const local = getActiveOrgId(userId);
+  let chosen = live.find((o) => o.id === local) ?? null;
+
+  if (!chosen) {
+    const remote = await readRemoteActiveOrgId(userId);
+    chosen = live.find((o) => o.id === remote) ?? null;
+  }
+  if (!chosen) chosen = live[0] ?? null;
+
+  if (chosen) {
+    setActiveOrgId(userId, chosen.id);
+    // Keep the header/sidebar first-paint cache in step with the real name.
+    writeWorkspaceName(chosen.name);
+    if (chosen.id !== local) void writeRemoteActiveOrgId(userId, chosen.id);
+  }
+  return chosen;
 }
 
 /**
@@ -95,23 +187,30 @@ export function getCachedActiveOrg(): Organization | null {
  */
 export async function refreshActiveOrg(): Promise<Organization | null> {
   cachedOrgListPromise = null;
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data: session } = await supabase.auth.getSession();
+  const userId = session.session?.user?.id;
+  if (!userId) return null;
+
   const orgs = await fetchOrgsForUser();
-  const persistedId = readPersistedActiveId();
-  const next = orgs.find((o) => o.id === persistedId) ?? orgs[0] ?? null;
-  cachedOrg = next;
-  if (next) writePersistedActiveId(next.id);
-  return next;
+  cachedOrg = await resolveActive(userId, orgs);
+  // Non-hook entry point (/onboarding uses it) — mounted hook instances
+  // still need to hear about the change.
+  emitOrgChange();
+  return cachedOrg;
 }
 
-/** Update the org name + industry. Used by the onboarding page. */
-export async function updateActiveOrg(patch: { name?: string; industry_key?: string; industry_display_name?: string }): Promise<boolean> {
+/** Update the active org's name / industry. */
+export async function updateActiveOrg(patch: {
+  name?: string;
+  industry_key?: string;
+  industry_display_name?: string;
+}): Promise<boolean> {
   const supabase = getSupabase();
   const org = cachedOrg;
   if (!supabase || !org) return false;
-  const { error } = await supabase
-    .from("organizations")
-    .update(patch)
-    .eq("id", org.id);
+  const { error } = await supabase.from("organizations").update(patch).eq("id", org.id);
   if (error) {
     console.warn("[org] updateActiveOrg failed:", error.message);
     return false;
@@ -120,73 +219,284 @@ export async function updateActiveOrg(patch: { name?: string; industry_key?: str
   return true;
 }
 
+/** Rename any workspace the user owns (not only the active one). */
+export async function renameWorkspaceOrg(orgId: string, name: string): Promise<boolean> {
+  const supabase = getSupabase();
+  const trimmed = name.trim();
+  if (!supabase || !trimmed) return false;
+  const { error } = await supabase.from("organizations").update({ name: trimmed }).eq("id", orgId);
+  if (error) {
+    console.warn("[org] rename failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
+// ── Mutations via RPC ──────────────────────────────────────────────────
+
+export async function createWorkspaceOrg(
+  name: string,
+  industryKey?: string | null,
+  industryDisplay?: string | null,
+): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc("create_workspace", {
+    p_name: name.trim(),
+    p_industry_key: industryKey ?? null,
+    p_industry_display: industryDisplay ?? null,
+  });
+  if (error) {
+    console.warn("[org] create_workspace failed:", error.message);
+    return null;
+  }
+  return (data as string) ?? null;
+}
+
+/** Soft-delete. Returns the purge date, or null when the RPC refused. */
+export async function archiveWorkspaceOrg(orgId: string): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc("archive_workspace", { p_org_id: orgId });
+  if (error) {
+    console.warn("[org] archive_workspace failed:", error.message);
+    return null;
+  }
+  return (data as string) ?? null;
+}
+
+export async function restoreWorkspaceOrg(orgId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const { error } = await supabase.rpc("restore_workspace", { p_org_id: orgId });
+  if (error) {
+    console.warn("[org] restore_workspace failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
+/** Permanent, immediate deletion of an ARCHIVED workspace. The RPC enforces
+ *  owner + archived; the UI enforces the type-the-name confirmation. */
+export async function purgeWorkspaceOrg(orgId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const { error } = await supabase.rpc("purge_workspace", { p_org_id: orgId });
+  if (error) {
+    console.warn("[org] purge_workspace failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
 export interface ActiveOrgState {
   org: Organization | null;
+  /** Live workspaces only — what the switcher lists. */
   orgs: Organization[];
+  /** Soft-deleted workspaces inside the 30-day window. */
+  archived: Organization[];
   loading: boolean;
-  /** True when the user is signed in but has no industry_key set on their active org. */
+  /** True when the user is signed in but their active org has no industry_key. */
   needsOnboarding: boolean;
   refresh: () => Promise<void>;
   switchOrg: (orgId: string) => Promise<void>;
+  createWorkspace: (
+    name: string,
+    industry?: { key: string; label: string } | null,
+  ) => Promise<string | null>;
+  renameWorkspace: (orgId: string, name: string) => Promise<boolean>;
+  archiveWorkspace: (orgId: string) => Promise<boolean>;
+  restoreWorkspace: (orgId: string) => Promise<boolean>;
+  /** Permanent deletion of an archived workspace — no recovery after this. */
+  purgeWorkspace: (orgId: string) => Promise<boolean>;
 }
 
 /**
- * Read the active organization for the signed-in user. The returned object
- * is stable across re-renders so it can safely be used in dependency arrays.
+ * Read + manage the workspaces for the signed-in user. The returned object is
+ * stable across re-renders so it can safely be used in dependency arrays.
  */
 export function useActiveOrg(): ActiveOrgState {
-  const { status } = useAuth();
-  const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(readPersistedActiveId);
+  const { status, user } = useAuth();
+  const userId = user?.id ?? null;
+  const [all, setAll] = useState<Organization[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(() => getActiveOrgId(userId));
   const [loading, setLoading] = useState<boolean>(supabaseEnabled && status !== "signed_out");
+  // Bumped by emitOrgChange() from any other hook instance. Every
+  // useActiveOrg() call holds its OWN copy of the list — without this, the
+  // instance that creates/renames/archives a workspace refreshes itself while
+  // every other mounted instance keeps its stale list until a full page
+  // reload. (That was the "new workspace only appears after F5" bug.)
+  const [version, setVersion] = useState(0);
+  // Only the FIRST resolution flips `loading` — AuthGuard renders a blank
+  // full-screen while loading is true, and cross-instance reloads must not
+  // flash the whole app blank every time a workspace is touched.
+  const firstLoadRef = useRef(true);
+
+  useEffect(() => {
+    const cb = () => setVersion((v) => v + 1);
+    orgListeners.add(cb);
+    return () => {
+      orgListeners.delete(cb);
+    };
+  }, []);
 
   const load = useCallback(async () => {
-    if (!supabaseEnabled || status !== "signed_in") {
-      setOrgs([]);
+    if (!supabaseEnabled || status !== "signed_in" || !userId) {
+      setAll([]);
       setLoading(false);
       cachedOrg = null;
+      resetPrefs();
       return;
     }
-    setLoading(true);
-    if (!cachedOrgListPromise) {
-      cachedOrgListPromise = fetchOrgsForUser();
-    }
+    if (firstLoadRef.current) setLoading(true);
+    if (!cachedOrgListPromise) cachedOrgListPromise = fetchOrgsForUser();
     const list = await cachedOrgListPromise;
-    setOrgs(list);
-    const persisted = readPersistedActiveId();
-    const chosen = list.find((o) => o.id === persisted) ?? list[0] ?? null;
+    setAll(list);
+    const chosen = await resolveActive(userId, list);
     setActiveId(chosen?.id ?? null);
     cachedOrg = chosen;
-    if (chosen) writePersistedActiveId(chosen.id);
+    firstLoadRef.current = false;
     setLoading(false);
-  }, [status]);
+    // Preferences are hydrated from here because this is the one place that
+    // knows BOTH the identity and the active workspace, and re-runs whenever
+    // either changes. Fire-and-forget: stores paint from localStorage first
+    // and adopt a remote value only if another device set a different one.
+    void hydrateUserPrefs();
+    void hydrateOrgPrefs(chosen?.id ?? null);
+  }, [status, userId]);
 
   useEffect(() => {
     void load();
-  }, [load]);
-
-  const switchOrg = useCallback(async (orgId: string) => {
-    const next = orgs.find((o) => o.id === orgId);
-    if (!next) return;
-    setActiveId(orgId);
-    cachedOrg = next;
-    writePersistedActiveId(orgId);
-  }, [orgs]);
+    // `version` re-runs the (unchanged) callback when a sibling instance
+    // mutated the list; the shared cachedOrgListPromise makes the N reloads
+    // one fetch.
+  }, [load, version]);
 
   const refresh = useCallback(async () => {
     cachedOrgListPromise = null;
     await load();
+    // Tell every OTHER mounted instance the list changed.
+    emitOrgChange();
   }, [load]);
 
-  const org = useMemo(() => orgs.find((o) => o.id === activeId) ?? null, [orgs, activeId]);
+  // Switching workspace changes which tenant's data is correct, so every
+  // cached answer from the previous one has to go. Same treatment the auth
+  // layer gives a user switch (lib/auth.tsx:176-187).
+  const switchOrg = useCallback(
+    async (orgId: string) => {
+      if (!userId) return;
+      const next = all.find((o) => o.id === orgId && !o.archived_at);
+      if (!next || orgId === activeId) return;
+
+      setActiveOrgId(userId, orgId);
+      cachedOrg = next;
+      setActiveId(orgId);
+      writeWorkspaceName(next.name);
+      queryClient.clear();
+      clearDataPresence();
+      // Company-level settings (currency, decision rules, scenario levers)
+      // belong to the workspace, so they have to follow the switch.
+      void hydrateOrgPrefs(orgId);
+      await writeRemoteActiveOrgId(userId, orgId);
+      // Other mounted instances re-resolve so their `org` follows the switch.
+      emitOrgChange();
+    },
+    [all, activeId, userId],
+  );
+
+  const createWorkspace = useCallback(
+    async (name: string, industry?: { key: string; label: string } | null) => {
+      const id = await createWorkspaceOrg(name, industry?.key ?? null, industry?.label ?? null);
+      if (!id || !userId) return id;
+      // Land the user inside the workspace they just made.
+      setActiveOrgId(userId, id);
+      queryClient.clear();
+      clearDataPresence();
+      await writeRemoteActiveOrgId(userId, id);
+      await refresh();
+      return id;
+    },
+    [refresh, userId],
+  );
+
+  const renameWorkspace = useCallback(
+    async (orgId: string, name: string) => {
+      const ok = await renameWorkspaceOrg(orgId, name);
+      if (ok) await refresh();
+      return ok;
+    },
+    [refresh],
+  );
+
+  const archiveWorkspace = useCallback(
+    async (orgId: string) => {
+      const purgeAfter = await archiveWorkspaceOrg(orgId);
+      if (!purgeAfter) return false;
+      // If we just archived the workspace we were standing in, fall through
+      // to another one — resolveActive() picks the oldest live workspace.
+      if (orgId === activeId) {
+        cachedOrg = null;
+        clearActiveOrg();
+        queryClient.clear();
+        clearDataPresence();
+      }
+      await refresh();
+      return true;
+    },
+    [activeId, refresh],
+  );
+
+  const restoreWorkspace = useCallback(
+    async (orgId: string) => {
+      const ok = await restoreWorkspaceOrg(orgId);
+      if (ok) await refresh();
+      return ok;
+    },
+    [refresh],
+  );
+
+  const purgeWorkspace = useCallback(
+    async (orgId: string) => {
+      const ok = await purgeWorkspaceOrg(orgId);
+      if (ok) await refresh();
+      return ok;
+    },
+    [refresh],
+  );
+
+  const org = useMemo(() => all.find((o) => o.id === activeId) ?? null, [all, activeId]);
+  const orgs = useMemo(() => activeWorkspaces(all), [all]);
+  const archived = useMemo(() => archivedWorkspaces(all), [all]);
   const needsOnboarding = !!org && !org.industry_key;
 
-  return useMemo(() => ({
-    org,
-    orgs,
-    loading,
-    needsOnboarding,
-    refresh,
-    switchOrg,
-  }), [org, orgs, loading, needsOnboarding, refresh, switchOrg]);
+  return useMemo(
+    () => ({
+      org,
+      orgs,
+      archived,
+      loading,
+      needsOnboarding,
+      refresh,
+      switchOrg,
+      createWorkspace,
+      renameWorkspace,
+      archiveWorkspace,
+      restoreWorkspace,
+      purgeWorkspace,
+    }),
+    [
+      org,
+      orgs,
+      archived,
+      loading,
+      needsOnboarding,
+      refresh,
+      switchOrg,
+      createWorkspace,
+      renameWorkspace,
+      archiveWorkspace,
+      restoreWorkspace,
+      purgeWorkspace,
+    ],
+  );
 }

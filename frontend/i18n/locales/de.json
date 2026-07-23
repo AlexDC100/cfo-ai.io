@@ -1,5 +1,7 @@
 {
   "sidebar": {
+    "workspaces": "Arbeitsbereiche",
+    "website": "Website",
     "workflow": "Arbeitsablauf",
     "language_label": "Sprache ändern",
     "dashboard": "Übersicht",

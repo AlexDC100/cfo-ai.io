@@ -14,12 +14,14 @@ import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { debugSendMail, debugSendAllMail, type DebugMailKind } from "@/lib/newsletterApi";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
+import { useActiveOrg } from "@/lib/org";
 // useSubscription/isSubscriptionEntitled/planFor/trialDaysLeft + supabaseEnabled
 // were used by the removed `Subscription` section; <BillingSection /> now
 // owns that surface internally. Re-import here if/when the standalone
 // Subscription section is restored.
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import {
   AlertTriangle,
   Check,
@@ -172,6 +174,17 @@ export default function Settings() {
           subtitle="Send any app email type to your own inbox to preview its styling. Delivered only to you."
         >
           <DebugEmailSection email={user?.email ?? null} />
+        </Section>
+
+        {/* Debug — toast preview. Fires every toast variation the app can
+            produce (both notification systems) so styling regressions are
+            caught by eye in seconds — added 2026-07-23 after the sonner
+            toasts shipped with no background. */}
+        <Section
+          title="Debug — Toast preview"
+          subtitle="Fire every toast variation (success, error, warning, info, loading, action, plus the legacy system) to verify styling."
+        >
+          <DebugToastSection />
         </Section>
 
         {/* Danger Zone — GitHub-style. Consolidates the security actions
@@ -503,82 +516,32 @@ function CurrencyCard() {
 
 function WorkspaceCard() {
   const { t } = useTranslation();
-  const { user, workspaceLabel } = useAuth();
+  const { user } = useAuth();
+  const { org, renameWorkspace } = useActiveOrg();
   const { toast } = useToast();
-  const [name, setName] = useState(workspaceLabel ?? "");
+  const [name, setName] = useState(org?.name ?? "");
   const [busy, setBusy] = useState(false);
 
+  // Renames the ACTIVE workspace. This used to resolve `memberships … limit 1`
+  // inline (twice) and rename whichever organization came back first — wrong
+  // as soon as a user has more than one company.
   useEffect(() => {
-    if (!user) return;
-    const sb = getSupabase();
-    if (!sb) return;
-    void (async () => {
-      // Source of truth for the workspace name shown in the header is the
-      // user's primary `organizations` row (where CAEN code, industry, etc.
-      // also live). The legacy `workspaces` table is empty for most users
-      // — reading from it alone produced a stale empty input and the
-      // previous Save handler silently no-op'd because UPDATE matched 0
-      // rows. Now we hydrate from the org name (joined via memberships).
-      try {
-        const { data: m } = await sb
-          .from("memberships")
-          .select("org_id")
-          .eq("user_id", user.id)
-          .limit(1)
-          .maybeSingle();
-        const orgId = m?.org_id as string | undefined;
-        if (!orgId) return;
-        const { data: org } = await sb
-          .from("organizations")
-          .select("name")
-          .eq("id", orgId)
-          .maybeSingle();
-        if (org?.name) setName(org.name);
-      } catch {
-        /* fallback to workspaceLabel from useAuth */
-      }
-    })();
-  }, [user]);
+    if (org?.name) setName(org.name);
+  }, [org?.name]);
 
   async function save() {
-    const sb = getSupabase();
-    if (!sb || !user) return;
+    if (!org) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
     setBusy(true);
-    // Save to the user's primary organization — that's what powers the
-    // header label + every benchmark report. We resolve the org via the
-    // user's membership rather than a hard-coded owner_id (orgs are
-    // multi-tenant; one user can be a member of many).
-    let error: { message?: string } | null = null;
-    try {
-      const { data: m, error: memErr } = await sb
-        .from("memberships")
-        .select("org_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-      if (memErr) {
-        error = memErr;
-      } else if (m?.org_id) {
-        const { error: orgErr } = await sb
-          .from("organizations")
-          .update({ name })
-          .eq("id", m.org_id);
-        if (orgErr) error = orgErr;
-      } else {
-        error = { message: "No organization membership found for this user." };
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Unknown error";
-      error = { message: msg };
-    }
-    // Mirror into auth metadata so the header / workspaceLabel updates
-    // immediately without waiting for a session refresh round-trip.
-    if (!error) {
-      await sb.auth.updateUser({ data: { company_name: name } });
-    }
+    const ok = await renameWorkspace(org.id, trimmed);
     setBusy(false);
-    if (error) toast({ title: "Couldn't save workspace", description: error.message ?? "Unknown error", variant: "destructive" });
-    else toast({ title: "Workspace renamed" });
+    // Deliberately NOT mirrored into auth metadata (`company_name`). That is a
+    // per-user field and cannot represent N companies — writing it here made
+    // the header chip show the last-renamed workspace regardless of which one
+    // was active. The header reads the active org's name instead.
+    if (ok) toast({ title: "Workspace renamed" });
+    else toast({ title: "Couldn't save workspace", description: "The rename was rejected.", variant: "destructive" });
   }
 
   if (!user) return null;
@@ -935,6 +898,47 @@ const DEBUG_MAIL_TYPES: { kind: DebugMailKind; label: string; description: strin
   { kind: "newsletter_broadcast", label: "Newsletter — broadcast", description: "Admin-composed broadcast wrapper (sample content)." },
   { kind: "renewal_reminder", label: "Renewal reminder", description: "Subscription-renews-soon heads-up." },
 ];
+
+/* ───────── Debug — toast preview ────────────────────────────────────────
+ * Fires one of each toast variation, staggered so they stack visibly:
+ * sonner default / success / info / warning / error / loading / action,
+ * then the legacy useToast default + destructive. Pure client-side. */
+function DebugToastSection() {
+  const { toast } = useToast();
+
+  function fireAll() {
+    const steps: Array<() => void> = [
+      () => sonnerToast("Plain toast", { description: "Default sonner toast with a description." }),
+      () => sonnerToast.success("Success toast", { description: "Something completed successfully." }),
+      () => sonnerToast.info("Info toast", { description: "A neutral informational message." }),
+      () => sonnerToast.warning("Warning toast", { description: "Something needs your attention." }),
+      () => sonnerToast.error("Error toast", { description: "Something went wrong." }),
+      () => {
+        const id = sonnerToast.loading("Loading toast", { description: "Dismisses by itself in 3s." });
+        window.setTimeout(() => sonnerToast.dismiss(id), 3000);
+      },
+      () => sonnerToast("Action toast", {
+        description: "Carries an action button.",
+        action: { label: "Undo", onClick: () => sonnerToast.success("Action clicked") },
+      }),
+      () => toast({ title: "Legacy toast", description: "Default variant of the useToast system." }),
+      () => toast({ title: "Legacy destructive", description: "Destructive variant of the useToast system.", variant: "destructive" }),
+    ];
+    steps.forEach((fn, i) => window.setTimeout(fn, i * 350));
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={fireAll}
+      data-testid="debug-send-toasts"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-rule bg-surface px-3.5 py-2 text-[13px] font-medium text-ink hover:bg-bg-2 transition-colors"
+    >
+      <Sparkle size={14} strokeWidth={2} />
+      Send all toast variations
+    </button>
+  );
+}
 
 function DebugEmailSection({ email }: { email: string | null }) {
   const { toast } = useToast();

@@ -6,6 +6,8 @@
 // `source` field to render the Demo watermark — the chart renders the
 // same way either way.
 
+import { staticBvbRows } from "@/lib/bvbStaticUniverse";
+
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ??
   "http://127.0.0.1:8000";
@@ -29,7 +31,7 @@ export interface PriceHistoryPayload {
   ticker: string;
   range: PriceRange;
   currency: string;
-  source: "nasdaq" | "demo" | "unavailable";
+  source: "nasdaq" | "bvb_yahoo" | "demo" | "unavailable";
   mode: "live" | "demo";
   message: string | null;
   points: PricePoint[];
@@ -44,15 +46,97 @@ export async function fetchPriceHistory(
   const qs = new URLSearchParams({ range });
   if (opts.refresh) qs.set("refresh", "true");
   const t = encodeURIComponent(ticker);
-  const res = await fetch(
-    `${API_URL}/api/public/companies/${t}/price-history?${qs.toString()}`,
-  );
-  if (!res.ok) {
-    throw new Error(
-      `Price history fetch failed for ${ticker} @ ${range}: HTTP ${res.status}`,
+  try {
+    const res = await fetch(
+      `${API_URL}/api/public/companies/${t}/price-history?${qs.toString()}`,
     );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const payload = (await res.json()) as PriceHistoryPayload;
+    // A backend that predates the BVB provider answers with an empty
+    // "unavailable" payload for Romanian tickers — treat that like a
+    // failure so the dev fallback below gets its chance.
+    if (payload.points.length === 0 && isBvbTicker(ticker)) {
+      throw new Error("empty payload for BVB ticker");
+    }
+    return payload;
+  } catch (err) {
+    // Dev fallback (2026-07-23): when the engine isn't reachable (local
+    // Vite without a backend) BVB charts are fetched through the Vite
+    // dev-server proxy at /yahoo → query1.finance.yahoo.com (browsers
+    // can't call Yahoo directly — no CORS headers). In production the
+    // path 404s and the original error propagates; the deployed engine
+    // serves these charts itself via providers/yahoo_bvb.py.
+    if (isBvbTicker(ticker)) {
+      const fallback = await fetchBvbHistoryViaProxy(ticker, range).catch(() => null);
+      if (fallback) return fallback;
+    }
+    throw err instanceof Error
+      ? err
+      : new Error(`Price history fetch failed for ${ticker} @ ${range}`);
   }
-  return (await res.json()) as PriceHistoryPayload;
+}
+
+// ── BVB dev fallback (mirrors src/engine/public/providers/yahoo_bvb.py) ──
+
+function isBvbTicker(ticker: string): boolean {
+  const t = ticker.toUpperCase();
+  return staticBvbRows().some((r) => r.ticker === t);
+}
+
+const YAHOO_RANGE: Record<PriceRange, [string, string]> = {
+  "1D": ["5d", "1d"],
+  "5D": ["5d", "1d"],
+  "1M": ["1mo", "1d"],
+  "6M": ["6mo", "1d"],
+  YTD: ["ytd", "1d"],
+  "1Y": ["1y", "1d"],
+  "5Y": ["5y", "1d"],
+  MAX: ["max", "1wk"],
+};
+
+async function fetchBvbHistoryViaProxy(
+  ticker: string,
+  range: PriceRange,
+): Promise<PriceHistoryPayload | null> {
+  const symbol = `${ticker.toUpperCase().replace(/\.BVB$/, "")}.RO`;
+  const [yrange, interval] = YAHOO_RANGE[range] ?? YAHOO_RANGE["1Y"];
+  const res = await fetch(
+    `/yahoo/v8/finance/chart/${encodeURIComponent(symbol)}?range=${yrange}&interval=${interval}`,
+  );
+  if (!res.ok) return null;
+  const payload = await res.json();
+  const result = payload?.chart?.result?.[0];
+  const stamps: number[] = result?.timestamp ?? [];
+  const quote = result?.indicators?.quote?.[0] ?? {};
+  if (!stamps.length) return null;
+
+  let points: PricePoint[] = stamps
+    .map((ts, i) => {
+      const close = quote.close?.[i];
+      if (close == null) return null;
+      return {
+        date: new Date(ts * 1000).toISOString().slice(0, 10),
+        open: quote.open?.[i] ?? null,
+        high: quote.high?.[i] ?? null,
+        low: quote.low?.[i] ?? null,
+        close: Math.round(close * 10000) / 10000,
+        volume: quote.volume?.[i] ?? null,
+      };
+    })
+    .filter((p): p is PricePoint => p !== null);
+  if (range === "1D" && points.length > 2) points = points.slice(-2);
+  if (!points.length) return null;
+
+  return {
+    ticker: ticker.toUpperCase(),
+    range,
+    currency: "RON",
+    source: "bvb_yahoo",
+    mode: "live",
+    message: null,
+    points,
+    fetched_at: new Date().toISOString(),
+  };
 }
 
 /** Compute period delta for the chart header. Returns absolute and

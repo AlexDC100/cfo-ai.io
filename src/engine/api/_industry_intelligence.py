@@ -73,6 +73,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from . import _supabase
+from . import _org
 from ._industry_detection import (
     Candidate,
     DetectionResult,
@@ -94,18 +95,10 @@ def _require_jwt(authorization: Optional[str]) -> str:
     return authorization.split(" ", 1)[1].strip()
 
 
-def _resolve_user_org(jwt: str) -> tuple[str, str]:
-    """Resolve (user_id, org_id) from a JWT. Mirrors _benchmarks.py."""
-    with _supabase.per_user(jwt) as client:
-        user = client.get_user(jwt)
-    user_id = user.get("id") if user else None
-    if not user_id:
-        raise HTTPException(401, "Could not resolve user from JWT.")
-    with _supabase.admin() as ac:
-        mems = ac.select("memberships", filters={"user_id": f"eq.{user_id}"}, limit=1)
-    if not mems:
-        raise HTTPException(404, "User has no organization membership.")
-    return user_id, mems[0]["org_id"]
+def _resolve_user_org(jwt: str, org_id: Optional[str] = None) -> tuple[str, str]:
+    """Resolve (user_id, org_id) for the caller's ACTIVE workspace.
+    Delegates to _org.resolve_org — see _benchmarks.py for the same wrapper."""
+    return _org.resolve_org(jwt, org_id)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -639,9 +632,10 @@ def build_router() -> APIRouter:
     def detect(
         period_id: str,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> DetectResponse:
         jwt = _require_jwt(authorization)
-        _user_id, org_id = _resolve_user_org(jwt)
+        _user_id, org_id = _resolve_user_org(jwt, x_org_id)
 
         # Confirm period belongs to the caller's org — same defensive
         # check as _benchmarks.py. RLS would prevent reading another
@@ -666,9 +660,10 @@ def build_router() -> APIRouter:
     def get_assignment(
         period_id: str,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> AssignmentRow:
         jwt = _require_jwt(authorization)
-        _user_id, org_id = _resolve_user_org(jwt)
+        _user_id, org_id = _resolve_user_org(jwt, x_org_id)
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "company_industry_assignments",
@@ -698,9 +693,10 @@ def build_router() -> APIRouter:
         period_id: str,
         limit: int = Query(50, ge=1, le=200),
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> List[AuditLogRow]:
         jwt = _require_jwt(authorization)
-        _user_id, org_id = _resolve_user_org(jwt)
+        _user_id, org_id = _resolve_user_org(jwt, x_org_id)
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "industry_change_audit_log",
@@ -725,9 +721,10 @@ def build_router() -> APIRouter:
         period_id: str,
         body: AssignmentUpsertRequest,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> AssignmentRow:
         jwt = _require_jwt(authorization)
-        user_id, org_id = _resolve_user_org(jwt)
+        user_id, org_id = _resolve_user_org(jwt, x_org_id)
 
         # Validate body inputs before any DB write.
         _validate_industry_key(body.selected_industry_key)
@@ -813,9 +810,10 @@ def build_router() -> APIRouter:
         period_id: str,
         body: AssignmentLockRequest,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> AssignmentRow:
         jwt = _require_jwt(authorization)
-        user_id, org_id = _resolve_user_org(jwt)
+        user_id, org_id = _resolve_user_org(jwt, x_org_id)
 
         with _supabase.per_user(jwt) as client:
             prev = _read_existing_assignment(client, period_id)
@@ -850,9 +848,10 @@ def build_router() -> APIRouter:
     def recalc_assignment(
         period_id: str,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> AssignmentRow:
         jwt = _require_jwt(authorization)
-        user_id, org_id = _resolve_user_org(jwt)
+        user_id, org_id = _resolve_user_org(jwt, x_org_id)
 
         with _supabase.per_user(jwt) as client:
             periods = client.select(

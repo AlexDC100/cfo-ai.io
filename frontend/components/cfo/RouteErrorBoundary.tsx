@@ -51,7 +51,6 @@ export class RouteErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // Surface to the console with the React component stack so dev tools
     // show the failing component hierarchy, not just the JS stack.
-    // eslint-disable-next-line no-console
     console.error("[RouteErrorBoundary]", error, info.componentStack);
   }
 
@@ -107,8 +106,8 @@ export class RouteErrorBoundary extends Component<Props, State> {
         );
 
       return (
-        <div className="min-h-[60vh] flex items-center justify-center px-6 py-12">
-          <div className="max-w-[480px] w-full rounded-2xl border border-rule bg-surface p-6 text-center">
+        <div className="min-h-[calc(100dvh-8rem)] flex flex-col items-center justify-center px-6 py-12">
+          <div className="w-full text-center">
             <div className="mx-auto h-11 w-11 rounded-full bg-alert/10 text-alert flex items-center justify-center mb-3">
               <AlertTriangle size={20} strokeWidth={1.75} />
             </div>
@@ -123,7 +122,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
                 : "Your session is still active and your data is safe. Reload this page or head back to the dashboard."}
             </p>
             {isDev && !isChunkLoadError && (
-              <pre className="mt-4 text-left text-[11px] font-mono text-alert bg-alert/5 border border-alert/20 rounded-lg p-3 overflow-auto max-h-[160px]">
+              <pre className="mt-4 w-full text-left text-[11px] font-mono text-alert bg-alert/5 border border-alert/20 rounded-lg p-3 overflow-auto max-h-[55vh]">
                 {this.state.error.message}
                 {"\n"}
                 {this.state.error.stack?.slice(0, 1200)}

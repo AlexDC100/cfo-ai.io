@@ -39,7 +39,9 @@ const HEIGHT = 220;
 
 export function StockPriceChart({ data, range, isLoading, isError, unavailable }: Props) {
   const { display, rates } = useCurrency();
-  const sourceCurrency: Currency = "USD"; // SEP is always USD
+  // SEP series are USD; BVB series (source "bvb_yahoo") are RON — the
+  // payload's currency field is authoritative.
+  const sourceCurrency: Currency = (data?.currency as Currency) || "USD";
 
   const series = useMemo(() => {
     if (!data?.points) return [];
@@ -47,7 +49,7 @@ export function StockPriceChart({ data, range, isLoading, isError, unavailable }
       date: p.date,
       close: convertFromTo(p.close, sourceCurrency, display, rates.rates),
     }));
-  }, [data, display, rates]);
+  }, [data, display, rates, sourceCurrency]);
 
   const delta = useMemo(() => priceDelta(data?.points ?? []), [data]);
   const isDemo = data?.source === "demo";
@@ -83,7 +85,7 @@ export function StockPriceChart({ data, range, isLoading, isError, unavailable }
         </div>
         <div className="text-[11px] text-ink-mute max-w-[280px] leading-relaxed">
           {data?.message ??
-            "No price points returned from the configured Nasdaq dataset."}
+            "No price points are available for this company yet."}
         </div>
       </div>
     );

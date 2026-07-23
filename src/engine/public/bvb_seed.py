@@ -66,6 +66,7 @@ def _row(
     debt_to_equity: Optional[float] = None,
     latest_period: str = "FY2024",
     confidence: float = 0.85,
+    country: str = "RO",
 ) -> Dict[str, Any]:
     """Build a single BVB seed row.
 
@@ -87,17 +88,12 @@ def _row(
     def _b(x: Optional[float]) -> Optional[float]:
         return x * 1_000_000_000 if x is not None else None
 
-    def _synth_price(mc: Optional[float]) -> Optional[float]:
-        """RON-per-share derived from market cap. Notional shares chosen
-        so the synth price lands in plausible BVB ranges (TLV ~RON 30,
-        Hidroelectrica ~RON 125, Romgaz ~RON 6, OMV Petrom ~RON 0.7).
-        Operator can override via admin upload."""
-        if mc is None or mc <= 0:
-            return None
-        # Default: 1B shares -> RON cap_b per share. Adequate for most
-        # BET names where the seed mc is in single-digit billions.
-        shares = 1e9
-        return round(mc / shares, 4)
+    # Price policy (changed 2026-07-23): the old _synth_price heuristic
+    # (market cap ÷ notional 1B shares) produced numbers wildly off the
+    # real quote for most names (TLV synth 0.55 vs. real ~37 RON) — worse
+    # than showing nothing next to a REAL price chart. Seed rows now ship
+    # price=None; universe_service enriches BVB rows with live quotes from
+    # the Yahoo spark batch endpoint (providers/yahoo_bvb.py) at serve time.
 
     revenue = _b(revenue_b)
 
@@ -133,6 +129,15 @@ def _row(
 
     mc_raw = _b(market_cap_b)
     nd_raw = _b(net_debt_b)
+    ev_raw = (mc_raw + (nd_raw or 0)) if mc_raw is not None else None
+
+    # Derive the EV-based ratios when both inputs are curated and the
+    # explicit override wasn't provided — fills EV/EBITDA and
+    # Net Debt/EBITDA on rows that only stated the raw components.
+    if ev_ebitda is None and ev_raw is not None and ebitda:
+        ev_ebitda = round(ev_raw / ebitda, 1)
+    if nd_to_ebitda is None and nd_raw is not None and ebitda:
+        nd_to_ebitda = round(nd_raw / ebitda, 2)
 
     return {
         "ticker": ticker,
@@ -140,16 +145,12 @@ def _row(
         "exchange": "BVB",
         "sector": sector,
         "industry": industry,
-        "country": "RO",
+        "country": country,
         "currency": "RON",
         "mode": "seed",
-        "price": _synth_price(mc_raw),
+        "price": None,
         "marketCap": mc_raw,
-        "enterpriseValue": (
-            (mc_raw + (nd_raw or 0))
-            if mc_raw is not None
-            else None
-        ),
+        "enterpriseValue": ev_raw,
         "revenue": revenue,
         "revenueGrowth": revenue_growth_pct,
         "grossProfit": gross_profit,
@@ -433,21 +434,182 @@ _BVB_TABLE: Dict[str, Dict[str, Any]] = {
 }
 
 
+# ── Regulated-market full-listing coverage (m.bvb.ro · 2026-07-23) ──────
+# Every OTHER company on the BVB regulated (main) market beyond the BET-20
+# seed above — 68 rows (88 listed in total), so the Romania-only universe
+# shows ALL listed companies, not just index constituents. These rows are LISTING-ONLY:
+# ticker / name / sector / industry with NO financials (the FE renders
+# missing fields as "—", never 0 — same coverage policy as the BET seed).
+# Financial back-fill comes from a live provider (candidates researched
+# 2026-07-23: EODHD fundamentals for .RO tickers, FinancialReports.eu EU
+# feed, easybiny.com free BVB prices, ANAF /bilant for statutory RO
+# financials by CUI) or the operator's admin upload path.
+#
+# Tickers namespaced ".BVB" where the bare symbol collides with the
+# NASDAQ DEFAULT_UNIVERSE (same convention as EL.BVB above):
+#   STZ.BVB (Sinteza vs Constellation Brands) · ARM.BVB (Armătura vs Arm).
+
+def _listing(ticker: str, name: str, sector: str, industry: str, country: str = "RO") -> Dict[str, Any]:
+    return _row(ticker=ticker, name=name, sector=sector, industry=industry,
+                confidence=0.5, country=country)
+
+
+_BVB_REGS_TABLE: Dict[str, Dict[str, Any]] = {
+    row["ticker"]: row for row in [
+        _listing("BRK", "SSIF BRK Financial Group S.A.", "Financials", "Brokerage"),
+        _listing("EAI", "Electro-Alfa International S.A.", "Industrials", "Electrical equipment"),
+        _listing("OIL", "Oil Terminal S.A.", "Energy", "Oil storage & terminals"),
+        _listing("ROC1", "ROCA Industry HoldingRock1 S.A.", "Industrials", "Building-materials holding"),
+        _listing("IMP", "Impact Developer & Contractor S.A.", "Real Estate", "Residential development"),
+        _listing("TRIP", "Christian '76 Tour S.A.", "Consumer Discretionary", "Travel & tourism"),
+        _listing("AROBS", "AROBS Transilvania Software S.A.", "Technology", "Software"),
+        _listing("COTE", "Conpet S.A.", "Energy", "Oil pipeline transport"),
+        _listing("PBK", "Patria Bank S.A.", "Financials", "Banking"),
+        _listing("ALT", "Altur S.A.", "Industrials", "Auto components"),
+        _listing("SNO", "Șantierul Naval Orșova S.A.", "Industrials", "Shipbuilding"),
+        _listing("STZ.BVB", "Sinteza S.A.", "Materials", "Chemicals"),
+        _listing("CRC", "Chimcomplex S.A. Borzești", "Materials", "Chemicals"),
+        _listing("BVB", "Bursa de Valori București S.A.", "Financials", "Securities exchange"),
+        _listing("LONG", "Longshield Investment Group S.A.", "Financials", "Investment holding"),
+        _listing("CMP", "Compa S.A.", "Industrials", "Auto components"),
+        _listing("TBK", "Transilvania Broker de Asigurare S.A.", "Financials", "Insurance brokerage"),
+        _listing("ARS", "Aerostar S.A.", "Industrials", "Aerospace & defense"),
+        _listing("PTR", "Rompetrol Well Services S.A.", "Energy", "Oilfield services"),
+        _listing("LION", "Lion Capital S.A.", "Financials", "Investment fund"),
+        _listing("IARV", "IAR S.A. Brașov", "Industrials", "Aerospace & defense"),
+        _listing("VNC", "Vrancart S.A.", "Materials", "Paper & packaging"),
+        _listing("RMAH", "Farmaceutica Remedia S.A.", "Healthcare", "Pharma distribution"),
+        _listing("EVER", "Evergent Investments S.A.", "Financials", "Investment fund"),
+        _listing("WINE", "Purcari Wineries PLC", "Consumer Defensive", "Wine & spirits"),
+        _listing("ENP", "Compania Energopetrol S.A.", "Energy", "Oilfield services"),
+        _listing("BRM", "Bermas S.A.", "Consumer Defensive", "Brewing"),
+        _listing("EFO", "Turism, Hoteluri, Restaurante Marea Neagră S.A.", "Consumer Discretionary", "Hotels & leisure"),
+        _listing("SMTL", "Simtel Team S.A.", "Industrials", "Solar EPC & engineering"),
+        _listing("COMI", "Condmag S.A.", "Industrials", "Pipeline construction"),
+        _listing("BNET", "Bittnet Systems S.A.", "Technology", "IT services"),
+        _listing("TRANSI", "Transilvania Investments Alliance S.A.", "Financials", "Investment fund"),
+        _listing("EBS", "Erste Group Bank AG", "Financials", "Banking", country="AT"),
+        _listing("BIO", "Biofarm S.A.", "Healthcare", "Pharmaceuticals"),
+        _listing("SAFE", "Safetech Innovations S.A.", "Technology", "Cybersecurity"),
+        _listing("AAG", "AAGES S.A.", "Industrials", "Electrical equipment"),
+        _listing("ROCE", "Romcarbon S.A.", "Materials", "Plastics & recycling"),
+        _listing("RPH", "Ropharma S.A.", "Healthcare", "Pharmacy retail"),
+        _listing("RRC", "Rompetrol Rafinare S.A.", "Energy", "Refining & marketing"),
+        _listing("CMF", "Comelf S.A.", "Industrials", "Metal structures & machinery"),
+        _listing("INFINITY", "Infinity Capital Investments S.A.", "Financials", "Investment fund"),
+        _listing("PREB", "Prebet Aiud S.A.", "Materials", "Concrete products"),
+        _listing("ALR", "Alro S.A.", "Materials", "Aluminium"),
+        _listing("ALU", "Alumil Rom Industry S.A.", "Materials", "Aluminium systems"),
+        _listing("UAM", "UAMT S.A.", "Industrials", "Auto components"),
+        _listing("TBM", "Turbomecanica S.A.", "Industrials", "Aero engines & components"),
+        _listing("CBC", "Carbochim S.A.", "Materials", "Abrasives"),
+        _listing("GREEN", "Green Tech International S.A.", "Materials", "Plastics recycling"),
+        _listing("CMCM", "COMCM S.A. Constanța", "Materials", "Construction materials"),
+        _listing("BUCV", "Bucur S.A.", "Consumer Defensive", "Wholesale & distribution"),
+        _listing("SOCP", "Socep S.A.", "Industrials", "Port operations"),
+        _listing("ELMA", "Electromagnetica S.A.", "Industrials", "Electrical equipment"),
+        _listing("ARM.BVB", "Armătura S.A.", "Industrials", "Valves & fittings"),
+        _listing("BCM", "Casa de Bucovina-Club de Munte S.A.", "Consumer Discretionary", "Hotels & leisure"),
+        _listing("ECT", "Grupul Industrial Electrocontact S.A.", "Industrials", "Electrical components"),
+        _listing("ELJ", "Electroaparataj S.A.", "Industrials", "Electrical equipment"),
+        _listing("ARTE", "Artego S.A.", "Materials", "Rubber products"),
+        _listing("MECF", "Mecanica Ceahlău S.A.", "Industrials", "Agricultural machinery"),
+        _listing("ELGS", "AETA S.A.", "Consumer Discretionary", "Household appliances"),
+        _listing("CNTE", "Conted S.A.", "Consumer Discretionary", "Apparel manufacturing"),
+        _listing("MFC", "MF Capital S.A.", "Financials", "Investment holding"),
+        _listing("PPL", "Promateris S.A.", "Materials", "Bioplastics & packaging"),
+        _listing("PREH", "Prefab S.A.", "Materials", "Prefab concrete"),
+        _listing("CAOR", "SIF Hoteluri S.A.", "Consumer Discretionary", "Hotels & leisure"),
+        _listing("NAPO", "Societatea de Construcții Napoca S.A.", "Industrials", "Construction"),
+        _listing("UZT", "Uztel S.A.", "Industrials", "Oilfield equipment"),
+        _listing("MCAB", "Romcab S.A.", "Industrials", "Cables & wiring"),
+        _listing("VESY", "VES S.A.", "Consumer Discretionary", "Household goods"),
+    ]
+}
+
+
+# ── ANAF Bilanț overlay ─────────────────────────────────────────────────
+# scripts/backfill_bvb_anaf.py fetches statutory filings from the free ANAF
+# web service (providers/anaf_bilant.py) for every ticker in bvb_cui_map.py
+# and writes bvb_anaf_cache.json next to this file. The overlay is
+# FILL-ONLY: a field is written only when the row's current value is None,
+# so the BET-20's curated CONSOLIDATED annual-report figures are never
+# replaced by the standalone statutory filing (they differ for groups).
+
+def _apply_anaf_cache() -> None:
+    import json as _json
+    from pathlib import Path as _Path
+
+    cache_path = _Path(__file__).with_name("bvb_anaf_cache.json")
+    if not cache_path.exists():
+        return
+    try:
+        cache = _json.loads(cache_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+
+    for table in (_BVB_TABLE, _BVB_REGS_TABLE):
+        for ticker, row in table.items():
+            entry = cache.get(ticker) or {}
+            fields = dict(entry.get("fields") or {})
+            if not fields:
+                continue
+            # Holding-parent guard: for group parents (Electrica etc.) the
+            # STANDALONE statutory P&L is management fees, not the group's
+            # business — e.g. EL.BVB files ~11M RON revenue against a ~5B
+            # market cap, which would render a 600% net margin. When the
+            # curated market cap dwarfs the ANAF revenue (<1%), drop the
+            # P&L fields and keep only balance items (equity / cash).
+            mc = row.get("marketCap")
+            anaf_rev = fields.get("revenue")
+            if mc and anaf_rev and anaf_rev < mc * 0.01:
+                for k in ("revenue", "netIncome", "netMargin", "roa", "debtToEquity"):
+                    fields.pop(k, None)
+            if not fields:
+                continue
+            revenue_from_anaf = False
+            filled = False
+            for key, val in fields.items():
+                if key in ("latestPeriod", "latestPeriodEnd"):
+                    continue
+                if row.get(key) is None:
+                    row[key] = val
+                    filled = True
+                    if key == "revenue":
+                        revenue_from_anaf = True
+            if not filled:
+                continue
+            # Only rows whose P&L now COMES from ANAF get the filing's
+            # period label; curated rows keep their annual-report period.
+            if revenue_from_anaf and fields.get("latestPeriod"):
+                row["latestPeriod"] = f"{fields['latestPeriod']} · ANAF"
+                row["latestPeriodEnd"] = fields.get(
+                    "latestPeriodEnd", row.get("latestPeriodEnd")
+                )
+            row["confidence"] = max(float(row.get("confidence") or 0), 0.65)
+
+
+_apply_anaf_cache()
+
+
 # ── Public accessors ────────────────────────────────────────────────────
 
 def get_bvb_snapshot(ticker: str) -> Optional[Dict[str, Any]]:
-    """Look up a BVB seed snapshot by ticker. Returns None if not in BET-20."""
-    return _BVB_TABLE.get(ticker.upper())
+    """Look up a BVB seed snapshot by ticker (BET-20 seed OR the
+    regulated-market listing rows). Returns None when not BVB-listed."""
+    t = ticker.upper()
+    return _BVB_TABLE.get(t) or _BVB_REGS_TABLE.get(t)
 
 
 def bvb_universe() -> Dict[str, Dict[str, Any]]:
-    """All BVB seed rows, keyed by ticker."""
-    return dict(_BVB_TABLE)
+    """All BVB rows (BET-20 seed first, then the rest of the regulated
+    market), keyed by ticker."""
+    return {**_BVB_TABLE, **_BVB_REGS_TABLE}
 
 
 def bvb_tickers() -> list[str]:
-    """BET-20 ticker list in canonical order."""
-    return list(_BVB_TABLE.keys())
+    """All BVB tickers — BET-20 first, then the regulated-market rest."""
+    return list(_BVB_TABLE.keys()) + list(_BVB_REGS_TABLE.keys())
 
 
 def bvb_universe_meta() -> Dict[str, Dict[str, Optional[str]]]:
@@ -460,7 +622,7 @@ def bvb_universe_meta() -> Dict[str, Dict[str, Optional[str]]]:
             "sector": row["sector"],
             "industry": row.get("industry"),
         }
-        for t, row in _BVB_TABLE.items()
+        for t, row in bvb_universe().items()
     }
 
 
@@ -476,7 +638,7 @@ def _assert_no_duplicates_with_nasdaq() -> None:
     try:
         from .universe import DEFAULT_UNIVERSE
         nasdaq_tickers = {t for t, _n, _s in DEFAULT_UNIVERSE}
-        clash = set(_BVB_TABLE.keys()) & nasdaq_tickers
+        clash = (set(_BVB_TABLE.keys()) | set(_BVB_REGS_TABLE.keys())) & nasdaq_tickers
         if clash:
             raise ValueError(
                 f"BVB ticker(s) collide with NASDAQ universe: {sorted(clash)}. "
@@ -492,6 +654,15 @@ _assert_no_duplicates_with_nasdaq()
 assert len(_BVB_TABLE) == 20, (
     f"BVB seed must have exactly 20 BET-index constituents "
     f"(currently {len(_BVB_TABLE)})"
+)
+assert len(_BVB_REGS_TABLE) == 68, (
+    f"BVB regulated-market listing table must cover the 68 non-BET main-market "
+    f"companies (88 listed total on m.bvb.ro as of 2026-07-23; currently "
+    f"{len(_BVB_REGS_TABLE)})"
+)
+assert not (set(_BVB_TABLE) & set(_BVB_REGS_TABLE)), (
+    "A ticker appears in BOTH the BET-20 seed and the listing table — "
+    "remove it from the listing table."
 )
 
 

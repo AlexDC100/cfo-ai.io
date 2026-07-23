@@ -38,8 +38,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Globe,
+  Home,
   // LogOut import dropped — sign-out moved to AccountMenu. Re-add if
   // the sidebar row is ever restored (see comment near the System group).
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import { SUPPORTED_LANGUAGES, pickLanguageWithProfileSync } from "@/i18n";
@@ -106,6 +108,7 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   // (/workspace) is no longer a rail item — it's reached via the "No workspace
   // loaded" affordance in the WorkspaceIdentity header instead.
   { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "intelligence", end: true },
+  { to: "/workspace",  labelKey: "sidebar.workspaces", icon: Building2,       testId: "sidebar-workspaces", group: "intelligence" },
   { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "intelligence" },
   // Public Company Intelligence — first-class module, sits in Intelligence
   // group right next to Dashboard + Ask CFO AI. Lands on the hub page
@@ -132,6 +135,9 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   // an upload affordance (Dashboard empty-state, Replace dropdown,
   // Command Center → Data) so a separate sidebar item was a duplicate.
   { to: "/settings",   labelKey: "sidebar.settings",   icon: SettingsIcon,    testId: "sidebar-settings",   group: "workspace" },
+  // Landing website — back to the public marketing site. `end: true` so the
+  // "/" route doesn't render as active on every other page.
+  { to: "/",           labelKey: "sidebar.website",    icon: Home,            testId: "sidebar-website",    group: "workspace", end: true },
 ];
 
 /** Apply build-time + registry-time gating. `hidden` / missing registry
@@ -321,22 +327,12 @@ function WorkspaceIdentity({
 }) {
   return (
     <div className="px-3 pt-4 pb-3 border-b border-rule/60">
-      {/* The identity block IS the entry point to the Workspace hub
-          (/workspace) — the only one since the rail item was removed. It shows
-          the selected workspace (company + period) when one is loaded and
-          "No workspace loaded" otherwise, and carries the selected-tab styling
-          (brand border + tint) when the user is on /workspace. */}
-      <NavLink
-        to="/workspace"
-        onClick={onNavigate}
+      {/* Identity is DISPLAY-ONLY since 2026-07-23 — navigation to the
+          Workspace hub moved to the normal "Workspaces" rail item under
+          Dashboard. This block just states which company + period is loaded. */}
+      <div
         data-testid="sidebar-no-workspace"
-        className={({ isActive }) =>
-          `block rounded-lg border px-2 py-1 transition-colors ${
-            isActive
-              ? "border-brand/40 bg-brand/10"
-              : "border-transparent hover:bg-bg-2/70"
-          }`
-        }
+        className="block rounded-lg px-2 py-1"
       >
         {companyName ? (
           <>
@@ -354,7 +350,7 @@ function WorkspaceIdentity({
             No workspace loaded
           </span>
         )}
-      </NavLink>
+      </div>
     </div>
   );
 }

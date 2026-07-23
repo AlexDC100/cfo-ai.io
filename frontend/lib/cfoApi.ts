@@ -219,6 +219,17 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
       if (token && !headers.Authorization) {
         headers.Authorization = `Bearer ${token}`;
       }
+      // Which workspace (organization) this request is about. The engine
+      // validates it against the caller's memberships and 403s on a
+      // non-member org — it is a selector, never a grant. Without it the
+      // backend falls back to the user's oldest workspace, which is wrong
+      // for anyone running more than one company.
+      const uid = data.session?.user?.id;
+      if (uid && !headers["X-Org-Id"]) {
+        const { getActiveOrgId } = await import("@/lib/activeOrg");
+        const orgId = getActiveOrgId(uid);
+        if (orgId) headers["X-Org-Id"] = orgId;
+      }
     }
   } catch { /* supabase not loaded — proceed unauthenticated */ }
 

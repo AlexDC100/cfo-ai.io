@@ -83,7 +83,7 @@ export function AIInvestmentInterpretation({ demoMode }: Props) {
           {demoMode ? (
             <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-mute">
               <Lock size={11} strokeWidth={1.75} />
-              Live AI interpretation activates once the Sharadar key is configured + entitled
+              Live AI interpretation activates once live market data is connected
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-mute">

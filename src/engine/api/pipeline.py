@@ -41,6 +41,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from . import _detect
+from . import _org
 from . import _supabase
 from . import _usage_limits
 from . import _valuation
@@ -4141,7 +4142,10 @@ def build_router() -> APIRouter:
             }
 
     @router.get("/api/org/periods-with-documents")
-    def list_periods_with_documents(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    def list_periods_with_documents(
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
         """Right-anchored Docs panel feed: every financial_period the user's
         org has, with the source documents that produced it, ordered newest
         first. Plus a `recently_deleted` shelf for soft-deleted docs that
@@ -4152,17 +4156,15 @@ def build_router() -> APIRouter:
         from datetime import datetime, timezone, timedelta
 
         jwt = _require_jwt(authorization)
-        with _supabase.per_user(jwt) as client:
-            # Caller's active org (first membership).
-            session = client.get_user(jwt)
-            user_id = session.get("id") or session.get("user", {}).get("id")
-            if not user_id:
-                raise HTTPException(401, "Could not resolve user from JWT.")
-            mems = client.select("memberships", filters={"user_id": f"eq.{user_id}"}, limit=1)
-            if not mems:
+        # Caller's ACTIVE workspace — validated against membership, not the
+        # first row. See _org.resolve_org.
+        try:
+            _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        except HTTPException as exc:
+            if exc.status_code == 404:
                 return {"active_period_id": None, "periods": [], "recently_deleted": []}
-            org_id = mems[0]["org_id"]
-
+            raise
+        with _supabase.per_user(jwt) as client:
             periods = client.select(
                 "financial_periods",
                 filters={"org_id": f"eq.{org_id}"},
@@ -4446,6 +4448,7 @@ def build_router() -> APIRouter:
     @router.post("/api/documents/clear-mine")
     def clear_my_uploads(
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
         """Settings → Data → "Clear all my uploaded documents."
         Soft-deletes every live document in the caller's org with a
@@ -4475,21 +4478,15 @@ def build_router() -> APIRouter:
         Returns: {"deleted_count": N, "org_id": "..."}.
         """
         jwt = _require_jwt(authorization)
-        # Inline org resolution — mirrors the pattern used by the
-        # adjacent /api/org/periods-with-documents endpoint above
-        # (line ~3160). Kept inline to avoid a cross-module import
-        # from _benchmarks.py (which would create a circular dep).
-        with _supabase.per_user(jwt) as client:
-            session = client.get_user(jwt)
-            user_id = session.get("id") or session.get("user", {}).get("id")
-            if not user_id:
-                raise HTTPException(401, "Could not resolve user from JWT.")
-            mems = client.select(
-                "memberships", filters={"user_id": f"eq.{user_id}"}, limit=1,
-            )
-            if not mems:
+        # Caller's ACTIVE workspace. This used to be inlined (to dodge a
+        # circular import from _benchmarks.py) and took the first membership;
+        # _org has no router deps, so it can be imported safely.
+        try:
+            _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        except HTTPException as exc:
+            if exc.status_code == 404:
                 return {"deleted_count": 0, "org_id": None, "deleted_at": None}
-            org_id = mems[0]["org_id"]
+            raise
 
         now = _now_iso()
         # Single UPDATE via PostgREST — atomic, org-scoped via the

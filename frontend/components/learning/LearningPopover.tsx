@@ -973,7 +973,7 @@ function SourceTraceBlock({
 
   switch (trace.sourceType) {
     case "nasdaq":
-      provider = "Nasdaq Data Link";
+      provider = "BVB · issuer filings";
       dataset = trace.dataset;
       asOf = trace.asOf;
       confidence = trace.confidence;

@@ -12,11 +12,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       toastOptions={{
         classNames: {
+          // !important-flagged app tokens — the previous group-[.toaster]
+          // recipe lost to sonner's own styles and rendered bare text with
+          // no background (2026-07-23 fix).
           toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
-          actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-          cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+            "!bg-surface !text-ink !border !border-rule !shadow-xl !rounded-xl",
+          title: "!text-ink !font-semibold",
+          description: "!text-ink-soft",
+          actionButton: "!bg-brand !text-bg !font-medium",
+          cancelButton: "!bg-bg-2 !text-ink-soft",
+          success: "!bg-surface !text-ink !border-brand/40",
+          error: "!bg-surface !text-ink !border-alert/40",
+          warning: "!bg-surface !text-ink !border-caution/40",
+          info: "!bg-surface !text-ink !border-rule",
         },
       }}
       {...props}

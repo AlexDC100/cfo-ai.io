@@ -9,6 +9,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Alert, AlertStatus } from "@/lib/alerts";
+import { getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -53,31 +54,41 @@ export function getSupabase(): SupabaseClient | null {
   return client;
 }
 
-// Resolves the active org_id for the signed-in user. Phase 3 introduced
-// a real organizations table — `currentOrgId()` reads the user's first
-// membership instead of using auth.uid(). The is_member_of() RLS policy
-// validates server-side, so a client sending a stale value gets 403.
+// Resolves the org_id of the workspace the user currently has open. Every
+// org-scoped read and write in this file funnels through here, so this is the
+// function that makes workspaces a real isolation boundary: point it at a
+// different org and the whole app re-scopes.
 //
-// During the rollout window where some users still have legacy rows whose
-// org_id == auth.uid(), the legacy "owner" RLS policies remain in place
-// alongside the new "member" ones so reads keep working. Writes always
-// use the membership-derived org_id below.
-async function currentOrgId(): Promise<string | null> {
+// The active id is owned by lib/activeOrg.ts (uid-scoped, so a different user
+// on this browser can never inherit it) and kept in sync with
+// `user_prefs.active_org_id` by lib/org.ts. When it's cold — first load, or a
+// device that has never opened this account — we fall back to the user's
+// oldest membership and remember that choice.
+//
+// There is deliberately NO `return user.id` fallback. That used to paper over
+// a failed membership read by treating the user id as an org id, which wrote
+// rows into an organization that does not exist; under multi-org those rows
+// are unreachable. Returning null makes callers no-op instead.
+export async function currentOrgId(): Promise<string | null> {
   if (!client) return null;
   const { data: session } = await client.auth.getSession();
   const user = session.session?.user;
   if (!user) return null;
+
+  const active = getActiveOrgId(user.id);
+  if (active) return active;
+
   const { data, error } = await client
     .from("memberships")
-    .select("org_id")
+    .select("org_id, created_at")
     .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error || !data) {
-    // Fallback during the rollout: legacy data uses auth.uid() as org_id.
-    return user.id;
-  }
-  return data.org_id;
+  if (error || !data) return null;
+
+  setActiveOrgId(user.id, data.org_id as string);
+  return data.org_id as string;
 }
 
 // ─────────── Alert state persistence ───────────────────────────────────────

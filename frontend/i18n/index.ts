@@ -99,13 +99,28 @@ void i18n
     saveMissing: import.meta.env.DEV,
     missingKeyHandler: (lngs, ns, key) => {
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.warn(`[i18n] Missing key: ${key} (${Array.isArray(lngs) ? lngs.join(",") : lngs})`);
       }
     },
   });
 
 export default i18n;
+
+// ── Language-switch overlay bus ─────────────────────────────────────────
+// Every USER-initiated language change funnels through setLanguage() (the
+// landing picker, sidebar Globe, header LanguageToggle and Settings all call
+// it, directly or via pickLanguageWithProfileSync). The fullscreen spinner
+// overlay (components/LanguageSwitchOverlay.tsx) subscribes here so it covers
+// the screen while the UI re-renders in the new language. Programmatic
+// changes (boot detection, profile adoption) call i18n.changeLanguage
+// directly and deliberately do NOT trigger the overlay.
+type LanguageSwitchListener = (code: string) => void;
+const languageSwitchListeners = new Set<LanguageSwitchListener>();
+
+export function onLanguageSwitchStart(fn: LanguageSwitchListener): () => void {
+  languageSwitchListeners.add(fn);
+  return () => { languageSwitchListeners.delete(fn); };
+}
 
 /** Imperative language change — persists to localStorage. Marketing footer
  *  switcher and Settings → Language both call this. */
@@ -114,6 +129,10 @@ export function setLanguage(code: string): void {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
   } catch {
     /* private mode — best effort */
+  }
+  // Re-selecting the current language is a no-op — no overlay flash.
+  if (code !== i18n.language) {
+    languageSwitchListeners.forEach((fn) => fn(code));
   }
   void i18n.changeLanguage(code);
 }

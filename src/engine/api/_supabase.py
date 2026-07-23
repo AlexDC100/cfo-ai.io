@@ -66,6 +66,29 @@ class SupabaseClient:
 
     # ── REST (PostgREST) ──────────────────────────────────────────────────
 
+    def rpc(self, fn: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """Call a Postgres function via PostgREST (`/rest/v1/rpc/<fn>`).
+
+        Used for the SECURITY DEFINER workspace functions, which exist
+        precisely because the tables they touch have no client-writable RLS
+        policy. Returns the function's decoded JSON result (scalar, object or
+        array, depending on the function's return type).
+        """
+        r = self._client.post(
+            f"{self.url}/rest/v1/rpc/{fn}",
+            json=params or {},
+            headers=self._headers,
+        )
+        if r.status_code >= 400:
+            try:
+                detail = r.json()
+            except Exception:
+                detail = r.text
+            raise RuntimeError(f"rpc {fn} failed ({r.status_code}): {detail}")
+        if not r.content:
+            return None
+        return r.json()
+
     def select(self, table: str, *, filters: Optional[Dict[str, str]] = None,
                columns: str = "*", limit: Optional[int] = None,
                order: Optional[str] = None, single: bool = False) -> List[Dict[str, Any]]:

@@ -18,11 +18,31 @@
 //     `style-hover`) are replaced with `data-act`, conditional string
 //     assembly, and scoped `:hover` CSS classes respectively.
 
-import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent as ReactFormEvent,
+  type MouseEvent as ReactMouseEvent,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
+import { useAuth } from "@/lib/auth";
+import { getSupabase } from "@/lib/supabase";
+import { pickLanguageWithProfileSync, SUPPORTED_LANGUAGES } from "@/i18n";
+import { landingStringsFor, type LandingStrings } from "./landingStrings";
 
-type Page = "home" | "pricing" | "privacy" | "cookies" | "terms" | "contact";
-const VALID_PAGES: Page[] = ["home", "pricing", "privacy", "cookies", "terms", "contact"];
+type Page = "home" | "pricing" | "contact" | "legal";
+const VALID_PAGES: Page[] = ["home", "pricing", "contact", "legal"];
+
+// The three legal documents live as SECTIONS of the single legal page.
+// Legacy acts/hashes (privacy/cookies/terms) resolve to legal + a scroll.
+type LegalDoc = "privacy" | "cookies" | "terms";
+const LEGAL_DOCS: LegalDoc[] = ["privacy", "cookies", "terms"];
 
 const CONSENT_KEY = "cfoai_consent";
 
@@ -39,12 +59,13 @@ const SITE_CSS = `
   --mono:"JetBrains Mono",ui-monospace,monospace;
   --grad:linear-gradient(135deg,#1B7268 0%,#22897E 25%,#2AA89B 55%,#45C6B8 80%,#5CD3C5 100%);
   --grad-text:linear-gradient(120deg,#2AA89B 0%,#5CD3C5 55%,#8FE3D9 100%);
-  --maxw:1200px;
+  --maxw:1440px;
   min-height:100vh;background:var(--bg);color:var(--ink);
   font-family:var(--sans);font-size:16px;line-height:1.55;
   -webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1;
 }
 .cfo-site *{box-sizing:border-box}
+.cfo-site--bare{min-height:0;background:transparent}
 .cfo-site a{color:var(--brand);text-decoration:none;transition:color .15s ease;cursor:pointer}
 .cfo-site a:hover{color:var(--brand-l)}
 .cfo-site p{margin:0 0 1em}
@@ -59,11 +80,49 @@ const SITE_CSS = `
 .cfo-site .btn-ghost2:hover{border-color:var(--ink-mute);background:var(--surface-hi)}
 .cfo-site .hv-brand:hover{border-color:var(--brand);color:var(--brand)}
 .cfo-site .card-hl{transition:border-color .15s ease}
-.cfo-site .card-hl:hover{border-color:rgba(92,211,197,.4)}
+.cfo-site .card-hl:hover{border-color:rgba(92,211,197,.4) !important}
+.cfo-site .pricing-card{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.cfo-site .pricing-card:hover{transform:translateY(-2px);border-color:rgba(92,211,197,.5) !important;box-shadow:0 20px 40px -30px rgba(92,211,197,.3)}
 .cfo-site nav button:hover,.cfo-site nav a:hover{color:var(--ink)}
-.cfo-site footer a:hover,.cfo-site footer button:hover{color:var(--ink)}
+.cfo-site footer a,.cfo-site footer button{opacity:.7;transition:opacity .15s ease}
+.cfo-site footer a:hover,.cfo-site footer button:hover{opacity:1}
 .cfo-site .navbtn{background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)}
-@keyframes cfo-floatglow{0%,100%{opacity:.5;transform:translateY(0)}50%{opacity:.8;transform:translateY(-12px)}}
+.cfo-site .navbtn.is-active{color:var(--brand);position:relative}
+.cfo-site .navbtn.is-active::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:2px;background:var(--brand);border-radius:2px}
+.cfo-site nav .navbtn.is-active:hover{color:var(--brand)}
+.cfo-site .menu-item{display:flex;width:100%;align-items:center;padding:10px 12px;border:none;background:none;border-radius:9px;font-size:13.5px;color:var(--ink-2);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s,color .15s}
+.cfo-site .menu-item:hover{background:var(--surface-hi);color:var(--ink)}
+.cfo-site .field{width:100%;background:var(--bg-2);border:1px solid var(--rule);border-radius:10px;padding:11px 14px;color:var(--ink);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}
+.cfo-site .field:focus{border-color:var(--brand)}
+.cfo-site .field::placeholder{color:var(--ink-mute)}
+.cfo-site .site-header{background:rgba(10,10,10,.72);backdrop-filter:blur(18px);border-bottom:1px solid var(--rule-soft);transition:background .35s ease,backdrop-filter .35s ease,border-color .35s ease}
+.cfo-site.at-top .site-header{background:rgba(10,10,10,0);backdrop-filter:blur(0px);border-bottom-color:transparent}
+.cfo-site .site-header-row{height:66px;transition:height .35s ease}
+.cfo-site .desktop-nav{display:flex}
+.cfo-site .desktop-actions{display:flex}
+.cfo-site .burger-btn{display:none;background:none;border:none;cursor:pointer;padding:6px;color:var(--ink);align-items:center;justify-content:center;border-radius:8px}
+.cfo-site .burger-btn:hover{background:var(--surface-hi)}
+.cfo-site .mobile-menu-panel{display:none}
+/* The panel is deliberately position:absolute — a normal-flow child would
+   grow .cred-pill's own box as it opens, and since only the outermost
+   .site-header-row has a fixed height (not the intermediate .desktop-actions
+   flex container), that growth was propagating up and visibly resizing the
+   header row itself. Absolute positioning removes the panel from flow
+   entirely, so .cred-pill's box (and everything above it) never changes
+   size — it just LOOKS attached (zero gap, matching border/radius/color). */
+.cfo-site .cred-pill{position:relative;border:1px solid var(--rule-strong);background:var(--bg-2);border-radius:999px}
+.cfo-site .cred-pill-panel{position:absolute;top:calc(100% + 1px);left:-1px;right:-1px;background:var(--bg-2);border:1px solid var(--rule-strong);border-radius:14px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-index:1}
+.cfo-site .cred-pill.is-open .cred-pill-panel{opacity:1;transform:translateY(0);pointer-events:auto}
+.cfo-site .cred-pill-arrow svg{transform:rotate(0deg)}
+.cfo-site .cred-pill.is-open .cred-pill-arrow svg{transform:rotate(180deg)}
+@media (max-width:760px){
+  .cfo-site .desktop-nav{display:none}
+  .cfo-site .desktop-actions{display:none}
+  .cfo-site .burger-btn{display:inline-flex}
+  .cfo-site .mobile-menu-panel{display:block}
+}
+.cfo-site.at-top .site-header-row{height:96px}
+@keyframes cfo-heroBoardDrift{0%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}50%{transform:perspective(1400px) rotateX(6deg) rotateY(-3deg) scale(1.8)}100%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}}
 `;
 
 const LOGO = `<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><path d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z" fill="#5CD3C5"></path><path d="M 38 14 L 60 60 L 48 60 L 38 38 Z" fill="#F4F6F8"></path><rect x="34" y="34" width="14" height="3" fill="#F4F6F8"></rect></svg>`;
@@ -72,45 +131,392 @@ function eyebrow(label: string) {
   return `<div style="display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-soft);font-weight:500"><span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${label}</div>`;
 }
 
-const HEADER = `
-<header style="position:sticky;top:0;z-index:50;backdrop-filter:blur(18px);background:rgba(10,10,10,.72);border-bottom:1px solid var(--rule-soft)">
-  <div style="max-width:var(--maxw);margin:0 auto;padding:0 24px;height:66px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+// Escape user-controlled strings (name / email) before splicing them into
+// the innerHTML header — the rest of the markup is static and trusted.
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+interface HeaderAccount {
+  name: string;
+  email: string;
+  initials: string;
+}
+
+// Localized in-page link button (used inside FAQ answers / consent body).
+const inlineLink = (act: string, label: string) =>
+  `<button data-act="${act}" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">${label}</button>`;
+
+function header(
+  account: HeaderAccount | null,
+  page: Page | null,
+  langOpen: boolean,
+  langCode: string,
+  L: LandingStrings,
+  // true only for the home page: the header floats over the hero (out of
+  // flow) so the ticker board can show through it at the top. Every other
+  // usage (pricing/contact/legal, and MarketingHeader on /account/settings)
+  // keeps the normal sticky, in-flow header — those pages have no hero
+  // background to reveal, and their own top spacing already assumes the
+  // header pushes content down like a normal sticky bar.
+  overlay = false,
+  mobileMenuOpen = false,
+) {
+  // Nav tabs — the current internal page gets the brand highlight.
+  const tab = (act: Page, label: string) =>
+    `<button class="navbtn${page === act ? " is-active" : ""}" data-act="${act}">${label}</button>`;
+  const mobileTab = (act: Page, label: string) =>
+    `<button class="menu-item" data-act="${act}" style="${page === act ? "color:var(--brand)" : ""}">${label}</button>`;
+
+  // Signed out: Sign in + Get started. Signed in: an account chip (avatar
+  // with initials, name, email underneath) that opens a dropdown with
+  // Settings + Sign out.
+  // The account chip IS the dropdown: one bordered container whose border
+  // radius morphs from a full pill to a rounded rect and whose bottom edge
+  // expands to reveal the menu buttons — no separate floating popup.
+  // Always rendered CLOSED here — open/close is a classList.toggle("is-open")
+  // in Landing()'s click handler (direct DOM mutation, not React state), so
+  // the CSS transitions actually animate. If this were driven by a state
+  // variable feeding back into this string (like it used to be), every
+  // toggle would regenerate + replace the header's DOM subtree, and a
+  // freshly-created element has no "previous" style to transition from —
+  // the exact bug reported ("dropdown does not animate").
+  const authArea = account
+    ? `
+    <div class="cred-pill">
+      <button data-act="account" style="display:flex;width:100%;align-items:center;gap:11px;background:transparent;border:none;border-radius:inherit;overflow:hidden;padding:5px 16px 5px 6px;cursor:pointer;font-family:inherit">
+        <span style="width:34px;height:34px;border-radius:50%;background:var(--grad);color:#04110F;display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;letter-spacing:.02em;flex-shrink:0">${esc(account.initials)}</span>
+        <span style="display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.3;text-align:left">
+          <span style="font-size:13px;font-weight:600;color:var(--ink)">${esc(account.name)}</span>
+          <span style="font-size:11px;color:var(--ink-mute)">${esc(account.email)}</span>
+        </span>
+        <span class="cred-pill-arrow" style="flex-shrink:0;width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:var(--ink-mute);margin-left:2px">
+          <svg width="10" height="7" viewBox="0 0 10 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1L5 5.5L9 1"></path></svg>
+        </span>
+      </button>
+      <div class="cred-pill-panel">
+        <div style="padding:6px">
+          <button data-act="app" class="menu-item">${L.menu.openApp}</button>
+          <button data-act="account:settings" class="menu-item">${L.menu.settings}</button>
+          <div style="height:1px;background:var(--rule-soft);margin:6px 8px"></div>
+          <button data-act="account:signout" class="menu-item" style="color:var(--alert)">${L.menu.signOut}</button>
+        </div>
+      </div>
+    </div>`
+    : `
+    <button class="navbtn" data-act="signin">${L.auth.signIn}</button>
+    <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;background:var(--grad);color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 16px -6px rgba(92,211,197,.5)">${L.auth.getStartedFree}</a>`;
+
+  return `
+<header class="site-header" style="position:${overlay ? "fixed" : "sticky"};top:0;left:0;right:0;z-index:50">
+  <div class="site-header-row" style="max-width:var(--maxw);margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
     <button data-act="home" style="display:inline-flex;align-items:center;gap:11px;background:none;border:none;cursor:pointer;padding:0">
       ${LOGO}
       <span style="display:inline-flex;flex-direction:column;line-height:1"><span style="font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--ink)">CFO <span style="color:var(--brand)">AI</span></span></span>
-      <span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-mute);padding-left:12px;border-left:1px solid var(--rule);height:22px;display:inline-flex;align-items:center">Financial Intelligence</span>
     </button>
-    <nav style="display:flex;align-items:center;gap:26px;margin-left:8px;flex-wrap:wrap">
-      <button class="navbtn" data-act="scroll:product">Product</button>
-      <button class="navbtn" data-act="pricing">Pricing</button>
-      <button class="navbtn" data-act="scroll:faq">FAQ</button>
-      <button class="navbtn" data-act="contact">Contact</button>
-      <button class="navbtn" data-act="app" style="color:var(--brand)">App</button>
+    <nav class="desktop-nav" style="align-items:center;gap:26px;margin-left:8px;flex-wrap:wrap">
+      ${tab("home", L.nav.home)}
+      ${tab("pricing", L.nav.pricing)}
+      ${tab("legal", L.nav.legal)}
+      ${tab("contact", L.nav.contact)}
+      <button class="navbtn" data-act="workspace" style="color:var(--brand)">${L.nav.workspace}</button>
     </nav>
     <div style="flex:1"></div>
-    <button class="navbtn" data-act="signin">Sign in</button>
-    <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;background:var(--grad);color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 16px -6px rgba(92,211,197,.5)">Get started — free →</a>
+    <div class="desktop-actions" style="align-items:center;gap:24px">
+      <div style="position:relative;display:inline-flex">
+        <button class="navbtn" data-act="lang" title="${L.nav.language}">${esc(langCode.toUpperCase())}</button>
+        ${langOpen ? `
+        <div style="position:absolute;right:0;top:calc(100% + 12px);min-width:170px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:14px;padding:6px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);z-index:60">
+          ${SUPPORTED_LANGUAGES.map((l) => `
+          <button data-act="lang:${l.code}" class="menu-item" style="gap:9px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.flag} ${l.label}${l.code === langCode ? `<span style="margin-left:auto">✓</span>` : ""}</button>`).join("")}
+        </div>` : ""}
+      </div>${authArea}
+    </div>
+    <button class="burger-btn" data-act="burger" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="2.5" y1="5" x2="17.5" y2="5"></line><line x1="2.5" y1="10" x2="17.5" y2="10"></line><line x1="2.5" y1="15" x2="17.5" y2="15"></line></svg>
+    </button>
   </div>
+  ${mobileMenuOpen ? `
+  <div class="mobile-menu-panel" style="border-top:1px solid var(--rule-soft);padding:10px 14px 14px">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      ${mobileTab("home", L.nav.home)}
+      ${mobileTab("pricing", L.nav.pricing)}
+      ${mobileTab("legal", L.nav.legal)}
+      ${mobileTab("contact", L.nav.contact)}
+      <button class="menu-item" data-act="workspace" style="color:var(--brand)">${L.nav.workspace}</button>
+    </div>
+    <div style="height:1px;background:var(--rule-soft);margin:10px 4px"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 4px">
+      ${SUPPORTED_LANGUAGES.map((l) => `<button data-act="lang:${l.code}" class="menu-item" style="width:auto;flex:0 0 auto;gap:7px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.flag} ${l.label}</button>`).join("")}
+    </div>
+    <div style="height:1px;background:var(--rule-soft);margin:10px 4px"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:0 4px">
+      ${account ? `
+      <button class="menu-item" data-act="app">${L.menu.openApp}</button>
+      <button class="menu-item" data-act="account:settings">${L.menu.settings}</button>
+      <button class="menu-item" data-act="account:signout" style="color:var(--alert)">${L.menu.signOut}</button>` : `
+      <button class="menu-item" data-act="signin">${L.auth.signIn}</button>
+      <a href="/signup" data-act="signup" class="btn-grad" style="display:flex;align-items:center;justify-content:center;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-size:14px;font-weight:500">${L.auth.getStartedFree}</a>`}
+    </div>
+  </div>` : ""}
 </header>`;
+}
 
-const HOME = `
-<main>
-  <section style="position:relative;overflow:hidden">
-    <div aria-hidden="true" style="position:absolute;top:-160px;left:-120px;width:620px;height:620px;border-radius:50%;background:rgba(92,211,197,.11);filter:blur(120px);pointer-events:none"></div>
-    <div aria-hidden="true" style="position:absolute;top:-120px;right:-80px;width:500px;height:500px;border-radius:50%;background:rgba(43,168,155,.10);filter:blur(120px);pointer-events:none;animation:cfo-floatglow 9s ease-in-out infinite"></div>
-    <div style="position:relative;max-width:1000px;margin:0 auto;padding:72px 24px 76px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      ${eyebrow("CFO AI · Built for private businesses")}
-      <h1 style="margin-top:26px;font-family:var(--serif);font-weight:400;font-size:clamp(40px,6.4vw,66px);line-height:1.04;letter-spacing:-.025em;max-width:920px;color:var(--ink)">Turn a trial balance into a <span class="grad-text">CFO-grade analysis</span> in 90 seconds.</h1>
-      <p style="margin-top:22px;font-size:clamp(16px,2vw,18px);line-height:1.6;color:var(--ink-soft);max-width:660px">Upload your books. CFO AI reconstructs your P&amp;L, balance sheet, cash flow, 100+ ratios, valuation and credit score — then benchmarks you against public companies your size, in your sector. Named comparisons, not vague industry averages.</p>
-      <div style="margin-top:34px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
-        <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">Start free — no credit card →</a>
-        <button data-act="pricing" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px;cursor:pointer;font-family:inherit">See pricing</button>
-      </div>
-      <ul style="margin:26px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:center;font-size:12.5px;color:var(--ink-soft)">
-        <li style="display:inline-flex;align-items:center;gap:7px"><span style="color:var(--brand)">✓</span> 30-day trial</li>
-        <li style="display:inline-flex;align-items:center;gap:7px"><span style="color:var(--brand)">✓</span> RAS / EU filings supported</li>
-        <li style="display:inline-flex;align-items:center;gap:7px"><span style="color:var(--brand)">✓</span> Cancel anytime</li>
+// Pricing cards — shared between the home page's #pricing section (footer
+// anchor target) and the standalone pricing page.
+const featureLi = (x: string) => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`;
+
+const pricingGrid = (L: LandingStrings) => `
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;align-items:stretch;max-width:1320px;margin:0 auto">
+    <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
+      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.solo.name}</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€19.99</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.solo.yearly}</div>
+      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.solo.blurb}</p>
+      <a href="/signup?plan=solo" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.solo.cta}</a>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+        ${L.pricing.solo.features.map(featureLi).join("")}
       </ul>
+    </div>
+    <div class="pricing-card" style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(92,211,197,.5)">
+      <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:#04110F;background:var(--brand);padding:4px 12px;border-radius:999px">${L.pricing.business.badge}</span>
+      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">${L.pricing.business.name}</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€59</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.business.yearly}</div>
+      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.business.blurb}</p>
+      <a href="/signup?plan=business" data-act="signup:business" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+        ${featureLi(L.pricing.business.lead[0])}
+        ${featureLi(`<strong>${L.pricing.business.lead[1]}</strong>`)}
+        ${L.pricing.business.features.map(featureLi).join("")}
+      </ul>
+    </div>
+    <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
+      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.pro.name}</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink)">${L.pricing.pro.price}</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.pro.priceNote}</div>
+      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.pro.blurb}</p>
+      <button data-act="contact" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">${L.pricing.pro.cta}</button>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+        ${featureLi(L.pricing.pro.lead[0])}
+        ${featureLi(`<strong>${L.pricing.pro.lead[1]}</strong>`)}
+        ${L.pricing.pro.features.map(featureLi).join("")}
+      </ul>
+    </div>
+  </div>
+  <p style="text-align:center;margin-top:28px;font-size:12.5px;color:var(--ink-mute)">${L.pricing.note}</p>`;
+
+// ── Hero ticker board — a performance-tuned port of the reference design's
+// "Animated ticker board background" + "Readability overlays": row
+// mechanics (price drift, flash-on-update, digit-scramble while updating,
+// hi/lo band, 7-bar sparkline) are kept, but tuned for FPS — see the perf
+// notes below — and the up-color now uses the site's own
+// brand accent instead of the reference's generic green. Values are
+// synthetic (non-real) market data — pure decoration, not depicting actual
+// securities. The reference's own nav bar and the scrolling ticker strip
+// are intentionally NOT ported (real header already exists; the strip was
+// cut for FPS). The reference's hero copy/CTAs are intentionally NOT
+// ported either — this app's hero keeps its own localized headline/CTAs.
+//
+// Perf notes (this board was laggy at the reference's literal fidelity):
+//   · 135 rows → 60: cuts baseline DOM node + style-recalc count by >50%.
+//   · Per-row formatting is cached by row-object IDENTITY in a WeakMap, so
+//     a tick only recomputes rows whose underlying state actually changed
+//     (~28% of rows per tick) instead of all of them; combined with
+//     React.memo on the row component, unchanged rows do zero React/DOM
+//     work per tick.
+//   · Dropped the `text-shadow` glow on flash (kept the reference's
+//     `filter: blur()` shuffle effect, per an explicit ask, even though
+//     it's the pricier of the two to animate on many elements at once).
+//   · Shorter shuffle window (3 ticks @ 90ms vs. 5 @ 70ms) shrinks the
+//     average number of rows mid-animation at any moment.
+//
+// The surrounding page is a static HTML string (see homeMain below), so
+// the live grid is portalled in from the Landing() component into the
+// #cfo-ticker-board placeholder that string emits.
+const TICKER_SYMS = [
+  "LRTX", "TSPN", "YFGO", "JTZU", "RHVX", "KLAE", "MIPX", "TDBS", "PGFX", "OXNR",
+  "VRTX", "QMEL", "HXOM", "ZBRN", "FLKT", "DWSA", "NPRL", "CVGT", "SBKO", "ULMD",
+  "ARNQ", "EFJT", "GHWX", "ORBD", "MSTV", "KDPL", "BNRC", "TQIL", "WXZO", "JPHA",
+  "CETR", "LUVN", "FGDM", "RYKO", "SNTE", "HBQI", "PVAX", "XLOR", "DZMK", "TWEB",
+  "ONYX", "GRFC", "MABL", "KVST", "EPRO", "ZUNI", "CLDH", "ITRX", "BLQM", "TARN",
+  "VOXE", "HMKD", "SPRW", "JULE", "CRNT", "FYBR", "NODZ", "GLNT", "PIRA", "MERX",
+  "QUOD", "AXIL", "WREN", "TOVA", "KYRO", "ZELP", "DRUM", "NAVI", "OPLE", "SIFT",
+  "HULM", "EMBR", "ACRU", "BEXT", "CYND", "DOVR", "ELMX", "FINT", "GORM", "HYVE",
+  "IRUX", "JAXN", "KELP", "LUMO", "MIRV", "NEXA", "OBRN", "PLYT", "QIRO", "RUVA",
+  "STRN", "TUNK", "UVIA", "VELT", "WOLM", "XANT", "YODL", "ZEPH", "ARBO", "BRUX",
+];
+
+const UP_COLOR = "var(--brand)"; // the site's accent teal, in place of the reference's generic green
+const DOWN_COLOR = "var(--alert)";
+const UP_FLASH_BG = "rgba(92,211,197,0.14)";
+const DOWN_FLASH_BG = "rgba(255,107,107,0.12)";
+
+interface BoardRowState { sym: string; price: number; pct: number; flash: 0 | 1 | -1; shuffle: number }
+
+function makeInitialBoardRows(): BoardRowState[] {
+  return TICKER_SYMS.map((sym) => ({
+    sym,
+    price: 20 + Math.random() * 900,
+    pct: Math.random() * 12 - 6,
+    flash: 0,
+    shuffle: 0,
+  }));
+}
+
+function scrambleDigits(str: string): string {
+  return str.replace(/\d/g, () => String(Math.floor(Math.random() * 10)));
+}
+
+function volOfRow(price: number): string {
+  return (((price * 137) % 900) + 40).toFixed(1) + "K";
+}
+
+interface BoardBar { height: number; opacity: number }
+
+// A fixed "shape" for the 7-bar sparkline (with index jitter for variety) —
+// the actual reaction to live data is the whole cluster's scale, below.
+function barsOfRow(i: number): BoardBar[] {
+  return [4, 7, 5, 9, 6, 10, 7].map((h, k) => ({
+    height: h + ((i * 3 + k * 5) % 5),
+    opacity: 0.5 + k * 0.07,
+  }));
+}
+
+interface FormattedBoardRow {
+  sym: string; price: string; arrow: string; pct: string; vol: string; hiLo: string;
+  color: string; priceColor: string; rowBg: string;
+  numOpacity: number; numFilter: string; barScale: number;
+  bars: BoardBar[];
+}
+
+function formatBoardRow(r: BoardRowState, i: number): FormattedBoardRow {
+  const up = r.pct >= 0;
+  const flashColor = r.flash === 1 ? UP_COLOR : DOWN_COLOR;
+  const color = up ? UP_COLOR : DOWN_COLOR;
+  const rawPrice = r.price.toFixed(2);
+  const rawPct = `${up ? "+" : ""}${r.pct.toFixed(2)}%`;
+  const rawVol = volOfRow(r.price);
+  return {
+    sym: r.sym,
+    price: r.shuffle > 0 ? scrambleDigits(rawPrice) : rawPrice,
+    pct: r.shuffle > 0 ? scrambleDigits(rawPct) : rawPct,
+    vol: r.shuffle > 0 ? scrambleDigits(rawVol) : rawVol,
+    hiLo: `${(r.price * 0.96).toFixed(2)}–${(r.price * 1.04).toFixed(2)}`,
+    arrow: up ? "▲" : "▼",
+    color,
+    priceColor: r.flash ? flashColor : "#b8c8de",
+    rowBg: r.flash ? (r.flash === 1 ? UP_FLASH_BG : DOWN_FLASH_BG) : "transparent",
+    numOpacity: r.shuffle > 0 ? 0.4 : 1,
+    numFilter: r.shuffle > 0 ? "blur(2.5px)" : "blur(0px)",
+    // The sparkline cluster scales with the row's actual move size (0.4–1.3x)
+    // instead of bouncing decoratively — bigger movers get visibly bigger bars.
+    barScale: 0.4 + Math.min(1, Math.abs(r.pct) / 14) * 0.9,
+    bars: barsOfRow(i),
+  };
+}
+
+const BoardRowView = memo(function BoardRowView({ row }: { row: FormattedBoardRow }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, borderBottom: "1px solid rgba(90,120,170,0.12)", padding: "5px 2px", whiteSpace: "nowrap", background: row.rowBg, transition: "background 0.6s ease" }}>
+      <span style={{ color: "#6b86ad", fontWeight: 600, width: 52 }}>{row.sym}</span>
+      <span style={{ color: row.priceColor, width: 74, textAlign: "right", opacity: row.numOpacity, filter: row.numFilter, transition: "color 0.6s ease, opacity 0.2s ease, filter 0.2s ease" }}>{row.price}</span>
+      <span style={{ width: 14, textAlign: "center", color: row.color }}>{row.arrow}</span>
+      <span style={{ color: row.color, width: 72, textAlign: "right", opacity: row.numOpacity, filter: row.numFilter, transition: "opacity 0.2s ease, filter 0.2s ease" }}>{row.pct}</span>
+      <span style={{ color: "#55688a", fontSize: 12, width: 58, textAlign: "right" }}>{row.vol}</span>
+      <span style={{ color: "#55688a", fontSize: 12, width: 108, textAlign: "right" }}>{row.hiLo}</span>
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "flex-end",
+          gap: 2,
+          height: 13,
+          transformOrigin: "bottom",
+          transform: `scaleY(${row.barScale})`,
+          transition: "transform 0.4s ease",
+        }}
+      >
+        {row.bars.map((b, k) => (
+          <span key={k} style={{ width: 3, height: b.height, background: row.color, opacity: b.opacity, borderRadius: 1 }} />
+        ))}
+      </span>
+    </div>
+  );
+});
+
+const HERO_UPDATE_MS = 200; // explicit ask — the reference's own default is 900ms
+const HERO_SHUFFLE_MS = 90; // digit-scramble tick — slowed slightly from the reference's 70ms for FPS
+const HERO_SHUFFLE_STEPS = 3; // shortened from the reference's 5 steps for FPS
+
+function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
+  const [rows, setRows] = useState<BoardRowState[]>(makeInitialBoardRows);
+  // Keyed by row-object identity so a row that didn't change this tick
+  // (same object reference) returns the SAME formatted object — letting
+  // React.memo skip it entirely. A WeakMap lets stale entries get GC'd once
+  // a row updates to a new object.
+  const formatCache = useRef(new WeakMap<BoardRowState, FormattedBoardRow>());
+
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setRows((prev) => prev.map((r) => {
+        // 72% of ticks: just let any active flash fade back to neutral.
+        if (Math.random() > 0.28) return r.flash ? { ...r, flash: 0 } : r;
+        const drift = r.price * (Math.random() * 0.02 - 0.01);
+        return {
+          ...r,
+          price: Math.max(1, r.price + drift),
+          pct: Math.max(-14, Math.min(14, r.pct + (Math.random() * 1.6 - 0.8))),
+          flash: drift >= 0 ? 1 : -1,
+          shuffle: HERO_SHUFFLE_STEPS,
+        };
+      }));
+    }, HERO_UPDATE_MS);
+    const shuffle = setInterval(() => {
+      setRows((prev) => (prev.some((r) => r.shuffle > 0)
+        ? prev.map((r) => (r.shuffle > 0 ? { ...r, shuffle: r.shuffle - 1 } : r))
+        : prev));
+    }, HERO_SHUFFLE_MS);
+    return () => { clearInterval(tick); clearInterval(shuffle); };
+  }, []);
+
+  const formatted = useMemo(() => rows.map((r, i) => {
+    const cache = formatCache.current;
+    let f = cache.get(r);
+    if (!f) {
+      f = formatBoardRow(r, i);
+      cache.set(r, f);
+    }
+    return f;
+  }), [rows]);
+
+  return createPortal(
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, max-content)", justifyContent: "center", columnGap: 12, rowGap: 10, padding: 40, fontFamily: "'IBM Plex Mono', monospace", fontSize: 15 }}>
+      {formatted.map((row) => <BoardRowView key={row.sym} row={row} />)}
+    </div>,
+    boardHost,
+  );
+}
+
+const homeMain = (L: LandingStrings, signedIn: boolean) => `
+<main>
+  <section style="position:relative;overflow:hidden;background:#060a12;min-height:100vh">
+    <div id="cfo-ticker-board" aria-hidden="true" style="position:absolute;top:30%;left:-8%;right:-8%;bottom:-46%;z-index:0;animation:cfo-heroBoardDrift 22s ease-in-out infinite;opacity:.9;pointer-events:none;will-change:transform"></div>
+    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 70% 90% at 38% 50%,rgba(6,10,18,.94) 0%,rgba(6,10,18,.72) 45%,rgba(6,10,18,.25) 100%)"></div>
+    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(6,10,18,.85),transparent 20%,transparent 75%,#060a12)"></div>
+    <div style="position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:220px 24px 56px;display:flex;flex-direction:column;align-items:center;text-align:center">
+      ${eyebrow(L.hero.eyebrow)}
+      <h1 style="margin-top:26px;font-family:var(--serif);font-weight:400;font-size:clamp(40px,6.4vw,66px);line-height:1.04;letter-spacing:-.025em;max-width:920px;color:var(--ink)">${L.hero.t1}<span class="grad-text">${L.hero.thl}</span>${L.hero.t2}</h1>
+      <p style="margin-top:22px;font-size:clamp(16px,2vw,18px);line-height:1.6;color:var(--ink-soft);max-width:660px">${L.hero.body}</p>
+      <div style="margin-top:34px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
+        ${signedIn
+          ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
+          : `<a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.hero.ctaStart}</a>
+        <button data-act="pricing" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px;cursor:pointer;font-family:inherit">${L.hero.ctaPricing}</button>`}
+      </div>
       <div style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
         <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
           <span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span>
@@ -134,110 +540,137 @@ const HOME = `
           </div>
         </div>
       </div>
-      <p style="margin-top:22px;font-size:11.5px;color:var(--ink-mute);max-width:520px">Illustrative dashboard. AI-assisted analysis — final decisions remain with your management team.</p>
+      <p style="margin-top:22px;font-size:11.5px;color:var(--ink-mute);max-width:520px">${L.hero.mockNote}</p>
     </div>
   </section>
 
-  <section style="border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
-    <div style="max-width:var(--maxw);margin:0 auto;padding:26px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:22px;text-align:center">
-      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">≤1%</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Balance-sheet drift</div></div>
-      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">100+</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Financial ratios</div></div>
-      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">16,000+</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Public-company peers</div></div>
-      <div><div style="font-family:var(--serif);font-size:30px" class="grad-text">90s</div><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px">Upload to report</div></div>
-    </div>
-  </section>
+  <div style="height:1px;background:rgba(255,255,255,.25);transform:scaleY(.5)"></div>
 
   <section id="product" style="max-width:var(--maxw);margin:0 auto;padding:80px 24px 20px;scroll-margin-top:88px">
     <div style="text-align:center;max-width:680px;margin:0 auto 42px">
-      ${eyebrow("Four flagship modules")}
-      <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em">One platform. <span class="grad-text">Your books, or any public company.</span></h2>
+      ${eyebrow(L.modules.eyebrow)}
+      <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em">${L.modules.t1}<span class="grad-text">${L.modules.thl}</span></h2>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px">
-      ${[
-        ["▤", "Trial balance → board-ready report", "Financial Statement Intelligence", "Ministry-of-Finance filings, accountant exports, annual reports — from any European country. Auto-detected, normalized, ratioed, valued and explained."],
-        ["◎", "Nasdaq tickers → analysis", "Public Company Intelligence", "Search 16,000+ US-listed companies on official SEC EDGAR data. Same dashboard, ratios, valuation and CFO chat as your private books — add any as a benchmark peer."],
-        ["▦", "ERP exports → cash forecast", "Invoice Intelligence", "Customer &amp; supplier concentration, margin by client, VAT reconciliation and payment timing — surfaced as dedicated tabs inside your statements."],
-        ["✦", "Ask questions → grounded answers", "Ask CFO AI", "A financial copilot grounded in your numbers. Ask why margin moved, what a ratio means, or what to do next — with the reasoning and source lines shown."],
-      ].map(([icon, kicker, title, body]) => `
-      <div class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px;display:flex;flex-direction:column">
-        <div style="width:44px;height:44px;border-radius:12px;background:rgba(92,211,197,.12);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:20px">${icon}</div>
-        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-top:18px">${kicker}</div>
-        <h3 style="font-family:var(--serif);font-weight:400;font-size:21px;margin-top:6px">${title}</h3>
-        <p style="margin-top:8px;font-size:13.5px;color:var(--ink-soft);flex:1">${body}</p>
-      </div>`).join("")}
+      ${L.modules.cards.map((card, i) => {
+        return `
+      <div class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px;display:flex;flex-direction:column;text-align:left">
+        <div style="display:flex;align-items:flex-start;gap:14px">
+          <div style="width:52px;height:52px;border-radius:12px;background:rgba(92,211,197,.08);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">${["▤", "◎", "▦", "✦"][i]}</div>
+          <div>
+            <h3 style="font-family:var(--serif);font-weight:400;font-size:21px">${card.title}</h3>
+            <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-top:6px">${card.kicker}</div>
+          </div>
+        </div>
+        <div style="height:1px;background:var(--rule);margin:16px 0"></div>
+        <p style="font-size:13.5px;color:var(--ink-soft);flex:1">${card.body}</p>
+      </div>`;
+      }).join("")}
     </div>
   </section>
 
-  <section style="max-width:var(--maxw);margin:0 auto;padding:70px 24px">
-    ${eyebrow("How it works")}
-    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:680px">Three steps from spreadsheet to <span class="grad-text">action plan.</span></h2>
-    <div style="margin-top:38px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
-      ${[
-        ["01", "Upload your books", "Trial balance, bilanț, P&amp;L or balance sheet — Excel, CSV, or PDF. Columns and RAS accounts are mapped automatically."],
-        ["02", "CFO AI computes the economics", "P&amp;L, balance sheet, cash flow, 100+ ratios, EBITDA variants, Altman Z, valuation and credit score — reconciled to your source to ≤1% drift."],
-        ["03", "You act with context", "Ranked, quantified recommendations plus named public-company peers — export to HTML, an 8-sheet Excel model, or a board summary."],
-      ].map(([n, title, body]) => `
-      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:18px;padding:28px"><div style="font-family:var(--serif);font-size:30px" class="grad-text">${n}</div><h3 style="font-family:var(--serif);font-weight:400;font-size:21px;margin-top:16px">${title}</h3><p style="margin-top:8px;font-size:13.5px;color:var(--ink-soft)">${body}</p></div>`).join("")}
+  <section id="how" style="max-width:var(--maxw);margin:0 auto;padding:70px 24px;scroll-margin-top:88px">
+    ${eyebrow(L.how.eyebrow)}
+    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:680px">${L.how.t1}<span class="grad-text">${L.how.thl}</span></h2>
+    <div id="how-steps" style="margin-top:48px;position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+      <div aria-hidden="true" style="position:absolute;top:22px;left:0;right:0;height:2px;background:var(--rule);z-index:0"></div>
+      ${L.how.steps.map((step, i) => {
+        const delay = (i * 0.45).toFixed(2);
+        return `
+      <div class="how-step" style="position:relative;z-index:1;text-align:left">
+        <div class="how-step-circle" style="width:46px;height:46px;border-radius:50%;background:var(--surface);border:2px solid var(--rule);color:var(--ink-mute);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:15px;box-shadow:0 0 0 6px var(--bg);transition:border-color .5s ease,color .5s ease;transition-delay:${delay}s">0${i + 1}</div>
+        <div class="how-step-text" style="opacity:0;transition:opacity .6s ease;transition-delay:${delay}s">
+          <h3 style="font-family:var(--serif);font-weight:400;font-size:21px;margin-top:18px">${step.title}</h3>
+          <p style="margin-top:8px;font-size:13.5px;color:var(--ink-soft)">${step.body}</p>
+        </div>
+      </div>`;
+      }).join("")}
     </div>
   </section>
 
-  <section style="border-top:1px solid var(--rule-soft);background:var(--bg-2)">
+  <section id="trust" style="border-top:1px solid var(--rule-soft);background:var(--bg-2);scroll-margin-top:88px">
     <div style="max-width:var(--maxw);margin:0 auto;padding:74px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:44px;align-items:center">
       <div>
-        ${eyebrow("Defensible by design")}
-        <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,42px);line-height:1.08;letter-spacing:-.02em">Numbers a lender, auditor or investor can trust.</h2>
-        <p style="margin-top:16px;font-size:15px;color:var(--ink-soft)">The RAS-compliant engine reconciles all eight calibration fixtures to ≤1% balance-sheet drift — five of eight to exactly 0.00% — and reproduces filed-P&amp;L EBITDA across three named variants (reported, strict, cash). When a source file has an imbalance, CFO AI surfaces it explicitly rather than smoothing it over.</p>
+        ${eyebrow(L.defensible.eyebrow)}
+        <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,42px);line-height:1.08;letter-spacing:-.02em">${L.defensible.title}</h2>
+        <p style="margin-top:16px;font-size:15px;color:var(--ink-soft)">${L.defensible.body}</p>
         <ul style="margin:20px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
-          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">Reproducible.</strong> <span style="color:var(--ink-soft)">The same trial balance always produces the same output.</span></div></li>
-          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">Traceable.</strong> <span style="color:var(--ink-soft)">Every number links back to the source line it came from.</span></div></li>
-          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">Honest about uncertainty.</strong> <span style="color:var(--ink-soft)">Approximations are marked, never buried.</span></div></li>
+          ${L.defensible.bullets.map((b) => `<li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">${b.strong}</strong> <span style="color:var(--ink-soft)">${b.rest}</span></div></li>`).join("\n          ")}
         </ul>
       </div>
       <div style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px">
-        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:16px">Peer benchmark · EBITDA margin</div>
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--brand);font-weight:600">Your Co.</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:64%;height:100%;background:var(--brand)"></div></div><span style="font-size:12px;color:var(--ink-2);width:44px;text-align:right">11.4%</span></div>
-          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">Peer A</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:52%;height:100%;background:var(--rule-strong)"></div></div><span style="font-size:12px;color:var(--ink-soft);width:44px;text-align:right">9.2%</span></div>
-          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">Peer B</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:81%;height:100%;background:var(--rule-strong)"></div></div><span style="font-size:12px;color:var(--ink-soft);width:44px;text-align:right">14.3%</span></div>
-          <div style="display:flex;align-items:center;gap:12px"><span style="width:78px;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">Peer C</span><div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden"><div style="width:47%;height:100%;background:var(--rule-strong)"></div></div><span style="font-size:12px;color:var(--ink-soft);width:44px;text-align:right">8.3%</span></div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:16px">${L.defensible.cardLabel}</div>
+        <div id="defensible-bars" style="display:flex;flex-direction:column;gap:12px">
+          ${[
+            { label: L.defensible.yourCo, pct: "11.4%", w: 64, mine: true },
+            { label: "Peer A", pct: "9.2%", w: 52, mine: false },
+            { label: "Peer B", pct: "14.3%", w: 81, mine: false },
+            { label: "Peer C", pct: "8.3%", w: 47, mine: false },
+          ].map((row, i) => `
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="width:78px;font-family:var(--mono);font-size:12px;color:${row.mine ? "var(--brand)" : "var(--ink-soft)"};font-weight:${row.mine ? 600 : 400}">${row.label}</span>
+            <div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden">
+              <div class="defensible-bar-fill" data-w="${row.w}" style="width:0%;height:100%;background:${row.mine ? "var(--brand)" : "var(--rule-strong)"};transition:width .9s cubic-bezier(.16,1,.3,1);transition-delay:${(i * 0.12).toFixed(2)}s"></div>
+            </div>
+            <span style="font-size:12px;color:${row.mine ? "var(--ink-2)" : "var(--ink-soft)"};width:44px;text-align:right">${row.pct}</span>
+          </div>`).join("")}
         </div>
-        <p style="margin:18px 0 0;font-size:12px;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:14px">You sit in the top quartile of your matched peer set on operating profitability.</p>
+        <p style="margin:18px 0 0;font-size:12px;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:14px">${L.defensible.cardNote}</p>
       </div>
     </div>
   </section>
 
-  <section style="max-width:var(--maxw);margin:0 auto;padding:74px 24px">
-    ${eyebrow("Who it's for")}
-    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:680px">Built for whoever reads the <span class="grad-text">numbers.</span></h2>
+  <section id="audiences" style="max-width:var(--maxw);margin:0 auto;padding:74px 24px;scroll-margin-top:88px">
+    ${eyebrow(L.audiences.eyebrow)}
+    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:680px">${L.audiences.t1}<span class="grad-text">${L.audiences.thl}</span></h2>
     <div style="margin-top:36px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
-      ${[
-        ["Founders &amp; owners", "Understand your own financials the way an analyst would — and see exactly where you stand against real peers."],
-        ["Finance teams", "Turn a month-end trial balance into board-ready statements, ratios and a credit score without rebuilding a model."],
-        ["Investors &amp; analysts", "Run due diligence on private targets and public comparables through the same engine, side by side."],
-        ["Advisors &amp; accountants", "Deliver CFO-grade analyses across a portfolio of client companies — consistently, in minutes each."],
-        ["Lenders", "Screen credit with Altman Z″, coverage ratios and covenant-ready strict EBITDA — with the source reconciliation shown."],
-        ["Family offices", "Review multiple group entities and holdings on one consistent framework, including NAV for asset-heavy vehicles."],
-      ].map(([title, body]) => `
-      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">${title}</div><p style="margin-top:10px;font-size:14px;color:var(--ink-2)">${body}</p></div>`).join("")}
+      ${L.audiences.cards.map((card) => `
+      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">${card.title}</div><p style="margin-top:10px;font-size:14px;color:var(--ink-2)">${card.body}</p></div>`).join("")}
+    </div>
+  </section>
+
+  <section id="pricing" style="border-top:1px solid var(--rule-soft);scroll-margin-top:88px">
+    <div style="max-width:var(--maxw);margin:0 auto;padding:74px 24px">
+      <div style="text-align:center;max-width:680px;margin:0 auto 42px">
+        ${eyebrow(L.pricing.eyebrow)}
+        <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h2>
+        <p style="margin-top:14px;font-size:15px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
+      </div>
+      ${pricingGrid(L)}
     </div>
   </section>
 
   <section id="faq" style="border-top:1px solid var(--rule-soft);background:var(--bg-2);scroll-margin-top:88px">
     <div style="max-width:820px;margin:0 auto;padding:74px 24px">
       <div style="text-align:center;margin-bottom:36px">
-        ${eyebrow("Questions")}
-        <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,42px);line-height:1.06;letter-spacing:-.02em">Frequently asked</h2>
+        ${eyebrow(L.faq.eyebrow)}
+        <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,42px);line-height:1.06;letter-spacing:-.02em">${L.faq.title}</h2>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px">
-        ${[
-          ["What file formats can I upload?", "Trial balances (balanță de verificare), balance sheets, P&amp;L statements and annual reports as Excel, CSV or PDF. Exports from SAGA, WinMENTOR and standard Romanian and European accounting software are supported, with accounts mapped automatically."],
-          ["How accurate is the analysis?", "On clean trial balances, the engine reconciles balance-sheet totals to within 1% drift across its eight calibration fixtures — five of eight to exactly 0.00%. It computes three named EBITDA variants that match byte-for-byte between the methodology layer and the code. It is a decision-support tool, not a substitute for professional judgement."],
-          ["Is my financial data secure?", `Your data is stored on EU-region infrastructure with row-level security so only your account can access it. We never sell your data. See our <button data-act="privacy" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Privacy Policy</button> for the full detail on sub-processors and your rights under the GDPR.`],
-          ["Do you offer a free trial?", "Yes — every plan starts with a 30-day trial. Founding members pay just €1 for their first month. You can cancel any time before renewal."],
-          ["Which countries and accounting standards are supported?", "The engine is calibrated for Romanian RAS (OMFP 1802) today, with a country-agnostic canonical schema designed to extend to other European charts of accounts. Public-company analysis covers 16,000+ US-listed companies via official SEC EDGAR data."],
-          ["Is this financial or investment advice?", `No. CFO AI produces AI-assisted analysis and decision support. It is not financial, investment, legal, tax or accounting advice, and final decisions remain with you and your management team. See our <button data-act="terms" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Terms of Service</button>.`],
-        ].map(([q, a]) => `
-        <details style="border:1px solid var(--rule);background:var(--surface);border-radius:14px;padding:18px 20px"><summary style="cursor:pointer;font-weight:600;font-size:15px;color:var(--ink);list-style:none">${q}</summary><p style="margin:12px 0 0;font-size:14px;color:var(--ink-soft)">${a}</p></details>`).join("")}
+        ${L.faq.items.map((item, i) => {
+          // Only the first item starts open — toggling afterward is handled
+          // by direct DOM mutation in Landing()'s click handler (see
+          // "faq:" in onClick), NOT React state. Faq state living in the
+          // same memo as the hero/ticker-board markup would force a full
+          // subtree rebuild (and a visible ticker-board flicker) on every
+          // question toggle — the same bug already fixed for the header's
+          // dropdowns.
+          const isOpen = i === 0;
+          return `
+        <div class="faq-item" style="border:1px solid var(--rule);background:var(--surface);border-radius:14px;overflow:hidden">
+          <button data-act="faq-toggle" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit">
+            <span style="font-weight:600;font-size:15px;color:var(--ink)">${item.q}</span>
+            <span class="faq-chevron" style="flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);transform:rotate(${isOpen ? "180deg" : "0deg"});transition:transform .3s ease">
+              <svg width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1.5L6 6.5L11 1.5"></path></svg>
+            </span>
+          </button>
+          <div class="faq-panel" style="max-height:${isOpen ? "300px" : "0"};transition:max-height .35s ease">
+            <p style="margin:0 20px 18px;font-size:14px;color:var(--ink-soft)">${item.a
+              .replace("{privacy}", inlineLink("privacy", L.legal.privacy))
+              .replace("{terms}", inlineLink("terms", L.legal.terms))}</p>
+          </div>
+        </div>`;
+        }).join("")}
       </div>
     </div>
   </section>
@@ -245,61 +678,26 @@ const HOME = `
   <section style="position:relative;overflow:hidden;border-top:1px solid var(--rule-soft)">
     <div aria-hidden="true" style="position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(92,211,197,.10),transparent 62%);pointer-events:none"></div>
     <div style="position:relative;max-width:820px;margin:0 auto;padding:88px 24px;text-align:center">
-      <h2 style="font-family:var(--serif);font-weight:400;font-size:clamp(34px,5.5vw,58px);line-height:1.03;letter-spacing:-.03em">See your business the way a <span class="grad-text">CFO would.</span></h2>
-      <p style="margin-top:18px;font-size:16px;color:var(--ink-soft);max-width:520px;margin-left:auto;margin-right:auto">Upload your first trial balance and get a full analysis in under five minutes. No credit card required.</p>
+      <h2 style="font-family:var(--serif);font-weight:400;font-size:clamp(34px,5.5vw,58px);line-height:1.03;letter-spacing:-.03em">${L.cta.t1}<span class="grad-text">${L.cta.thl}</span></h2>
+      <p style="margin-top:18px;font-size:16px;color:var(--ink-soft);max-width:520px;margin-left:auto;margin-right:auto">${L.cta.body}</p>
       <div style="margin-top:32px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
-        <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">Get started — free →</a>
-        <a href="/login" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">Sign in</a>
+        ${signedIn
+          ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
+          : `<a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.cta.start}</a>
+        <a href="/login?next=/" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">${L.cta.signIn}</a>`}
       </div>
     </div>
   </section>
 </main>`;
 
-const PRICING = `
+const pricingMain = (L: LandingStrings) => `
 <main style="max-width:var(--maxw);margin:0 auto;padding:64px 24px 40px">
   <div style="text-align:center;max-width:680px;margin:0 auto 44px">
-    ${eyebrow("Pricing")}
-    <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,52px);line-height:1.05;letter-spacing:-.025em">Simple plans that <span class="grad-text">scale with you.</span></h1>
-    <p style="margin-top:16px;font-size:16px;color:var(--ink-soft)">Every plan starts with a 30-day trial. Founding members pay €1 for their first month. Cancel anytime.</p>
+    ${eyebrow(L.pricing.eyebrow)}
+    <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,52px);line-height:1.05;letter-spacing:-.025em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h1>
+    <p style="margin-top:16px;font-size:16px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;align-items:stretch;max-width:1040px;margin:0 auto">
-    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
-      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">Solo</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€19.99</span><span style="font-size:14px;color:var(--ink-soft)">/mo</span></div>
-      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">or €199 / year — save €41</div>
-      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">Individual investors, freelance analysts and founders doing personal due diligence.</p>
-      <a href="/signup?plan=solo" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">Start Solo trial</a>
-      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
-        ${["1 company · 10 uploads / month", "P&amp;L, balance sheet &amp; cash flow", "Essential ratios &amp; EBITDA", "Altman Z bankruptcy screen", "30 Ask CFO AI messages / month", "12-month history · email support"].map(x => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`).join("")}
-      </ul>
-    </div>
-    <div style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(92,211,197,.5)">
-      <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:#04110F;background:var(--brand);padding:4px 12px;border-radius:999px">Most popular</span>
-      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">Business</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€59</span><span style="font-size:14px;color:var(--ink-soft)">/mo</span></div>
-      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">or €590 / year — save €118</div>
-      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">SMB owners, internal finance teams, real-estate holdings and family-group portfolios.</p>
-      <a href="/signup?plan=business" data-act="signup:business" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">Start Business trial</a>
-      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
-        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> 5 companies · 2 users · 25 uploads / month</li>
-        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> <strong>Everything in Solo, plus:</strong></li>
-        ${["Full 100+ ratio suite", "Altman Z + Piotroski F-score", "Valuation suite &amp; NAV cascade", "Industry benchmarks &amp; peer comparison", "Recommendations engine &amp; monthly reports", "100 AI messages/mo · share links · live chat"].map(x => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`).join("")}
-      </ul>
-    </div>
-    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
-      <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">Professional</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink)">Custom</span></div>
-      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">Contact sales — priced per contract</div>
-      <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">Advisory firms, accountants, multi-entity holdings and M&amp;A boutiques managing 5+ companies.</p>
-      <button data-act="contact" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">Contact sales</button>
-      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
-        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> Up to 25 companies · 10 users</li>
-        <li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> <strong>Everything in Business, plus:</strong></li>
-        ${["Multi-entity consolidated view", "API access", "Dedicated onboarding", "Priority phone support · 4h SLA"].map(x => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`).join("")}
-      </ul>
-    </div>
-  </div>
-  <p style="text-align:center;margin-top:28px;font-size:12.5px;color:var(--ink-mute)">All prices exclude VAT where applicable. Overage documents are billed per-document and always confirmed before processing.</p>
+  ${pricingGrid(L)}
 </main>`;
 
 function legalHeader(title: string, note?: string) {
@@ -312,7 +710,7 @@ function legalHeader(title: string, note?: string) {
 const h2 = (t: string) => `<h2 style="font-family:var(--serif);font-weight:400;font-size:24px;margin:34px 0 10px;color:var(--ink)">${t}</h2>`;
 
 const PRIVACY = `
-<main style="max-width:820px;margin:0 auto;padding:56px 24px 40px">
+<section id="legal-privacy" style="max-width:820px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
   ${legalHeader("Privacy Policy", `This template is GDPR-oriented and reflects CFO AI's actual infrastructure. Replace every <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholder with your registered company details and have it reviewed by a qualified lawyer before publishing.`)}
   <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
     ${h2("1. Who we are")}
@@ -357,10 +755,10 @@ const PRIVACY = `
     ${h2("8. Changes")}
     <p>We may update this policy from time to time. Material changes will be notified by email or an in-app notice. The "last updated" date above always reflects the current version.</p>
   </div>
-</main>`;
+</section>`;
 
 const COOKIES = `
-<main style="max-width:820px;margin:0 auto;padding:56px 24px 40px">
+<section id="legal-cookies" style="max-width:820px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
   ${legalHeader("Cookie Policy")}
   <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
     <p>Cookies and similar technologies (including browser <em>localStorage</em>) are small pieces of data stored on your device. We use them to keep you signed in, remember your preferences, and — only with your consent — to understand usage and measure marketing.</p>
@@ -374,10 +772,10 @@ const COOKIES = `
     <p>You gave (or declined) consent when you first visited. You can change your preferences at any time using the button below or via "Cookie settings" in the footer. You can also block or delete cookies in your browser settings.</p>
     <button data-act="consent" class="btn-grad" style="margin-top:8px;display:inline-flex;align-items:center;height:44px;padding:0 22px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Open cookie settings</button>
   </div>
-</main>`;
+</section>`;
 
 const TERMS = `
-<main style="max-width:820px;margin:0 auto;padding:56px 24px 40px">
+<section id="legal-terms" style="max-width:820px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
   ${legalHeader("Terms of Service", `Replace <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholders with your legal entity and governing-law details, and have these terms reviewed by a lawyer before publishing.`)}
   <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
     ${h2("1. Agreement")}
@@ -403,69 +801,131 @@ const TERMS = `
     ${h2("11. Contact")}
     <p>Questions about these Terms? Email <a href="mailto:legal@cfo-ai.io">legal@cfo-ai.io</a>.</p>
   </div>
-</main>`;
+</section>`;
 
-const CONTACT = `
+// Contact page — real form POSTing to /api/contact-sales (persists to
+// contact_sales_leads + notifies). Rendered as a function so typed values
+// survive re-renders: inputs are uncontrolled, but the component mirrors
+// them into a ref on input and re-injects them here.
+type ContactStatus = "idle" | "sending" | "sent" | "error" | "invalid";
+interface ContactValues { name: string; email: string; company: string; message: string }
+
+function contactMain(v: ContactValues, status: ContactStatus, L: LandingStrings) {
+  const formBody = status === "sent"
+    ? `
+    <div style="text-align:center;padding:26px 10px">
+      <div style="width:52px;height:52px;border-radius:50%;background:rgba(92,211,197,.14);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-size:24px">✓</div>
+      <h3 style="font-family:var(--serif);font-weight:400;font-size:24px;margin-top:16px;color:var(--ink)">${L.contact.sentTitle}</h3>
+      <p style="margin-top:8px;font-size:14px;color:var(--ink-soft)">${L.contact.sentBody}</p>
+    </div>`
+    : `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+      <input id="cf-name" class="field" placeholder="${L.contact.phName}" value="${esc(v.name)}">
+      <input id="cf-email" class="field" type="email" placeholder="${L.contact.phEmail}" value="${esc(v.email)}">
+    </div>
+    <input id="cf-company" class="field" style="margin-top:14px" placeholder="${L.contact.phCompany}" value="${esc(v.company)}">
+    <textarea id="cf-message" class="field" style="margin-top:14px;min-height:130px;resize:vertical" placeholder="${L.contact.phMessage}">${esc(v.message)}</textarea>
+    ${status === "invalid" ? `<p style="margin:12px 0 0;font-size:13px;color:var(--alert)">${L.contact.invalid}</p>` : ""}
+    ${status === "error" ? `<p style="margin:12px 0 0;font-size:13px;color:var(--alert)">${L.contact.error}</p>` : ""}
+    <button data-act="contact:send" class="btn-grad" ${status === "sending" ? "disabled" : ""} style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;height:48px;padding:0 26px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14.5px;border:none;cursor:pointer;font-family:inherit;${status === "sending" ? "opacity:.6;cursor:default" : ""}">${status === "sending" ? L.contact.sending : L.contact.send}</button>
+    <p style="margin:12px 0 0;font-size:11.5px;color:var(--ink-mute)">${L.contact.note}</p>`;
+
+  return `
 <main style="max-width:760px;margin:0 auto;padding:64px 24px 40px">
-  <div style="text-align:center;margin-bottom:40px">
-    ${eyebrow("Contact")}
-    <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-.02em">Talk to us.</h1>
-    <p style="margin-top:14px;font-size:16px;color:var(--ink-soft)">Whether you're evaluating CFO AI for a portfolio of companies or just have a question — we'd like to hear from you.</p>
+  <div style="text-align:center;margin-bottom:36px">
+    ${eyebrow(L.contact.eyebrow)}
+    <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-.02em">${L.contact.title}</h1>
+    <p style="margin-top:14px;font-size:16px;color:var(--ink-soft)">${L.contact.subtitle}</p>
+  </div>
+  <div style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px;margin-bottom:36px">${formBody}
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
-    <a href="mailto:sales@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Sales &amp; Professional plan</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">sales@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">Custom limits, multi-entity and API access.</p></a>
-    <a href="mailto:support@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Support</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">support@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">Help with your account, uploads or analyses.</p></a>
-    <a href="mailto:privacy@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Privacy &amp; data</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">privacy@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">Exercise your GDPR rights or ask about data.</p></a>
-    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Registered office</div><div style="margin-top:8px;font-size:14px;color:var(--ink-2)">[Company Legal Name]<br>[Registered Address]<br>[City, Country]</div></div>
+    <a href="mailto:sales@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.sales.kicker}</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">sales@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">${L.contact.sales.blurb}</p></a>
+    <a href="mailto:support@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.support.kicker}</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">support@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">${L.contact.support.blurb}</p></a>
+    <a href="mailto:privacy@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.privacy.kicker}</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">privacy@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">${L.contact.privacy.blurb}</p></a>
+    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.office}</div><div style="margin-top:8px;font-size:14px;color:var(--ink-2)">[Company Legal Name]<br>[Registered Address]<br>[City, Country]</div></div>
   </div>
-  <div style="margin-top:32px;text-align:center"><a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:50px;padding:0 26px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px">Or just start free →</a></div>
+</main>`;
+}
+
+// Legal — ONE page holding all three documents (Privacy / Cookies / Terms)
+// as stacked sections, with a jump-nav at the top. The old standalone pages
+// were folded in here; legacy acts/hashes still land on the right section.
+const LEGAL_DIVIDER = `
+  <div style="max-width:820px;margin:32px auto 8px;padding:0 24px"><div style="height:1px;background:var(--rule)"></div></div>`;
+
+const legalMain = (L: LandingStrings) => `
+<main style="padding-bottom:40px">
+  <div style="max-width:820px;margin:0 auto;padding:64px 24px 0;text-align:center">
+    ${eyebrow(L.legal.eyebrow)}
+    <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-.02em">${L.legal.title}</h1>
+    <p style="margin-top:14px;font-size:16px;color:var(--ink-soft)">${L.legal.subtitle}</p>
+    <div style="margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      ${[
+        ["privacy", L.legal.privacy],
+        ["cookies", L.legal.cookies],
+        ["terms", L.legal.terms],
+      ].map(([act, label]) => `
+      <button data-act="${act}" class="hv-brand" style="display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:13.5px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">${label}</button>`).join("")}
+    </div>
+    ${L.legal.englishNote ? `<p style="margin-top:16px;font-size:12.5px;color:var(--ink-mute)">${L.legal.englishNote}</p>` : ""}
+  </div>
+  ${PRIVACY}
+  ${LEGAL_DIVIDER}
+  ${COOKIES}
+  ${LEGAL_DIVIDER}
+  ${TERMS}
 </main>`;
 
-function footer(year: number) {
+function footer(year: number, L: LandingStrings) {
+  const flink = (act: string, label: string) =>
+    `<button data-act="${act}" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">${label}</button>`;
   return `
 <footer style="border-top:1px solid var(--rule-soft);background:var(--bg-2)">
   <div style="max-width:var(--maxw);margin:0 auto;padding:44px 24px 30px">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:32px">
       <div style="min-width:200px">
         <div style="display:inline-flex;align-items:center;gap:10px">${LOGO}<span style="font-size:15px;font-weight:600;color:var(--ink)">CFO <span style="color:var(--brand)">AI</span></span></div>
-        <p style="margin-top:14px;font-size:13px;color:var(--ink-soft);max-width:260px">CFO-grade financial analysis and benchmarking for private businesses.</p>
+        <p style="margin-top:14px;font-size:13px;color:var(--ink-soft);max-width:260px">${L.footer.blurb}</p>
       </div>
       <div>
-        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">Product</div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">${L.footer.product}</div>
         <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
-          <button data-act="home" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Overview</button>
-          <button data-act="pricing" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Pricing</button>
-          <button data-act="app" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Open the app</button>
-          <a href="/signup" data-act="signup" style="color:var(--ink-soft)">Get started</a>
+          ${flink("scroll:product", L.footer.overview)}
+          ${flink("scroll:how", L.footer.how)}
+          ${flink("scroll:trust", L.footer.trust)}
+          ${flink("scroll:audiences", L.footer.audiences)}
+          ${flink("scroll:pricing", L.nav.pricing)}
+          ${flink("scroll:faq", L.footer.faq)}
         </div>
       </div>
       <div>
-        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">Legal</div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">${L.footer.legalCol}</div>
         <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
-          <button data-act="privacy" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Privacy Policy</button>
-          <button data-act="cookies" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Cookie Policy</button>
-          <button data-act="terms" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Terms of Service</button>
-          <button data-act="consent" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Cookie settings</button>
+          ${flink("privacy", L.legal.privacy)}
+          ${flink("cookies", L.legal.cookies)}
+          ${flink("terms", L.legal.terms)}
+          ${flink("consent", L.footer.cookieSettings)}
         </div>
       </div>
       <div>
-        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">Contact</div>
+        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:14px">${L.footer.contactCol}</div>
         <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px">
-          <button data-act="contact" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">Contact us</button>
+          ${flink("contact", L.footer.contactUs)}
           <a href="mailto:sales@cfo-ai.io" style="color:var(--ink-soft)">sales@cfo-ai.io</a>
           <a href="mailto:support@cfo-ai.io" style="color:var(--ink-soft)">support@cfo-ai.io</a>
         </div>
       </div>
     </div>
     <div style="margin-top:36px;padding-top:22px;border-top:1px solid var(--rule-soft);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-mute)">
-      <span>© ${year} CFO AI · [Company Legal Name]. All rights reserved.</span>
-      <span>Made in the EU · GDPR-compliant</span>
+      <span>${L.footer.rights.replace("{year}", String(year))}</span>
+      <span>${L.footer.madeIn}</span>
     </div>
   </div>
 </footer>`;
 }
 
-function consentModal(expanded: boolean, analytics: boolean, marketing: boolean) {
+function consentModal(expanded: boolean, analytics: boolean, marketing: boolean, L: LandingStrings) {
   const on = "#2AA89B", off = "#3D3D3D";
   const track = (v: boolean) => (v ? on : off);
   const knob = (v: boolean) => (v ? "21px" : "3px");
@@ -474,32 +934,89 @@ function consentModal(expanded: boolean, analytics: boolean, marketing: boolean)
   return `
 <div style="position:fixed;inset:0;z-index:90;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);padding:0 16px 16px">
   <div style="width:100%;max-width:640px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:18px;padding:24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8)">
-    <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;background:var(--brand);display:inline-block"></span><strong style="font-size:16px;color:var(--ink)">We value your privacy</strong></div>
-    <p style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">We use strictly necessary cookies to run CFO AI, and — only with your consent — optional analytics and marketing cookies. You can accept all, reject optional ones, or choose. Read our <button data-act="cookies" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Cookie Policy</button>.</p>
+    <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;background:var(--brand);display:inline-block"></span><strong style="font-size:16px;color:var(--ink)">${L.consent.title}</strong></div>
+    <p style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">${L.consent.body.replace("{cookiePolicy}", inlineLink("cookies", L.legal.cookies))}</p>
     ${expanded ? `
     <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">Strictly necessary</div><div style="font-size:12px;color:var(--ink-mute)">Required for sign-in, security and saving your choice.</div></div><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--brand)">Always on</span></div>
-      ${toggleRow("consent:analytics", "Analytics", "Helps us improve the product.", analytics)}
-      ${toggleRow("consent:marketing", "Marketing", "Measures campaigns and relevance.", marketing)}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">${L.consent.necessary}</div><div style="font-size:12px;color:var(--ink-mute)">${L.consent.necessaryDesc}</div></div><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--brand)">${L.consent.alwaysOn}</span></div>
+      ${toggleRow("consent:analytics", L.consent.analytics, L.consent.analyticsDesc, analytics)}
+      ${toggleRow("consent:marketing", L.consent.marketing, L.consent.marketingDesc, marketing)}
     </div>` : ""}
     <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px">
-      <button data-act="consent:acceptAll" class="btn-grad" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px;border:none;cursor:pointer;font-family:inherit">Accept all</button>
-      <button data-act="consent:rejectAll" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Reject optional</button>
+      <button data-act="consent:acceptAll" class="btn-grad" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px;border:none;cursor:pointer;font-family:inherit">${L.consent.acceptAll}</button>
+      <button data-act="consent:rejectAll" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.consent.rejectAll}</button>
       ${expanded
-        ? `<button data-act="consent:save" class="hv-brand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--surface-hi);border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">Save choices</button>`
-        : `<button data-act="consent:expand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule);color:var(--ink-soft);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Customise</button>`}
+        ? `<button data-act="consent:save" class="hv-brand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--surface-hi);border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">${L.consent.save}</button>`
+        : `<button data-act="consent:expand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule);color:var(--ink-soft);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.consent.customise}</button>`}
     </div>
   </div>
 </div>`;
 }
 
-const MAINS: Record<Page, string> = {
-  home: HOME, pricing: PRICING, privacy: PRIVACY, cookies: COOKIES, terms: TERMS, contact: CONTACT,
-};
+// Sign-out confirmation — mirrors the consent modal's shell.
+const signoutModal = (L: LandingStrings) => `
+<div style="position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);padding:16px">
+  <div style="width:100%;max-width:420px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:18px;padding:24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8)">
+    <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;background:var(--alert);display:inline-block"></span><strong style="font-size:16px;color:var(--ink)">${L.signout.title}</strong></div>
+    <p style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">${L.signout.body}</p>
+    <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end">
+      <button data-act="signout:cancel" style="height:42px;padding:0 20px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.signout.cancel}</button>
+      <button data-act="signout:confirm" style="height:42px;padding:0 20px;border-radius:999px;background:var(--alert);border:none;color:#fff;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.signout.confirm}</button>
+    </div>
+  </div>
+</div>`;
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { isAuthenticated, displayName, initials, user, signOut } = useAuth();
+  const { i18n } = useTranslation();
   const [page, setPage] = useState<Page>("home");
+  // The account chip's open/closed state is NOT React state — see the
+  // comment on authArea in header() for why: it's a classList.toggle on
+  // the persistent .cred-pill DOM node so the CSS transitions animate.
+  const [langOpen, setLangOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [contactStatus, setContactStatus] = useState<ContactStatus>("idle");
+  // Contact-form values live in a ref (not state) so typing never re-renders
+  // the innerHTML — the uncontrolled inputs keep their own values. The ref is
+  // re-injected into the markup only when something ELSE forces a re-render.
+  const contactRef = useRef<ContactValues>({ name: "", email: "", company: "", message: "" });
+
+  // The hero ticker board needs live JS state, but it lives inside the
+  // dangerouslySetInnerHTML string below — so <HeroTicker> is portalled
+  // into the #cfo-ticker-board placeholder that string emits, once it
+  // exists in the DOM (home page only).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [tickerBoardHost, setTickerBoardHost] = useState<HTMLElement | null>(null);
+
+  // Header fade — transparent at the very top of any landing page, fading
+  // to the frosted sticky bar as soon as you scroll (on the home page this
+  // also reveals the hero's ticker board through it). This is deliberately
+  // NOT part of the `html` memo below: including scroll state
+  // there would tear down and rebuild the entire innerHTML (header + main +
+  // footer) on every scroll tick, which would both kill the CSS transition
+  // (a freshly-created header has no "previous" state to animate from) and
+  // be a real perf problem. Instead an `at-top` class toggles on the
+  // persistent root div — a normal React prop update that doesn't touch
+  // dangerouslySetInnerHTML's children — and CSS handles the transition.
+  const [isAtTop, setIsAtTop] = useState(true);
+  useEffect(() => {
+    const onScroll = () => setIsAtTop(window.scrollY < 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const account = useMemo<HeaderAccount | null>(() => {
+    if (!isAuthenticated) return null;
+    const email = user?.email ?? "";
+    return {
+      name: displayName ?? email.split("@")[0] ?? "Account",
+      email,
+      initials: initials ?? "?",
+    };
+  }, [isAuthenticated, displayName, initials, user]);
   const [consentOpen, setConsentOpen] = useState(false);
   const [consentExpanded, setConsentExpanded] = useState(false);
   const [analytics, setAnalytics] = useState(false);
@@ -520,8 +1037,13 @@ export default function Landing() {
     if (!hasConsent) setConsentOpen(true);
 
     const applyHash = () => {
-      const h = (location.hash || "").replace(/^#\/?/, "").trim() as Page;
-      setPage(VALID_PAGES.includes(h) ? h : "home");
+      const h = (location.hash || "").replace(/^#\/?/, "").trim();
+      if ((LEGAL_DOCS as string[]).includes(h)) {
+        // Legacy deep links (#/privacy etc.) → the combined legal page.
+        setPage("legal");
+        return;
+      }
+      setPage(VALID_PAGES.includes(h as Page) ? (h as Page) : "home");
     };
     applyHash();
     window.addEventListener("hashchange", applyHash);
@@ -548,18 +1070,109 @@ export default function Landing() {
     });
   };
 
+  // Mirror contact-form input into the ref so values survive re-renders.
+  const onInput = useCallback((e: ReactFormEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLInputElement | HTMLTextAreaElement;
+    if (!t.id || !t.id.startsWith("cf-")) return;
+    const key = t.id.slice(3) as keyof ContactValues;
+    if (key in contactRef.current) contactRef.current[key] = t.value;
+  }, []);
+
+  const submitContact = useCallback(async () => {
+    const v = contactRef.current;
+    if (!v.name.trim() || !v.email.includes("@") || !v.message.trim()) {
+      setContactStatus("invalid");
+      return;
+    }
+    setContactStatus("sending");
+    const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+    try {
+      const r = await fetch(`${apiUrl}/api/contact-sales`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: v.name.trim(),
+          email: v.email.trim(),
+          company: v.company.trim() || undefined,
+          use_case: v.message.trim(),
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setContactStatus("sent");
+    } catch {
+      setContactStatus("error");
+    }
+  }, []);
+
   const onClick = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
+    const actRaw = el?.getAttribute("data-act") || "";
+    // Any click that isn't the toggle itself closes an open dropdown.
+    if (actRaw !== "account") (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
+    if (langOpen && actRaw !== "lang") setLangOpen(false);
+    if (mobileMenuOpen && actRaw !== "burger") setMobileMenuOpen(false);
     if (!el) return;
-    const act = el.getAttribute("data-act") || "";
+    const act = actRaw;
+    // Mobile burger menu (small screens only — see .burger-btn media query).
+    if (act === "burger") { e.preventDefault(); setMobileMenuOpen((v) => !v); return; }
+    // FAQ — multiple cards can be expanded at once (not an exclusive
+    // accordion). Direct DOM mutation, not React state (see the comment on
+    // isOpen in homeMain's FAQ block for why: this section sits in the same
+    // page as the ticker board, and any state that forced a bodyHtml
+    // re-render would flicker/reset it on every question toggle).
+    if (act === "faq-toggle") {
+      e.preventDefault();
+      const item = el.closest<HTMLElement>(".faq-item");
+      const panel = item?.querySelector<HTMLElement>(".faq-panel");
+      const chevron = item?.querySelector<HTMLElement>(".faq-chevron");
+      if (!item || !panel || !chevron) return;
+      const wasOpen = parseInt(panel.style.maxHeight || "0", 10) > 0;
+      panel.style.maxHeight = wasOpen ? "0px" : "300px";
+      chevron.style.transform = wasOpen ? "rotate(0deg)" : "rotate(180deg)";
+      return;
+    }
+    // Account dropdown + sign-out confirmation.
+    if (act === "account") { e.preventDefault(); setLangOpen(false); el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
+    if (act === "account:settings") { e.preventDefault(); navigate("/account/settings"); return; }
+    if (act === "account:signout") { e.preventDefault(); setSignOutOpen(true); return; }
+    if (act === "signout:cancel") { e.preventDefault(); setSignOutOpen(false); return; }
+    if (act === "signout:confirm") { e.preventDefault(); setSignOutOpen(false); void signOut(); return; }
+    // Language picker — persists locally and (when signed in) to the profile.
+    if (act === "lang") {
+      e.preventDefault();
+      (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
+      setLangOpen((v) => !v);
+      return;
+    }
+    if (act.startsWith("lang:")) {
+      e.preventDefault();
+      void pickLanguageWithProfileSync(act.slice(5), user, getSupabase());
+      return;
+    }
+    // Contact form submit.
+    if (act === "contact:send") { e.preventDefault(); void submitContact(); return; }
     // Router / internal-page actions all preventDefault so anchor hrefs
     // (kept for right-click "open in new tab" affordance) don't full-navigate.
     if (act === "app") { e.preventDefault(); navigate("/dashboard"); return; }
-    if (act === "signin") { e.preventDefault(); navigate("/login"); return; }
+    if (act === "workspace") { e.preventDefault(); navigate("/workspace"); return; }
+    // ?next=/ brings the user back to the landing page after signing in
+    // (the header then swaps the auth buttons for the account chip).
+    if (act === "signin") { e.preventDefault(); navigate("/login?next=/"); return; }
     if (act === "signup") { e.preventDefault(); navigate("/signup"); return; }
     if (act === "signup:solo") { e.preventDefault(); navigate("/signup?plan=solo"); return; }
     if (act === "signup:business") { e.preventDefault(); navigate("/signup?plan=business"); return; }
     if (act.startsWith("scroll:")) { e.preventDefault(); scrollTo(act.slice(7)); return; }
+    // Privacy / Cookies / Terms are sections of the combined legal page.
+    if ((LEGAL_DOCS as string[]).includes(act)) {
+      e.preventDefault();
+      goPage("legal");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document.getElementById(`legal-${act}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+      return;
+    }
     if (VALID_PAGES.includes(act as Page)) { e.preventDefault(); goPage(act as Page); return; }
     // Cookie-consent actions.
     if (act === "consent") { e.preventDefault(); setConsentExpanded(true); setConsentOpen(true); return; }
@@ -569,18 +1182,183 @@ export default function Landing() {
     if (act === "consent:acceptAll") { e.preventDefault(); persist(true, true); setAnalytics(true); setMarketing(true); setConsentOpen(false); setConsentExpanded(false); return; }
     if (act === "consent:rejectAll") { e.preventDefault(); persist(false, false); setAnalytics(false); setMarketing(false); setConsentOpen(false); setConsentExpanded(false); return; }
     if (act === "consent:save") { e.preventDefault(); persist(analytics, marketing); setConsentOpen(false); setConsentExpanded(false); return; }
-  }, [navigate, goPage, analytics, marketing]);
+  }, [navigate, goPage, analytics, marketing, langOpen, mobileMenuOpen, user, signOut, submitContact]);
 
-  const html = useMemo(() => {
+  const langCode = (i18n.language || "en").slice(0, 2);
+  const L = landingStringsFor(langCode);
+
+  // Header and body are rendered as TWO separate innerHTML subtrees rather
+  // than one. Header dropdowns (language, account, mobile burger) toggle
+  // often — if they lived in the same memo as the hero's markup, every
+  // toggle would replace the whole subtree, destroying and recreating the
+  // #cfo-ticker-board placeholder and forcing <HeroTicker>'s portal to
+  // remount (a visible flicker/reset of the whole board). Splitting them
+  // means a dropdown toggle only touches the header's own small subtree —
+  // the body (and the ticker board inside it) is untouched.
+  const headerHtml = useMemo(
+    () => header(account, page, langOpen, langCode, L, page === "home", mobileMenuOpen),
+    [account, page, langOpen, langCode, L, mobileMenuOpen],
+  );
+
+  const bodyHtml = useMemo(() => {
     const year = new Date().getFullYear();
-    return HEADER + MAINS[page] + footer(year) + (consentOpen ? consentModal(consentExpanded, analytics, marketing) : "");
-  }, [page, consentOpen, consentExpanded, analytics, marketing]);
+    const main =
+      page === "contact" ? contactMain(contactRef.current, contactStatus, L)
+      : page === "home" ? homeMain(L, account != null)
+      : page === "pricing" ? pricingMain(L)
+      : legalMain(L);
+    return main
+      + footer(year, L)
+      + (consentOpen ? consentModal(consentExpanded, analytics, marketing, L) : "")
+      + (signOutOpen ? signoutModal(L) : "");
+  }, [account, page, L, contactStatus, signOutOpen, consentOpen, consentExpanded, analytics, marketing]);
+
+  // The body innerHTML swap above replaces that subtree wholesale, so the
+  // placeholder is a fresh node each time `bodyHtml` changes — re-find it
+  // and re-target the portal. (Header-only changes, e.g. opening the
+  // language menu, don't touch bodyHtml, so the board keeps running.)
+  useEffect(() => {
+    setTickerBoardHost(rootRef.current?.querySelector<HTMLElement>("#cfo-ticker-board") ?? null);
+  }, [bodyHtml]);
+
+  // "Defensible by design" bar chart — animate the bars from 0 to their
+  // target width the first time the card scrolls into view. Driven by
+  // direct DOM writes (not React state) so it doesn't trigger a bodyHtml
+  // re-render — same reasoning as the ticker board: touching state here
+  // would tear down and rebuild the whole subtree instead of just
+  // transitioning a few widths.
+  useEffect(() => {
+    const container = rootRef.current?.querySelector<HTMLElement>("#defensible-bars");
+    const bars = container ? Array.from(container.querySelectorAll<HTMLElement>(".defensible-bar-fill")) : [];
+    if (!bars.length) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        bars.forEach((bar) => { bar.style.width = `${bar.dataset.w}%`; });
+        io.disconnect();
+      });
+    }, { threshold: 0.3 });
+    io.observe(container as HTMLElement);
+    return () => io.disconnect();
+  }, [bodyHtml]);
+
+  // "Three steps from spreadsheet to action plan" timeline — the circles
+  // themselves stay put (no movement); their border/text color lights up
+  // from muted to brand-teal, and the title/body text under them fades in,
+  // left to right with a deliberately generous gap between steps (0.45s,
+  // set on each element's own transition-delay in the markup above). Same
+  // direct-DOM-write pattern as the bar chart above, for the same reason.
+  useEffect(() => {
+    const container = rootRef.current?.querySelector<HTMLElement>("#how-steps");
+    const steps = container ? Array.from(container.querySelectorAll<HTMLElement>(".how-step")) : [];
+    if (!steps.length) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        steps.forEach((step) => {
+          const circle = step.querySelector<HTMLElement>(".how-step-circle");
+          if (circle) {
+            circle.style.borderColor = "var(--brand)";
+            circle.style.color = "var(--brand)";
+          }
+          const text = step.querySelector<HTMLElement>(".how-step-text");
+          if (text) text.style.opacity = "1";
+        });
+        io.disconnect();
+      });
+    }, { threshold: 0.3 });
+    io.observe(container as HTMLElement);
+    return () => io.disconnect();
+  }, [bodyHtml]);
 
   return (
     <>
       <style>{SITE_CSS}</style>
       <div
-        className="cfo-site"
+        ref={rootRef}
+        className={`cfo-site${isAtTop ? " at-top" : ""}`}
+        onClick={onClick}
+        onInput={onInput}
+      >
+        {/* display:contents so these wrappers don't box-model themselves —
+           <header> needs to be sticky relative to the actual page scroll,
+           not to a wrapper div sized exactly to its own height (which gives
+           it zero room to visibly "stick" before scrolling off with it). */}
+        <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: headerHtml }} />
+        <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+      </div>
+      {tickerBoardHost ? <HeroTicker boardHost={tickerBoardHost} /> : null}
+    </>
+  );
+}
+
+/**
+ * MarketingHeader — the landing page's tab bar as a standalone component,
+ * for pages that live OUTSIDE the landing route (e.g. /account/settings).
+ * Same markup and dropdowns; internal-page tabs navigate back to the landing
+ * route with the matching hash (Landing's applyHash picks it up on mount).
+ */
+export function MarketingHeader({ active = null }: { active?: Page | null }) {
+  const navigate = useNavigate();
+  const { isAuthenticated, displayName, initials, user, signOut } = useAuth();
+  const { i18n } = useTranslation();
+  // The account chip's open/closed state is a classList.toggle on the
+  // persistent .cred-pill DOM node, not React state — see the comment on
+  // authArea in header() for why.
+  const [langOpen, setLangOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+
+  const account = useMemo<HeaderAccount | null>(() => {
+    if (!isAuthenticated) return null;
+    const email = user?.email ?? "";
+    return {
+      name: displayName ?? email.split("@")[0] ?? "Account",
+      email,
+      initials: initials ?? "?",
+    };
+  }, [isAuthenticated, displayName, initials, user]);
+
+  const onClick = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
+    const act = el?.getAttribute("data-act") || "";
+    if (act !== "account") (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
+    if (langOpen && act !== "lang") setLangOpen(false);
+    if (mobileMenuOpen && act !== "burger") setMobileMenuOpen(false);
+    if (!el) return;
+    e.preventDefault();
+    if (act === "burger") { setMobileMenuOpen((v) => !v); return; }
+    if (act === "home") { navigate("/"); return; }
+    if (VALID_PAGES.includes(act as Page)) { navigate(act === "home" ? "/" : `/#/${act}`); return; }
+    if ((LEGAL_DOCS as string[]).includes(act)) { navigate(`/#/${act}`); return; }
+    if (act.startsWith("scroll:")) { navigate("/"); return; }
+    if (act === "app") { navigate("/dashboard"); return; }
+    if (act === "workspace") { navigate("/workspace"); return; }
+    if (act === "signin") { navigate("/login?next=/"); return; }
+    if (act === "signup") { navigate("/signup"); return; }
+    if (act === "account") { setLangOpen(false); el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
+    if (act === "account:settings") { navigate("/account/settings"); return; }
+    if (act === "account:signout") { setSignOutOpen(true); return; }
+    if (act === "signout:cancel") { setSignOutOpen(false); return; }
+    if (act === "signout:confirm") { setSignOutOpen(false); void signOut().then(() => navigate("/")); return; }
+    if (act === "lang") {
+      (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
+      setLangOpen((v) => !v);
+      return;
+    }
+    if (act.startsWith("lang:")) { void pickLanguageWithProfileSync(act.slice(5), user, getSupabase()); return; }
+  }, [navigate, langOpen, mobileMenuOpen, user, signOut]);
+
+  const langCode = (i18n.language || "en").slice(0, 2);
+  const L = landingStringsFor(langCode);
+  const html =
+    header(account, active, langOpen, langCode, L, false, mobileMenuOpen) + (signOutOpen ? signoutModal(L) : "");
+
+  return (
+    <>
+      <style>{SITE_CSS}</style>
+      <div
+        className="cfo-site cfo-site--bare sticky top-0 z-50"
         onClick={onClick}
         dangerouslySetInnerHTML={{ __html: html }}
       />

@@ -39,8 +39,11 @@ import {
   DEFAULT_RO_COVENANTS,
   type Covenant,
 } from "@/lib/scenarios/covenants";
+import { setPref, usePrefSync } from "@/lib/prefs";
 
 const STORAGE_KEY = "cfo:scenario:v1";
+/** Key inside `org_prefs.prefs` — see supabase/schema_phase_prefs.sql. */
+const PREF_KEY = "scenario";
 // Stable, deterministic createdAt for derived adjustments. The cascade is
 // order-stable (sorted by dependency, not by timestamp) so this value is
 // purely cosmetic for the audit note; keeping it constant avoids spurious
@@ -184,13 +187,48 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
 
   // Keep localStorage in sync on every change.
   const firstRender = useRef(true);
+  // Suppresses the write-back that would echo a just-adopted remote value.
+  const adopting = useRef(false);
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
     persist(leverValues, activeTemplateKey);
+    if (adopting.current) {
+      adopting.current = false;
+      return;
+    }
+    // Company-level: a what-if built on one SRL's P&L is meaningless against
+    // another's, so the levers belong to the workspace.
+    setPref("org", PREF_KEY, { levers: leverValues, templateKey: activeTemplateKey });
   }, [leverValues, activeTemplateKey, persist]);
+
+  const adopt = useCallback((remote: PersistShape) => {
+    if (!remote || typeof remote !== "object") return;
+    adopting.current = true;
+    const levers: Record<string, number> = {};
+    for (const [k, v] of Object.entries(remote.levers ?? {})) {
+      if (SCENARIO_LEVERS.some((l) => l.key === k) && typeof v === "number" && Number.isFinite(v)) {
+        levers[k] = v;
+      }
+    }
+    setLeverValues(levers);
+    setActiveTemplateKey(
+      typeof remote.templateKey === "string" && getScenarioTemplate(remote.templateKey)
+        ? remote.templateKey
+        : null,
+    );
+  }, []);
+  usePrefSync<PersistShape>(
+    "org",
+    PREF_KEY,
+    useMemo(
+      () => ({ levers: leverValues, templateKey: activeTemplateKey }),
+      [leverValues, activeTemplateKey],
+    ),
+    adopt,
+  );
 
   const setLever = useCallback<ScenarioContextValue["setLever"]>(
     (leverKey, value) => {

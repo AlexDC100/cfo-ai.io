@@ -513,6 +513,216 @@ so they were not merged. This work log lives in the root file only.
 
 ---
 
+## 16. Multi-workspace — one workspace per company (2026-07-22)
+
+**Milestone A of 3.** Workspaces became a real data-isolation boundary so a
+user can run several SRLs from one account. Milestone B (chats → Supabase) and
+Milestone C (preferences → Supabase) are not started.
+
+**Architecture: workspace == organization.** Not a new `workspace_id` column.
+Every org-scoped table already carried `org_id` and already enforced
+`is_member_of(org_id)` RLS, so isolation came free once a user could hold more
+than one membership. Zero table changes, zero RLS rewrite across ~20 tables.
+The legacy `workspaces` table (`schema.sql:148`) stays dead and unread.
+
+**Migration:** `supabase/schema_phase_multi_workspace.sql`. Read its operator
+runbook header before applying — it carries a **pre-flight query** that must
+return all zeros, because step 1 drops `org_id uuid not null default
+auth.uid()` from 10 tables. That default dates from "each user is their own
+org"; under multi-org an insert omitting `org_id` silently lands in an
+organization that doesn't exist. Also adds `organizations.archived_at` /
+`purge_after`, `user_prefs`, and five SECURITY DEFINER RPCs
+(`list_workspaces`, `create_workspace`, `archive_workspace`,
+`restore_workspace`, `purge_expired_workspaces`) — RPCs because there is
+deliberately no client INSERT policy on `organizations` / `memberships`.
+
+> Never put a self-referencing `exists (select … from memberships …)` inside a
+> POLICY on `memberships` — that is the documented `42P17 infinite recursion`
+> trap at `schema_phase3.sql:193` which breaks every org lookup app-wide.
+> Reading memberships inside a SECURITY DEFINER *function* is the workaround.
+
+**Deletion is soft.** Archive hides the workspace and sets `purge_after = now()
++ 30 days`; the UI shows a "Recently deleted" shelf with a countdown and a
+Restore button. Permanent deletion runs via `POST
+/api/workspaces/cron/purge-expired` (schedule daily). That endpoint **fails
+closed with 503 when `ENGINE_API_TOKEN` is unset** — unlike the renewal-reminder
+cron in `_billing.py`, which degrades to open — because it erases customer data.
+`ENGINE_API_TOKEN` is not yet in `.env` and must be set before scheduling.
+
+`purge_expired_workspaces()` deletes org-scoped roots **explicitly** rather than
+relying on a cascade: most `org_id` columns have **no foreign key** to
+`organizations` (they predate the orgs table), so `delete from organizations`
+would orphan every document, period and alert instead of removing them.
+
+**Key code changes:**
+- `frontend/lib/activeOrg.ts` (new) — dependency-free, uid-scoped holder for the
+  active workspace id. Exists to break the `supabase.ts` ⇄ `org.ts` import
+  cycle. uid-scoping means a second user on the same browser misses rather than
+  inheriting the previous user's workspace (a cross-tenant leak, not a cosmetic bug).
+- `frontend/lib/supabase.ts` — `currentOrgId()` now resolves the *active*
+  workspace; **the `return user.id` fallback was deleted**. One change re-scoped
+  all 11 data call sites.
+- `frontend/lib/org.ts` — RPC-backed list/create/archive/restore; `switchOrg()`
+  calls `queryClient.clear()` + `clearDataPresence()`; resets its module
+  globals on sign-out (the old `cachedOrgListPromise` never was).
+- `frontend/lib/workspaces.ts` / `workspaceName.ts` — now thin adapters over
+  `org.ts`, so `Workspace.tsx` / `TopHeader` / `Sidebar` needed little change.
+- `src/engine/api/_org.py` (new) — one `resolve_org(jwt, x_org_id)` that
+  **validates membership** (403 on a non-member org) and falls back to the
+  user's *oldest* membership when the header is absent. Replaced five
+  copy-pasted `limit=1` resolvers in `_benchmarks.py`,
+  `_industry_intelligence.py`, `_billing.py` and `pipeline.py` (×2).
+- `frontend/lib/cfoApi.ts` — sends `X-Org-Id` from the single `call()`
+  chokepoint, covering every backend request at once.
+- `ask.py` — populates `AskContext.org_id` from the header. It had existed in
+  the request shape since day one but the FE never sent it, so every chat answer
+  was silently company-less.
+
+**Billing is per user, not per workspace** — `subscriptions` / `user_usage`
+stay keyed by `user_id`; one plan and one shared quota cover all of a user's
+SRLs. `_primary_org_for_user()` therefore means "oldest org, a stable billing
+anchor", explicitly *not* "the workspace they have open".
+
+**Known drift left alone:** `_billing.py` upserts `subscriptions` with
+`on_conflict="org_id"`, but no migration in this repo defines that column
+(`schema.sql:171` is `user_id`-unique). Harmless under per-user billing; must be
+resolved before anyone revisits per-SRL pricing.
+
+### Milestone B — chat history in Supabase (2026-07-22)
+
+**Migration:** `supabase/schema_phase_chat.sql`. Apply AFTER
+`schema_phase_multi_workspace.sql` (it depends on `organizations` +
+`is_member_of`).
+
+**The tables already had a consumer.** `src/engine/api/ask.py` has written to
+`chat_threads` / `chat_messages` since the Ask endpoint shipped
+(`_ensure_thread`, `_append_user_message`, `_append_assistant_message`,
+`GET /api/ask/threads`) — but **no migration ever created them**, and every
+insert is wrapped in `except Exception: logger.debug("table may not exist
+yet")`. Those writes have been failing silently the whole time. This migration
+creates the tables the backend already expects, so **do not rename
+`active_period_id`, `thread_id`, `tokens_input` or `tokens_output`** — the
+column names mirror ask.py exactly. Added on top for the frontend:
+`active_period_label`, `grounded_period`, `attachments jsonb`.
+
+Note the frontend chat actually flows through `cfoApi.chatLlm`, not
+`/api/ask` — the two paths now converge on one schema instead of one silently
+discarding history.
+
+**Scoping:** a thread is visible when `user_id = auth.uid() AND
+is_member_of(org_id)`. Both halves matter — `is_member_of` alone would expose
+one teammate's conversations to another once teams land.
+
+**Frontend:** `chat/chatRemote.ts` (new PostgREST layer) +
+`chat/useChatStore.ts` (rewritten). The public `ChatStore` interface is
+unchanged, so `CFOChatShell` and `CFOHistorySidebar` needed no edits. Design
+points worth keeping:
+
+- **localStorage is now a per-workspace cache** (`cfo-ai-chat-history-v1:<orgId>`).
+  The bare legacy key is read once, imported into the active workspace, then
+  flagged via `cfo-ai-chat-history-imported-v1`.
+- **Ids are client-generated UUIDs reused as primary keys**, so persistence
+  never remaps them and a repeated import collides on the PK rather than
+  duplicating history.
+- **Threads are written lazily, on the first real message.** "New chat"
+  creates no row — an empty placeholder would litter the sidebar on every
+  other device.
+- **`ensureThread()` memoises the in-flight INSERT per conversation.** A
+  cached or errored reply can return in milliseconds and beat its own thread
+  row; without awaiting that promise, `completeAssistantTurn` found the thread
+  "not persisted yet" and silently dropped the answer.
+- Errored turns render in the UI but are never persisted — a reopened
+  conversation shouldn't replay a failure.
+
+`purge_expired_workspaces()` in the Milestone A migration lists `chat_threads`
+(messages cascade from it), so purging a workspace takes its chats with it.
+
+### Milestone C — preferences in Supabase (2026-07-22)
+
+**Migration:** `supabase/schema_phase_prefs.sql` (apply after the other two).
+Adds `org_prefs` and the `set_user_pref` / `set_org_pref` RPCs.
+`user_prefs` itself came with the Milestone A migration.
+
+**Preferences are split by NATURE, not lumped in one bag:**
+
+| Scope | Bag | Examples |
+|---|---|---|
+| Personal | `user_prefs.prefs` | theme, learning mode |
+| Company | `org_prefs.prefs` | display currency, decision rules + preset, dashboard view, scenario levers, workspace-onboarded |
+
+The split is the point: carrying a RON manufacturer's decision thresholds or
+reporting currency into a EUR property vehicle would silently re-grade a
+different business's catalog.
+
+**Writes go through the RPCs, never a read-modify-write.** `set_user_pref` /
+`set_org_pref` merge with `||` server-side. A client-side merge would let two
+stores writing different keys clobber each other — flip the theme in one tab
+and drag a threshold in another, and the slower write erases the faster one.
+
+**`frontend/lib/prefs.ts`** is the sync layer. The contract each store follows:
+
+- **localStorage stays the source of first paint** — every store keeps its
+  existing synchronous read, so nothing became async and no surface flashes a
+  default while the network resolves.
+- On change: write localStorage as before, then `setPref(scope, key, value)`.
+- `usePrefSync(scope, key, value, onAdopt)` hands over a remote value only when
+  it differs, so another device's choice lands without a reload.
+- **Every store carries an `adopting` / `hydrating` ref.** Without it, adopting
+  a remote value trips the store's own persist effect and echoes it straight
+  back to the server on a loop.
+- Hydration is driven from `lib/org.ts`'s `load()` / `switchOrg()` — the one
+  place that knows BOTH the identity and the active workspace and re-runs when
+  either changes. `prefs.ts` deliberately does **not** import `org.ts` (it
+  reads its own `orgBagFor`), because that would be an import cycle.
+
+**Switching workspace resets company prefs.** In `decisionRulesStore.ts`, an
+org bag with no `decision_rules` falls back to catalog defaults rather than
+leaving the previous company's cutoffs in localStorage. The one exception is a
+one-time seed guarded by `cfo-decision-rules-synced-v1`, so existing users'
+tuning is pushed up to the workspace they were already in instead of being
+wiped on first load.
+
+**Deliberately NOT synced — device-local:** sidebar collapsed, docs/datasets
+panel open flags, DocsPanel filters, upload-resume, the `aicfo.*` run caches,
+the `*-verdict:*` caches, all `sessionStorage`. These describe this screen,
+not the user or the company.
+
+**Deliberately deferred — these are data, not preferences:**
+- `cfo:budget-comparison:v1` holds a whole uploaded `ComparisonDataset`; it
+  belongs in its own table, not a jsonb prefs bag.
+- `cfo:benchmark-peers:v1` already has a designed home — the `benchmark_peers`
+  table in `schema_phase_nasdaq_public_companies.sql`.
+- UI language already syncs via `profiles.language` + auth metadata
+  (`i18n/index.ts` `pickLanguageWithProfileSync`); it was left on that path
+  rather than given a second, competing one.
+- `cfoai_consent` and `accuracy_banner_dismissed` remain device-local.
+
+### Security hardening (2026-07-23)
+
+`supabase/schema_phase_security_hardening.sql` — applied to prod the same day.
+Closed a real leak: `current_user_usage` (from `schema_phase5_usage_limits.sql`)
+was a SECURITY DEFINER view over ALL users' subscriptions + usage with anon
+SELECT and no `auth.uid()` filter — any visitor with the public anon key could
+read every user's tier, trial dates, and usage. Both it and
+`founding_member_count` are now `security_invoker` and revoked from
+anon/authenticated (the backend reads them via service role; the FE gets the
+seat count through `/api/founding-member/count`). Also revoked the default
+PUBLIC EXECUTE on every SECURITY DEFINER function (anon can no longer call
+any of them) and pinned the two mutable search_paths.
+
+**⚠ Re-running `schema_phase5_usage_limits.sql` re-creates both views without
+`security_invoker` and re-grants them to anon — re-run the hardening file
+after it, always.**
+
+Advisor findings that remain ON PURPOSE: `rls_enabled_no_policy` (INFO) on the
+seven backend-only tables (deny-all is the intent);
+`authenticated_security_definer_function_executable` on the seven workspace/
+pref RPCs (signed-in clients must call them; each re-asserts auth.uid()/
+membership internally); `auth_leaked_password_protection` (HIBP) needs a paid
+Supabase plan — the API returns 402 on Free tier.
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*

@@ -32,9 +32,12 @@ import {
   fetchRates,
 } from "@/lib/rates";
 import { formatAmountFrom } from "@/lib/money";
+import { setPref, usePrefSync } from "@/lib/prefs";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const DISPLAY_KEY = "cfo:currency-display:v1";
+/** Key inside `org_prefs.prefs` — see supabase/schema_phase_prefs.sql. */
+const PREF_KEY = "currency_display";
 // Default display currency. This is a Romanian-SME platform — trial balances
 // are denominated in RON, source-of-truth values live in RON, and the briefing
 // + statements + ratios all originate in RON before any conversion. Defaulting
@@ -102,7 +105,21 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const setDisplay = useCallback((c: Currency) => {
     setDisplayState(c);
     writeDisplayToStorage(c);
+    // Company-level, not personal: a RON manufacturer and a EUR property
+    // vehicle are different workspaces and should each remember their own
+    // reporting currency.
+    setPref("org", PREF_KEY, c);
   }, []);
+
+  // Adopt a currency chosen on another device (or by a teammate in this
+  // workspace). localStorage still wins first paint; this only fires when the
+  // synced value actually differs.
+  const adoptDisplay = useCallback((c: Currency) => {
+    if (c !== "RON" && c !== "EUR" && c !== "USD") return;
+    setDisplayState(c);
+    writeDisplayToStorage(c);
+  }, []);
+  usePrefSync<Currency>("org", PREF_KEY, display, adoptDisplay);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);

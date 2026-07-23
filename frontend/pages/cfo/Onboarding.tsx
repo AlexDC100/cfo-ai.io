@@ -8,27 +8,13 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Check, Loader2 } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 import { Logo } from "@/components/cfo/Logo";
+import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 import { useAuth } from "@/lib/auth";
 import { useActiveOrg, updateActiveOrg, refreshActiveOrg } from "@/lib/org";
 import { useToast } from "@/hooks/use-toast";
-
-const INDUSTRIES: Array<{ key: string; label: string; description: string }> = [
-  { key: "real_estate", label: "Real estate · commercial property", description: "Office, retail, logistics — high leverage normal, NOI-driven" },
-  { key: "real_estate_residential", label: "Real estate · residential rental", description: "Apartments, BTR — lower leverage, occupancy-sensitive" },
-  { key: "saas", label: "B2B SaaS", description: "Recurring revenue, ARR/NRR-focused, rule-of-40" },
-  { key: "fmcg", label: "FMCG · food & beverage distribution", description: "High inventory turn, thin margins, working-capital heavy" },
-  { key: "manufacturing", label: "Manufacturing · industrial", description: "Capex-intensive, long cycles, fixed cost leverage" },
-  { key: "retail_ecom", label: "Retail · e-commerce", description: "Inventory turn + AOV + repeat-rate driven" },
-  { key: "professional_services", label: "Professional services", description: "Utilization, billable hours, low capex" },
-  { key: "construction", label: "Construction", description: "Project-based, WIP-heavy, milestone billing" },
-  { key: "healthcare", label: "Healthcare · clinics", description: "Regulated, payer-mix sensitive, high fixed cost" },
-  { key: "logistics", label: "Logistics · transport", description: "Fleet capex, fuel-margin sensitive, route economics" },
-  { key: "agriculture", label: "Agriculture", description: "Seasonal, weather-exposed, subsidy-aware" },
-  { key: "other", label: "Other", description: "Generic SME thresholds — refine later" },
-];
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -61,7 +47,7 @@ export default function Onboarding() {
       toast({ title: "Pick an industry to continue", variant: "destructive" });
       return;
     }
-    const display = INDUSTRIES.find((i) => i.key === industryKey)?.label ?? industryKey;
+    const display = orgIndustryLabel(industryKey);
     setBusy(true);
     const ok = await updateActiveOrg({
       name: orgName || org.name,
@@ -126,33 +112,7 @@ export default function Onboarding() {
 
             <div>
               <div className="text-[11px] uppercase tracking-[0.08em] text-ink-mute mb-2">Industry</div>
-              <div className="grid sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Industry">
-                {INDUSTRIES.map((i) => {
-                  const active = industryKey === i.key;
-                  return (
-                    <button
-                      key={i.key}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      onClick={() => setIndustryKey(i.key)}
-                      className={`text-left rounded-xl border px-3.5 py-3 transition-colors ${
-                        active
-                          ? "border-brand bg-brand/10 text-ink"
-                          : "border-rule bg-bg-2/40 hover:border-rule-strong hover:bg-bg-2/70"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="text-[13px] font-medium">{i.label}</div>
-                        {active && <Check size={14} className="text-brand mt-0.5" strokeWidth={2.25} />}
-                      </div>
-                      <div className="text-[11.5px] text-ink-soft mt-0.5 leading-snug">
-                        {i.description}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
             </div>
 
             <div className="pt-2 flex items-center justify-end gap-2">

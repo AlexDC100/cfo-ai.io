@@ -1,5 +1,7 @@
 {
   "sidebar": {
+    "workspaces": "Przestrzenie robocze",
+    "website": "Strona internetowa",
     "workflow": "Workflow",
     "language_label": "Zmień język",
     "dashboard": "Dashboard",

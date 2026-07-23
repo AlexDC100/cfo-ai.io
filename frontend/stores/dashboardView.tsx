@@ -21,9 +21,13 @@ import {
   type ReactNode,
 } from "react";
 
+import { setPref, usePrefSync } from "@/lib/prefs";
+
 export type DashboardView = "snapshot" | "trend";
 
 const KEY = "cfo:dashboard-view:v1";
+/** Key inside `org_prefs.prefs` — see supabase/schema_phase_prefs.sql. */
+const PREF_KEY = "dashboard_view";
 
 function read(): DashboardView {
   if (typeof window === "undefined") return "snapshot";
@@ -57,7 +61,17 @@ export function DashboardViewProvider({ children }: { children: ReactNode }) {
   const setView = useCallback((v: DashboardView) => {
     write(v);
     setViewState(v);
+    // Company-level: whether you read this business as a snapshot or a trend
+    // depends on the business (and how many periods it has), not on you.
+    setPref("org", PREF_KEY, v);
   }, []);
+
+  const adopt = useCallback((v: DashboardView) => {
+    if (v !== "snapshot" && v !== "trend") return;
+    write(v);
+    setViewState(v);
+  }, []);
+  usePrefSync<DashboardView>("org", PREF_KEY, view, adopt);
 
   // Cross-tab sync — pick up a toggle made in another tab.
   useEffect(() => {

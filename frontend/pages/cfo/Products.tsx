@@ -2063,7 +2063,7 @@ function EmptyState({
                 Product-level analysis isn't available for public companies
               </div>
               <p className="text-[12.5px] text-ink-soft mt-1 leading-relaxed">
-                <span className="font-mono">{publicCompanyContext.ticker}</span> ({publicCompanyContext.name}) ships through Sharadar SF1, which reports
+                <span className="font-mono">{publicCompanyContext.ticker}</span> ({publicCompanyContext.name}) is covered from public filings, which report
                 company-level revenue, EBITDA, and balance sheet — not SKU-level economics.
                 Product Intelligence needs your private sales / trading data to find
                 loss-makers, mix outliers, and discontinuation candidates.

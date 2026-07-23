@@ -1,5 +1,7 @@
 {
   "sidebar": {
+    "workspaces": "Espaces de travail",
+    "website": "Site web",
     "workflow": "Flux de travail",
     "language_label": "Changer de langue",
     "workspace": "Espace de travail",

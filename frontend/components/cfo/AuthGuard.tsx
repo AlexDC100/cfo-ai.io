@@ -24,9 +24,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  // isPublicTestMode is a BUILD-TIME constant — the early return above is
+  // taken either always or never for a given bundle, so hook order is in
+  // fact stable across renders. Same deliberate pattern as AuthProvider.
+  /* eslint-disable react-hooks/rules-of-hooks */
   const { status, isAuthenticated } = useAuth();
   const { org, loading: orgLoading, needsOnboarding } = useActiveOrg();
   const location = useLocation();
+  /* eslint-enable react-hooks/rules-of-hooks */
 
   if (status === "loading") {
     return <div className="min-h-screen bg-bg" aria-hidden />;
@@ -37,15 +42,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to={`/login?next=${next}`} replace />;
   }
 
-  // The /onboarding route itself shouldn't bounce to /onboarding — that loops.
-  const onOnboardingRoute = location.pathname === "/onboarding";
+  // Onboarding lives on /workspace now (the setup wizard there) — the
+  // standalone /onboarding page was removed 2026-07-23. Don't bounce when
+  // already on /workspace, that would loop.
+  const onWorkspaceRoute = location.pathname === "/workspace";
 
-  if (!onOnboardingRoute) {
+  if (!onWorkspaceRoute) {
     if (orgLoading) {
       return <div className="min-h-screen bg-bg" aria-hidden />;
     }
     if (needsOnboarding && org) {
-      return <Navigate to="/onboarding" replace />;
+      return <Navigate to="/workspace" replace />;
     }
   }
 

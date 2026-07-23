@@ -25,6 +25,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from . import _supabase
+from . import _org
 from ._benchmark_engine import build_benchmark_report
 # F3.1e: CAEN map moved into the Romania country pack.
 from engine.country_packs.ro_romania.caen_industry_map import caen_to_category, caen_label_fallback
@@ -228,21 +229,14 @@ def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
         return "", "unknown"
 
 
-def _resolve_user_org(jwt: str) -> tuple[str, str]:
-    """Resolve (user_id, org_id) from a JWT. Mirrors the pattern used in
-    pipeline.py — get_user(jwt) → memberships → org_id. Caller gets a
-    401/404 if either step fails."""
-    with _supabase.per_user(jwt) as client:
-        user = client.get_user(jwt)
-    user_id = user.get("id") if user else None
-    if not user_id:
-        raise HTTPException(401, "Could not resolve user from JWT.")
-    with _supabase.admin() as ac:
-        mems = ac.select("memberships", filters={"user_id": f"eq.{user_id}"}, limit=1)
-    if not mems:
-        raise HTTPException(404, "User has no organization membership.")
-    org_id = mems[0]["org_id"]
-    return user_id, org_id
+def _resolve_user_org(jwt: str, org_id: Optional[str] = None) -> tuple[str, str]:
+    """Resolve (user_id, org_id) for the caller's ACTIVE workspace.
+
+    Thin wrapper over _org.resolve_org so this module keeps its historical
+    call signature; the multi-workspace logic (validate the X-Org-Id header
+    against membership, else fall back to the oldest one) lives in one place.
+    """
+    return _org.resolve_org(jwt, org_id)
 
 
 # ─── Request / response shapes ──────────────────────────────────────────────
@@ -324,12 +318,13 @@ def build_router() -> APIRouter:
     def set_caen_code(
         req: SetCaenRequest,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> SetCaenResponse:
         """User confirms / overrides the CAEN code on their org. Marked
         as 'user' source so we can distinguish operator-confirmed
         classifications from auto-suggestions later."""
         jwt = _require_jwt(authorization)
-        _, org_id = _resolve_user_org(jwt)
+        _, org_id = _resolve_user_org(jwt, x_org_id)
         # Spec allows the request to carry org_id explicitly (multi-org
         # users) but we still scope to a membership we can verify.
         target_org = req.org_id or org_id
@@ -382,6 +377,7 @@ def build_router() -> APIRouter:
     def get_benchmark_report(
         period_id: str,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
         """Build (or fetch cached) benchmark report for a period.
 
@@ -392,7 +388,7 @@ def build_router() -> APIRouter:
              cache it, and return.
         """
         jwt = _require_jwt(authorization)
-        _, org_id = _resolve_user_org(jwt)
+        _, org_id = _resolve_user_org(jwt, x_org_id)
 
         with _supabase.per_user(jwt) as client:
             periods = client.select(
@@ -622,6 +618,7 @@ def build_router() -> APIRouter:
     def get_public_records_benchmark(
         document_id: Optional[str] = None,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
         """Build a Level-1 benchmark from the latest (or specified)
         public-records-summary document. Designed for the case where
@@ -644,7 +641,7 @@ def build_router() -> APIRouter:
             warnings: ["upload trial balance for EBITDA / DIO / ..."] }
         """
         jwt = _require_jwt(authorization)
-        _, org_id = _resolve_user_org(jwt)
+        _, org_id = _resolve_user_org(jwt, x_org_id)
 
         # 1. Locate the public-records document.
         with _supabase.per_user(jwt) as client:
