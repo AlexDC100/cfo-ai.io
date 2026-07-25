@@ -1110,8 +1110,23 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
     in step 4 below. Adding source_document_id to the SELECT closes that
     collision. (See Bug A fix: src/engine/api/pipeline.py:910-922.)
     """
+    # User-confirmed period-end wins (2026-07-25). The upload flow detects the
+    # closing month from the filename and lets the user confirm/edit it; the
+    # chosen date lands on documents.period_end_hint. When present it overrides
+    # both the extracted (content) and filename-derived dates so the period is
+    # filed under exactly the month the user confirmed.
+    hint = doc.get("period_end_hint")
+    period_end_hint: Optional[str] = None
+    if hint:
+        try:
+            period_end_hint = date.fromisoformat(str(hint)[:10]).isoformat()
+        except (TypeError, ValueError):
+            period_end_hint = None
+
     period_end_str = parsed.get("period_end")
-    if period_end_str:
+    if period_end_hint:
+        period_end = period_end_hint
+    elif period_end_str:
         try:
             period_end = date.fromisoformat(period_end_str).isoformat()
         except (TypeError, ValueError):
@@ -1155,40 +1170,74 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 filters={"id": f"eq.{period_id}"},
             )
         else:
-            # 2. Insert a fresh period row. The unique constraint on
-            #    (org_id, period_end) prevents races — if another concurrent
-            #    upload races to insert, this raises 23505 and we re-select.
-            try:
-                inserted = admin_client.insert(
+            # 2a. Duplicate-month = REPLACE (2026-07-25 operator directive).
+            #     No period exists for THIS document, but one may already exist
+            #     for this MONTH from a DIFFERENT document. Under the current
+            #     one-company-per-workspace model, a same-month upload is the
+            #     same company's same month, so it must REPLACE that month's
+            #     period rather than create a second period for the same month
+            #     ("don't allow duplicate months in a workspace"). We re-point
+            #     the existing period at the replacing document and let step 4
+            #     below wipe + re-insert its line items — newest upload wins.
+            #
+            #     NB: this deliberately relaxes the Bug-A separation (which
+            #     kept different documents on the same date in separate
+            #     periods to stop a *different company's* file from wiping the
+            #     first). That protection is unnecessary inside a single-company
+            #     workspace; org isolation still keeps other workspaces safe.
+            month_periods = admin_client.select(
+                "financial_periods",
+                filters={
+                    "org_id": f"eq.{doc['org_id']}",
+                    "period_end": f"eq.{period_end}",
+                },
+                order="updated_at.desc",  # newest first if legacy duplicates exist
+            )
+            if month_periods:
+                period_id = month_periods[0]["id"]
+                admin_client.update(
                     "financial_periods",
                     {
-                        "org_id": doc["org_id"],
-                        "source_document_id": doc["id"],
-                        "period_start": period_start,
-                        "period_end": period_end,
-                        "currency": parsed.get("currency") or "RON",
+                        "source_document_id": doc["id"],  # take over the month
+                        "currency": parsed.get("currency") or month_periods[0].get("currency") or "RON",
                         "extraction_confidence": parsed.get("confidence", 0.5),
+                        "updated_at": _now_iso(),
                     },
-                    returning=True,
+                    filters={"id": f"eq.{period_id}"},
                 )
-                period_id = inserted[0]["id"]
-            except Exception:
-                # Race-loser: re-select on the 3-col tuple — matches the
-                # post-Bug-A unique constraint. Reuse the winner. Only ever
-                # collides on a re-run of the same document; different
-                # documents on the same date are not in conflict.
-                rows = admin_client.select(
-                    "financial_periods",
-                    filters={
-                        "org_id": f"eq.{doc['org_id']}",
-                        "period_end": f"eq.{period_end}",
-                        "source_document_id": f"eq.{doc['id']}",
-                    },
-                    single=True,
-                )
-                if not rows:
-                    raise
-                period_id = rows[0]["id"]
+            else:
+                # 2b. Genuinely new month — insert a fresh period row. If a
+                #     concurrent upload races to insert the same tuple, the
+                #     unique constraint raises and we re-select the winner.
+                try:
+                    inserted = admin_client.insert(
+                        "financial_periods",
+                        {
+                            "org_id": doc["org_id"],
+                            "source_document_id": doc["id"],
+                            "period_start": period_start,
+                            "period_end": period_end,
+                            "currency": parsed.get("currency") or "RON",
+                            "extraction_confidence": parsed.get("confidence", 0.5),
+                        },
+                        returning=True,
+                    )
+                    period_id = inserted[0]["id"]
+                except Exception:
+                    # Race-loser: another upload for this month won. Re-select
+                    # by (org_id, period_end) and reuse it — same replace
+                    # semantics as 2a.
+                    rows = admin_client.select(
+                        "financial_periods",
+                        filters={
+                            "org_id": f"eq.{doc['org_id']}",
+                            "period_end": f"eq.{period_end}",
+                        },
+                        order="updated_at.desc",
+                    )
+                    if not rows:
+                        raise
+                    period_id = rows[0]["id"]
 
         # 3. Pin the document to the resolved period. Documents drive period
         #    ownership now — multiple docs per period.
@@ -3337,7 +3386,24 @@ def _run_pipeline_sync(document_id: str) -> None:
             doc, assembled, metrics, org, period_id,
             parsed=parsed, valuation=valuation_payload,
         )
-        stage_persist_narrative(doc, period_id, narrative, validation_alerts)
+        # Non-fatal: the narrative/recommendations/alerts persistence is a
+        # supplementary layer on top of the analysis, which is already
+        # persisted (stage_persist + calculated_metrics + valuation above).
+        # A failure here — e.g. a schema-drift 409 when the
+        # schema_phase_notes_period_scope migration (period_id column +
+        # (period_id, alert_key) unique) hasn't been applied, or the period
+        # being deleted mid-run — must NOT fail the whole scan. This mirrors
+        # the "period vanished" skip inside stage_persist_narrative and the
+        # non-fatal handling every other side-effect in this pipeline uses.
+        try:
+            stage_persist_narrative(doc, period_id, narrative, validation_alerts)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "[pipeline] narrative/alerts persistence failed (non-fatal) — "
+                "analysis still succeeds; briefing/recommendations/alerts may be "
+                "incomplete for %s until schema_phase_notes_period_scope is applied",
+                document_id,
+            )
 
         # Persist the assembled statements blob on financial_periods so the
         # period read endpoint can return it without re-deriving.

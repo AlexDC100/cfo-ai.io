@@ -120,7 +120,7 @@ Backend: `src/engine/` (Python FastAPI)
 | `/api/cfo/profit` | POST | cfo_ai.py | ✅ | |
 | `/api/cfo/decisions` | GET, POST `/{rec_id}/status` | cfo_ai.py | ✅ | |
 | `/api/cfo/chat` | POST | cfo_ai.py | ✅ | |
-| `/api/cfo/chat/llm` | POST | cfo_ai.py | ✅ | Calls Opus 4.7 with grounding. |
+| `/api/cfo/chat/llm` | — | removed 2026-07-24 | ➖ | Moved to `supabase/functions/chat-llm/` (Milestone D) — FE calls the Edge Function directly, not the engine. |
 | `/api/cfo/chat/prompts` | GET | cfo_ai.py | ✅ | |
 | `/api/cfo/exports/board-summary` | POST | cfo_ai.py | ✅ | |
 | `/api/cfo/exports/action-list` | POST | cfo_ai.py | ✅ | |

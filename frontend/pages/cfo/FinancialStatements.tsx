@@ -21,6 +21,7 @@
 
 import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
@@ -28,9 +29,10 @@ import { Money } from "@/components/ui/Money";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
 import { ReportingContextProvider } from "@/components/learning/ReportingContextProvider";
-import { LearningCoach } from "@/components/learning/LearningCoach";
-import { GuideMeButton } from "@/components/learning/GuideMeButton";
-import { RATIOS_GUIDE, RECOMMENDATIONS_GUIDE, RISK_GUIDE } from "@/components/learning/pageGuides";
+import { PageGuideOverlay, type GuideStep } from "@/components/learning/PageGuideOverlay";
+import { PL_GUIDE, CF_GUIDE, RATIOS_GUIDE, RECOMMENDATIONS_GUIDE, RISK_GUIDE } from "@/components/learning/pageGuides";
+import { BALANCE_SHEET_GUIDE } from "@/components/learning/balanceSheetGuide";
+import { VALUATION_GUIDE } from "@/components/learning/valuationGuide";
 import { factToConceptKey, factLabel } from "@/lib/learning/concepts/recommendations";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
@@ -44,6 +46,8 @@ import { DEMO_SAMPLE_ID } from "@/lib/demo/demoCompany";
 import type { Currency } from "@/lib/rates";
 import { useDisplayCurrency, useRates } from "@/stores/currency";
 import { convertFromTo } from "@/lib/money";
+import { openStagedFile } from "@/lib/stagedFilePreview";
+import { readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { BSStatementView } from "@/components/cfo/BSStatementView";
@@ -59,6 +63,16 @@ import { buildBSStatement } from "@/lib/buildBsStatement";
 import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
 import { buildNavCascade } from "@/lib/buildNavCascade";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { detectPeriodEndFromFilename, detectPeriodEndFromFile, formatDetectedMonth } from "@/lib/detectPeriodEnd";
+import { formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,6 +101,7 @@ import {
   // ReferenceError: Check is not defined → InlineErrorBoundary fallback.
   // Explains why steps 3-6 never lit up — the card crashed the moment
   // step 1 completed.
+  AlertTriangle,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -96,10 +111,15 @@ import {
   FileText,
   Info,
   Loader2,
+  Presentation,
   Scale,
   Shield,
   Sparkles,
   TrendingUp,
+  ArrowUp,
+  Cloud,
+  Eye,
+  Plus,
   UploadCloud,
   X,
 } from "lucide-react";
@@ -110,7 +130,6 @@ import {
   downloadReport,
   formatRatio,
   generateRecommendations,
-  verdictColor,
   verdictLabel,
   type Ratio,
   type RatioBundle,
@@ -142,6 +161,9 @@ import {
 } from "@/lib/uploadStore";
 import { InlineErrorBoundary } from "@/components/cfo/InlineErrorBoundary";
 import { CouncilVisualizer } from "@/components/cfo/CouncilVisualizer";
+import { ScanProgressView, TRIAL_BALANCE_STEPS } from "@/components/cfo/ScanProgressView";
+import { isScanSpherePaused } from "@/components/cfo/CouncilSphereHost";
+import { TemplateDownloadCard } from "@/components/cfo/products/TemplateDownloadCard";
 import { StatementNotes } from "@/components/cfo/StatementNotes";
 import { ValuationSection } from "@/components/cfo/ValuationSection";
 import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
@@ -172,6 +194,19 @@ import {
 // The archived bottom-tab implementations were removed in the 2026-07
 // dead-code cleanup (recoverable from git history: frontend/_removed/tabs/).
 import { useToast } from "@/hooks/use-toast";
+
+// Consolidated tab guides (2026-07-25) — the per-tab "Guide me" buttons were
+// removed; a single button in the tab bar opens the guide for the ACTIVE tab.
+// Keyed by TabId. Tabs without an entry (export) show no guide button.
+const TAB_GUIDES: Record<string, { pageId: string; title: string; steps: GuideStep[] }> = {
+  pl:              { pageId: "pnl",           title: "P&L",           steps: PL_GUIDE },
+  balance_sheet:   { pageId: "balance-sheet", title: "Balance Sheet", steps: BALANCE_SHEET_GUIDE },
+  cash_flow:       { pageId: "cash-flow",     title: "Cash Flow",     steps: CF_GUIDE },
+  ratios:          { pageId: "ratios",        title: "Ratios",        steps: RATIOS_GUIDE },
+  valuation:       { pageId: "valuation",     title: "Valuation",     steps: VALUATION_GUIDE },
+  risks:           { pageId: "risk-credit",   title: "Risk & Credit", steps: RISK_GUIDE },
+  recommendations: { pageId: "recommendations", title: "Recommendations", steps: RECOMMENDATIONS_GUIDE },
+};
 
 export default function FinancialStatements() {
   const { t } = useTranslation();
@@ -258,9 +293,13 @@ export default function FinancialStatements() {
   // ?tab=customers selects a tab on load + writes back when the user clicks.
   // ?period=<sample_id> hydrates State B directly on initial render.
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const enabled = useMemo(() => tabEnabled(availableTypes), [availableTypes]);
   const tabs = useMemo(() => allTabs(), []);
   const activeTab = resolveActiveTab(searchParams.get("tab"), enabled);
+  // Single "Guide me" button in the tab bar opens the ACTIVE tab's guide.
+  const activeGuide = TAB_GUIDES[activeTab];
+  const [guideOpen, setGuideOpen] = useState(false);
 
   // The defining state-flip for Phase F: anything loaded → State B. Anything
   // missing → State A. The page chrome below this is conditional on the flag.
@@ -269,7 +308,8 @@ export default function FinancialStatements() {
   const onTabChange = useCallback((next: string) => {
     setSearchParams((prev) => {
       const sp = new URLSearchParams(prev);
-      if (next === "overview") sp.delete("tab");
+      // P&L is the default landing now — a clean URL (no ?tab) means P&L.
+      if (next === "pl") sp.delete("tab");
       else sp.set("tab", next);
       return sp;
     }, { replace: true });
@@ -558,7 +598,38 @@ export default function FinancialStatements() {
   // The variable name `uploadInFlight` is preserved as the read-side
   // binding so downstream JSX (State A + State B overlay) keeps reading
   // exactly the same shape as before.
-  const uploadInFlight = useUploadStore().current;
+  // Only the DASHBOARD's own uploads drive this page's scan takeover / State-A
+  // progress. A products (SKU) upload lives in the same store but must NOT make
+  // the dashboard flip into its scan view — it renders on /products instead.
+  const _upload = useUploadStore().current;
+  const uploadInFlight = _upload && _upload.surface !== "products" ? _upload : null;
+
+  // When a scan lands, we HOLD the analyzed upload on screen (instead of
+  // auto-routing into State B) so the scan view can show its "Scan complete"
+  // card. `awaitingView` carries the period to open; the card's "View
+  // results" button (viewResults) performs the deferred navigation. Declared
+  // BEFORE the analyzed auto-clear hedge below, which reads it (a later
+  // declaration would be a temporal-dead-zone throw in that effect's deps).
+  const [awaitingView, setAwaitingView] = useState<{ periodId: string | null } | null>(null);
+  function viewResults() {
+    const periodId = awaitingView?.periodId ?? uploadInFlight?.periodId ?? null;
+    setAwaitingView(null);
+    if (periodId) {
+      toast({ title: "Analysis ready", description: "Loaded into Dashboard." });
+      // The scan just created (or replaced) a period — the workspace's month
+      // list is now stale. Invalidate it so the top-bar month selector, the
+      // month arrows, and the Workspace month pills / Months section all show +
+      // select the new month rather than lagging a full staleTime behind.
+      void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+      setSearchParams((prev) => {
+        const sp = new URLSearchParams(prev);
+        sp.set("period", periodId);
+        return sp;
+      }, { replace: true });
+    }
+    clearUpload();
+  }
 
   // F3-FE-FIX-1 (Option 2 defensive guard): if hasPeriodLoaded ever
   // flips to false while a stale `analyzed` inflight is still around,
@@ -568,15 +639,45 @@ export default function FinancialStatements() {
   // inflight (including the unverified "stuck after refresh" symptom
   // reported by the operator but not reproducible from code-reading).
   useEffect(() => {
-    if (!hasPeriodLoaded && uploadInFlight?.status === "analyzed") {
+    // …unless we're intentionally holding the analyzed upload to show the
+    // "Scan complete" card (awaitingView) — clearing it here would yank the
+    // card away before the user clicks "View results".
+    if (!hasPeriodLoaded && uploadInFlight?.status === "analyzed" && !awaitingView) {
       clearUpload();
     }
-  }, [hasPeriodLoaded, uploadInFlight?.status]);
+  }, [hasPeriodLoaded, uploadInFlight?.status, awaitingView]);
+
+  // Auto-open on completion (2026-07-25): once a dashboard scan finishes and
+  // produced a real period, select that month and drop straight into the
+  // dashboard — no "View results" click required. The short delay lets the
+  // "Scan complete" card + sphere finish register before the transition. The
+  // manual button stays as a fallback (and covers the DEV simulation, which
+  // has no real period so this guard skips it).
+  useEffect(() => {
+    if (uploadInFlight?.status === "analyzed" && awaitingView?.periodId) {
+      const t = setTimeout(() => { viewResults(); }, 1200);
+      return () => clearTimeout(t);
+    }
+    // viewResults reads current state via closure; gating on the two values
+    // below is what matters, so it's intentionally not in the dep list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadInFlight?.status, awaitingView?.periodId]);
 
   // Files staged for scanning. Choosing/dropping files ADDS them here;
   // nothing is uploaded until the user clicks "Start scan" (no auto-scan).
-  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  // Seeded from + mirrored to the module-level store so a tab switch
+  // (which unmounts this page) doesn't drop the selection.
+  const [stagedFiles, setStagedFiles] = useState<File[]>(() => readStagedFiles("dashboard"));
   const [scanning, setScanning] = useState(false);
+  // "Add month" modal (opened from the month-pills row) — holds the dashboard
+  // dropzone so the next month can be uploaded without the inline zone.
+  const [addMonthOpen, setAddMonthOpen] = useState(false);
+  // Files awaiting period-end confirmation before the scan runs (null = dialog
+  // closed). Set by startScan; cleared by the dialog's confirm/cancel.
+  const [periodConfirm, setPeriodConfirm] = useState<File[] | null>(null);
+  useEffect(() => {
+    writeStagedFiles("dashboard", stagedFiles);
+  }, [stagedFiles]);
 
   // Stage one file (budget decks route straight to Variance; oversize is
   // rejected). Does NOT upload — that happens on Start scan via scanOneFile.
@@ -632,14 +733,14 @@ export default function FinancialStatements() {
   // Upload + enqueue + await terminal status for ONE staged file. Hand-off to
   // State B (navigation / toast) happens only when navigateOnDone — the last
   // file in a batch; earlier files are processed silently, periods persist.
-  function scanOneFile(file: File, navigateOnDone: boolean): Promise<void> {
+  function scanOneFile(file: File, navigateOnDone: boolean, periodEndHint: string | null = null): Promise<void> {
     return new Promise<void>((resolve) => {
       void (async () => {
         setUploadName(file.name);
         startUpload({ docId: "", filename: file.name, status: "queued" });
         const { uploadDocument, subscribeToDocumentStatus, getSupabase } =
           await import("@/lib/supabase");
-        const { row, error } = await uploadDocument(file, { scope: "financial" });
+        const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint });
         if (!row) {
           clearUpload();
           toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
@@ -661,6 +762,16 @@ export default function FinancialStatements() {
           patchUpload({ status: next.status, error: next.error, periodId: next.period_id ?? null });
           if (next.status === "analyzed") {
             unsub();
+            // A new month/period row now exists for this workspace. Refresh the
+            // workspace Months lists (Workspace-tab card pills + the active
+            // workspace's Months section, keyed ["org-periods", orgId]) AND the
+            // active-workspace month selector (["periods-with-documents"]) so
+            // the new month item shows up in the workspaces' months list right
+            // away instead of lagging a full staleTime behind.
+            if (next.period_id) {
+              void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+              void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+            }
             void (async () => {
               if (navigateOnDone) {
                 // Public-records summary → route to multi-year history.
@@ -681,15 +792,16 @@ export default function FinancialStatements() {
                   } catch { /* fall through */ }
                 }
                 if (next.period_id) {
-                  toast({ title: "Analysis ready", description: `${file.name} loaded into Dashboard.` });
-                  setSearchParams((prev) => {
-                    const sp = new URLSearchParams(prev);
-                    sp.set("period", next.period_id!);
-                    return sp;
-                  }, { replace: true });
-                } else {
-                  toast({ title: "Analysis complete", description: `${file.name} processed but no financial period was created. The document type may not be supported.` });
+                  // Don't route into State B yet — hold the analyzed upload on
+                  // screen so the scan view shows its "Scan complete" card; the
+                  // card's "View results" button (viewResults) navigates. The
+                  // completion card is skipped when the tab isn't mounted, so a
+                  // background batch that finishes off-screen still resolves.
+                  setAwaitingView({ periodId: next.period_id });
+                  resolve();
+                  return;
                 }
+                toast({ title: "Analysis complete", description: `${file.name} processed but no financial period was created. The document type may not be supported.` });
               }
               clearUpload();
               resolve();
@@ -705,16 +817,29 @@ export default function FinancialStatements() {
     });
   }
 
+  // Start scan → first confirm each file's period-end date (auto-detected from
+  // the filename, editable) via the dialog, THEN run the batch with the chosen
+  // dates. periodConfirm holds the files awaiting confirmation.
+  function startScan() {
+    if (scanning || stagedFiles.length === 0) return;
+    setPeriodConfirm([...stagedFiles]);
+  }
+
   // Scan every staged file sequentially; the last one navigates into its
-  // result. Clears the staged list when the batch finishes.
-  async function startScan() {
+  // result. Clears the staged list when the batch finishes. `dates` maps
+  // filename → confirmed ISO period-end (or null to let the engine detect).
+  async function runScan(dates: Record<string, string | null>) {
+    setPeriodConfirm(null);
     if (scanning || stagedFiles.length === 0) return;
     setScanning(true);
     const batch = [...stagedFiles];
     for (let i = 0; i < batch.length; i++) {
-      await scanOneFile(batch[i], i === batch.length - 1);
+      await scanOneFile(batch[i], i === batch.length - 1, dates[batch[i].name] ?? null);
     }
+    // Reset the drop zone once the batch is done — staged list AND the
+    // "Received: <filename>" indicator, so it returns to a clean empty state.
     setStagedFiles([]);
+    setUploadName(null);
     setScanning(false);
   }
 
@@ -734,6 +859,11 @@ export default function FinancialStatements() {
   async function simulateFileProcess() {
     if (uploadInFlight) return; // don't clobber a real in-flight upload
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Cancel-confirmation pause: hold the walk while the scan view's
+    // "Cancel this analysis?" state is up.
+    const waitWhilePaused = async () => {
+      while (isScanSpherePaused()) await sleep(200);
+    };
     const steps: Array<import("@/lib/supabase").DocumentStatus> = [
       "extracting", "mapping", "computing", "narrating", "analyzed",
     ];
@@ -742,40 +872,22 @@ export default function FinancialStatements() {
       filename: "debug_simulation.xlsx",
       status: "queued",
     });
-    await sleep(900);
+    // Deliberately UNHURRIED (2026-07-24): long enough for the council
+    // sphere to evolve through its full visual arc and for every
+    // pipeline step to be readable — this is the tool for eyeballing
+    // the scanning view, not a smoke test.
+    await sleep(2500);
     for (const status of steps) {
+      await waitWhilePaused();
+      // Hold the analyzed upload so the "Scan complete" card shows (same as
+      // the real path). Set BEFORE patching analyzed so the auto-clear hedge,
+      // which fires on the status change, sees awaitingView and stands down.
+      if (status === "analyzed") setAwaitingView({ periodId: null });
       patchUpload({ status });
-      await sleep(status === "analyzed" ? 500 : 1300);
+      await sleep(status === "analyzed" ? 2000 : 6000);
     }
-    // Dismiss the progress card. In the empty state the auto-clear effect
-    // (analyzed + !hasPeriodLoaded) already fires; in State B (period
-    // loaded) it does not, so clear explicitly to reset either way.
-    await sleep(1000);
-    clearUpload();
-  }
-
-  // DEV-only: reset the dashboard back to its empty state for testing.
-  // Deliberately LOCAL-ONLY — unlike resetWorkspace() it does NOT delete
-  // the period server-side and shows no confirm dialog. It wipes local
-  // component state + the upload store and flips the URL to empty=1 so the
-  // dashboard returns to the upload/sample picker instantly. Pairs with
-  // simulateFileProcess for quick manual test cycles.
-  function debugResetData() {
-    clearUpload();
-    setStatements(null);
-    setInvoices(null);
-    setAvailableTypes(new Set());
-    setActiveSampleId(null);
-    setUploadName(null);
-    setParseSource(null);
-    setSearchParams((prev) => {
-      const sp = new URLSearchParams(prev);
-      sp.delete("tab");
-      sp.delete("period");
-      sp.set("empty", "1");
-      return sp;
-    }, { replace: true });
-    toast({ title: "Debug: data reset", description: "Local workspace cleared (no server delete)." });
+    // Leave the completion card up — "View results" (no real period in the
+    // simulation) clears it via viewResults(). No auto-clear here.
   }
 
   // F5.0 Phase 1.5 — Reporting metrics snapshot for LearnableNumber
@@ -804,20 +916,9 @@ export default function FinancialStatements() {
       lineItems={remotePeriod.lineItems ?? []}
     >
     <>
-    {/* F5.0 Step 3 (CFO AI Learn) — first-run coach. Renders only for
-        guided-mode users who haven't dismissed yet. "Show me" deep-links
-        to /financials → Balance Sheet tab where the page guide auto-opens. */}
-    <LearningCoach
-      onShowGuide={() => {
-        // Drop the user on the Balance Sheet tab; BSStatementView's
-        // auto-open effect picks up from there.
-        if (typeof window !== "undefined") {
-          const url = new URL(window.location.href);
-          url.searchParams.set("tab", "balance_sheet");
-          window.history.replaceState(null, "", url.toString());
-        }
-      }}
-    />
+    {/* The first-run LearningCoach card ("Learn how CFO AI reads your
+        numbers") was removed from this surface 2026-07-24 per operator
+        directive; the component still exists for other mounts. */}
       {/* Pricing V3 — extra-doc confirm dialog mounts here so the modal
           sits inside the same tree as the upload action. Renders `null`
           unless the hook has a pending extra-doc decision. */}
@@ -859,6 +960,55 @@ export default function FinancialStatements() {
         }}
       />
 
+      {/* Period-end confirmation — auto-detects each staged file's closing
+          month from its filename and lets the user confirm or edit before
+          analysis runs. */}
+      {periodConfirm && (
+        <PeriodConfirmDialog
+          files={periodConfirm}
+          onConfirm={runScan}
+          onCancel={() => setPeriodConfirm(null)}
+        />
+      )}
+
+      {/* Add-month modal — the dashboard dropzone, opened by the "Add month"
+          pill above the header. Starting a scan closes the modal so the
+          period-confirm dialog + full-screen scan takeover can show. */}
+      <Dialog open={addMonthOpen} onOpenChange={setAddMonthOpen}>
+        <DialogContent className="sm:max-w-[640px]" data-testid="add-month-modal">
+          <DialogHeader>
+            <DialogTitle>Add another month</DialogTitle>
+            <DialogDescription>
+              Drop next month's trial balance to add it to this workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <DashboardAddMonthZone
+            hideHeader
+            stagedFiles={stagedFiles}
+            scanning={scanning}
+            onDrop={onDrop}
+            onTriggerFile={() => fileRef.current?.click()}
+            onViewStaged={(f) => void openStagedFile(f)}
+            onDiscardStaged={discardStagedFile}
+            onDismissAll={dismissAllStaged}
+            onStartScan={() => { setAddMonthOpen(false); startScan(); }}
+            onSimulate={() => { setAddMonthOpen(false); void simulateFileProcess(); }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Consolidated page-guide overlay — driven by the single "Guide me"
+          button in the tab bar; shows the ACTIVE tab's guide. */}
+      {activeGuide && (
+        <PageGuideOverlay
+          open={guideOpen}
+          pageId={activeGuide.pageId}
+          title={activeGuide.title}
+          steps={activeGuide.steps}
+          onClose={() => setGuideOpen(false)}
+        />
+      )}
+
       {/* FE-FIX-2 (revised): State B upload overlay — full-viewport
           centred card with a subtle blurred backdrop, so the upload
           progress feels foregrounded (modal-like) rather than glued to
@@ -870,65 +1020,186 @@ export default function FinancialStatements() {
           the eye. */}
 
       <TooltipProvider delayDuration={150}>
-        {hasPeriodLoaded ? (
-          <CompactPeriodHeader
-            statements={statements}
-            invoices={invoices}
-            activeSampleId={activeSampleId}
-            onPickSample={pickSample}
-            onTriggerFile={() => fileRef.current?.click()}
-            onReset={resetWorkspace}
-            onSimulate={simulateFileProcess}
-            onDebugReset={debugResetData}
+        {/* Scan takeover — whenever an upload is in flight, the WHOLE surface
+            (both State A entry and State B loaded-month) reduces to the pipeline
+            steps + council sphere, so scanning a new month from the dashboard
+            dropzone looks identical to the first upload. */}
+        {uploadInFlight ? (
+          <ScanProgressView
+            status={uploadInFlight.status}
+            steps={TRIAL_BALANCE_STEPS}
+            onCancel={clearUpload}
+            onViewResults={viewResults}
           />
         ) : (
+        <>
+        {hasPeriodLoaded ? (
+          <>
+            {/* Month pills (left) + a "notes & recommendations" jump pill
+                (top-right of the content) showing the warning count; clicking
+                scrolls to the Notes & recommendations section of the open tab. */}
+            <div className="flex items-start justify-between gap-3">
+              <DashboardMonthPills
+                activePeriodId={remotePeriod.id ?? searchParams.get("period")}
+                onSelect={(periodId) =>
+                  setSearchParams((prev) => {
+                    const sp = new URLSearchParams(prev);
+                    sp.set("period", periodId);
+                    return sp;
+                  }, { replace: true })
+                }
+                onAddMonth={() => setAddMonthOpen(true)}
+              />
+              {(() => {
+                // Count of ALL notes for this period (engine recommendations +
+                // alerts) — matches the "Notes & recommendations" section.
+                const alertRows = remotePeriod.alerts ?? [];
+                const notesTotal =
+                  (remotePeriod.recommendations?.length ?? 0) + alertRows.length;
+                if (notesTotal === 0) return null;
+                // Rank the pill colour by the WORST severity present: red for
+                // critical/high, amber for watch (medium), blue for info
+                // (low/info), teal when it's only recommendations.
+                const sev = (a: { severity?: string }) => a.severity ?? "";
+                const tone = alertRows.some((a) => sev(a) === "critical" || sev(a) === "high")
+                  ? "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20"
+                  : alertRows.some((a) => sev(a) === "medium")
+                    ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                    : alertRows.some((a) => sev(a) === "low" || sev(a) === "info")
+                      ? "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+                      : "border-brand/50 bg-brand/10 text-brand-d hover:bg-brand/20";
+                return (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document
+                        .querySelector('[data-testid^="statement-notes-"]')
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }
+                    data-testid="notes-jump-pill"
+                    title="Jump to Notes & recommendations"
+                    className={`shrink-0 self-center inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-semibold tabular-nums transition-colors ${tone}`}
+                  >
+                    <AlertTriangle size={17} strokeWidth={2} />
+                    {notesTotal}
+                  </button>
+                );
+              })()}
+            </div>
+            {/* Loaded-month header beside the official-template card: the
+                Financial Analysis title + CFO briefing occupy the left column,
+                the "Start from the official template" card sits to their right
+                (moved out of the add-month zone below). */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 items-start mb-6">
+              <div className="min-w-0">
+                <CompactPeriodHeader
+                  statements={statements}
+                  invoices={invoices}
+                  activeSampleId={activeSampleId}
+                  onPickSample={pickSample}
+                  onTriggerFile={() => fileRef.current?.click()}
+                  onReset={resetWorkspace}
+                  briefing={remotePeriod.briefing}
+                  briefingPeriodId={remotePeriod.id}
+                />
+              </div>
+              <div className="relative">
+                <DashboardTemplateCard />
+              </div>
+            </div>
+            {/* Accuracy note — full-width, directly under the header + official-
+                template section. */}
+            <AccuracyBanner
+              assembledBs={statements?.assembled_bs as Record<string, number> | undefined}
+              sourceDataQuality={sourceDataQuality ?? null}
+            />
+            {/* The add-another-month dropzone now lives in a modal opened by
+                the "Add month" pill (see the Dialog near the period-confirm
+                dialog above) — no longer inline here. */}
+          </>
+        ) : uploadInFlight ? null : (
           <section className="mb-10 transition-opacity duration-200 relative">
+            {/* Hidden entirely while a scan is in flight (2026-07-24) — the
+                scanning view is just the pipeline steps + the council
+                sphere, no "Get started" copy. */}
             {/* Atmospheric brand glow now lives in AppShell (applied app-wide
              *  behind every tab's content), so the hero no longer paints its
              *  own — that would double the glow only on the dashboard. */}
 
-            <div className="relative">
-              <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
-                <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
-                {t("dashboard.label_eyebrow")}
+            {/* 2-column hero (2026-07-24, mirrors /products): copy on the
+                left, the official-template card (with example trial
+                balances) on the right; stacks below lg. */}
+            <div className="relative grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6 items-start">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+                  <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+                  {t("dashboard.label_eyebrow")}
+                </div>
+                <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif">
+                  {t("dashboard.hero_pre")}{" "}
+                  <span className="text-grad">{t("dashboard.hero_highlight")}</span>
+                  {" "}{t("dashboard.hero_post")}
+                </h1>
+                {/* File-type words rendered as pills, so this is hardcoded JSX
+                    rather than the plain-text i18n string. */}
+                <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
+                  <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
+                  {" "}or{" "}
+                  <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
+                  , exported from your accounting system —{" "}
+                  {["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"].map((sys, i, arr) => (
+                    <span key={sys}>
+                      <span className="font-semibold text-brand-d">{sys}</span>
+                      {i < arr.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
+                  . This is the document the full analysis is built for: P&amp;L, Balance Sheet, Cash Flow,
+                  Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every
+                  upload is auto-checked — clean trial balances reconcile within 0.5% of source.
+                </p>
+                {/* Import (primary, animated gradient — opens the file
+                    picker) + Ask CFO AI (same secondary style as the
+                    Products hero's button). */}
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    data-testid="dashboard-hero-import"
+                    className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+                  >
+                    Import
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openAskCfoAi(
+                        "What will CFO AI do with my trial balance? Walk me through the analysis I'll get after uploading — P&L, balance sheet, ratios, valuation, risks.",
+                      )
+                    }
+                    data-testid="dashboard-ask-cfo-ai"
+                    className="
+                      inline-flex items-center gap-2 h-10 px-4 rounded-lg
+                      border border-rule bg-surface/70 backdrop-blur
+                      text-[13px] font-medium text-ink
+                      hover:bg-bg-2/60 hover:border-rule-strong
+                      transition-colors
+                    "
+                  >
+                    <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
+                    Ask CFO AI
+                  </button>
+                </div>
               </div>
-              <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif">
-                {t("dashboard.hero_pre")}{" "}
-                <span className="text-grad">{t("dashboard.hero_highlight")}</span>
-                {" "}{t("dashboard.hero_post")}
-              </h1>
-              {/* File-type words rendered as pills, so this is hardcoded JSX
-                  rather than the plain-text i18n string. */}
-              <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
-                <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
-                {" "}or{" "}
-                <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
-                , exported from your accounting system —{" "}
-                {["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"].map((sys, i, arr) => (
-                  <span key={sys}>
-                    <span className="font-semibold text-brand-d">{sys}</span>
-                    {i < arr.length - 1 ? ", " : ""}
-                  </span>
-                ))}
-                . This is the document the full analysis is built for: P&amp;L, Balance Sheet, Cash Flow,
-                Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every
-                upload is auto-checked — clean trial balances reconcile within 0.5% of source.
-              </p>
+              <div className="relative">
+                <DashboardTemplateCard />
+              </div>
             </div>
           </section>
         )}
 
-        {/* Persistent accuracy banner above the KPI tiles. Now drift-aware:
-            CLEAN uploads (drift < 0.5%, source balanced) show a green
-            "Quality checks passed" with the measured drift number; WATCH /
-            PROBLEM bands show a specific warning naming the issue (source
-            imbalance %, BS drift %) — no more generic "~90%+" nag. */}
-        {hasPeriodLoaded && (
-          <AccuracyBanner
-            assembledBs={statements?.assembled_bs as Record<string, number> | undefined}
-            sourceDataQuality={sourceDataQuality ?? null}
-          />
-        )}
+        {/* Accuracy banner moved 2026-07-25 — it now renders directly under the
+            CFO briefing in the header (see the State B header column), not here
+            above the KPI tiles. */}
 
         {/* Statutory-format limitation banner — only shows when this
             period was loaded from an ANAF Formular F30+F10 filing, where
@@ -1109,82 +1380,41 @@ export default function FinancialStatements() {
                       ebitda: tileEbitdaRon,
                       net_profit: tileNetProfitRon,
                       total_debt: totals.totalDebt,
+                      // Risk / opportunity count cards — critical+high are
+                      // "risks", medium+info are "opportunities" (same split
+                      // as the overview's Top-3 lists).
+                      open_risks: criticalCount + highCount,
+                      open_opportunities: recommendations.filter(
+                        (r) => r.priority === "medium" || r.priority === "info",
+                      ).length,
                     }}
                     series={multiYearSeries}
                   />
                 </DashboardViewProvider>
               </DashboardProvider>
-              {/* Source badge — visible label so users understand why two
-                  periods of the same company might carry slightly
-                  different EBITDA when one was uploaded as TB and the
-                  other as F30+F10. */}
-              {sourceTooltip && (
+              {/* Source badge — kept ONLY for the statutory (F30+F10) case,
+                  which explains why its EBITDA can differ from a trial-balance
+                  upload. The plain "Source: trial balance" label was removed
+                  2026-07-25 (redundant noise on the common path). */}
+              {sourceTooltip && remotePeriod.detectedType === "statutory_f30_f10" && (
                 <div
                   data-testid="kpi-source-badge"
                   className="text-[10.5px] text-ink-mute mb-3 -mt-1"
                 >
-                  {remotePeriod.detectedType === "statutory_f30_f10"
-                    ? "Source: statutory statement (Formular F30 + F10)"
-                    : "Source: trial balance"}
+                  Source: statutory statement (Formular F30 + F10)
                 </div>
               )}
             </div>
           );
         })()}
 
-        {/* F6.0.1d — Budget vs Actual entry point.
-            The variance report is no longer a standalone sidebar item — it
-            lives on the dashboard. This entry is the discoverable doorway:
-            it shows for ANY loaded period (so a first-time user can find the
-            upload area), with copy that adapts to whether a budget is already
-            loaded. It routes to /dashboard/variance, where the dedicated
-            "Upload budget" button (.csv / .xlsx / .pptx) + Template download
-            live. (Dropping a .pptx on the dashboard also opens it directly.) */}
-        {hasPeriodLoaded && (
-          <button
-            type="button"
-            data-testid="dashboard-variance-link"
-            data-budget-loaded={budgetDeck ? "true" : "false"}
-            onClick={() => {
-              const p = searchParams.get("period");
-              navigate(`/dashboard/variance${p ? `?period=${encodeURIComponent(p)}` : ""}`);
-            }}
-            className="
-              group w-full mb-6 flex items-center gap-3
-              rounded-xl border border-rule bg-surface px-4 py-3 text-left
-              hover:border-brand/40 hover:bg-bg-2/40 transition-colors
-            "
-          >
-            <span className="grid place-items-center h-9 w-9 rounded-lg bg-[hsl(173,57%,55%)]/[0.12] text-[hsl(173,57%,34%)] shrink-0">
-              <Scale className="w-4 h-4" />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-[13px] font-semibold text-ink">Budget vs Actual</span>
-              <span className="block text-[11.5px] text-ink-mute leading-snug">
-                {budgetDeck
-                  ? "A budget is loaded — open the report to see every P&L line vs budget and last year."
-                  : "Upload a budget (.csv / .xlsx / .pptx) to compare every P&L line vs budget and last year."}
-              </span>
-            </span>
-            <ArrowRight className="w-4 h-4 text-ink-mute group-hover:text-ink group-hover:translate-x-0.5 transition-transform shrink-0" />
-          </button>
-        )}
+        {/* Budget vs Actual dashboard entry point removed 2026-07-25 — it's now
+            a first-class sidebar item ("Budget vs Actual" → /dashboard/variance),
+            so the inline doorway here is redundant. */}
 
         {/* Second KPI row — invoice analytics (when invoices loaded). */}
         {hasPeriodLoaded && invoices && invoices.length > 0 && <InvoiceKpiStrip invoices={invoices} />}
 
-        {/* Server-generated CFO briefing. Only renders when the active period
-            came from the pipeline (Opus 4.7 narrate stage). Empty for samples.
-            Currency-aware: when the TopHeader currency toggle ≠ RON, we POST
-            /briefing/regenerate?currency=X so the prose says "€1.6M revenue"
-            instead of "8.1M RON". The regenerated text isn't persisted —
-            stays in component state until the next toggle. */}
-        {hasPeriodLoaded && remotePeriod.briefing && remotePeriod.id && (
-          <CFOBriefingCard
-            periodId={remotePeriod.id}
-            baseBriefing={remotePeriod.briefing}
-          />
-        )}
         <div className={hasPeriodLoaded ? "mb-8" : ""} />
 
         {/* Width is governed site-wide by AppShell's content clamp — no
@@ -1201,7 +1431,7 @@ export default function FinancialStatements() {
               data-testid="tabs-list"
               className="
                 h-auto bg-transparent p-0
-                flex flex-nowrap sm:flex-wrap justify-start gap-1
+                flex flex-nowrap sm:flex-wrap justify-start sm:justify-center gap-1
                 overflow-x-auto sm:overflow-visible scrollbar-none
               "
             >
@@ -1253,6 +1483,23 @@ export default function FinancialStatements() {
                   </Tooltip>
                 );
               })}
+              {/* Single consolidated "Guide me" — opens the active tab's guide.
+                  Sits after Export with a hairline divider to its left. On a tab
+                  with no guide (Export) it still renders, but dimmed +
+                  non-interactive. */}
+              <span aria-hidden className="shrink-0 self-center ml-4 mr-3.5 h-5 w-px bg-rule" />
+              <button
+                type="button"
+                onClick={() => activeGuide && setGuideOpen(true)}
+                disabled={!activeGuide}
+                data-testid="guide-me-tabbar"
+                className={`shrink-0 self-center inline-flex items-center gap-1.5 h-8 px-3 rounded-xl ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[12px] font-medium transition-colors ${
+                  activeGuide ? "hover:border-brand/60" : "opacity-40 cursor-not-allowed"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Guide me
+              </button>
             </TabsList>
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 left-0 w-6 bg-gradient-to-r from-bg to-transparent" />
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 right-0 w-6 bg-gradient-to-l from-bg to-transparent" />
@@ -1275,13 +1522,17 @@ export default function FinancialStatements() {
               flag is false ONLY when statements exist but sourceDataQuality
               doesn't — i.e., Claude-path upload (EEI PDFs, etc.). Pre-load
               and dataless states still show no banner. */}
+          {/* 2026-07-25 — the benign "n/a" info pill (Claude-extracted
+              uploads) and the "Extracted from · <file>" banner were removed
+              from the overview per operator directive; the header briefing now
+              carries the source context. `telemetryAvailable` is forced true so
+              only the REAL >2% source-imbalance WARN can still render (kept: it
+              flags trial balances that don't reconcile). */}
           <SourceQualityBanner
             sourceQuality={sourceDataQuality}
             currency={statements?.currency ?? "RON"}
-            telemetryAvailable={!statements ? true : sourceDataQuality !== null}
+            telemetryAvailable
           />
-
-          {parseSource && <ExtractionConfidenceBanner source={parseSource} />}
 
           {!hasPeriodLoaded ? (
             // STATE A — entry surface. The drop zone stays mounted during a
@@ -1310,6 +1561,7 @@ export default function FinancialStatements() {
                 onStartScan={startScan}
                 scanning={scanning}
                 inflight={uploadInFlight}
+                onViewResults={viewResults}
               />
             </>
           ) : (
@@ -1333,6 +1585,7 @@ export default function FinancialStatements() {
         {enabled.pl && statements && (
           <TabsContent value="pl" className="mt-6 space-y-8 min-h-[400px]">
             <PLStatementView
+              hideGuide
               statement={pickPLBuilder(
                 {
                   lineItems: remotePeriod.lineItems,
@@ -1363,6 +1616,7 @@ export default function FinancialStatements() {
           <TabsContent value="balance_sheet" className="mt-6 space-y-8 min-h-[400px]">
             {remotePeriod.lineItems && remotePeriod.lineItems.length > 0 ? (
               <BSStatementView
+                hideGuide
                 statement={buildBSStatement({
                   lineItems: remotePeriod.lineItems,
                   entity: statements.companyName ?? "Entity",
@@ -1408,6 +1662,7 @@ export default function FinancialStatements() {
         {enabled.cash_flow && statements && (
           <TabsContent value="cash_flow" className="mt-6 space-y-8 min-h-[400px]">
             <CashFlowStatementView
+              hideGuide
               statement={buildCashFlowStatement({
                 pl: (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl,
                 bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,
@@ -1555,6 +1810,7 @@ export default function FinancialStatements() {
                             </div>
                           </header>
                           <EbitdaMultiplePrimaryCard
+                            hideGuide
                             metrics={canonical}
                             valuation={remotePeriod.valuation}
                             currency={statements.currency}
@@ -1587,6 +1843,7 @@ export default function FinancialStatements() {
                   {canonical && (
                     <>
                       <EbitdaMultiplePrimaryCard
+                        hideGuide
                         metrics={canonical}
                         valuation={remotePeriod.valuation}
                         currency={statements.currency}
@@ -1638,9 +1895,6 @@ export default function FinancialStatements() {
         {/* RISKS & CREDIT ──────────────────────────────────────────────── */}
         {enabled.risks && statements && (
           <TabsContent value="risks" className="mt-6 space-y-6 min-h-[400px]">
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
-              <GuideMeButton pageId="risk-credit" title="Risk & Credit" steps={RISK_GUIDE} />
-            </div>
             <RisksPanel
               statements={statements}
               // F2.4 — engine canonical envelopes. RisksPanel reads
@@ -1663,11 +1917,6 @@ export default function FinancialStatements() {
 
         {/* RECOMMENDATIONS ─────────────────────────────────────────────── */}
         <TabsContent value="recommendations" className="mt-6 space-y-3 min-h-[400px]">
-          {statements && recommendations.length > 0 && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-              <GuideMeButton pageId="recommendations" title="Recommendations" steps={RECOMMENDATIONS_GUIDE} />
-            </div>
-          )}
           {statements && recommendations.length > 0 ? (
             recommendations.map((rec) => (
               <RecommendationCard key={rec.id} rec={rec} currency={statements.currency} />
@@ -1692,74 +1941,88 @@ export default function FinancialStatements() {
               onCta={() => onTabChange("overview")}
             />
           ) : (
-          <>
-          <div className="rounded-2xl border border-rule bg-surface p-6">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-brand-tint text-brand-d flex items-center justify-center shrink-0">
-                <FileText size={18} strokeWidth={1.75} />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+          {/* HTML report — brand sleeve. */}
+          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
+            <div className="w-2 shrink-0 bg-brand" />
+            <div className="relative flex-1 p-3.5 flex flex-col">
+              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-brand opacity-[0.08]">
+                <FileText size={230} strokeWidth={1} />
               </div>
-              <div className="flex-1">
-                <h3 className="font-serif text-[18px] text-ink">HTML financial analysis report</h3>
+              <div className="relative">
+                <h3 className="font-serif text-[26px] leading-tight text-ink">HTML financial analysis report</h3>
                 <p className="text-[13.5px] text-ink-soft mt-1">
                   Single-file HTML — opens in any browser, prints to PDF cleanly.
                   Includes balance sheet, P&L, all 25+ ratios with verdicts,
                   bankruptcy assessment, and prioritized recommendations.
                 </p>
+              </div>
+              <div className="relative mt-auto pt-6 flex justify-end">
                 <button
                   onClick={() => downloadReport(statements)}
-                  className="mt-4 inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand text-paper text-[13px] font-medium hover:bg-brand-d transition-colors"
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
                 >
                   <ArrowDownToLine size={15} strokeWidth={2} />
-                  Download report
+                  Download
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-rule bg-surface p-6">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-[#E6F7F4] text-[#2AA89B] flex items-center justify-center shrink-0">
-                <FileSpreadsheet size={18} strokeWidth={1.75} />
+          {/* Excel workbook — green sleeve. */}
+          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
+            <div className="w-2 shrink-0 bg-green-600" />
+            <div className="relative flex-1 p-3.5 flex flex-col">
+              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-green-600 opacity-[0.09]">
+                <FileSpreadsheet size={230} strokeWidth={1} />
               </div>
-              <div className="flex-1">
-                <h3 className="font-serif text-[18px] text-ink">Excel workbook</h3>
+              <div className="relative">
+                <h3 className="font-serif text-[26px] leading-tight text-ink">Excel workbook</h3>
                 <p className="text-[13.5px] text-ink-soft mt-1">
                   8-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow,
                   valuation (WACC + DCF + Graham), credit & risk, recommendations.
                 </p>
+              </div>
+              <div className="relative mt-auto pt-6 flex justify-end">
                 <button
                   onClick={() => downloadExcelReport(statements)}
-                  className="mt-4 inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-ink text-paper text-[13px] font-medium hover:bg-ink/90 transition-colors"
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
                 >
                   <ArrowDownToLine size={15} strokeWidth={2} />
-                  Download Excel
+                  Download
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-rule bg-bg-2/40 p-6">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-bg-2 text-ink-mute flex items-center justify-center shrink-0">
-                <FileText size={18} strokeWidth={1.75} />
+          {/* PowerPoint deck — orange sleeve. Coming next (no download yet). */}
+          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
+            <div className="w-2 shrink-0 bg-orange-500" />
+            <div className="relative flex-1 p-3.5 flex flex-col">
+              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-orange-500 opacity-[0.09]">
+                <Presentation size={230} strokeWidth={1} />
               </div>
-              <div className="flex-1">
-                <h3 className="font-serif text-[18px] text-ink">PowerPoint deck</h3>
+              <div className="relative">
+                <h3 className="font-serif text-[26px] leading-tight text-ink">PowerPoint deck</h3>
                 <p className="text-[13.5px] text-ink-soft mt-1">
                   Investor-grade pptx export with cover slide, KPIs, ratios, valuation,
                   and recommendations slides arrives in the next phase.
                 </p>
-                <span className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+              </div>
+              <div className="relative mt-auto pt-6 flex justify-end">
+                <span className="inline-flex items-center gap-1.5 text-[11.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
                   <Sparkles size={11} strokeWidth={2} />
                   Coming next
                 </span>
               </div>
             </div>
           </div>
-          </>
+          </div>
           )}
         </TabsContent>
       </Tabs>
+        </>
+        )}
       </TooltipProvider>
 
     </>
@@ -1799,6 +2062,152 @@ function friendlyUploadError(detail: string | undefined | null): string {
     return d;
   }
   return "Couldn't finish analysis. Please try again or contact support if it persists.";
+}
+
+// ─── Period-end confirmation dialog ──────────────────────────────────────────
+// Before a scan runs, show the closing month auto-detected from each file's
+// name and let the user confirm or pick the right one. A blank month means
+// "let the engine detect it" (its filename/content detection still runs).
+function PeriodConfirmDialog({
+  files,
+  onConfirm,
+  onCancel,
+}: {
+  files: File[];
+  onConfirm: (dates: Record<string, string | null>) => void;
+  onCancel: () => void;
+}) {
+  // Per-file month value as "YYYY-MM" (what <input type="month"> uses).
+  // Seeded synchronously from the filename so the dialog opens with a value;
+  // then upgraded from file CONTENT once the async read resolves (below).
+  const [months, setMonths] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const f of files) {
+      const iso = detectPeriodEndFromFilename(f.name);
+      init[f.name] = iso ? iso.slice(0, 7) : "";
+    }
+    return init;
+  });
+  // Files the user has manually edited — never overwrite their choice when the
+  // async content detection lands.
+  const touched = useRef<Set<string>>(new Set());
+  // Whether we're still reading file contents for a better guess.
+  const [reading, setReading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setReading(true);
+    (async () => {
+      const found: Record<string, string> = {};
+      for (const f of files) {
+        const iso = await detectPeriodEndFromFile(f);
+        if (iso) found[f.name] = iso.slice(0, 7);
+      }
+      if (cancelled) return;
+      setMonths((prev) => {
+        const next = { ...prev };
+        for (const f of files) {
+          if (touched.current.has(f.name)) continue; // respect manual edits
+          if (found[f.name]) next[f.name] = found[f.name];
+        }
+        return next;
+      });
+      setReading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Files are fixed for the dialog's lifetime (a snapshot passed by startScan).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function confirm() {
+    const dates: Record<string, string | null> = {};
+    for (const f of files) {
+      const ym = months[f.name];
+      if (ym && /^\d{4}-\d{2}$/.test(ym)) {
+        // Trial-balance convention: the period-end is the LAST day of the month.
+        const [y, m] = ym.split("-").map(Number);
+        const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        dates[f.name] = `${ym}-${String(last).padStart(2, "0")}`;
+      } else {
+        dates[f.name] = null; // no confirmed month — the engine detects it
+      }
+    }
+    onConfirm(dates);
+  }
+
+  const multiple = files.length > 1;
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent className="sm:max-w-[480px]" data-testid="period-confirm-dialog">
+        <DialogHeader>
+          <DialogTitle>Confirm the {multiple ? "periods" : "period"}</DialogTitle>
+          <DialogDescription>
+            We detected the closing month from {multiple ? "each file's name" : "the file name"}.
+            Confirm it or pick the right month — this becomes the period the analysis is filed under.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 max-h-[46vh] overflow-y-auto">
+          {files.map((f) => {
+            // Label reflects the RESOLVED month (content detection, then
+            // filename), converting "YYYY-MM" back to an ISO date for display.
+            const ym = months[f.name];
+            const detectedIso = ym && /^\d{4}-\d{2}$/.test(ym) ? `${ym}-01` : null;
+            return (
+              <div key={f.name} className="rounded-lg border border-rule bg-bg-2/30 px-3 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                  <span className="text-[12.5px] text-ink truncate">{f.name}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <label className="text-[11.5px] text-ink-mute">
+                    {reading && !detectedIso ? (
+                      <span className="text-ink-mute">Reading file…</span>
+                    ) : detectedIso ? (
+                      <>Detected: <span className="text-ink-soft font-medium">{formatDetectedMonth(detectedIso)}</span></>
+                    ) : (
+                      <span className="text-ink-soft">No date found — pick one</span>
+                    )}
+                  </label>
+                  <input
+                    type="month"
+                    value={months[f.name] ?? ""}
+                    onChange={(e) => {
+                      touched.current.add(f.name);
+                      setMonths((prev) => ({ ...prev, [f.name]: e.target.value }));
+                    }}
+                    data-testid="period-confirm-month"
+                    className="h-9 px-2.5 rounded-lg border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onCancel}
+            data-testid="period-confirm-cancel"
+            className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirm}
+            data-testid="period-confirm-scan"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+          >
+            Use {multiple ? "these dates" : "this date"} · Scan
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function ExtractionConfidenceBanner({
@@ -1927,46 +2336,45 @@ function CFOBriefingCard({
     };
   }, [display, periodId]);
 
+  // Chrome-less (2026-07-25): the briefing IS the header's subtitle, so it
+  // drops the bordered card and renders as plain prose styled like the
+  // subtitle across the app's tab headers (soft ink, relaxed leading) — just
+  // a small eyebrow label above and the accuracy note below.
   return (
-    <section className="mt-3">
-      <article
-        data-testid="cfo-briefing"
-        className="rounded-2xl border border-brand/25 bg-brand-tint/40 p-5"
-      >
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">
-            <Sparkles size={11} strokeWidth={2} />
-            CFO briefing — Opus 4.7
-            {display !== "RON" && (
-              <span className="text-ink-mute normal-case tracking-normal">
-                · displayed in {display}
-              </span>
-            )}
-          </div>
-          {loading && (
-            <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
-              <Loader2 size={12} className="animate-spin" />
-              Regenerating in {display}…
-            </div>
+    <div data-testid="cfo-briefing" className="mt-3 max-w-[1040px]">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">
+          <Sparkles size={11} strokeWidth={2} />
+          CFO briefing — Opus 4.7
+          {display !== "RON" && (
+            <span className="text-ink-mute normal-case tracking-normal">
+              · displayed in {display}
+            </span>
           )}
         </div>
-        <p
-          className={`text-[14px] text-ink leading-relaxed transition-opacity ${loading ? "opacity-60" : ""}`}
-        >
-          {text}
-        </p>
-        {error && (
-          <p className="mt-2 text-[11px] text-[#2AA89B]">
-            Couldn't regenerate in {display} ({error}). Showing RON version.
-          </p>
+        {loading && (
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+            <Loader2 size={12} className="animate-spin" />
+            Regenerating in {display}…
+          </div>
         )}
-        <footer className="mt-4 pt-3 border-t border-rule/60 text-[11px] italic text-ink-mute">
-          Generated from automated trial-balance extraction — accuracy auto-measured
-          per upload (clean uploads reconcile within 0.5%). Cross-check headline numbers
-          against your source on critical decisions.
-        </footer>
-      </article>
-    </section>
+      </div>
+      <p
+        className={`text-[14.5px] sm:text-[15px] text-ink-soft leading-relaxed transition-opacity ${loading ? "opacity-60" : ""}`}
+      >
+        {text}
+      </p>
+      {error && (
+        <p className="mt-2 text-[11px] text-[#2AA89B]">
+          Couldn't regenerate in {display} ({error}). Showing RON version.
+        </p>
+      )}
+      <p className="mt-3 text-[11px] italic text-ink-mute leading-relaxed">
+        Generated from automated trial-balance extraction — accuracy auto-measured
+        per upload (clean uploads reconcile within 0.5%). Cross-check headline numbers
+        against your source on critical decisions.
+      </p>
+    </div>
   );
 }
 
@@ -2204,22 +2612,8 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
           )}
         </div>
       </div>
-      {band === "clean" && (
-        <button
-          type="button"
-          aria-label="Dismiss accuracy notice"
-          data-testid="accuracy-banner-close"
-          onClick={() => {
-            try { localStorage.setItem("accuracy_banner_dismissed", "true"); } catch { /* private mode */ }
-            setDismissed(true);
-          }}
-          className="text-ink-mute hover:text-ink shrink-0 text-[16px] leading-none px-1"
-        >
-          ×
-        </button>
-      )}
-      {/* watch + problem bands intentionally NOT dismissible — they're
-          real signals about THIS document, not a marketing nag. */}
+      {/* Dismiss (×) removed 2026-07-25 — the accuracy note now sits under the
+          CFO briefing and always shows; it's a per-document signal, not a nag. */}
     </div>
   );
 }
@@ -2312,8 +2706,8 @@ function CompactPeriodHeader({
   onPickSample,
   onTriggerFile,
   onReset,
-  onSimulate,
-  onDebugReset,
+  briefing,
+  briefingPeriodId,
 }: {
   statements: Statements | null;
   invoices: Invoice[] | null;
@@ -2321,20 +2715,20 @@ function CompactPeriodHeader({
   onPickSample: (id: string, opts?: { additive?: boolean }) => void;
   onTriggerFile: () => void;
   onReset: () => void;
-  /** DEV-only: simulate the upload → analysis pipeline. Renders a debug
-   *  button next to the header actions when supplied (gated by the caller
-   *  behind import.meta.env.DEV). */
-  onSimulate?: () => void;
-  /** DEV-only: reset the workspace to its empty state (local-only, no
-   *  server delete). Renders a second debug button when supplied. */
-  onDebugReset?: () => void;
+  /** Server-generated CFO briefing (Opus 4.7). When present it becomes the
+   *  header's subtitle — the briefing IS the description of the loaded
+   *  workspace. Empty for samples, where the generic descriptive line shows
+   *  instead. */
+  briefing?: string | null;
+  briefingPeriodId?: string | null;
 }) {
-  const docsCount = useDocsCount();
   const companyName =
     statements?.companyName
     ?? (invoices && invoices.length > 0 ? "Invoice register" : "Loaded period");
-  const periodLabel = statements?.periodLabel ?? (invoices ? `${invoices.length.toLocaleString()} invoices` : "");
-  const lastAnalyzed = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const rawPeriodLabel = statements?.periodLabel ?? (invoices ? `${invoices.length.toLocaleString()} invoices` : "");
+  // Show month + year only — drop the day. A full date ("2026-05-26") becomes
+  // "May 2026"; non-date labels ("FY 2025", "120 invoices") are left as-is.
+  const periodLabel = formatPeriodMonth(rawPeriodLabel) ?? rawPeriodLabel;
 
   // The Replace dropdown also offers "Add ... on top" for samples that
   // contribute a different document type than what's already loaded — that's
@@ -2347,94 +2741,39 @@ function CompactPeriodHeader({
   // company name + period heading reads as one line instead of
   // getting squeezed by the DocsToggle + Replace dropdown.
   return (
-    <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3" data-testid="compact-period-header">
+    <header className="mb-6" data-testid="compact-period-header">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div className="min-w-0">
-        <div className="label-eyebrow">Period loaded</div>
-        <h1 className="mt-1 font-serif text-[26px] sm:text-[30px] leading-[1.15] tracking-[-0.01em] text-ink truncate max-w-[640px]">
+        {/* Loaded-workspace header — matches the Public Company Intelligence
+            hero format (brand eyebrow + big serif title with a gradient
+            highlight + a descriptive subtitle) so the two intelligence
+            surfaces read the same. Copy describes the dashboard's own panel
+            content (statements, ratios, valuation, risk, briefing). */}
+        <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+          <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+          Financial Analysis
+        </div>
+        <h1 className="mt-3 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px]">
           {companyName}
           {periodLabel && (
             <span className="text-ink-soft font-normal"> · {periodLabel}</span>
-          )}
+          )}{" "}
+          — <span className="text-grad">the full financial picture</span>.
         </h1>
       </div>
-      <div className="flex items-center gap-2 flex-wrap sm:shrink-0">
-        {import.meta.env.DEV && onSimulate && (
-          <button
-            type="button"
-            data-testid="debug-simulate-upload"
-            onClick={onSimulate}
-            className="inline-flex items-center h-9 px-3 rounded-lg border border-dashed border-rule bg-surface text-[12.5px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
-          >
-            Debug: simulate file process
-          </button>
-        )}
-        {import.meta.env.DEV && onDebugReset && (
-          <button
-            type="button"
-            data-testid="debug-reset-data"
-            onClick={onDebugReset}
-            className="inline-flex items-center h-9 px-3 rounded-lg border border-dashed border-rule bg-surface text-[12.5px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
-          >
-            Debug: reset data
-          </button>
-        )}
-        <DocsToggle count={docsCount} />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              data-testid="replace-period"
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors"
-            >
-              Replace
-              <ChevronDown size={13} strokeWidth={2} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-              Upload
-            </DropdownMenuLabel>
-            <DropdownMenuItem
-              data-testid="replace-menu-upload"
-              // Radix closes the menu on click before the synchronous
-              // file-picker request fires, which on some browsers consumes
-              // the user-activation context. onSelect + e.preventDefault()
-              // keeps the menu open just long enough for the picker to grab
-              // the activation and open.
-              onSelect={(e) => {
-                e.preventDefault();
-                onTriggerFile();
-              }}
-              className="text-[12.5px] cursor-pointer"
-            >
-              <UploadCloud size={13} strokeWidth={1.75} className="mr-1.5" />
-              Choose a file…
-            </DropdownMenuItem>
-            {SAMPLES_ENABLED && SAMPLE_DATASETS.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-                  Try a synthetic sample
-                </DropdownMenuLabel>
-                {SAMPLE_DATASETS.map((s) => (
-                  <DropdownMenuItem
-                    key={s.id}
-                    data-testid={`sample-pick-${s.id}`}
-                    onClick={() => onPickSample(s.id)}
-                    className={`text-[12.5px] cursor-pointer ${activeSampleId === s.id ? "bg-bg-2 text-ink" : ""}`}
-                  >
-                    <span className="truncate">{s.label}</span>
-                  </DropdownMenuItem>
-                ))}
-              </>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onReset} className="text-[12.5px] cursor-pointer text-ink-soft">
-              Reset (clear period)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <span className="hidden sm:inline text-[11.5px] text-ink-mute">Last analyzed {lastAnalyzed}</span>
       </div>
+      {/* The CFO briefing (Opus 4.7) IS the header's description of the loaded
+          workspace — it renders full-width beneath the title/actions row.
+          Samples have no briefing, so they fall back to the generic line. */}
+      {briefing && briefingPeriodId ? (
+        <CFOBriefingCard periodId={briefingPeriodId} baseBriefing={briefing} />
+      ) : (
+        <p className="mt-3 text-[14px] text-ink-soft max-w-[620px] leading-relaxed">
+          Every statement rebuilt from your trial balance — P&amp;L, balance
+          sheet and cash flow — with ratios, valuation, a credit-risk score and
+          ranked recommendations. Explore each in the tabs below.
+        </p>
+      )}
     </header>
   );
 }
@@ -2499,21 +2838,11 @@ function StateBOverview({
 
   // Risks = critical + high recommendations (top 3).
   // Opportunities = medium / info recommendations (top 3).
-  const risks = recommendations.filter((r) => r.priority === "critical" || r.priority === "high").slice(0, 3);
-  const opportunities = recommendations.filter((r) => r.priority === "medium" || r.priority === "info").slice(0, 3);
-
   return (
     <div className="space-y-7" data-testid="state-b-overview">
-      {/* AI summary — single source of truth for Statements + Dashboard. */}
-      {summary && (
-        <section data-testid="ai-summary" className="rounded-2xl border border-rule bg-surface p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={13} strokeWidth={2} className="text-brand-d" />
-            <h2 className="text-[11px] uppercase tracking-[0.12em] font-medium text-ink-mute">CFO AI summary</h2>
-          </div>
-          <p className="text-[14px] text-ink leading-relaxed">{summary}</p>
-        </section>
-      )}
+      {/* The "CFO AI summary" card was removed 2026-07-25 — the header's CFO
+          briefing (Opus 4.7) is now the single narrative summary, so a second
+          shorter summary here was redundant. */}
 
       {/* Enterprise & Equity Value — HERO valuation section on Dashboard.
           EBITDA × peer-multiple is the headline; DCF + EV/Revenue are
@@ -2529,29 +2858,9 @@ function StateBOverview({
         </section>
       )}
 
-      {/* Top 3 risks + opportunities. */}
-      {(risks.length > 0 || opportunities.length > 0) && (
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <RiskOpsList
-            title="Top 3 risks"
-            tone="warn"
-            items={risks}
-            currency={statements?.currency ?? "RON"}
-            onJumpToTab={onJumpToTab}
-            jumpTab="risks"
-            emptyText="No critical or high-severity issues flagged."
-          />
-          <RiskOpsList
-            title="Top 3 opportunities"
-            tone="ok"
-            items={opportunities}
-            currency={statements?.currency ?? "RON"}
-            onJumpToTab={onJumpToTab}
-            jumpTab="recommendations"
-            emptyText="No improvement opportunities surfaced — rerun analysis after adding more data."
-          />
-        </section>
-      )}
+      {/* The "Top 3 risks · Top 3 opportunities" section was removed
+          2026-07-25 — those now surface as the Risks / Opportunities count
+          cards in the KPI grid above (and in full in the Recommendations tab). */}
     </div>
   );
 }
@@ -2767,13 +3076,20 @@ function RiskOpsList({
   tone: "warn" | "ok";
   items: Recommendation[];
   currency: string;
-  emptyText: string;
+  emptyText: React.ReactNode;
   onJumpToTab: (tab: string) => void;
   jumpTab: string;
 }) {
   const headerColor = tone === "warn" ? "text-[#2AA89B]" : "text-[#2AA89B]";
+  // The WHOLE card is the interactive element (2026-07-25) — the inner text
+  // no longer carries its own hover box. Hover styling copied from the Ask
+  // CFO AI suggestion cards: bg fades out on hover, with a brand focus ring.
   return (
-    <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+    <button
+      type="button"
+      onClick={() => onJumpToTab(jumpTab)}
+      className="group block w-full text-left rounded-2xl border border-rule bg-surface overflow-hidden hover:bg-transparent transition-colors duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-brand/30"
+    >
       <div className="px-5 py-3 border-b border-rule">
         <h3 className={`text-[12px] uppercase tracking-[0.1em] font-medium ${headerColor}`}>{title}</h3>
       </div>
@@ -2783,23 +3099,18 @@ function RiskOpsList({
         <ul className="divide-y divide-rule/50">
           {items.map((rec) => (
             <li key={rec.id} className="px-5 py-3">
-              <button
-                onClick={() => onJumpToTab(jumpTab)}
-                className="text-left w-full hover:bg-bg-2/40 rounded -m-1 p-1 transition-colors"
-              >
-                <div className="text-[13px] text-ink font-medium leading-tight">{rec.title}</div>
-                <div className="text-[12px] text-ink-soft mt-0.5 line-clamp-2 leading-snug">{rec.rationale}</div>
-                {rec.estimatedImpact && (
-                  <div className="text-[11.5px] text-[#2AA89B] mt-1">
-                    Estimated impact: <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / yr
-                  </div>
-                )}
-              </button>
+              <div className="text-[13px] text-ink font-medium leading-tight">{rec.title}</div>
+              <div className="text-[12px] text-ink-soft mt-0.5 line-clamp-2 leading-snug">{rec.rationale}</div>
+              {rec.estimatedImpact && (
+                <div className="text-[11.5px] text-[#2AA89B] mt-1">
+                  Estimated impact: <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / yr
+                </div>
+              )}
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -2961,6 +3272,336 @@ function ExtractionAccuracyBanner({
   );
 }
 
+// Preview an example workbook in a NEW TAB without downloading it. A plain
+// <a href="*.xlsx" target="_blank"> just triggers a download (browsers
+// can't render xlsx inline), so we parse the sheet with SheetJS and open a
+// rendered HTML table instead. The tab is opened synchronously inside the
+// click gesture (so it isn't popup-blocked) and filled once parsed.
+// Module scope (2026-07-24) — used by BOTH the hero's template card
+// (example trial balances) and the upload panel.
+async function previewExampleInNewTab(file: string): Promise<void> {
+  const tab = window.open("", "_blank");
+  if (tab) {
+    tab.document.write(
+      "<!doctype html><title>Loading preview…</title>" +
+      "<body style=\"font:14px system-ui;padding:24px\">Loading preview…</body>",
+    );
+  }
+  try {
+    const res = await fetch(`/examples/${file}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const XLSX = await import("xlsx");
+    const wb = XLSX.read(buf, { type: "array" });
+    const sheetName = wb.SheetNames[0];
+    const tableHtml = XLSX.utils.sheet_to_html(wb.Sheets[sheetName]);
+    const doc =
+      `<!doctype html><html><head><meta charset="utf-8"><title>${file}</title><style>` +
+      "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
+      "h1{font-size:15px;margin:0 0 12px;color:#1B7268}" +
+      "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
+      "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
+      "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
+      `</style></head><body><h1>${file} · sheet "${sheetName}" (example — fictional data)</h1>${tableHtml}</body></html>`;
+    if (tab) {
+      tab.document.open();
+      tab.document.write(doc);
+      tab.document.close();
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    if (tab) {
+      tab.document.open();
+      tab.document.write(
+        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
+        `Couldn't load preview: ${msg}. ` +
+        `<a href="/examples/${file}" download>Download instead</a>.</body>`,
+      );
+      tab.document.close();
+    }
+  }
+}
+
+// DashboardMonthPills — the workspace's uploaded months as a pill row,
+// pinned above the loaded-month header. The FIRST item is an "Add month"
+// button (opens the file picker); the rest are the months newest-first,
+// the active one highlighted, each switching ?period= on click.
+function DashboardMonthPills({
+  activePeriodId,
+  onSelect,
+  onAddMonth,
+}: {
+  activePeriodId: string | null;
+  onSelect: (periodId: string) => void;
+  onAddMonth: () => void;
+}) {
+  const { data } = useOrgPeriods();
+  const periods = data?.periods ?? [];
+  return (
+    <div className="flex flex-wrap items-center gap-2 mb-5" data-testid="dashboard-month-pills">
+      {/* Add month — always the first item. Styled like the workspace "Create
+          workspace" button: neutral gray (no brand accent/gradient), a circled
+          Plus, hover lifts to ink + stronger rule. */}
+      <button
+        type="button"
+        onClick={onAddMonth}
+        data-testid="dashboard-month-add"
+        title="Add another month"
+        className="group inline-flex items-center gap-1.5 h-8 pl-1.5 pr-3.5 rounded-full border border-brand/50 bg-brand/10 text-brand-d text-[12px] font-semibold shadow-[0_2px_10px_-4px_rgba(92,211,197,0.5)] hover:bg-brand/20 hover:border-brand/70 transition-colors"
+      >
+        <span className="grid place-items-center h-5 w-5 rounded-full bg-brand text-bg shadow-[0_0_8px_rgba(92,211,197,0.5)]">
+          <Plus size={13} strokeWidth={2.5} />
+        </span>
+        Add month
+      </button>
+      {periods.map((p) => {
+        const isActive = p.period_id === activePeriodId;
+        return (
+          <button
+            key={p.period_id}
+            type="button"
+            onClick={() => onSelect(p.period_id)}
+            data-testid="dashboard-month-pill"
+            aria-pressed={isActive}
+            className={`inline-flex items-center h-8 px-3 rounded-full border text-[12px] font-medium tabular-nums transition-colors ${
+              isActive
+                ? "border-brand/40 bg-brand/[0.08] text-ink"
+                : "border-rule bg-surface/60 text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2/50"
+            }`}
+          >
+            {formatPeriodMonth(p.period_end) ?? p.period_label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// DashboardTemplateCard — the /products "Start from the official
+// template" card, dashboard flavour: Trial Balance leads as required,
+// and the example trial balances REPLACE the template Download/View
+// buttons as the card's action rows. Mounted in the page hero's right
+// column (beside the title), like /products.
+function DashboardTemplateCard() {
+  return (
+    <TemplateDownloadCard
+      variant="prominent"
+      context="dashboard"
+      actions={
+        <div className="mt-3.5" data-testid="trial-balance-examples">
+          <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+            Example trial balances
+          </div>
+          <div className="space-y-2">
+            {[
+              { label: "Multi-column format", file: "example_trial_balance_8col.xlsx", testid: "8col" },
+              { label: "Standard SAGA format", file: "example_trial_balance_6col.xlsx", testid: "6col" },
+            ].map((ex) => (
+              <div
+                key={ex.file}
+                className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-medium text-ink truncate">
+                    {ex.label} <span className="text-ink-mute font-normal">(XLSX)</span>
+                  </div>
+                  <div className="text-[10.5px] text-ink-mute">
+                    Fictional data; demonstrates the required structure.
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void previewExampleInNewTab(ex.file)}
+                    data-testid={`view-example-${ex.testid}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                  >
+                    <ExternalLink size={12} strokeWidth={2} />
+                    View
+                  </button>
+                  <a
+                    href={`/examples/${ex.file}`}
+                    download={ex.file}
+                    data-testid={`download-example-${ex.testid}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                  >
+                    <ArrowDownToLine size={12} strokeWidth={2} />
+                    Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+    />
+  );
+}
+
+// DashboardAddMonthZone — the loaded-state ("State B") upload affordance: a
+// compact drop target plus the official-template card, laid out like the
+// empty-state hero / /products. Dropping or importing a file stages it (the
+// same staged-files → Start scan → period-confirm flow the empty state uses),
+// so a workspace that already has a month can take the next one in place.
+function DashboardAddMonthZone({
+  stagedFiles,
+  scanning,
+  onDrop,
+  onTriggerFile,
+  onViewStaged,
+  onDiscardStaged,
+  onDismissAll,
+  onStartScan,
+  onSimulate,
+  hideHeader = false,
+}: {
+  stagedFiles: File[];
+  scanning: boolean;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onTriggerFile: () => void;
+  onViewStaged: (file: File) => void;
+  onDiscardStaged: (index: number) => void;
+  onDismissAll: () => void;
+  onStartScan: () => void;
+  /** Localhost-only: simulate a scan without a real file/backend. */
+  onSimulate?: () => void;
+  /** Hide the "Add another month" eyebrow (the modal supplies its own title). */
+  hideHeader?: boolean;
+}) {
+  const [dragActive, setDragActive] = useState(false);
+  const staged = stagedFiles.length > 0;
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+  return (
+    <section className={hideHeader ? "" : "mb-8"} data-testid="dashboard-add-month">
+      {!hideHeader && (
+        <div className="mb-3 inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+          <UploadCloud size={12} strokeWidth={2.25} className="text-brand-d" />
+          Add another month
+        </div>
+      )}
+      {/* Drop target — full width now that the official-template card moved up
+          beside the loaded-month header. */}
+      <div>
+        <div
+          data-testid="dashboard-add-month-dropzone"
+          onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+          onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+          onDrop={(e) => { setDragActive(false); onDrop(e); }}
+          data-drag-active={dragActive ? "true" : "false"}
+          className={`
+            relative overflow-hidden rounded-2xl border-2 border-dashed
+            p-5 sm:p-6 transition-all duration-150
+            ${dragActive
+              ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30"
+              : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
+          `}
+        >
+          <div aria-hidden className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-brand/8 blur-3xl" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-12 text-ink opacity-[0.06]">
+            <Cloud size={280} strokeWidth={1} />
+            <ArrowUp size={100} strokeWidth={2.5} className="absolute left-1/2 top-[60%] -translate-x-1/2 -translate-y-1/2" />
+          </div>
+
+          {/* Localhost-only debug button — simulate a scan without a real
+              file or backend. Never rendered on the deployed site. */}
+          {isLocalhost && onSimulate && (
+            <button
+              type="button"
+              data-testid="debug-simulate-upload"
+              onClick={onSimulate}
+              className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
+            >
+              Debug: simulate scan
+            </button>
+          )}
+
+          {!staged ? (
+            <div className="relative flex flex-col items-center text-center py-2">
+              <h3 className="text-[15px] font-semibold text-ink">
+                {dragActive ? "Drop your file to upload" : "Drop next month's trial balance"}
+              </h3>
+              <p className="text-[12px] text-ink-soft mt-1">XLSX · CSV · PDF · up to 25 MB</p>
+              <button
+                type="button"
+                onClick={onTriggerFile}
+                data-testid="dashboard-add-month-import"
+                className="mt-3.5 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
+              >
+                Import
+              </button>
+            </div>
+          ) : (
+            <div className="relative text-left" data-testid="dashboard-staged-files">
+              <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+                {stagedFiles.length} file{stagedFiles.length === 1 ? "" : "s"} ready to scan
+              </div>
+              <div className="space-y-2">
+                {stagedFiles.map((f, i) => (
+                  <div
+                    key={`${f.name}-${f.size}-${i}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
+                        <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => onViewStaged(f)}
+                        aria-label={`View ${f.name}`}
+                        className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                      >
+                        <Eye size={14} strokeWidth={2} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDiscardStaged(i)}
+                        disabled={scanning}
+                        aria-label={`Remove ${f.name}`}
+                        className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                      >
+                        <X size={14} strokeWidth={2} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={onDismissAll}
+                  disabled={scanning}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                >
+                  <X size={13} strokeWidth={2} />
+                  Dismiss all
+                </button>
+                <button
+                  type="button"
+                  onClick={onStartScan}
+                  disabled={scanning}
+                  data-testid="dashboard-add-month-start-scan"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
+                >
+                  {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
+                  {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function UploadAndSamplePanel({
   statements,
   activeSampleId,
@@ -2978,6 +3619,7 @@ function UploadAndSamplePanel({
   onStartScan,
   scanning,
   inflight,
+  onViewResults,
 }: {
   statements: Statements | null;
   activeSampleId: string | null;
@@ -3001,6 +3643,9 @@ function UploadAndSamplePanel({
   /** Live per-file scan progress. When set, the drop zone renders progress
    *  in-place (council visualizer + steps) instead of the idle upload UI. */
   inflight: { status: import("@/lib/supabase").DocumentStatus; filename: string; docId: string } | null;
+  /** Opens the just-finished analysis — wired to the scan view's "Scan
+   *  complete" card so the user confirms the hand-off into State B. */
+  onViewResults: () => void;
 }) {
   // Drag-over state — drives the dropzone's "file hovering" styling and the
   // "Drop your file to upload" affordance text.
@@ -3037,52 +3682,22 @@ function UploadAndSamplePanel({
     typeof window !== "undefined" &&
     /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
 
-  // Preview an example workbook in a NEW TAB without downloading it. A plain
-  // <a href="*.xlsx" target="_blank"> just triggers a download (browsers
-  // can't render xlsx inline), so we parse the sheet with SheetJS and open a
-  // rendered HTML table instead. The tab is opened synchronously inside the
-  // click gesture (so it isn't popup-blocked) and filled once parsed.
-  async function previewExampleInNewTab(file: string) {
-    const tab = window.open("", "_blank");
-    if (tab) {
-      tab.document.write(
-        "<!doctype html><title>Loading preview…</title>" +
-        "<body style=\"font:14px system-ui;padding:24px\">Loading preview…</body>",
-      );
-    }
-    try {
-      const res = await fetch(`/examples/${file}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buf = await res.arrayBuffer();
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(buf, { type: "array" });
-      const sheetName = wb.SheetNames[0];
-      const tableHtml = XLSX.utils.sheet_to_html(wb.Sheets[sheetName]);
-      const doc =
-        `<!doctype html><html><head><meta charset="utf-8"><title>${file}</title><style>` +
-        "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
-        "h1{font-size:15px;margin:0 0 12px;color:#1B7268}" +
-        "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
-        "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
-        "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
-        `</style></head><body><h1>${file} · sheet "${sheetName}" (example — fictional data)</h1>${tableHtml}</body></html>`;
-      if (tab) {
-        tab.document.open();
-        tab.document.write(doc);
-        tab.document.close();
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "error";
-      if (tab) {
-        tab.document.open();
-        tab.document.write(
-          `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
-          `Couldn't load preview: ${msg}. ` +
-          `<a href="/examples/${file}" download>Download instead</a>.</body>`,
-        );
-        tab.document.close();
-      }
-    }
+  // ── SCANNING VIEW (2026-07-24) ─────────────────────────────────────
+  // While a scan is in flight the entry surface reduces to exactly two
+  // things: the pipeline steps pinned at the top of the page, and the
+  // council sphere filling the rest of the viewport. The hero copy,
+  // document-type guide, dropzone chrome, and samples all hide until
+  // the scan settles (analyzed → State B takes over; failed → this
+  // branch exits and the idle surface returns).
+  if (scanActive && inflight) {
+    return (
+      <ScanProgressView
+        status={inflight.status}
+        steps={TRIAL_BALANCE_STEPS}
+        onCancel={clearUpload}
+        onViewResults={onViewResults}
+      />
+    );
   }
 
   return (
@@ -3097,9 +3712,12 @@ function UploadAndSamplePanel({
           once the user has data. */}
       {PUBLIC_RECORDS_ENABLED && <UploadHeroCallout />}
 
-      {/* Document-type guide — always-visible grid above the drop section.
-          Header label intentionally omitted per request; the cards speak
-          for themselves. */}
+      {/* Document-type guide — always-visible grid above the drop
+          section, headed by the same "Expected format" section label
+          /products uses. */}
+      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+        Expected format
+      </h2>
       <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="upload-document-guide">
         <DocGuideCard
           title="Trial balance (balanță de verificare)"
@@ -3147,13 +3765,10 @@ function UploadAndSamplePanel({
         />
       </div>
 
-      {/* Footer guidance under the document-type cards. */}
-      <p className="text-[11px] text-ink-mute leading-relaxed max-w-3xl">
-        Trial balance (balanță de verificare) is the document that unlocks the full
-        analysis. Most Romanian accounting systems export it as XLSX from{" "}
-        <em>Rapoarte → Balanța de verificare</em> or equivalent. The download buttons
-        at the top of the page show the two structures we accept.
-      </p>
+
+      {/* The official-template card moved beside the page title (the
+          hero's right column, like /products) — see DashboardTemplateCard
+          rendered from the page hero. */}
 
       <div className={`grid grid-cols-1 ${SAMPLES_ENABLED ? "lg:grid-cols-[1.2fr_1fr]" : ""} gap-4`}>
       {/* Upload zone — premium AI ingestion surface. Same logic, same
@@ -3183,6 +3798,25 @@ function UploadAndSamplePanel({
         {/* Atmospheric brand glow */}
         <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-brand/8 blur-3xl" />
 
+        {/* Oversized upload mark — decorative, pinned to the bottom-left
+            corner and clipped by the card's overflow-hidden (2026-07-24;
+            replaces the small icon tile that sat above the heading). */}
+        {/* Composed cloud + up-arrow mark. `opacity` on the WRAPPER (not
+            alpha in the stroke color): everything flattens to one layer
+            first, so overlapping strokes — including where the arrow
+            crosses the cloud — never stack to double opacity. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-32 -left-16 text-ink opacity-[0.08]"
+        >
+          <Cloud size={440} strokeWidth={1} />
+          <ArrowUp
+            size={160}
+            strokeWidth={2.5}
+            className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2"
+          />
+        </div>
+
         {/* Localhost-only debug button — simulate a scan without a real file
             or backend. Never rendered on the deployed site. */}
         {isLocalhost && onSimulate && (
@@ -3208,27 +3842,24 @@ function UploadAndSamplePanel({
               transition={{ duration: 0.25 }}
               className="relative flex flex-col items-center overflow-hidden"
             >
-              <p className="text-[14px] font-medium text-ink">
-                {dragActive ? "Drop your file to upload" : "Drag & drop your file here"}
+              {/* Products-style dropzone content (2026-07-24) — heading +
+                  format line + bordered chooser; the icon moved to the
+                  card's bottom-left corner as an oversized decorative
+                  mark. */}
+              <h3 className="text-[16px] font-semibold text-ink">
+                {dragActive ? "Drop your file to upload" : "Drop your trial balance here"}
+              </h3>
+              <p className="text-[12.5px] text-ink-soft mt-1">
+                XLSX · CSV · PDF · up to 25 MB
               </p>
-              <p className="mt-0.5 text-[12px] text-ink-mute">or</p>
-              <div className="mt-2 flex items-center gap-2 flex-wrap justify-center">
-                <button
-                  onClick={onTriggerFile}
-                  className="
-                    inline-flex items-center gap-2
-                    h-10 px-4 rounded-lg
-                    bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
-                    shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)]
-                    hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)]
-                    ring-1 ring-inset ring-white/15
-                    transition-all
-                  "
-                >
-                  <UploadCloud size={13} strokeWidth={2} />
-                  Choose a file
-                </button>
-              </div>
+              {/* Same treatment as the sidebar's ACTIVE tab: animated
+                  teal gradient fill + brand border. */}
+              <button
+                onClick={onTriggerFile}
+                className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
+              >
+                Import
+              </button>
               {uploadName && (
                 <div className="mt-3 text-[11.5px] text-ink-mute">
                   Received: <span className="text-ink">{uploadName}</span>
@@ -3274,7 +3905,7 @@ function UploadAndSamplePanel({
           data-testid="upload-pipeline"
         >
           {/* Connector line — drawn behind the dots */}
-          <span aria-hidden className="absolute top-3 left-3 right-3 h-px bg-gradient-to-r from-transparent via-rule to-transparent" />
+          <span aria-hidden className="absolute top-4 left-3 right-3 h-px bg-gradient-to-r from-transparent via-rule to-transparent" />
           {PIPELINE_STEPS.map((label, i) => {
             const done = scanActive && i < currentOrdinal;
             const active = scanActive && i === currentOrdinal;
@@ -3282,17 +3913,24 @@ function UploadAndSamplePanel({
               <li key={label} className="relative flex-1 min-w-0 flex flex-col items-center text-center">
                 <span className={`
                   relative z-10 inline-flex items-center justify-center
-                  h-6 w-6 rounded-full text-[10px] font-semibold tabular-nums
-                  shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors
+                  h-8 w-8 rounded-full text-[12px] font-semibold tabular-nums
+                  shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors duration-300
                   ${done
                     ? "bg-brand text-paper border border-brand"
                     : active
-                    ? "bg-brand/15 text-brand-d border border-brand ring-2 ring-brand/30 animate-pulse"
+                    ? "bg-brand/15 text-brand-d border border-brand ring-2 ring-brand/30"
                     : "bg-surface text-ink-soft border border-rule"}
                 `}>
-                  {done ? "✓" : i + 1}
+                  {/* Slow sonar glow while active; fades out (700ms) when
+                      the next step starts — same treatment as
+                      ScanProgressView's circles. */}
+                  <span
+                    aria-hidden
+                    className={`absolute -inset-px rounded-full step-pulse transition-opacity duration-700 ease-out ${active ? "opacity-100" : "opacity-0"}`}
+                  />
+                  {`0${i + 1}`}
                 </span>
-                <span className={`mt-1.5 text-[10px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[80px] ${active ? "text-ink" : "text-ink-mute"}`}>
+                <span className={`mt-2 text-[11.5px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[100px] ${active ? "text-ink" : "text-ink-mute"}`}>
                   {label}
                 </span>
               </li>
@@ -3336,16 +3974,27 @@ function UploadAndSamplePanel({
                       <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onDiscardStaged(i)}
-                    disabled={scanning}
-                    aria-label={`Remove ${f.name}`}
-                    data-testid={`discard-staged-${i}`}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
-                  >
-                    <X size={14} strokeWidth={2} />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void openStagedFile(f)}
+                      aria-label={`View ${f.name}`}
+                      data-testid={`view-staged-${i}`}
+                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                    >
+                      <Eye size={14} strokeWidth={2} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDiscardStaged(i)}
+                      disabled={scanning}
+                      aria-label={`Remove ${f.name}`}
+                      data-testid={`discard-staged-${i}`}
+                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                    >
+                      <X size={14} strokeWidth={2} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -3365,63 +4014,17 @@ function UploadAndSamplePanel({
                 onClick={onStartScan}
                 disabled={scanning}
                 data-testid="start-scan"
-                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)] hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)] ring-1 ring-inset ring-white/15 transition-all disabled:opacity-60"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
               >
-                {scanning ? <Loader2 size={13} strokeWidth={2} className="animate-spin" /> : <Sparkles size={13} strokeWidth={2} />}
+                {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
                 {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
               </button>
             </div>
           </div>
-        ) : (
-          /* ── Example trial balances ───────────────────────────────────
-             "View" opens the XLSX in a new browser tab; "Download" saves it. */
-          <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="trial-balance-examples">
-            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-              Example trial balances
-            </div>
-            <div className="space-y-2">
-              {[
-                { label: "Multi-column format", file: "example_trial_balance_8col.xlsx", testid: "8col" },
-                { label: "Standard SAGA format", file: "example_trial_balance_6col.xlsx", testid: "6col" },
-              ].map((ex) => (
-                <div
-                  key={ex.file}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <div className="text-[12.5px] font-medium text-ink truncate">
-                      {ex.label} <span className="text-ink-mute font-normal">(XLSX)</span>
-                    </div>
-                    <div className="text-[10.5px] text-ink-mute">
-                      Fictional data; demonstrates the required structure.
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => void previewExampleInNewTab(ex.file)}
-                      data-testid={`view-example-${ex.testid}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                    >
-                      <ExternalLink size={12} strokeWidth={2} />
-                      View
-                    </button>
-                    <a
-                      href={`/examples/${ex.file}`}
-                      download={ex.file}
-                      data-testid={`download-example-${ex.testid}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                    >
-                      <ArrowDownToLine size={12} strokeWidth={2} />
-                      Download
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+        ) : null)}
 
+        {/* The "Every upload is auto-checked" note was removed
+            2026-07-24 per operator directive. */}
       </div>
 
       {/* Sample picker — production default OFF (set VITE_ENABLE_SAMPLES=true
@@ -3475,18 +4078,8 @@ function UploadAndSamplePanel({
       )}
       </div>
 
-      {/* Every upload is auto-checked — moved below the drop section and
-          spanning the full panel width per request. */}
-      <div className="w-full flex items-start gap-2 rounded-lg border border-[#8FE3D9]/40 bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.06] px-3 py-2.5 text-[12px] leading-relaxed text-ink-soft">
-        <CheckCircle2 size={13} strokeWidth={2} className="text-[#2AA89B] mt-0.5 shrink-0" />
-        <div>
-          <strong className="text-ink">Every upload is auto-checked.</strong>{" "}
-          Clean trial balances reconcile within 0.5% of source — you'll see a green
-          "Quality checks passed" badge. If anything's off (source debits don't equal credits,
-          accounts can't be classified, balance sheet doesn't reconcile), you'll get a specific
-          warning naming the issue before you act on any number.
-        </div>
-      </div>
+      {/* The "Every upload is auto-checked" note moved INSIDE the
+          dropzone (2026-07-24). */}
     </div>
   );
 }
@@ -3551,8 +4144,8 @@ function DocGuideCard({ title, format, shows, where, tone }: {
   tone: "best" | "ok" | "free";
 }) {
   const borderClass =
-    tone === "best" ? "border-l-[#5CD3C5]"
-    : tone === "free" ? "border-l-[#5CD3C5]"
+    tone === "best" ? "border-l-brand"
+    : tone === "free" ? "border-l-brand"
     : "border-l-rule-strong";
   const toneBadge =
     tone === "best" ? { label: "MOST DATA", cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
@@ -3596,16 +4189,15 @@ function RatiosTabContent({ ratios, statements }: { ratios: RatioBundle; stateme
   const [selected, setSelected] = useState<Ratio | null>(null);
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <GuideMeButton pageId="ratios" title="Ratios" steps={RATIOS_GUIDE} />
-      </div>
       <RatioGroupSection title="Liquidity"                           ratios={ratios.liquidity}     onPick={setSelected} />
       <div data-guide="ratios-profitability">
         <RatioGroupSection title="Profitability"                     ratios={ratios.profitability} onPick={setSelected} />
       </div>
       <div data-guide="ratios-leverage">
         <RatioGroupSection title="Leverage"                          ratios={ratios.leverage}      onPick={setSelected} />
-        <RatioGroupSection title="Coverage"                          ratios={ratios.coverage}      onPick={setSelected} />
+        <div className="mt-8">
+          <RatioGroupSection title="Coverage"                        ratios={ratios.coverage}      onPick={setSelected} />
+        </div>
       </div>
       <div data-guide="ratios-efficiency">
         <RatioGroupSection title="Efficiency · working capital cycle" ratios={ratios.efficiency}    onPick={setSelected} />
@@ -3664,7 +4256,6 @@ function RatioTile({
   ratio: Ratio;
   onPick?: (r: Ratio) => void;
 }) {
-  const c = verdictColor(ratio.verdict);
   const clickable = typeof onPick === "function";
   // The tile becomes a button when clickable, keeping keyboard focus,
   // Enter/Space activation, and an aria role for AT users. When the
@@ -3692,8 +4283,13 @@ function RatioTile({
           {ratio.label}
         </div>
         <span
-          className="text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full"
-          style={{ backgroundColor: c.bg, color: c.text }}
+          className={`text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border text-ink anim-fill-verdict ${
+            ratio.verdict === "critical"
+              ? "anim-fill-red border-red-500/40"
+              : ratio.verdict === "watch"
+                ? "anim-fill-amber border-amber-500/40"
+                : "anim-fill-green border-brand/40"
+          }`}
         >
           {verdictLabel(ratio.verdict)}
         </span>
@@ -4187,11 +4783,21 @@ function ValuationPanel({
                 </tbody>
               </table>
               </div>
+              {/* 2026-07-25 — inputs quoted from the ACTUAL cost-of-capital
+                  object (not hardcoded prose), and the old real-estate
+                  framing ("levered RE", "cap-rate-implied", "yielding RE
+                  asset") was removed: this branch renders for companies the
+                  router did NOT classify as CRE, so that narrative described
+                  exactly the companies it doesn't apply to. Labeled as
+                  illustrative defaults — no uploaded trial balance carries
+                  market inputs, so Rf/ERP/β are standing RO-market defaults,
+                  not derived from the user's data. */}
               <p className="text-[11.5px] text-ink-mute mt-2 leading-snug">
-                Inputs: Rf 6.75% (Romanian 10Y sovereign in RON) · ERP 7.5% (Romania mature EM, Damodaran) · β 1.00 (levered RE).
-                The optimistic case (−100 bps WACC) converges with the cap-rate-implied equity value;
-                the central case typically understates a yielding RE asset because DCF treats it as a
-                perpetual cash-flow stream rather than an appreciating asset.
+                Inputs: Rf {pct(wacc.riskFreeRate, 2)} (Romanian 10Y sovereign in RON) · ERP{" "}
+                {pct(wacc.equityRiskPremium, 1)} (Romania mature EM, Damodaran) · β {wacc.beta.toFixed(2)} —
+                standing market defaults, not derived from the uploaded trial balance. Treat this DCF
+                as an illustrative cross-check on the band above; the primary valuation comes from the
+                engine&rsquo;s method for this company.
               </p>
             </div>
           )}
@@ -4231,6 +4837,12 @@ function ValuationPanel({
               <div className="font-serif num-hero-fluid-sm text-ink tabular-nums break-words">{fmtMoney(graham.intrinsicEquityValue, cur)}</div>
             </div>
           </div>
+          {/* 2026-07-25 — honesty note: g and Y are standing defaults (no
+              uploaded trial balance carries growth/bond-yield inputs). */}
+          <p className="text-[11.5px] text-ink-mute mt-3 leading-snug">
+            g and Y are standing defaults, not derived from the uploaded trial balance —
+            an illustrative cross-check only.
+          </p>
         </div>
       </div>
 
@@ -4312,7 +4924,7 @@ function RisksPanel({
       {/* Composite credit score */}
       <div>
         <h2 className="font-serif text-[22px] text-ink mb-3">Composite credit score</h2>
-        <div className={`rounded-2xl border-2 ${ratingTone(credit.rating)} p-4 sm:p-6 flex items-center justify-between gap-3`}>
+        <div className="rounded-2xl border-2 border-brand/40 ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.5px] [animation-duration:36s] text-ink p-4 sm:p-6 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.12em] font-medium opacity-80">Credit rating</div>
             <div className="font-serif text-[clamp(40px,11vw,64px)] leading-none mt-1">{credit.rating}</div>
@@ -4422,12 +5034,12 @@ function RisksPanel({
               </div>
             </div>
             <span
-              className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full ${
+              className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full border ${
                 altman.zone === "safe"
-                  ? "bg-[#E6F7F4] text-[#2AA89B]"
+                  ? "ask-ai-anim-fill [animation-duration:10s] border-brand/40 text-ink"
                   : altman.zone === "grey"
-                    ? "bg-[#E6F7F4] text-[#2AA89B]"
-                    : "bg-red-50 text-red-700"
+                    ? "bg-[#E6F7F4] text-[#2AA89B] border-transparent"
+                    : "bg-red-50 text-red-700 border-transparent"
               }`}
             >
               {altman.zone === "safe" ? "Safe zone" : altman.zone === "grey" ? "Grey zone" : "Distress"}
@@ -4478,8 +5090,9 @@ function RisksPanel({
       </div>
 
       {/* Caveat */}
-      <div className="rounded-xl border border-info/40 bg-info-tint/40 px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
-        <strong className="text-ink">Caveat:</strong> {credit.caveat}
+      <div className="flex items-start gap-2.5 rounded-lg border-l-[3px] border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
+        <Info size={13} strokeWidth={1.75} className="text-ink-mute mt-0.5 shrink-0" />
+        <div><strong className="text-ink">Caveat:</strong> {credit.caveat}</div>
       </div>
     </>
   );

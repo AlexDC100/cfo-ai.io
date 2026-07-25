@@ -6,9 +6,10 @@
 // from an uploaded file (or a clearly-labeled demo on the test workspace).
 
 import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Scale } from "lucide-react";
-import { EmptyState } from "@/components/cfo/ui/EmptyState";
+import { useSearchParams } from "react-router-dom";
+import { Upload, Sparkles } from "lucide-react";
+import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { isPublicTestMode } from "@/lib/testMode";
@@ -20,7 +21,7 @@ import { buildDemoComparison } from "@/lib/comparison/demoSeed";
 import { useBudgetComparison } from "@/stores/budget";
 import { KpiVarianceStrip } from "@/components/comparison/KpiVarianceStrip";
 import { VarianceTable, type VarianceView } from "@/components/comparison/VarianceTable";
-import { BudgetUploadCard } from "@/components/comparison/BudgetUploadCard";
+import { BudgetUploadCard, BudgetTemplateCard } from "@/components/comparison/BudgetUploadCard";
 import { LastYearSourcePicker, type LastYearSelection } from "@/components/comparison/LastYearSourcePicker";
 import type { Statements } from "@/lib/financialReport";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
@@ -39,12 +40,16 @@ function VarianceInner({
   lineItems,
   metricRows,
 }: {
-  statements: Statements;
+  // Nullable: the page renders the header + budget upload UI even with no
+  // period loaded (the blocking "Load a period…" empty state was removed
+  // 2026-07-25). Statements-dependent parts (actuals, LY picker) are gated
+  // on it below.
+  statements: Statements | null;
   periodLabel: string | null;
   lineItems: PeriodLineItem[];
   metricRows: PeriodMetric[];
 }) {
-  const currency = statements.currency ?? "RON";
+  const currency = statements?.currency ?? "RON";
   const [view, setView] = useState<VarianceView>("both");
   const { uploaded, save, clear } = useBudgetComparison();
   const [params] = useSearchParams();
@@ -54,6 +59,7 @@ function VarianceInner({
   const [lySel, setLySel] = useState<LastYearSelection | null>(null);
 
   const actualLines = useMemo(() => {
+    if (!statements) return {} as Record<VarianceLineKey, number | null>;
     const snap = buildReportingMetricsSnapshot(statements);
     const canon = buildDashboardCanonical(statements, lineItems, metricRows);
     return buildActualLines(snap, canon);
@@ -104,87 +110,150 @@ function VarianceInner({
   );
   const hasBudget = !!effectiveDataset && Object.keys(effectiveDataset.budget).length > 0;
   const hasLastYear = !!effectiveDataset && Object.keys(effectiveDataset.lastYear).length > 0;
+  // The comparison section (picker + KPI strip + table) shows only once a
+  // real budget file is uploaded — or on the test workspace's demo dataset.
+  const showComparison = !!uploaded || !!isDemo;
 
   return (
-    <div className="max-w-[1180px] space-y-5">
-      <div>
-        <div className="text-[10.5px] uppercase tracking-[0.18em] text-ink-mute font-semibold">
-          Management reporting
-        </div>
-        <h1 className="text-[44px] sm:text-[56px] leading-[1.04] font-serif tracking-[-0.02em] text-ink mt-0.5">
-          Budget vs Actual vs Last year
-        </h1>
-        <p className="text-[13px] text-ink-soft mt-1.5 max-w-[680px]">
-          Every P&amp;L line of{" "}
-          <span className="text-ink">{periodLabel ?? "the loaded period"}</span> against your
-          budget and last year, with favorable / unfavorable variances — the board-pack view.
-        </p>
+    <div className="max-w-[1560px] space-y-5">
+      {/* Top-left "Replace / Upload budget" pill — styled like the dashboard
+          month pills (brand accent, circled icon). Opens the budget file
+          picker in <BudgetUploadCard> via a window event (the card owns the
+          hidden <input>). */}
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("cfo:request-budget-upload"))}
+          data-testid="variance-replace-budget"
+          title={uploaded ? "Replace budget file" : "Upload a budget file"}
+          className="group inline-flex items-center gap-1.5 h-8 pl-1.5 pr-3.5 rounded-full border border-brand/50 bg-brand/10 text-brand-d text-[12px] font-semibold shadow-[0_2px_10px_-4px_rgba(92,211,197,0.5)] hover:bg-brand/20 hover:border-brand/70 transition-colors"
+        >
+          <span className="grid place-items-center h-5 w-5 rounded-full bg-brand text-bg shadow-[0_0_8px_rgba(92,211,197,0.5)]">
+            <Upload size={12} strokeWidth={2.5} />
+          </span>
+          {uploaded ? "Replace budget" : "Upload budget"}
+        </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <BudgetUploadCard uploaded={uploaded} isDemo={!!isDemo} onSave={save} onClear={clear} />
-        <LastYearSourcePicker
-          statements={statements}
-          activeCurrency={currency}
-          activePeriodId={activePeriodId}
-          hasBudgetLastYear={budgetHasLastYear}
-          rates={ratesPayload.rates}
-          onChange={setLySel}
-        />
-      </div>
-
-      {(hasBudget || hasLastYear) && (
-        <>
-          <KpiVarianceStrip rows={rows} currency={currency} />
-
-          {/* View toggle */}
-          <div className="flex items-center gap-1 rounded-lg border border-rule bg-surface p-1 w-fit" data-testid="variance-view-toggle">
-            {VIEWS.map((v) => (
-              <button
-                key={v.key}
-                type="button"
-                onClick={() => setView(v.key)}
-                data-testid={`variance-view-${v.key}`}
-                className={cn(
-                  "px-3 min-h-[34px] rounded-md text-[12px] font-medium transition-colors",
-                  view === v.key
-                    ? "bg-brand/12 text-brand-d"
-                    : "text-ink-soft hover:text-ink hover:bg-bg-2",
-                )}
-              >
-                {v.label}
-              </button>
-            ))}
+      {/* Hero row — header on the left, the official budget-template card on
+          the right (2026-07-25 per operator, mirroring the dashboard/products
+          hero). The full-width dropzone sits beneath both. */}
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] items-start">
+        <div>
+          <PageHeader
+            hero
+            eyebrow="Management reporting"
+            title={
+              <>
+                Budget vs Actual vs <span className="text-grad">last year</span>.
+              </>
+            }
+            subtitle={
+              <>
+                Every P&amp;L line of{" "}
+                <span className="text-ink">{periodLabel ?? "the loaded period"}</span> set
+                side-by-side against your budget and prior year — each gap shown in both
+                value and %, and flagged <span className="text-ink">favorable</span> or{" "}
+                <span className="text-ink">unfavorable</span>, so you can see at a glance where
+                you beat plan and where you fell short. The board-pack view, generated
+                automatically from the figures you upload below.
+              </>
+            }
+          />
+          {/* Import + Ask CFO AI — under the header, mirroring the products
+              hero. Import opens the budget file picker (via the same event the
+              header pill uses); Ask CFO AI carries a variance-scoped prompt. */}
+          <div className="-mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("cfo:request-budget-upload"))}
+              data-testid="variance-hero-import"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+            >
+              Import
+            </button>
+            <button
+              type="button"
+              onClick={() => openAskCfoAi("Help me read my Budget vs Actual vs Last-Year variance — which lines are favorable or unfavorable, and what's driving the biggest gaps?")}
+              data-testid="variance-ask-cfo-ai"
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-rule bg-surface/70 backdrop-blur text-[13px] font-medium text-ink hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
+            >
+              <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
+              Ask CFO AI
+            </button>
           </div>
+        </div>
+        <BudgetTemplateCard />
+      </div>
+
+      <BudgetUploadCard uploaded={uploaded} isDemo={!!isDemo} onSave={save} onClear={clear} />
+
+      {/* The comparison section — the "Compare against last year" picker, the
+          KPI variance strip, and the variance table — only renders once a
+          budget FILE is uploaded (2026-07-26 per operator). Before that, a
+          period alone produced a meaningless self-comparison (Actual == Last
+          year, every Δ +0). The test-workspace demo (isDemo) still shows it. */}
+      {showComparison && (
+        <>
+          {statements && (
+            <LastYearSourcePicker
+              statements={statements}
+              activeCurrency={currency}
+              activePeriodId={activePeriodId}
+              hasBudgetLastYear={budgetHasLastYear}
+              rates={ratesPayload.rates}
+              onChange={setLySel}
+            />
+          )}
+
+          {(hasBudget || hasLastYear) && (
+            <>
+              <KpiVarianceStrip rows={rows} currency={currency} />
+
+              {/* View toggle */}
+              <div className="flex items-center gap-1 rounded-lg border border-rule bg-surface p-1 w-fit" data-testid="variance-view-toggle">
+                {VIEWS.map((v) => (
+                  <button
+                    key={v.key}
+                    type="button"
+                    onClick={() => setView(v.key)}
+                    data-testid={`variance-view-${v.key}`}
+                    className={cn(
+                      "px-3 min-h-[34px] rounded-md text-[12px] font-medium transition-colors",
+                      view === v.key
+                        ? "bg-brand/12 text-brand-d"
+                        : "text-ink-soft hover:text-ink hover:bg-bg-2",
+                    )}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <VarianceTable
+            rows={rows}
+            currency={currency}
+            view={view}
+            hasBudget={hasBudget}
+            hasLastYear={hasLastYear}
+          />
+
+          {convertedFrom && (
+            <p className="text-[11px] text-ink-mute px-1 italic" data-testid="variance-fx-note">
+              Budget converted from {convertedFrom} to {currency} at the current FX rate so the
+              comparison is in one currency.
+            </p>
+          )}
+
+          {isDemo && (
+            <p className="text-[11px] text-ink-mute px-1 italic">
+              Budget &amp; last-year figures shown are illustrative demo data on the test workspace,
+              derived from the actuals — not real plan numbers. Upload your budget to replace them.
+            </p>
+          )}
         </>
-      )}
-
-      <VarianceTable
-        rows={rows}
-        currency={currency}
-        view={view}
-        hasBudget={hasBudget}
-        hasLastYear={hasLastYear}
-      />
-
-      {!hasBudget && !hasLastYear && (
-        <p className="text-[12px] text-ink-mute px-1">
-          Showing Actuals only. Upload a budget above to see the variance columns fill in.
-        </p>
-      )}
-
-      {convertedFrom && (
-        <p className="text-[11px] text-ink-mute px-1 italic" data-testid="variance-fx-note">
-          Budget converted from {convertedFrom} to {currency} at the current FX rate so the
-          comparison is in one currency.
-        </p>
-      )}
-
-      {isDemo && (
-        <p className="text-[11px] text-ink-mute px-1 italic">
-          Budget &amp; last-year figures shown are illustrative demo data on the test workspace,
-          derived from the actuals — not real plan numbers. Upload your budget to replace them.
-        </p>
       )}
     </div>
   );
@@ -193,41 +262,16 @@ function VarianceInner({
 export default function Variance() {
   useActivePeriodFallback();
   const period = useActivePeriod();
-  const navigate = useNavigate();
 
-  if (!period.statements) {
-    return (
-      <>
-        <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-10">
-          <EmptyState
-            icon={Scale}
-            title="Load a period to compare against budget"
-            subtitle="The Budget vs Actual vs Last-Year report needs a period of actuals. Upload or open a period, then add your budget file to see every P&L line's variance."
-            primary={{
-              label: "Go to dashboard",
-              onClick: () => navigate("/dashboard"),
-              testid: "variance-empty-dashboard",
-            }}
-            secondary={{
-              label: "Upload a trial balance",
-              onClick: () => navigate("/dashboard?upload=1"),
-              testid: "variance-empty-upload",
-            }}
-            footnote="Budget data is saved on this device and never alters your actuals."
-          />
-        </div>
-      </>
-    );
-  }
-
+  // No blocking empty state (removed 2026-07-25): the page always renders
+  // its header + budget upload UI. VarianceInner tolerates a null period and
+  // gates the actuals-dependent parts (LY picker, variance table) internally.
   return (
-    <>
-      <VarianceInner
-        statements={period.statements}
-        periodLabel={period.label}
-        lineItems={period.lineItems ?? []}
-        metricRows={period.metrics ?? []}
-      />
-    </>
+    <VarianceInner
+      statements={period.statements ?? null}
+      periodLabel={period.label}
+      lineItems={period.lineItems ?? []}
+      metricRows={period.metrics ?? []}
+    />
   );
 }

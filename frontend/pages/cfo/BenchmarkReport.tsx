@@ -413,7 +413,7 @@ export default function BenchmarkReportPage() {
         <div className="max-w-[1080px]">
           <PageHeader
             eyebrow="Benchmark"
-            title="See how your company compares to peers."
+            title={<>See how your company <span className="text-grad">compares to peers</span>.</>}
             subtitle="Upload a Romanian trial balance on the Dashboard and CFO AI will surface where you stand against industry-typical revenue, margin, leverage, and working-capital metrics."
             atmosphere
             hero
@@ -1324,39 +1324,26 @@ function BenchmarkPreviewStrip() {
       body: "DSO, DIO, DPO and CCC versus the median for your CAEN bracket.",
     },
   ];
+  // Styled like the dashboard's document-guide cards (2026-07-24):
+  // compact bordered card, brand left rail, title + small uppercase
+  // badge top-right, dense description. Icons dropped with the old
+  // gradient chrome.
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8" data-testid="benchmark-preview-strip">
-      {items.map((it) => {
-        const Icon = it.icon;
-        return (
-          <div
-            key={it.title}
-            className="
-              relative overflow-hidden
-              rounded-2xl border border-rule
-              bg-gradient-to-br from-bg-2/30 via-surface to-surface
-              ring-1 ring-inset ring-white/[0.03]
-              px-4 py-4
-            "
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="inline-flex shrink-0 items-center justify-center h-8 w-8 rounded-xl bg-brand-tint text-brand-d ring-1 ring-brand/15">
-                <Icon size={14} strokeWidth={1.75} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[14px] font-medium text-ink leading-tight">{it.title}</div>
-                <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-                  {it.eyebrow}
-                </div>
-              </div>
-            </div>
-            {/* Divider with edges faded to transparent — separates the
-                title/eyebrow header from the descriptive body. */}
-            <div className="my-2.5 h-px bg-gradient-to-r from-transparent via-rule-strong to-transparent" />
-            <p className="text-[12px] text-ink-soft leading-relaxed">{it.body}</p>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-8" data-testid="benchmark-preview-strip">
+      {items.map((it) => (
+        <div
+          key={it.title}
+          className="rounded-lg border border-rule border-l-[3px] border-l-brand bg-surface p-3 text-left"
+        >
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <div className="text-[12.5px] font-medium text-ink leading-tight">{it.title}</div>
+            <span className="shrink-0 text-[9px] uppercase tracking-[0.06em] font-semibold px-1.5 py-0.5 rounded bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]">
+              {it.eyebrow}
+            </span>
           </div>
-        );
-      })}
+          <p className="text-[11.5px] text-ink-soft leading-relaxed">{it.body}</p>
+        </div>
+      ))}
     </div>
   );
 }

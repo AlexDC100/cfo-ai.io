@@ -58,6 +58,12 @@ export const DEFAULT_DASHBOARD: DashboardCard[] = [
   { id: "default-cash", conceptKey: "cash", size: "sm", order: 5 },
   { id: "default-current_ratio", conceptKey: "current_ratio", size: "sm", order: 6 },
   { id: "default-net_debt_ebitda", conceptKey: "net_debt_ebitda", size: "sm", order: 7 },
+  // Risk / opportunity COUNT cards (2026-07-25) — the top-3 risks and
+  // opportunities surfaced on the overview, as tallies. Values come from the
+  // page via overrides (recommendation counts); customTitle names them since
+  // there's no concept-registry entry for a count.
+  { id: "default-open_risks", conceptKey: "open_risks", size: "sm", order: 8, customTitle: "Risks", hideComparison: true },
+  { id: "default-open_opportunities", conceptKey: "open_opportunities", size: "sm", order: 9, customTitle: "Opportunities", hideComparison: true },
 ];
 
 /** Generate a stable unique id. crypto.randomUUID where available (all

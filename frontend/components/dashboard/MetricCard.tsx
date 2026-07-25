@@ -14,10 +14,10 @@
 import { useMemo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, X, Maximize2, TrendingUp, TrendingDown } from "lucide-react";
+import { GripVertical, X, TrendingUp, TrendingDown } from "lucide-react";
 import { lookupConcept } from "@/lib/learning/concepts";
 import { useReportingMetrics } from "@/components/learning/ReportingContextProvider";
-import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
 import { Money } from "@/components/ui/Money";
 import { useDashboard } from "@/stores/dashboard";
 import {
@@ -86,6 +86,7 @@ const NEXT_SIZE: Record<CardSize, CardSize> = {
 export function MetricCard({ card, editMode, overrides, series, view = "snapshot" }: Props) {
   const { removeCard, resizeCard } = useDashboard();
   const { metrics, currency, locale } = useReportingMetrics();
+  const { push } = usePopoverStack();
 
   const {
     attributes,
@@ -155,17 +156,73 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
     zIndex: isDragging ? 10 : undefined,
   };
 
+  // The WHOLE card is the learn trigger now (2026-07-25) — pressing anywhere
+  // opens the same concept popover the number used to. The value itself no
+  // longer carries the learnable-number underline/hover. Disabled in edit
+  // mode (that's for drag/resize) and when there's no value to explain.
+  // Count cards (risks / opportunities tallies) have no concept-registry entry,
+  // so there's nothing to explain — don't open the popover for them.
+  const canExplain = !editMode && resolved.value !== null && resolved.format !== "count";
+  const openConcept = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canExplain) return;
+    push({
+      conceptKey: card.conceptKey,
+      value: resolved.value as number,
+      triggerRect: e.currentTarget.getBoundingClientRect(),
+      // KPI cards open the explanation as a right-edge slide-over (2026-07-25).
+      presentation: "sheet",
+    });
+  };
+
+  // Tap-to-grow (2026-07-25): the dedicated resize (fullscreen) button was
+  // removed — in EDIT mode tapping anywhere on the card cycles its size
+  // sm → md → lg → sm. In view mode the tap still opens the concept
+  // explanation. The drag handle + remove button stopPropagation so they
+  // don't also grow the card.
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (editMode) {
+      resizeCard(card.id, NEXT_SIZE[card.size]);
+      return;
+    }
+    if (canExplain) openConcept(e);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
+      onClick={editMode || canExplain ? handleCardClick : undefined}
+      role={editMode || canExplain ? "button" : undefined}
+      tabIndex={canExplain ? 0 : undefined}
+      title={editMode ? `Size: ${card.size.toUpperCase()} — tap to grow` : undefined}
+      onKeyDown={
+        canExplain
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                push({
+                  conceptKey: card.conceptKey,
+                  value: resolved.value as number,
+                  triggerRect: e.currentTarget.getBoundingClientRect(),
+                  presentation: "sheet",
+                });
+              }
+            }
+          : undefined
+      }
+      aria-label={canExplain ? `Explain ${title}` : undefined}
       data-testid={`metric-card-${card.conceptKey}`}
+      // Chrome matches the benchmark "dimension" cards (2026-07-25): rounded-lg
+      // with a 3px brand left rail. In view mode the bg fades out on hover —
+      // the exact hover copied from the Ask CFO AI suggestion cards. Edit mode
+      // swaps that for a teal ring (and no hover) so reordering stays clean.
       className={cn(
-        "relative rounded-xl border bg-surface px-4 py-3 min-w-0 overflow-hidden",
+        "relative rounded-lg border border-rule border-l-[3px] border-l-brand bg-surface px-4 py-2 min-w-0 overflow-hidden",
         SIZE_GRID[card.size],
         editMode
-          ? "border-[hsl(173,57%,55%)]/40 ring-1 ring-[hsl(173,57%,55%)]/20"
-          : "border-rule",
+          ? "ring-1 ring-[hsl(173,57%,55%)]/20 cursor-pointer"
+          : "hover:bg-transparent transition-colors duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30",
+        canExplain && "cursor-pointer",
       )}
     >
       {/* Edit-mode controls — drag handle (left) + remove/resize (right).
@@ -178,6 +235,7 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
             type="button"
             {...attributes}
             {...listeners}
+            onClick={(e) => e.stopPropagation()}
             aria-label="Drag to reorder"
             data-testid={`card-drag-${card.conceptKey}`}
             className="touch-none cursor-grab active:cursor-grabbing text-ink-mute hover:text-ink min-w-[44px] min-h-[44px] grid place-items-center rounded"
@@ -185,19 +243,11 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
             <GripVertical className="w-4 h-4" />
           </button>
           <div className="flex items-center">
+            {/* Resize (fullscreen) button removed 2026-07-25 — tapping the card
+                body grows it (see handleCardClick). */}
             <button
               type="button"
-              onClick={() => resizeCard(card.id, NEXT_SIZE[card.size])}
-              aria-label="Resize card"
-              data-testid={`card-resize-${card.conceptKey}`}
-              className="text-ink-mute hover:text-ink min-w-[44px] min-h-[44px] grid place-items-center rounded hover:bg-bg-2"
-              title={`Size: ${card.size.toUpperCase()} — tap to grow`}
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => removeCard(card.id)}
+              onClick={(e) => { e.stopPropagation(); removeCard(card.id); }}
               aria-label="Remove card"
               data-testid={`card-remove-${card.conceptKey}`}
               className="text-ink-mute hover:text-[hsl(0,75%,55%)] min-w-[44px] min-h-[44px] grid place-items-center rounded hover:bg-bg-2"
@@ -221,21 +271,19 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
       {/* Value — learnable. Currency renders <Money>; others render the
           formatted string. Both wrapped in LearnableNumber so the F5.0
           popover still opens. */}
-      <div className="mt-2 num-hero num-hero-fluid text-ink leading-none">
+      {/* Plain value — the card owns the learn interaction now, so the
+          number no longer wraps in LearnableNumber (no underline/hover). */}
+      <div className="mt-1 num-hero num-hero-fluid text-ink leading-none">
         {resolved.value === null ? (
           <span className="text-ink-mute">—</span>
         ) : resolved.format === "currency" ? (
-          <LearnableNumber conceptKey={card.conceptKey} value={resolved.value}>
-            <Money
-              value={resolved.value}
-              fromCurrency={currency as Currency}
-              compact
-            />
-          </LearnableNumber>
+          <Money
+            value={resolved.value}
+            fromCurrency={currency as Currency}
+            compact
+          />
         ) : (
-          <LearnableNumber conceptKey={card.conceptKey} value={resolved.value}>
-            <span className="tabular-nums">{display}</span>
-          </LearnableNumber>
+          <span className="tabular-nums">{display}</span>
         )}
       </div>
 
@@ -277,7 +325,7 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
       ) : (
         card.size !== "sm" &&
         concept?.shortDefinition && (
-          <div className="mt-1.5 text-[11px] text-ink-soft leading-snug line-clamp-2">
+          <div className="mt-1 text-[11px] text-ink-soft leading-snug line-clamp-2">
             {concept.shortDefinition[locale] ?? concept.shortDefinition.en}
           </div>
         )

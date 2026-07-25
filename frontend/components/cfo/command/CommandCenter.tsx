@@ -22,15 +22,21 @@
 // + tab switcher. Each tab is its own file (WorkspaceTab / DataTab /
 // AiTab / AccountTab) so renames / additions stay surgical.
 
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen, Building2, Settings2, Upload, X, type LucideIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import {
   Sheet,
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { GlossaryContent } from "@/components/learning/MetricGlossaryDrawer";
+import { CONCEPTS_BY_KEY } from "@/lib/learning/concepts";
+import { useActivePeriod } from "@/lib/activePeriod";
+import { useWorkspaceName } from "@/lib/workspaceName";
 
-import { StateCard } from "./StateCard";
+import { DecisionRulesModal } from "./DecisionRulesModal";
 import { AccountTab } from "./tabs/AccountTab";
 // AiTab removed from the Command Center per the operator's directive:
 // "Ask CFO AI" is reachable from the always-visible TopHeader pill and
@@ -43,6 +49,9 @@ import { DataTab } from "./tabs/DataTab";
 // Retained for API compatibility (re-exported from ./index) even though the
 // panel no longer uses a tab switcher.
 export type CommandCenterTab = "workspace" | "data" | "account";
+
+// Registered learning concepts — the Glossary quick-action's subtitle.
+const GLOSSARY_TERM_COUNT = Object.keys(CONCEPTS_BY_KEY).length;
 
 interface Props {
   open: boolean;
@@ -60,9 +69,33 @@ export function CommandCenter({
   // here — the Workspace section that hosted "Ask CFO AI" was removed.
   onOpenUpload,
 }: Props) {
+  const navigate = useNavigate();
+  // Live data behind the quick-action subtitles.
+  const workspaceName = useWorkspaceName();
+  const period = useActivePeriod();
+  const dataConnected = !!period.id && !!period.statements;
+  // Decision-rules modal — opened by its quick action after the panel
+  // closes, so it lives OUTSIDE the Sheet (it survives the close).
+  const [rulesOpen, setRulesOpen] = useState(false);
+  // In-sheet view — the Glossary quick action swaps THIS sheet's
+  // content to the glossary (2026-07-24) instead of opening the
+  // standalone glossary sidebar on top.
+  const [view, setView] = useState<"main" | "glossary">("main");
+  // Fresh open always lands on the main view (reset on open, not close,
+  // so the exit animation doesn't flash the swap).
+  useEffect(() => {
+    if (open) setView("main");
+  }, [open]);
   const close = () => onOpenChange(false);
+  // Close the panel, then run the action once the exit animation has
+  // mostly played — same 220ms convention the tabs use.
+  const launch = (fn: () => void) => {
+    close();
+    setTimeout(fn, 220);
+  };
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
@@ -92,7 +125,10 @@ export function CommandCenter({
         <SheetTitle className="sr-only">Command Center</SheetTitle>
         {/* Wrapped in a div so the button is NOT a direct child button.absolute
             of SheetContent — that selector ([&>button.absolute]:hidden) hides
-            Radix's default close, and would hide this one too if unwrapped. */}
+            Radix's default close, and would hide this one too if unwrapped.
+            Hidden in the glossary view — GlossaryContent's header carries
+            its own back + close controls in the same corner. */}
+        {view === "main" && (
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
           <button
             type="button"
@@ -104,10 +140,15 @@ export function CommandCenter({
             <X size={16} className="hidden sm:block" strokeWidth={1.75} />
           </button>
         </div>
+        )}
 
-        {/* ── Content ───────────────────────────────────────────────────
-            Stacked in one scroll column: Account (profile + plan + actions)
-            at the top, then the Workspace state card, then Data. */}
+        {/* ── Glossary view — swapped IN this sheet (no second sidebar).
+            Back returns to the main view; X closes the sheet. */}
+        {view === "glossary" ? (
+          <div className="flex flex-col flex-1 min-h-0" data-testid="command-glossary">
+            <GlossaryContent onClose={close} onBack={() => setView("main")} />
+          </div>
+        ) : (
         <div
           className="px-5 pt-3 pb-6 overflow-y-auto flex-1 divide-y divide-rule"
           data-testid="command-content"
@@ -115,16 +156,102 @@ export function CommandCenter({
           <div className="pb-6">
             <AccountTab onClose={close} />
           </div>
-          {/* Workspace section — live workspace state (single source of
-              truth via useActivePeriod). Sits under the account block. */}
-          <div className="py-6">
-            <StateCard onUpload={() => { close(); setTimeout(onOpenUpload, 220); }} />
+          {/* Quick actions — one-tap grid to the most common jumps.
+              (The separate Workspace state card that sat above this was
+              removed 2026-07-24 — the Workspace tile's subtitle now
+              carries the active workspace's name.) Each subtitle
+              reflects live data behind its action. */}
+          <div className="py-6" data-testid="command-quick-actions">
+            <div className="text-[11px] uppercase tracking-[0.08em] text-ink-mute font-semibold mb-2.5">
+              Quick actions
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <QuickAction
+                icon={Building2}
+                label="Workspace"
+                sub={workspaceName || "None selected"}
+                onClick={() => launch(() => navigate("/workspace"))}
+                testId="command-quick-workspace"
+              />
+              <QuickAction
+                icon={BookOpen}
+                label="Glossary"
+                sub={`${GLOSSARY_TERM_COUNT} terms`}
+                onClick={() => setView("glossary")}
+                testId="command-quick-glossary"
+              />
+              <QuickAction
+                icon={Upload}
+                label="Upload files"
+                sub={dataConnected ? "Data connected" : "No dataset yet"}
+                onClick={() => launch(onOpenUpload)}
+                testId="command-quick-upload"
+              />
+              <QuickAction
+                icon={Settings2}
+                label="Decision rules"
+                sub="Protect · Watch · Wind down"
+                onClick={() => launch(() => setRulesOpen(true))}
+                testId="command-quick-rules"
+              />
+            </div>
           </div>
           <div className="pt-6">
             <DataTab onClose={close} onOpenUpload={onOpenUpload} />
           </div>
         </div>
+        )}
       </SheetContent>
     </Sheet>
+    {/* Outside the Sheet so it stays mounted (and visible) after the
+        panel closes — the quick action closes the panel, then opens
+        this. */}
+    {/* returnTo={null} — the quick action opens this from ANY page, so
+        dismissing must keep the user where they are (the "/products"
+        default exists for the Products-page flow). */}
+    <DecisionRulesModal open={rulesOpen} onOpenChange={setRulesOpen} returnTo={null} />
+    </>
+  );
+}
+
+// ─── Quick-action tile ─────────────────────────────────────────────────
+// Icon-over-label button used by the Quick actions grid above.
+
+function QuickAction({
+  icon: Icon,
+  label,
+  sub,
+  onClick,
+  testId,
+}: {
+  icon: LucideIcon;
+  label: string;
+  /** One-line live-data subtitle (workspace name, term count, …). */
+  sub?: string;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testId}
+      className="
+        flex items-center gap-2.5
+        rounded-xl border border-rule bg-surface px-3 py-3
+        text-[12px] font-medium text-ink text-left
+        hover:bg-bg-2/60 hover:border-rule-strong transition-colors
+      "
+    >
+      <Icon size={16} strokeWidth={1.75} className="shrink-0 text-brand-d" />
+      <span className="min-w-0">
+        <span className="block truncate">{label}</span>
+        {sub && (
+          <span className="block truncate text-[10.5px] font-normal text-ink-mute leading-tight">
+            {sub}
+          </span>
+        )}
+      </span>
+    </button>
   );
 }

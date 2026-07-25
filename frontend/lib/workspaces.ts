@@ -96,6 +96,8 @@ export interface WorkspacesApi {
   ) => Promise<string | null>;
   select: (id: string) => Promise<void>;
   rename: (id: string, name: string) => Promise<boolean>;
+  /** Change a workspace's industry (key + display label). */
+  setIndustry: (id: string, key: string, label: string) => Promise<boolean>;
   upsertCurrentName: (name: string) => Promise<void>;
   /** Soft-delete: recoverable for 30 days, then purged. */
   remove: (id: string) => Promise<boolean>;
@@ -113,6 +115,7 @@ export function useWorkspaces(): WorkspacesApi {
     loading,
     createWorkspace,
     renameWorkspace,
+    setWorkspaceIndustry,
     archiveWorkspace,
     restoreWorkspace,
     purgeWorkspace,
@@ -150,10 +153,14 @@ export function useWorkspaces(): WorkspacesApi {
     currentId: org?.id ?? null,
     current,
     loading,
-    canDelete: orgs.length > 1,
+    // Deleting the LAST workspace is allowed (2026-07-25): it drops the user
+    // into the same zero-workspace state a brand-new signup starts from (the
+    // hub's empty state + Create flow), so there's nothing to protect against.
+    canDelete: orgs.length >= 1,
     create: createWorkspace,
     select: switchOrg,
     rename: renameWorkspace,
+    setIndustry: setWorkspaceIndustry,
     upsertCurrentName,
     remove: archiveWorkspace,
     restore: restoreWorkspace,

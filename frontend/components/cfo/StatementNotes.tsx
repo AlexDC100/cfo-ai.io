@@ -24,7 +24,7 @@
 // This file is a layout swap only — the data layer is intact.
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Info, AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
+import { AlertTriangle, Info, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { PeriodRecommendation, PeriodAlertItem } from "@/lib/activePeriod";
 import {
   dedupeAlerts,
@@ -50,17 +50,10 @@ const RELEVANCE_KEYWORDS: Record<StatementNotesScope, RegExp> = {
   cf: /\b(cash|liquidit|working\s*capital|dscr|coverage|conversion|ccc|dio|dso|dpo)\b/i,
 };
 
-/** Visible-by-default ceiling. The first N items in severity order
- *  show; the rest are hidden behind "Show all". Tuned to keep the
- *  fold (panel header → "Show all" button) under ~half a screen
- *  on a typical 1440×900 viewport. */
-const DEFAULT_VISIBLE = 5;
-
 type SeverityFilter = "all" | "critical" | "watch" | "info" | "recommendations";
 
 export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
   const [filter, setFilter] = useState<SeverityFilter>("all");
-  const [expanded, setExpanded] = useState(false);
 
   const { relevantAlerts, otherAlerts, relevantRecs, otherRecs, counts } = useMemo(() => {
     const dedupedAlerts = dedupeAlerts(alerts);
@@ -154,12 +147,13 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
     ...visibleRecs.map((r) => ({ kind: "rec" as const, deduped: r })),
   ];
 
-  const shown = expanded ? allVisible : allVisible.slice(0, DEFAULT_VISIBLE);
-  const hiddenCount = allVisible.length - shown.length;
+  // Always show every note (2026-07-25) — the show-more/less toggle was removed
+  // and the list defaults to fully expanded.
+  const shown = allVisible;
 
   return (
     <section
-      className="mt-8 pt-6 border-t border-rule"
+      className="mt-8 pt-6 border-t border-rule scroll-mt-24"
       data-testid={`statement-notes-${relevantTo}`}
       aria-labelledby={`notes-heading-${relevantTo}`}
     >
@@ -178,11 +172,11 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
 
       {/* Severity filter pills ─────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
-        <FilterPill label="All"             count={counts.all}             active={filter === "all"}             onClick={() => { setFilter("all"); setExpanded(false); }} />
-        <FilterPill label="Critical"        count={counts.critical}        active={filter === "critical"}        onClick={() => { setFilter("critical"); setExpanded(false); }} tone="critical" />
-        <FilterPill label="Watch"           count={counts.watch}           active={filter === "watch"}           onClick={() => { setFilter("watch"); setExpanded(false); }} tone="watch" />
-        <FilterPill label="Info"            count={counts.info}            active={filter === "info"}            onClick={() => { setFilter("info"); setExpanded(false); }} tone="info" />
-        <FilterPill label="Recommendations" count={counts.recommendations} active={filter === "recommendations"} onClick={() => { setFilter("recommendations"); setExpanded(false); }} tone="rec" />
+        <FilterPill label="All"             count={counts.all}             active={filter === "all"}             onClick={() => { setFilter("all"); }} />
+        <FilterPill label="Critical"        count={counts.critical}        active={filter === "critical"}        onClick={() => { setFilter("critical"); }} tone="critical" />
+        <FilterPill label="Watch"           count={counts.watch}           active={filter === "watch"}           onClick={() => { setFilter("watch"); }} tone="watch" />
+        <FilterPill label="Info"            count={counts.info}            active={filter === "info"}            onClick={() => { setFilter("info"); }} tone="info" />
+        <FilterPill label="Recommendations" count={counts.recommendations} active={filter === "recommendations"} onClick={() => { setFilter("recommendations"); }} tone="rec" />
       </div>
 
       {/* Card list ────────────────────────────────────────────── */}
@@ -201,41 +195,6 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
         )}
       </ul>
 
-      {/* Show-more / show-less toggle ──────────────────────────── */}
-      {hiddenCount > 0 && !expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="
-            mt-3 inline-flex items-center gap-1.5
-            h-8 px-3.5 rounded-full
-            text-[12.5px] font-medium text-ink-soft hover:text-ink
-            hover:bg-bg-2/60
-            transition-colors
-          "
-          data-testid="notes-show-more"
-        >
-          Show {hiddenCount} more
-          <ChevronDown size={12} strokeWidth={1.75} />
-        </button>
-      )}
-      {expanded && allVisible.length > DEFAULT_VISIBLE && (
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="
-            mt-3 inline-flex items-center gap-1.5
-            h-8 px-3.5 rounded-full
-            text-[12.5px] font-medium text-ink-soft hover:text-ink
-            hover:bg-bg-2/60
-            transition-colors
-          "
-          data-testid="notes-show-less"
-        >
-          Show less
-          <ChevronDown size={12} strokeWidth={1.75} className="rotate-180" />
-        </button>
-      )}
     </section>
   );
 }
@@ -288,31 +247,27 @@ function AlertCard({ deduped }: { deduped: DedupedAlert }) {
       ? AlertTriangle
       : Info;
 
-  const severityRule =
-    alert.severity === "critical" ? "border-l-red-500"
-    : alert.severity === "high"   ? "border-l-red-400"
-    : alert.severity === "medium" ? "border-l-[#5CD3C5]"
-    : alert.severity === "low"    ? "border-l-[#5CD3C5]"
-    :                                "border-l-ink-mute";
-
-  const iconColor =
-    alert.severity === "critical" ? "text-red-600"
-    : alert.severity === "high"   ? "text-red-500"
-    : alert.severity === "medium" ? "text-[#2AA89B]"
-    : alert.severity === "low"    ? "text-[#2AA89B]"
-    :                                "text-ink-mute";
+  // Severity color coding — critical/high = red, watch (medium) = amber,
+  // info (low/info) = blue. Tints the whole card (left rule + bg) so items
+  // read at a glance.
+  const tone =
+    alert.severity === "critical" || alert.severity === "high"
+      ? { rule: "border-l-red-500", bg: "bg-red-500/[0.06]", icon: "text-red-600" }
+      : alert.severity === "medium"
+      ? { rule: "border-l-amber-500", bg: "bg-amber-500/[0.07]", icon: "text-amber-600" }
+      : { rule: "border-l-blue-500", bg: "bg-blue-500/[0.06]", icon: "text-blue-600" };
 
   return (
     <li
       className={`
-        relative rounded-lg border border-rule border-l-[3px] ${severityRule}
-        bg-surface
+        relative rounded-lg border border-rule border-l-[3px] ${tone.rule}
+        ${tone.bg}
         px-3.5 py-2.5
         transition-colors
       `}
     >
       <div className="flex items-start gap-2.5">
-        <Icon size={14} className={`flex-shrink-0 mt-[3px] ${iconColor}`} />
+        <Icon size={14} className={`flex-shrink-0 mt-[3px] ${tone.icon}`} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span className="text-[13px] text-ink font-medium leading-snug">
@@ -337,30 +292,19 @@ function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
   const isDone = (rec.status ?? "").toLowerCase() === "done";
   const Icon = isDone ? CheckCircle2 : Info;
 
-  const ruleColor =
-    isDone                   ? "border-l-[#5CD3C5]"
-    : rec.urgency === "critical" ? "border-l-red-500"
-    : rec.urgency === "high"     ? "border-l-red-400"
-    : rec.urgency === "medium"   ? "border-l-[#5CD3C5]"
-    :                              "border-l-[#5CD3C5]";
-
-  const iconColor =
-    isDone                       ? "text-[#2AA89B]"
-    : rec.urgency === "critical" ? "text-red-600"
-    : rec.urgency === "high"     ? "text-red-500"
-    : rec.urgency === "medium"   ? "text-[#2AA89B]"
-    :                              "text-[#2AA89B]";
-
+  // Recommendations are their own "recommendation" category — teal/brand tint
+  // (color-coded like the other severities: critical=red, watch=amber,
+  // info=blue, recommendation=teal).
   return (
     <li
-      className={`
-        relative rounded-lg border border-rule border-l-[3px] ${ruleColor}
-        bg-surface
+      className="
+        relative rounded-lg border border-rule border-l-[3px] border-l-[#5CD3C5]
+        bg-[#5CD3C5]/[0.06]
         px-3.5 py-2.5
-      `}
+      "
     >
       <div className="flex items-start gap-2.5">
-        <Icon size={14} className={`flex-shrink-0 mt-[3px] ${iconColor}`} />
+        <Icon size={14} className="flex-shrink-0 mt-[3px] text-[#2AA89B]" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span className="text-[10px] uppercase tracking-[0.1em] text-[#2AA89B] dark:text-[#5CD3C5] font-semibold">

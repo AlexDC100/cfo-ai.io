@@ -3,7 +3,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { AuthCard } from "@/components/cfo/AuthCard";
 import { Logo } from "@/components/cfo/Logo";
-import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -17,7 +16,6 @@ export default function Signup() {
           </span>
         </Link>
         <div className="flex items-center gap-2">
-          <ThemeToggle compact />
           <Link to="/" className="text-[13px] text-ink-soft hover:text-ink transition-colors">
             Back to home
           </Link>

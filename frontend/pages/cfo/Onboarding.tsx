@@ -11,7 +11,6 @@ import { useNavigate } from "react-router-dom";
 import { Building2, Loader2 } from "lucide-react";
 import { Logo } from "@/components/cfo/Logo";
 import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
-import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 import { useAuth } from "@/lib/auth";
 import { useActiveOrg, updateActiveOrg, refreshActiveOrg } from "@/lib/org";
 import { useToast } from "@/hooks/use-toast";
@@ -75,7 +74,6 @@ export default function Onboarding() {
             Set up your workspace
           </span>
         </div>
-        <ThemeToggle compact />
       </header>
 
       <main

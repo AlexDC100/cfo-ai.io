@@ -61,11 +61,14 @@ export function LearningHubMenu() {
           aria-label="Open learning hub"
           title="Learning hub"
           className={cn(
+            // Pill chrome matching the CurrencyToggle beside it (rounded-full
+            // + border-rule + bg-bg-2, 32px tall) so the header controls read
+            // as one family.
             "hidden sm:inline-flex items-center gap-1.5",
-            "h-8 pl-2 pr-1.5 rounded-md",
-            "text-[12px] font-medium",
+            "h-8 pl-3 pr-2.5 rounded-full border border-rule bg-bg-2",
+            "text-[11.5px] font-medium tracking-wide",
             "text-ink-soft hover:text-ink",
-            "hover:bg-bg-2 data-[state=open]:bg-bg-2 data-[state=open]:text-ink",
+            "hover:border-rule-strong data-[state=open]:text-ink data-[state=open]:border-brand/40",
             "transition-colors",
             "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
           )}

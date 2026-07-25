@@ -153,14 +153,6 @@
   }
   .animate-breathe { animation: cfo-breathe 2s ease-in-out infinite; }
 
-  /* Shimmer sweep — used by Skeleton via a ::before pseudo. The element
-     is 100% wide and starts translated -100%; this keyframe slides it
-     to +100% so a soft light bar sweeps across. */
-  @keyframes cfo-shimmer {
-    0%   { transform: translateX(-100%); }
-    100% { transform: translateX(100%);  }
-  }
-
   /* Spring-style scale-in entrance — used by toast variants and small
      interactive surfaces that benefit from a touch of bounce. */
   @keyframes cfo-pop-in {
@@ -169,6 +161,27 @@
     100% { transform: scale(1); }
   }
   .animate-pop-in { animation: cfo-pop-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  /* Plain fade-in entrance — for content swapped in place (e.g. paging
+     a grid), where pop-in's scale would read as a layout jump. */
+  @keyframes cfo-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .animate-fade-in { animation: cfo-fade-in 260ms ease-out both; }
+
+  /* Pipeline-step pulse — slow sonar glow for the ACTIVE step circle in
+     the scan views (dashboard + products). Lives on an overlay span (not
+     the circle itself, and not Tailwind's animate-pulse, which blinks
+     the whole element at 2s) so when the step completes, the effect can
+     FADE OUT via an opacity transition on the overlay instead of
+     snapping off mid-pulse. */
+  @keyframes cfo-step-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(92, 211, 197, 0.45); }
+    70%  { box-shadow: 0 0 0 10px rgba(92, 211, 197, 0); }
+    100% { box-shadow: 0 0 0 0   rgba(92, 211, 197, 0); }
+  }
+  .step-pulse { animation: cfo-step-pulse 3.2s ease-out infinite; }
 }
 
 @layer base {
@@ -406,6 +419,16 @@
 
 @layer base {
   * { @apply border-border; }
+
+  /* Radix dialogs/sheets lock body scroll via react-remove-scroll, which
+   * also adds a right padding/margin "scrollbar compensation" to <body>.
+   * The app already keeps the document scrollbar's space stable, so that
+   * compensation double-counts and visibly nudges the fixed top bar and
+   * page content to the right whenever a sheet opens. Zero it out. */
+  body[data-scroll-locked] {
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+  }
 
   html {
     font-feature-settings: "tnum" 1, "ss03" 1, "cv11" 1;
@@ -697,6 +720,51 @@
     margin-top: 4rem;
   }
 
+  /* Hover marquee — truncated single-line text that scrolls horizontally
+   * while the surrounding `.group` element is hovered, so the full string
+   * is readable without a tooltip. Used by the Public Companies logo-grid
+   * tiles (company name / category lines).
+   *
+   * Mechanics: idle = plain ellipsis truncation (inner span is `inline`
+   * because transforms don't apply to non-replaced inline elements — the
+   * display flip to inline-block happens only when animating). On hover
+   * the span slides by (own width − container width): translateX(-100%)
+   * is the span's full width, `100cqw` adds the container width back
+   * (the wrapper is an inline-size container). Text that FITS yields
+   * -100% + 100cqw = 0 — statically fitting text never wiggles.
+   * `alternate` sweeps back rather than snapping to the start. */
+  .hover-marquee {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    container-type: inline-size;
+  }
+  .hover-marquee > span {
+    display: inline;
+  }
+  .group:hover .hover-marquee {
+    text-overflow: clip;
+  }
+  .group:hover .hover-marquee > span {
+    display: inline-block;
+    min-width: 100%;
+    animation: hover-marquee-sweep 5s ease-in-out infinite alternate;
+  }
+  @keyframes hover-marquee-sweep {
+    0%, 18% { transform: translateX(0); }
+    82%, 100% { transform: translateX(calc(-100% + 100cqw)); }
+  }
+
+  /* Companion keyframes for the MEASURED marquee (HoverMarquee component
+   * in MarketsOverview — used where the pure-CSS version can't work, see
+   * that component's comment). The element supplies --mq-shift (negative
+   * px overflow) and --mq-duration; runs infinite+alternate on hover so
+   * the text bounces between its two ends, holding briefly at each. */
+  @keyframes marquee-bounce {
+    0%, 12% { transform: translateX(0); }
+    88%, 100% { transform: translateX(var(--mq-shift)); }
+  }
+
   /* Soft fade at the top and bottom edges of a scroll section so content
    * dissolves rather than hard-cutting. A second mask layer keeps the right
    * 12px (the scrollbar gutter) fully opaque so the SCROLLBAR is never faded —
@@ -715,27 +783,88 @@
   /* Animated gradient border — a teal gradient ring that slowly sweeps around
    * the element. The mask trick paints only the 1.5px border band so the fill
    * stays untouched. Used by the "Ask CFO AI" pill in the top header. */
+  /* The sweep travels one full horizontal period of the repeating 45°
+   * gradient below: pattern period is 400px along the gradient axis, so the
+   * horizontal distance per period is 400 / cos(45°) ≈ 565.685px. Shifting by
+   * exactly that between the loop's endpoints makes the loop invisible. */
   @keyframes ask-ai-border-sweep {
-    to { background-position: 200% center; }
+    from { background-position: calc(-1 * var(--af-shift, 565.685px)) center; }
+    to   { background-position: 0px center; }
   }
   /* Animated gradient FILL — a translucent teal gradient that slowly sweeps
-   * across the element. Pair it with a STATIC border on the element. Kept
-   * subtle so label text stays readable. Used by the "Ask CFO AI" pill and the
-   * selected currency segment. */
+   * diagonally across the element. Pair it with a STATIC border on the
+   * element. Kept subtle so label text stays readable. Used by the "Ask CFO
+   * AI" pill and the selected currency segment.
+   * Seam-free at 45° requires BOTH: (1) repeating-linear-gradient with px
+   * stops, so the pattern is periodic along its own axis, and (2) a single
+   * oversized no-repeat image box — element width + one period of travel —
+   * because a diagonal gradient tiled by background-repeat can never match
+   * itself across a tile edge, no matter how the stops are chosen. */
   .ask-ai-anim-fill {
-    background-image: linear-gradient(
-      90deg,
-      hsl(var(--brand) / 0.26),
-      hsl(var(--brand-l) / 0.12),
-      hsl(var(--brand-d) / 0.26),
-      hsl(var(--brand-l) / 0.12),
-      hsl(var(--brand) / 0.26)
+    /* Pattern scale knobs — override per element (Tailwind arbitrary
+     * properties) to "zoom" the gradient. Keep the pair consistent:
+     * --af-shift = (4 × --af-band) / cos(45°), and scale
+     * animation-duration by the same factor to keep the px/s speed. */
+    --af-band: 100px;
+    --af-shift: 565.685px;
+    /* Tint strength knobs — strong / weak stop alphas. */
+    --af-a1: 0.26;
+    --af-a2: 0.12;
+    background-image: repeating-linear-gradient(
+      45deg,
+      hsl(var(--brand) / var(--af-a1)) 0px,
+      hsl(var(--brand-l) / var(--af-a2)) var(--af-band),
+      hsl(var(--brand-d) / var(--af-a1)) calc(2 * var(--af-band)),
+      hsl(var(--brand-l) / var(--af-a2)) calc(3 * var(--af-band)),
+      hsl(var(--brand) / var(--af-a1)) calc(4 * var(--af-band))
     );
-    background-size: 200% 100%;
-    animation: ask-ai-border-sweep 4s linear infinite;
+    background-repeat: no-repeat;
+    background-size: calc(100% + var(--af-shift)) 100%;
+    animation: ask-ai-border-sweep 8s linear infinite;
   }
   @media (prefers-reduced-motion: reduce) {
     .ask-ai-anim-fill { animation: none; }
+  }
+
+  /* Color-coded animated fills — same 45° sweeping gradient as
+   * .ask-ai-anim-fill, but hue-locked so a verdict pill can carry the
+   * animated look tinted by its indicator (green = strong/healthy,
+   * amber = watch, red = critical). Pair with a static border + readable text. */
+  .anim-fill-verdict {
+    --af-band: 46px;
+    --af-shift: 260.2px;
+    --af-a1: 0.34;
+    --af-a2: 0.15;
+    background-repeat: no-repeat;
+    background-size: calc(100% + var(--af-shift)) 100%;
+    animation: ask-ai-border-sweep 4s linear infinite;
+  }
+  .anim-fill-green {
+    background-image: repeating-linear-gradient(45deg,
+      hsl(152 55% 40% / var(--af-a1)) 0px,
+      hsl(152 55% 52% / var(--af-a2)) var(--af-band),
+      hsl(152 55% 30% / var(--af-a1)) calc(2 * var(--af-band)),
+      hsl(152 55% 52% / var(--af-a2)) calc(3 * var(--af-band)),
+      hsl(152 55% 40% / var(--af-a1)) calc(4 * var(--af-band)));
+  }
+  .anim-fill-amber {
+    background-image: repeating-linear-gradient(45deg,
+      hsl(38 92% 48% / var(--af-a1)) 0px,
+      hsl(38 92% 58% / var(--af-a2)) var(--af-band),
+      hsl(30 92% 42% / var(--af-a1)) calc(2 * var(--af-band)),
+      hsl(38 92% 58% / var(--af-a2)) calc(3 * var(--af-band)),
+      hsl(38 92% 48% / var(--af-a1)) calc(4 * var(--af-band)));
+  }
+  .anim-fill-red {
+    background-image: repeating-linear-gradient(45deg,
+      hsl(0 72% 50% / var(--af-a1)) 0px,
+      hsl(0 72% 60% / var(--af-a2)) var(--af-band),
+      hsl(0 72% 42% / var(--af-a1)) calc(2 * var(--af-band)),
+      hsl(0 72% 60% / var(--af-a2)) calc(3 * var(--af-band)),
+      hsl(0 72% 50% / var(--af-a1)) calc(4 * var(--af-band)));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .anim-fill-verdict { animation: none; }
   }
 
   /* Push the scrollbar just outside the section (via a negative right margin
@@ -743,6 +872,31 @@
    * The parent must not clip horizontally. Used by the chat-items list. */
   .chat-scroll-outside {
     margin-right: -10px;
+  }
+
+  /* Ask CFO AI entrance stillness (2026-07-25) — applied to the chat
+   * page root at mount and removed on the user's FIRST interaction
+   * (pointer/keyboard). Freezes every CSS animation and transition in
+   * the subtree — including the animated gradient sweeps — so entering
+   * the tab renders a completely still, final state. In-tab actions
+   * resume all motion. */
+  .chat-entrance-still *,
+  .chat-entrance-still *::before,
+  .chat-entrance-still *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  /* Companion rule stamped on <html> by the /chat page for the same
+   * entrance window. The page-subtree rule above can't reach the app
+   * chrome — the TopHeader "Ask CFO AI" pill and the currency toggle's
+   * selected segment run continuous `ask-ai-anim-fill` sweeps that are
+   * what the eye catches on tab entry. Frozen app-wide until the first
+   * interaction, then everything resumes. */
+  .chat-entrance-still-global *,
+  .chat-entrance-still-global *::before,
+  .chat-entrance-still-global *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }
 

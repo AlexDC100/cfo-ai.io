@@ -2,7 +2,7 @@
 //   · Renders header (name + email), plan status, usage preview, sections
 //   · Sign-out appears EXACTLY once (testid `account-menu-sign-out`) —
 //     the single source of truth per spec §10
-//   · Theme toggle label flips with the current theme
+//   · The theme row is GONE (dark-only app, 2026-07-25) — asserted below
 //   · The "Coming soon" rows (Add workspace, Privacy) were dropped from
 //     the menu per the operator directive — tests assert they are NOT
 //     rendered, so re-adding them by accident fails CI.
@@ -43,10 +43,8 @@ function renderContent(overrides: Partial<React.ComponentProps<typeof AccountMen
     name: "Dumitru Alexandru",
     email: "alex@example.com",
     plan: PLAN,
-    isDark: true,
     onNavigateSettings: vi.fn(),
     onNavigateBilling: vi.fn(),
-    onToggleTheme: vi.fn(),
     onSignOut: vi.fn(),
   };
   return render(<AccountMenuContent {...defaults} {...overrides} />);
@@ -88,10 +86,12 @@ describe("AccountMenu — single source of truth for sign-out", () => {
     expect(price.toLowerCase()).not.toContain("monthly");
   });
 
-  it("renders the usage preview with docs_used / included_docs", () => {
+  it("renders the usage preview as token spend / allowance", () => {
+    // The 2026-07-24 token-budget redesign shows tokens (via lib/tokenUsage),
+    // not raw docs_used / included_docs. PLAN above derives to 123K / 575K.
     renderContent();
     expect(screen.getByTestId("account-menu-usage-count").textContent).toBe(
-      "4 / 15",
+      "123K / 575K",
     );
   });
 
@@ -100,7 +100,7 @@ describe("AccountMenu — single source of truth for sign-out", () => {
     expect(screen.queryAllByTestId("account-menu-sign-out")).toHaveLength(1);
   });
 
-  it("renders Billing, Settings, Theme rows", () => {
+  it("renders Billing and Settings rows", () => {
     renderContent();
     expect(screen.getByTestId("account-menu-billing")).toBeTruthy();
     expect(screen.getByTestId("account-menu-settings")).toBeTruthy();
@@ -112,26 +112,9 @@ describe("AccountMenu — single source of truth for sign-out", () => {
     expect(screen.queryByTestId("account-menu-add-workspace")).toBeNull();
   });
 
-  it("theme toggle label flips between dark and light", () => {
-    const { rerender } = renderContent({ isDark: true });
-    expect(screen.getByTestId("account-menu-theme").textContent).toContain(
-      "Switch to light",
-    );
-    rerender(
-      <AccountMenuContent
-        name="x"
-        email="y@z"
-        plan={PLAN}
-        isDark={false}
-        onNavigateSettings={() => {}}
-        onNavigateBilling={() => {}}
-        onToggleTheme={() => {}}
-        onSignOut={() => {}}
-      />,
-    );
-    expect(screen.getByTestId("account-menu-theme").textContent).toContain(
-      "Switch to dark",
-    );
+  it("does NOT render the theme row (dark-only app)", () => {
+    renderContent();
+    expect(screen.queryByTestId("account-menu-theme")).toBeNull();
   });
 
   it("clicking sign-out fires the onSignOut handler", () => {

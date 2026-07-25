@@ -111,7 +111,7 @@ const SITE_CSS = `
    entirely, so .cred-pill's box (and everything above it) never changes
    size — it just LOOKS attached (zero gap, matching border/radius/color). */
 .cfo-site .cred-pill{position:relative;border:1px solid var(--rule-strong);background:var(--bg-2);border-radius:999px}
-.cfo-site .cred-pill-panel{position:absolute;top:calc(100% + 1px);left:-1px;right:-1px;background:var(--bg-2);border:1px solid var(--rule-strong);border-radius:14px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-index:1}
+.cfo-site .cred-pill-panel{position:absolute;top:calc(100% + 10px);left:-1px;right:-1px;background:var(--bg-2);border:1px solid var(--rule-strong);border-radius:14px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-index:1}
 .cfo-site .cred-pill.is-open .cred-pill-panel{opacity:1;transform:translateY(0);pointer-events:auto}
 .cfo-site .cred-pill-arrow svg{transform:rotate(0deg)}
 .cfo-site .cred-pill.is-open .cred-pill-arrow svg{transform:rotate(180deg)}
@@ -123,6 +123,12 @@ const SITE_CSS = `
 }
 .cfo-site.at-top .site-header-row{height:96px}
 @keyframes cfo-heroBoardDrift{0%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}50%{transform:perspective(1400px) rotateX(6deg) rotateY(-3deg) scale(1.8)}100%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}}
+@keyframes cfo-sectionPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(92,211,197,0)}50%{box-shadow:inset 0 0 0 3px rgba(92,211,197,.35)}}
+.cfo-site .section-pulse{animation:cfo-sectionPulse .8s ease-in-out 2}
+@media (max-width:680px){
+  .cfo-site .mock-grid{grid-template-columns:1fr !important}
+  .cfo-site .mock-kpis{grid-template-columns:repeat(2,1fr) !important}
+}
 `;
 
 const LOGO = `<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><path d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z" fill="#5CD3C5"></path><path d="M 38 14 L 60 60 L 48 60 L 38 38 Z" fill="#F4F6F8"></path><rect x="34" y="34" width="14" height="3" fill="#F4F6F8"></rect></svg>`;
@@ -189,7 +195,7 @@ function header(
     ? `
     <div class="cred-pill">
       <button data-act="account" style="display:flex;width:100%;align-items:center;gap:11px;background:transparent;border:none;border-radius:inherit;overflow:hidden;padding:5px 16px 5px 6px;cursor:pointer;font-family:inherit">
-        <span style="width:34px;height:34px;border-radius:50%;background:var(--grad);color:#04110F;display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;letter-spacing:.02em;flex-shrink:0">${esc(account.initials)}</span>
+        <span style="width:34px;height:34px;border-radius:50%;background:var(--grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;letter-spacing:.02em;flex-shrink:0">${esc(account.initials)}</span>
         <span style="display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.3;text-align:left">
           <span style="font-size:13px;font-weight:600;color:var(--ink)">${esc(account.name)}</span>
           <span style="font-size:11px;color:var(--ink-mute)">${esc(account.email)}</span>
@@ -200,7 +206,7 @@ function header(
       </button>
       <div class="cred-pill-panel">
         <div style="padding:6px">
-          <button data-act="app" class="menu-item">${L.menu.openApp}</button>
+          <button data-act="workspace" class="menu-item">${L.nav.workspace}</button>
           <button data-act="account:settings" class="menu-item">${L.menu.settings}</button>
           <div style="height:1px;background:var(--rule-soft);margin:6px 8px"></div>
           <button data-act="account:signout" class="menu-item" style="color:var(--alert)">${L.menu.signOut}</button>
@@ -209,7 +215,7 @@ function header(
     </div>`
     : `
     <button class="navbtn" data-act="signin">${L.auth.signIn}</button>
-    <a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;background:var(--grad);color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 16px -6px rgba(92,211,197,.5)">${L.auth.getStartedFree}</a>`;
+    <a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;background:var(--grad);color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 16px -6px rgba(92,211,197,.5)">${L.auth.getStartedFree}</a>`;
 
   return `
 <header class="site-header" style="position:${overlay ? "fixed" : "sticky"};top:0;left:0;right:0;z-index:50">
@@ -256,11 +262,11 @@ function header(
     <div style="height:1px;background:var(--rule-soft);margin:10px 4px"></div>
     <div style="display:flex;flex-direction:column;gap:8px;padding:0 4px">
       ${account ? `
-      <button class="menu-item" data-act="app">${L.menu.openApp}</button>
+      <button class="menu-item" data-act="workspace">${L.nav.workspace}</button>
       <button class="menu-item" data-act="account:settings">${L.menu.settings}</button>
       <button class="menu-item" data-act="account:signout" style="color:var(--alert)">${L.menu.signOut}</button>` : `
       <button class="menu-item" data-act="signin">${L.auth.signIn}</button>
-      <a href="/signup" data-act="signup" class="btn-grad" style="display:flex;align-items:center;justify-content:center;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-size:14px;font-weight:500">${L.auth.getStartedFree}</a>`}
+      <a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:flex;align-items:center;justify-content:center;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-size:14px;font-weight:500">${L.auth.getStartedFree}</a>`}
     </div>
   </div>` : ""}
 </header>`;
@@ -270,14 +276,30 @@ function header(
 // anchor target) and the standalone pricing page.
 const featureLi = (x: string) => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`;
 
-const pricingGrid = (L: LandingStrings) => `
+type BillingCycle = "monthly" | "yearly";
+
+const SOLO_MONTHLY = 19.99;
+const SOLO_YEARLY = 199;
+const BUSINESS_MONTHLY = 59;
+const BUSINESS_YEARLY = 590;
+
+const billingToggle = (cycle: BillingCycle) => `
+  <div style="display:flex;justify-content:center;margin-bottom:28px">
+    <div style="display:inline-flex;padding:4px;border-radius:999px;background:var(--bg-2);border:1px solid var(--rule)">
+      <button data-act="billing:monthly" style="padding:8px 20px;border-radius:999px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;transition:background .15s,color .15s;background:${cycle === "monthly" ? "var(--surface-hi)" : "transparent"};color:${cycle === "monthly" ? "var(--ink)" : "var(--ink-soft)"}">Monthly</button>
+      <button data-act="billing:yearly" style="padding:8px 20px;border-radius:999px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;transition:background .15s,color .15s;background:${cycle === "yearly" ? "var(--surface-hi)" : "transparent"};color:${cycle === "yearly" ? "var(--ink)" : "var(--ink-soft)"}">Annual <span style="color:var(--brand)">· save ~17%</span></button>
+    </div>
+  </div>`;
+
+const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
+  ${billingToggle(cycle)}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;align-items:stretch;max-width:1320px;margin:0 auto">
     <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.solo.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€19.99</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
-      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.solo.yearly}</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cycle === "monthly" ? `€${SOLO_MONTHLY}` : `€${SOLO_YEARLY}`}</span><span style="font-size:14px;color:var(--ink-soft)">${cycle === "monthly" ? L.pricing.perMonth : "/yr"}</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${cycle === "monthly" ? L.pricing.solo.yearly : `≈ €${(SOLO_YEARLY / 12).toFixed(2)} / mo billed annually`}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.solo.blurb}</p>
-      <a href="/signup?plan=solo" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.solo.cta}</a>
+      <a href="/signup?plan=solo&cycle=${cycle}" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.solo.cta}</a>
       <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
         ${L.pricing.solo.features.map(featureLi).join("")}
       </ul>
@@ -285,10 +307,10 @@ const pricingGrid = (L: LandingStrings) => `
     <div class="pricing-card" style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(92,211,197,.5)">
       <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:#04110F;background:var(--brand);padding:4px 12px;border-radius:999px">${L.pricing.business.badge}</span>
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">${L.pricing.business.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€59</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
-      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.business.yearly}</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cycle === "monthly" ? `€${BUSINESS_MONTHLY}` : `€${BUSINESS_YEARLY}`}</span><span style="font-size:14px;color:var(--ink-soft)">${cycle === "monthly" ? L.pricing.perMonth : "/yr"}</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${cycle === "monthly" ? L.pricing.business.yearly : `≈ €${(BUSINESS_YEARLY / 12).toFixed(2)} / mo billed annually`}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.business.blurb}</p>
-      <a href="/signup?plan=business" data-act="signup:business" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
+      <a href="/signup?plan=business&cycle=${cycle}" data-act="signup:business" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
       <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
         ${featureLi(L.pricing.business.lead[0])}
         ${featureLi(`<strong>${L.pricing.business.lead[1]}</strong>`)}
@@ -501,7 +523,7 @@ function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
   );
 }
 
-const homeMain = (L: LandingStrings, signedIn: boolean) => `
+const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCycle = "monthly") => `
 <main>
   <section style="position:relative;overflow:hidden;background:#060a12;min-height:100vh">
     <div id="cfo-ticker-board" aria-hidden="true" style="position:absolute;top:30%;left:-8%;right:-8%;bottom:-46%;z-index:0;animation:cfo-heroBoardDrift 22s ease-in-out infinite;opacity:.9;pointer-events:none;will-change:transform"></div>
@@ -514,16 +536,16 @@ const homeMain = (L: LandingStrings, signedIn: boolean) => `
       <div style="margin-top:34px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
         ${signedIn
           ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
-          : `<a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.hero.ctaStart}</a>
-        <button data-act="pricing" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px;cursor:pointer;font-family:inherit">${L.hero.ctaPricing}</button>`}
+          : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.hero.ctaStart}</a>
+        <a href="/login?next=/" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">${L.hero.ctaSignIn}</a>`}
       </div>
       <div style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
         <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
           <span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span>
           <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">cfo-ai · today's briefing · 06:14</span>
         </div>
-        <div style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
+        <div class="mock-grid" style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
+          <div class="mock-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
             <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">EBITDA margin</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">11.4<span style="font-size:18px;color:var(--ink-soft)">%</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">+1.8pp vs sector</div></div>
             <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Altman Z″</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">3.12</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Safe zone</div></div>
             <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Net debt / EBITDA</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">1.8<span style="font-size:18px;color:var(--ink-soft)">×</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Comfortable</div></div>
@@ -556,7 +578,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean) => `
         return `
       <div class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px;display:flex;flex-direction:column;text-align:left">
         <div style="display:flex;align-items:flex-start;gap:14px">
-          <div style="width:52px;height:52px;border-radius:12px;background:rgba(92,211,197,.08);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">${["▤", "◎", "▦", "✦"][i]}</div>
+          <div style="color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:40px;line-height:1;flex-shrink:0">${["▤", "◎", "▦", "✦"][i]}</div>
           <div>
             <h3 style="font-family:var(--serif);font-weight:400;font-size:21px">${card.title}</h3>
             <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-top:6px">${card.kicker}</div>
@@ -636,41 +658,24 @@ const homeMain = (L: LandingStrings, signedIn: boolean) => `
         <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h2>
         <p style="margin-top:14px;font-size:15px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
       </div>
-      ${pricingGrid(L)}
+      ${pricingGrid(L, billingCycle)}
     </div>
   </section>
 
   <section id="faq" style="border-top:1px solid var(--rule-soft);background:var(--bg-2);scroll-margin-top:88px">
-    <div style="max-width:820px;margin:0 auto;padding:74px 24px">
+    <div style="max-width:1200px;margin:0 auto;padding:74px 24px">
       <div style="text-align:center;margin-bottom:36px">
         ${eyebrow(L.faq.eyebrow)}
         <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,42px);line-height:1.06;letter-spacing:-.02em">${L.faq.title}</h2>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        ${L.faq.items.map((item, i) => {
-          // Only the first item starts open — toggling afterward is handled
-          // by direct DOM mutation in Landing()'s click handler (see
-          // "faq:" in onClick), NOT React state. Faq state living in the
-          // same memo as the hero/ticker-board markup would force a full
-          // subtree rebuild (and a visible ticker-board flicker) on every
-          // question toggle — the same bug already fixed for the header's
-          // dropdowns.
-          const isOpen = i === 0;
-          return `
-        <div class="faq-item" style="border:1px solid var(--rule);background:var(--surface);border-radius:14px;overflow:hidden">
-          <button data-act="faq-toggle" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit">
-            <span style="font-weight:600;font-size:15px;color:var(--ink)">${item.q}</span>
-            <span class="faq-chevron" style="flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);transform:rotate(${isOpen ? "180deg" : "0deg"});transition:transform .3s ease">
-              <svg width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1.5L6 6.5L11 1.5"></path></svg>
-            </span>
-          </button>
-          <div class="faq-panel" style="max-height:${isOpen ? "300px" : "0"};transition:max-height .35s ease">
-            <p style="margin:0 20px 18px;font-size:14px;color:var(--ink-soft)">${item.a
-              .replace("{privacy}", inlineLink("privacy", L.legal.privacy))
-              .replace("{terms}", inlineLink("terms", L.legal.terms))}</p>
-          </div>
-        </div>`;
-        }).join("")}
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+        ${L.faq.items.map((item) => `
+        <div style="border:1px solid var(--rule);background:var(--surface);border-radius:14px;padding:20px">
+          <div style="font-weight:600;font-size:15px;color:var(--ink)">${item.q}</div>
+          <p style="margin:10px 0 0;font-size:14px;color:var(--ink-soft)">${item.a
+            .replace("{privacy}", inlineLink("privacy", L.legal.privacy))
+            .replace("{terms}", inlineLink("terms", L.legal.terms))}</p>
+        </div>`).join("")}
       </div>
     </div>
   </section>
@@ -683,21 +688,21 @@ const homeMain = (L: LandingStrings, signedIn: boolean) => `
       <div style="margin-top:32px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
         ${signedIn
           ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
-          : `<a href="/signup" data-act="signup" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.cta.start}</a>
+          : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.cta.start}</a>
         <a href="/login?next=/" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">${L.cta.signIn}</a>`}
       </div>
     </div>
   </section>
 </main>`;
 
-const pricingMain = (L: LandingStrings) => `
+const pricingMain = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
 <main style="max-width:var(--maxw);margin:0 auto;padding:64px 24px 40px">
   <div style="text-align:center;max-width:680px;margin:0 auto 44px">
     ${eyebrow(L.pricing.eyebrow)}
     <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,52px);line-height:1.05;letter-spacing:-.025em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h1>
     <p style="margin-top:16px;font-size:16px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
   </div>
-  ${pricingGrid(L)}
+  ${pricingGrid(L, cycle)}
 </main>`;
 
 function legalHeader(title: string, note?: string) {
@@ -710,7 +715,7 @@ function legalHeader(title: string, note?: string) {
 const h2 = (t: string) => `<h2 style="font-family:var(--serif);font-weight:400;font-size:24px;margin:34px 0 10px;color:var(--ink)">${t}</h2>`;
 
 const PRIVACY = `
-<section id="legal-privacy" style="max-width:820px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
+<section id="legal-privacy" style="max-width:960px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
   ${legalHeader("Privacy Policy", `This template is GDPR-oriented and reflects CFO AI's actual infrastructure. Replace every <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholder with your registered company details and have it reviewed by a qualified lawyer before publishing.`)}
   <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
     ${h2("1. Who we are")}
@@ -758,7 +763,7 @@ const PRIVACY = `
 </section>`;
 
 const COOKIES = `
-<section id="legal-cookies" style="max-width:820px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
+<section id="legal-cookies" style="max-width:960px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
   ${legalHeader("Cookie Policy")}
   <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
     <p>Cookies and similar technologies (including browser <em>localStorage</em>) are small pieces of data stored on your device. We use them to keep you signed in, remember your preferences, and — only with your consent — to understand usage and measure marketing.</p>
@@ -775,7 +780,7 @@ const COOKIES = `
 </section>`;
 
 const TERMS = `
-<section id="legal-terms" style="max-width:820px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
+<section id="legal-terms" style="max-width:960px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
   ${legalHeader("Terms of Service", `Replace <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholders with your legal entity and governing-law details, and have these terms reviewed by a lawyer before publishing.`)}
   <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
     ${h2("1. Agreement")}
@@ -978,6 +983,7 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [contactStatus, setContactStatus] = useState<ContactStatus>("idle");
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   // Contact-form values live in a ref (not state) so typing never re-renders
   // the innerHTML — the uncontrolled inputs keep their own values. The ref is
   // re-injected into the markup only when something ELSE forces a re-render.
@@ -1065,7 +1071,15 @@ export default function Landing() {
     setPage("home");
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        const el = document.getElementById(id);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        // Brief pulsing ring so a footer nav click (Overview/How it works/
+        // etc.) is obviously "landing" on the right section, not just a
+        // silent scroll.
+        if (el) {
+          el.classList.add("section-pulse");
+          window.setTimeout(() => el.classList.remove("section-pulse"), 1600);
+        }
       });
     });
   };
@@ -1115,22 +1129,6 @@ export default function Landing() {
     const act = actRaw;
     // Mobile burger menu (small screens only — see .burger-btn media query).
     if (act === "burger") { e.preventDefault(); setMobileMenuOpen((v) => !v); return; }
-    // FAQ — multiple cards can be expanded at once (not an exclusive
-    // accordion). Direct DOM mutation, not React state (see the comment on
-    // isOpen in homeMain's FAQ block for why: this section sits in the same
-    // page as the ticker board, and any state that forced a bodyHtml
-    // re-render would flicker/reset it on every question toggle).
-    if (act === "faq-toggle") {
-      e.preventDefault();
-      const item = el.closest<HTMLElement>(".faq-item");
-      const panel = item?.querySelector<HTMLElement>(".faq-panel");
-      const chevron = item?.querySelector<HTMLElement>(".faq-chevron");
-      if (!item || !panel || !chevron) return;
-      const wasOpen = parseInt(panel.style.maxHeight || "0", 10) > 0;
-      panel.style.maxHeight = wasOpen ? "0px" : "300px";
-      chevron.style.transform = wasOpen ? "rotate(0deg)" : "rotate(180deg)";
-      return;
-    }
     // Account dropdown + sign-out confirmation.
     if (act === "account") { e.preventDefault(); setLangOpen(false); el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
     if (act === "account:settings") { e.preventDefault(); navigate("/account/settings"); return; }
@@ -1153,12 +1151,13 @@ export default function Landing() {
     if (act === "contact:send") { e.preventDefault(); void submitContact(); return; }
     // Router / internal-page actions all preventDefault so anchor hrefs
     // (kept for right-click "open in new tab" affordance) don't full-navigate.
-    if (act === "app") { e.preventDefault(); navigate("/dashboard"); return; }
     if (act === "workspace") { e.preventDefault(); navigate("/workspace"); return; }
     // ?next=/ brings the user back to the landing page after signing in
     // (the header then swaps the auth buttons for the account chip).
     if (act === "signin") { e.preventDefault(); navigate("/login?next=/"); return; }
-    if (act === "signup") { e.preventDefault(); navigate("/signup"); return; }
+    if (act === "getstarted") { e.preventDefault(); navigate("/login?next=/&mode=sign_up"); return; }
+    if (act === "billing:monthly") { e.preventDefault(); setBillingCycle("monthly"); return; }
+    if (act === "billing:yearly") { e.preventDefault(); setBillingCycle("yearly"); return; }
     if (act === "signup:solo") { e.preventDefault(); navigate("/signup?plan=solo"); return; }
     if (act === "signup:business") { e.preventDefault(); navigate("/signup?plan=business"); return; }
     if (act.startsWith("scroll:")) { e.preventDefault(); scrollTo(act.slice(7)); return; }
@@ -1204,14 +1203,14 @@ export default function Landing() {
     const year = new Date().getFullYear();
     const main =
       page === "contact" ? contactMain(contactRef.current, contactStatus, L)
-      : page === "home" ? homeMain(L, account != null)
-      : page === "pricing" ? pricingMain(L)
+      : page === "home" ? homeMain(L, account != null, billingCycle)
+      : page === "pricing" ? pricingMain(L, billingCycle)
       : legalMain(L);
     return main
       + footer(year, L)
       + (consentOpen ? consentModal(consentExpanded, analytics, marketing, L) : "")
       + (signOutOpen ? signoutModal(L) : "");
-  }, [account, page, L, contactStatus, signOutOpen, consentOpen, consentExpanded, analytics, marketing]);
+  }, [account, page, L, contactStatus, signOutOpen, consentOpen, consentExpanded, analytics, marketing, billingCycle]);
 
   // The body innerHTML swap above replaces that subtree wholesale, so the
   // placeholder is a fresh node each time `bodyHtml` changes — re-find it
@@ -1298,7 +1297,14 @@ export default function Landing() {
  * Same markup and dropdowns; internal-page tabs navigate back to the landing
  * route with the matching hash (Landing's applyHash picks it up on mount).
  */
-export function MarketingHeader({ active = null }: { active?: Page | null }) {
+export function MarketingHeader({
+  active = null,
+  // When true, the header floats over the page (position:fixed, out of
+  // flow) instead of sitting sticky-in-flow — for pages like
+  // /account/settings that don't want the header pushing their own layout
+  // down. The host page must then add its own top padding to compensate.
+  fixed = false,
+}: { active?: Page | null; fixed?: boolean }) {
   const navigate = useNavigate();
   const { isAuthenticated, displayName, initials, user, signOut } = useAuth();
   const { i18n } = useTranslation();
@@ -1332,10 +1338,9 @@ export function MarketingHeader({ active = null }: { active?: Page | null }) {
     if (VALID_PAGES.includes(act as Page)) { navigate(act === "home" ? "/" : `/#/${act}`); return; }
     if ((LEGAL_DOCS as string[]).includes(act)) { navigate(`/#/${act}`); return; }
     if (act.startsWith("scroll:")) { navigate("/"); return; }
-    if (act === "app") { navigate("/dashboard"); return; }
     if (act === "workspace") { navigate("/workspace"); return; }
     if (act === "signin") { navigate("/login?next=/"); return; }
-    if (act === "signup") { navigate("/signup"); return; }
+    if (act === "getstarted") { navigate("/login?next=/&mode=sign_up"); return; }
     if (act === "account") { setLangOpen(false); el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
     if (act === "account:settings") { navigate("/account/settings"); return; }
     if (act === "account:signout") { setSignOutOpen(true); return; }
@@ -1349,16 +1354,28 @@ export function MarketingHeader({ active = null }: { active?: Page | null }) {
     if (act.startsWith("lang:")) { void pickLanguageWithProfileSync(act.slice(5), user, getSupabase()); return; }
   }, [navigate, langOpen, mobileMenuOpen, user, signOut]);
 
+  // Same "transparent + taller at the very top, fading to the normal
+  // frosted bar on scroll" behavior as the landing page's own header — see
+  // the matching effect in Landing() for why this toggles a class instead
+  // of feeding into the html string.
+  const [isAtTop, setIsAtTop] = useState(true);
+  useEffect(() => {
+    const onScroll = () => setIsAtTop(window.scrollY < 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const langCode = (i18n.language || "en").slice(0, 2);
   const L = landingStringsFor(langCode);
   const html =
-    header(account, active, langOpen, langCode, L, false, mobileMenuOpen) + (signOutOpen ? signoutModal(L) : "");
+    header(account, active, langOpen, langCode, L, fixed, mobileMenuOpen) + (signOutOpen ? signoutModal(L) : "");
 
   return (
     <>
       <style>{SITE_CSS}</style>
       <div
-        className="cfo-site cfo-site--bare sticky top-0 z-50"
+        className={`cfo-site cfo-site--bare z-50${fixed ? "" : " sticky top-0"}${isAtTop ? " at-top" : ""}`}
         onClick={onClick}
         dangerouslySetInnerHTML={{ __html: html }}
       />

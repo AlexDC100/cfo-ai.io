@@ -24,9 +24,12 @@ interface Props {
   statement: PLStatement;
   /** Show the reconciliation footnote (capitalized own-work + 628 explanation). */
   showFootnote?: boolean;
+  /** Hide the inline "Guide me" button — the dashboard consolidates all tab
+   *  guides into a single button in the tab bar. */
+  hideGuide?: boolean;
 }
 
-export function PLStatementView({ statement, showFootnote = true }: Props) {
+export function PLStatementView({ statement, showFootnote = true, hideGuide = false }: Props) {
   useHighlightFromUrl();
   const { t } = useTranslation();
   const fmt = useAmountFormatter(statement.currency);
@@ -41,7 +44,7 @@ export function PLStatementView({ statement, showFootnote = true }: Props) {
         <h2>
           {t("statements.pl.title")} — {statement.entity} — {statement.period} ({display})
         </h2>
-        <GuideMeButton pageId="pnl" title="P&L" steps={PL_GUIDE} />
+        {!hideGuide && <GuideMeButton pageId="pnl" title="P&L" steps={PL_GUIDE} />}
       </div>
 
       <div className="pl-body">
@@ -269,14 +272,29 @@ function PLFootnote({ statement }: { statement: PLStatement }) {
   const display = useDisplayCurrency();
   const ownWork = statement.capitalizedOwnWorkMemo ?? 0;
   const ext628 = statement.extServOther ?? 0;
+  // 2026-07-25 — everything below is derived from the UPLOADED statement, not
+  // asserted. Previously this footnote hardcoded a rental/property-management
+  // narrative ("revenue is essentially just rental income (706)…") that fired
+  // for ANY company with 722 activity — a manufacturer with capitalized own
+  // work read as a landlord. Now: the 722/628-wash math is company-generic
+  // (clean revenue = revenue − 722), and the rental framing renders only when
+  // rental income (706 + 767) genuinely dominates the ex-own-work revenue.
+  const revenueTotal = statement.sections[0]?.subtotalAmount ?? 0;
+  const revenueExOwnWork = revenueTotal - ownWork;
   const rentalOnly =
     (statement.sections[0]?.lines.find((l) => l.accountCode === "706")?.amount ?? 0) +
     (statement.sections[0]?.lines.find((l) => l.accountCode === "767")?.amount ?? 0);
+  const rentalDominated =
+    revenueExOwnWork > 0 && rentalOnly / revenueExOwnWork >= 0.6;
   const opexExcl628 = (statement.sections[1]?.subtotalAmount ?? 0) - ext628;
   return (
     <div className="pl-footnote" data-testid="pl-footnote">
       <p>
-        <strong>Two things worth flagging given the structure:</strong>
+        <strong>
+          {rentalDominated
+            ? "Two things worth flagging given the structure:"
+            : "Worth flagging given the structure:"}
+        </strong>
       </p>
       <ol>
         <li>
@@ -288,17 +306,19 @@ function PLFootnote({ statement }: { statement: PLStatement }) {
           into CIP (account 231 — YTD movement matches 722 exactly). The corresponding cost is
           sitting inside <strong>628 Other third-party services ({fmt(ext628)})</strong>.
           Net P&amp;L effect: ~zero. For a "clean" operating view, strip both: revenue drops to
-          ~{fmt(rentalOnly)}, opex drops to ~{fmt(opexExcl628)}, clean EBITDA ≈{" "}
-          {fmt(rentalOnly - opexExcl628)}.
+          ~{fmt(revenueExOwnWork)}, opex drops to ~{fmt(opexExcl628)}, clean EBITDA ≈{" "}
+          {fmt(revenueExOwnWork - opexExcl628)}.
         </li>
-        <li>
-          <strong>
-            Real cash-generative operating revenue is essentially just rental income (706):{" "}
-            {fmt(rentalOnly)} {display}.
-          </strong>{" "}
-          Against that base, the underlying property-management EBITDA is the more meaningful
-          number.
-        </li>
+        {rentalDominated && (
+          <li>
+            <strong>
+              Real cash-generative operating revenue is essentially just rental income (706):{" "}
+              {fmt(rentalOnly)} {display}.
+            </strong>{" "}
+            Against that base, the underlying property-management EBITDA is the more meaningful
+            number.
+          </li>
+        )}
       </ol>
     </div>
   );

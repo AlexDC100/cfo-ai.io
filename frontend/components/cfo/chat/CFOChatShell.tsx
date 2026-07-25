@@ -14,16 +14,27 @@
 //     the store. The API call shape is byte-identical to what
 //     Chat.tsx used before this redesign.
 
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CFOComposer, type CFOComposerHandle } from "./CFOComposer";
 import { CFOMessageList } from "./CFOMessageList";
 import { CFOEmptyState, WORKSPACE_PROMPTS, GENERAL_PROMPTS } from "./CFOEmptyState";
+import { promptsForIndustry } from "./industryPrompts";
+import { useActiveOrg } from "@/lib/org";
 import { CFOHistorySidebar } from "./CFOHistorySidebar";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useChatStore } from "./useChatStore";
 import { CfoApiError, cfoApi } from "@/lib/cfoApi";
+import {
+  beginChatReply,
+  endChatReply,
+  registerChatReplyAbort,
+  unregisterChatReplyAbort,
+} from "@/lib/chatPendingStore";
 import { useCurrency } from "@/stores/currency";
+import { useAuth } from "@/lib/auth";
+import { getActiveOrgId } from "@/lib/activeOrg";
+import { readPeriodVerdict } from "@/lib/dataPresence";
 import { usePublicCompanyChatContext } from "@/lib/publicCompanyChatStore";
 import type { ChatAttachment } from "./types";
 import type { Currency } from "@/lib/rates";
@@ -77,6 +88,49 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
 ) {
   const store = useChatStore();
   const composerRef = useRef<CFOComposerHandle | null>(null);
+  // See the sidebar-entrance rule below (page variant) — true once this
+  // mounted shell has rendered the no-conversations empty state.
+  const sawEmptyRef = useRef(false);
+  // Entrance policy (2026-07-25): animations play ONLY after the user has
+  // interacted inside the tab (pointer or keyboard). Anything that changes
+  // during entry — store hydration swapping the empty state for a live
+  // conversation, the sidebar appearing — renders instantly at its end
+  // state instead of animating. `stillEntrance` additionally applies the
+  // `.chat-entrance-still` CSS freeze (index.css) that halts EVERY css
+  // animation/transition in the subtree until the first interaction.
+  const interactedRef = useRef(false);
+  const [stillEntrance, setStillEntrance] = useState(true);
+  const markInteracted = () => {
+    interactedRef.current = true;
+    if (stillEntrance) setStillEntrance(false);
+  };
+  // The measured culprit on tab entry (2026-07-25 probe): the TopHeader
+  // "Ask CFO AI" pill and the currency toggle's selected segment run
+  // continuous gradient sweeps OUTSIDE this shell's subtree, so the
+  // subtree freeze never reached them. While the entrance window is
+  // open, stamp a global freeze class on <html> and release it on the
+  // first pointer/key interaction ANYWHERE (window capture — a click on
+  // the header itself must also count as "in the tab now").
+  useEffect(() => {
+    if (variant !== "page") return;
+    const root = document.documentElement;
+    if (stillEntrance) root.classList.add("chat-entrance-still-global");
+    else root.classList.remove("chat-entrance-still-global");
+    return () => root.classList.remove("chat-entrance-still-global");
+  }, [variant, stillEntrance]);
+  useEffect(() => {
+    if (variant !== "page" || !stillEntrance) return;
+    const release = () => {
+      interactedRef.current = true;
+      setStillEntrance(false);
+    };
+    window.addEventListener("pointerdown", release, { capture: true });
+    window.addEventListener("keydown", release, { capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", release, { capture: true });
+      window.removeEventListener("keydown", release, { capture: true });
+    };
+  }, [variant, stillEntrance]);
   // CUR-FIX — currency context for the chat send pipeline. `display` is
   // the user's chosen surface currency (TopHeader toggle); we assume the
   // workspace source is RON unless the active period's payload says
@@ -113,11 +167,51 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   }));
 
   const hasPeriod = Boolean(periodId && workspaceSnapshot);
+  // Entrance stability (2026-07-25) — entering /chat via the sidebar drops
+  // ?period=, so the first render is ungrounded and the REAL grounding only
+  // lands after useActivePeriodFallback's resolve→navigate→fetch chain. That
+  // made all 8 suggestion cards render the general set and then visibly swap
+  // to the workspace set moments after entry. The persisted period verdict
+  // (lib/dataPresence, sync from localStorage) already knows whether this
+  // user has a period — use it to pick the FINAL prompt set on frame one.
+  const { user } = useAuth();
+  const expectGrounded =
+    hasPeriod || Boolean(user?.id && typeof readPeriodVerdict(user.id) === "string");
   const groundedLabel = periodLabel ?? null;
   // Quick-prompt pills shown above the composer during an active conversation
   // (the empty state already shows the full prompt cards). Same set the empty
-  // state uses — workspace-grounded when a period is loaded, general otherwise.
-  const promptPills = hasPeriod ? WORKSPACE_PROMPTS : GENERAL_PROMPTS;
+  // state uses — workspace-grounded when a period is loaded (or known to be
+  // about to load), otherwise the workspace-industry-tailored set (falling
+  // back to the generic one).
+  const { org, loading: orgLoading } = useActiveOrg();
+  // No-workspace verdict, resolved in the BACKGROUND and cached per-user so the
+  // NEXT tab entry paints the adapted content immediately — no flash, no shift:
+  //   · first paint reads the cached verdict (falling back to the localStorage
+  //     active-org id for a brand-new session), so content is already adapted;
+  //   · an effect reconciles it once `org` actually resolves, and persists it
+  //     for the next entry.
+  const wsPresentKey = user?.id ? `cfo-ws-present:${user.id}` : null;
+  const [noWorkspace, setNoWorkspace] = useState<boolean>(() => {
+    try {
+      if (wsPresentKey) {
+        const cached = localStorage.getItem(wsPresentKey);
+        if (cached === "0") return true;
+        if (cached === "1") return false;
+      }
+    } catch { /* ignore */ }
+    return !getActiveOrgId(user?.id ?? null);
+  });
+  useEffect(() => {
+    if (orgLoading) return;
+    const present = !!org;
+    setNoWorkspace(!present);
+    if (wsPresentKey) {
+      try { localStorage.setItem(wsPresentKey, present ? "1" : "0"); } catch { /* ignore */ }
+    }
+  }, [org, orgLoading, wsPresentKey]);
+  const promptPills = expectGrounded
+    ? WORKSPACE_PROMPTS
+    : (promptsForIndustry(org?.industry_key) ?? GENERAL_PROMPTS);
   // Pyramid arrangement — two rows tall, fewer pills up top and more on the
   // bottom (e.g. 8 pills → 3 on top / 5 on the bottom). Left-aligned.
   const pyramidRows = ((items: typeof promptPills) => {
@@ -161,6 +255,14 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       dedup.push(m);
     }
 
+    // Global in-flight signal — keeps the nav rail's "Ask CFO AI" item
+    // showing a thinking spinner if the user switches tabs mid-reply.
+    beginChatReply();
+    // Abort handle — deleting THIS conversation mid-reply cancels the
+    // request so the thinking state ends immediately (useChatStore.remove
+    // fires abortChatReply).
+    const aborter = new AbortController();
+    registerChatReplyAbort(conversationId, () => aborter.abort());
     try {
       // CUR-FIX — inject display currency + FX context so the backend
       // system prompt can instruct the model to cite figures in the
@@ -193,7 +295,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         // ticker open. Workspace chat without public-company context
         // sends `undefined` here and the backend skips the block.
         public_company: publicCompanyContext ?? undefined,
-      });
+      }, aborter.signal);
       const answer = (response?.answer ?? "").trim() || "(no response)";
       store.completeAssistantTurn({
         conversationId,
@@ -202,6 +304,10 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         groundedPeriod: groundedLabel,
       });
     } catch (err) {
+      // Conversation was deleted mid-reply — the fetch was aborted on
+      // purpose. Nothing to render (the conversation is gone); just let
+      // the finally block clear the in-flight state.
+      if (aborter.signal.aborted) return;
       // Pricing V3 — render the chat-cap-reached 429 as a friendly
       // upgrade-CTA message, not as a generic transport error.
       // Detail shape from backend:
@@ -244,6 +350,9 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         content: `**Couldn't reach the assistant.** ${msg}\n\nTry again in a moment.`,
         error: true,
       });
+    } finally {
+      unregisterChatReplyAbort(conversationId);
+      endChatReply();
     }
   }, [
     store,
@@ -302,7 +411,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         <div className="flex-1 min-h-0 flex flex-col">
           {!store.current || store.current.messages.length === 0 ? (
             <div className="flex-1 overflow-y-auto px-4 py-2">
-              <CFOEmptyState hasPeriod={hasPeriod} companyName={companyName} onPick={pickPrompt} />
+              <CFOEmptyState hasPeriod={expectGrounded} companyName={companyName} onPick={pickPrompt} />
             </div>
           ) : (
             <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} />
@@ -310,10 +419,14 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         </div>
 
         <CFOComposer
+          // Keyed by conversation so switching chats remounts the composer
+          // with that conversation's saved draft (see chatDrafts.ts).
+          key={store.currentId ?? "new"}
+          draftKey={store.currentId ?? "new"}
           ref={composerRef}
           pending={pending}
           onSubmit={send}
-          placeholder={hasPeriod ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
+          placeholder={expectGrounded ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
           contextLine={contextLine}
           disclosure={disclosure}
           blockedReason={capBlocked}
@@ -329,6 +442,12 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // scrolls it. Nothing is sticky — the sidebar, messages and composer all
   // scroll with the page.
   const noConversations = store.conversations.length === 0;
+  // Sidebar entrance rule: a sidebar present from this shell's FIRST
+  // render (entering the tab with history) must appear instantly, but
+  // when the user starts their first chat while on the empty screen the
+  // panel should visibly slide open. Track "this mount has shown the
+  // empty state" in a ref — render-phase write, no re-render needed.
+  if (noConversations) sawEmptyRef.current = true;
   // With the sidebar present, the message content hugs closer to it (tighter
   // left gap); with no sidebar (the empty no-chats screen) it keeps the wider
   // padding so the header still lines up with the dashboard.
@@ -352,9 +471,13 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       // column is an animated margin ON the sidebar instead, so it collapses
       // smoothly with the width on exit (a static gap would snap away only
       // when the sidebar unmounts, stuttering at the end of the animation).
-      className="flex -ml-4 sm:-ml-8 lg:-ml-10"
+      className={`flex -ml-4 sm:-ml-8 lg:-ml-10 ${stillEntrance ? "chat-entrance-still" : ""}`}
       style={{ marginBottom: "calc(-1 * max(8rem, calc(env(safe-area-inset-bottom) + 6rem)))" }}
       data-testid="chat-page-shell"
+      // Capture-phase so ANY interaction in the tab flips the flag before
+      // the resulting state change renders (see entrance policy above).
+      onPointerDownCapture={markInteracted}
+      onKeyDownCapture={markInteracted}
     >
       {/* History sidebar (lg+). Own internal list scroller for long histories.
           `relative z-20` keeps it (and its slightly-outset scrollbar) painted
@@ -373,7 +496,16 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         {!noConversations && (
           <motion.div
             key="chat-history-sidebar"
-            initial={{ width: 0, opacity: 0, marginRight: 0 }}
+            // Entering the tab WITH history: appear instantly (initial=false).
+            // First chat started from the empty screen BY the user (this
+            // mount has seen noConversations AND the user has interacted):
+            // slide open from width 0. Hydration-driven appearance on entry
+            // stays instant. Exit always animates on delete (an in-tab act).
+            initial={
+              sawEmptyRef.current && interactedRef.current
+                ? { width: 0, opacity: 0, marginRight: 0 }
+                : false
+            }
             animate={{ width: 280, opacity: 1, marginRight: 0 }}
             exit={{ width: 0, opacity: 0, marginRight: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
@@ -390,10 +522,23 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       </AnimatePresence>
 
       <div className="relative flex-1 min-w-0 flex flex-col min-h-[calc(100dvh-7rem)]">
+        {/* mode="wait" + exit fade: sending the first message fades the
+            header + suggested-question cards OUT before the conversation
+            takes over, instead of hard-swapping. initial={false} keeps
+            tab entry instant — only the exit animates. */}
+        <AnimatePresence mode="wait" initial={false}>
         {!store.current || store.current.messages.length === 0 ? (
           // An empty conversation shows the SAME content as the no-chats
           // screen: the dashboard-style header + prompt starters.
-          <div className={`flex-1 ${contentPadX} pb-8`}>
+          <motion.div
+            key="chat-empty-content"
+            exit={{ opacity: 0 }}
+            // Duration 0 until the user interacts: a hydration-driven swap
+            // on tab entry snaps to the end state; a user-sent first
+            // message fades the empty state out.
+            transition={{ duration: interactedRef.current ? 0.2 : 0, ease: "easeOut" }}
+            className={`flex-1 ${contentPadX} pb-8`}
+          >
             <PageHeader
               hero
               eyebrow="Ask CFO AI"
@@ -401,13 +546,14 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               subtitle="CFO AI answers from your loaded workspace — P&L, Balance Sheet, Cash Flow, ratios, valuation, risk and recommendations — citing the period and the figures it used. With no workspace loaded it still answers open-domain finance, accounting and strategy questions. Pick a starter below or type your own."
               testid="chat-empty-header"
             />
-            <CFOEmptyState hasPeriod={hasPeriod} companyName={companyName} onPick={pickPrompt} hideHeader />
-          </div>
+            <CFOEmptyState hasPeriod={expectGrounded} companyName={companyName} onPick={pickPrompt} hideHeader />
+          </motion.div>
         ) : (
-          <div className="flex-1 -mt-3 sm:-mt-7 lg:-mt-9">
+          <div key="chat-live-content" className="flex-1 -mt-3 sm:-mt-7 lg:-mt-9">
             <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} bottomInset wideContent documentScroll />
           </div>
         )}
+        </AnimatePresence>
 
         {/* Composer + context pill are pinned to the bottom of the viewport
             (sticky) so they stay visible while the conversation scrolls behind
@@ -437,21 +583,40 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           )}
           <div className="max-w-[1760px]">
             <CFOComposer
+              // Keyed by conversation so switching chats remounts the
+              // composer with that conversation's saved draft.
+              key={store.currentId ?? "new"}
+              draftKey={store.currentId ?? "new"}
               ref={composerRef}
               pending={pending}
               onSubmit={send}
-              placeholder={hasPeriod ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
+              placeholder={expectGrounded ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
               blockedReason={capBlocked}
             />
           </div>
-          {/* Context pill + general-answer disclosure — in line, under the input. */}
-          <div className="max-w-[1760px] pt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-bg-2 border border-rule text-[11.5px] text-ink-soft whitespace-nowrap">
-              {contextLine}
-            </span>
+          {/* Context pill + general-answer disclosure — in line, under the input.
+              The pill renders only when a workspace is grounded; the
+              "No workspace loaded — open-domain mode" variant was removed
+              per the operator (2026-07-25). */}
+          <div className="max-w-[1760px] pt-0.5 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {hasPeriod && (
+              <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-bg-2 border border-rule text-[11.5px] text-ink-soft whitespace-nowrap">
+                {contextLine}
+              </span>
+            )}
             <span className="min-w-0 text-[11px] text-ink-mute leading-snug">
               {disclosure}
             </span>
+            {noWorkspace && (
+              <span
+                data-testid="chat-no-workspace-pill"
+                title="No workspace is selected, so answers can't be grounded in your company's data."
+                className="ml-auto shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-amber-500/10 border border-amber-500/30 text-[11.5px] font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+                No workspace selected — affects answers
+              </span>
+            )}
           </div>
         </div>
       </div>

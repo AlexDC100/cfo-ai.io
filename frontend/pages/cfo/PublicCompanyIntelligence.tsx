@@ -10,18 +10,13 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Activity, LayoutGrid, Globe } from "lucide-react";
+import { Activity, LayoutGrid, Globe } from "lucide-react";
 import { PublicShell } from "@/components/cfo/PublicShell";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useAuth } from "@/lib/auth";
-import { CompanySearchPanel } from "@/components/public-companies/CompanySearchPanel";
-// PUB-UPG — `PublicCompaniesUniverseTable` is the 200-row sortable
-// universe; the legacy 6-ticker `PublicCompaniesTable` is retired from
-// this surface (file kept in src/ as dead code for one release).
-import { PublicCompaniesUniverseTable } from "@/components/public-companies/PublicCompaniesUniverseTable";
-import { MarketsOverview, type ExploreFilter } from "@/components/public-companies/MarketsOverview";
+import { CompanySearchPanel, searchUniverse } from "@/components/public-companies/CompanySearchPanel";
+import { MarketsOverview, PeerSection, type GridFilter } from "@/components/public-companies/MarketsOverview";
 import { BenchmarkingPanel } from "@/components/public-companies/BenchmarkingPanel";
-import { AIInvestmentInterpretation } from "@/components/public-companies/AIInvestmentInterpretation";
 import { StockDetailDrawer } from "@/components/public-companies/StockDetailDrawer";
 // Phase A — AI Intelligence layer. RiskRadar is the new 8-card radar
 // driven by /api/public/intelligence/risk-radar. Lives on its own tab so
@@ -30,10 +25,7 @@ import { RiskRadar } from "@/components/public-companies/RiskRadar";
 // Geographic Map — Romania county (județ) choropleth (design port, 2026-07-23).
 import { GeographicMapPanel } from "@/components/public-companies/GeographicMapPanel";
 import { staticBvbRows } from "@/lib/bvbStaticUniverse";
-// Universe-wide risk-score batch — one call gives us a score per ticker
-// so the universe table can show an AI Risk chip + sort by it without
-// firing 200 per-ticker requests.
-import { fetchUniverseRiskScores } from "@/lib/publicCompanyIntelligence";
+import { BVBBadge } from "@/components/public-companies/BVBBadge";
 import { fetchUniverse } from "@/lib/publicCompanyUniverse";
 import type { PriceRange } from "@/lib/publicCompanyPriceHistory";
 import {
@@ -48,10 +40,11 @@ export default function PublicCompanyIntelligence() {
   // it. Defaults to 1Y per the spec.
   const [chartRange, setChartRange] = useState<PriceRange>("1Y");
   const [searchParams, setSearchParams] = useSearchParams();
-  // 2026-05-25 — Markets redesign Layer 1/2 navigation. `null` shows
-  // the magazine-style overview (MarketsOverview); any other value
-  // drills into the universe table pre-filtered to that subset.
-  const [exploreFilter, setExploreFilter] = useState<ExploreFilter | null>(null);
+  // 2026-07-24 — the Layer-2 drill-down ("Market universe" table) was
+  // removed; Explore pills now filter MarketsOverview's company grid in
+  // place. This state only carries Risk Radar category drills INTO that
+  // grid filter.
+  const [radarDrill, setRadarDrill] = useState<GridFilter | null>(null);
   // Phase A intelligence layer — top-level tab selector. "overview" shows
   // the existing markets-overview + universe + benchmark + AI-interp stack;
   // "risk-radar" shows the new 8-card AI risk radar. Persisted to ?tab=
@@ -93,18 +86,15 @@ export default function PublicCompanyIntelligence() {
     [searchParams, setSearchParams],
   );
 
-  // Radar card click → switch to overview tab + drill into the filtered
-  // universe. Reuses the existing ExploreFilter pattern (theme kind).
+  // Radar card click → switch to overview tab + filter the company grid
+  // to the surfaced tickers.
   const handleRadarDrill = useCallback(
     (category: string, tickers: string[]) => {
       if (!tickers.length) return;
       switchView("overview");
-      setExploreFilter({
-        kind: "theme",
-        key: `risk-radar-${category}`,
+      setRadarDrill({
+        key: `drill-risk-radar-${category}`,
         label: `Risk Radar — ${category.replace("_", " & ")}`,
-        description: `${tickers.length} companies surfaced by the AI Risk Radar`,
-        emoji: "⚠️",
         tickers,
       });
     },
@@ -126,21 +116,6 @@ export default function PublicCompanyIntelligence() {
     gcTime: 30 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     refetchIntervalInBackground: false,
-  });
-
-  // Phase A intelligence — universe-wide risk scores for the AI Risk
-  // column + sort options. Independent React Query so a slow risk-score
-  // computation doesn't block the universe table from rendering. 3-min
-  // staleTime matches the backend's SCORE_TTL_SEC (BE cache TTL).
-  const riskScoresQuery = useQuery({
-    queryKey: ["public-companies", "intelligence", "risk-scores", "universe"],
-    queryFn: fetchUniverseRiskScores,
-    staleTime: 3 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    // Don't refetch every 5min — the intelligence layer is computed
-    // deterministically from sector library + financial snapshot, so it
-    // only meaningfully changes when the universe itself refreshes.
-    retry: 1,
   });
 
   // Demo mode is driven by the universe payload itself
@@ -199,6 +174,11 @@ export default function PublicCompanyIntelligence() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  // Search (2026-07-24) — the page owns the query so matches render IN
+  // the company grid (as a synthetic selected "Search" pill + narrowed
+  // rows) instead of a dropdown under the bar.
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Universe rows with static fallback (2026-07-23): while the live fetch
   // is loading/failing, every consumer — Romanian Listed card, sector
   // tallies, featured comparisons, universe table, search, map — renders
@@ -208,6 +188,18 @@ export default function PublicCompanyIntelligence() {
   const liveCompanies = universeQuery.data?.companies;
   const allCompanies = liveCompanies?.length ? liveCompanies : staticBvbRows();
 
+  // Search matches as a grid filter — MarketsOverview shows these rows
+  // and a selected "Search" pill while a query is active.
+  const searchFilter = useMemo<GridFilter | null>(() => {
+    const q = searchQuery.trim();
+    if (!q) return null;
+    return {
+      key: `search-${q.toLowerCase()}`,
+      label: `Search "${q}"`,
+      tickers: searchUniverse(allCompanies, q).map((r) => r.ticker),
+    };
+  }, [searchQuery, allCompanies]);
+
   // Drawer snapshot resolves from allCompanies, which already falls back
   // to the bundled static BVB rows — so quick-pick / search / map clicks
   // always open the drawer, with financials from the static seed when the
@@ -215,33 +207,6 @@ export default function PublicCompanyIntelligence() {
   const selectedSnapshot = selectedTicker
     ? allCompanies.find((c) => c.ticker === selectedTicker) ?? null
     : null;
-
-  // ── Layer 1 / Layer 2 rows ──────────────────────────────────────────
-  // When `exploreFilter` is null we show the Markets overview (Layer 1)
-  // and don't render the table at all. When the user clicks a theme /
-  // sector / featured comparison card the filter is set and the table
-  // appears with rows narrowed to that subset. `kind: "all"` is the
-  // escape hatch — the user explicitly asked for the full universe.
-  const filteredRows = useMemo(() => {
-    if (!exploreFilter) return allCompanies;
-    if (exploreFilter.kind === "all") return allCompanies;
-    if (exploreFilter.kind === "sector") {
-      return allCompanies.filter(
-        (c) => (c.sector ?? "Unknown") === exploreFilter.label,
-      );
-    }
-    // theme + comparison both filter to an explicit ticker set
-    const wanted = new Set(exploreFilter.tickers);
-    return allCompanies.filter((c) => wanted.has(c.ticker));
-  }, [exploreFilter, allCompanies]);
-
-  const handleExplore = useCallback((f: ExploreFilter) => {
-    setExploreFilter(f);
-    // Scroll the table into view so the user sees the drilldown landed.
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-  }, []);
 
   // Shell selection: authed visitors are routed UNDER the shared AppLayout
   // (App.tsx), which already provides the one persistent AppShell — so here we
@@ -291,50 +256,66 @@ export default function PublicCompanyIntelligence() {
             value proposition is promoted to the large semibold headline
             (like "Upload your trial balance…"). Status banner + Docs sit
             in the header's actions slot. */}
-        <PageHeader
-          hero
-          eyebrow="Public Company Intelligence"
-          title={
-            <>
-              Search listed companies and add them as{" "}
-              <span className="text-grad">benchmark peers</span>.
-            </>
-          }
-          subtitle="Statutory financials for every company listed on the Bucharest Stock Exchange — revenue, margins, equity and valuation, from issuer disclosures and official ANAF filings, with live BVB prices. Add any company as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views."
-        />
+        {/* Header row — the hero header + tab strip on the left, the
+            "Your real peer" section (user's company vs. its BVB peer)
+            on the right. The peer section moved up here from the top of
+            MarketsOverview (2026-07-24) so it shares the header's
+            horizontal band; it stacks below the header on narrower
+            screens. */}
+        <div className="flex flex-col xl:flex-row xl:items-start gap-6">
+          <div className="min-w-0 flex-1">
+            <PageHeader
+              hero
+              eyebrow="Public Company Intelligence"
+              title={
+                <>
+                  Search listed companies and add them as{" "}
+                  <span className="text-grad">benchmark peers</span>.{" "}
+                  <span className="inline-flex align-middle">
+                    <BVBBadge variant="section" />
+                  </span>
+                </>
+              }
+              subtitle="Statutory financials for every company listed on the Bucharest Stock Exchange — revenue, margins, equity and valuation, from issuer disclosures and official ANAF filings, with live BVB prices. Add any company as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views."
+            />
 
-        {/* ── Tab strip — Overview / Risk Radar ──────────────────────
-              Segmented control sits between the header and the per-tab
-              content. Sticky-ish styling matches the rest of the app
-              (rounded pill, brand accent on active). Persists to ?tab=
-              so deep links + browser back/forward work. */}
-        <div
-          role="tablist"
-          aria-label="Public Companies sections"
-          className="mb-5 inline-flex p-1 rounded-xl border border-rule/60 bg-bg-2/40 gap-1"
-          data-testid="public-intelligence-tabs"
-        >
-          <TabPill
-            active={view === "overview"}
-            onClick={() => switchView("overview")}
-            icon={LayoutGrid}
-            label="Overview"
-            testid="tab-overview"
-          />
-          <TabPill
-            active={view === "risk-radar"}
-            onClick={() => switchView("risk-radar")}
-            icon={Activity}
-            label="Risk Radar"
-            testid="tab-risk-radar"
-          />
-          <TabPill
-            active={view === "map"}
-            onClick={() => switchView("map")}
-            icon={Globe}
-            label="Geographic Map"
-            testid="tab-map"
-          />
+            {/* ── Tab strip — Overview / Risk Radar ──────────────────────
+                  Segmented control sits between the header and the per-tab
+                  content. Sticky-ish styling matches the rest of the app
+                  (rounded pill, brand accent on active). Persists to ?tab=
+                  so deep links + browser back/forward work. */}
+            <div
+              role="tablist"
+              aria-label="Public Companies sections"
+              className="mb-5 inline-flex p-1 rounded-xl border border-rule/60 bg-bg-2/40 gap-1"
+              data-testid="public-intelligence-tabs"
+            >
+              <TabPill
+                active={view === "overview"}
+                onClick={() => switchView("overview")}
+                icon={LayoutGrid}
+                label="Overview"
+                testid="tab-overview"
+              />
+              <TabPill
+                active={view === "risk-radar"}
+                onClick={() => switchView("risk-radar")}
+                icon={Activity}
+                label="Risk Radar"
+                testid="tab-risk-radar"
+              />
+              <TabPill
+                active={view === "map"}
+                onClick={() => switchView("map")}
+                icon={Globe}
+                label="Geographic Map"
+                testid="tab-map"
+              />
+            </div>
+          </div>
+          <div className="w-full xl:w-[720px] xl:shrink-0">
+            <PeerSection rows={allCompanies} onSelect={handleSelectTicker} />
+          </div>
         </div>
 
         {/* Risk Radar tab — short-circuit before the overview block.
@@ -353,78 +334,32 @@ export default function PublicCompanyIntelligence() {
         <>
         {/* ── Section 2 — Market Search ──────────────────────────── */}
         <div className="space-y-5">
-          <CompanySearchPanel rows={allCompanies} onSelect={handleSelectTicker} />
+          <CompanySearchPanel
+            rows={allCompanies}
+            onSelect={handleSelectTicker}
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+          />
 
-          {/* ── Section 3 — Markets overview (Layer 1) / drill-down (Layer 2)
-                ─────────────────────────────────────────────────────────
-                Default: MarketsOverview — magazine-style cards for movers,
-                themes, sectors, featured comparisons. NO 200-row wall.
-                On any card click `exploreFilter` is set and we switch to
-                the PublicCompaniesUniverseTable with rows pre-filtered to
-                that subset, plus a "Back to overview" button. */}
-          {exploreFilter === null ? (
-            <MarketsOverview
-              rows={allCompanies}
-              onExplore={handleExplore}
-              onSelectTicker={handleSelectTicker}
-            />
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setExploreFilter(null)}
-                  data-testid="markets-back-to-overview"
-                  className="
-                    inline-flex items-center gap-1.5 h-8 px-3 rounded-lg
-                    border border-rule bg-surface text-[12px] font-medium
-                    text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors
-                  "
-                >
-                  <ArrowLeft size={12} strokeWidth={2} />
-                  Back to overview
-                </button>
-                <div className="text-right">
-                  <div className="font-serif text-[18px] text-ink leading-tight">
-                    {exploreFilter.kind !== "sector" && "emoji" in exploreFilter
-                      ? `${exploreFilter.emoji} ${exploreFilter.label}`
-                      : exploreFilter.label}
-                  </div>
-                  {"description" in exploreFilter && exploreFilter.description && (
-                    <div className="text-[11.5px] text-ink-mute mt-0.5">
-                      {exploreFilter.description}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <PublicCompaniesUniverseTable
-                rows={filteredRows}
-                mode={universeQuery.data?.mode ?? (demoMode ? "demo" : "live")}
-                lastUpdated={universeQuery.data?.lastUpdated ?? null}
-                isLoading={universeQuery.isLoading}
-                isRefetching={universeQuery.isRefetching}
-                onRefresh={async () => {
-                  // PUB-200-FIX-F — Force-bust the backend warm cache
-                  // (5-min TTL) AND React Query's local cache so the user
-                  // gets a guaranteed-fresh Sharadar pull on click.
-                  await fetchUniverse({ refresh: true });
-                  await universeQuery.refetch();
-                  // Refresh intelligence scores in lockstep so the AI
-                  // Risk column tracks the new universe state.
-                  await riskScoresQuery.refetch();
-                }}
-                selectedTicker={selectedTicker}
-                onSelect={handleSelectTicker}
-                riskScores={riskScoresQuery.data?.scores ?? null}
-              />
-            </div>
-          )}
+          {/* ── Section 3 — Markets overview ─────────────────────────
+                Magazine-style overview: Explore pills, the BVB logo
+                grid, movers. Explore pills filter the grid IN PLACE —
+                the old Layer-2 drill-down ("Market universe" table,
+                PublicCompaniesUniverseTable) was removed 2026-07-24.
+                Risk Radar drills land in the same grid filter via
+                `drillFilter`. */}
+          <MarketsOverview
+            rows={allCompanies}
+            onSelectTicker={handleSelectTicker}
+            drillFilter={radarDrill}
+            searchFilter={searchFilter}
+            onClearSearch={() => setSearchQuery("")}
+          />
 
           {/* ── Section 4 — Peer benchmarking ─────────────────── */}
           <BenchmarkingPanel />
 
-          {/* ── Section 5 — AI investment interpretation ──────── */}
-          <AIInvestmentInterpretation demoMode={demoMode} />
+          {/* Section 5 — AI investment interpretation — removed 2026-07-25. */}
         </div>
         </>
         )}

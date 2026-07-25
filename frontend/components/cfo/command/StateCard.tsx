@@ -21,25 +21,30 @@
 //   NOT CONNECTED  "Workspace · No dataset connected"
 //                  "Upload a financial document to start analysis"
 //
-// Click the card → if connected, navigates to the Dashboard for that
-// period; if not, opens the upload entry point.
+// Click the card → the /workspace page (workspace picker / management),
+// closing the Command Center first (2026-07-24; it used to deep-link to
+// the Dashboard or the upload flow).
 
 import { Building2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { useActivePeriod } from "@/lib/activePeriod";
+import { useWorkspaceName } from "@/lib/workspaceName";
 
 interface Props {
-  /** Run when the user clicks the empty-state CTA. AppShell wires this
-   *  to whichever upload flow is canonical for the current viewport. */
-  onUpload?: () => void;
+  /** Close the Command Center before navigating. */
+  onClose?: () => void;
 }
 
-export function StateCard({ onUpload }: Props): JSX.Element {
+export function StateCard({ onClose }: Props): JSX.Element {
   const period = useActivePeriod();
+  const workspaceName = useWorkspaceName();
   const navigate = useNavigate();
   const connected = !!period.id && !!period.statements;
   const companyName = period.statements?.companyName ?? period.label ?? null;
+  // The ACTIVE workspace's name leads the card; the period's company
+  // name is the fallback for legacy sessions without a workspace name.
+  const title = workspaceName || companyName;
 
   // Build the subtitle from whichever signals resolved. Order matters —
   // "Data connected · N accounts · Last processed HH:MM" is the spec's
@@ -66,15 +71,12 @@ export function StateCard({ onUpload }: Props): JSX.Element {
       data-testid="command-state-card"
       data-state={connected ? "connected" : "no-dataset"}
       onClick={() => {
-        if (connected && period.id) {
-          navigate(`/dashboard?period=${period.id}`);
-        } else if (onUpload) {
-          onUpload();
-        }
+        onClose?.();
+        setTimeout(() => navigate("/workspace"), 220);
       }}
       className="
         w-full text-left rounded-xl border border-rule bg-bg-2 px-4 py-3
-        hover:bg-bg-2/80 transition-colors
+        hover:bg-bg-2/70 hover:border-brand/40 transition-colors cursor-pointer
       "
     >
       <div className="flex items-center gap-2.5">
@@ -84,19 +86,19 @@ export function StateCard({ onUpload }: Props): JSX.Element {
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-medium text-ink leading-tight flex items-center gap-1.5 flex-wrap">
             <span>Workspace</span>
-            {connected && companyName && (
+            {title && (
               <>
                 <span className="text-ink-mute" aria-hidden>·</span>
-                <span className="truncate max-w-[220px]">{companyName}</span>
+                <span className="truncate max-w-[220px]">{title}</span>
               </>
             )}
-            {connected && period.label && period.label !== companyName && (
+            {connected && period.label && period.label !== title && (
               <>
                 <span className="text-ink-mute" aria-hidden>·</span>
                 <span className="text-ink-soft truncate">{period.label}</span>
               </>
             )}
-            {!connected && (
+            {!connected && !title && (
               <>
                 <span className="text-ink-mute" aria-hidden>·</span>
                 <span className="text-ink-soft">No dataset connected</span>

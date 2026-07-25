@@ -15,7 +15,6 @@
 //
 // Sizing: 32px tall, ~150px wide. Sits next to the AccountMenu in TopHeader.
 
-import { motion } from "framer-motion";
 import { useCurrency } from "@/stores/currency";
 import type { Currency } from "@/lib/rates";
 
@@ -60,24 +59,20 @@ export function CurrencyToggle() {
             }}
             data-testid={`currency-toggle-${c.toLowerCase()}`}
           >
-            {/* The sliding indicator: shared layoutId across all three
-                buttons means Framer Motion animates it from the previous
-                active button's position to the new one with spring physics. */}
+            {/* Active indicator — plain static span. This used to be a
+                framer-motion shared-layout element (layoutId), but layout
+                projections re-measure during route transitions and the
+                indicator would animate in from stale viewport coordinates
+                (visibly flying from the top/bottom of the screen on tab
+                switches). A static per-segment indicator can't glitch. */}
             {isActive && (
-              <motion.span
-                layoutId="currency-toggle-indicator"
+              <span
                 aria-hidden="true"
                 className="
                   ask-ai-anim-fill
                   absolute inset-0 z-[-1]
                   rounded-full border border-brand/40
                 "
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 32,
-                  mass: 0.6,
-                }}
               />
             )}
             <span className="relative">{c}</span>

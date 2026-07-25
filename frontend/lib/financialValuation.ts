@@ -163,11 +163,14 @@ export function runDcf(s: Statements): DcfResult {
   const sup = s.supplementary;
   const k = computeCostOfCapital(s);
   const horizon = sup.forecastYears ?? 5;
-  // ── Mature CRE / rental-business growth assumptions ───────────────
-  // Forecast 3.5% per year (CPI indexation + modest lease-up).
-  // Terminal 3.0% (matches mature CRE indexation; below RON inflation).
-  // Replaces the prior 5.0% / 2.5% defaults that overstated 5-year
-  // growth and produced an inconsistent perpetuity convergence.
+  // ── Default growth assumptions (standing defaults, NOT company-derived) ──
+  // Forecast 3.5% per year, terminal 3.0% — conservative RO-market defaults
+  // (roughly CPI indexation). A trial balance carries no forward growth data,
+  // so unless supplementary.forecastGrowthRate/terminalGrowthRate are set,
+  // these apply to every company. UI surfaces that render this DCF must label
+  // it an illustrative cross-check (see ValuationPanel + exports), never the
+  // primary valuation. Replaces the prior 5.0% / 2.5% defaults that
+  // overstated 5-year growth and produced inconsistent perpetuity convergence.
   const g = sup.forecastGrowthRate ?? 0.035;
   const gT = sup.terminalGrowthRate ?? 0.030;
   // ── STABILIZED FCF for the perpetuity ───────────────────────────────
@@ -1025,16 +1028,21 @@ export function computeCreditScore(
         intCov >= 4 ? "Strong" : intCov >= 2 ? "Adequate" : intCov >= 1 ? "Tight" : "Below covenant",
     },
     {
-      label: "DSCR (EBITDA / debt service)",
+      // "~" marks the approximation: the principal in the denominator is an
+      // ESTIMATE (10% of debt — see principalProxy above), not a real
+      // amortization schedule from the upload. FE-fallback path only; the
+      // engine-canonical branch above bypasses this entirely.
+      label: "~DSCR (EBITDA / est. debt service)",
       value: dscr,
       weight: 0.1,
       contribution: dscrScore * 0.1,
       read:
-        dscr >= 1.4
+        (dscr >= 1.4
           ? "Inside typical 1.20× covenant with modest headroom"
           : dscr >= 1.2
             ? "At covenant floor — limited shock absorption"
-            : "Below typical covenant",
+            : "Below typical covenant") +
+        " · principal estimated at 10% of debt (no amortization schedule in the trial balance)",
     },
     {
       label: "Cash ratio (cash / current liabilities)",

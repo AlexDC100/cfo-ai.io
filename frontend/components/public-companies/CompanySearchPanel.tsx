@@ -6,17 +6,24 @@
 //   · the dropdown is gone;
 //   · search runs CLIENT-SIDE over the loaded Romanian universe rows —
 //     ticker or company name, diacritic-insensitive ("tara" finds Țara),
-//     instant, no API key required;
-//   · quick-pick chips are the largest Romanian companies by market cap
-//     instead of the US watchlist.
+//     instant, no API key required.
+//
+// 2026-07-24: the "Quick pick" chip row (top-9-by-market-cap, shown below
+// the bar when idle) was removed — MarketsOverview's "Browse companies"
+// grid now does that job with logos for the whole universe, not just 9.
+// `suggestions` (still computed below) is kept only as the fallback target
+// for the "Search" button when the field is empty. Same day: the outer
+// rounded-3xl card wrapper around the whole panel was dropped (it duplicated
+// the input field's own border/focus-ring framing), and the button label
+// changed from "Open Company" to "Search".
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Search, X, CheckCircle2 } from "lucide-react";
+import { Search, X, CheckCircle2 } from "lucide-react";
 import type { PublicCompanyHit } from "@/lib/publicCompanyApi";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
-import { PublicCompanyResultCard } from "@/components/cfo/PublicCompanyResultCard";
 import { removePeer, useBenchmarkPeers } from "@/lib/benchmarkPeersStore";
+import { DataSourcesInfoButton } from "./MarketsOverview";
 import { staticBvbRows } from "@/lib/bvbStaticUniverse";
 
 interface Props {
@@ -24,6 +31,11 @@ interface Props {
   rows: PublicCompanyFinancialSnapshot[];
   /** When set, picking a result selects it instead of navigating away. */
   onSelect?: (ticker: string) => void;
+  /** Controlled query (2026-07-24) — the page owns the text so it can
+   *  turn matches into a grid filter. Falls back to internal state when
+   *  absent. */
+  query?: string;
+  onQueryChange?: (query: string) => void;
 }
 
 /** Diacritic-insensitive, case-insensitive normalizer. */
@@ -46,8 +58,44 @@ function toHit(r: PublicCompanyFinancialSnapshot): PublicCompanyHit {
   };
 }
 
-export function CompanySearchPanel({ rows, onSelect }: Props) {
-  const [query, setQuery] = useState("");
+/** Client-side universe search — ticker prefix matches rank first, then
+ *  ticker substring, then company-name prefix/substring; ties break by
+ *  market cap. Diacritic-insensitive. Exported so the page can turn the
+ *  full match set into a company-grid filter. */
+export function searchUniverse(
+  corpus: PublicCompanyFinancialSnapshot[],
+  query: string,
+): PublicCompanyFinancialSnapshot[] {
+  const q = norm(query.trim());
+  if (!q) return [];
+  return corpus
+    .map((r) => {
+      const t = norm(r.ticker);
+      const n = norm(r.companyName);
+      let score = -1;
+      if (t.startsWith(q)) score = 0;
+      else if (t.includes(q)) score = 1;
+      else if (n.startsWith(q)) score = 2;
+      else if (n.includes(q)) score = 3;
+      return { r, score };
+    })
+    .filter((x) => x.score >= 0)
+    .sort(
+      (a, b) =>
+        a.score - b.score || (b.r.marketCap ?? 0) - (a.r.marketCap ?? 0),
+    )
+    .map((x) => x.r);
+}
+
+export function CompanySearchPanel({
+  rows,
+  onSelect,
+  query: queryProp,
+  onQueryChange,
+}: Props) {
+  const [internalQuery, setInternalQuery] = useState("");
+  const query = queryProp ?? internalQuery;
+  const setQuery = onQueryChange ?? setInternalQuery;
   const navigate = useNavigate();
   const peers = useBenchmarkPeers();
 
@@ -65,29 +113,14 @@ export function CompanySearchPanel({ rows, onSelect }: Props) {
     [corpus],
   );
 
-  // Client-side search: ticker prefix matches rank first, then ticker
-  // substring, then company-name substring. Diacritic-insensitive.
-  const results = useMemo(() => {
-    const q = norm(query.trim());
-    if (!q) return [];
-    const scored = corpus
-      .map((r) => {
-        const t = norm(r.ticker);
-        const n = norm(r.companyName);
-        let score = -1;
-        if (t.startsWith(q)) score = 0;
-        else if (t.includes(q)) score = 1;
-        else if (n.startsWith(q)) score = 2;
-        else if (n.includes(q)) score = 3;
-        return { r, score };
-      })
-      .filter((x) => x.score >= 0)
-      .sort(
-        (a, b) =>
-          a.score - b.score || (b.r.marketCap ?? 0) - (a.r.marketCap ?? 0),
-      );
-    return scored.slice(0, 10).map((x) => toHit(x.r));
-  }, [corpus, query]);
+  // Top matches — used by the "Search" button (opens the best hit) and
+  // the no-match note. The full match list itself renders in the
+  // company grid below (via the page's search grid-filter), not as a
+  // dropdown here.
+  const results = useMemo(
+    () => searchUniverse(corpus, query).slice(0, 10).map(toHit),
+    [corpus, query],
+  );
 
   const handleHitClick = (ticker: string) => {
     if (onSelect) onSelect(ticker);
@@ -97,15 +130,12 @@ export function CompanySearchPanel({ rows, onSelect }: Props) {
   const noMatches = query.trim().length > 0 && results.length === 0;
 
   return (
-    <section
-      data-testid="public-companies-search-panel"
-      className="
-        rounded-3xl border border-rule
-        bg-gradient-to-br from-surface to-bg-2/30
-        p-5 sm:p-6
-      "
-    >
-      {/* Search row */}
+    <section data-testid="public-companies-search-panel">
+      {/* Search row. The only bordered/rounded chrome is the input+icon
+          field itself (focus ring below) — the outer card wrapper that
+          used to duplicate that framing (rounded-3xl border + gradient
+          bg) was removed 2026-07-24, so there's one selection style, not
+          two nested ones. */}
       <div className="flex flex-col sm:flex-row items-stretch gap-2.5">
         <div className="
           flex-1 min-w-0
@@ -148,25 +178,31 @@ export function CompanySearchPanel({ rows, onSelect }: Props) {
           disabled={results.length === 0 && suggestions.length === 0}
           data-testid="public-companies-fetch"
           className="
-            inline-flex items-center justify-center gap-1.5
+            inline-flex items-center justify-center
             h-12 px-5 rounded-xl
-            bg-gradient-to-b from-brand to-brand-d text-paper
+            ask-ai-anim-fill [animation-duration:10s]
+            border border-brand/40 text-ink
             text-[13.5px] font-medium
-            shadow-[0_8px_22px_-8px_rgba(42,168,155,0.6)]
-            hover:shadow-[0_10px_26px_-8px_rgba(42,168,155,0.75)]
-            ring-1 ring-inset ring-white/15
+            hover:border-brand/60
             disabled:opacity-50 disabled:cursor-not-allowed
-            transition-all
+            transition-colors
             shrink-0
           "
         >
-          Open Company
-          <ArrowRight size={14} strokeWidth={2} />
+          Search
         </button>
+        {/* Data-sources "i" — relocated from the company grid's header
+            (2026-07-24) to sit beside the search action. */}
+        <div className="shrink-0 self-center">
+          <DataSourcesInfoButton />
+        </div>
       </div>
 
-      {/* Below-bar row: peers OR suggestion chips */}
-      {peers.length > 0 ? (
+      {/* Below-bar row: peer chips. The "Quick pick" chip row that used to
+          render here (top-9-by-market-cap) was removed 2026-07-24 — the
+          "Browse companies" grid on MarketsOverview now covers the same
+          job (every company, with logos) directly below this panel. */}
+      {peers.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="
             inline-flex items-center gap-1.5
@@ -206,46 +242,11 @@ export function CompanySearchPanel({ rows, onSelect }: Props) {
             </span>
           ))}
         </div>
-      ) : !query.trim() ? (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.12em] text-ink-mute mr-1">
-            Quick pick
-          </span>
-          {suggestions.map((h) => (
-            <button
-              key={h.ticker}
-              onClick={() => handleHitClick(h.ticker)}
-              title={h.companyName}
-              className="
-                inline-flex items-center
-                h-7 px-2 rounded-md
-                font-mono text-[11px] font-semibold tabular-nums
-                bg-bg-2/60 text-ink-soft border border-rule/60
-                hover:bg-brand/10 hover:text-brand-d hover:border-brand/25
-                transition-colors
-              "
-            >
-              {h.ticker}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {/* Live search results */}
-      {results.length > 0 && (
-        <div
-          className="mt-4 space-y-2 max-h-[300px] overflow-y-auto pr-1"
-          data-testid="public-companies-search-results"
-        >
-          {results.map((hit) => (
-            <PublicCompanyResultCard
-              key={hit.ticker}
-              hit={hit}
-              onSelect={onSelect ? handleHitClick : undefined}
-            />
-          ))}
-        </div>
       )}
+
+      {/* The result-card dropdown that used to render here was removed
+          2026-07-24 — matches now display IN the company grid below,
+          flagged by a selected "Search" filter pill. */}
 
       {/* No-match note */}
       {noMatches && (

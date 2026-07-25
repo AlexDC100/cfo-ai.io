@@ -721,6 +721,309 @@ pref RPCs (signed-in clients must call them; each re-asserts auth.uid()/
 membership internally); `auth_leaked_password_protection` (HIBP) needs a paid
 Supabase plan — the API returns 402 on Free tier.
 
+### Milestone D — Ask CFO AI chat off the engine entirely (2026-07-24)
+
+Chat generation (not just chat *history* — that was Milestone B) now runs as
+a Supabase Edge Function, `supabase/functions/chat-llm/index.ts`, deployed to
+project `cjclenykwlngqvapmisb`. The FE calls it directly
+(`frontend/lib/cfoApi.ts` → `chatLlm`, hitting
+`${VITE_SUPABASE_URL}/functions/v1/chat-llm`) instead of
+`POST /api/cfo/chat/llm` on `cfo-ai-backend`. **Ask CFO AI now works with the
+Python engine fully stopped, locally or in prod** — verified by killing the
+local `python -m engine serve` process and hitting the deployed function from
+`Origin: http://localhost:5173`.
+
+**Why this was safe to port and not just a shortcut:** the backend's
+`chat_llm` handler (`src/engine/api/cfo_ai.py:652`) turned out to be two
+things bolted together, both already portable:
+1. Pure string templating — `_build_workspace_chat_system_prompt` /
+   `_build_chat_system_prompt` / `_build_currency_directive` /
+   `_build_public_company_directive` build the system prompt from fields the
+   *frontend already computes and sends* (`dataset_summary`, currency/FX
+   context, public-company snapshot). No server-side data-gathering to lose.
+2. Pricing V3 chat-cap enforcement (`_usage_gate.py` + `_plan_state.py` +
+   `_pricing_config.py`, ~1,300 lines combined) — but the atomic part
+   (`reserve_user_chat` / `commit_user_chat` / `release_user_chat`) already
+   lives in Postgres as `SECURITY DEFINER` RPCs
+   (`supabase/schema_phase_pricing_v3_atomic.sql`), granted to `service_role`
+   only. Only the plan-tier → cap lookup (a small static table in
+   `_pricing_config.py`) needed porting into TS — the actual atomicity
+   guarantee was never Python's to begin with.
+
+**What's duplicated on purpose, and the drift risk that comes with it:**
+the persona copy, the currency directive, the public-company directive, and
+the plan-tier cap numbers now exist in BOTH `cfo_ai.py` (Python, still used
+if anything ever calls `/api/cfo/chat/llm` directly) and `chat-llm/index.ts`
+(Deno, what the FE actually calls now). There is deliberately no shared
+module between the two runtimes. **If the persona wording, the FX directive,
+or a plan's chat caps change, update both files** — the Edge Function is the
+one users actually hit, so it's the one that will silently drift out of
+prod behavior if only the Python side gets edited.
+
+**Scope — chat only.** Today/Cash/Profit/Products/decisions/exports/pipeline
+still require `cfo-ai-backend` running; nothing else was touched.
+
+**Follow-up (same day) — the dead Python code was actually deleted.** The
+engine's `POST /chat/llm` route, the four `Llm*` request models, and the four
+system-prompt-builder helpers (`_build_currency_directive`,
+`_build_public_company_directive`, `_build_chat_system_prompt`,
+`_build_workspace_chat_system_prompt`) are gone from `cfo_ai.py` — nothing in
+the frontend called them anymore, so keeping them around was pure duplicate
+surface, not a safety net. **What was deliberately NOT touched, because it's
+still genuinely shared with document-upload quota enforcement (not chat-only):**
+`_usage_gate.py`, `_plan_state.py`, `_pricing_config.py` in full, including
+`reserve_chat`/`commit_chat`/`release_chat` — `_billing.py`'s usage-status
+endpoint still reads `PlanState.chat_used_today` etc. for display, and those
+counters stay accurate because the Edge Function calls the *same*
+`reserve_user_chat`/`commit_user_chat`/`release_user_chat` RPCs. Also left
+alone: `src/engine/api/ask.py` (`/api/ask`, mounted in `server.py`) — it looks
+like a duplicate at first glance (its own thread/message persistence to the
+same `chat_threads`/`chat_messages` tables `chatRemote.ts` writes to) but it
+is NOT a plain duplicate of `chat-llm`: it does tool-use (`_run_tool`) and SSE
+streaming grounded in a live pipeline re-run, none of which the Edge Function
+does. Nothing in the frontend calls `/api/ask` today (confirmed by grep), so
+it's dead-but-not-duplicate — a distinct decision from this cleanup, flagged
+for the owner rather than deleted.
+
+**Auth model:** the function reads `Authorization: Bearer <jwt>` the same
+way the FE always sent it, resolves the user via `auth.getUser()` against
+the ANON key + that header (never trusts a client-supplied user id), and
+falls back to unauthenticated (cap-check skipped, matching the Python
+endpoint's "legacy callers don't auth this endpoint" behavior) when the
+header is absent. Deployed with `--no-verify-jwt` so the platform gateway
+doesn't reject those unauthenticated calls before they reach the function.
+The chat-cap RPCs and the `subscriptions` read inside the function use the
+service-role key (a Supabase Function secret, injected automatically —
+never sent to the browser); `ANTHROPIC_API_KEY` was added as a second
+secret the same way.
+
+**Not yet live-tested:** `USAGE_LIMITS_ENABLED` is unset (enforcement off)
+in both the engine and this function today, matching current prod behavior
+— so the cap-reject path (`reserve_user_chat` returning
+`daily_cap_reached`/`monthly_cap_reached`) has only been read-reviewed
+against the SQL signatures, not exercised against a real capped user. Before
+flipping `USAGE_LIMITS_ENABLED` on for this function, test that path
+deliberately (a plan with a low cap, a few real turns) rather than assuming
+parity from code review alone.
+
+**Redeploy command** (no Docker required — `--use-api` bundles server-side):
+```
+supabase functions deploy chat-llm --project-ref cjclenykwlngqvapmisb --use-api --no-verify-jwt
+supabase secrets set ANTHROPIC_API_KEY=... --project-ref cjclenykwlngqvapmisb   # only if the key rotates
+```
+
+### Backend cleanup (2026-07-24, same day as Milestone D)
+
+Audited all 135 mounted routes across 16 router modules for real callers —
+not just "does the frontend reference this path string" but also cron
+configs, webhook usage, email-template links, and admin/diagnostic-tool
+docstrings, since those legitimately have zero frontend callers by design.
+Method: cross-referenced every route against `frontend/`, `scripts/`,
+`docs/`, `deploy/`, then hand-verified every zero-hit candidate individually
+before deleting anything (billing code especially — a false positive there
+has real money consequences). Removed only what had **zero callers anywhere**
+with no legitimate non-FE trigger:
+
+- **`src/engine/api/ask.py`** (852 lines, `/api/ask` + `/api/ask/threads*`)
+  and **`_system_prompt.py`** (its sole consumer) — deleted entirely.
+  Genuinely richer than the new Edge Function (tool-use, SSE streaming, live
+  pipeline re-grounding per turn) but confirmed zero frontend callers; the
+  3 grep "hits" on `/api/ask` were all comments/docs, not fetch calls.
+  Unmounted from `server.py`.
+- **`cfo_ai.py`'s `POST /chat`** (structured intent-block chat) — `cfoApi.
+  chat` was defined in the frontend but never invoked. `chat.py` was
+  trimmed from 336 lines to just `SUGGESTED_PROMPTS` (still backs the live
+  `GET /chat/prompts`); `build_context`/`respond`/`ChatContext`/`ChatBlock`/
+  `ChatAnswer`/`StatTile` and the `ChatRequest` model were deleted along
+  with it. Frontend follow-up: `cfoApi.ts`'s dead `chat` wrapper + orphaned
+  `ChatTurnRequest`/`ChatTurnResponse`/`ChatBlockResponse`/`ChatStat` types
+  removed too, since they pointed at a route that no longer exists.
+- **`_benchmarks.py`**: `GET .../available-industries`, `GET .../suggest/
+  {period_id}`, `POST .../set-caen` removed — superseded by
+  `_industry_intelligence.py`'s `/api/industry/profiles` + `/search` +
+  `/assignment/{period_id}` (the live `IndustryPicker` flow). **Not**
+  removed: `_load_period_signals()`, which looked like it only backed the
+  dead `suggest` route but is also called internally by
+  `_resolve_effective_caen()`'s Step-2 auto-detect — still load-bearing for
+  the live `GET /report/{period_id}`.
+- **`_billing.py`**: `POST /api/billing/create-checkout` (legacy Solo/
+  Business flow, superseded by `POST/GET /api/checkout/start`),
+  `GET /api/founding-member/count` (superseded — `frontend/lib/founder.ts`
+  now reads the `founder_cohort_public` Supabase view directly, bypassing
+  the backend), `GET /api/billing/usage` (built "for the UsageIndicator"
+  per its own docstring; that component no longer exists — superseded by
+  `/api/plan/state`). Their now-orphaned private helpers went too:
+  `_founding_seats_remaining()`, `_env_price_id()`, `_env_founding_coupon_id()`.
+  **Unplanned side effect:** deleting `create_checkout`'s locally-scoped
+  `CreateCheckoutRequest` model fixed a pre-existing `/openapi.json` 500
+  (FastAPI/pydantic can't resolve a forward ref for a Pydantic model
+  nested inside a route-factory closure). A second instance of the same
+  bug remains on `ContactSalesRequest` — that route IS live, so the model
+  wasn't touched; `/openapi.json` (and therefore `/docs`) still 500s until
+  that's fixed separately. Runtime request handling is unaffected either
+  way — confirmed every live route still responds correctly by curl.
+- **`_newsletter.py`**: `GET /api/newsletter/debug-kinds` — zero callers;
+  `_DEBUG_MAIL_KINDS` itself stayed (still used by the live `debug-send`/
+  `debug-send-all` routes).
+
+**Deliberately NOT removed — looked dead but is intentional:**
+`/api/stripe/webhook` (Stripe calls it, not the FE), `/api/admin/usage` +
+`/api/plan/commit-document-usage` + `/api/plan/release-document-reservation`
+(explicitly documented operator/diagnostic tools, meant to be curled
+manually), `/api/newsletter/confirm` (a link rendered inside outgoing
+emails, not fetched by frontend JS), `/api/newsletter/drain-renewals` +
+`/api/billing/cron/renewal-reminders` + `/api/workspaces/cron/purge-expired`
+(built for a scheduler that was never actually configured — no crontab/
+GH-Action/systemd-timer exists anywhere in the repo for any of them; this
+is an ops gap, not dead code, so left in place).
+
+**Flagged, not removed — a different kind of decision:** `_dashboard.py`
+(`GET/PUT /api/dashboard/config`) is a fully-built feature whose router is
+never mounted in `server.py` — its own docstring has a 3-step deploy
+checklist ("register in server.py... rsync... probe..."). This reads as
+paused work-in-progress, not abandoned code. Left in place pending the
+owner's call on whether to finish wiring it up or drop it.
+
+**Verification:** every touched module re-imports cleanly; backend boots;
+curled every removed route (all 404) and every still-live route in the same
+files (all respond 200/401/405/422 as expected — never 404); frontend
+`tsc --noEmit` clean; `pytest tests/` — 264 passed, 0 new failures (6
+failed / 21 errored, all pre-existing missing-fixture-file gaps in this
+checkout, none touching the files edited here).
+
+---
+
+## 17. Local-dev backend + TopHeader status indicator (2026-07-24)
+
+Stopped running the backend manually (`python -m engine serve`) in favor of
+Docker Desktop. `docker-compose.override.yml` (repo root, gitignored —
+predates this change) already does the right thing when merged with
+`docker-compose.yml`: publishes backend port `8000:8000` and overrides
+`CORS_ORIGINS` to localhost. No new file was needed — just stopped the
+manual process and confirmed `docker compose up` serves the same origins.
+
+**`frontend/lib/useBackendStatus.ts` + `components/cfo/BackendStatusIndicator.tsx`**
+(new) — an 8px dot in `TopHeader`, polling `${API_URL}/health` every 20s
+plus an immediate re-probe on window `focus`/`online`. The tooltip text
+explicitly says this reflects the FastAPI **engine** only — it does NOT
+mean Ask CFO AI chat is down, since chat is a Supabase Edge Function
+(Milestone D above) and works with the engine fully stopped. Getting this
+scoping wrong in the copy would make the indicator actively misleading
+during exactly the situation (engine down, chat still fine) it exists to
+clarify.
+
+## 18. Public Companies — Markets Overview & company-logo system (2026-07-24)
+
+Two intertwined pieces of work: adding the 88 BVB (Bursa de Valori
+București) tickers' logos, and a full restructure of the `/public-companies`
+overview page. Files: `frontend/lib/tickerLogos.ts`,
+`frontend/components/public-companies/CompanyLogo.tsx`,
+`MarketsOverview.tsx`, `CompanySearchPanel.tsx`.
+`RomanianListedCard.tsx` was deleted (see below).
+
+### The Clearbit discovery
+
+While sourcing logos for the 88 BVB tickers, found that the app's entire
+company-logo mechanism was silently broken: Clearbit's free Logo API
+(`logo.clearbit.com`, what `tickerLogoUrl()` built URLs against) was
+deprecated 2025-03-18 and **permanently shut down 2025-12-08** — the
+domain no longer resolves in DNS at all. This meant every logo on the
+page, all ~200 pre-existing NASDAQ tickers included, had been silently
+falling back to the letter avatar for 7+ months before anyone noticed,
+because the fallback degrades gracefully with no visible error. Switched
+to Google's favicon service (`google.com/s2/favicons`) — free, no
+signup/token, unlike Logo.dev (Clearbit's official successor, which
+requires an account). Revisit Logo.dev only if logo quality becomes a
+real complaint; it wasn't added without asking.
+
+### Google's favicon service is not a clean 200/404 API
+
+Discovered the hard way, twice, while working through both the 88 new
+BVB tickers and a user report of a generic "earth" icon appearing for
+firms with no real logo:
+
+1. For a domain with no indexed favicon, Google doesn't reliably error —
+   it can substitute its own generic "no icon found" glyph (a plain
+   globe) and still return a renderable image, so `<CompanyLogo />`'s
+   `onError` handler never fires and the placeholder renders as if it
+   were the company's brand mark.
+2. The response is **flaky per-domain**, not just "some domains have no
+   favicon" — `arobs.com` flipped between a real `200` and a `404`
+   across back-to-back identical requests during verification. "It
+   404s right now" is not a signal that holds.
+3. There is no CORS-safe client-side way to detect either case: Google's
+   endpoint sends no `Access-Control-Allow-Origin` header, so `fetch()`
+   to inspect the response is blocked; and dimension/size heuristics
+   don't discriminate either — a confirmed-real favicon (bvb.ro's actual
+   "X" brand mark) and the confirmed generic-globe placeholder (aerostar.ro)
+   both came back as 16×16 images, so `naturalWidth` collides too.
+
+**Resolution: a maintained exclusion list, not runtime detection.** 19 of
+the 88 BVB tickers (`FP`, `TGN`, `EL.BVB`, `TEL`, `DIGI`, `OIL`, `AROBS`,
+`COTE`, `ARS`, `RMAH`, `ENP`, `BRM`, `COMI`, `PREB`, `CMCM`, `BCM`, `MECF`,
+`NAPO`, `UZT`) are left out of `TICKER_DOMAINS` entirely — several of
+these are large, obviously-real companies (Electrica, Transgaz, Digi
+Communications) that almost certainly have a real favicon Google just
+doesn't serve reliably. Letter avatar over maybe-a-logo. Re-verify before
+re-adding any of these; the list is documented inline in `tickerLogos.ts`.
+
+### CompanyLogo.tsx
+
+- New `fill` prop: logo fills 100% of its parent (`object-cover`) instead
+  of being a fixed-size icon, for "logo as card background" tiles. Parent
+  must be `position: relative` and sized (e.g. `aspect-square`).
+- Letter-avatar fallback now shows the **full ticker** (e.g. `TLV`,
+  `INFINITY`), not just its first letter, with font size scaled down by
+  string length so 8-char tickers still fit.
+- The letter avatar now unmounts once the real `<img>` fires `onLoad`
+  (tracked via a separate `imgLoaded` state, not just "did we start
+  trying"), instead of staying mounted underneath forever. It used to
+  stay layered behind permanently so a transparent-background favicon
+  would let the avatar's tone bleed through as a colour backdrop
+  (intentional for missing logos in `fill` mode) — but that also meant
+  real logos with transparent padding never fully covered it. Now: avatar
+  shows until load is confirmed (no flash of blank space), then unmounts
+  completely once a real logo is confirmed on screen.
+
+### MarketsOverview.tsx restructure
+
+Page order is now: **peer-pair pill → Explore → company logo grid →
+today's movers**, all beneath `CompanySearchPanel`.
+
+- **Explore** (Themes / Sectors / Featured comparisons, merged into one
+  section 2026-07-24 earlier the same day) moved to sit directly under
+  the search bar. Its pills changed from wrap-flow to a fixed grid
+  (`PillGrid`, 8 items/page) with left/right arrow pagination once a
+  group has more items than fit on one page.
+- **New `CompanyGrid`**: every loaded firm as a full-bleed tile — the
+  logo IS the tile background (`CompanyLogo fill`), with a bottom
+  gradient scrim carrying ticker/name/revenue, and a separate top-right
+  pill (its own backdrop blur) for sector/industry. Paginated 24/page
+  (4 rows at the `lg:grid-cols-6` breakpoint) with left/right arrows.
+- **`RomanianListedCard.tsx` deleted entirely** (confirmed zero remaining
+  callers before removal) — it was a row-list rendering of the same BVB
+  universe `CompanyGrid` now covers, so keeping both meant two sections
+  both titled "Romanian Listed (BVB)". Its CFH↔Scandia peer-pair callout
+  (a highlighted box) was ported first, condensed into `PeerPairPill` — a
+  single pill with a hover tooltip for the rationale — before the card
+  was deleted.
+- Removed the "Browse all N companies" escape-hatch button at the page
+  bottom — redundant once the full universe is always visible via
+  `CompanyGrid`.
+
+### CompanySearchPanel.tsx
+
+- Removed the "Quick pick" chip row (top-9-by-market-cap, shown below the
+  bar when idle) — `CompanyGrid` above does the same job for the whole
+  universe, with logos, not just 9 tickers.
+- Removed the outer `rounded-3xl` card wrapper around the whole panel —
+  it duplicated the input field's own border/focus-ring framing as a
+  second nested "selection style". Only the input+icon field itself is
+  bordered now.
+- Button relabeled "Open Company" → "Search"; dropped the arrow icon and
+  the gradient/shadow/ring styling in favor of a flat `bg-brand` /
+  `hover:bg-brand-d` button.
+
 ---
 
 # 📘 Appendix A — Full Financial Analysis Methodology

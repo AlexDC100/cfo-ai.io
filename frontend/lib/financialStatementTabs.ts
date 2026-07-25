@@ -39,15 +39,21 @@ export interface TabSpec {
 // non-FMCG companies don't benefit from them; the relevant signals
 // (margin metrics, VAT compliance) surface elsewhere (Overview KPI
 // strip, Recommendations).
+// NOTE: "overview" is intentionally NOT listed here (2026-07-25) — the
+// Overview tab TRIGGER was removed from the tab bar. `overview` stays a valid
+// TabId and the routing default (resolveActiveTab) still resolves to it, so its
+// TabsContent (valuation hero + the State A upload surface) remains the landing
+// view beneath the always-visible KPI grid — there's just no chip for it.
 export const TAB_SPECS: TabSpec[] = [
-  { id: "overview",        label: "Overview",        order: 1 },
   { id: "pl",              label: "P&L",             order: 2 },
   { id: "balance_sheet",   label: "Balance Sheet",   order: 3 },
   { id: "cash_flow",       label: "Cash Flow",       order: 4 },
   { id: "ratios",          label: "Ratios",          order: 5 },
   { id: "valuation",       label: "Valuation",       order: 6 },
   { id: "risks",           label: "Risks & credit",  order: 7 },
-  { id: "recommendations", label: "Recommendations", order: 8 },
+  // "recommendations" trigger removed 2026-07-25 (its notes surface inside the
+  // statement tabs' "Notes & recommendations" sections). The TabsContent + the
+  // TabId stay valid so nothing that references them breaks.
   { id: "export",          label: "Export",          order: 9 },
 ];
 
@@ -142,7 +148,11 @@ export function resolveActiveTab(
   } else if (raw && LEGACY_TAB_MAP[raw]) {
     requested = LEGACY_TAB_MAP[raw];
   } else {
-    requested = "overview";
+    // Default landing is P&L now (2026-07-25) — the Overview trigger was
+    // removed. When there's no data, P&L is disabled and we fall through to
+    // "overview" below, whose TabsContent still holds the State A upload
+    // surface.
+    requested = "pl";
   }
   return enabled[requested] ? requested : "overview";
 }

@@ -32,10 +32,18 @@ import type { DocumentStatus } from "./supabase";
 
 export const STORAGE_KEY = "cfo-upload-current";
 
+/** Which surface owns this upload. The dashboard (financial statements) and
+ *  the products (SKU dataset) pipelines are DIFFERENT things — each shows its
+ *  own loading spinner + scan takeover only for its own uploads. The council
+ *  sphere / document chip / resume still react to whichever is in flight. */
+export type UploadSurface = "dashboard" | "products";
+
 export interface UploadDoc {
   docId: string;
   filename: string;
   status: DocumentStatus;
+  /** Owning surface — defaults to "dashboard" for legacy persisted entries. */
+  surface: UploadSurface;
   /** Wall-clock timestamp (ms since epoch) of when this upload was first
    *  observed. Used to expire abandoned `analyzing` entries that have been
    *  sitting around for hours (the backend would have errored long
@@ -96,6 +104,7 @@ function read(): State {
         docId: String(parsed.docId),
         filename: String(parsed.filename ?? ""),
         status: (parsed.status as DocumentStatus) ?? "queued",
+        surface: (parsed.surface as UploadSurface) ?? "dashboard",
         startedAt: Number(parsed.startedAt ?? Date.now()),
         updatedAt: Number(parsed.updatedAt ?? Date.now()),
         error: parsed.error ?? null,
@@ -169,6 +178,8 @@ export function startUpload(doc: {
   docId: string;
   filename: string;
   status?: DocumentStatus;
+  /** Owning surface — defaults to "dashboard" so existing callers are unchanged. */
+  surface?: UploadSurface;
 }): void {
   const now = Date.now();
   const next: State = {
@@ -176,6 +187,7 @@ export function startUpload(doc: {
       docId: doc.docId,
       filename: doc.filename,
       status: doc.status ?? "queued",
+      surface: doc.surface ?? "dashboard",
       startedAt: now,
       updatedAt: now,
       error: null,

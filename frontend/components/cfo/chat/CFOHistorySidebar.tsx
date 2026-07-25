@@ -81,7 +81,8 @@ export function CFOHistorySidebar({ store, onAfterPick, compact = false }: Props
           )}
         </div>
 
-        {/* Icon-only New chat button — brand accent. */}
+        {/* Icon-only New chat button — animated gradient accent (same
+            treatment as the "Ask CFO AI" pill). */}
         <button
           type="button"
           onClick={() => { store.createNew(); onAfterPick?.(); }}
@@ -89,9 +90,8 @@ export function CFOHistorySidebar({ store, onAfterPick, compact = false }: Props
           title="New chat"
           className="
             shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md
-            bg-brand text-[#06302b]
-            hover:bg-brand-dark hover:text-white
-            transition-colors
+            ask-ai-anim-fill [animation-duration:10s]
+            border border-brand/40 text-ink
           "
           data-testid="chat-new-conversation"
         >

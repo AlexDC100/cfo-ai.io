@@ -23,9 +23,11 @@ import "./bsStatementView.css";
 
 interface Props {
   statement: BSStatement;
+  /** Hide the inline "Guide me" button (dashboard consolidates guides). */
+  hideGuide?: boolean;
 }
 
-export function BSStatementView({ statement }: Props) {
+export function BSStatementView({ statement, hideGuide = false }: Props) {
   useHighlightFromUrl();
   const { t } = useTranslation();
   // 2026-05-24 — currency-aware formatting. `fmt(value)` converts the
@@ -37,14 +39,17 @@ export function BSStatementView({ statement }: Props) {
   const display = useDisplayCurrency();
 
   return (
-    <div className="bs-statement" data-testid="bs-statement">
+    <div className={statement.note ? "lg:grid lg:grid-cols-[minmax(0,820px)_minmax(340px,440px)] lg:gap-5 lg:items-start lg:justify-center" : ""}>
+      <div className="bs-statement" data-testid="bs-statement">
       <div className="bs-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span>{t("statements.bs.title")} — {statement.entity} ({display})</span>
-        <GuideMeButton
-          pageId="balance-sheet"
-          title="Balance Sheet"
-          steps={BALANCE_SHEET_GUIDE}
-        />
+        {!hideGuide && (
+          <GuideMeButton
+            pageId="balance-sheet"
+            title="Balance Sheet"
+            steps={BALANCE_SHEET_GUIDE}
+          />
+        )}
       </div>
 
       {/* F5.0 Wave 3 — Balance Sheet Map: compact learning rail above the table. */}
@@ -122,12 +127,17 @@ export function BSStatementView({ statement }: Props) {
           ⚠ {t("statements.bs.drift")}: {display} {fmt(statement.balanceCheck)}.
         </div>
       )}
-
-      {/* Note (dividends declared but not paid, etc.) */}
+      </div>
+      {/* Note — moved OUTSIDE the .bs-statement bordered card (2026-07-25), to
+          its right (a sibling in the grid). */}
       {statement.note && (
-        <div className="bs-note">
-          <strong>{t("statements.bs.note")}.</strong> {statement.note}
-        </div>
+        <aside className="mt-4 lg:mt-0">
+          <section className="rounded-2xl border border-rule bg-surface p-4" data-testid="bs-note">
+            <p className="text-[12px] text-ink-soft leading-relaxed">
+              <strong className="text-ink">{t("statements.bs.note")}.</strong> {statement.note}
+            </p>
+          </section>
+        </aside>
       )}
     </div>
   );

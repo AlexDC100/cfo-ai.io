@@ -23,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Sparkles, X, Check, ArrowUpRight, BookOpen } from "lucide-react";
 
 import { Money } from "@/components/ui/Money";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   addPeer,
   isPeer,
@@ -229,34 +230,38 @@ export function StockDetailDrawer({
   ].filter(Boolean).join(" · ");
 
   return (
-    <div
-      data-testid="stock-detail-drawer"
-      className="fixed inset-0 z-50 flex"
-    >
-      {/* Backdrop */}
-      <button
-        type="button"
-        aria-label="Close drawer"
-        data-testid="stock-drawer-backdrop"
-        onClick={onClose}
-        className="
-          absolute inset-0 bg-ink/30 backdrop-blur-[2px]
-          animate-in fade-in duration-150
-        "
-      />
-
-      {/* Panel — right-aligned slide-over */}
-      <aside
-        role="dialog"
-        aria-modal="true"
+    // ONE rounded-sidebar shell app-wide (2026-07-24): this is the same
+    // Radix Sheet + inset/rounded styling the Command Center (account
+    // avatar) uses — not a bespoke drawer frame. Keep the two className
+    // blocks in sync if the shell look ever changes.
+    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent
+        side="right"
+        data-testid="stock-detail-drawer"
         aria-labelledby="stock-drawer-title"
         className="
-          relative ml-auto h-full w-full sm:w-[560px]
-          bg-bg shadow-2xl
+          w-[calc(100vw-16px)] sm:w-[560px] sm:max-w-[560px]
+          p-0 m-2 sm:m-3 h-[calc(100dvh-16px)] sm:h-[calc(100dvh-24px)]
+          rounded-2xl sm:rounded-3xl
+          bg-surface dark:bg-bg-2
+          border border-rule-strong
+          text-ink
+          shadow-4
+          overflow-hidden
+          [&>button.absolute]:hidden
           flex flex-col
-          animate-in slide-in-from-right duration-200
         "
+        style={{
+          marginTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+          marginBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)",
+          marginRight: "calc(env(safe-area-inset-right) + 0.5rem)",
+          maxHeight:
+            "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem)",
+        }}
       >
+        <SheetTitle className="sr-only">
+          {snapshot.companyName} details
+        </SheetTitle>
         {/* ── Header ────────────────────────────────────────────── */}
         <header className="
           flex items-start justify-between gap-3
@@ -506,8 +511,8 @@ export function StockDetailDrawer({
             <ArrowUpRight size={10} strokeWidth={1.75} />
           </a>
         </footer>
-      </aside>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

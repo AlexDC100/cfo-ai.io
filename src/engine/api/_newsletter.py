@@ -368,9 +368,11 @@ def build_router() -> APIRouter:
     # verified email. Recipient is ALWAYS the caller — no `to` field — so
     # this is safe to expose to any authenticated user; you can only email
     # yourself. Useful for eyeballing the branded templates end-to-end.
-    @router.get("/api/newsletter/debug-kinds")
-    def debug_kinds() -> Dict[str, Any]:
-        return {"kinds": _DEBUG_MAIL_KINDS}
+    #
+    # `GET /api/newsletter/debug-kinds` was removed 2026-07-24 (backend
+    # cleanup) — zero frontend callers; the Settings debug-send UI hardcodes
+    # its own kind list rather than fetching this. `_DEBUG_MAIL_KINDS` itself
+    # stays — `debug_send`/`debug_send_all` below still validate against it.
 
     @router.post("/api/newsletter/debug-send")
     def debug_send(req: DebugSendRequest, request: Request,

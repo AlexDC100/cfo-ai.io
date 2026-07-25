@@ -576,13 +576,22 @@ export async function recoverStuckPipelines(): Promise<
  * Returns the unsubscribe function. Pass null `documentId` to subscribe to
  * all of the user's documents (RLS scopes the channel server-side).
  */
+// Monotonic suffix so every subscription gets a UNIQUE channel name. Reusing
+// a name (e.g. `doc-<id>` when the same doc re-subscribes on a StrictMode
+// double-mount, or before the async removeChannel of the prior one lands)
+// makes client.channel() hand back the EXISTING, already-subscribed channel —
+// and calling .on('postgres_changes') on it then throws "cannot add callbacks
+// after subscribe()". A fresh name guarantees .on() runs before .subscribe().
+let _docChannelSeq = 0;
+
 export function subscribeToDocumentStatus(
   documentId: string | null,
   onChange: (row: DocumentRow) => void,
 ): () => void {
   if (!client) return () => {};
   const filter = documentId ? `id=eq.${documentId}` : undefined;
-  const channelName = documentId ? `doc-${documentId}` : "docs-all";
+  const base = documentId ? `doc-${documentId}` : "docs-all";
+  const channelName = `${base}:${++_docChannelSeq}`;
   const channel = client
     .channel(channelName)
     .on(
@@ -622,7 +631,7 @@ export interface UploadResult {
  */
 export async function uploadDocument(
   file: File,
-  options: { scope?: "financial" | "sku" } = {},
+  options: { scope?: "financial" | "sku"; periodEndHint?: string | null } = {},
 ): Promise<UploadResult> {
   if (!client) return { row: null, error: "Authentication isn't configured (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY)." };
 
@@ -736,27 +745,39 @@ export async function uploadDocument(
     return { row: null, error: `Storage upload failed: ${upErr.message}` };
   }
 
-  const { data, error } = await client
-    .from("documents")
-    .insert({
-      id: documentId,
-      org_id: orgId,
-      uploaded_by: userId,
-      storage_path: storagePath,
-      original_filename: file.name,
-      mime_type: file.type || "application/octet-stream",
-      size_bytes: file.size,
-      detected_type: detected,
-      status: "queued" as DocumentStatus,
-      scope: options.scope ?? "financial",
-      // content_hash is added by schema_phase6_dedupe.sql. When the migration
-      // hasn't run yet, the dedupe SELECT above sets contentHashSupported=false
-      // and we skip the column here so the insert doesn't error with
-      // "Could not find the 'content_hash' column of 'documents'".
-      ...(contentHash && contentHashSupported ? { content_hash: contentHash } : {}),
-    })
-    .select()
-    .single();
+  const baseRow: Record<string, unknown> = {
+    id: documentId,
+    org_id: orgId,
+    uploaded_by: userId,
+    storage_path: storagePath,
+    original_filename: file.name,
+    mime_type: file.type || "application/octet-stream",
+    size_bytes: file.size,
+    detected_type: detected,
+    status: "queued" as DocumentStatus,
+    scope: options.scope ?? "financial",
+    // content_hash is added by schema_phase6_dedupe.sql. When the migration
+    // hasn't run yet, the dedupe SELECT above sets contentHashSupported=false
+    // and we skip the column here so the insert doesn't error with
+    // "Could not find the 'content_hash' column of 'documents'".
+    ...(contentHash && contentHashSupported ? { content_hash: contentHash } : {}),
+    // period_end_hint (schema_phase_period_end_hint.sql): the user-confirmed
+    // closing date. The engine's stage_persist prefers it over its own
+    // filename/content detection. Included only when the caller supplied one;
+    // if the column isn't migrated yet the insert retries without it below.
+    ...(options.periodEndHint ? { period_end_hint: options.periodEndHint } : {}),
+  };
+
+  let ins = await client.from("documents").insert(baseRow).select().single();
+  // Graceful degrade: if the period_end_hint column isn't migrated yet, retry
+  // without it rather than failing the whole upload.
+  if (ins.error && options.periodEndHint && /period_end_hint/i.test(ins.error.message)) {
+    console.info("[supabase] period_end_hint column missing — retrying without it (apply schema_phase_period_end_hint.sql)");
+    const { period_end_hint: _omit, ...withoutHint } = baseRow;
+    void _omit;
+    ins = await client.from("documents").insert(withoutHint).select().single();
+  }
+  const { data, error } = ins;
   if (error) {
     console.warn("[supabase] documents insert failed:", error.message);
     // Best-effort cleanup so we don't leave orphan blobs in Storage.
@@ -785,6 +806,27 @@ export async function listDocuments(limit = 50): Promise<DocumentRow[]> {
     .limit(limit);
   if (error) {
     console.warn("[supabase] listDocuments failed:", error.message);
+    return [];
+  }
+  return (data ?? []) as DocumentRow[];
+}
+
+/** Documents for a SPECIFIC workspace (org) — the Workspace page's
+ *  per-workspace uploads section lists every workspace's files, not just
+ *  the active one's. RLS still enforces membership (is_member_of), so a
+ *  non-member org id simply returns nothing. Soft-deleted rows are
+ *  excluded. */
+export async function listDocumentsForOrg(orgId: string, limit = 50): Promise<DocumentRow[]> {
+  if (!client) return [];
+  const { data, error } = await client
+    .from("documents")
+    .select("*")
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn("[supabase] listDocumentsForOrg failed:", error.message);
     return [];
   }
   return (data ?? []) as DocumentRow[];

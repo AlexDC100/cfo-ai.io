@@ -12,6 +12,7 @@
 // isn't available to itemize working-capital deltas.
 
 import { useTranslation } from "react-i18next";
+import { Cloud, ArrowUp } from "lucide-react";
 import type { CashFlowStatement } from "@/lib/cfStructure";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -21,9 +22,11 @@ import "./cashFlowStatementView.css";
 
 interface Props {
   statement: CashFlowStatement;
+  /** Hide the inline "Guide me" button (dashboard consolidates guides). */
+  hideGuide?: boolean;
 }
 
-export function CashFlowStatementView({ statement }: Props) {
+export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
   const { t } = useTranslation();
   const { operating, investing, financing, reconciliation, notes } = statement;
   const driftExceedsTolerance = Math.abs(reconciliation.drift) > 1;
@@ -33,7 +36,8 @@ export function CashFlowStatementView({ statement }: Props) {
   const display = useDisplayCurrency();
 
   return (
-    <div className="cf-statement" data-testid="cf-statement">
+    <div className={(showApproximationBanner || notes.length > 0) ? "lg:grid lg:grid-cols-[auto_minmax(440px,560px)] lg:gap-3 lg:items-start lg:justify-center" : ""}>
+      <div className="cf-statement" data-testid="cf-statement">
       <div className="cf-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h2>
@@ -41,53 +45,8 @@ export function CashFlowStatementView({ statement }: Props) {
           </h2>
           <p className="cf-method">{t("statements.cf.indirectMethod")}</p>
         </div>
-        <GuideMeButton pageId="cash-flow" title="Cash Flow" steps={CF_GUIDE} />
+        {!hideGuide && <GuideMeButton pageId="cash-flow" title="Cash Flow" steps={CF_GUIDE} />}
       </div>
-
-      {/* ── HONESTY BANNER ─────────────────────────────────────────── */}
-      {/* Surfaced whenever the pipeline computed CF from a single period.
-          Per CLAUDE.md Appendix A Section 4: "If only closing trial balance
-          available, mark working capital changes as ~approximated with
-          ±15% uncertainty band." The banner explains exactly what the user
-          is looking at AND offers the upload-prior CTA so the limitation
-          turns into an engagement loop. */}
-      {showApproximationBanner && (
-        <div
-          data-testid="cf-approximation-banner"
-          className="rounded-xl border border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.08] px-4 py-3 mb-4"
-        >
-          <div className="flex items-start gap-2.5">
-            <span aria-hidden className="text-[#2AA89B] dark:text-[#8FE3D9] mt-0.5">ⓘ</span>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-medium text-[#1B7268] dark:text-[#E6F7F4]">
-                {t("statements.cf.approximated.heading")}
-              </div>
-              <p className="text-[12px] text-[#1B7268]/85 dark:text-[#E6F7F4]/85 mt-1 leading-relaxed">
-                {t("statements.cf.approximated.body")}
-              </p>
-              {statement.approximationNotes.length > 0 && (
-                <ul className="text-[11.5px] text-[#1B7268]/80 dark:text-[#E6F7F4]/80 mt-2 ml-3 list-disc space-y-0.5">
-                  {statement.approximationNotes.map((note, i) => (
-                    <li key={i}>{note}</li>
-                  ))}
-                </ul>
-              )}
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <a
-                  href="/financials"
-                  data-testid="cf-upload-prior-cta"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[#2AA89B] hover:bg-[#1B7268] text-white px-3 py-1.5 text-[12px] font-medium transition-colors"
-                >
-                  {t("statements.cf.approximated.cta")}
-                </a>
-                <span className="text-[11.5px] text-[#1B7268]/70 dark:text-[#E6F7F4]/70">
-                  {t("statements.cf.approximated.hint")}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="cf-body">
         {/* ── OPERATING ACTIVITIES ─────────────────────────────────── */}
@@ -264,17 +223,72 @@ export function CashFlowStatementView({ statement }: Props) {
             </div>
           )}
         </section>
-
-        {/* ── NOTES ────────────────────────────────────────────────── */}
-        {notes.length > 0 && (
-          <section className="cf-notes" data-testid="cf-notes">
-            <h4>{t("statements.cf.notes")}</h4>
-            {notes.map((note, i) => (
-              <p key={i} className="cf-note">{note}</p>
-            ))}
-          </section>
+      </div>
+      </div>
+        {/* ── HONESTY BANNER ── OUTSIDE the .cf-statement bordered card
+            (2026-07-25): a sibling in the grid, to the RIGHT of the statement,
+            shown when the period was computed from a single trial balance. */}
+        {(showApproximationBanner || notes.length > 0) && (
+          <aside className="mt-2 lg:mt-0 space-y-4">
+            {showApproximationBanner && (
+            <div
+              data-testid="cf-approximation-banner"
+              className="relative overflow-hidden rounded-2xl border-2 border-dashed border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 p-5"
+            >
+              {/* Dropzone-style atmospheric glow + oversized clipped mark. */}
+              <div aria-hidden className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-brand/8 blur-3xl" />
+              <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-12 text-ink opacity-[0.06]">
+                <Cloud size={260} strokeWidth={1} />
+                <ArrowUp size={92} strokeWidth={2.5} className="absolute left-1/2 top-[60%] -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <div className="relative flex items-start gap-2.5">
+                <span aria-hidden className="text-[#2AA89B] dark:text-[#8FE3D9] mt-0.5">ⓘ</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium text-[#1B7268] dark:text-[#E6F7F4]">
+                    {t("statements.cf.approximated.heading")}
+                  </div>
+                  <p className="text-[12px] text-[#1B7268]/85 dark:text-[#E6F7F4]/85 mt-1 leading-relaxed">
+                    {t("statements.cf.approximated.body")}
+                  </p>
+                  {statement.approximationNotes.length > 0 && (
+                    <ul className="text-[11.5px] text-[#1B7268]/80 dark:text-[#E6F7F4]/80 mt-2 ml-3 list-disc space-y-0.5">
+                      {statement.approximationNotes.map((note, i) => (
+                        <li key={i}>{note}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <a
+                      href="/financials"
+                      data-testid="cf-upload-prior-cta"
+                      className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
+                    >
+                      {t("statements.cf.approximated.cta")}
+                    </a>
+                    <span className="text-[11.5px] text-[#1B7268]/70 dark:text-[#E6F7F4]/70">
+                      {t("statements.cf.approximated.hint")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+            {/* NOTES — moved OUT of the .cf-statement card (2026-07-25), to the
+                right, under the approximation callout. */}
+            {notes.length > 0 && (
+              <section className="cf-notes-aside rounded-2xl border border-rule bg-surface p-4" data-testid="cf-notes">
+                <h4 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-2">
+                  {t("statements.cf.notes")}
+                </h4>
+                <div className="space-y-2">
+                  {notes.map((note, i) => (
+                    <p key={i} className="text-[12px] text-ink-soft leading-relaxed">{note}</p>
+                  ))}
+                </div>
+              </section>
+            )}
+          </aside>
         )}
       </div>
-    </div>
   );
 }

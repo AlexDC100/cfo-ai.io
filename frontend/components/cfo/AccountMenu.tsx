@@ -25,15 +25,12 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTheme } from "next-themes";
 import {
   CircleUser,
   CreditCard,
   LogOut,
-  Moon,
   Settings as SettingsIcon,
   Sparkles,
-  Sun,
   User as UserIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -49,7 +46,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { formatEur } from "@/lib/pricingConfig";
-import { planUsagePct, usePlanState, type PlanState } from "@/lib/planState";
+import { usePlanState, type PlanState } from "@/lib/planState";
+import { formatTokens, tokenUsage } from "@/lib/tokenUsage";
 
 // ─────────────────────────────────────────────────────────────────────
 // Public component — wires hooks + DropdownMenu, used in TopHeader.
@@ -58,14 +56,11 @@ import { planUsagePct, usePlanState, type PlanState } from "@/lib/planState";
 export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
   const { user, displayName, initials, signOut } = useAuth();
   const { state, refresh: refreshPlan } = usePlanState();
-  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
 
   if (!user) return null;
-
-  const isDark = theme === "dark";
 
   // When an `onOpen` handler is supplied, the avatar becomes a plain button
   // that runs it (the top bar wires this to open the Command Center — the
@@ -159,7 +154,6 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
           name={displayName ?? "Account"}
           email={user.email ?? null}
           plan={state}
-          isDark={isDark}
           onNavigateSettings={() => {
             setOpen(false);
             navigate("/settings");
@@ -168,7 +162,6 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
             setOpen(false);
             navigate("/pricing");
           }}
-          onToggleTheme={() => setTheme(isDark ? "light" : "dark")}
           onSignOut={() => void handleSignOut()}
         />
       </DropdownMenuContent>
@@ -184,10 +177,8 @@ export interface AccountMenuContentProps {
   name: string;
   email: string | null;
   plan: PlanState | null;
-  isDark: boolean;
   onNavigateSettings: () => void;
   onNavigateBilling: () => void;
-  onToggleTheme: () => void;
   onSignOut: () => void;
 }
 
@@ -195,10 +186,8 @@ export function AccountMenuContent({
   name,
   email,
   plan,
-  isDark,
   onNavigateSettings,
   onNavigateBilling,
-  onToggleTheme,
   onSignOut,
 }: AccountMenuContentProps) {
   return (
@@ -252,34 +241,44 @@ export function AccountMenuContent({
             </div>
           </div>
 
-          {/* Usage preview — docs this month */}
-          <div className="mt-3" data-testid="account-menu-usage">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[11.5px] text-ink-soft">
-                Documents this month
-              </span>
-              <span
-                data-testid="account-menu-usage-count"
-                className="text-[11.5px] font-medium text-ink tabular-nums"
-              >
-                {plan.docs_used} / {plan.included_docs}
-              </span>
-            </div>
-            <div className="mt-1.5 h-1.5 rounded-full bg-rule overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-[width] ${
-                  plan.docs_used >= plan.included_docs ? "bg-[#5CD3C5]" : "bg-brand"
-                }`}
-                style={{
-                  width: `${planUsagePct(plan.docs_used, plan.included_docs)}%`,
-                }}
-                role="progressbar"
-                aria-valuenow={plan.docs_used}
-                aria-valuemax={plan.included_docs}
-                aria-label="Documents this month"
-              />
-            </div>
-          </div>
+          {/* Usage preview — token budget (Claude-style, 2026-07-24):
+              chats + document analyses spend from one token allowance.
+              Derived from the backend's metered counters via
+              lib/tokenUsage. */}
+          {(() => {
+            const tokens = tokenUsage(plan);
+            return (
+              <div className="mt-3" data-testid="account-menu-usage">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11.5px] text-ink-soft">
+                    Tokens this period
+                  </span>
+                  <span
+                    data-testid="account-menu-usage-count"
+                    className="text-[11.5px] font-medium text-ink tabular-nums"
+                  >
+                    {tokens.allowance == null
+                      ? `${formatTokens(tokens.spent)} used`
+                      : `${formatTokens(tokens.spent)} / ${formatTokens(tokens.allowance)}`}
+                  </span>
+                </div>
+                {tokens.allowance != null && (
+                  <div className="mt-1.5 h-1.5 rounded-full bg-rule overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-[width] ${
+                        tokens.remaining === 0 ? "bg-[#5CD3C5]" : "bg-brand"
+                      }`}
+                      style={{ width: `${tokens.pct}%` }}
+                      role="progressbar"
+                      aria-valuenow={tokens.spent}
+                      aria-valuemax={tokens.allowance}
+                      aria-label="Tokens this period"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </section>
       )}
 
@@ -313,12 +312,8 @@ export function AccountMenuContent({
           onClick={onNavigateSettings}
           testId="account-menu-settings"
         />
-        <Row
-          icon={isDark ? Sun : Moon}
-          label={isDark ? "Switch to light" : "Switch to dark"}
-          onClick={onToggleTheme}
-          testId="account-menu-theme"
-        />
+        {/* Theme row removed 2026-07-25 — the app is dark-only (theme
+            toggles removed app-wide, forcedTheme="dark" in App.tsx). */}
       </section>
 
       {/* ── Sign out (THE single source of truth) ─────────────── */}

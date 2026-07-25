@@ -4,14 +4,11 @@
 //   │ 🌐 EN │  click →  ┌───────────────────┐
 //   └───────┘            │ 🇬🇧 English   ✓  │
 //                        │ 🇷🇴 Română       │
-//                        │ 🇩🇪 Deutsch       │
-//                        │ 🇫🇷 Français      │
-//                        │ 🇪🇸 Español       │
 //                        └───────────────────┘
 //
-// 5 languages are too wide for a segmented pill like CurrencyToggle's
-// RON|EUR|USD; a dropdown keeps the top-bar footprint small. Mobile
-// stays usable — same pattern, just compact label-less trigger.
+// Renders whatever SUPPORTED_LANGUAGES holds (currently just EN + RO);
+// a dropdown keeps the top-bar footprint small. Mobile stays usable —
+// same pattern, just compact label-less trigger.
 //
 // Persistence: `pickLanguageWithProfileSync` mirrors the choice to
 // localStorage + Supabase `profiles.language` + auth user_metadata so

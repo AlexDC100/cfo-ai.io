@@ -13,23 +13,28 @@ import { SourceText } from "@/components/ui/SourceText";
 import { Money } from "@/components/ui/Money";
 import { useCurrency } from "@/stores/currency";
 import { formatMoneyFrom } from "@/lib/money";
+import { openStagedFile } from "@/lib/stagedFilePreview";
+import { readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import type { Currency } from "@/lib/rates";
 import { categoryHint } from "@/lib/categoryHints";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertCircle,
+  ArrowUp,
   Boxes,
   Check,
+  Cloud,
   FileSpreadsheet,
   Loader2,
   Search,
   Sparkles,
   TableProperties,
-  UploadCloud,
   Layers,
   Cpu,
+  Eye,
   FileText,
+  X,
 } from "lucide-react";
 import { CategoriesOverview, BackToCategoriesPill } from "@/components/cfo/products/CategoriesOverview";
 import { DioPersistenceBanner } from "@/components/cfo/products/DioPersistenceBanner";
@@ -62,6 +67,15 @@ import {
   type DocumentStatus,
 } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import {
+  clearUpload,
+  isInFlight,
+  patchUpload,
+  startUpload,
+  useUploadStore,
+} from "@/lib/uploadStore";
+import { ScanProgressView, SKU_DATASET_STEPS } from "@/components/cfo/ScanProgressView";
+import { isScanSpherePaused } from "@/components/cfo/CouncilSphereHost";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { PRODUCTS_GUIDE } from "@/components/learning/pageGuides";
 // F5.0 Phase 8 — Products / SKU learning. The 3 bucket KPI labels
@@ -317,11 +331,11 @@ export default function Products() {
 
   // 2026-05-26 — global upload trigger. DatasetsPanel's "Upload sales
   // dataset" button dispatches a `cfo:request-sku-upload` event. The
-  // EmptyState dropzone unmounts as soon as a dataset is loaded, so
-  // its file input isn't in the DOM when the user clicks the panel's
-  // upload button. We mount our own always-present hidden input here
-  // + listen for the event so the file picker opens regardless of
-  // whether the dropzone is currently visible.
+  // EmptyState dropzone unmounts as soon as a dataset is loaded, so its
+  // file input isn't in the DOM when the panel button is clicked. We mount
+  // our own always-present hidden input here + listen for the event so the
+  // native OS file picker opens regardless of whether the dropzone is
+  // currently visible.
   const uploadEnqueue = useUploadEnqueue();
   const pageUploadRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -624,13 +638,24 @@ export default function Products() {
   }
 
   if (inflight && !dismissedInflightIds.has(inflight.id)) {
-    return (
-      <>
+    // Failed → keep the InflightCard (it carries the retry / hang-recovery
+    // UI). In-flight → show the council-sphere ScanProgressView, the same
+    // premium scan surface as the dashboard + the empty-state upload, instead
+    // of the old flat step-list card (removed 2026-07-25 per operator).
+    if (inflight.status === "failed") {
+      return (
         <InflightCard
           inflight={inflight}
           onDismiss={() => dismissInflight(inflight.id)}
         />
-      </>
+      );
+    }
+    return (
+      <ScanProgressView
+        status={inflight.status}
+        steps={SKU_DATASET_STEPS}
+        onCancel={() => dismissInflight(inflight.id)}
+      />
     );
   }
 
@@ -662,11 +687,10 @@ export default function Products() {
 
   return (
     <>
-      {/* 2026-05-26 — always-mounted file input + extra-doc dialog.
-          DatasetsPanel's "Upload sales dataset" button dispatches
-          `cfo:request-sku-upload`; the useEffect above forwards to
-          this hidden input's .click(). Lives at the page root so it
-          survives whatever conditional render branches below. */}
+      {/* Always-mounted file input. DatasetsPanel's "Upload sales dataset"
+          button dispatches `cfo:request-sku-upload`; the useEffect above
+          forwards to this hidden input's .click() → native OS file picker.
+          Lives at the page root so it survives every render branch below. */}
       <input
         ref={pageUploadRef}
         type="file"
@@ -1980,30 +2004,118 @@ function EmptyState({
   // 429 quota-blocked toast fire automatically.
   const uploadEnqueue = useUploadEnqueue();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
+  // Staged-files flow (2026-07-25) — mirrors the dashboard dropzone:
+  // choosing/dropping stages files locally; nothing uploads until the
+  // user presses Start scan. Seeded from + mirrored to the module-level
+  // store so a tab switch (which unmounts this page) doesn't drop the
+  // selection.
+  const [stagedFiles, setStagedFiles] = useState<File[]>(() => readStagedFiles("products"));
+  const [scanning, setScanning] = useState(false);
+  useEffect(() => {
+    writeStagedFiles("products", stagedFiles);
+  }, [stagedFiles]);
+  // Global upload store — the scan view below and the debug simulator
+  // both read/drive it. Only react to PRODUCTS-surface uploads so a dashboard
+  // (trial-balance) scan doesn't flip the Products page into its scan view.
+  const _upload = useUploadStore().current;
+  const inflightDoc = _upload && _upload.surface === "products" ? _upload : null;
 
-  async function handleFile(file: File) {
+  function stageFile(file: File) {
     if (file.size > PRODUCTS_UPLOAD_MAX_BYTES) {
       toast({ title: "File too large", description: `${(file.size/1_000_000).toFixed(1)} MB exceeds the ${PRODUCTS_UPLOAD_MAX_MB} MB limit.`, variant: "destructive" });
       return;
     }
-    setBusy(true);
-    const { row, error } = await uploadDocument(file, { scope: "sku" });
-    if (!row) {
-      setBusy(false);
-      toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
-      return;
-    }
-    const enq = await uploadEnqueue.enqueue(row.id);
-    setBusy(false);
-    if (enq.kind !== "queued") {
-      // Modal/toast already surfaced by the hook; nothing to do here.
-      return;
-    }
-    toast({ title: "Analysis started", description: file.name });
-    onUploaded();
+    setStagedFiles((prev) => [...prev, file]);
   }
+
+  // Upload + analyze ONE file; resolves when the pipeline settles
+  // (analyzed / failed / blocked) so startScan can run a batch
+  // sequentially — same contract as the dashboard's scanOneFile.
+  function scanOneFile(file: File): Promise<void> {
+    return new Promise<void>((resolve) => {
+      void (async () => {
+        // Flip into the scan view immediately (docId lands after upload).
+        startUpload({ docId: "", filename: file.name, status: "queued", surface: "products" });
+        const { row, error } = await uploadDocument(file, { scope: "sku" });
+        if (!row) {
+          clearUpload();
+          toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
+          resolve();
+          return;
+        }
+        // Drive the global upload store tagged as a PRODUCTS upload so the
+        // Products rail spinner (not the Dashboard's) + the shared council
+        // sphere render this scan's progress.
+        startUpload({ docId: row.id, filename: file.name, status: "queued", surface: "products" });
+        const enq = await uploadEnqueue.enqueue(row.id);
+        if (enq.kind !== "queued") {
+          // Modal/toast already surfaced by the hook; nothing to do here.
+          clearUpload();
+          resolve();
+          return;
+        }
+        onUploaded();
+        const unsub = subscribeToDocumentStatus(row.id, (next) => {
+          patchUpload({ status: next.status, error: next.error });
+          if (next.status === "analyzed") {
+            unsub();
+            toast({ title: "Analysis ready", description: file.name });
+            clearUpload();
+            onUploaded();
+            resolve();
+          }
+          if (next.status === "failed") {
+            unsub();
+            toast({ title: "Analysis failed", description: next.error ?? "Unknown error.", variant: "destructive" });
+            clearUpload();
+            resolve();
+          }
+        });
+      })();
+    });
+  }
+
+  async function startScan() {
+    if (scanning || stagedFiles.length === 0) return;
+    setScanning(true);
+    const batch = [...stagedFiles];
+    for (const f of batch) await scanOneFile(f);
+    setStagedFiles([]);
+    setScanning(false);
+  }
+
+  // Localhost-only: simulate the upload → analysis pipeline without a
+  // real file or backend — the same status walk as the dashboard's
+  // simulator, so the scan view + council sphere can be eyeballed here.
+  async function simulateFileProcess() {
+    if (inflightDoc) return; // don't clobber a real in-flight upload
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const waitWhilePaused = async () => {
+      while (isScanSpherePaused()) await sleep(200);
+    };
+    const steps: DocumentStatus[] = [
+      "extracting", "mapping", "computing", "narrating", "analyzed",
+    ];
+    startUpload({
+      docId: `debug-${Date.now()}`,
+      filename: "debug_simulation.xlsx",
+      status: "queued",
+      surface: "products",
+    });
+    await sleep(2500);
+    for (const status of steps) {
+      await waitWhilePaused();
+      patchUpload({ status });
+      await sleep(status === "analyzed" ? 2000 : 6000);
+    }
+    await waitWhilePaused();
+    await sleep(1000);
+    clearUpload();
+  }
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
 
   // ── Real-or-absent stats (no fabrication) ───────────────────────
   // Every figure here is computed from `datasets` (the already-loaded
@@ -2016,80 +2128,29 @@ function EmptyState({
     [datasets],
   );
 
-  // Detect whether the user just came from a public-company dashboard.
-  // Set on mount of PublicCompanyDashboard via sessionStorage so Products
-  // can render a contextual "public companies don't have SKU data" message
-  // alongside the standard upload CTA — instead of a blank empty state
-  // that makes the user feel something's broken.
-  const publicCompanyContext = (() => {
-    try {
-      const ticker = typeof sessionStorage !== "undefined"
-        ? sessionStorage.getItem("cfo:last-public-ticker")
-        : null;
-      if (!ticker) return null;
-      const name = sessionStorage.getItem("cfo:last-public-name") || ticker;
-      return { ticker, name };
-    } catch { return null; }
-  })();
+  // ── SCANNING VIEW (2026-07-24) — same experience as the dashboard:
+  // while a dataset analysis is in flight, this surface reduces to the
+  // pipeline steps + the persistent council sphere (CouncilSphereHost
+  // paints over the spacer). Reads the global upload store (hoisted
+  // above), so progress survives tab switches.
+  if (inflightDoc && isInFlight(inflightDoc.status)) {
+    return (
+      <section data-testid="products-empty">
+        {uploadEnqueue.dialog}
+        <ScanProgressView
+          status={inflightDoc.status}
+          steps={SKU_DATASET_STEPS}
+          onCancel={clearUpload}
+        />
+      </section>
+    );
+  }
 
   return (
     <section data-testid="products-empty">
       {/* Pricing V3 — extra-doc confirm dialog mount. */}
       {uploadEnqueue.dialog}
 
-      {/* Public-company-aware contextual banner. Visible only when the user
-          just came from a /dashboard/public/:ticker view. Explains why
-          Products is empty (Sharadar SF1 is company-level, not SKU-level)
-          and offers two paths forward: upload private sales data OR return
-          to the public-company dashboard. */}
-      {publicCompanyContext && (
-        <div
-          data-testid="products-public-company-context"
-          className="
-            mb-6 rounded-2xl border border-brand/20
-            bg-gradient-to-br from-brand/[0.04] to-surface
-            px-5 py-4
-          "
-        >
-          <div className="flex items-start gap-3">
-            <div className="
-              flex h-9 w-9 shrink-0 items-center justify-center
-              rounded-lg bg-brand/15 text-brand-d
-            ">
-              <Sparkles size={15} strokeWidth={1.75} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-ink">
-                Product-level analysis isn't available for public companies
-              </div>
-              <p className="text-[12.5px] text-ink-soft mt-1 leading-relaxed">
-                <span className="font-mono">{publicCompanyContext.ticker}</span> ({publicCompanyContext.name}) is covered from public filings, which report
-                company-level revenue, EBITDA, and balance sheet — not SKU-level economics.
-                Product Intelligence needs your private sales / trading data to find
-                loss-makers, mix outliers, and discontinuation candidates.
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <a
-                  href={`/dashboard/public/${encodeURIComponent(publicCompanyContext.ticker)}`}
-                  className="
-                    inline-flex items-center gap-1.5
-                    h-9 px-3 rounded-lg
-                    border border-rule bg-surface
-                    text-[12.5px] text-ink-soft font-medium
-                    hover:bg-bg-2/50 hover:text-ink
-                    transition-all
-                  "
-                >
-                  ← Back to {publicCompanyContext.ticker} dashboard
-                </a>
-                <span className="text-[11.5px] text-ink-mute">
-                  · Or upload sales data below to unlock SKU analysis
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* ── Hero panel — glass-card with soft gradient. Headline + a
        *  premium dropzone live in a 2-column split that stacks under lg.
        *  The wrapper card adds the gradient + ring so the hero reads as
@@ -2098,14 +2159,18 @@ function EmptyState({
         {/* Decorative top-right brand glow — purely visual, no real data */}
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
 
-        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-6 lg:gap-10 items-start relative">
+        {/* Column split matches the dashboard hero (1.2fr_1fr + gap-6) so
+            the "Start from the official template" card is the same width
+            on both surfaces. */}
+        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6 items-start relative">
           <div>
             <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
               <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
               Product intelligence
             </div>
             <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink font-serif">
-              Upload your data. CFO AI finds what matters.
+              Upload your data. CFO AI finds{" "}
+              <span className="text-grad">what matters</span>.
             </h1>
             <p className="mt-4 text-[15.5px] text-ink-soft leading-relaxed max-w-[520px]">
               Drop a trading analysis or sales-by-SKU export. CFO AI streams every row, rolls them
@@ -2116,22 +2181,16 @@ function EmptyState({
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
+              {/* Import (primary, animated gradient) — opens the OS file
+                  picker (drag-drop onto the dropzone below also stages files
+                  for the Start scan flow). */}
               <button
                 type="button"
-                disabled={busy}
                 onClick={() => fileRef.current?.click()}
-                data-testid="products-upload-choose-primary"
-                className="
-                  inline-flex items-center gap-2 h-10 px-4 rounded-lg
-                  bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
-                  shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)]
-                  hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)]
-                  disabled:opacity-50 transition-all
-                  ring-1 ring-inset ring-white/15
-                "
+                data-testid="products-hero-import"
+                className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
               >
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <UploadCloud size={13} strokeWidth={2} />}
-                {busy ? "Uploading…" : "Upload dataset"}
+                Import
               </button>
               <button
                 type="button"
@@ -2145,7 +2204,7 @@ function EmptyState({
                 "
                 data-testid="products-ask-cfo-ai"
               >
-                <Sparkles size={13} strokeWidth={2} className="text-brand-d" />
+                <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
                 Ask CFO AI
               </button>
             </div>
@@ -2158,52 +2217,192 @@ function EmptyState({
           </div>
         </div>
 
+        {/* Expected format — moved ABOVE the dropzone (2026-07-24) so the
+            column contract is visible before the user drops a file. */}
+        <SalesAnalysisFormatHint />
+
         {/* File drop zone — swapped below the hero grid (the template card
-            now occupies the hero's right column). Glass, brand-glow on
-            drag-over. */}
+            now occupies the hero's right column). 2026-07-25: replaced
+            with the dashboard's dropzone (same chrome, same staged-files
+            → Start scan flow, same idle pipeline-steps preview) — only
+            the copy and the stage names are Products-specific. */}
         <div className="mt-6 relative">
           <div
             data-testid="products-upload-dropzone"
+            onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-            onDragLeave={() => setDrag(false)}
-            onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
+            onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
+            onDrop={(e) => { e.preventDefault(); setDrag(false); Array.from(e.dataTransfer.files ?? []).forEach(stageFile); }}
+            data-drag-active={drag ? "true" : "false"}
             className={`
-              relative overflow-hidden rounded-2xl border-2 border-dashed transition-all duration-150
+              relative overflow-hidden
+              rounded-2xl border-2 border-dashed
+              backdrop-blur-sm
+              p-6 sm:p-7
+              flex flex-col items-center justify-center text-center
+              min-h-[240px]
+              transition-all duration-150
               ${drag
                 ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
                 : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
-              px-6 py-10 text-center
-              backdrop-blur-sm
             `}
           >
-            <div className="mx-auto h-12 w-12 rounded-xl bg-gradient-to-br from-brand/15 to-brand-d/15 text-brand-d flex items-center justify-center mb-3 ring-1 ring-brand/15">
-              <UploadCloud size={20} strokeWidth={1.75} />
-            </div>
-            <h3 className="text-[16px] font-semibold text-ink">Drop your dataset here</h3>
-            <p className="text-[12.5px] text-ink-soft mt-1">
-              XLSX · CSV · multi-sheet · up to {PRODUCTS_UPLOAD_MAX_MB} MB
-            </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => fileRef.current?.click()}
-              data-testid="products-upload-choose"
-              className="mt-4 inline-flex items-center gap-2 h-9 px-3.5 rounded-lg border border-rule bg-surface text-ink text-[12.5px] font-medium hover:bg-bg-2/60 transition-colors disabled:opacity-50"
+            {/* Atmospheric brand glow */}
+            <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-brand/8 blur-3xl" />
+
+            {/* Oversized upload mark — decorative, pinned to the bottom-left
+                corner and clipped by the card's overflow-hidden. Opacity on
+                the WRAPPER so overlapping strokes never stack. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-32 -left-16 text-ink opacity-[0.08]"
             >
-              {busy ? <Loader2 size={12} className="animate-spin" /> : <UploadCloud size={12} strokeWidth={2} />}
-              {busy ? "Uploading…" : "Choose a file"}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept={PRODUCTS_UPLOAD_ACCEPT}
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
-            />
-            <p className="mt-4 text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
-              <Sparkles size={9} strokeWidth={2} className="inline mr-1 text-brand-d" />
-              Stream · roll up · classify · briefing
-            </p>
+              <Cloud size={440} strokeWidth={1} />
+              <ArrowUp
+                size={160}
+                strokeWidth={2.5}
+                className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2"
+              />
+            </div>
+
+            {/* Localhost-only debug button — simulate a scan without a real
+                file or backend. Never rendered on the deployed site. */}
+            {isLocalhost && (
+              <button
+                type="button"
+                data-testid="debug-simulate-upload"
+                onClick={() => void simulateFileProcess()}
+                className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
+              >
+                Debug: simulate scan
+              </button>
+            )}
+
+            <div className="relative flex flex-col items-center">
+              <h3 className="text-[16px] font-semibold text-ink">
+                {drag ? "Drop your file to upload" : "Drop your dataset here"}
+              </h3>
+              <p className="text-[12.5px] text-ink-soft mt-1">
+                XLSX · CSV · multi-sheet · up to {PRODUCTS_UPLOAD_MAX_MB} MB
+              </p>
+              {/* Same treatment as the dashboard dropzone's Import button:
+                  animated teal gradient fill + brand border. Opens the OS
+                  file picker. */}
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                data-testid="products-upload-choose"
+                className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
+              >
+                Import
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                accept={PRODUCTS_UPLOAD_ACCEPT}
+                className="hidden"
+                onChange={(e) => {
+                  Array.from(e.target.files ?? []).forEach(stageFile);
+                  e.target.value = ""; // allow re-picking the same file later
+                }}
+              />
+            </div>
+
+            {/* Pipeline steps — idle preview of what CFO AI will do, using
+                the Products stage names. During a scan the fullscreen
+                ScanProgressView (above) takes over and lights these up. */}
+            <ol
+              className="relative w-full max-w-[560px] mx-auto flex items-start justify-between gap-2 mt-6"
+              aria-label="Analysis pipeline"
+              data-testid="products-upload-pipeline"
+            >
+              <span aria-hidden className="absolute top-4 left-3 right-3 h-px bg-gradient-to-r from-transparent via-rule to-transparent" />
+              {SKU_DATASET_STEPS.map((label, i) => (
+                <li key={label} className="relative flex-1 min-w-0 flex flex-col items-center text-center">
+                  <span className="
+                    relative z-10 inline-flex items-center justify-center
+                    h-8 w-8 rounded-full text-[12px] font-semibold tabular-nums
+                    shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors duration-300
+                    bg-surface text-ink-soft border border-rule
+                  ">
+                    {`0${i + 1}`}
+                  </span>
+                  <span className="mt-2 text-[11.5px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[100px] text-ink-mute">
+                    {label}
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            {stagedFiles.length > 0 && (
+              /* Staged files — each has an X to discard; nothing uploads
+                 until Start scan. Same block as the dashboard dropzone. */
+              <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
+                <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+                  {stagedFiles.length} file{stagedFiles.length === 1 ? "" : "s"} ready to scan
+                </div>
+                <div className="space-y-2">
+                  {stagedFiles.map((f, i) => (
+                    <div
+                      key={`${f.name}-${f.size}-${i}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
+                          <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => void openStagedFile(f)}
+                          aria-label={`View ${f.name}`}
+                          data-testid={`view-staged-${i}`}
+                          className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                        >
+                          <Eye size={14} strokeWidth={2} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStagedFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                          disabled={scanning}
+                          aria-label={`Remove ${f.name}`}
+                          data-testid={`discard-staged-${i}`}
+                          className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                        >
+                          <X size={14} strokeWidth={2} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStagedFiles([])}
+                    disabled={scanning}
+                    data-testid="dismiss-all-staged"
+                    className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                  >
+                    <X size={13} strokeWidth={2} />
+                    Dismiss all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void startScan()}
+                    disabled={scanning}
+                    data-testid="start-scan"
+                    className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
+                  >
+                    {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
+                    {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2215,28 +2414,24 @@ function EmptyState({
       {/* ── Stats strip — REAL or absent (no fabrication) ──────────── */}
       <ProductsStatsStrip stats={stats} hasData={datasets.length > 0} />
 
-      {/* ── What happens next (process explanation — static & accurate) ── */}
-      <ProductsProcessFlow />
+      {/* "What happens next" process-flow section removed 2026-07-24 per
+          operator directive (ProductsProcessFlow deleted; git history
+          has it). */}
 
-      {/* ── Accepted formats — limits match the real parser/handler ── */}
-      <ProductsAcceptedFormats />
+      {/* The "Accepted formats" card was removed 2026-07-24 per operator
+          directive (the dropzone's own format line covers it). */}
 
       {/* ── Recent imports — only once a dataset exists; hides the
        *  "No imports yet. Your uploads will appear here." placeholder in
        *  the pre-upload (no files) state. ─────────────────────────── */}
       {datasets.length > 0 && <ProductsRecentImports datasets={sortedDatasets} />}
 
-      {/* ── Expected format card — preserves the columnar source-doc
-       *  example, anchor for the example download link. The card was
-       *  the original lineage/source-doc element in the pre-upload
-       *  flow; kept as-is so the existing example_products_trading.xlsx
-       *  remains accessible (Decision 4 — preserve source-doc). */}
-      <SalesAnalysisFormatHint />
+      {/* Expected-format card moved ABOVE the dropzone (2026-07-24) —
+          rendered from the hero block up top. */}
 
-      {/* ── Bottom insight strip — premium CTA. Opens the Ask CFO AI
-       *  slide-over with no prefill (general entry); the prompt chips
-       *  above cover the more specific intents. */}
-      <ProductsBottomInsightStrip />
+      {/* The bottom "Clarity, on demand" insight strip was removed
+          2026-07-24 per operator directive (ProductsBottomInsightStrip,
+          recoverable from git history). */}
     </section>
   );
 }
@@ -2291,63 +2486,6 @@ function ProductsPromptChips() {
 }
 
 // ─── Bottom insight strip ────────────────────────────────────────
-// Sits at the foot of the empty-state page. Premium gradient panel
-// with a single Ask CFO AI CTA. No fabricated metric — copy is a
-// product positioning line, not a claim about the user's data.
-
-function ProductsBottomInsightStrip() {
-  return (
-    <section
-      className="
-        mt-12 rounded-3xl
-        bg-surface
-        text-ink
-        px-6 sm:px-8 py-8
-        relative overflow-hidden
-        border border-rule
-        ring-1 ring-inset ring-rule-soft
-        shadow-[0_24px_48px_-30px_rgba(0,0,0,0.20)]
-      "
-      data-testid="products-bottom-insight"
-    >
-      <div aria-hidden className="pointer-events-none absolute -top-12 -right-16 h-56 w-56 rounded-full bg-brand/15 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 h-48 w-48 rounded-full bg-brand-2/10 blur-3xl" />
-
-      <div className="relative flex items-start justify-between gap-5 flex-wrap">
-        <div className="max-w-[640px]">
-          <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-soft font-semibold">
-            <Sparkles size={10} strokeWidth={2.25} className="text-brand" />
-            Clarity, on demand
-          </div>
-          <h2 className="mt-3 text-[24px] sm:text-[28px] leading-[1.15] tracking-[-0.01em] font-semibold">
-            CFO AI gives you clarity on what grows profit.
-          </h2>
-          <p className="mt-2 text-[13.5px] text-ink-soft leading-relaxed max-w-[540px]">
-            Already uploaded? Ask CFO AI about your active dataset — loss-makers, mix shifts, margin
-            outliers, or what to discontinue. Haven&rsquo;t uploaded yet? Ask anything about the
-            framework first.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => openAskCfoAi()}
-          className="
-            inline-flex items-center gap-2
-            h-10 px-4 rounded-lg
-            bg-ink text-paper text-[13px] font-medium
-            hover:bg-ink/90 transition-colors
-            shadow-1
-          "
-          data-testid="products-bottom-ask-cfo-ai"
-        >
-          <Sparkles size={13} strokeWidth={2} className="text-brand" />
-          Ask CFO AI for insights
-        </button>
-      </div>
-    </section>
-  );
-}
-
 // ─── Stats strip ─────────────────────────────────────────────────
 // Each card renders only when its backing figure exists. The 4 stats
 // the spec's reference mockup shows ("SKUs analyzed", "margin outliers",
@@ -2384,18 +2522,10 @@ function buildHonestStats(datasets: DatasetSummary[]): HonestStats {
 }
 
 function ProductsStatsStrip({ stats, hasData }: { stats: HonestStats; hasData: boolean }) {
-  // True first-visit: explicit honest empty state — no numbers at all.
-  if (!hasData) {
-    return (
-      <section className="mt-10 rounded-2xl border border-rule bg-bg-2/30 px-5 py-5" data-testid="products-stats-empty">
-        <p className="text-[13px] text-ink-soft">
-          <span className="text-ink font-medium">Insights appear once data is in.</span> Upload your first dataset
-          to see SKU counts, line-rows analyzed, and roll-ups across imports — no figures are shown
-          until they reflect actual analysis.
-        </p>
-      </section>
-    );
-  }
+  // No data → render nothing (2026-07-24; the "Insights appear once
+  // data is in" placeholder card was removed — a pre-upload page
+  // shouldn't carry it).
+  if (!hasData) return null;
 
   return (
     <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="products-stats-strip">
@@ -2448,79 +2578,6 @@ function shortRelative(iso: string): string {
   if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))}h ago`;
   if (diff < 7 * 24 * 60 * 60_000) return `${Math.floor(diff / (24 * 60 * 60_000))}d ago`;
   return new Date(iso).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
-}
-
-// ─── Process flow ────────────────────────────────────────────────
-// Static explanatory copy about what the pipeline does. This is
-// legitimately static content (describes the flow, not data) — it is
-// NOT fabricated numbers. Each step describes a real stage of the
-// existing pipeline; nothing here is invented.
-
-function ProductsProcessFlow() {
-  const steps = [
-    { icon: UploadCloud,    title: "Upload",         body: "Drag your XLSX or CSV. We never store the raw file outside your workspace." },
-    { icon: TableProperties, title: "Map rows",       body: "Synonyms find your columns automatically — Romanian or English headers." },
-    { icon: Cpu,            title: "Analyze",        body: "Roll up to the SKU, classify, compute per-SKU DIO when inventory/COGS are present." },
-    { icon: FileText,       title: "Generate briefing", body: "A board-ready briefing with the anchor / wind-down picture and loss-maker list." },
-  ];
-  return (
-    <section className="mt-10" data-testid="products-process">
-      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-3">
-        What happens next
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {steps.map((s, i) => {
-          const Icon = s.icon;
-          return (
-            <div key={s.title} className="rounded-xl border border-rule bg-surface px-4 py-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-brand-tint text-brand-d">
-                  <Icon size={13} strokeWidth={1.75} />
-                </span>
-                <span className="text-[11px] tabular-nums text-ink-mute font-medium">0{i + 1}</span>
-              </div>
-              <div className="text-[13.5px] font-medium text-ink">{s.title}</div>
-              <div className="mt-1 text-[12px] text-ink-soft leading-relaxed">{s.body}</div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-// ─── Accepted formats ────────────────────────────────────────────
-// Limits below mirror the actual handler at handleFile() above:
-// max 25 MB (enforced), .xlsx / .xls / .csv (accept= attr). The
-// multi-sheet line reflects `_pick_data_sheet()` in _sales_extract.py
-// which scans sheets and picks the YTD/Q*/first non-summary sheet.
-
-function ProductsAcceptedFormats() {
-  return (
-    <section className="mt-10 rounded-2xl border border-rule bg-surface px-5 py-5" data-testid="products-accepted-formats">
-      <div className="flex items-start gap-4 flex-wrap">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
-            Accepted formats
-          </h2>
-          <ul className="space-y-1.5 text-[12.5px] text-ink-soft">
-            <li className="flex items-start gap-2">
-              <FileSpreadsheet size={13} strokeWidth={1.75} className="mt-0.5 text-ink-mute" />
-              <span><span className="text-ink font-medium">XLSX, XLS, CSV</span> — trading analysis or sales-by-SKU export</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Layers size={13} strokeWidth={1.75} className="mt-0.5 text-ink-mute" />
-              <span>Multi-sheet workbooks supported — the parser picks the YTD/quarterly tab automatically</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Check size={13} strokeWidth={1.75} className="mt-0.5 text-ink-mute" />
-              <span>Up to <span className="text-ink font-medium">{PRODUCTS_UPLOAD_MAX_MB} MB</span> per file (enforced)</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
 }
 
 // ─── Recent imports ──────────────────────────────────────────────
@@ -2640,58 +2697,48 @@ function SalesAnalysisFormatHint() {
   const codeCls =
     "px-1.5 py-0.5 rounded text-[11px] font-mono bg-bg-2 text-ink border border-rule/60";
   return (
-    <div
-      data-testid="sales-format-hint"
-      className="mt-8 rounded-2xl border border-rule bg-surface px-5 py-5"
-    >
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
-        <div className="min-w-0">
-          <div className="text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink-soft">
-            {t("expectedFormat.eyebrow")}
-          </div>
-          <h4 className="font-serif text-[18px] leading-tight text-ink mt-1">
-            {t("expectedFormat.title")}
-          </h4>
-          <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px]">
-            {t("expectedFormat.intro")}{" "}
-            <Trans
-              i18nKey="expectedFormat.required"
-              components={{
-                c1: <SourceText lang="ro" className={codeCls} />,
-                c2: <code className={codeCls} />,
-              }}
-            />{" "}
-            <Trans
-              i18nKey="expectedFormat.optional"
-              components={{
-                c1: <code className={codeCls} />,
-                c2: <code className={codeCls} />,
-                c3: <code className={codeCls} />,
-              }}
-            />{" "}
-            <Trans
-              i18nKey="expectedFormat.rollup"
-              components={{
-                c1: <code className={codeCls} />,
-              }}
-            />
-          </p>
-        </div>
-        <div className="shrink-0 flex flex-col items-end gap-1">
-          <a
-            href="/examples/example_products_trading.xlsx"
-            download="example_products_trading.xlsx"
-            data-testid="download-sales-template"
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-rule bg-bg-2/40 text-ink text-[12.5px] font-medium hover:bg-bg-2 transition-colors"
-          >
-            <UploadCloud size={13} strokeWidth={1.75} className="rotate-180" />
-            {t("expectedFormat.downloadExample")}
-          </a>
-          <span className="text-[10.5px] text-ink-mute italic max-w-[220px] text-right">
-            {t("expectedFormat.exampleCaption")}
-          </span>
-        </div>
+    // Styled like the dashboard's DocGuideCard (2026-07-24): compact
+    // bordered card with a brand left rail, uppercase format line, dense
+    // description — the example table follows inside. The "Expected
+    // format" label sits OUTSIDE, above the card, as a section heading.
+    <section className="mt-6" data-testid="sales-format-hint">
+      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-3">
+        {t("expectedFormat.eyebrow")}
+      </h2>
+      <div className="rounded-lg border border-rule border-l-[3px] border-l-brand bg-surface p-3 text-left">
+      <div className="mb-1 text-[12.5px] font-medium text-ink leading-tight">
+        {t("expectedFormat.title")}
       </div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">
+        XLSX export
+      </div>
+      <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2 max-w-[640px]">
+        {t("expectedFormat.intro")}{" "}
+        <Trans
+          i18nKey="expectedFormat.required"
+          components={{
+            c1: <SourceText lang="ro" className={codeCls} />,
+            c2: <code className={codeCls} />,
+          }}
+        />{" "}
+        <Trans
+          i18nKey="expectedFormat.optional"
+          components={{
+            c1: <code className={codeCls} />,
+            c2: <code className={codeCls} />,
+            c3: <code className={codeCls} />,
+          }}
+        />{" "}
+        <Trans
+          i18nKey="expectedFormat.rollup"
+          components={{
+            c1: <code className={codeCls} />,
+          }}
+        />
+      </p>
+      {/* The "Download example (XLSX)" affordance moved into the
+          "Start from the official template" card's action rows
+          (2026-07-24). */}
 
       <div className="overflow-x-auto -mx-1 px-1">
         <table className="w-full text-[12.5px] tabular-nums">
@@ -2740,7 +2787,8 @@ function SalesAnalysisFormatHint() {
           }}
         />
       </p>
-    </div>
+      </div>
+    </section>
   );
 }
 

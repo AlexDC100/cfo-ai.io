@@ -85,14 +85,101 @@ interface Props {
   isTop: boolean;
   /** Total stack size — used to dim non-top popovers. */
   stackSize: number;
+  /** Presentation for the whole stack (from the bottom entry). */
+  presentation?: "popover" | "sheet";
   onBack: () => void;
   onClose: () => void;
 }
 
 export function LearningPopover(props: Props) {
   const isMobile = useIsMobile();
+  // Mobile always uses the bottom sheet — there's no room for a side rail.
   if (isMobile) return <MobileSheet {...props} />;
+  // Desktop: a "sheet" presentation slides in from the right edge (the
+  // dashboard KPI cards ask for this); everything else stays anchored.
+  if (props.presentation === "sheet") return <RightSheetPanel {...props} />;
   return <DesktopPanel {...props} />;
+}
+
+// ─── Desktop right-edge slide-over ──────────────────────────────────
+// Same body as the anchored popover, presented as a right sidebar panel.
+// The stack recedes to the left as drill-downs open, dimming lower levels.
+
+function RightSheetPanel({
+  entry,
+  depth,
+  isTop,
+  stackSize,
+  onBack,
+  onClose,
+}: Props) {
+  const recede = stackSize - 1 - depth; // 0 for the foreground panel
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on Escape (top sheet only). Outside CLICKS are handled by the modal
+  // backdrop below (it captures pointer events), so no document-level
+  // pointerdown listener is needed.
+  useEffect(() => {
+    if (!isTop) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isTop, onClose]);
+
+  return (
+    <>
+      {/* Modal backdrop (2026-07-25) — captures pointer events so the rest of
+          the page is NON-interactive while the card sheet is open; clicking it
+          dismisses. (Earlier this was pointer-events-none to let sidebar clicks
+          through; the operator now wants the sheet to be modal.) */}
+      {depth === 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          onClick={onClose}
+          className="fixed inset-0 z-[140] bg-black/55 cursor-default"
+          aria-hidden
+        />
+      )}
+      <motion.div
+        ref={containerRef}
+        initial={{ opacity: 0, x: 48 }}
+        animate={{
+          opacity: isTop ? 1 : 0.5,
+          x: recede * -22,
+          scale: isTop ? 1 : 0.985,
+        }}
+        exit={{ opacity: 0, x: 48 }}
+        transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+        style={{ zIndex: 150 + depth }}
+        className={cn(
+          "fixed top-0 right-0 h-[100dvh]",
+          "w-[min(440px,100vw)]",
+          "bg-[rgba(18,20,22,0.92)] backdrop-blur-2xl",
+          "border-l border-white/[0.08]",
+          "shadow-[0_0_80px_-12px_rgba(0,0,0,0.65)]",
+          "overflow-hidden pointer-events-auto text-white flex flex-col",
+        )}
+        role="dialog"
+        aria-modal="false"
+        data-testid={`learn-sheet-${entry.conceptKey}`}
+        data-stack-depth={depth}
+        data-stack-top={isTop ? "1" : "0"}
+      >
+        <PopoverContent
+          entry={entry}
+          depth={depth}
+          stackSize={stackSize}
+          onBack={onBack}
+          onClose={onClose}
+        />
+      </motion.div>
+    </>
+  );
 }
 
 // ─── Desktop floating panel ─────────────────────────────────────────
@@ -205,7 +292,7 @@ function DesktopPanel({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.12 }}
-          className="fixed inset-0 z-[140] bg-black/15 pointer-events-none"
+          className="fixed inset-0 z-[140] bg-black/55 pointer-events-none"
           aria-hidden
         />
       )}

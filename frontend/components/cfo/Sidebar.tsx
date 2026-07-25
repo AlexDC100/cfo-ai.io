@@ -16,11 +16,19 @@
 // rather than admin-led.
 
 import { ReactNode, useEffect, useRef, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { NavLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useTheme } from "next-themes";
 import { usePrefetchPeriod, useActivePeriod } from "@/lib/activePeriod";
 import { useWorkspaceName } from "@/lib/workspaceName";
+import { useChatReplyPending } from "@/lib/chatPendingStore";
+import { isInFlight, useUploadStore } from "@/lib/uploadStore";
 import { DECISIONS_ALERTS_ENABLED } from "@/config/features";
 import {
   LayoutDashboard,
@@ -28,11 +36,10 @@ import {
   PackageSearch,
   Bell,
   Settings as SettingsIcon,
-  Sun,
-  Moon,
   BarChart3,
   Boxes,
   Receipt,
+  Scale,
   Sparkles,
   SlidersHorizontal,
   PanelLeftClose,
@@ -42,6 +49,8 @@ import {
   // LogOut import dropped — sign-out moved to AccountMenu. Re-add if
   // the sidebar row is ever restored (see comment near the System group).
   Building2,
+  Info,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { SUPPORTED_LANGUAGES, pickLanguageWithProfileSync } from "@/i18n";
@@ -70,7 +79,18 @@ interface Props {
   /** Drawer mode — closes the slide-over after a click on mobile. */
   inDrawer?: boolean;
   onItemClick?: () => void;
+  /** No workspace yet — every destination that needs workspace data is
+   *  disabled; only the routes in ALWAYS_ENABLED (Workspaces, Settings,
+   *  website), plus the collapse toggle + disclaimer, stay live. */
+  noWorkspace?: boolean;
 }
+
+// Routes that stay clickable even with no workspace — the ones that DON'T
+// depend on loaded workspace data (create/switch a workspace, app settings,
+// back to the public site). Everything else is disabled until a workspace
+// exists. The footer collapse toggle + disclaimer are SidebarActions, not in
+// this list, and are never gated.
+const ALWAYS_ENABLED = new Set(["/workspace", "/settings", "/"]);
 
 // Sidebar items grouped by purpose. This replaces the previous flat
 // 5-item rail with three semantic groups (Intelligence / Analysis /
@@ -107,8 +127,11 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   // command-center; chat is the universal CFO assistant. The Workspace hub
   // (/workspace) is no longer a rail item — it's reached via the "No workspace
   // loaded" affordance in the WorkspaceIdentity header instead.
-  { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "intelligence", end: true },
+  // Workspaces leads the rail (2026-07-24) — with the WorkspaceIdentity
+  // header gone, this is the primary way to see/switch the active
+  // workspace, so it sits first.
   { to: "/workspace",  labelKey: "sidebar.workspaces", icon: Building2,       testId: "sidebar-workspaces", group: "intelligence" },
+  { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "intelligence", end: true },
   { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "intelligence" },
   // Public Company Intelligence — first-class module, sits in Intelligence
   // group right next to Dashboard + Ask CFO AI. Lands on the hub page
@@ -120,6 +143,9 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analysis" },
   // F6.0.5 — Scenario planning / what-if. Always reachable (no registry gate).
   { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analysis" },
+  // Budget vs Actual vs Last-Year variance — restored as a rail item (2026-07-25)
+  // per operator directive; the /dashboard/variance route was already registered.
+  { to: "/dashboard/variance", labelKey: "sidebar.variance", icon: Scale, testId: "sidebar-variance", group: "analysis" },
   // F6.0.1b — Budget vs Actual vs Last-Year variance is NOT a standalone nav
   // item: it lives on the dashboard. Upload a budget deck on /dashboard and you
   // land on the report; while a budget is loaded the dashboard shows a "Budget
@@ -180,10 +206,23 @@ export function Sidebar({
   onSignOut,
   inDrawer = false,
   onItemClick,
+  noWorkspace = false,
 }: Props) {
   const { t } = useTranslation();
   const period = useActivePeriod();
   const workspaceName = useWorkspaceName();
+  // True while an Ask CFO AI reply is in flight anywhere in the app —
+  // drives the thinking spinner on the chat rail item.
+  const chatReplyPending = useChatReplyPending();
+  // True while a document upload/analysis is running — drives the
+  // spinner on the Dashboard rail item (replaces the header's
+  // active-document chip, removed 2026-07-24).
+  const upload = useUploadStore();
+  const uploadActive = !!upload.current && isInFlight(upload.current.status);
+  // Dashboard and Products are DIFFERENT pipelines — spin the rail item that
+  // owns the in-flight upload, not always Dashboard.
+  const dashboardUploadActive = uploadActive && upload.current?.surface !== "products";
+  const productsUploadActive = uploadActive && upload.current?.surface === "products";
 
   // Collapsed-rail mode (lg+ only). Persists across reloads. In drawer
   // mode (mobile slide-over) the user already has explicit close so
@@ -204,8 +243,16 @@ export function Sidebar({
     catch { /* SSR / older browsers */ }
   }, [collapsed]);
 
+  // Disclaimer modal — opened from the footer's "Disclaimer" row.
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
+
   const effectivelyCollapsed = !inDrawer && collapsed;
-  const widthClass = effectivelyCollapsed ? "w-[68px]" : "w-[244px]";
+  // Collapsed width = icon's left inset (nav px-2.5 + item px-2.5 = 20px)
+  // + icon 16px + a MATCHING 20px on the right — so every icon sits dead
+  // center with equal air on both sides, without ever moving during the
+  // collapse animation. Keep in sync with AppShell's lg:pl-[80px] and
+  // CouncilSphereHost's collapsed padding.
+  const widthClass = effectivelyCollapsed ? "w-[56px]" : "w-[244px]";
 
   // Resolve registry-driven gating at render time so a feature flip
   // (e.g., `inventory` going active) updates the rail without a remount.
@@ -226,28 +273,21 @@ export function Sidebar({
         ${inDrawer ? "w-full border-r border-rule" : widthClass}
         bg-bg-2/40 backdrop-blur-md
         flex flex-col
+        overflow-hidden
         transition-[width] duration-200 ease-out
       `}
       data-collapsed={effectivelyCollapsed ? "true" : "false"}
     >
-      {/* Workspace identity — visible when expanded. Product mark +
-          active workspace (company) + loaded period. Sits above the
-          nav; hidden in the collapsed 68px rail so the icon column
-          stays uncluttered. */}
-      {!effectivelyCollapsed && (
-        <WorkspaceIdentity
-          // Prefer the loaded period's company; fall back to the selected
-          // workspace name (mirrored into useWorkspaceName by the workspaces
-          // store) so the rail shows the chosen workspace even before a
-          // trial-balance period is loaded — instead of "No workspace loaded".
-          companyName={period.statements?.companyName ?? (workspaceName || null)}
-          periodLabel={period.label}
-          onNavigate={onItemClick}
-        />
-      )}
-
-      <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-3">
-        {groups.map((g) => (
+      {/* WorkspaceIdentity header removed 2026-07-24 per operator
+          directive — the active workspace now surfaces via the Command
+          Center's Workspace quick action (and the "Workspaces" rail
+          item below). */}
+      {/* overflow-x-hidden — with labels now staying mounted in the
+          collapsed rail (they fade, clipped by the aside), the nav's
+          overflow-y-auto would otherwise compute overflow-x to auto and
+          grow a horizontal scrollbar in the 55px rail. */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 space-y-3">
+        {groups.filter((g) => g.key !== "workspace").map((g) => (
           <Section
             key={g.key}
             label={g.label}
@@ -263,6 +303,29 @@ export function Sidebar({
                 label={t(labelKey)}
                 collapsed={effectivelyCollapsed}
                 end={end}
+                disabled={noWorkspace && !ALWAYS_ENABLED.has(to)}
+                // In-flight work surfaces on the item that owns it: a
+                // chat reply spins the Ask CFO AI item, a running
+                // document analysis spins Dashboard — both visible from
+                // any page.
+                trailing={
+                  to === "/chat" && chatReplyPending ? (
+                    <Loader2
+                      size={13}
+                      strokeWidth={2}
+                      className="animate-spin text-brand-d"
+                      aria-label="CFO AI is thinking"
+                    />
+                  ) : (to === "/dashboard" && dashboardUploadActive) ||
+                      (to === "/products" && productsUploadActive) ? (
+                    <Loader2
+                      size={13}
+                      strokeWidth={2}
+                      className="animate-spin text-brand-d"
+                      aria-label="Analyzing your document"
+                    />
+                  ) : undefined
+                }
               />
             ))}
             {/* Command Center action removed from the sidebar per the
@@ -282,31 +345,75 @@ export function Sidebar({
         ))}
       </nav>
 
+      {/* System group (Settings / Website) — pinned to the rail's BOTTOM
+          (2026-07-24), outside the scrolling nav, just above the footer. */}
+      {groups.some((g) => g.key === "workspace") && (
+        <div className="px-2.5 pb-2 pt-1">
+          {groups.filter((g) => g.key === "workspace").map((g) => (
+            <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
+              {g.items.map(({ to, labelKey, icon: Icon, testId, end }) => (
+                <SidebarLink
+                  key={to}
+                  to={to}
+                  testId={testId}
+                  onClick={onItemClick}
+                  icon={Icon}
+                  label={t(labelKey)}
+                  collapsed={effectivelyCollapsed}
+                  end={end}
+                  disabled={noWorkspace && !ALWAYS_ENABLED.has(to)}
+                />
+              ))}
+            </Section>
+          ))}
+        </div>
+      )}
+
       {/* Footer — theme switch, language, collapse toggle (lg+), disclaimer.
        *  All three buttons go through the shared `IconButton` primitive so
        *  box dimensions, icon size, hover/active/focus behavior are
        *  identical. Single flex container with `gap-1` owns the spacing
        *  — no per-button margin/padding overrides. */}
-      <div className={`${effectivelyCollapsed ? "px-2" : "px-3"} pt-2 pb-3 border-t border-rule`}>
-        <div className={`flex items-center ${effectivelyCollapsed ? "justify-center" : "justify-start"} gap-1 mb-2`}>
-          <ThemeIconButton />
-          <LanguageIconButton />
-          {!inDrawer && (
-            <IconButton
-              size="sm"
-              icon={collapsed ? <PanelLeftOpen strokeWidth={1.75} /> : <PanelLeftClose strokeWidth={1.75} />}
-              label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              data-testid="sidebar-collapse-toggle"
-              onClick={() => setCollapsed((v) => !v)}
-            />
-          )}
-        </div>
-        {!effectivelyCollapsed && (
-          <p className="px-1 text-[10.5px] text-ink-mute leading-snug">
-            {t("sidebar.footer_note")}
-          </p>
+      {/* Footer — the collapse toggle and the disclaimer "i" STACKED as
+          full-width rows (2026-07-24), icon left + label right, sharing
+          the nav items' row geometry so their icons sit on the rail's
+          28px center line. Theme/Language buttons removed earlier the
+          same day — theme lives in the account menu / Command Center,
+          language in Settings. */}
+      <div className="px-2.5 pt-2 pb-3 border-t border-rule space-y-2">
+        {!inDrawer && (
+          <SidebarAction
+            icon={collapsed ? PanelLeftOpen : PanelLeftClose}
+            label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            testId="sidebar-collapse-toggle"
+            onClick={() => setCollapsed((v) => !v)}
+            collapsed={effectivelyCollapsed}
+          />
         )}
+        <SidebarAction
+          icon={Info}
+          label="Disclaimer"
+          title={t("sidebar.footer_note")}
+          testId="sidebar-footer-note"
+          onClick={() => setDisclaimerOpen(true)}
+          collapsed={effectivelyCollapsed}
+        />
       </div>
+
+      {/* Disclaimer modal — centered dialog with the full note. */}
+      <Dialog open={disclaimerOpen} onOpenChange={setDisclaimerOpen}>
+        <DialogContent className="max-w-[440px]" data-testid="sidebar-disclaimer-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[15px]">
+              <Info size={15} strokeWidth={1.75} className="text-brand-d" />
+              Disclaimer
+            </DialogTitle>
+            <DialogDescription className="pt-1 text-[13px] leading-relaxed text-ink-soft">
+              {t("sidebar.footer_note")}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }
@@ -368,6 +475,8 @@ function SidebarLink({
   label,
   collapsed = false,
   end = false,
+  trailing,
+  disabled = false,
 }: {
   to: string;
   testId: string;
@@ -376,12 +485,40 @@ function SidebarLink({
   label: string;
   collapsed?: boolean;
   end?: boolean;
+  /** Right-aligned status affordance (e.g. the chat thinking spinner). */
+  trailing?: ReactNode;
+  /** Render greyed-out and non-navigating (no workspace loaded yet). */
+  disabled?: boolean;
 }) {
   const [params] = useSearchParams();
   const period = params.get("period");
   const href = period ? `${to}?period=${encodeURIComponent(period)}` : to;
   const prefetchPeriod = usePrefetchPeriod();
   const onHover = period ? () => prefetchPeriod(period) : undefined;
+
+  // Disabled = same geometry as a resting link, but a non-interactive <div>:
+  // dimmed, no pointer events, exposed as aria-disabled. Used when there's no
+  // workspace yet so data-dependent destinations can't be opened.
+  if (disabled) {
+    return (
+      <div
+        data-testid={testId}
+        aria-disabled="true"
+        title={collapsed ? label : "Create a workspace first"}
+        className="group relative flex items-center min-h-[44px] sm:min-h-0 sm:h-8 gap-3 px-[9px] rounded-lg border border-transparent text-[13px] text-ink-soft opacity-40 cursor-not-allowed select-none"
+      >
+        <Icon size={16} strokeWidth={1.75} className="relative z-10 shrink-0" />
+        <span
+          className={`relative z-10 whitespace-nowrap overflow-hidden transition-opacity duration-200 ${
+            collapsed ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          {label}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <NavLink
       to={href}
@@ -399,9 +536,17 @@ function SidebarLink({
       // highlighted on nested routes (e.g. /dashboard/scenarios).
       end={end}
       className={({ isActive }) =>
-        `group relative flex items-center min-h-[44px] sm:min-h-0 ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2.5 sm:py-2"} rounded-lg border text-[13px] transition-all duration-150 ${
+        // sm:h-8 — one fixed item height in BOTH rail modes; and one fixed
+        // LAYOUT too: the collapsed rail keeps the exact same left padding
+        // and alignment as expanded (no justify-center swap), so the icon
+        // never moves an inch while the width animates — only the label
+        // disappears. px-[9px] (not 10px): the 1px border pushes content
+        // inward, so 9px inner padding puts icon centers on the SAME
+        // 28px line as the borderless footer IconButtons. Mobile drawer
+        // keeps the 44px touch target.
+        `group relative flex items-center min-h-[44px] sm:min-h-0 sm:h-8 gap-3 px-[9px] rounded-lg border text-[13px] transition-all duration-150 ${
           isActive
-            ? "ask-ai-anim-fill [animation-duration:10s] text-ink font-medium border-brand/40"
+            ? "ask-ai-anim-fill [animation:none] text-ink font-medium border-brand/40"
             : "border-transparent text-ink-soft hover:text-ink hover:bg-bg-2/70 active:bg-bg-2/50"
         }`
       }
@@ -412,12 +557,31 @@ function SidebarLink({
            *  `ask-ai-anim-fill` (animated teal gradient) + a static brand
            *  border. A transparent border on the resting state keeps the 1px
            *  from shifting layout. */}
+          {/* One constant icon size in BOTH rail modes — and shrink-0 so
+              flex can NEVER compress the SVG while the rail's width
+              animates (that compression is what read as the icons
+              "getting smaller" during collapse). */}
           <Icon
-            size={collapsed ? 16 : 15}
+            size={16}
             strokeWidth={1.75}
-            className="relative z-10"
+            className="relative z-10 shrink-0"
           />
-          {!collapsed && <span className="relative z-10 truncate">{label}</span>}
+          {/* Label stays MOUNTED in both modes and crossfades — an
+              instant unmount is what made the collapse feel choppy.
+              The aside's overflow-hidden clips it while the width
+              animates; no ellipsis so the clip is clean. */}
+          <span
+            className={`relative z-10 whitespace-nowrap overflow-hidden transition-opacity duration-200 ${
+              collapsed ? "opacity-0" : "opacity-100"
+            }`}
+          >
+            {label}
+          </span>
+          {!collapsed && trailing && (
+            <span className="relative z-10 ml-auto shrink-0 inline-flex items-center">
+              {trailing}
+            </span>
+          )}
         </>
       )}
     </NavLink>
@@ -441,33 +605,42 @@ function SidebarAction({
   testId,
   onClick,
   collapsed = false,
+  title,
 }: {
   icon: LucideIcon;
   label: string;
   testId: string;
   onClick: () => void;
   collapsed?: boolean;
+  /** Native-tooltip override (defaults to `label` when collapsed). */
+  title?: string;
 }) {
   return (
     <button
       type="button"
       data-testid={testId}
       onClick={onClick}
-      title={collapsed ? label : undefined}
-      className={
-        "group relative w-full text-left flex items-center min-h-[44px] sm:min-h-0 rounded-lg text-[13px] " +
-        "text-ink-soft hover:text-ink hover:bg-bg-2/70 active:bg-bg-2/50 " +
-        "[&>svg]:text-ink-mute hover:[&>svg]:text-ink-soft " +
-        "transition-all duration-150 " +
-        (collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-2.5 py-2.5 sm:py-2")
-      }
+      title={title ?? (collapsed ? label : undefined)}
+      // Mirrors SidebarLink's geometry exactly (fixed sm:h-8 height,
+      // px-[9px] + transparent 1px border, mounted fading label) so
+      // action rows sit on the same icon center line and transition as
+      // smoothly as the nav links.
+      className="
+        group relative w-full text-left flex items-center
+        min-h-[44px] sm:min-h-0 sm:h-8 gap-3 px-[9px]
+        rounded-lg border border-transparent text-[13px]
+        text-ink-soft hover:text-ink hover:bg-bg-2/70 active:bg-bg-2/50
+        transition-all duration-150
+      "
     >
-      <Icon
-        size={collapsed ? 16 : 15}
-        strokeWidth={1.75}
-        className="relative z-10 transition-transform group-hover:scale-[1.04]"
-      />
-      {!collapsed && <span className="relative z-10 truncate">{label}</span>}
+      <Icon size={16} strokeWidth={1.75} className="relative z-10 shrink-0" />
+      <span
+        className={`relative z-10 whitespace-nowrap overflow-hidden transition-opacity duration-200 ${
+          collapsed ? "opacity-0" : "opacity-100"
+        }`}
+      >
+        {label}
+      </span>
     </button>
   );
 }
@@ -481,38 +654,32 @@ function Section({
 }) {
   return (
     <div>
-      {!collapsed ? (
-        <div className="px-2.5 mb-1 text-[9.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
-          {label}
+      {/* One FIXED-HEIGHT header row in both rail modes, crossfading
+          between the expanded look (label + trailing hairline) and the
+          collapsed look (plain divider). The old two-branch render
+          swapped elements of different heights instantly, which is what
+          made the collapse feel jumpy. */}
+      <div className="relative h-[14px] mb-1">
+        <div
+          aria-hidden={collapsed}
+          className={`absolute inset-y-0 left-2.5 right-2.5 flex items-center gap-2 transition-opacity duration-200 ${
+            collapsed ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          <span className="shrink-0 whitespace-nowrap text-[9.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+            {label}
+          </span>
+          <span aria-hidden className="h-px flex-1 bg-rule/60" />
         </div>
-      ) : (
-        // In collapsed mode, group headers become a thin divider so the
-        // rail still reads as grouped without spilling text into a
-        // 68px column.
-        <div className="mx-2 my-2 h-px bg-rule/40" aria-hidden />
-      )}
-      <div className="space-y-px">{children}</div>
+        <div
+          aria-hidden
+          className={`absolute left-2 right-2 top-1/2 h-px bg-rule/40 transition-opacity duration-200 ${
+            collapsed ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </div>
+      <div className="space-y-2">{children}</div>
     </div>
-  );
-}
-
-function ThemeIconButton() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Default Sun during SSR / pre-hydration so first paint matches dark default.
-  const isDark = !mounted || resolvedTheme !== "light";
-  const Icon = isDark ? Sun : Moon;
-  const label = isDark ? "Switch to light theme" : "Switch to dark theme";
-
-  return (
-    <IconButton
-      size="sm"
-      icon={<Icon strokeWidth={1.75} />}
-      label={label}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-    />
   );
 }
 

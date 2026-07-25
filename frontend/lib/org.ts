@@ -23,6 +23,7 @@ import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { clearActiveOrg, getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
 import { clearDataPresence } from "@/lib/dataPresence";
+import { clearWorkspaceScopedData } from "@/lib/clearWorkspaceData";
 import { queryClient } from "@/lib/queryClient";
 import { writeWorkspaceName } from "@/lib/workspaceName";
 import { hydrateOrgPrefs, hydrateUserPrefs, resetPrefs } from "@/lib/prefs";
@@ -232,6 +233,27 @@ export async function renameWorkspaceOrg(orgId: string, name: string): Promise<b
   return true;
 }
 
+/** Change the industry of any workspace the user owns (by id, not only the
+ *  active one) — same members-can-UPDATE-organizations policy rename relies on.
+ *  Writes both the key (drives benchmarks) and the display label together. */
+export async function updateWorkspaceIndustryOrg(
+  orgId: string,
+  industryKey: string,
+  industryDisplay: string,
+): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase || !industryKey) return false;
+  const { error } = await supabase
+    .from("organizations")
+    .update({ industry_key: industryKey, industry_display_name: industryDisplay })
+    .eq("id", orgId);
+  if (error) {
+    console.warn("[org] update industry failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
 // ── Mutations via RPC ──────────────────────────────────────────────────
 
 export async function createWorkspaceOrg(
@@ -305,6 +327,8 @@ export interface ActiveOrgState {
     industry?: { key: string; label: string } | null,
   ) => Promise<string | null>;
   renameWorkspace: (orgId: string, name: string) => Promise<boolean>;
+  /** Change a workspace's industry (key + display label). */
+  setWorkspaceIndustry: (orgId: string, key: string, label: string) => Promise<boolean>;
   archiveWorkspace: (orgId: string) => Promise<boolean>;
   restoreWorkspace: (orgId: string) => Promise<boolean>;
   /** Permanent deletion of an archived workspace — no recovery after this. */
@@ -394,6 +418,11 @@ export function useActiveOrg(): ActiveOrgState {
       writeWorkspaceName(next.name);
       queryClient.clear();
       clearDataPresence();
+      // Device-local, non-org-keyed caches (SKU run, budget dataset, benchmark
+      // peers) would otherwise bleed the previous workspace's data into the
+      // Products / Variance / Benchmark tabs — wipe them so every tab reflects
+      // the selected workspace.
+      clearWorkspaceScopedData();
       // Company-level settings (currency, decision rules, scenario levers)
       // belong to the workspace, so they have to follow the switch.
       void hydrateOrgPrefs(orgId);
@@ -412,6 +441,7 @@ export function useActiveOrg(): ActiveOrgState {
       setActiveOrgId(userId, id);
       queryClient.clear();
       clearDataPresence();
+      clearWorkspaceScopedData();
       await writeRemoteActiveOrgId(userId, id);
       await refresh();
       return id;
@@ -428,22 +458,55 @@ export function useActiveOrg(): ActiveOrgState {
     [refresh],
   );
 
+  const setWorkspaceIndustry = useCallback(
+    async (orgId: string, key: string, label: string) => {
+      const ok = await updateWorkspaceIndustryOrg(orgId, key, label);
+      if (ok) await refresh();
+      return ok;
+    },
+    [refresh],
+  );
+
   const archiveWorkspace = useCallback(
     async (orgId: string) => {
-      const purgeAfter = await archiveWorkspaceOrg(orgId);
-      if (!purgeAfter) return false;
-      // If we just archived the workspace we were standing in, fall through
-      // to another one — resolveActive() picks the oldest live workspace.
-      if (orgId === activeId) {
-        cachedOrg = null;
-        clearActiveOrg();
+      const wasActive = orgId === activeId;
+      // Optimistic UI (2026-07-25): flip the workspace to archived locally and,
+      // if it was the open one, fall through to another live workspace RIGHT
+      // NOW — before the RPC + re-fetch round-trips land — so the tab reflects
+      // the delete instantly. refresh() at the end reconciles with the server's
+      // real archived_at / purge_after (and rolls back if the RPC failed).
+      const nowIso = new Date().toISOString();
+      const purgeIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const nextLive = wasActive
+        ? activeWorkspaces(all).find((o) => o.id !== orgId) ?? null
+        : null;
+      setAll((prev) =>
+        prev.map((o) =>
+          o.id === orgId
+            ? { ...o, archived_at: o.archived_at ?? nowIso, purge_after: o.purge_after ?? purgeIso }
+            : o,
+        ),
+      );
+      if (wasActive) {
+        setActiveId(nextLive?.id ?? null);
+        cachedOrg = nextLive;
+        if (userId) {
+          if (nextLive) setActiveOrgId(userId, nextLive.id);
+          else clearActiveOrg();
+        }
         queryClient.clear();
         clearDataPresence();
+        clearWorkspaceScopedData();
       }
+
+      const purgeAfter = await archiveWorkspaceOrg(orgId);
+      // Whether it succeeded or failed, refresh() re-fetches the truth: on
+      // success it confirms the archive (real purge_after); on failure it
+      // undoes the optimistic flip.
       await refresh();
-      return true;
+      return !!purgeAfter;
     },
-    [activeId, refresh],
+    [activeId, all, userId, refresh],
   );
 
   const restoreWorkspace = useCallback(
@@ -480,6 +543,7 @@ export function useActiveOrg(): ActiveOrgState {
       switchOrg,
       createWorkspace,
       renameWorkspace,
+      setWorkspaceIndustry,
       archiveWorkspace,
       restoreWorkspace,
       purgeWorkspace,
@@ -494,6 +558,7 @@ export function useActiveOrg(): ActiveOrgState {
       switchOrg,
       createWorkspace,
       renameWorkspace,
+      setWorkspaceIndustry,
       archiveWorkspace,
       restoreWorkspace,
       purgeWorkspace,

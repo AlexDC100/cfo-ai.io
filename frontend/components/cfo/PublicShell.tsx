@@ -20,7 +20,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Logo } from "@/components/cfo/Logo";
-import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 
 interface Props {
   children: React.ReactNode;
@@ -47,8 +46,6 @@ export function PublicShell({ children }: Props) {
           </Link>
 
           <div className="flex-1" />
-
-          <ThemeToggle compact />
 
           <Link
             to="/login"

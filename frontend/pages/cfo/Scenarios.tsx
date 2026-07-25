@@ -17,8 +17,9 @@
 
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { TrendingDown } from "lucide-react";
+import { Sparkles, TrendingDown } from "lucide-react";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { ScenarioProvider, useScenario } from "@/stores/scenario";
@@ -117,7 +118,7 @@ function ScenariosInner({
     : 0;
 
   return (
-    <div className="max-w-[1180px] space-y-5">
+    <div className="max-w-[1560px] space-y-5">
       {/* Header — dashboard-style hero */}
       <PageHeader
         hero
@@ -179,7 +180,7 @@ export default function Scenarios() {
 
   if (!period.statements) {
     return (
-      <div className="max-w-[1180px] space-y-8">
+      <div className="max-w-[1560px] space-y-8">
         <PageHeader
           hero
           eyebrow="Scenario planning"
@@ -191,22 +192,24 @@ export default function Scenarios() {
             type="button"
             onClick={() => navigate("/dashboard")}
             data-testid="scenarios-empty-dashboard"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-5 py-2.5 text-[13.5px] font-medium text-[#06302b] hover:bg-brand-dark hover:text-white transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 px-5 py-2.5 text-[13.5px] font-medium text-ink hover:border-brand/60 transition-colors"
           >
             Go to dashboard
           </button>
           <button
             type="button"
-            onClick={() => navigate("/dashboard?upload=1")}
-            data-testid="scenarios-empty-upload"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-rule px-5 py-2.5 text-[13.5px] font-medium text-ink hover:bg-bg-2 transition-colors"
+            onClick={() =>
+              openAskCfoAi(
+                "What can scenario planning do for me once my trial balance is uploaded? Walk me through the what-if levers and what they change.",
+              )
+            }
+            data-testid="scenarios-empty-ask-cfo-ai"
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-rule bg-surface/70 backdrop-blur text-[13px] font-medium text-ink hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
           >
-            Upload a trial balance
+            <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
+            Ask CFO AI
           </button>
         </div>
-        <p className="text-[12px] text-ink-mute">
-          Your scenarios are saved on this device and never alter your actuals.
-        </p>
       </div>
     );
   }

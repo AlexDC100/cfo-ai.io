@@ -10,7 +10,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Logo } from "@/components/cfo/Logo";
-import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 import { useToast } from "@/hooks/use-toast";
 import { SITE } from "@/config/site";
 
@@ -85,7 +84,6 @@ export default function ContactSalesPage() {
           </span>
         </Link>
         <div className="flex items-center gap-3">
-          <ThemeToggle compact />
           <Link to="/pricing" className="text-[13px] text-ink-soft hover:text-ink">
             Pricing
           </Link>

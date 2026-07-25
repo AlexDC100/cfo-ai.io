@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
 import "@/i18n"; // i18n bootstrap — must run before any component imports t()
 import { ThemeProvider } from "@/theme";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -21,7 +21,6 @@ import { PopoverStackRenderer } from "@/components/learning/PopoverStackRenderer
 import { MetricGlossaryDrawer } from "@/components/learning/MetricGlossaryDrawer";
 import { LearningModeProvider } from "@/stores/learningMode";
 import { LanguageSwitchOverlay } from "@/components/LanguageSwitchOverlay";
-import { readPeriodVerdict } from "@/lib/dataPresence";
 import "@/styles/learning.css";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -174,7 +173,10 @@ function App() {
 
   return (
     <ErrorBoundary>
-    <ThemeProvider defaultTheme="system" enableSystem>
+    {/* 2026-07-25 — dark-only. The theme toggles were removed app-wide
+        (operator directive); forcedTheme guarantees dark even for users
+        whose localStorage still carries an old "light"/"system" pick. */}
+    <ThemeProvider defaultTheme="dark" enableSystem={false} forcedTheme="dark">
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
         <CurrencyProvider>
@@ -260,6 +262,24 @@ function App() {
  * the user "we just shipped — reload to pick up the new code" instead of the
  * generic "this page hit an error" copy.
  */
+/**
+ * Reset the document scroll to the top on every route change. Without
+ * this, React Router preserves the previous page's scroll offset — so
+ * arriving on a long tab (e.g. /public-companies) after scrolling far
+ * down elsewhere landed the user mid/bottom of the new page. Pathname
+ * only, deliberately: query-param changes (?period=, ?tab=, ?ticker=)
+ * are in-page state and must NOT yank the user to the top. /chat is
+ * skipped — its message list owns the scroll and pins to the bottom.
+ */
+function ScrollToTopOnNavigate() {
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    if (pathname.startsWith("/chat")) return;
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 function AppRoutes() {
   // NOTE: the outer error boundary is intentionally UNKEYED. Keying it by
   // pathname (as before) tore down the entire route subtree — including the
@@ -275,6 +295,7 @@ function AppRoutes() {
   const { isAuthenticated } = useAuth();
   return (
     <RouteErrorBoundary>
+      <ScrollToTopOnNavigate />
       {/* Outer Suspense: only for lazy routes that are NOT under the shared
           shell (today just PublicCompanyIntelligence, which picks its own
           shell). Authed pages suspend against the INNER boundary in AppLayout,
@@ -394,7 +415,7 @@ function AppLayout() {
     <AuthGuard>
       <AppShell>
         <RouteErrorBoundary key={pathname}>
-          <Suspense fallback={<ContentFallback />}>
+          <Suspense fallback={<ContentFallback pathname={pathname} />}>
             <Outlet />
           </Suspense>
         </RouteErrorBoundary>
@@ -404,42 +425,15 @@ function AppLayout() {
 }
 
 /**
- * Content-only skeleton for the in-shell Suspense. The full-shell RouteFallback
- * would paint a second sidebar/header inside the already-mounted AppShell, so
- * this fallback covers just the content area while the next page chunk loads.
+ * Content-only fallback for the in-shell Suspense. Covers just the content
+ * area while the next page chunk loads (the shell — sidebar/header — is already
+ * mounted). Loading skeletons were removed app-wide (2026-07-25): this is a
+ * neutral, still placeholder that just holds the space, so the page's own
+ * empty/upload/data state is the first real thing the user sees rather than a
+ * pulsing dashboard silhouette that collapses into it.
  */
-function ContentFallback() {
-  // No-data users: the page being loaded (Dashboard, Benchmark, Products…)
-  // paints its own empty/upload state the instant its chunk mounts. Drawing
-  // the KPI-card skeleton first would flash a "loaded dashboard" that then
-  // collapses to the upload panel — the operator-reported half-second of
-  // phantom content. When the persisted verdict already says this user has
-  // no periods, render a neutral placeholder so the empty state is the first
-  // real thing they see. (verdict: null = no data, string = has data,
-  // undefined = unknown → keep the informative skeleton.)
-  const { user } = useAuth();
-  if (user?.id && readPeriodVerdict(user.id) === null) {
-    return <div aria-hidden className="min-h-[30vh]" />;
-  }
-  return (
-    <div role="status" aria-busy="true" aria-label="Loading" className="space-y-4">
-      <span className="sr-only">Loading…</span>
-      <div className="h-8 w-56 rounded-md bg-bg-2 animate-pulse" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-24 rounded-2xl border border-rule bg-bg-2/30 animate-pulse"
-            style={{ animationDelay: `${i * 80}ms` }}
-          />
-        ))}
-      </div>
-      <div
-        className="rounded-2xl border border-rule bg-bg-2/20 h-[480px] animate-pulse"
-        style={{ animationDelay: "260ms" }}
-      />
-    </div>
-  );
+function ContentFallback(_props: { pathname?: string }) {
+  return <div aria-hidden className="min-h-[30vh]" />;
 }
 
 /**

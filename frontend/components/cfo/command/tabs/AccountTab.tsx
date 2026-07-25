@@ -19,7 +19,8 @@ import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { planUsagePct, usePlanState } from "@/lib/planState";
+import { usePlanState } from "@/lib/planState";
+import { formatTokens, tokenUsage } from "@/lib/tokenUsage";
 
 interface Props {
   /** Close the Command Center after launching an action. */
@@ -50,13 +51,12 @@ export function AccountTab({ onClose }: Props) {
 
   return (
     <>
-      {/* Profile header — avatar (initials) + name, email beneath. The whole
-          block opens /settings (Manage profile). */}
-      <button
-        type="button"
-        onClick={() => launch(() => navigate("/settings"))}
+      {/* Profile header — avatar (initials) + name, email beneath.
+          Display-only (2026-07-24; it used to be a button opening
+          /settings — the Settings quick-action below covers that). */}
+      <div
         data-testid="cmd-account-profile"
-        className="w-full flex items-center gap-3 pl-1 pr-10 py-1.5 text-left rounded-xl hover:bg-bg-2/50 transition-colors"
+        className="w-full flex items-center gap-3 pl-1 pr-10 py-1.5 text-left rounded-xl"
       >
         <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-paper text-[14px] font-semibold tracking-tight">
           {initials ?? <User size={18} strokeWidth={1.75} />}
@@ -71,7 +71,7 @@ export function AccountTab({ onClose }: Props) {
             </span>
           )}
         </span>
-      </button>
+      </div>
 
       {/* Plan status + usage — copied from the top-right account-menu
           dropdown (plan name / price + documents-this-month progress). */}
@@ -89,40 +89,40 @@ export function AccountTab({ onClose }: Props) {
               <span className="text-[13px] font-medium text-ink truncate">
                 {plan.plan_display_name} plan
               </span>
-              <span aria-hidden className="text-ink-mute">·</span>
-              <button
-                type="button"
-                onClick={() => launch(() => navigate("/settings"))}
-                data-testid="cmd-account-change-plan"
-                className="text-[12px] text-ink-mute hover:text-ink underline-offset-2 hover:underline transition-colors"
-              >
-                Change in Settings
-              </button>
             </div>
           </div>
 
-          <div className="mt-0.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[11.5px] text-ink-soft">Usage</span>
-              <span className="text-[11.5px] font-medium text-ink-soft tabular-nums">
-                {planUsagePct(plan.docs_used, plan.included_docs)}%
-              </span>
-            </div>
-            <div className="mt-1.5 h-1.5 rounded-full bg-rule overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-[width] ${
-                  plan.docs_used >= plan.included_docs ? "bg-[#5CD3C5]" : "bg-brand"
-                }`}
-                style={{
-                  width: `${planUsagePct(plan.docs_used, plan.included_docs)}%`,
-                }}
-                role="progressbar"
-                aria-valuenow={plan.docs_used}
-                aria-valuemax={plan.included_docs}
-                aria-label="Documents this month"
-              />
-            </div>
-          </div>
+          {/* Token budget (Claude-style, 2026-07-24) — chats + document
+              analyses spend from one allowance; see lib/tokenUsage. */}
+          {(() => {
+            const tokens = tokenUsage(plan);
+            return (
+              <div className="mt-0.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11.5px] text-ink-soft">Tokens</span>
+                  <span className="text-[11.5px] font-medium text-ink-soft tabular-nums">
+                    {tokens.allowance == null
+                      ? `${formatTokens(tokens.spent)} used`
+                      : `${formatTokens(tokens.remaining ?? 0)} left of ${formatTokens(tokens.allowance)}`}
+                  </span>
+                </div>
+                {tokens.allowance != null && (
+                  <div className="mt-1.5 h-1.5 rounded-full bg-rule overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-[width] ${
+                        tokens.remaining === 0 ? "bg-[#5CD3C5]" : "bg-brand"
+                      }`}
+                      style={{ width: `${tokens.pct}%` }}
+                      role="progressbar"
+                      aria-valuenow={tokens.spent}
+                      aria-valuemax={tokens.allowance}
+                      aria-label="Tokens this period"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

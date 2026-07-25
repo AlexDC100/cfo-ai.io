@@ -117,25 +117,47 @@ function detectHeaders(header: string[]): HeaderMap | null {
       const v = (h ?? "").toString().trim().toLowerCase();
       return preds.some((p) => v.includes(p));
     });
-  const lineCol = idx(["line", "item", "metric", "indicator", "rand", "concept"]);
-  const budgetCol = idx(["budget", "bud", "plan", "bug", "target"]);
-  const lastYearCol = idx(["last year", "last-year", "prior year", "ly", "py", "an precedent", "2024", "fy24"]);
+  const lineCol = idx([
+    "line", "item", "metric", "indicator", "rand", "concept",
+    "label", "account", "post", "p&l", "pnl", "denumire", "cont", "descri",
+  ]);
+  const budgetCol = idx([
+    "budget", "bud", "plan", "bug", "target", "forecast", "fcst", "buget",
+  ]);
+  const lastYearCol = idx([
+    "last year", "last-year", "lastyear", "prior year", "prior-year", "ly", "py",
+    "an precedent", "anul precedent", "previous", "2023", "2024", "fy23", "fy24",
+  ]);
   if (lineCol < 0 || budgetCol < 0) return null;
   return { lineCol, budgetCol, lastYearCol };
 }
 
+/** Locate the header row. Real budget exports frequently carry a title row, a
+ *  logo/blank row, or a currency note above the actual header, so we scan the
+ *  first several rows rather than assuming row 0. Returns the matched header
+ *  map + the row index it was found at (data starts after it). */
+function findHeader(rows: string[][]): { hm: HeaderMap; at: number } | null {
+  const limit = Math.min(rows.length, 20);
+  for (let i = 0; i < limit; i++) {
+    const hm = detectHeaders(rows[i]);
+    if (hm) return { hm, at: i };
+  }
+  return null;
+}
+
 function rowsToDataset(rows: string[][], label: string): ComparisonDataset {
   if (rows.length < 2) throw new Error("File looks empty — need a header row plus data.");
-  const hm = detectHeaders(rows[0]);
-  if (!hm) {
+  const found = findHeader(rows);
+  if (!found) {
     throw new Error(
       "Couldn't find the columns. The file needs a header row with a Line column and a Budget column (a Last year column is optional).",
     );
   }
+  const { hm, at: headerRow } = found;
   const budget: Partial<Record<VarianceLineKey, number>> = {};
   const lastYear: Partial<Record<VarianceLineKey, number>> = {};
   let matched = 0;
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = headerRow + 1; i < rows.length; i++) {
     const r = rows[i];
     const key = normLineKey(r[hm.lineCol] ?? "");
     if (!key) continue;
@@ -201,13 +223,29 @@ export async function parseBudgetFile(file: File): Promise<ComparisonDataset> {
     const XLSX = await import("xlsx");
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-      header: 1,
-      raw: false,
-      defval: "",
-    });
-    return rowsToDataset(rows.map((r) => r.map((c) => String(c ?? ""))), label);
+    // Try every sheet, not just the first — a budget workbook may keep the
+    // figures on a later tab (a cover/notes sheet in front is common). Return
+    // the first sheet that parses; if none do, surface the last error.
+    let lastErr: unknown = null;
+    for (const sheetName of wb.SheetNames) {
+      const sheet = wb.Sheets[sheetName];
+      if (!sheet) continue;
+      const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+        header: 1,
+        raw: false,
+        defval: "",
+      });
+      try {
+        return rowsToDataset(rows.map((r) => r.map((c) => String(c ?? ""))), label);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error(
+          "Couldn't find the columns. The file needs a header row with a Line column and a Budget column (a Last year column is optional).",
+        );
   }
   throw new Error("Unsupported file type. Upload a .csv or .xlsx budget file.");
 }

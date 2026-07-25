@@ -21,11 +21,11 @@
 // fit), per-card preview table, count-up animation. Weight sliders
 // for the weighted mode ARE wired (visible only when mode === weighted).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ChevronLeft, RotateCcw } from "lucide-react";
+import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import {
   Dialog,
@@ -53,12 +53,15 @@ import {
 } from "@/lib/decisionRules";
 import {
   applyPresetById,
-  resetDecisionRulesToDefaults,
+  readActivePresetId,
+  readDecisionRules,
+  setActivePresetId,
   setCombinationMode,
   setFinancing,
   updateRuleState,
   useActivePresetId,
   useDecisionRules,
+  writeDecisionRules,
 } from "@/lib/decisionRulesStore";
 import { PRESETS, getPreset, isStateDrifted } from "@/lib/presets";
 
@@ -124,6 +127,30 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
   const { t } = useTranslation();
   const navigate = useNavigate();
 
+  // Snapshot of the rules store taken when the modal OPENS — edits apply
+  // to the live store instantly, so "Revert" means "put back what was
+  // active when I opened this dialog", not "reset to defaults" (that's
+  // the header's Reset button).
+  const openSnapshot = useRef<{
+    state: ReturnType<typeof readDecisionRules>;
+    presetId: string | null;
+  } | null>(null);
+  useEffect(() => {
+    if (open) {
+      openSnapshot.current = {
+        state: readDecisionRules(),
+        presetId: readActivePresetId(),
+      };
+    }
+  }, [open]);
+
+  const revertToOpenState = () => {
+    const snap = openSnapshot.current;
+    if (!snap) return;
+    writeDecisionRules(snap.state);
+    setActivePresetId(snap.presetId);
+  };
+
   // Single close path. Used by the sticky Done buttons (top + bottom)
   // and by radix's onOpenChange (which fires on backdrop tap, swipe-down
   // dismiss, and Esc). Navigation is opt-out via returnTo={null}.
@@ -154,14 +181,15 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
     >
       <DialogContent
         className="
-          max-w-[900px] p-0
+          max-w-[900px] p-0 gap-0
           inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0
-          w-full h-[92dvh] max-h-[92dvh] rounded-t-2xl rounded-b-none
+          w-full h-[88dvh] max-h-[88dvh] rounded-t-2xl rounded-b-none
+          overflow-hidden
           flex flex-col
           data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom
           sm:inset-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto
           sm:-translate-x-1/2 sm:-translate-y-1/2
-          sm:w-[min(900px,calc(100vw-2rem))] sm:h-auto sm:max-h-[85vh]
+          sm:w-[min(900px,calc(100vw-2rem))] sm:h-auto sm:max-h-[78vh]
           sm:rounded-[var(--radius-lg)]
           sm:data-[state=open]:slide-in-from-top-[48%] sm:data-[state=closed]:slide-out-to-top-[48%]
         "
@@ -181,22 +209,9 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
           "
           style={{ paddingTop: "max(20px, env(safe-area-inset-top))" }}
         >
-          <button
-            type="button"
-            onClick={closeAndReturn}
-            data-testid="decision-rules-back"
-            aria-label={t("decision_rules.back_to_products", "Back to Products")}
-            className="
-              -ml-2 shrink-0 inline-flex items-center gap-1
-              h-11 min-w-[44px] px-2 rounded-lg
-              text-[13px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2
-              transition-colors
-            "
-          >
-            <ChevronLeft size={16} strokeWidth={2} />
-            <span>{t("decision_rules.back_to_products", "Back to Products")}</span>
-          </button>
-
+          {/* "Back to Products" + "Reset to defaults" removed 2026-07-24
+              — the footer's Revert/Apply pair (plus backdrop/Esc) covers
+              both jobs. */}
           <div className="min-w-0 flex-1 text-center pt-1.5">
             <DialogTitle className="text-[15px] sm:text-[18px] text-ink font-semibold leading-tight truncate">
               {t("decision_rules.title", "Decision rules")}
@@ -208,24 +223,6 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
               )}
             </DialogDescription>
           </div>
-
-          <button
-            type="button"
-            onClick={resetDecisionRulesToDefaults}
-            data-testid="decision-rules-reset"
-            aria-label={t("decision_rules.reset", "Reset to defaults")}
-            className="
-              shrink-0 inline-flex items-center gap-1
-              h-11 min-w-[44px] px-2 rounded-lg
-              text-[12px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2
-              transition-colors
-            "
-          >
-            <RotateCcw size={12} strokeWidth={2} />
-            <span className="hidden sm:inline">
-              {t("decision_rules.reset", "Reset to defaults")}
-            </span>
-          </button>
         </DialogHeader>
 
         {/* ── SCROLLABLE BODY ──────────────────────────────────────
@@ -239,7 +236,7 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
               "Combine multiple rules to categorize SKUs. Changes apply instantly and are saved to this browser.",
             )}
           </p>
-          <div className="px-4 sm:px-6 py-4 sm:py-5">
+          <div className="px-4 sm:px-6 py-5 sm:py-6">
             <DecisionRulesPanel />
           </div>
         </div>
@@ -269,6 +266,22 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
           </span>
           <button
             type="button"
+            onClick={revertToOpenState}
+            data-testid="decision-rules-revert"
+            className="
+              shrink-0 inline-flex items-center gap-1.5
+              h-11 sm:h-9 px-5 sm:px-4 rounded-full sm:rounded-lg
+              text-[13px] sm:text-[12.5px] font-medium
+              border border-rule bg-surface text-ink
+              hover:bg-bg-2/60 hover:border-rule-strong transition-colors
+              min-w-[44px]
+            "
+          >
+            <RotateCcw size={12} strokeWidth={2} />
+            {t("decision_rules.revert", "Revert")}
+          </button>
+          <button
+            type="button"
             onClick={closeAndReturn}
             data-testid="decision-rules-done"
             className="
@@ -279,8 +292,7 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
               min-w-[44px]
             "
           >
-            {t("decision_rules.done_see_results", "Done — see results")}
-            <span aria-hidden> →</span>
+            {t("decision_rules.apply", "Apply")}
           </button>
         </footer>
       </DialogContent>
@@ -328,6 +340,9 @@ export function DecisionRulesPanel() {
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      {/* Preset · Combination logic — side by side; Financing assumptions
+          sits full-width below the grid. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
       {/* Preset picker — one-click rule packages with percentile-based
           thresholds so the chosen preset behaves sensibly on any dataset. */}
       <PresetPicker skus={skus} />
@@ -380,16 +395,18 @@ export function DecisionRulesPanel() {
             )}
         </p>
       </section>
+      </div>
 
-      {/* Financing assumptions — applied to the Adjusted GM% rule below. */}
+      {/* Financing assumptions — applied to the Adjusted GM% rule below.
+          Full-width, under the Preset/Combination grid. */}
       <FinancingSection
         financing={financing}
         totalCost={totalFinancingCost}
         skuCount={skus.length}
       />
 
-      {/* Rule cards */}
-      <section className="space-y-3">
+      {/* Rule cards — in a grid so the metric previews sit side by side. */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
         {RULES.map((rule) => (
           <RuleCard
             key={rule.id}
@@ -400,23 +417,6 @@ export function DecisionRulesPanel() {
             ctx={ctx}
           />
         ))}
-      </section>
-
-      {/* Combined distribution */}
-      <section className="rounded-xl border border-rule bg-bg-2 px-4 py-3" data-testid="decision-rules-final">
-        <h3 className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
-          {t("decision_rules.final_distribution", "Final bucket distribution (combined)")}
-        </h3>
-        <div className="flex items-baseline gap-4 flex-wrap">
-          <FinalCount label={t("buckets.wind_down", "Wind down")} count={combined.wind_down} dot="bg-[#5CD3C5]" />
-          <FinalCount label={t("buckets.watch",     "Watch")}     count={combined.watch}     dot="bg-[#5CD3C5]" />
-          <FinalCount label={t("buckets.protect",   "Protect")}   count={combined.protect}   dot="bg-[#5CD3C5]" />
-          {skus.length > 0 && (
-            <span className="ml-auto text-[11px] text-ink-mute tabular-nums">
-              {skus.length.toLocaleString("en-GB")} {t("decision_rules.skus_total", "SKUs total")}
-            </span>
-          )}
-        </div>
       </section>
     </div>
   );
@@ -730,16 +730,13 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
     ? `${getPreset(activePresetId)?.label ?? activePresetId}${drifted ? " · modified" : ""}`
     : null;
 
-  function handleApply() {
-    if (!previewPreset) return;
-    applyPresetById(previewPreset.id, skus);
-  }
+  // The explicit "Apply preset" button (and its needs-data hint) was
+  // removed 2026-07-24 — picking a preset in the dropdown applies it
+  // immediately (no-op while no dataset is loaded, since percentile
+  // thresholds need SKU data).
 
   return (
-    <section
-      className="rounded-xl border border-rule bg-bg-2/40 px-4 py-3.5 space-y-3"
-      data-testid="preset-picker"
-    >
+    <section className="space-y-3" data-testid="preset-picker">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h3 className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
           {t("decision_rules.preset.title", "Preset")}
@@ -757,7 +754,11 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
       <div className="flex flex-col gap-2">
         <select
           value={selected}
-          onChange={(e) => setSelected(e.currentTarget.value)}
+          onChange={(e) => {
+            const id = e.currentTarget.value;
+            setSelected(id);
+            applyPresetById(id, skus);
+          }}
           data-testid="preset-select"
           className="
             h-9 px-3 rounded-lg
@@ -775,28 +776,6 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
             {previewPreset.description}
           </p>
         )}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleApply}
-            data-testid="preset-apply"
-            disabled={skus.length === 0}
-            className="
-              inline-flex items-center gap-1.5
-              h-8 px-3 rounded-lg text-[12px] font-medium
-              bg-brand-tint text-brand-d hover:bg-brand-tint/80
-              transition-colors
-              disabled:opacity-50 disabled:cursor-not-allowed
-            "
-          >
-            {t("decision_rules.preset.apply", "Apply preset")}
-          </button>
-          {skus.length === 0 && (
-            <span className="text-[10.5px] text-ink-mute">
-              {t("decision_rules.preset.needs_data", "Load a dataset to apply (percentiles need SKU data).")}
-            </span>
-          )}
-        </div>
       </div>
     </section>
   );
@@ -837,7 +816,7 @@ function FinancingSection({
 
   return (
     <section
-      className="rounded-xl border border-rule bg-bg-2/40 px-4 py-3.5 space-y-3"
+      className="border-t border-rule/60 pt-4 space-y-3"
       data-testid="financing-section"
     >
       <div className="flex items-center justify-between gap-3 flex-wrap">

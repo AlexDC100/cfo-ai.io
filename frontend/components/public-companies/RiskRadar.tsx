@@ -190,21 +190,7 @@ export function RiskRadar({ onDrillToCategory }: Props) {
         })}
       </div>
 
-      {/* ── Disclosure footer ─────────────────────────────────────────── */}
-      <div className="rounded-xl border border-rule/60 bg-bg-2/40 p-3.5 text-[11.5px] text-ink-mute leading-relaxed">
-        Scores derived from the in-repo sector risk library + cross-sector
-        themes (AI datacenter, Taiwan, Red Sea, EV demand, oil, rates,
-        defense, GLP-1, datacenter power, consumer slowdown). Per-ticker
-        scores reflect company-specific exposure profiles where available
-        (SEC filings, BVB overrides, operator-curated), sector defaults
-        otherwise — see the source chip on each row.{" "}
-        {feed_status === "sector_model_only" && (
-          <>
-            Live news feed not connected — when a provider is wired up,
-            real-time signals will overlay these defaults.
-          </>
-        )}
-      </div>
+      {/* Disclosure footer removed 2026-07-25 per operator directive. */}
     </div>
   );
 }

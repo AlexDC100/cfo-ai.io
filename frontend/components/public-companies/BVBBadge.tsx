@@ -30,9 +30,12 @@ interface Props {
 }
 
 export function BVBBadge({ variant = "inline", label = "BVB · RON" }: Props) {
+  // Section variant (page-title placement) is larger and set in the
+  // app's mono face — matching the uppercase mono eyebrows/labels —
+  // per the 2026-07-24 directive. Inline rows keep the compact sans.
   const sizeCls =
     variant === "section"
-      ? "text-[11.5px] px-2 py-0.5"
+      ? "text-[14px] px-2.5 py-1 font-mono"
       : "text-[10.5px] px-1.5 py-px";
   return (
     <span
@@ -40,9 +43,8 @@ export function BVBBadge({ variant = "inline", label = "BVB · RON" }: Props) {
       className={`
         inline-flex items-center gap-1 rounded-full
         font-medium tracking-[0.02em] uppercase
-        bg-[#E6F7F4] text-[#2AA89B]
-        ring-1 ring-inset ring-[#2AA89B]/15
-        dark:bg-[#1B7268]/30 dark:text-[#8FE3D9] dark:ring-[#5CD3C5]/20
+        ask-ai-anim-fill [animation-duration:10s]
+        border border-brand/40 text-ink
         ${sizeCls}
       `}
     >

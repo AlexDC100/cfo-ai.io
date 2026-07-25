@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/sheet";
 import {
   formatRatio,
-  verdictColor,
   verdictLabel,
   type Ratio,
   type RatioBundle,
@@ -132,9 +131,10 @@ function DrawerBody({
   onPickRelated: (key: string) => void;
   onClose: () => void;
 }) {
-  const c = verdictColor(ratio.verdict);
   const focusLine = focusForVerdict(ratio.verdict, ratio.label);
-  const [explainOpen, setExplainOpen] = useState(false);
+  // Default to SHOWING the explanation (2026-07-25) — the detail deep-dive
+  // opens expanded; the toggle collapses it.
+  const [explainOpen, setExplainOpen] = useState(true);
 
   // Determine the primary denominator / source bucket for "Open in
   // full report" deep-linking. Picks the LAST `value` part in the
@@ -158,9 +158,7 @@ function DrawerBody({
         <div aria-hidden className="pointer-events-none absolute -top-12 -right-10 h-44 w-44 rounded-full bg-brand/10 blur-3xl" />
 
         <div className="relative">
-          <div className="flex items-center gap-2 mb-2.5">
-            <CategoryChip category={knowledge.category} />
-          </div>
+          {/* Category chip ("Liquidity" / "Profitability" / …) removed 2026-07-25. */}
           <h2 className="text-[22px] sm:text-[24px] leading-tight font-semibold tracking-[-0.01em] text-ink">
             {ratio.label}
           </h2>
@@ -180,8 +178,13 @@ function DrawerBody({
               </div>
             </div>
             <span
-              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-              style={{ backgroundColor: c.bg, color: c.text }}
+              className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-full border text-ink text-[10.5px] font-semibold uppercase tracking-[0.08em] anim-fill-verdict ${
+                ratio.verdict === "critical"
+                  ? "anim-fill-red border-red-500/40"
+                  : ratio.verdict === "watch"
+                    ? "anim-fill-amber border-amber-500/40"
+                    : "anim-fill-green border-brand/40"
+              }`}
             >
               {verdictLabel(ratio.verdict)}
             </span>
@@ -215,12 +218,8 @@ function DrawerBody({
           </div>
         </Section>
 
-        {/* Action buttons */}
+        {/* Action buttons ("Open in full report" removed 2026-07-25). */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <ReportButton
-            onClose={onClose}
-            primarySource={primarySource}
-          />
           <ExplainToggleButton
             open={explainOpen}
             onToggle={() => setExplainOpen((s) => !s)}

@@ -14,6 +14,9 @@ import { LearningPopover } from "./LearningPopover";
 
 export function PopoverStackRenderer() {
   const { stack, pop, clear } = usePopoverStack();
+  // The bottom entry decides the presentation for the entire stack, so a
+  // drill-down opened from inside a right sheet stays a right sheet.
+  const presentation = stack[0]?.presentation ?? "popover";
   return (
     <AnimatePresence>
       {stack.map((entry, idx) => (
@@ -23,6 +26,7 @@ export function PopoverStackRenderer() {
           depth={idx}
           isTop={idx === stack.length - 1}
           stackSize={stack.length}
+          presentation={presentation}
           onBack={pop}
           onClose={clear}
         />

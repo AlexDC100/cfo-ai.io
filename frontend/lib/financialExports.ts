@@ -206,6 +206,11 @@ export function buildExcelWorkbook(s: Statements, currencyCtx?: ExportCurrencyCo
 
   // ─ Valuation ─────────────────────────────────────────────────────────────
   const valRows: (string | number)[][] = [
+    // Honesty note (2026-07-25): market inputs (Rf/ERP/beta, growth, bond
+    // yield) are standing RO-market defaults unless supplied — a trial
+    // balance carries no market data. Everything else derives from the upload.
+    ["Note: market inputs (risk-free rate, ERP, beta, growth, bond yield) are standing defaults, not derived from the uploaded trial balance. Illustrative cross-check."],
+    [],
     ["Cost of Capital"],
     ["Risk-free rate", `${(wacc.riskFreeRate * 100).toFixed(2)}%`],
     ["Equity risk premium", `${(wacc.equityRiskPremium * 100).toFixed(2)}%`],

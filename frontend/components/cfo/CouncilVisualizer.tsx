@@ -26,17 +26,42 @@ export function CouncilVisualizer({
   documentId,
   scale = 0.42,
   height = 320,
+  hideLabels = false,
+  paused = false,
+  forceFinal = false,
 }: {
   documentId: string | null;
   scale?: number;
   height?: number;
+  /** Hide the council's text layers (member name/role labels + the
+   *  phase line) — the fullscreen scanning view shows the sphere pure,
+   *  with the page's own pipeline steps carrying the narration. */
+  hideLabels?: boolean;
+  /** Freeze the sphere's simulation clock (CouncilSphere's own `paused`
+   *  prop) and desaturate it — the cancel-confirmation state. */
+  paused?: boolean;
+  /** Force the sphere into its END POSE (contracting settle + core flare)
+   *  regardless of the council stream — driven by the scan view when the
+   *  pipeline is "almost done", so the visual resolves in step with the
+   *  status even in the debug simulator (which emits no council stream). */
+  forceFinal?: boolean;
 }) {
   const stream = useCouncilStream(documentId);
   const sphereRef = useRef<SphereHandle | null>(null);
-  const drained = useRef(0);
+  // -1 = "not seeded yet". The stream cache survives this component's
+  // unmount (see useCouncilStream), so on a REMOUNT mid-scan the queue
+  // already holds history — seed past it instead of replaying the whole
+  // backlog as one burst of packets.
+  const drained = useRef(-1);
 
   // Drain new finding/verdict packets into the sphere's imperative handle.
   useEffect(() => {
+    if (drained.current === -1) {
+      drained.current = stream.packets.length
+        ? stream.packets[stream.packets.length - 1].id
+        : 0;
+      return;
+    }
     const sphere = sphereRef.current;
     if (!sphere || typeof sphere.spawnPacket !== "function") return;
     for (const pk of stream.packets) {
@@ -49,7 +74,9 @@ export function CouncilVisualizer({
 
   return (
     <div
-      className="relative w-full overflow-hidden"
+      className={`relative w-full overflow-hidden transition-[filter,opacity] duration-300 ${
+        hideLabels ? "[&_.csx-label]:hidden [&_.csx-phase]:hidden" : ""
+      } ${paused ? "grayscale opacity-70" : ""}`}
       style={{ height }}
       data-testid="council-visualizer"
       aria-label="AI council reviewing the extraction"
@@ -68,9 +95,10 @@ export function CouncilVisualizer({
             members={stream.members}
             phase={stream.phase}
             debate={stream.debate}
-            merging={stream.merging}
-            contracting={stream.contracting}
+            merging={stream.merging || forceFinal}
+            contracting={stream.contracting || forceFinal}
             storyOn={false}
+            paused={paused}
           />
         </div>
       </div>

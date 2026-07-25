@@ -39,6 +39,11 @@ export interface PopoverStackEntry {
   triggerRect?: DOMRect;
   /** When set, overrides the concept's default format. */
   formatOverride?: import("@/lib/learning/concepts/_schema").ValueFormat;
+  /** How the bottom-most entry is presented. "popover" (default) anchors a
+   *  floating panel to the trigger; "sheet" slides a panel in from the right
+   *  edge (the dashboard KPI cards use this). Only the bottom entry's value is
+   *  read — the whole stack, including drill-downs, follows it. */
+  presentation?: "popover" | "sheet";
 }
 
 interface PopoverStackContextValue {

@@ -13,6 +13,11 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   talks to it over `**/api/cfo/***` via `@/lib/cfoApi.ts`. Engine changes follow
   the deploy protocol in the **root** `CLAUDE.md §14` (host source → rebuild;
   never `docker cp`).
+  **Exception: Ask CFO AI chat** (`cfoApi.chatLlm`) does NOT go to the engine —
+  it calls a Supabase Edge Function (`supabase/functions/chat-llm/`) directly,
+  so chat works with the engine fully stopped. Everything else (Today/Cash/
+  Profit/Products/decisions/exports/pipeline) still needs the engine running.
+  See root `CLAUDE.md` §"Milestone D" for why and what's duplicated where.
 
 ## Commands (run from repo root)
 - `npm run dev` — Vite dev server · `npm run build` — prod build
@@ -48,6 +53,10 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   `<main>`), persistent left **`Sidebar`** (240px, `lg:pl-[268px]`, collapses to a
   rail; mobile = Sheet drawer), right slide-over panels (Docs `⌘D`, Datasets
   `⌘⇧D`, Ask CFO AI panel), Command Center (`⌘K` search).
+- `TopHeader` also renders **`BackendStatusIndicator`** (+ `lib/useBackendStatus.ts`,
+  polls `${API_URL}/health` every 20s + on focus/online) — a dot showing whether the
+  FastAPI **engine** is reachable. Scoped to the engine only; it says nothing about
+  Ask CFO AI chat, which runs on a Supabase Edge Function and works engine-down.
 - Content is clamped to `max-w-[1760px]` **except `/chat`**, which opts out so the
   chat scroller reaches the screen's right edge.
 

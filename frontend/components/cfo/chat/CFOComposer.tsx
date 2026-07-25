@@ -17,6 +17,7 @@ import { AnimatePresence } from "framer-motion";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Paperclip, ArrowUp, CornerDownLeft } from "lucide-react";
 import { CFOFilePreview } from "./CFOFilePreview";
+import { readDraft, writeDraft } from "./chatDrafts";
 import type { ChatAttachment } from "./types";
 
 export interface CFOComposerHandle {
@@ -43,6 +44,12 @@ interface Props {
    *  Ask CFO AI daily or monthly cap has been reached. Spec literal:
    *  "disable + message if blocked, no generic error". */
   blockedReason?: { headline: string; body: string; href?: string } | null;
+  /** Per-conversation draft persistence (2026-07-25). When set, the
+   *  composer initializes from the saved draft for this key and saves
+   *  every keystroke back, so switching conversations (the shell keys
+   *  the composer by conversation id) restores each chat's unsent text.
+   *  Sending or clearing the text removes the draft. */
+  draftKey?: string | null;
 }
 
 const ACCEPT = [
@@ -66,6 +73,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     disclosure,
     compact = false,
     blockedReason = null,
+    draftKey = null,
   },
   ref,
 ) {
@@ -74,20 +82,33 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   const hardDisabled = pending || !!blockedReason;
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [text, setText] = useState("");
+  // Restore this conversation's unsent draft on mount. The shell keys the
+  // composer by conversation id, so switching chats remounts with the
+  // right draft — no cross-conversation state to reconcile here.
+  const [text, setText] = useState(() => (draftKey ? readDraft(draftKey) : ""));
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+
+  // Persist the draft on every change. Writing "" removes the entry, so
+  // sent/cleared messages don't linger as phantom drafts.
+  useEffect(() => {
+    if (draftKey) writeDraft(draftKey, text);
+  }, [draftKey, text]);
 
   // Expose imperative handle so external callers (e.g. AppShell's
   // openAskCfoAi when already on /chat) can focus the live composer
   // without remounting it.
   useImperativeHandle(ref, () => ({
-    focus: () => taRef.current?.focus(),
+    // preventScroll — programmatic focus fires on TAB ENTRY (openAskCfoAi
+    // navigates here then focuses); the composer is sticky-bottom and
+    // already on screen, so letting the browser scroll it into view just
+    // makes the page visibly move the moment the tab opens.
+    focus: () => taRef.current?.focus({ preventScroll: true }),
     setText: (t: string) => {
       setText(t);
       // Defer focus until React commits the value so the cursor lands
       // at the end of the inserted text instead of position 0.
       window.setTimeout(() => {
-        taRef.current?.focus();
+        taRef.current?.focus({ preventScroll: true });
         if (taRef.current) {
           taRef.current.selectionStart = taRef.current.selectionEnd = taRef.current.value.length;
         }
@@ -109,6 +130,10 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     if (!trimmed || hardDisabled) return;
     onSubmit(trimmed, attachments);
     setText("");
+    // Clear the draft synchronously too — the first message of a new
+    // session changes the conversation id (remounting this composer),
+    // which can unmount us before the persist effect sees text = "".
+    if (draftKey) writeDraft(draftKey, "");
     setAttachments([]);
   }
 
@@ -209,9 +234,14 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           onFocus={(e) => {
-            // iOS Safari: when virtual keyboard opens, the composer can be
-            // pushed off-screen. Wait a tick for the keyboard animation to
-            // settle, then scroll the textarea into view.
+            // iOS Safari: when the virtual keyboard opens, the composer can
+            // be pushed off-screen. Wait a tick for the keyboard animation
+            // to settle, then scroll the textarea into view. TOUCH DEVICES
+            // ONLY — on desktop there is no keyboard, and this smooth
+            // scroll fired on the programmatic focus that happens when the
+            // Ask CFO AI button opens the tab, visibly gliding the page on
+            // entry (2026-07-25 probe).
+            if (!window.matchMedia("(pointer: coarse)").matches) return;
             const el = e.currentTarget;
             window.setTimeout(() => {
               try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
@@ -271,10 +301,9 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             aria-label="Send message"
             className="
               inline-flex items-center justify-center h-8 w-8 rounded-lg
-              bg-brand text-[#06302b]
-              hover:bg-brand-dark hover:text-white
-              disabled:bg-bg-2 disabled:text-ink-mute disabled:cursor-not-allowed
-              transition-colors
+              ask-ai-anim-fill [animation-duration:10s]
+              border border-brand/40 text-ink
+              disabled:[background-image:none] disabled:animate-none disabled:bg-bg-2 disabled:border-transparent disabled:text-ink-mute disabled:cursor-not-allowed
             "
           >
             <ArrowUp size={14} strokeWidth={2.25} />

@@ -13,7 +13,6 @@
 
 import { Link } from "react-router-dom";
 import { Logo } from "@/components/cfo/Logo";
-import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 
 type RoadmapStatus = "research" | "in-design" | "planning" | "backlog";
 
@@ -105,7 +104,6 @@ export default function RoadmapPage() {
           </span>
         </Link>
         <div className="flex items-center gap-3">
-          <ThemeToggle compact />
           <Link to="/pricing" className="text-[13px] text-ink-soft hover:text-ink">
             Pricing
           </Link>

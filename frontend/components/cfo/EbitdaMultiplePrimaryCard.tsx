@@ -42,6 +42,8 @@ interface Props {
   /** Optional: scroll target for the Reported→Core bridge so the
    *  "Bridge" link in the provenance line jumps there. */
   reconciliationAnchorId?: string;
+  /** Hide the inline "Guide me" button (dashboard consolidates guides). */
+  hideGuide?: boolean;
 }
 
 // Spec-mandated slider bounds. Hard floor at 2× (no negative or near-
@@ -55,7 +57,7 @@ const MULTIPLE_FALLBACK_DEFAULT = 7; // cross-industry SME median when no benchm
 const MULTIPLE_STEP = 0.1;
 
 export function EbitdaMultiplePrimaryCard({
-  metrics, valuation, currency = "RON", reconciliationAnchorId = "ebitda-bridge",
+  metrics, valuation, currency = "RON", reconciliationAnchorId = "ebitda-bridge", hideGuide = false,
 }: Props) {
   const { ebitda, balance, provenance } = metrics;
   const coreEbitda = ebitda.core;
@@ -133,11 +135,13 @@ export function EbitdaMultiplePrimaryCard({
         </div>
         {/* F5.0 Step 4 — Valuation page guide trigger. Auto-opens for
             first-time Guided-mode users; always-available CTA otherwise. */}
-        <GuideMeButton
-          pageId="valuation"
-          title="Valuation"
-          steps={VALUATION_GUIDE}
-        />
+        {!hideGuide && (
+          <GuideMeButton
+            pageId="valuation"
+            title="Valuation"
+            steps={VALUATION_GUIDE}
+          />
+        )}
       </div>
 
       {/* ── Headline equity number ─────────────────────────────────── */}

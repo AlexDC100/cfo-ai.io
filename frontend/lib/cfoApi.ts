@@ -8,6 +8,32 @@
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
+// Ask CFO AI chat runs as a Supabase Edge Function (supabase/functions/chat-llm),
+// not the FastAPI engine — it needs no backend running at all, locally or in
+// prod. Every other cfoApi call still goes through the engine at API_URL.
+const SUPABASE_FUNCTIONS_URL = (() => {
+  const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  return base ? `${base.replace(/\/$/, "")}/functions/v1` : undefined;
+})();
+
+/** Bare liveness probe against the FastAPI engine's `/health` — no auth,
+ *  no `/api` prefix, deliberately bypasses the `call()`/`callUrl()`
+ *  wrappers above (no JWT/org headers to attach, and a failed probe is an
+ *  expected, routine outcome here, not an error to throw). Used by
+ *  `useBackendStatus` to drive the TopHeader connection indicator. */
+export async function checkBackendHealth(timeoutMs = 4000): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_URL}/health`, { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type Bucket = "PROTECT" | "WATCH" | "FIX" | "REDUCE" | "LIQUIDATE" | "SCALE";
 export type Urgency = "low" | "medium" | "high" | "critical";
 export type RecStatus =
@@ -202,7 +228,7 @@ export class CfoApiError extends Error {
   }
 }
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function callUrl<T>(url: string, init: RequestInit = {}): Promise<T> {
   // Pricing V3 — attach the Supabase JWT to every cfoApi call so
   // server-side caps (chat reserve/commit) can resolve the user.
   // Endpoints that don't require auth simply ignore the header.
@@ -233,7 +259,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
   } catch { /* supabase not loaded — proceed unauthenticated */ }
 
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers });
+  const res = await fetch(url, { ...init, headers });
   if (!res.ok) {
     let detail: unknown = `${res.status} ${res.statusText}`;
     try {
@@ -251,6 +277,10 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new CfoApiError(msg, res.status, detail);
   }
   return (await res.json()) as T;
+}
+
+function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return callUrl<T>(`${API_URL}${path}`, init);
 }
 
 export const cfoApi = {
@@ -281,11 +311,10 @@ export const cfoApi = {
       body: JSON.stringify({ status, owner }),
     }),
 
-  chat: (req: ChatTurnRequest) =>
-    call<ChatTurnResponse>("/api/cfo/chat", {
-      method: "POST",
-      body: JSON.stringify(req),
-    }),
+  // `chat` (structured intent-block turn, POST /api/cfo/chat) was removed
+  // 2026-07-24 — it was defined here but never actually invoked anywhere
+  // in the app, and the backend route it called is now deleted too
+  // (see root CLAUDE.md "Backend cleanup"). Ask CFO AI uses `chatLlm` below.
 
   /** Conversational chat backed by Claude Opus 4.7. Multi-turn — pass the
    *  full message history each call. Returns plain markdown text.
@@ -352,15 +381,29 @@ export const cfoApi = {
       net_debt_to_ebitda?: number | null;
       source?: "nasdaq" | "demo" | null;
     };
-  }) =>
-    call<{
-      answer: string;
-      model: string | null;
-      usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number } | null;
-    }>("/api/cfo/chat/llm", {
-      method: "POST",
-      body: JSON.stringify(req),
-    }),
+  }, signal?: AbortSignal) =>
+    (() => {
+      if (!SUPABASE_FUNCTIONS_URL) {
+        return Promise.reject(
+          new CfoApiError(
+            "Chat isn't configured — VITE_SUPABASE_URL is missing.",
+            0,
+            null,
+          ),
+        );
+      }
+      return callUrl<{
+        answer: string;
+        model: string | null;
+        usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number } | null;
+      }>(`${SUPABASE_FUNCTIONS_URL}/chat-llm`, {
+        method: "POST",
+        body: JSON.stringify(req),
+        // Deleting the conversation mid-reply aborts the request (see
+        // chatPendingStore.abortChatReply) so "thinking" stops instantly.
+        signal,
+      });
+    })(),
 
   chatPrompts: () =>
     call<{ groups: Record<string, string[]> }>("/api/cfo/chat/prompts"),
@@ -379,27 +422,14 @@ export const cfoApi = {
         body: JSON.stringify(req),
       },
     ),
+
+  /** Delete a month (period): hard-deletes the period + all derivatives and
+   *  soft-deletes its attached documents (recoverable from "Recently deleted"
+   *  for 30 days). Backend: DELETE /api/period/{id}. */
+  deletePeriod: (periodId: string) =>
+    call<{ ok: boolean; period_id: string; documents_soft_deleted: number }>(
+      `/api/period/${encodeURIComponent(periodId)}`,
+      { method: "DELETE" },
+    ),
 };
 
-// ── Chat types ──────────────────────────────────────────────────────────
-
-export interface ChatTurnRequest extends TodayRequest {
-  question: string;
-  page?: string;
-}
-
-export interface ChatStat {
-  label: string;
-  value: string;
-}
-
-export interface ChatBlockResponse {
-  text?: string;
-  stats?: ChatStat[];
-  list?: string[];
-}
-
-export interface ChatTurnResponse {
-  answer: { blocks: ChatBlockResponse[] };
-  context: { page: string; company: string; summary: ExecutiveSummary };
-}

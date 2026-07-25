@@ -18,6 +18,7 @@ import {
   Check,
   ChevronRight,
   Download,
+  Eye,
   FileText,
   Loader2,
   MoreHorizontal,
@@ -866,6 +867,19 @@ function DocRowItem({ doc }: { doc: DocRow }) {
         <span className={`text-[9.5px] uppercase tracking-[0.06em] font-medium shrink-0 ${doc.status === "failed" ? "text-red-700" : "text-[#2AA89B]"}`}>
           · {doc.status}
         </span>
+      )}
+      {!renaming && (
+        <button
+          type="button"
+          onClick={() => void handleDownload()}
+          disabled={downloading}
+          aria-label={`View ${doc.display_name}`}
+          title="View file"
+          data-testid="doc-view"
+          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity h-5 w-5 inline-flex items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-40"
+        >
+          <Eye size={11} strokeWidth={1.75} />
+        </button>
       )}
       {!renaming && (
         <DropdownMenu>

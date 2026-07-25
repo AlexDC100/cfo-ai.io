@@ -33,10 +33,25 @@ import { useState } from "react";
 
 type Variant = "compact" | "prominent";
 
+/** Which surface hosts the card — flips the sheet summary's emphasis.
+ *  Products: Trading + DIO required, Trial Balance optional. Dashboard:
+ *  the Trial Balance sheet is THE required input (the full analysis is
+ *  rebuilt from it); Trading/DIO only feed /products. Same workbook
+ *  either way. */
+type TemplateContext = "products" | "dashboard";
+
 interface Props {
   variant?: Variant;
+  context?: TemplateContext;
   /** Track downloads — caller can wire this to analytics. */
   onDownload?: () => void;
+  /** Extra content rendered at the card's foot (prominent variant only)
+   *  — e.g. the dashboard's example-trial-balance downloads. */
+  extra?: React.ReactNode;
+  /** Replaces the default Download/View action row (prominent variant
+   *  only) — the dashboard renders its example trial balances here
+   *  instead of the template buttons. */
+  actions?: React.ReactNode;
 }
 
 const TEMPLATE_HREF = "/templates/cfo_ai_upload_template.xlsx";
@@ -48,7 +63,11 @@ const TEMPLATE_FILENAME = "cfo_ai_upload_template.xlsx";
 // render xlsx inline), so we parse every sheet with SheetJS and write an HTML
 // preview instead. The tab is opened synchronously inside the click gesture
 // (before the first await) so it isn't popup-blocked, then filled once parsed.
-async function previewTemplateInNewTab(): Promise<void> {
+async function previewWorkbookInNewTab(
+  href: string,
+  filename: string,
+  subtitle: string,
+): Promise<void> {
   const tab = window.open("", "_blank");
   if (tab) {
     tab.document.write(
@@ -57,7 +76,7 @@ async function previewTemplateInNewTab(): Promise<void> {
     );
   }
   try {
-    const res = await fetch(TEMPLATE_HREF);
+    const res = await fetch(href);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = await res.arrayBuffer();
     const XLSX = await import("xlsx");
@@ -66,14 +85,14 @@ async function previewTemplateInNewTab(): Promise<void> {
       .map((name) => `<h2>${name}</h2>${XLSX.utils.sheet_to_html(wb.Sheets[name])}`)
       .join("");
     const doc =
-      `<!doctype html><html><head><meta charset="utf-8"><title>${TEMPLATE_FILENAME}</title><style>` +
+      `<!doctype html><html><head><meta charset="utf-8"><title>${filename}</title><style>` +
       "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
       "h1{font-size:15px;margin:0 0 4px;color:#1B7268}" +
       "h2{font-size:13px;margin:20px 0 8px;color:#1B7268}" +
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:8px}" +
       "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
-      `</style></head><body><h1>${TEMPLATE_FILENAME} — upload template</h1>${sections}</body></html>`;
+      `</style></head><body><h1>${filename} — ${subtitle}</h1>${sections}</body></html>`;
     if (tab) {
       tab.document.open();
       tab.document.write(doc);
@@ -91,7 +110,17 @@ async function previewTemplateInNewTab(): Promise<void> {
   }
 }
 
-export function TemplateDownloadCard({ variant = "compact", onDownload }: Props) {
+function previewTemplateInNewTab(): Promise<void> {
+  return previewWorkbookInNewTab(TEMPLATE_HREF, TEMPLATE_FILENAME, "upload template");
+}
+
+export function TemplateDownloadCard({
+  variant = "compact",
+  context = "products",
+  onDownload,
+  extra,
+  actions,
+}: Props) {
   const { t } = useTranslation();
   // Inline "what's in the template" disclosure — kept collapsed by
   // default so the card stays small. Operators who care about the
@@ -104,7 +133,8 @@ export function TemplateDownloadCard({ variant = "compact", onDownload }: Props)
         data-testid="template-download-card-prominent"
         className="
           relative overflow-hidden rounded-2xl
-          border border-brand/25 bg-gradient-to-br from-brand/[0.06] to-bg-2/40
+          ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.47px] [animation-duration:28.8s] [--af-a1:0.14] [--af-a2:0.06]
+          border border-brand/40
           px-5 py-4 sm:px-6 sm:py-5
         "
       >
@@ -114,63 +144,110 @@ export function TemplateDownloadCard({ variant = "compact", onDownload }: Props)
           className="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-brand/10 blur-3xl"
         />
 
+        {/* Oversized decorative mark — pinned to the bottom-left corner
+            and clipped by the card's overflow-hidden, same treatment as
+            the dropzones' upload mark. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-20 -left-12 text-ink opacity-[0.08]"
+        >
+          <FileSpreadsheet size={300} strokeWidth={1} />
+        </div>
+
         <div className="relative flex items-start gap-4">
-          <div className="
-            shrink-0 h-11 w-11 rounded-xl
-            bg-gradient-to-br from-brand/20 to-brand-d/20
-            text-brand-d grid place-items-center
-            ring-1 ring-brand/20
-          ">
-            <FileSpreadsheet size={20} strokeWidth={1.75} />
-          </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-[14.5px] font-semibold text-ink leading-tight">
+            <h3 className="font-serif text-[24px] text-ink leading-tight tracking-[-0.01em]">
               {t("upload.template.title")}
             </h3>
             <p className="mt-1.5 text-[12.5px] text-ink-soft leading-relaxed">
               {t("upload.template.description")}
             </p>
 
-            <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              <a
-                href={TEMPLATE_HREF}
-                download={TEMPLATE_FILENAME}
-                onClick={onDownload}
-                data-testid="template-download-link"
-                className="
-                  inline-flex items-center gap-1.5
-                  h-9 px-3.5 rounded-lg
-                  bg-brand text-bg font-medium text-[12.5px]
-                  shadow-[0_6px_16px_-6px_rgba(42,168,155,0.55)]
-                  hover:brightness-110 hover:shadow-[0_8px_20px_-6px_rgba(42,168,155,0.7)]
-                  transition-all
-                  ring-1 ring-inset ring-white/15
-                "
-              >
-                <Download size={13} strokeWidth={2.25} />
-                {t("upload.template.download")}
-              </a>
-              <button
-                type="button"
-                onClick={() => void previewTemplateInNewTab()}
-                data-testid="template-view"
-                className="
-                  inline-flex items-center gap-1.5
-                  h-9 px-3.5 rounded-lg
-                  border border-rule bg-surface
-                  text-[12.5px] font-medium text-ink
-                  hover:bg-bg-2/60 hover:border-rule-strong
-                  transition-colors
-                "
-              >
-                <ExternalLink size={13} strokeWidth={2} />
-                View
-              </button>
-            </div>
+            {/* Default action — the template as a LIST-ITEM row (same
+                style as the dashboard's example-trial-balance rows;
+                replaced the plain Download/View button pair 2026-07-24).
+                Callers can still override via `actions`. */}
+            {actions ?? (
+              <div className="mt-3.5 space-y-2">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-medium text-ink truncate">
+                      Official upload template{" "}
+                      <span className="text-ink-mute font-normal">(XLSX)</span>
+                    </div>
+                    <div className="text-[10.5px] text-ink-mute">
+                      Exact sheet names, column headers, and row offsets the
+                      parser expects.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void previewTemplateInNewTab()}
+                      data-testid="template-view"
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                    >
+                      <ExternalLink size={12} strokeWidth={2} />
+                      View
+                    </button>
+                    <a
+                      href={TEMPLATE_HREF}
+                      download={TEMPLATE_FILENAME}
+                      onClick={onDownload}
+                      data-testid="template-download-link"
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                    >
+                      <Download size={12} strokeWidth={2} />
+                      Download
+                    </a>
+                  </div>
+                </div>
+                {/* Sales-analysis example — relocated here from the
+                    "Expected format" card (2026-07-24). */}
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-medium text-ink truncate">
+                      Sales analysis example{" "}
+                      <span className="text-ink-mute font-normal">(XLSX)</span>
+                    </div>
+                    <div className="text-[10.5px] text-ink-mute">
+                      Anonymized example — match these columns; fictional data.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void previewWorkbookInNewTab(
+                          "/examples/example_products_trading.xlsx",
+                          "example_products_trading.xlsx",
+                          "sales analysis example (fictional data)",
+                        )
+                      }
+                      data-testid="view-sales-template"
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                    >
+                      <ExternalLink size={12} strokeWidth={2} />
+                      View
+                    </button>
+                    <a
+                      href="/examples/example_products_trading.xlsx"
+                      download="example_products_trading.xlsx"
+                      data-testid="download-sales-template"
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                    >
+                      <Download size={12} strokeWidth={2} />
+                      Download
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* "What's inside" — always shown now (no longer behind a toggle). */}
-            <FormatSummary />
+            <FormatSummary context={context} />
+            {extra}
           </div>
         </div>
       </motion.div>
@@ -237,7 +314,7 @@ export function TemplateDownloadCard({ variant = "compact", onDownload }: Props)
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <FormatSummary compact />
+              <FormatSummary compact context={context} />
             </motion.div>
           )}
         </div>
@@ -252,23 +329,60 @@ export function TemplateDownloadCard({ variant = "compact", onDownload }: Props)
 // (scripts/generate_upload_template.py); update both together.
 // ──────────────────────────────────────────────────────────────────────
 
-function FormatSummary({ compact = false }: { compact?: boolean }) {
+function FormatSummary({
+  compact = false,
+  context = "products",
+}: {
+  compact?: boolean;
+  context?: TemplateContext;
+}) {
   const { t } = useTranslation();
   const padClass = compact ? "mt-2 pt-2.5" : "mt-3 pt-3";
   const textClass = compact ? "text-[11px]" : "text-[12px]";
   const labelClass = compact ? "text-[10.5px]" : "text-[11.5px]";
 
-  const sheets: Array<{ name: string; required: boolean; key: string }> = [
-    { name: "Trading",       required: true,  key: "trading" },
-    { name: "DIO",           required: true,  key: "dio" },
-    { name: "Trial Balance", required: false, key: "trialBalance" },
-  ];
+  // Surface-specific content. Products describes the multi-sheet upload
+  // template's sheets. The Dashboard card's actions are the two EXAMPLE
+  // trial-balance files, so its summary describes what those files
+  // actually contain (their column structures) — no required/optional
+  // tags, both are equivalent examples of accepted formats.
+  const sheets: Array<{
+    name: string;
+    /** null = no Required/Optional tag (file rows, not sheet rows). */
+    required: boolean | null;
+    key: string;
+    fallback?: string;
+  }> =
+    context === "dashboard"
+      ? [
+          {
+            name: "Multi-column format",
+            required: null,
+            key: "exampleMultiCol",
+            fallback:
+              "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
+          },
+          {
+            name: "Standard SAGA format",
+            required: null,
+            key: "exampleSaga",
+            fallback:
+              "The compact SAGA export: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances.",
+          },
+        ]
+      : [
+          { name: "Trading",       required: true,  key: "trading" },
+          { name: "DIO",           required: true,  key: "dio" },
+          { name: "Trial Balance", required: false, key: "trialBalance" },
+        ];
 
   return (
     <div className={`${padClass} border-t border-rule/60 space-y-2`}>
       <div className={`flex items-center gap-1.5 ${labelClass} uppercase tracking-wide text-ink-mute font-medium`}>
         <Info size={compact ? 10 : 11} strokeWidth={2} />
-        {t("upload.template.whatsInside")}
+        {context === "dashboard"
+          ? t("upload.template.insideExamples", "Inside the example files")
+          : t("upload.template.whatsInside")}
       </div>
       <ul className={`space-y-1.5 ${textClass} text-ink-soft leading-snug`}>
         {sheets.map((s) => (
@@ -281,25 +395,34 @@ function FormatSummary({ compact = false }: { compact?: boolean }) {
               {s.name}
             </span>
             <span className="flex-1">
-              <span
-                className={
-                  s.required
-                    ? "text-brand-d font-medium"
-                    : "text-ink-mute italic"
-                }
-              >
-                {s.required
-                  ? t("upload.template.required")
-                  : t("upload.template.optional")}
-              </span>
-              {" — "}
-              {t(`upload.template.sheets.${s.key}`)}
+              {s.required !== null && (
+                <>
+                  <span
+                    className={
+                      s.required
+                        ? "text-brand-d font-medium"
+                        : "text-ink-mute italic"
+                    }
+                  >
+                    {s.required
+                      ? t("upload.template.required")
+                      : t("upload.template.optional")}
+                  </span>
+                  {" — "}
+                </>
+              )}
+              {t(`upload.template.sheets.${s.key}`, s.fallback ?? "")}
             </span>
           </li>
         ))}
       </ul>
       <p className={`${textClass} text-ink-mute pt-1 leading-snug`}>
-        {t("upload.template.fallbackNote")}
+        {context === "dashboard"
+          ? t(
+              "upload.template.fallbackNoteDashboard",
+              "Your accounting system's own export works too, as long as it follows one of these column structures.",
+            )
+          : t("upload.template.fallbackNote")}
       </p>
     </div>
   );

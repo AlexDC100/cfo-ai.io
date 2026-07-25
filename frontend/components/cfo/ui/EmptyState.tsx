@@ -4,7 +4,7 @@
 // that matches the rest of the design system.
 //
 // Composition:
-//   · large rounded icon tile (gradient ring matches brand accent)
+//   · oversized decorative icon pinned bottom-left (dropzone treatment)
 //   · title (sans, font-semibold)
 //   · supporting copy
 //   · primary + optional secondary CTA
@@ -19,7 +19,7 @@ interface Props {
   icon: LucideIcon;
   title: ReactNode;
   subtitle?: ReactNode;
-  /** Primary action — full brand-gradient pill. */
+  /** Primary action — animated brand-gradient pill (ask-ai-anim-fill). */
   primary?: { label: string; onClick: () => void; testid?: string };
   /** Secondary action — outlined glass pill. */
   secondary?: { label: string; onClick: () => void; testid?: string };
@@ -55,20 +55,18 @@ export function EmptyState({
     >
       <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 h-44 w-44 rounded-full bg-brand/10 blur-3xl" />
 
+      {/* Oversized decorative mark — pinned to the bottom-left corner and
+          clipped by the card's overflow-hidden, same treatment as the
+          dropzones' upload mark. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-2 left-2 text-ink opacity-[0.08]"
+      >
+        <Icon size={240} strokeWidth={1} />
+      </div>
+
       <div className={`relative ${isPanel ? "" : "max-w-[520px] mx-auto"}`}>
-        <span
-          className={`
-            inline-flex items-center justify-center
-            h-12 w-12 rounded-2xl
-            bg-gradient-to-br from-brand/15 to-brand-d/20
-            text-brand-d
-            ring-1 ring-brand/15
-            ${isPanel ? "" : "mb-4"}
-          `}
-        >
-          <Icon size={20} strokeWidth={1.75} />
-        </span>
-        <h2 className={`${isPanel ? "mt-4" : ""} text-[22px] sm:text-[24px] leading-tight font-semibold tracking-[-0.005em] text-ink`}>
+        <h2 className={`text-[22px] sm:text-[24px] leading-tight font-semibold tracking-[-0.005em] text-ink`}>
           {title}
         </h2>
         {subtitle && (
@@ -85,10 +83,9 @@ export function EmptyState({
                 data-testid={primary.testid}
                 className="
                   inline-flex items-center gap-2 h-10 px-4 rounded-lg
-                  bg-gradient-to-b from-brand to-brand-d text-paper text-[13px] font-medium
-                  shadow-[0_8px_22px_-8px_rgba(42,168,155,0.6)]
-                  hover:shadow-[0_10px_26px_-8px_rgba(42,168,155,0.75)]
-                  ring-1 ring-inset ring-white/15
+                  ask-ai-anim-fill [animation-duration:10s]
+                  border border-brand/40 text-ink text-[13px] font-medium
+                  hover:border-brand/60
                   transition-all
                 "
               >

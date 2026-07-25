@@ -27,19 +27,11 @@
 //   the registry-driven `import_history` row (coming_soon badge,
 //   not clickable).
 
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
 // Activity / Database / FileBarChart2 / History / RefreshCw /
 // ShoppingBag / UploadCloud were the row icons for the removed
 // Upload + Processing sections. Drop them here to keep the bundle
 // honest; re-add when the rows come back.
-import {
-  ChevronRight,
-  Plug,
-  Settings2,
-} from "lucide-react";
-
-import { DecisionRulesModal } from "@/components/cfo/command/DecisionRulesModal";
+import { Plug } from "lucide-react";
 
 import { Row } from "../Row";
 import { Section } from "../Section";
@@ -68,13 +60,8 @@ export function DataTab({ onClose: _onClose, onOpenUpload: _onOpenUpload }: Prop
 
   return (
     <>
-      {/* Decision rules — promoted above Integrations as the only
-          actionable Data-tab content today. Click opens the full-size
-          modal (DecisionRulesModal). The modal's two-handle slider
-          drives the same threshold store the Products page reads from,
-          so the table re-categorises live as the user drags. */}
-      <RulesTrigger />
-
+      {/* The Decision-rules trigger card that led this tab moved to the
+          Command Center's Quick actions grid (2026-07-24). */}
       <Section label="Integrations">
         <Row
           icon={Plug}
@@ -99,45 +86,5 @@ export function DataTab({ onClose: _onClose, onOpenUpload: _onOpenUpload }: Prop
         />
       </Section>
     </>
-  );
-}
-
-function RulesTrigger() {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="mb-5" data-testid="cmd-data-rules-trigger">
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        data-testid="cmd-data-rules-open"
-        className="
-          w-full flex items-center gap-3 rounded-xl border border-rule
-          bg-bg-2 px-4 py-3 hover:bg-bg-2/70 transition-colors
-        "
-      >
-        <span className="w-7 h-7 rounded-md grid place-items-center bg-surface border border-rule text-ink-soft shrink-0">
-          <Settings2 size={14} strokeWidth={1.75} />
-        </span>
-        <div className="flex-1 text-left min-w-0">
-          <div className="text-[13.5px] text-ink leading-tight">
-            {t("decision_rules.title", "Decision rules")}
-          </div>
-          <div className="text-[11.5px] text-ink-soft mt-0.5 leading-tight">
-            {t(
-              "decision_rules.trigger_subtitle",
-              "Bucket thresholds (Protect / Watch / Wind down). Saved to this browser.",
-            )}
-          </div>
-        </div>
-        <ChevronRight
-          size={13}
-          strokeWidth={1.75}
-          className="text-ink-mute shrink-0"
-        />
-      </button>
-      <DecisionRulesModal open={open} onOpenChange={setOpen} />
-    </section>
   );
 }

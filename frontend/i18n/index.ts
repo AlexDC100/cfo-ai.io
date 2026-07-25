@@ -1,7 +1,7 @@
 // i18n bootstrap.
 //
 // LANGUAGE PRIORITY ORDER (highest first):
-//   1. URL override               — ?lang=ro | de | fr …
+//   1. URL override               — ?lang=en | ro
 //   2. User profile preference    — users.language (set in Settings)
 //   3. Last-uploaded document     — documents.detected_language (auth only,
 //                                   ONLY if the user opted into auto-detect)
@@ -36,22 +36,14 @@ import LanguageDetector from "i18next-browser-languagedetector";
 
 import en from "./locales/en.json";
 import ro from "./locales/ro.json";
-import de from "./locales/de.json";
-import fr from "./locales/fr.json";
-import es from "./locales/es.json";
-// IT / PT / NL / PL locale files remain on disk (`./locales/it.json` etc.)
-// but are NOT imported or registered as resources here. The product
-// languages are currently {en, ro, de, fr, es}; the others were
-// removed from the visible switcher because they weren't being kept
-// up-to-date with new translation keys. Re-adding any of them is a
-// one-line revert of this list + the resources block below.
+// The product languages are exactly {en, ro} — every other locale (de, fr,
+// es, it, pt, nl, pl) was removed on 2026-07-24 because they weren't kept
+// up-to-date with new translation keys. Re-adding a language is a JSON
+// drop in ./locales/ + an entry here + the resources block below.
 
 export const SUPPORTED_LANGUAGES = [
-  { code: "en", label: "English",   flag: "🇬🇧" },
-  { code: "ro", label: "Română",    flag: "🇷🇴" },
-  { code: "de", label: "Deutsch",   flag: "🇩🇪" },
-  { code: "fr", label: "Français",  flag: "🇫🇷" },
-  { code: "es", label: "Español",   flag: "🇪🇸" },
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "ro", label: "Română",  flag: "🇷🇴" },
 ] as const;
 
 export type SupportedLanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
@@ -75,9 +67,6 @@ void i18n
     resources: {
       en: { translation: en },
       ro: { translation: ro },
-      de: { translation: de },
-      fr: { translation: fr },
-      es: { translation: es },
     },
     // FORCE English as the initial render language. <LanguageSync /> may
     // change it post-hydration based on the priority chain.

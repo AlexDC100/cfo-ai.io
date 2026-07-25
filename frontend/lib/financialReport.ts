@@ -839,6 +839,9 @@ export function generateRecommendations(
   const tax = pick(ap.tax, s.incomeStatement.taxExpense);
   const rentalRevenue = pick(ap.revenue, s.incomeStatement.revenue);
   const capitalized = pick(ap.capitalized_own_work_memo, 0);
+  // APPROXIMATION — annual principal estimated at 10% of debt (a trial
+  // balance carries no amortization schedule). Legacy fallback path only;
+  // engine periodFacts carry the real figure when available.
   const principalProxy = bankDebt * 0.1;
   const dscr = ebitdaStatutory > 0
     ? ebitdaStatutory / Math.max(interest + Math.max(principalProxy, depreciation), 1)
@@ -1074,8 +1077,11 @@ export function renderReportHtml(s: Statements): string {
     }
 
     :root {
-      --ink: #1B7268;
-      --ink-soft: #1B7268;
+      /* Primary + secondary text are near-black / dark-grey (2026-07-25) —
+         they were teal (#1B7268), which made the whole report read green.
+         The teal --accent below is kept for accents (borders, labels). */
+      --ink: #16181d;
+      --ink-soft: #454b56;
       --ink-mute: #6B7280;
       --accent: #2AA89B;
       --rule: #C9CDD2;

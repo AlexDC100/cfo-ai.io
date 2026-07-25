@@ -13,7 +13,14 @@
     "alerts": "Alerte",
     "benchmark": "Benchmark",
     "scenarios": "Scenarii",
+    "variance": "Buget vs Realizat",
+    "chat": "Întreabă CFO AI",
+    "publicCompanies": "Companii publice",
     "settings": "Setări",
+    "upload": "Centru de încărcare",
+    "reports": "Rapoarte",
+    "inventory": "Stocuri",
+    "invoices": "Facturi",
     "footer_note": "Recomandări financiare asistate de AI. Deciziile finale rămân la conducere.",
     "multi_year_history": "Istoric multianual"
   },
@@ -477,6 +484,27 @@
         "ebitdaMargin": "Marja EBITDA",
         "revenueGrowth": "Creștere venituri YoY"
       }
+    },
+    "learn": {
+      "badge": "CFO AI Learn",
+      "headline": "Fiecare cifră, trasabilă. Fiecare formulă, explicată pas cu pas.",
+      "subhead": "Majoritatea dashboard-urilor îți dau o cifră și se așteaptă să o crezi pe cuvânt. Aici atingi orice valoare și o urmărești înapoi — definiție, formulă, apoi conturile reale din balanța de verificare din spatele ei.",
+      "footnote": "108 concepte în glosar astăzi — referințe încrucișate RAS / GAAP, explicații pe înțelesul tuturor și benchmark-uri pe industrie. Apasă Cmd-K în aplicație ca să le cauți pe toate.",
+      "layer1": {
+        "label": "Definiție",
+        "title": "Atinge orice cifră",
+        "body": "Apare o explicație pe înțelesul tuturor. Nu ai nevoie de certificare CFA — fiecare concept e scris pentru un om de afaceri, nu pentru un analist."
+      },
+      "layer2": {
+        "label": "Formulă",
+        "title": "Urmărește calculul",
+        "body": "Vezi exact cum a fost calculată valoarea. Atinge orice operand ca să continui în adâncime — EBITDA se deschide în EBIT + amortizare, EBIT în Venituri − cheltuieli operaționale, până la capăt."
+      },
+      "layer3": {
+        "label": "Sursă",
+        "title": "Înapoi la balanța ta de verificare",
+        "body": "La capătul fiecărui lanț stau conturile RAS brute — 701, 602, 5121. Dă click ca să vezi mișcările reale de debit / credit din fișierul încărcat."
+      }
     }
   },
   "statements": {
@@ -605,5 +633,58 @@
     "notConfigured": "Autentificarea nu este configurată în acest build.",
     "retrySignup": "Cere un link nou",
     "backToSignin": "Înapoi la autentificare"
+  },
+  "buckets": {
+    "wind_down": "Redu expunerea",
+    "watch": "Monitorizează",
+    "protect": "Protejează"
+  },
+  "decision_rules": {
+    "title": "Reguli de decizie",
+    "trigger_subtitle": "Praguri pe categorii (Protejează / Monitorizează / Redu expunerea). Salvate în acest browser.",
+    "subtitle_multi": "Combină mai multe reguli pentru a clasifica SKU-urile. Modificările se aplică instant și se salvează în acest browser.",
+    "back_to_products": "Înapoi la Produse",
+    "reset": "Resetează la valorile implicite",
+    "combination_logic": "Logica de combinare",
+    "final_distribution": "Distribuția finală pe categorii (combinată)",
+    "skus_total": "SKU-uri în total",
+    "footer_note": "Modificările se aplică instant. Pragurile se salvează în acest browser.",
+    "changes_apply_instantly": "Modificările se aplică instant",
+    "done_see_results": "Gata — vezi rezultatele",
+    "lower_better": "mai mic e mai bine",
+    "partial_coverage": "Disponibil pentru {{covered}} din {{total}} SKU-uri",
+    "slider_aria": "Praguri pe categorii",
+    "lower_cutoff": "Redu expunerea ⟶ Monitorizează",
+    "upper_cutoff_inv": "Protejează ⟶ Monitorizează",
+    "upper_cutoff": "Monitorizează ⟶ Protejează",
+    "lower_cutoff_inv": "Monitorizează ⟶ Redu expunerea",
+    "range_hint": "Interval",
+    "weight": "Pondere",
+    "missing_data": "Date lipsă",
+    "missing_data_body": "Necesită coloanele: {{fields}}. Reîncarcă fișierul cu aceste câmpuri incluse sau mapează-le la pasul de import.",
+    "mode": {
+      "worst_wins": "Cea mai slabă categorie câștigă (recomandat)",
+      "all_agree": "Toate trebuie să fie de acord (cel mai conservator)",
+      "weighted": "Scor ponderat",
+      "worst_wins_hint": "Dacă orice regulă marchează un SKU pentru Redu expunerea, SKU-ul intră în acea categorie. Recomandat.",
+      "all_agree_hint": "Protejează cere ca fiecare regulă activă să fie de acord. Cel mai conservator.",
+      "weighted_hint": "Fiecare regulă contribuie cu un scor; media ponderată decide categoria finală."
+    },
+    "preset": {
+      "title": "Preset",
+      "active": "Activ",
+      "apply": "Aplică presetul",
+      "needs_data": "Încarcă un set de date pentru aplicare (percentilele au nevoie de date SKU)."
+    },
+    "financing": {
+      "title": "Ipoteze de finanțare",
+      "total_rate": "Rată anuală totală",
+      "portfolio_cost": "Costul portofoliului",
+      "cost_label": "Costul finanțării",
+      "cost_hint": "Rata anuală a dobânzii pentru capitalul de lucru. Finanțarea corporativă tipică în RON este 5–8%.",
+      "spread_label": "Marja băncii",
+      "spread_hint": "Marja suplimentară peste rata de bază percepută de bancă. Ajustează pentru a modela relații bancare diferite.",
+      "avg_per_sku": "Medie per SKU: {{avg}} · DIO și stocul sunt necesare pentru calcul; SKU-urile fără oricare dintre ele sar peste regula de finanțare."
+    }
   }
 }

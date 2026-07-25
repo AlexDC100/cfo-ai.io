@@ -33,7 +33,8 @@ export type CardValueFormat =
   | "percentage"
   | "ratio"
   | "days"
-  | "score";
+  | "score"
+  | "count";
 
 export interface ResolvedCardValue {
   /** Renderable number in its native unit (see header), or null when the
@@ -88,6 +89,11 @@ const SCORE_KEYS = new Set([
   "composite_credit_score",
 ]);
 
+/** Whole-count concept keys (rendered as a plain integer, e.g. "3"). Their
+ *  values come from the page via overrides (recommendation counts), not from
+ *  the ReportingMetrics snapshot. */
+const COUNT_KEYS = new Set(["open_risks", "open_opportunities"]);
+
 /** Concept keys the resolver knows how to compute a value for. The
  *  concept picker intersects this with the registry so every addable
  *  card is guaranteed to show a real number (no dead em-dash cards). */
@@ -109,6 +115,7 @@ export const SUPPORTED_CONCEPT_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 export function inferCardFormat(conceptKey: string): CardValueFormat {
+  if (COUNT_KEYS.has(conceptKey)) return "count";
   if (PERCENTAGE_KEYS.has(conceptKey) || conceptKey.endsWith("_margin"))
     return "percentage";
   if (RATIO_KEYS.has(conceptKey)) return "ratio";
@@ -308,6 +315,8 @@ export function formatCardValue(
       return `${Math.round(value)}d`;
     case "score":
       return value.toFixed(2);
+    case "count":
+      return Math.round(value).toString();
     case "currency":
       // Caller renders <Money> — signal via null.
       return null;

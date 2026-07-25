@@ -1418,166 +1418,18 @@ def build_router() -> APIRouter:
         t3 = send_founder_renewal_reminders(days_ahead=3)
         return {"t14": t14, "t3": t3}
 
-    # ─── Phase 5: Solo/Business self-serve checkout + Pro contact-sales ──────
-    #
-    # /api/billing/create-checkout       Solo + Business only (Pro 400s)
-    # /api/founding-member/count         Public; reads the DB-backed counter
-    # /api/contact-sales                 Public form POST (Pro inquiries)
-    # /api/billing/usage                 Per-user current-month usage snapshot
-
-    class CreateCheckoutRequest(BaseModel):
-        tier: str            # 'solo' | 'business'  — 'professional' is rejected
-        billing_cycle: str   # 'monthly' | 'annual'
-        claim_founding: Optional[bool] = False
-
-    def _env_price_id(tier: str, cycle: str) -> Optional[str]:
-        # Naming convention so the user can drop in Stripe price IDs without
-        # changing code:
-        #   STRIPE_PRICE_SOLO_MONTHLY      STRIPE_PRICE_SOLO_ANNUAL
-        #   STRIPE_PRICE_BUSINESS_MONTHLY  STRIPE_PRICE_BUSINESS_ANNUAL
-        return os.environ.get(f"STRIPE_PRICE_{tier.upper()}_{cycle.upper()}")
-
-    def _env_founding_coupon_id(tier: str, cycle: str) -> Optional[str]:
-        # Per-tier/cycle €1 founding coupons (configure in Stripe Dashboard):
-        #   STRIPE_COUPON_FOUNDING_SOLO_MONTHLY      ...etc
-        return os.environ.get(f"STRIPE_COUPON_FOUNDING_{tier.upper()}_{cycle.upper()}")
-
-    def _founding_seats_remaining() -> int:
-        """Read the public `founding_member_count` view. Falls back to 0 on
-        any failure so the UI never claims seats we can't honor."""
-        try:
-            with _supabase.admin() as client:
-                rows = client.select("founding_member_count", limit=1)
-            if not rows:
-                return 0
-            return int(rows[0].get("remaining") or 0)
-        except Exception:  # noqa: BLE001
-            logger.exception("[billing] founding_member_count read failed")
-            return 0
-
-    @router.get("/api/founding-member/count")
-    def get_founding_count() -> Any:
-        """Public endpoint — feeds the FE's seats-remaining banner. Capped
-        at 500 by the table-level constraint."""
-        try:
-            with _supabase.admin() as client:
-                rows = client.select("founding_member_count", limit=1)
-            row = rows[0] if rows else {}
-        except Exception:  # noqa: BLE001
-            logger.exception("[billing] founding_member_count read failed")
-            row = {}
-        return {
-            "claimed": int(row.get("claimed") or 0),
-            "remaining": int(row.get("remaining") or 500),
-            "cap": 500,
-        }
-
-    @router.post("/api/billing/create-checkout")
-    def create_checkout(
-        req: CreateCheckoutRequest,
-        authorization: Optional[str] = Header(None),
-    ) -> Any:
-        tier = (req.tier or "").lower().strip()
-        # Pro is contact-sales — explicit 400 so the FE can never accidentally
-        # send Pro through self-serve checkout (Gate I1 in the spec).
-        if tier not in _pricing_tiers.SELF_SERVE_TIER_KEYS:
-            raise HTTPException(
-                400,
-                {
-                    "code": "invalid_tier",
-                    "message": "Professional is contact-sales only. Please use the contact form.",
-                },
-            )
-        cycle = (req.billing_cycle or "").lower().strip()
-        if cycle not in ("monthly", "annual"):
-            raise HTTPException(400, "billing_cycle must be 'monthly' or 'annual'.")
-
-        jwt = _require_jwt(authorization)
-        user_id = _user_id_from_jwt(jwt)
-
-        stripe = _stripe_or_none()
-        if not stripe:
-            raise HTTPException(503, "Stripe is not configured on the backend.")
-
-        price_id = _env_price_id(tier, cycle)
-        if not price_id:
-            raise HTTPException(
-                503,
-                f"Stripe price id missing — set STRIPE_PRICE_{tier.upper()}_{cycle.upper()}",
-            )
-
-        # Decide whether the founding coupon applies. Re-check the live
-        # counter — never trust a stale FE claim.
-        use_founding = False
-        if req.claim_founding:
-            use_founding = _founding_seats_remaining() > 0
-
-        # Find-or-create Stripe customer keyed off the user's subscription row.
-        with _supabase.admin() as client:
-            sub_rows = client.select(
-                "subscriptions",
-                filters={"user_id": f"eq.{user_id}"},
-                single=True,
-            )
-        existing = sub_rows[0] if sub_rows else None
-        customer_id = (existing or {}).get("stripe_customer_id")
-        if not customer_id:
-            email = _user_email(user_id) or ""
-            customer = stripe.Customer.create(
-                email=email,
-                metadata={"user_id": user_id, "tier": tier},
-            )
-            customer_id = customer["id"]
-            with _supabase.admin() as client:
-                client.update(
-                    "subscriptions",
-                    {"stripe_customer_id": customer_id},
-                    filters={"user_id": f"eq.{user_id}"},
-                )
-
-        discounts: List[Dict[str, str]] = []
-        if use_founding:
-            coupon_id = _env_founding_coupon_id(tier, cycle)
-            if coupon_id:
-                discounts = [{"coupon": coupon_id}]
-            else:
-                # Coupon not configured — log and proceed at full price.
-                # Better to charge full price than to break the checkout flow.
-                logger.warning(
-                    "[billing] founding requested but coupon env missing for %s/%s",
-                    tier, cycle,
-                )
-                use_founding = False
-
-        app_url = os.environ.get("APP_URL", "http://localhost:5173").rstrip("/")
-        session_kwargs: Dict[str, Any] = {
-            "customer": customer_id,
-            "mode": "subscription",
-            "line_items": [{"price": price_id, "quantity": 1}],
-            "subscription_data": {
-                "metadata": {
-                    "user_id": user_id,
-                    "tier": tier,
-                    "billing_cycle": cycle,
-                    "is_founding_member": "true" if use_founding else "false",
-                },
-            },
-            "metadata": {
-                "user_id": user_id,
-                "tier": tier,
-                "billing_cycle": cycle,
-                "is_founding_member": "true" if use_founding else "false",
-            },
-            "success_url": f"{app_url}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
-            "cancel_url": f"{app_url}/pricing",
-            "locale": "auto",
-            "payment_method_collection": "always",
-        }
-        if discounts:
-            session_kwargs["discounts"] = discounts
-
-        session = stripe.checkout.Session.create(**session_kwargs)
-        return {"checkout_url": session.url}
+    # `POST /api/billing/create-checkout` (legacy Solo/Business self-serve
+    # checkout) and `GET /api/founding-member/count` were removed 2026-07-24
+    # (backend cleanup) — zero frontend callers. Checkout now goes through
+    # `POST/GET /api/checkout/start` above (the live flow, confirmed used by
+    # `PricingTableV2.tsx` / `IntroUnlockCallout.tsx`); founding-seat count
+    # is read directly from the `founder_cohort_public` Supabase view by
+    # `frontend/lib/founder.ts`, bypassing the backend entirely. Removing
+    # `create_checkout` also deleted its locally-scoped `CreateCheckoutRequest`
+    # model, which turned out to be the cause of the pre-existing
+    # `/openapi.json` 500 (a FastAPI/pydantic forward-ref issue with
+    # request models nested inside a route-factory closure) — unplanned
+    # but welcome side effect.
 
     # ─── Contact-sales lead capture (Pro inquiries) ────────────────────────
 
@@ -1630,65 +1482,11 @@ def build_router() -> APIRouter:
 
         return {"ok": True}
 
-    @router.get("/api/billing/usage")
-    def get_usage(authorization: Optional[str] = Header(None)) -> Any:
-        """Per-user current-month usage snapshot for the UsageIndicator.
-        Returns the active tier's limits alongside so the FE renders pct
-        with a single round-trip. Pro customers get their `custom_limits`
-        overlaid on the static tier defaults."""
-        jwt = _require_jwt(authorization)
-        user_id = _user_id_from_jwt(jwt)
-        month = _pricing_tiers.current_month_bucket()
-
-        with _supabase.admin() as client:
-            sub_rows = client.select(
-                "subscriptions",
-                filters={"user_id": f"eq.{user_id}"},
-                single=True,
-            )
-            usage_rows = client.select(
-                "user_usage",
-                filters={
-                    "user_id": f"eq.{user_id}",
-                    "month": f"eq.{month}",
-                },
-                single=True,
-            )
-
-        sub = sub_rows[0] if sub_rows else None
-        raw_tier = (sub or {}).get("tier") or (sub or {}).get("plan")
-        tier_key = _pricing_tiers.normalize_tier_key(raw_tier)
-        tier = _pricing_tiers.get_tier(tier_key) if tier_key else None
-        # Pro contracts get their negotiated limits from custom_limits.
-        custom = (sub or {}).get("custom_limits") if sub else None
-        effective = _pricing_tiers.effective_limits(
-            _pricing_tiers.db_tier_key(tier_key) if tier_key else "solo",
-            custom,
-        )
-        u = usage_rows[0] if usage_rows else {}
-
-        return {
-            "tier": tier_key,
-            "tier_name": tier.display_name if tier else None,
-            "month": month,
-            "limits": {
-                "uploads_per_month": effective.uploads_per_month,
-                "llm_calls_per_month": effective.llm_calls_per_month,
-                "max_users": effective.max_users,
-                "max_companies": effective.max_companies,
-                "overage_price_per_doc_eur": effective.overage_price_per_doc_eur,
-            } if tier else None,
-            "used": {
-                "uploads": int(u.get("uploads") or 0),
-                "llm_calls": int(u.get("llm_calls") or 0),
-                "exports": int(u.get("exports") or 0),
-                "storage_bytes": int(u.get("storage_bytes") or 0),
-            },
-            "status": (sub or {}).get("status"),
-            "is_founding_member": bool((sub or {}).get("is_founding_member")),
-            "trial_end": (sub or {}).get("trial_end"),
-            "current_period_end": (sub or {}).get("current_period_end"),
-        }
+    # `GET /api/billing/usage` was removed 2026-07-24 (backend cleanup) —
+    # built "for the UsageIndicator" per its own docstring, but that FE
+    # component no longer exists (grep confirms zero matches) and nothing
+    # else called this route. `/api/plan/state` (in _pricing_routes.py) is
+    # the live equivalent — it's what the Settings usage card actually reads.
 
     return router
 

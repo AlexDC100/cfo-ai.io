@@ -29,7 +29,6 @@ from ..config import Config, load_config
 from ..models import CategoryRow
 from ..pipeline import run_pipeline
 from ..storage import PostgresAdapter, create_engine_from_url
-from .ask import build_router as create_ask_router
 from ._benchmarks import build_router as create_benchmarks_router
 from ._billing import build_router as create_billing_router
 from ._features import build_router as create_features_router
@@ -153,8 +152,10 @@ def create_app(
     app.include_router(create_financial_statements_router())
     # Phase 3 — async pipeline orchestrator + period read endpoint
     app.include_router(create_pipeline_router())
-    # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III)
-    app.include_router(create_ask_router())
+    # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III) —
+    # removed 2026-07-24 (ask.py deleted). It had tool-use + live pipeline
+    # re-grounding the Edge Function doesn't replicate, but nothing in the
+    # frontend ever called `/api/ask` — confirmed dead, not a duplicate.
     # Stripe-backed billing (checkout, portal, webhook, renewal cron)
     app.include_router(create_billing_router())
     # Phase 7 — industry-benchmark comparison (suggest / set-caen / report).

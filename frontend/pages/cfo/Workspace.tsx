@@ -18,17 +18,27 @@
 // setup" link re-runs the flow.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowUp,
   Check,
+  Clock,
+  Cloud,
+  Eye,
   FileSpreadsheet,
+  FolderOpen,
+  Loader2,
   Pencil,
   Plus,
   RotateCcw,
+  Sparkles,
   Trash2,
   UploadCloud,
 } from "lucide-react";
+import type { DocumentRow } from "@/lib/supabase";
+import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
 
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import {
@@ -43,8 +53,10 @@ import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal"
 import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { toast } from "@/components/ui/sonner";
 import { useActivePeriod } from "@/lib/activePeriod";
+import { fetchOrgPeriodsFor, formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
 import { uploadExcelToBackend } from "@/lib/api";
 import { setActiveRun, setAnalysis, setUploadAlerts } from "@/lib/runStore";
+import { resetDecisionRulesToDefaults } from "@/lib/decisionRulesStore";
 import { updateActiveOrg } from "@/lib/org";
 import { readWorkspaceName, writeWorkspaceName } from "@/lib/workspaceName";
 import { setPref, usePrefSync } from "@/lib/prefs";
@@ -78,6 +90,7 @@ export default function Workspace() {
   // header) rather than rendering underneath it.
   const [editingId, setEditingId] = useState<string | null>(null);
   const ws = useWorkspaces();
+  const period = useActivePeriod();
   const editingWorkspace = editingId ? ws.workspaces.find((w) => w.id === editingId) ?? null : null;
 
   // Start a brand-new workspace: clear the name and re-enter onboarding. The
@@ -91,7 +104,14 @@ export default function Workspace() {
 
   function finishOnboarding(industry: OnboardingIndustry | null) {
     const name = readWorkspaceName();
-    if (creatingNew) {
+    // `creatingNew` OR "no active workspace yet" (the very first one) both take
+    // the create path so the industry is written onto the organizations row
+    // ATOMICALLY. The old first-run path (upsertCurrentName + a follow-up
+    // updateActiveOrg) created the row WITHOUT industry — updateActiveOrg then
+    // no-op'd because cachedOrg was still null — leaving industry_key null.
+    // That tripped the AuthGuard/needsOnboarding wizard re-entry, so the user
+    // had to click "I'll upload later" twice. One create-with-industry avoids it.
+    if (creatingNew || !ws.current) {
       // create_workspace() stores the industry on the new organizations row,
       // so AuthGuard doesn't bounce the fresh workspace to /onboarding.
       void ws.create(name, industry);
@@ -126,7 +146,7 @@ export default function Workspace() {
   // Settings "tab" — its own header + description, replacing the hub view.
   if (editingWorkspace) {
     return (
-      <section className="max-w-[900px] space-y-8" data-testid="workspace-page">
+      <section className="max-w-[1280px] space-y-8" data-testid="workspace-page">
         <PageHeader
           hero
           eyebrow="Workspace settings"
@@ -142,6 +162,7 @@ export default function Workspace() {
           canDelete={ws.canDelete}
           onBack={() => setEditingId(null)}
           onRename={(name) => { void ws.rename(editingWorkspace.id, name); }}
+          onChangeIndustry={(key) => { void ws.setIndustry(editingWorkspace.id, key, orgIndustryLabel(key)); }}
           onDelete={() => {
             const name = editingWorkspace.name;
             setEditingId(null);
@@ -158,61 +179,75 @@ export default function Workspace() {
     );
   }
 
+  // AuthGuard bounces EVERY non-/workspace route back here while the ACTIVE
+  // org has no industry_key (`needsOnboarding`). If we render the hub in that
+  // state, the user is trapped: forced to /workspace but never shown the setup
+  // wizard that sets industry_key and releases the guard — so every sidebar tab
+  // just bounces back and the app feels frozen. Mirror the guard's exact
+  // condition here: when the active workspace still needs onboarding, force the
+  // wizard regardless of the local `done` flag (which can be stale-true via the
+  // adopted `workspace_onboarded` org-pref even when industry_key was never set).
+  const activeNeedsOnboarding = !!ws.current && !ws.current.industryKey;
+
   return (
-    <section className="max-w-[900px] space-y-8" data-testid="workspace-page">
-      <PageHeader
-        hero
-        eyebrow="Workspace"
-        title={
-          done ? (
-            <>
-              Everything in your workspace,{" "}
-              <span className="text-grad">in one place</span>.
-            </>
-          ) : (
-            <>
-              Set up your <span className="text-grad">workspace</span>.
-            </>
-          )
-        }
-        subtitle={
-          done
-            ? "See the company and period you're analyzing, and jump straight into any view — dashboard, benchmark, products, or the CFO assistant — without losing your place."
-            : "Name your workspace, tune the decision rules that classify your products, and upload your data — three quick steps and CFO AI is ready to analyze."
-        }
-      />
+    <section className="max-w-[1280px] space-y-8" data-testid="workspace-page">
+      {/* With zero workspaces (e.g. the user deleted them all) drop straight
+          into the create-workspace flow instead of a landing hero. Keep the hub
+          while the list is still loading or when workspaces exist, so users who
+          have workspaces never see the create form flash. */}
+      {done && !activeNeedsOnboarding && (ws.loading || ws.workspaces.length > 0) ? (
+        <>
+          {/* Your workspaces — the switcher (with the Create card as its first
+              grid item) sits ABOVE the title so the title can name whichever
+              workspace is currently selected. */}
+          <WorkspaceHub
+            onEdit={(id) => { ws.select(id); setEditingId(id); }}
+            onCreate={startNewWorkspace}
+          />
 
-      {done && (
-        <div>
-          <button
-            type="button"
-            onClick={startNewWorkspace}
-            data-testid="workspace-create"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand text-bg px-4 py-2 text-[13px] font-medium shadow-[0_6px_16px_-6px_rgba(42,168,155,0.55)] hover:brightness-110 ring-1 ring-inset ring-white/15 transition-all"
-          >
-            <Plus size={15} strokeWidth={2} />
-            Create workspace
-          </button>
-        </div>
-      )}
-
-      {done ? (
-        <WorkspaceHub onEdit={(id) => { ws.select(id); setEditingId(id); }} />
+          {/* Title reflects the selected workspace; its edit tab renders
+              directly beneath it. Gated on !ws.loading so it doesn't flash the
+              "Manage" section for a stale active id during the initial resolve
+              (the active id is only nulled once the workspace list resolves). */}
+          {!ws.loading && ws.current && (
+            <SelectedWorkspacePanel
+              workspace={ws.current}
+              canDelete={ws.canDelete}
+              onRename={(name) => { if (ws.current) void ws.rename(ws.current.id, name); }}
+              onChangeIndustry={(key) => { if (ws.current) void ws.setIndustry(ws.current.id, key, orgIndustryLabel(key)); }}
+              onDelete={() => {
+                const cur = ws.current;
+                if (!cur) return;
+                void ws.remove(cur.id).then((ok) => {
+                  toast[ok ? "success" : "error"](
+                    ok
+                      ? `“${cur.name || "Workspace"}” deleted — restorable for 30 days.`
+                      : "Couldn't delete that workspace.",
+                  );
+                });
+              }}
+            />
+          )}
+        </>
       ) : (
-        <Onboarding
-          onDone={finishOnboarding}
-          // A restart on the current workspace prefills its industry; a
-          // brand-new SRL starts blank and must pick its own.
-          initialIndustryKey={creatingNew ? null : (ws.current?.industryKey ?? null)}
-          // Only offer "exit to the workspace listing" when there IS a listing
-          // to return to (i.e. at least one workspace already exists — this run
-          // is a create-additional / restart, not the very first setup).
-          onExit={
-            ws.workspaces.length > 0
-              ? () => { setCreatingNew(false); writeDone(true); setDone(true); }
-              : undefined
-          }
-        />
+        <>
+          <PageHeader
+            hero
+            eyebrow="Workspace"
+            title={<>Set up your <span className="text-grad">workspace</span>.</>}
+            subtitle="Name your workspace, tune the decision rules that classify your products, and upload your data — three quick steps and CFO AI is ready to analyze."
+          />
+          <Onboarding
+            onDone={finishOnboarding}
+            // A restart on the current workspace prefills its industry; a
+            // brand-new SRL starts blank and must pick its own.
+            initialIndustryKey={creatingNew ? null : (ws.current?.industryKey ?? null)}
+            // Back from the first step always returns to the workspaces screen —
+            // which renders the no-workspaces hero when the user has none, so
+            // they're never trapped in the wizard.
+            onExit={() => { setCreatingNew(false); writeDone(true); setDone(true); }}
+          />
+        </>
       )}
     </section>
   );
@@ -249,7 +284,11 @@ function Onboarding({
     : null;
 
   function next() {
-    if (step === 0) writeWorkspaceName(name.trim());
+    // Advancing steps must NOT commit the workspace name — writing it here made
+    // the TopHeader tagline (useWorkspaceName) flip to the new workspace the
+    // instant the user pressed Continue, reading as if the not-yet-created
+    // workspace was already selected. The name is committed only at finish
+    // (`finish()` below) — i.e. after step 3's upload or "I'll upload later".
     setStep((s) => (Math.min(2, s + 1) as 0 | 1 | 2));
   }
   function back() {
@@ -257,6 +296,15 @@ function Onboarding({
     // workspace listing (when there is one — see `onExit` in the parent).
     if (step === 0) { onExit?.(); return; }
     setStep((s) => (Math.max(0, s - 1) as 0 | 1 | 2));
+  }
+
+  // Commit the workspace: persist the name so the parent's finishOnboarding
+  // (which reads readWorkspaceName()) creates/renames the row with it, then
+  // hand off. This is the ONLY place the new workspace becomes real/selected —
+  // reached from step 3's successful upload or the "I'll upload later" button.
+  function finish() {
+    writeWorkspaceName(name.trim());
+    onDone(industry);
   }
 
   // Same call the upload dialog uses — posts the workbook to the SKU pipeline
@@ -288,7 +336,7 @@ function Onboarding({
       toast.success("Workbook imported", {
         description: `${skuCount} SKUs classified. Your workspace is ready.`,
       });
-      onDone(industry);
+      finish();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload failed";
       toast.error("Upload failed", {
@@ -304,7 +352,7 @@ function Onboarding({
     <div className="space-y-6" data-testid="workspace-onboarding">
       <Stepper step={step} />
 
-      <div className="rounded-2xl border border-rule bg-surface p-5 sm:p-6">
+      <div>
         {step === 0 && (
           <StepName
             name={name}
@@ -319,23 +367,27 @@ function Onboarding({
 
       {/* Wizard navigation */}
       <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={back}
-          // Disabled only on the very first setup (no listing to exit to).
-          disabled={step === 0 && !onExit}
-          data-testid="onboarding-back"
-          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <ArrowLeft size={14} strokeWidth={2} />
-          {step === 0 && onExit ? "All workspaces" : "Back"}
-        </button>
+        {/* Back appears from step 1 onward; the step-0 "All workspaces" exit
+            button was removed per the operator. A spacer keeps Continue right. */}
+        {step > 0 ? (
+          <button
+            type="button"
+            onClick={back}
+            data-testid="onboarding-back"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+          >
+            <ArrowLeft size={14} strokeWidth={2} />
+            Back
+          </button>
+        ) : (
+          <span />
+        )}
 
         <div className="flex items-center gap-3">
           {step === 2 && (
             <button
               type="button"
-              onClick={() => onDone(industry)}
+              onClick={finish}
               data-testid="onboarding-skip"
               className="text-[12.5px] text-ink-mute hover:text-ink transition-colors"
             >
@@ -348,7 +400,7 @@ function Onboarding({
               onClick={next}
               disabled={step === 0 && (name.trim().length === 0 || !industryKey)}
               data-testid="onboarding-next"
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-brand text-bg text-[13px] font-medium shadow-[0_6px_16px_-6px_rgba(42,168,155,0.55)] hover:brightness-110 ring-1 ring-inset ring-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Continue
             </button>
@@ -368,15 +420,15 @@ function Stepper({ step }: { step: number }) {
         return (
           <li key={label} className="flex items-center gap-2 flex-1 last:flex-none">
             <span
-              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold transition-colors ${
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums transition-all ${
                 isDone
-                  ? "bg-brand text-paper"
+                  ? "ask-ai-anim-fill [animation-duration:10s] border border-brand/50 text-ink shadow-[0_0_12px_rgba(92,211,197,0.55)]"
                   : isActive
                   ? "bg-brand/15 text-brand-d ring-2 ring-brand/30"
                   : "bg-bg-2 text-ink-mute border border-rule"
               }`}
             >
-              {isDone ? <Check size={14} strokeWidth={2.5} /> : i + 1}
+              {isDone ? <Check size={18} strokeWidth={2.5} /> : String(i + 1).padStart(2, "0")}
             </span>
             <span className={`text-[12.5px] font-medium ${isActive ? "text-ink" : "text-ink-mute"}`}>
               {label}
@@ -489,36 +541,49 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
         className="hidden"
         onChange={(e) => pick(e.target.files)}
       />
+      {/* Same premium dropzone as the dashboard's upload surface: glass card,
+          oversized decorative cloud + up-arrow mark, brand glow, ring-glow on
+          drag-over, animated-gradient Import button. */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); pick(e.dataTransfer.files); }}
         data-testid="onboarding-dropzone"
-        className={`relative overflow-hidden rounded-2xl border-2 border-dashed transition-all duration-150 px-6 py-10 text-center ${
+        className={`relative overflow-hidden rounded-2xl border-2 border-dashed backdrop-blur-sm p-6 sm:p-7 flex flex-col items-center justify-center text-center min-h-[240px] transition-all duration-150 ${
           dragOver
-            ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30"
+            ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
             : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"
         }`}
       >
+        {/* Atmospheric brand glow */}
+        <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-brand/8 blur-3xl" />
+        {/* Oversized upload mark — cloud + up-arrow, pinned bottom-left and
+            clipped by overflow-hidden. */}
+        <div aria-hidden className="pointer-events-none absolute -bottom-32 -left-16 text-ink opacity-[0.08]">
+          <Cloud size={440} strokeWidth={1} />
+          <ArrowUp size={160} strokeWidth={2.5} className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2" />
+        </div>
+
         {busy ? (
-          <div className="flex items-center justify-center gap-3 text-ink-soft">
-            <FileSpreadsheet size={20} strokeWidth={1.75} className="text-brand" />
+          <div className="relative flex items-center justify-center gap-3 text-ink-soft">
+            <Loader2 size={18} strokeWidth={2} className="animate-spin text-brand-d" />
             <span className="text-[13.5px]">Importing your workbook…</span>
           </div>
         ) : (
-          <>
-            <UploadCloud size={26} strokeWidth={1.5} className="text-ink-mute mx-auto" />
-            <div className="mt-3 text-[13.5px] text-ink">Drop your workbook here</div>
-            <div className="mt-1 text-[11.5px] text-ink-mute">.xlsx or .csv up to 25MB</div>
+          <div className="relative flex flex-col items-center">
+            <h3 className="text-[16px] font-semibold text-ink">
+              {dragOver ? "Drop your file to upload" : "Drop your workbook here"}
+            </h3>
+            <p className="text-[12.5px] text-ink-soft mt-1">XLSX · CSV · up to 25 MB</p>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
               data-testid="onboarding-choose-file"
-              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-brand text-bg px-4 py-2 text-[13px] font-medium hover:brightness-110 ring-1 ring-inset ring-white/15 transition"
+              className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
             >
-              Choose file
+              Import
             </button>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -527,17 +592,333 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
 
 // ─── Post-onboarding hub ─────────────────────────────────────────────────────
 
-function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
+// ─── Month switcher ──────────────────────────────────────────────────────────
+// One trial balance per month: every upload creates a period (its
+// closing date = the month it covers) scoped to the active workspace.
+// This section lists them newest-first as month pills; picking one sets
+// `?period=<id>` — the app-wide active-period key — so the dashboard,
+// statements, ratios, and the TopHeader "[workspace] - [month]" readout
+// all flip to that month's data. Hidden until the workspace has at
+// least one uploaded period.
+
+function MonthsSection({ compact = false, orgId }: { compact?: boolean; orgId?: string }) {
+  // When an orgId is given, scope the months to THAT workspace (used by the
+  // selected-workspace panel); otherwise fall back to the active workspace.
+  const active = useOrgPeriods();
+  const scoped = useQuery({
+    queryKey: ["org-periods", orgId],
+    queryFn: () => fetchOrgPeriodsFor(orgId as string),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  });
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const selectedId = params.get("period");
+  const periods = orgId
+    ? (scoped.data?.periods ?? [])
+        .filter((p) => p.documents.length > 0)
+        .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""))
+    : (active.data?.periods ?? []);
+
+  // "Add month" — upload a new trial balance for another period. Routes to the
+  // dashboard's empty/upload state (?empty=1 forces it even when a period is
+  // already loaded) so the dropzone is ready.
+  const addMonthBtn = (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); navigate("/dashboard?empty=1"); }}
+      data-testid="workspace-add-month"
+      className={`inline-flex items-center gap-1 rounded-full border border-dashed border-rule ${compact ? "h-8 px-3 text-[12px]" : "h-9 px-3.5 text-[13px]"} font-medium text-ink-mute hover:text-ink hover:border-brand/50 transition-colors`}
+    >
+      <Plus size={compact ? 13 : 14} strokeWidth={2} />
+      Add month
+    </button>
+  );
+
+  // Even with no months yet, still offer "Add month" (compact/in-card only).
+  if (periods.length === 0) {
+    return compact ? (
+      <div className="mt-3 border-b border-rule/60 pb-4" data-testid="workspace-months">
+        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-2">Months</div>
+        {addMonthBtn}
+      </div>
+    ) : null;
+  }
+
+  function pickMonth(periodId: string) {
+    const sp = new URLSearchParams(params);
+    sp.set("period", periodId);
+    // Replace, not push — month switching is substitution, and back
+    // should leave the page, not replay every month ever selected.
+    setParams(sp, { replace: true });
+  }
+
+  const pills = (
+    <div className="flex flex-wrap gap-2">
+      {periods.map((p) => {
+        const label = formatPeriodMonth(p.period_end) ?? p.period_label;
+        const selected = p.period_id === selectedId;
+        return (
+          <button
+            key={p.period_id}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); pickMonth(p.period_id); }}
+            aria-pressed={selected}
+            data-testid={`workspace-month-${p.period_id}`}
+            className={`
+              inline-flex items-center gap-1.5 ${compact ? "h-8 px-3 text-[12px]" : "h-9 px-3.5 text-[13px]"} rounded-full border
+              font-medium tabular-nums transition-colors
+              ${selected
+                ? "border-brand/60 bg-brand/15 text-ink"
+                : "border-rule bg-surface text-ink-soft hover:text-ink hover:bg-bg-2/60 hover:border-rule-strong"}
+            `}
+          >
+            {label}
+          </button>
+        );
+      })}
+      {addMonthBtn}
+    </div>
+  );
+
+  // Compact — embedded inside a workspace item card: just a small label + the
+  // month pills, no standalone-section paragraph.
+  if (compact) {
+    return (
+      <div className="mt-3 border-b border-rule/60 pb-4" data-testid="workspace-months">
+        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-2">
+          Months
+        </div>
+        {pills}
+      </div>
+    );
+  }
+
+  return (
+    <section className="space-y-2" data-testid="workspace-months">
+      <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+        Months
+      </div>
+      <p className="text-[12px] text-ink-soft">
+        Each uploaded trial balance is one month of this workspace. Pick a
+        month to analyze it everywhere — upload a new trial balance from the
+        Dashboard to add the next month.
+      </p>
+      {pills}
+    </section>
+  );
+}
+
+// ─── Per-workspace uploads ───────────────────────────────────────────────────
+// Collapsible list of every document a workspace has received. Fetches
+// lazily on first expand (react-query, keyed by org id) so rendering the
+// workspace list costs zero extra requests. Documents are read straight
+// from Supabase with an explicit org filter — RLS membership still
+// applies, so only the user's own workspaces return rows.
+
+// The selected-workspace panel under the title: months, uploads, and the edit
+// tab. While the workspace's months + uploads load, the content is blurred
+// almost to invisibility behind a centered spinner (the two queries are shared
+// by key with the child sections, so this adds no extra network cost).
+function SelectedWorkspacePanel({
+  workspace,
+  canDelete,
+  onRename,
+  onChangeIndustry,
+  onDelete,
+}: {
+  workspace: Workspace;
+  canDelete: boolean;
+  onRename: (name: string) => void;
+  onChangeIndustry: (key: string) => void;
+  onDelete: () => void;
+}) {
+  const period = useActivePeriod();
+  const monthsQ = useQuery({
+    queryKey: ["org-periods", workspace.id],
+    queryFn: () => fetchOrgPeriodsFor(workspace.id),
+    staleTime: 60_000,
+  });
+  const docsQ = useQuery({
+    queryKey: ["workspace-docs", workspace.id],
+    queryFn: async () => {
+      const { listDocumentsForOrg } = await import("@/lib/supabase");
+      return listDocumentsForOrg(workspace.id);
+    },
+    staleTime: 60_000,
+  });
+  const loading = monthsQ.isLoading || docsQ.isLoading;
+
+  return (
+    <div className="space-y-6 border-t border-rule/60 pt-8" data-testid="selected-workspace-panel">
+      <PageHeader
+        hero
+        eyebrow="Workspace settings"
+        title={
+          <>
+            Manage <span className="text-grad">{workspace.name || "this workspace"}</span>.
+          </>
+        }
+        subtitle="Rename this workspace, tune the decision rules that classify its products, or remove it. Changes apply to this workspace only."
+      />
+      <div className="relative">
+        <div
+          aria-busy={loading}
+          className={`transition-[filter,opacity] duration-300 ${
+            loading ? "blur-md opacity-20 pointer-events-none select-none" : ""
+          }`}
+        >
+          <div className="space-y-6">
+            <MonthsSection compact orgId={workspace.id} />
+            <WorkspaceUploadsSection orgId={workspace.id} filterPeriodId={period.id} />
+            <WorkspaceSettings
+              key={workspace.id}
+              workspace={workspace}
+              canDelete={canDelete}
+              showBack={false}
+              onRename={onRename}
+              onChangeIndustry={onChangeIndustry}
+              onDelete={onDelete}
+            />
+          </div>
+        </div>
+        {loading && (
+          <div
+            className="absolute inset-0 grid place-items-center"
+            data-testid="workspace-panel-loading"
+          >
+            <div className="flex flex-col items-center gap-2 text-ink-mute">
+              <Loader2 size={26} strokeWidth={2} className="animate-spin text-brand-d" />
+              <span className="text-[12px] font-medium">Loading workspace…</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Month pills for a workspace card — the periods (months) that workspace has,
+// newest first. Read-only chips (the card's click still selects the workspace);
+// fetched per org and cached so a grid of cards costs one request each.
+function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
+  const { data } = useQuery({
+    queryKey: ["org-periods", orgId],
+    queryFn: () => fetchOrgPeriodsFor(orgId),
+    staleTime: 60_000,
+  });
+  const periods = (data?.periods ?? [])
+    .filter((p) => p.documents.length > 0)
+    .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5" data-testid="workspace-card-months">
+      {periods.length === 0 ? (
+        <span className="inline-flex items-center h-6 px-2 rounded-full border border-dashed border-rule text-[11px] font-medium text-ink-mute">
+          No months
+        </span>
+      ) : (
+        periods.map((p) => (
+          <span
+            key={p.period_id}
+            className="inline-flex items-center h-6 px-2 rounded-full border border-rule bg-surface/60 text-[11px] font-medium text-ink-soft tabular-nums"
+          >
+            {formatPeriodMonth(p.period_end) ?? p.period_label}
+          </span>
+        ))
+      )}
+    </div>
+  );
+}
+
+function WorkspaceUploadsSection({ orgId, filterPeriodId }: { orgId: string; filterPeriodId?: string | null }) {
+  // Uploads are always shown (no collapse) — fetched on mount, cached per org.
+  const { data: allDocs, isLoading } = useQuery({
+    queryKey: ["workspace-docs", orgId],
+    queryFn: async () => {
+      const { listDocumentsForOrg } = await import("@/lib/supabase");
+      return listDocumentsForOrg(orgId);
+    },
+    staleTime: 60_000,
+  });
+
+  // When a month is selected (active workspace), show only that month's files.
+  // Otherwise show everything the workspace has.
+  const docs = filterPeriodId
+    ? (allDocs ?? []).filter((d) => d.period_id === filterPeriodId)
+    : allDocs;
+
+  // Nothing to show → render nothing at all (no header, no empty text).
+  if (!isLoading && (!docs || docs.length === 0)) return null;
+
+  return (
+    <div className="mt-3 border-t border-rule/60 pt-2.5">
+      <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-2">
+        Uploads
+        {docs && docs.length > 0 && (
+          <span className="ml-1 font-normal tabular-nums normal-case tracking-normal">({docs.length})</span>
+        )}
+      </div>
+
+      <div data-testid="workspace-uploads-list">
+        {isLoading ? (
+          <div className="text-[12px] text-ink-mute py-1">Loading uploads…</div>
+        ) : (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {(docs ?? []).map((d) => (
+              <WorkspaceUploadRow key={d.id} doc={d} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceUploadRow({ doc }: { doc: DocumentRow }) {
+  const uploaded = doc.created_at
+    ? new Date(doc.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
+  function view() {
+    void openUploadedFilePreview(doc.original_filename ?? "document", async () => {
+      const { signedDocumentUrl } = await import("@/lib/supabase");
+      return signedDocumentUrl(doc);
+    });
+  }
+
+  // The whole item is the affordance now — pressing it opens the file preview
+  // in a new tab (no status pill, no separate View button).
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); view(); }}
+        aria-label={`Preview ${doc.original_filename ?? "document"}`}
+        title="Open preview in a new tab"
+        data-testid="workspace-upload-view"
+        className="group/upload w-full flex items-center gap-2.5 rounded-lg border border-rule bg-bg-2/30 p-3 text-left hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
+      >
+        <FileSpreadsheet size={15} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[12.5px] text-ink truncate">{doc.original_filename}</div>
+          {uploaded && <div className="text-[10.5px] text-ink-mute">{uploaded}</div>}
+        </div>
+        <Eye
+          size={14}
+          strokeWidth={1.75}
+          className="text-ink-mute shrink-0 opacity-0 group-hover/upload:opacity-100 transition-opacity"
+        />
+      </button>
+    </li>
+  );
+}
+
+function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCreate: () => void }) {
   const period = useActivePeriod();
   const navigate = useNavigate();
   const { workspaces, archived, currentId, select, setPeriod, restore, purge } = useWorkspaces();
   // Which archived workspace the permanent-delete dialog is open for.
   const [purgeTarget, setPurgeTarget] = useState<Workspace | null>(null);
-
-  // What the ACTIVE workspace is currently showing (company + period), used to
-  // enrich the highlighted row.
-  const activeCompany =
-    period.statements?.companyName ?? period.label ?? (readWorkspaceName() || null);
 
   // Keep the current workspace's remembered period in sync with what's loaded,
   // so switching back to it later restores the same analysis.
@@ -563,20 +944,96 @@ function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
     );
   }
 
+  const noneSelected = currentId == null;
+
   return (
     <div className="space-y-4">
-      {/* All workspaces */}
-      <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-        {workspaces.length === 1 ? "Your workspace" : "Your workspaces"}
-      </div>
+      {/* All workspaces — the label is omitted in the empty state, where the
+          hero's "Your workspaces" eyebrow already stands in for it. */}
+      {workspaces.length > 0 && (
+        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+          {workspaces.length === 1 ? "Your workspace" : "Your workspaces"}
+        </div>
+      )}
 
-      <ul className="space-y-2" data-testid="workspace-list">
+      {/* No workspace selected — the app can run with no active workspace
+          (e.g. right after switching accounts). Surface it and point at the
+          Select buttons below rather than silently showing every row inactive. */}
+      {!noneSelected ? null : workspaces.length > 0 ? (
+        <div
+          data-testid="workspace-none-selected"
+          className="rounded-2xl border border-dashed border-rule bg-bg-2/30 px-5 py-4 text-[13px] text-ink-soft"
+        >
+          No workspace is selected. Pick one below to load its data everywhere.
+        </div>
+      ) : null}
+
+      {workspaces.length === 0 ? (
+        <div data-testid="workspace-empty">
+          <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+            <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+            Your workspaces
+          </div>
+          <h1 className="mt-3 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px]">
+            Create your first{" "}
+            <span className="text-grad">workspace</span>.
+          </h1>
+          <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
+            A workspace is your company's home in CFO AI — where your trial balances,
+            months, benchmarks and settings live together. Set up your company to start
+            working; then upload its trial balance ({" "}
+            <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
+            {" "}or{" "}
+            <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
+            {" "}from SAGA, WinMentor, SmartBill, NEXTUP or CIEL) and CFO AI reconstructs the
+            full picture: P&amp;L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and
+            Recommendations.
+          </p>
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={onCreate}
+              data-testid="workspace-empty-create"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+            >
+              Create workspace
+            </button>
+          </div>
+        </div>
+      ) : (
+      <ul className="flex flex-wrap gap-3 items-stretch" data-testid="workspace-list">
+        {/* Create workspace — a compact square, kept to its own size (not
+            stretched to match the item cards) and flush next to the first
+            item. */}
+        <li>
+          <button
+            type="button"
+            onClick={onCreate}
+            data-testid="workspace-create"
+            className="group h-full w-36 flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-rule px-3 py-3 text-center text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40 transition-colors"
+          >
+            <span className="grid place-items-center h-8 w-8 rounded-full border border-rule group-hover:border-rule-strong transition-colors">
+              <Plus size={18} strokeWidth={2.25} />
+            </span>
+            <span className="text-[12.5px] font-medium leading-tight">Create workspace</span>
+          </button>
+        </li>
         {workspaces.map((w) => {
           const isActive = w.id === currentId;
           return (
-            <li key={w.id}>
+            <li key={w.id} className="w-[248px]">
               <div
-                className={`group relative rounded-2xl border px-5 py-4 transition-colors ${
+                data-testid="workspace-list-item"
+                data-active={isActive ? "true" : "false"}
+                onClick={() => void switchTo(w.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void switchTo(w.id); }
+                }}
+                aria-pressed={isActive}
+                aria-label={`Select ${w.name || "workspace"}`}
+                className={`group relative h-full rounded-2xl border px-4 py-3 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                   isActive
                     ? "border-brand/40 bg-brand/[0.06]"
                     : "border-rule bg-surface hover:border-rule-strong hover:bg-bg-2/40"
@@ -587,122 +1044,77 @@ function WorkspaceHub({ onEdit }: { onEdit: (id: string) => void }) {
                     sr-only label since a colored circle says nothing aloud. */}
                 {isActive && (
                   <span
-                    className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
+                    className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
                     title="Active workspace"
                   >
                     <span className="sr-only">Active workspace</span>
                   </span>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => switchTo(w.id)}
-                  data-testid="workspace-list-item"
-                  data-active={isActive ? "true" : "false"}
-                  className="w-full text-left pr-16"
-                >
-                  <span className="block font-serif text-[19px] text-ink leading-tight truncate">
+                <div className="pr-8">
+                  <span className="block font-serif text-[16px] text-ink leading-tight truncate">
                     {w.name || "Untitled workspace"}
                   </span>
-                  {/* Industry — the pick from the setup wizard / onboarding. */}
-                  {w.industryKey && (
-                    <div className="mt-0.5 text-[12px] text-ink-mute">
-                      {orgIndustryLabel(w.industryKey)}
-                    </div>
-                  )}
-                  {/* Data line — rendered for every workspace. Only the active
-                      one can name what's loaded (period state is per-active-
-                      workspace); the others say what switching will do. */}
-                  {isActive ? (
-                    activeCompany && activeCompany !== w.name ? (
-                      <div className="mt-1 text-[13px] text-ink-soft">
-                        {activeCompany}
-                        {period.label && period.label !== activeCompany && (
-                          <span className="text-ink-mute"> · {period.label}</span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-[13px] text-ink-soft">
-                        No data loaded yet —{" "}
-                        <NavLink
-                          to="/dashboard"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-brand-d hover:underline underline-offset-2"
-                        >
-                          upload a trial balance
-                        </NavLink>
-                        .
-                      </div>
-                    )
-                  ) : w.periodId ? (
-                    <div className="mt-1 text-[13px] text-ink-soft">
-                      Saved analysis — switching reopens it.
-                    </div>
-                  ) : (
-                    <div className="mt-1 text-[13px] text-ink-soft">No data loaded yet.</div>
-                  )}
-                </button>
-
-                {/* Edit — opens this workspace's settings tab. */}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onEdit(w.id); }}
-                  aria-label="Workspace settings"
-                  title="Workspace settings"
-                  data-testid="workspace-edit"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition"
-                >
-                  <Pencil size={14} strokeWidth={1.75} />
-                </button>
+                  {/* Firm / industry — shown on every card (fallback when the
+                      setup wizard hasn't set one yet). */}
+                  <div className="mt-0.5 text-[12px] text-ink-mute">
+                    {w.industryKey ? orgIndustryLabel(w.industryKey) : "No industry set"}
+                  </div>
+                  {/* Month pills — the periods this workspace holds (carry the
+                      "no months" state too, so the old "No data loaded yet"
+                      line was removed). */}
+                  <WorkspaceMonthsPills orgId={w.id} />
+                </div>
               </div>
             </li>
           );
         })}
-      </ul>
 
-      {/* Recently deleted — recoverable until the 30-day window closes. */}
-      {archived.length > 0 && (
-        <div className="pt-4 space-y-3" data-testid="workspace-archived">
-          <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-            Recently deleted
-          </div>
-          <ul className="space-y-2">
-            {archived.map((w) => (
-              <li key={w.id}>
-                <div className="flex items-center gap-3 rounded-2xl border border-rule border-dashed bg-bg-2/30 px-5 py-3.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[14px] text-ink-soft truncate">
-                      {w.name || "Untitled workspace"}
-                    </div>
-                    <div className="mt-0.5 text-[12px] text-ink-mute">
-                      {w.daysLeft && w.daysLeft > 0
-                        ? `Deleted permanently in ${w.daysLeft} ${w.daysLeft === 1 ? "day" : "days"} — its data is still recoverable.`
-                        : "Scheduled for permanent deletion."}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void restoreWorkspace(w.id, w.name)}
-                    data-testid="workspace-restore"
-                    className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 transition-colors"
-                  >
-                    <RotateCcw size={14} strokeWidth={1.75} />
-                    Restore
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPurgeTarget(w)}
-                    data-testid="workspace-purge"
-                    className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 text-[13px] font-medium text-red-600 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 size={14} strokeWidth={1.75} />
-                    Delete forever
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* Recently deleted — recoverable until the 30-day window closes. Now
+            in the SAME grid (no separate divider); each carries its countdown
+            to permanent deletion. */}
+        {archived.map((w) => (
+          <li key={w.id} className="w-[200px]">
+            <div
+              data-testid="workspace-archived-item"
+              className="relative flex h-full flex-col rounded-2xl border border-dashed border-rule bg-bg-2/30 px-4 py-2.5"
+            >
+              <div className="font-serif text-[15px] text-ink-soft leading-tight truncate pr-2">
+                {w.name || "Untitled workspace"}
+              </div>
+              <div className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-rule bg-surface/60 px-2 py-0.5 text-[11px] font-medium text-ink-mute tabular-nums">
+                <Clock size={11} strokeWidth={2} />
+                {w.daysLeft && w.daysLeft > 0
+                  ? `Deletes in ${w.daysLeft} ${w.daysLeft === 1 ? "day" : "days"}`
+                  : "Deleting soon"}
+              </div>
+              {/* Actions — one in each bottom corner. */}
+              <div className="mt-auto pt-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => void restoreWorkspace(w.id, w.name)}
+                  data-testid="workspace-restore"
+                  title="Restore"
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-rule text-[11.5px] font-medium text-ink hover:bg-bg-2/70 transition-colors"
+                >
+                  <RotateCcw size={12} strokeWidth={1.75} />
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPurgeTarget(w)}
+                  data-testid="workspace-purge"
+                  title="Delete forever"
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-red-500/30 bg-red-500/10 text-[11.5px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+                >
+                  <Trash2 size={12} strokeWidth={1.75} />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
       )}
 
       <PurgeWorkspaceDialog
@@ -817,55 +1229,96 @@ function WorkspaceSettings({
   canDelete,
   onBack,
   onRename,
+  onChangeIndustry,
   onDelete,
+  showBack = true,
 }: {
   workspace: Workspace;
   canDelete: boolean;
-  onBack: () => void;
+  onBack?: () => void;
   onRename: (name: string) => void;
+  onChangeIndustry: (key: string) => void;
   onDelete: () => void;
+  /** Hide the "All workspaces" back link when the panel renders inline under
+   *  the hub (the workspace list is already right above it). */
+  showBack?: boolean;
 }) {
+  // Field settings are STAGED locally and committed together by the bottom
+  // "Apply changes" button — the per-field Save was removed. `name` + industry
+  // are the tracked settings; decision rules keep their own live semantics
+  // (the DecisionRulesPanel applies immediately and is used elsewhere too).
   const [name, setName] = useState(workspace.name);
+  const [industryKey, setIndustryKey] = useState<string | null>(workspace.industryKey ?? null);
   const trimmed = name.trim();
-  const dirty = trimmed.length > 0 && trimmed !== workspace.name;
+  const nameChanged = trimmed.length > 0 && trimmed !== workspace.name;
+  const industryChanged = (industryKey ?? "") !== (workspace.industryKey ?? "");
+  const dirty = nameChanged || industryChanged;
+
+  // Confirmation shown when leaving the tab with unsaved field changes.
+  const [leaveWarnOpen, setLeaveWarnOpen] = useState(false);
+
+  function applyChanges() {
+    if (nameChanged) onRename(trimmed);
+    if (industryChanged && industryKey) onChangeIndustry(industryKey);
+    if (dirty) toast.success("Workspace settings applied.");
+  }
+
+  // Guard the "All workspaces" back link: with unsaved changes, warn first.
+  function handleBack() {
+    if (!onBack) return;
+    if (dirty) { setLeaveWarnOpen(true); return; }
+    onBack();
+  }
+
+  // Also catch a full page unload / refresh while there are unsaved changes —
+  // the SPA can't intercept a hard reload, so the browser's native prompt is
+  // the only cover there.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
 
   return (
     <div className="space-y-6" data-testid="workspace-settings">
-      <button
-        type="button"
-        onClick={onBack}
-        data-testid="workspace-settings-back"
-        className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-mute hover:text-ink transition-colors"
-      >
-        <ArrowLeft size={14} strokeWidth={2} />
-        All workspaces
-      </button>
+      {showBack && onBack && (
+        <button
+          type="button"
+          onClick={handleBack}
+          data-testid="workspace-settings-back"
+          className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-mute hover:text-ink transition-colors"
+        >
+          <ArrowLeft size={14} strokeWidth={2} />
+          All workspaces
+        </button>
+      )}
 
-      {/* Name */}
-      <div className="rounded-2xl border border-rule bg-surface p-5">
+      {/* Name — staged; committed by "Apply changes" below (no inline Save). */}
+      <div>
         <StepHeading title="Workspace name" body="Rename this workspace — usually the company or entity you're analyzing." />
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            data-testid="workspace-settings-name"
-            className="flex-1 h-10 px-3.5 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
-          />
-          <button
-            type="button"
-            onClick={() => { if (dirty) onRename(trimmed); }}
-            disabled={!dirty}
-            data-testid="workspace-settings-save"
-            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg bg-brand text-bg text-[13px] font-medium hover:brightness-110 ring-1 ring-inset ring-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            Save
-          </button>
-        </div>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          data-testid="workspace-settings-name"
+          className="w-full h-10 px-3.5 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+        />
+      </div>
+
+      {/* Industry — drives which benchmarks CFO AI compares this workspace
+          against. Sits above Decision rules so the sector is set before the
+          thresholds it contextualizes. Staged; committed by "Apply changes". */}
+      <div className="border-t border-rule/60 pt-6">
+        <StepHeading
+          title="Industry"
+          body="Sets the sector benchmarks CFO AI grades this workspace against. Change it if the company's industry was set wrong — a 4× Debt/EBITDA is normal in real estate and alarming in SaaS."
+        />
+        <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
       </div>
 
       {/* Decision rules */}
-      <div className="rounded-2xl border border-rule bg-surface p-5">
+      <div className="border-t border-rule/60 pt-6">
         <StepHeading
           title="Decision rules"
           body="These rules classify every product into Protect / Watch / Wind down. Tune the thresholds — changes apply immediately."
@@ -874,22 +1327,30 @@ function WorkspaceSettings({
       </div>
 
       {/* Actions */}
-      <div className="rounded-2xl border border-rule bg-surface p-5">
+      <div className="border-t border-rule/60 pt-6">
         <StepHeading
           title="Setup & data"
-          body={
-            canDelete
-              ? "Deleting hides this workspace and everything in it. You can restore it for 30 days, after which its documents, periods and analyses are erased permanently."
-              : "This is your only workspace, so it can't be deleted. Create another one first."
-          }
+          body="Deleting hides this workspace and everything in it. You can restore it for 30 days, after which its documents, periods and analyses are erased permanently. If it's your last workspace, you'll return to a clean slate to create a new one."
         />
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              resetDecisionRulesToDefaults();
+              toast.success("Decision rules reset to defaults.");
+            }}
+            data-testid="workspace-settings-reset"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+          >
+            <RotateCcw size={14} strokeWidth={1.75} />
+            Reset to default
+          </button>
           {canDelete && (
             <button
               type="button"
               onClick={onDelete}
               data-testid="workspace-settings-delete"
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 text-[13px] font-medium text-red-600 hover:bg-red-500/10 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
             >
               <Trash2 size={14} strokeWidth={1.75} />
               Delete workspace
@@ -897,6 +1358,63 @@ function WorkspaceSettings({
           )}
         </div>
       </div>
+
+      {/* Apply bar — the single commit point for the tab's field settings
+          (name + industry). Disabled until something changed; shows an
+          unsaved-changes hint while dirty. */}
+      <div className="border-t border-rule/60 pt-6 flex flex-wrap items-center justify-end gap-3">
+        {dirty && (
+          <span className="text-[12.5px] text-amber-600 mr-auto" data-testid="workspace-settings-dirty">
+            You have unsaved changes.
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={applyChanges}
+          disabled={!dirty}
+          data-testid="workspace-settings-apply"
+          className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <Check size={14} strokeWidth={2} />
+          Apply changes
+        </button>
+      </div>
+
+      {/* Unsaved-changes guard when leaving via "All workspaces". */}
+      <Dialog open={leaveWarnOpen} onOpenChange={setLeaveWarnOpen}>
+        <DialogContent className="sm:max-w-[420px]" data-testid="workspace-settings-leave-dialog">
+          <DialogHeader>
+            <DialogTitle>Discard unsaved changes?</DialogTitle>
+            <DialogDescription>
+              You changed this workspace's settings but haven't applied them. Leaving now discards those changes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setLeaveWarnOpen(false)}
+              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+            >
+              Keep editing
+            </button>
+            <button
+              type="button"
+              onClick={() => { applyChanges(); setLeaveWarnOpen(false); onBack?.(); }}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+            >
+              Apply &amp; leave
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLeaveWarnOpen(false); onBack?.(); }}
+              data-testid="workspace-settings-leave-discard"
+              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+            >
+              Discard &amp; leave
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

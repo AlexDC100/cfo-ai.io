@@ -13,9 +13,9 @@
 // Mobile: vaul bottom sheet. Desktop: right-side slide-in panel.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, BookOpen } from "lucide-react";
+import { Search, X, BookOpen, ChevronLeft } from "lucide-react";
 import { Drawer } from "vaul";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePopoverStack } from "./PopoverStackProvider";
 import { CONCEPTS_BY_KEY, type Concept, type ConceptCategory } from "@/lib/learning/concepts";
@@ -52,18 +52,18 @@ export function MetricGlossaryDrawer() {
           <Drawer.Content
             className="
               fixed bottom-0 inset-x-0 z-[155]
-              bg-[rgba(18,20,22,0.96)] backdrop-blur-2xl
+              bg-surface dark:bg-bg-2
               rounded-t-3xl
-              border-t border-white/[0.08]
+              border-t border-rule-strong
               max-h-[92dvh]
               pb-[max(20px,env(safe-area-inset-bottom))]
               shadow-[0_-12px_60px_-8px_rgba(0,0,0,0.6)]
               flex flex-col
-              text-white
+              text-ink
             "
           >
             <div className="flex justify-center pt-3 pb-1 shrink-0" aria-hidden>
-              <div className="w-9 h-1 rounded-full bg-white/20" />
+              <div className="w-9 h-1 rounded-full bg-ink/20" />
             </div>
             <GlossaryContent onClose={() => setOpen(false)} />
           </Drawer.Content>
@@ -72,46 +72,55 @@ export function MetricGlossaryDrawer() {
     );
   }
 
+  // Desktop — the ONE rounded-sidebar shell app-wide (2026-07-24): the
+  // same Radix Sheet + inset/rounded geometry AND surface the Command
+  // Center (account avatar) uses. This standalone drawer still serves
+  // the global `openGlossary()` event (TopHeader pill); the Command
+  // Center renders GlossaryContent in-place instead of opening this.
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[145] bg-black/35"
-            onClick={() => setOpen(false)}
-            aria-hidden
-          />
-          <motion.aside
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="
-              fixed top-0 right-0 bottom-0 z-[155]
-              w-[420px] max-w-[calc(100vw-24px)]
-              bg-[rgba(18,20,22,0.94)] backdrop-blur-2xl
-              border-l border-white/[0.08]
-              shadow-[-24px_0_80px_-12px_rgba(0,0,0,0.55),inset_1px_0_0_rgba(255,255,255,0.04)]
-              flex flex-col
-              text-white
-            "
-            data-testid="metric-glossary"
-            role="dialog"
-            aria-label="Metric glossary"
-          >
-            <GlossaryContent onClose={() => setOpen(false)} />
-          </motion.aside>
-        </>
-      )}
-    </AnimatePresence>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent
+        side="right"
+        data-testid="metric-glossary"
+        className="
+          w-[calc(100vw-16px)] sm:w-[420px] sm:max-w-[440px]
+          p-0 m-2 sm:m-3 h-[calc(100dvh-16px)] sm:h-[calc(100dvh-24px)]
+          rounded-2xl sm:rounded-3xl
+          bg-surface dark:bg-bg-2
+          border border-rule-strong
+          text-ink
+          shadow-4
+          overflow-hidden
+          [&>button.absolute]:hidden
+          flex flex-col
+        "
+        style={{
+          marginTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+          marginBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)",
+          marginRight: "calc(env(safe-area-inset-right) + 0.5rem)",
+          maxHeight:
+            "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem)",
+        }}
+      >
+        <SheetTitle className="sr-only">Metric glossary</SheetTitle>
+        <GlossaryContent onClose={() => setOpen(false)} />
+      </SheetContent>
+    </Sheet>
   );
 }
 
-function GlossaryContent({ onClose }: { onClose: () => void }) {
+/** Exported (2026-07-24) so the Command Center can render the glossary
+ *  IN its own sheet (a swapped view) instead of opening a second
+ *  sidebar. Styled with theme tokens so it reads natively on any host
+ *  surface. `onBack` renders a back chevron before the title (in-place
+ *  hosts); `onClose` remains "dismiss the hosting surface". */
+export function GlossaryContent({
+  onClose,
+  onBack,
+}: {
+  onClose: () => void;
+  onBack?: () => void;
+}) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const { push } = usePopoverStack();
@@ -189,12 +198,26 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
   return (
     <>
       {/* Header */}
-      <header className="px-5 pt-5 pb-3 shrink-0 border-b border-white/[0.06] relative">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+      <header className="px-5 pt-5 pb-3 shrink-0 border-b border-rule relative">
         <div className="flex items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2">
-            <BookOpen className="w-3.5 h-3.5 text-[hsl(173,57%,68%)]" />
-            <h2 className="text-[14px] font-semibold leading-none tracking-tight">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                aria-label="Back"
+                data-testid="glossary-back"
+                className="
+                  w-7 h-7 -ml-1.5 rounded-full grid place-items-center
+                  text-ink-mute hover:text-ink hover:bg-bg-2/60
+                  transition-colors
+                "
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
+            <BookOpen className="w-3.5 h-3.5 text-brand-d" />
+            <h2 className="text-[14px] font-semibold leading-none tracking-tight text-ink">
               Finance glossary
             </h2>
           </div>
@@ -205,9 +228,9 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
             data-testid="glossary-close"
             className="
               w-7 h-7 rounded-full
-              bg-white/[0.06] hover:bg-white/[0.14]
+              bg-bg-2/60 hover:bg-bg-2
               grid place-items-center
-              text-white/75 hover:text-white
+              text-ink-mute hover:text-ink
               transition-colors
               -mt-1 -mr-0.5
             "
@@ -215,12 +238,12 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
             <X className="w-3 h-3" />
           </button>
         </div>
-        <p className="text-[11.5px] text-white/55 mt-2">
+        <p className="text-[11.5px] text-ink-soft mt-2">
           {totalShown} concept{totalShown === 1 ? "" : "s"} — every line, every ratio, every source account.
         </p>
         {/* Search */}
         <div className="mt-3 relative">
-          <Search className="w-3.5 h-3.5 text-white/45 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             ref={inputRef}
             type="text"
@@ -230,9 +253,9 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
             data-testid="glossary-search"
             className="
               w-full pl-9 pr-3 py-2 rounded-lg
-              bg-white/[0.05] border border-white/[0.08]
-              text-[13px] text-white placeholder:text-white/35
-              focus:outline-none focus:border-[hsl(173,57%,55%)]/30 focus:bg-white/[0.08]
+              bg-bg-2/60 border border-rule
+              text-[13px] text-ink placeholder:text-ink-mute
+              focus:outline-none focus:border-brand/40 focus:bg-bg-2
               transition-colors
             "
           />
@@ -242,7 +265,7 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
       {/* Body — scrollable */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-3">
         {groups.length === 0 ? (
-          <div className="text-center text-[13px] text-white/55 px-5 py-10">
+          <div className="text-center text-[13px] text-ink-soft px-5 py-10">
             No concepts match "{query}".
           </div>
         ) : (
@@ -251,7 +274,7 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
               <div
                 className={cn(
                   "px-2.5 mb-1.5",
-                  "text-[10px] uppercase tracking-[0.14em] text-white/45 font-semibold",
+                  "text-[10px] uppercase tracking-[0.14em] text-ink-mute font-semibold",
                 )}
               >
                 {category}
@@ -266,20 +289,21 @@ function GlossaryContent({ onClose }: { onClose: () => void }) {
                     className="
                       w-full text-left
                       px-2.5 py-2 rounded-md
-                      hover:bg-white/[0.06]
-                      transition-colors
+                      border border-transparent
+                      bg-bg-2/0 hover:bg-bg-2/80 hover:border-rule
+                      transition-all duration-150
                       group
                     "
                   >
                     <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-[12.5px] font-medium text-white/95 group-hover:text-white">
+                      <span className="text-[12.5px] font-medium text-ink group-hover:text-brand-d transition-colors">
                         {c.name.en}
                       </span>
-                      <code className="text-[10px] font-mono text-white/35 shrink-0">
+                      <code className="text-[10px] font-mono text-ink-mute group-hover:text-ink-soft shrink-0 transition-colors">
                         {c.key}
                       </code>
                     </div>
-                    <p className="text-[11.5px] text-white/55 mt-0.5 leading-snug line-clamp-2">
+                    <p className="text-[11.5px] text-ink-soft mt-0.5 leading-snug line-clamp-2">
                       {c.shortDefinition.en}
                     </p>
                   </button>

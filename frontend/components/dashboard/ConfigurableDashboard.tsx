@@ -31,7 +31,7 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Plus, Pencil, Check, RotateCcw, Cloud, Smartphone, Activity, BarChart2 } from "lucide-react";
+import { Plus, Pencil, Check, RotateCcw, Sparkles } from "lucide-react";
 import { useDashboard } from "@/stores/dashboard";
 import { useDashboardView } from "@/stores/dashboardView";
 import { MetricCard } from "./MetricCard";
@@ -53,12 +53,11 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
     cards,
     isCustomized,
     atCardLimit,
-    syncSource,
     addCard,
     reorderCards,
     resetToDefault,
   } = useDashboard();
-  const { view, setView } = useDashboardView();
+  const { view } = useDashboardView();
 
   const [editMode, setEditMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -94,61 +93,45 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
     reorderCards(arrayMove(ids, oldIndex, newIndex));
   }
 
+  // "Add metric" tile — one at the front, plus enough fillers to complete the
+  // last 4-column row so the grid never looks half-empty. Column footprint:
+  // sm = 1 col, md/lg = 2 cols; +1 for the front tile itself.
+  const COLS = 4;
+  const usedUnits = 1 + cards.reduce((sum, c) => sum + (c.size === "sm" ? 1 : 2), 0);
+  const trailingAddTiles = (COLS - (usedUnits % COLS)) % COLS;
+
+  const addMetricTile = (key: string) => (
+    <button
+      key={`add-metric-${key}`}
+      type="button"
+      onClick={() => setPickerOpen(true)}
+      disabled={atCardLimit}
+      data-testid={key === "front" ? "dashboard-add-metric-tile" : "dashboard-add-metric-filler"}
+      title={atCardLimit ? "Card limit reached (20)" : "Add a metric"}
+      className={cn(
+        "col-span-1 row-span-1 group flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-rule text-ink-mute transition-colors",
+        atCardLimit
+          ? "opacity-40 cursor-not-allowed"
+          : "hover:text-ink hover:border-rule-strong hover:bg-bg-2/40",
+      )}
+    >
+      <span className="grid place-items-center h-7 w-7 rounded-full border border-rule group-hover:border-rule-strong transition-colors">
+        <Plus className="w-3.5 h-3.5" />
+      </span>
+      <span className="text-[11.5px] font-medium">Add metric</span>
+    </button>
+  );
+
   return (
     <section data-testid="configurable-dashboard" className="mb-3">
-      {/* Control row */}
+      {/* Control row — the Snapshot/Trend toggle + sync indicator were
+          removed per operator directive (2026-07-25); the grid always
+          renders the snapshot view. Only the edit/customize controls remain,
+          pinned right. */}
       <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {/* F6.1 — Snapshot ↔ Trend toggle. Disabled (with explanatory
-              tooltip) when the active period lacks multi-year history, so the
-              affordance is discoverable but never misleading. */}
-          <div
-            className={cn(
-              "flex items-center gap-0.5 rounded-lg border border-rule bg-surface p-0.5",
-              !trendAvailable && "opacity-50",
-            )}
-            data-testid="dashboard-view-toggle"
-            title={
-              trendAvailable
-                ? "Switch between this period and the multi-year trend"
-                : "Trend needs at least two years of history for this company"
-            }
-          >
-            {([
-              { key: "snapshot", label: "Snapshot", Icon: BarChart2 },
-              { key: "trend", label: "Trend", Icon: Activity },
-            ] as const).map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                type="button"
-                disabled={!trendAvailable && key === "trend"}
-                onClick={() => setView(key)}
-                data-testid={`dashboard-view-${key}`}
-                aria-pressed={effectiveView === key}
-                className={cn(
-                  "inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11.5px] font-medium transition-colors",
-                  effectiveView === key
-                    ? "bg-[hsl(173,57%,55%)]/[0.14] text-[hsl(173,57%,34%)]"
-                    : "text-ink-mute hover:text-ink",
-                  !trendAvailable && key === "trend" && "cursor-not-allowed hover:text-ink-mute",
-                )}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-ink-mute">
-            {syncSource === "account" ? (
-              <span className="inline-flex items-center gap-1" title="Layout synced to your account">
-                <Cloud className="w-3 h-3" /> Synced
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1" title="Layout saved on this device">
-                <Smartphone className="w-3 h-3" /> On this device
-              </span>
-            )}
-          </span>
+        <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+          <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+          Metrics
         </div>
         <div className="flex items-center gap-1.5">
           {editMode && isCustomized && (
@@ -215,6 +198,8 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
           strategy={rectSortingStrategy}
         >
           <div className="grid grid-cols-2 lg:grid-cols-4 auto-rows-[minmax(0,1fr)] gap-3">
+            {/* Add metric — a square tile at the FRONT of the grid. */}
+            {addMetricTile("front")}
             {cards.map((card) => (
               <MetricCard
                 key={card.id}
@@ -225,6 +210,9 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
                 view={effectiveView}
               />
             ))}
+            {/* Filler add-metric tiles padding the trailing empty cells so the
+                grid always reads as full (each opens the concept picker too). */}
+            {Array.from({ length: trailingAddTiles }).map((_, i) => addMetricTile(`fill-${i}`))}
           </div>
         </SortableContext>
       </DndContext>

@@ -35,7 +35,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
 
 import { Logo } from "@/components/cfo/Logo";
-import { ThemeToggle } from "@/components/cfo/ThemeToggle";
 import { PricingTableV2 } from "@/components/cfo/PricingTableV2";
 import {
   BillingCycleToggle,
@@ -69,7 +68,6 @@ export default function Pricing() {
           </span>
         </Link>
         <div className="flex items-center gap-2">
-          <ThemeToggle compact />
           {isAuthed ? (
             <button
               onClick={() => navigate("/dashboard")}

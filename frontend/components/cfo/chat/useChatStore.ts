@@ -33,6 +33,8 @@ import {
   updateThread,
 } from "./chatRemote";
 import { CHAT_STORAGE_KEY, CHAT_CURRENT_KEY, type ChatConversation, type ChatMessage } from "./types";
+import { clearDraft } from "./chatDrafts";
+import { abortChatReply } from "@/lib/chatPendingStore";
 
 // ── Storage helpers ────────────────────────────────────────────────
 // The cache is keyed per workspace; the bare legacy key is the pre-workspace
@@ -102,6 +104,62 @@ function safeWriteAll(orgId: string | null, conversations: ChatConversation[]): 
   } catch {
     // Quota exceeded / private-mode: fail soft so the chat still works
     // in-memory for the session. Next message just won't survive a refresh.
+  }
+}
+
+// ── Deletion tombstones ────────────────────────────────────────────
+// A deleted conversation must STAY deleted (operator-reported 2026-07-25:
+// deleted chats reappeared on the next tab entry). remove() deletes the
+// row server-side, but that request can race the initial fetch, fail
+// offline, or — before this fix — never fire at all, because it was gated
+// on the `persisted` set, which is only populated once the remote fetch
+// resolves. Tombstones remember every locally-deleted id (per workspace,
+// in localStorage) so hydration filters them out of fetch results and
+// retries the server-side delete until it sticks.
+const DELETED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function deletedKey(orgId: string | null): string {
+  return orgId ? `cfo-ai-chat-deleted-v1:${orgId}` : "cfo-ai-chat-deleted-v1";
+}
+
+function readTombstones(orgId: string | null): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(deletedKey(orgId)) ?? "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    // Prune stale entries — once the server delete has stuck for a month,
+    // the id can't come back, so the tombstone is just dead weight.
+    const now = Date.now();
+    const out: Record<string, number> = {};
+    for (const [id, ts] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof ts === "number" && now - ts < DELETED_TTL_MS) out[id] = ts;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeTombstones(orgId: string | null, tombstones: Record<string, number>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(deletedKey(orgId), JSON.stringify(tombstones));
+  } catch {
+    /* private mode / quota — deletion still applied locally + remotely */
+  }
+}
+
+function addTombstone(orgId: string | null, id: string): void {
+  const t = readTombstones(orgId);
+  t[id] = Date.now();
+  writeTombstones(orgId, t);
+}
+
+function clearTombstone(orgId: string | null, id: string): void {
+  const t = readTombstones(orgId);
+  if (id in t) {
+    delete t[id];
+    writeTombstones(orgId, t);
   }
 }
 
@@ -240,9 +298,15 @@ export function useChatStore(): ChatStore {
   const { org } = useActiveOrg();
   const orgId = org?.id ?? null;
 
-  const [conversations, setConversations] = useState<ChatConversation[]>(() => safeReadAll(null));
+  // Seed from the ACTIVE workspace's cache when the org is already
+  // resolved at mount (every in-app navigation) — not the legacy bare
+  // key. Reading the workspace cache only in the effect below meant the
+  // first render was always empty, so opening /chat with existing
+  // history mounted the sidebar a frame late and replayed its
+  // slide-open entrance every visit.
+  const [conversations, setConversations] = useState<ChatConversation[]>(() => safeReadAll(orgId));
   const [currentId, setCurrentId] = useState<string | null>(() =>
-    safeReadCurrentId(safeReadAll(null)),
+    safeReadCurrentId(safeReadAll(orgId)),
   );
 
   // Mirror of state for the mutation callbacks. Persisting needs to know what
@@ -316,19 +380,46 @@ export function useChatStore(): ChatStore {
       if (!identity || identity.orgId !== orgId) return;
 
       // One-time lift of the pre-workspace history into this workspace.
-      const legacy = readLegacyConversations();
+      // Tombstoned ids are skipped — re-importing a deleted conversation
+      // would recreate its server rows.
+      const legacy = readLegacyConversations().filter(
+        (c) => !(c.id in readTombstones(orgId)),
+      );
       if (legacy.length > 0) {
         const imported = await importLocalConversations(identity, legacy);
         if (imported > 0) markLegacyImported();
       }
 
-      const remote = await fetchConversations(identity.orgId);
-      if (cancelled || remote === null) return;
+      const fetched = await fetchConversations(identity.orgId);
+      if (cancelled || fetched === null) return;
+      // Never resurrect a deleted conversation: drop tombstoned ids from
+      // the fetch result and retry their server-side delete (covers a
+      // delete that raced this fetch or failed offline in a past session).
+      const tombstones = readTombstones(orgId);
+      const remote = fetched.filter((c) => !(c.id in tombstones));
+      for (const c of fetched) {
+        if (c.id in tombstones) {
+          void deleteThread(c.id).then((ok) => {
+            if (ok) clearTombstone(orgId, c.id);
+          });
+        }
+      }
       for (const c of remote) persisted.current.add(c.id);
-      convsRef.current = remote;
-      setConversations(remote);
-      safeWriteAll(orgId, remote);
-      setCurrentId((prev) => (prev && remote.some((c) => c.id === prev) ? prev : remote[0]?.id ?? null));
+      // Preserve local-only BLANK conversations (never persisted by
+      // design — the thread row is written on the first message). A
+      // "New chat" created while this fetch was in flight — e.g. the
+      // Ask CFO AI button navigating here and immediately calling
+      // newChat() — must survive the remote adoption; replacing the
+      // list wholesale silently wiped it and dumped the user back into
+      // their latest existing conversation.
+      const localBlanks = convsRef.current.filter(
+        (c) => c.messages.length === 0 && !remote.some((r) => r.id === c.id),
+      );
+      const merged = [...localBlanks, ...remote];
+      convsRef.current = merged;
+      setConversations(merged);
+      safeWriteAll(orgId, merged);
+      setCurrentId((prev) => (prev && merged.some((c) => c.id === prev) ? prev : merged[0]?.id ?? null));
     })();
 
     return () => { cancelled = true; };
@@ -405,11 +496,20 @@ export function useChatStore(): ChatStore {
     const next = convsRef.current.filter((c) => c.id !== id);
     applyConversations(next);
     setCurrentId((prev) => (prev === id ? (next.length > 0 ? next[0].id : null) : prev));
-    if (persisted.current.has(id)) {
-      persisted.current.delete(id);
-      void deleteThread(id);
-    }
-  }, [applyConversations]);
+    clearDraft(id); // drop the unsent composer draft along with the chat
+    abortChatReply(id); // cancel an in-flight reply — stop "thinking" now
+    // Tombstone + UNCONDITIONAL server delete. `persisted` only knows about
+    // threads this mount has seen (remote fetch or own sends) — gating the
+    // delete on it let server rows survive and resurface on the next entry.
+    // Deleting a row that doesn't exist is a harmless no-op; the tombstone
+    // is cleared only once the delete confirms, so a failed request gets
+    // retried by the next hydration.
+    addTombstone(orgId, id);
+    persisted.current.delete(id);
+    void deleteThread(id).then((ok) => {
+      if (ok) clearTombstone(orgId, id);
+    });
+  }, [applyConversations, orgId]);
 
   const appendUserTurn: ChatStore["appendUserTurn"] = useCallback((input) => {
     const now = Date.now();

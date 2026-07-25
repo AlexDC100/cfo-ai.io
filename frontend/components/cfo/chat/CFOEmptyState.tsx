@@ -14,6 +14,9 @@ import { motion } from "framer-motion";
 import { TrendingUp, Calculator, FileText, AlertTriangle, GitCompare, LineChart, ShieldAlert, HelpCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { useActiveOrg } from "@/lib/org";
+import { promptsForIndustry } from "./industryPrompts";
+
 interface Props {
   hasPeriod: boolean;
   companyName?: string | null;
@@ -48,9 +51,29 @@ export const GENERAL_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: s
 ];
 
 export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = false }: Props) {
-  const prompts = hasPeriod ? WORKSPACE_PROMPTS : GENERAL_PROMPTS;
+  // Industry-tailored suggestions (2026-07-25) — when the workspace has
+  // an org-profile industry (picked at onboarding), the general starter
+  // set is swapped for prompts in that field's language: cap rates for
+  // real estate, ARR for SaaS, WIP for construction. Workspace-grounded
+  // prompts (period loaded) stay data-driven and generic.
+  const { org } = useActiveOrg();
+  const industryPrompts = promptsForIndustry(org?.industry_key);
+  const prompts = hasPeriod ? WORKSPACE_PROMPTS : (industryPrompts ?? GENERAL_PROMPTS);
+  const industryLabel = industryPrompts ? (org?.industry_display_name ?? null) : null;
 
+  // Cards match the dashboard's DocGuideCard pattern (document-type
+  // guide): left-aligned, 3px brand left-border accent, compact medium
+  // title over muted body copy — no icon tile.
   const grid = (
+    <div>
+    <h2 className="mb-2.5 text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+      Suggested questions
+      {industryLabel && (
+        <span className="normal-case tracking-normal font-normal text-ink-mute">
+          {" "}· based on your workspace's field ({industryLabel})
+        </span>
+      )}
+    </h2>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
       {prompts.map((p) => {
         const Icon = p.icon;
@@ -60,23 +83,27 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
             type="button"
             onClick={() => onPick(p.prompt)}
             className="
-              group text-center flex flex-col items-center gap-2.5
-              rounded-xl border border-rule bg-surface/70
-              px-4 py-5
-              hover:border-brand/30 hover:bg-surface
+              rounded-lg border border-rule border-l-[3px] border-l-brand
+              bg-surface p-3 text-center
+              hover:bg-transparent
+              transition-colors duration-150 ease-out
               focus:outline-none focus:ring-2 focus:ring-brand/30
-              transition-all
             "
             data-testid="chat-prompt-card"
           >
-            <span className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-bg-2/60 text-ink-soft group-hover:bg-brand/10 group-hover:text-brand-d transition-colors">
-              <Icon size={22} strokeWidth={1.75} />
-            </span>
-            <span className="block text-[14px] font-medium text-ink">{p.title}</span>
-            <span className="block text-[12px] text-ink-soft leading-relaxed line-clamp-2">{p.prompt}</span>
+            {/* Icon + title — top-aligned to the card edge, horizontally
+                centered, with a fixed height so the divider lands at the same
+                spot on every card regardless of 1- vs 2-line titles. */}
+            <div className="flex items-start justify-center gap-2 pt-1 min-h-[52px] text-center">
+              <Icon size={24} strokeWidth={1.75} className="text-brand-d shrink-0 mt-px" />
+              <span className="text-[12.5px] font-medium text-ink leading-tight">{p.title}</span>
+            </div>
+            <div aria-hidden className="w-40 max-w-full mx-auto h-px bg-gradient-to-r from-transparent via-rule-strong to-transparent mt-1 mb-3" />
+            <p className="text-[11.5px] text-ink-soft leading-relaxed line-clamp-3">{p.prompt}</p>
           </button>
         );
       })}
+    </div>
     </div>
   );
 

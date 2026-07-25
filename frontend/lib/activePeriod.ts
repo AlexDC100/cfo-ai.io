@@ -142,6 +142,10 @@ export interface ActivePeriod {
   id: string | null;
   /** Friendly label — drives the page header. */
   label: string | null;
+  /** The period's closing date (ISO) — the "month" this upload covers.
+   *  Drives the TopHeader's "[workspace] - [month]" readout and the
+   *  Workspace tab's month switcher highlight. Null for samples. */
+  periodEnd: string | null;
   /** Industry string from the period metadata (drives industry-aware briefing). */
   industry: string | null;
   /** Statements payload (BS + P&L) — null when this period has no financials. */
@@ -206,6 +210,7 @@ export interface PeriodLineItem {
 const EMPTY: ActivePeriod = {
   id: null,
   label: null,
+  periodEnd: null,
   industry: null,
   statements: null,
   invoices: null,
@@ -361,6 +366,7 @@ export function useActivePeriod(): ActivePeriod {
       return {
         id: payload.period.id,
         label: payload.statements.companyName ?? payload.organization?.name ?? null,
+        periodEnd: payload.period.period_end ?? null,
         industry: payload.organization?.industry_display_name ?? null,
         statements: payload.statements,
         invoices: null,
@@ -390,6 +396,7 @@ export function useActivePeriod(): ActivePeriod {
     return {
       id: sample.id,
       label: sample.statements?.companyName ?? sample.label,
+      periodEnd: null,
       industry: sample.statements?.industry ?? null,
       statements: sample.statements ?? null,
       invoices: sample.invoicesGetter ? sample.invoicesGetter() : null,
