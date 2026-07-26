@@ -716,22 +716,33 @@ function SidebarMonthStepper() {
     );
   }, [periodsData, directData]);
 
-  // The resolved analysis period wins; a ?period= pointing at a known (maybe
-  // empty) period is next; with neither, fall back to the workspace's newest
-  // period so a fresh empty container still shows its month here.
-  const currentPeriodId = period.id ?? params.get("period");
-  const urlMatch = currentPeriodId
-    ? periods.find((p) => p.period_id === currentPeriodId) ?? null
+  // `?period=<id>` is the app-wide SELECTION key, so it wins here (2026-07-26
+  // per operator: the sidebar showed a different month than the selected
+  // period). It used to be the other way around — the resolved analysis period
+  // took precedence — which is wrong whenever the two disagree: selecting a
+  // month with no analysis yet (an empty container, or one still processing)
+  // leaves `useActivePeriod` pointing at the last month that DID resolve, so
+  // the rail confidently displayed a month the user hadn't selected.
+  // `useActivePeriod` stays as the fallback for a bare URL.
+  const selectedId = params.get("period") ?? period.id ?? null;
+  const listMatch = selectedId
+    ? periods.find((p) => p.period_id === selectedId) ?? null
     : null;
-  const selectedMonth = period.id
-    ? formatPeriodMonth(period.periodEnd)
-    : urlMatch
-      ? formatPeriodMonth(urlMatch.period_end)
-      : periods[0]
-        ? formatPeriodMonth(periods[0].period_end)
-        : null;
-  const periodIdx = currentPeriodId
-    ? periods.findIndex((p) => p.period_id === currentPeriodId)
+  const selectedMonth = listMatch
+    ? formatPeriodMonth(listMatch.period_end)
+    // Not in the list (a sample/demo id, or the list hasn't loaded yet) — the
+    // resolved period can still name it, but only when it IS the selected one.
+    : selectedId && period.id === selectedId
+      ? formatPeriodMonth(period.periodEnd)
+      // A selected id we can't resolve names no month: better the
+      // current-month fallback below than another period's date.
+      : selectedId
+        ? null
+        : periods[0]
+          ? formatPeriodMonth(periods[0].period_end)
+          : null;
+  const periodIdx = selectedId
+    ? periods.findIndex((p) => p.period_id === selectedId)
     : -1;
   // Newest-first ordering: the OLDER month is further down the list.
   const olderPeriod = periodIdx >= 0 && periodIdx < periods.length - 1 ? periods[periodIdx + 1] : null;

@@ -282,8 +282,26 @@ interface OrgChatState {
 const orgStates = new Map<string, OrgChatState>();
 const storeListeners = new Set<() => void>();
 
+// ── Global (workspace-less) chats ──────────────────────────────────────
+//
+// Visibility rule (2026-07-26 per operator):
+//   · started with NO workspace → visible in EVERY workspace and with none
+//     selected. It isn't about any one company, so hiding it behind whichever
+//     workspace happened to be open next would just lose it.
+//   · started INSIDE a workspace → visible only there. Its answers are
+//     grounded in that company's numbers and would mislead anywhere else.
+//
+// The workspace-less bucket is the one keyed `__none__`, and it is merged
+// into every workspace's visible list. Note these stay DEVICE-LOCAL:
+// `chat_threads.org_id` is `not null` with `is_member_of(org_id)` RLS, so a
+// thread with no workspace cannot be persisted server-side without a schema
+// change. That already matched behaviour (`chatIdentity()` returns null with
+// no org, so nothing was ever written) — it's now a documented property
+// rather than an accident.
+const GLOBAL_KEY = "__none__";
+
 function stateKey(orgId: string | null): string {
-  return orgId ?? "__none__";
+  return orgId ?? GLOBAL_KEY;
 }
 
 function emitStore(): void {
@@ -369,10 +387,63 @@ function setCurrent(orgId: string | null, id: string | null): void {
   safeWriteCurrentId(id);
 }
 
+/** Everything visible while `orgId` is active: that workspace's chats plus the
+ *  workspace-less ones, newest first. With no workspace active the two are the
+ *  same bucket, so this is just the global list. */
+export function visibleConversations(orgId: string | null): ChatConversation[] {
+  const own = getOrgState(orgId).conversations;
+  if (orgId === null) return own;
+  const global = getOrgState(null).conversations;
+  if (global.length === 0) return own;
+  return [...own, ...global].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** What a mounted component sees: the merged list plus the open-conversation
+ *  pointer. `useSyncExternalStore` compares snapshots by identity and will
+ *  loop forever if handed a fresh object each call, so this is memoized on the
+ *  identities of the two buckets it merges. `patchOrgState` always replaces
+ *  the state object, so a mutation to EITHER bucket invalidates the cache and
+ *  nothing else does. */
+interface ChatView {
+  conversations: ChatConversation[];
+  currentId: string | null;
+}
+let viewCache:
+  | { key: string; own: OrgChatState; global: OrgChatState; view: ChatView }
+  | null = null;
+
+function chatViewSnapshot(orgId: string | null): ChatView {
+  const own = getOrgState(orgId);
+  const global = orgId === null ? own : getOrgState(null);
+  const key = stateKey(orgId);
+  if (viewCache && viewCache.key === key && viewCache.own === own && viewCache.global === global) {
+    return viewCache.view;
+  }
+  const conversations =
+    orgId === null || global.conversations.length === 0
+      ? own.conversations
+      : [...own.conversations, ...global.conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const view: ChatView = { conversations, currentId: own.currentId };
+  viewCache = { key, own, global, view };
+  return view;
+}
+
+/** Which bucket actually holds `convId` — the active workspace's or the
+ *  global one. Every mutation resolves this first: a workspace-less chat is
+ *  visible while a workspace is open, so edits to it (rename, delete, a reply
+ *  landing) arrive with that workspace as the caller's `orgId` and must NOT be
+ *  written into the workspace's bucket. Getting this wrong would silently
+ *  clone the conversation into whichever workspace was open at the time. */
+function ownerOrgId(orgId: string | null, convId: string): string | null {
+  if (getOrgState(orgId).conversations.some((c) => c.id === convId)) return orgId;
+  if (orgId !== null && getOrgState(null).conversations.some((c) => c.id === convId)) return null;
+  return orgId;
+}
+
 /** Read one conversation synchronously — used by the background send
  *  pipeline (chatTurns.ts) to build the request payload. */
 export function getChatConversation(orgId: string | null, id: string): ChatConversation | null {
-  return getOrgState(orgId).conversations.find((c) => c.id === id) ?? null;
+  return visibleConversations(orgId).find((c) => c.id === id) ?? null;
 }
 
 // ── Module mutations ───────────────────────────────────────────────
@@ -391,7 +462,7 @@ export function chatCreateNew(
   // guard so you can spin up multiple empty chats while testing. The check is
   // compiled out of production builds, so a deploy always keeps the guard.
   if (!import.meta.env.DEV) {
-    const existingEmpty = getOrgState(orgId).conversations.find((c) => c.messages.length === 0);
+    const existingEmpty = visibleConversations(orgId).find((c) => c.messages.length === 0);
     if (existingEmpty) {
       setCurrent(orgId, existingEmpty.id);
       return existingEmpty.id;
@@ -422,9 +493,10 @@ export function chatSelect(orgId: string | null, id: string): void {
 
 export function chatRename(orgId: string | null, id: string, title: string): void {
   const clean = title.trim() || "Untitled conversation";
+  const owner = ownerOrgId(orgId, id);
   applyConversations(
-    orgId,
-    getOrgState(orgId).conversations.map((c) =>
+    owner,
+    getOrgState(owner).conversations.map((c) =>
       c.id === id ? { ...c, title: clean, updatedAt: Date.now() } : c,
     ),
   );
@@ -432,12 +504,21 @@ export function chatRename(orgId: string | null, id: string, title: string): voi
 }
 
 export function chatRemove(orgId: string | null, id: string): void {
-  const st = getOrgState(orgId);
+  const owner = ownerOrgId(orgId, id);
+  const st = getOrgState(owner);
   const next = st.conversations.filter((c) => c.id !== id);
-  const nextCurrent = st.currentId === id ? (next[0]?.id ?? null) : st.currentId;
-  patchOrgState(orgId, { conversations: next, currentId: nextCurrent });
-  safeWriteAll(orgId, next);
-  safeWriteCurrentId(nextCurrent);
+  patchOrgState(owner, { conversations: next });
+  safeWriteAll(owner, next);
+  // The open-conversation pointer lives on the ACTIVE workspace's state, which
+  // isn't necessarily the deleted chat's owner (deleting a global chat from
+  // inside a workspace). Move it only when it pointed at what we just removed,
+  // and re-pick from what's actually on screen.
+  const active = getOrgState(orgId);
+  if (active.currentId === id) {
+    const nextCurrent = visibleConversations(orgId).find((c) => c.id !== id)?.id ?? null;
+    patchOrgState(orgId, { currentId: nextCurrent });
+    safeWriteCurrentId(nextCurrent);
+  }
   clearDraft(id); // drop the unsent composer draft along with the chat
   abortChatReply(id); // cancel an in-flight reply — stop "thinking" now
   // Tombstone + UNCONDITIONAL server delete. `persistedThreads` only knows
@@ -446,10 +527,13 @@ export function chatRemove(orgId: string | null, id: string): void {
   // Deleting a row that doesn't exist is a harmless no-op; the tombstone
   // is cleared only once the delete confirms, so a failed request gets
   // retried by the next hydration.
-  addTombstone(orgId, id);
+  // Tombstone in the OWNER's namespace, so the owner's hydration is what
+  // filters it out. Tombstoning under the active workspace would leave the
+  // real bucket free to resurrect it on the next fetch.
+  addTombstone(owner, id);
   persistedThreads.delete(id);
   void deleteThread(id).then((ok) => {
-    if (ok) clearTombstone(orgId, id);
+    if (ok) clearTombstone(owner, id);
   });
 }
 
@@ -483,9 +567,15 @@ export function chatAppendUserTurn(
   };
 
   const st = getOrgState(orgId);
+  // The open conversation may be a workspace-less one being continued from
+  // inside a workspace — look across everything on screen, not just this
+  // workspace's bucket.
   const existing = st.currentId
-    ? st.conversations.find((c) => c.id === st.currentId) ?? null
+    ? visibleConversations(orgId).find((c) => c.id === st.currentId) ?? null
     : null;
+  // Continuing an existing chat keeps it in ITS bucket; a brand-new one is
+  // born into the active scope (workspace, or global when none is selected).
+  const targetOrgId = existing ? ownerOrgId(orgId, existing.id) : orgId;
 
   const target: ChatConversation = existing
     ? {
@@ -494,7 +584,9 @@ export function chatAppendUserTurn(
         // whatever title was set (auto or user-renamed).
         title: existing.messages.length === 0 ? deriveTitle(input.content) : existing.title,
         updatedAt: now,
-        organizationId: existing.organizationId ?? input.organizationId ?? orgId,
+        // A workspace-less chat STAYS workspace-less even when continued from
+        // inside a workspace — that's what keeps it visible everywhere.
+        organizationId: existing.organizationId ?? targetOrgId,
         periodId: existing.periodId ?? input.periodId ?? null,
         periodLabel: existing.periodLabel ?? input.periodLabel ?? null,
         messages: [...existing.messages, userMsg, assistantMsg],
@@ -505,13 +597,16 @@ export function chatAppendUserTurn(
         title: deriveTitle(input.content),
         createdAt: now,
         updatedAt: now,
-        organizationId: input.organizationId ?? orgId,
+        organizationId: input.organizationId ?? targetOrgId,
         periodId: input.periodId ?? null,
         periodLabel: input.periodLabel ?? null,
         messages: [userMsg, assistantMsg],
       };
 
-  applyConversations(orgId, [target, ...st.conversations.filter((c) => c.id !== target.id)]);
+  applyConversations(targetOrgId, [
+    target,
+    ...getOrgState(targetOrgId).conversations.filter((c) => c.id !== target.id),
+  ]);
   if (!existing) setCurrent(orgId, target.id);
 
   // Persist: create the thread on its first message, then the user turn.
@@ -546,7 +641,10 @@ export function chatCompleteAssistantTurn(
   params: CompleteAssistantTurnInput,
 ): void {
   let finished: ChatMessage | null = null;
-  const next = getOrgState(orgId).conversations.map((c) => {
+  // A reply for a workspace-less chat can land while a workspace is open —
+  // write it back into the bucket that actually holds the conversation.
+  const owner = ownerOrgId(orgId, params.conversationId);
+  const next = getOrgState(owner).conversations.map((c) => {
     if (c.id !== params.conversationId) return c;
     return {
       ...c,
@@ -565,7 +663,7 @@ export function chatCompleteAssistantTurn(
       }),
     };
   });
-  applyConversations(orgId, next);
+  applyConversations(owner, next);
 
   // An errored/interrupted turn stays in the UI (so the user sees what
   // happened) but is not written to server history — a reopened conversation
@@ -587,7 +685,8 @@ export function chatCompleteAssistantTurn(
 export function chatRollbackLastPair(orgId: string | null, conversationId: string): string | null {
   let restoredUserContent: string | null = null;
   const dropped: string[] = [];
-  const next = getOrgState(orgId).conversations.map((c) => {
+  const owner = ownerOrgId(orgId, conversationId);
+  const next = getOrgState(owner).conversations.map((c) => {
     if (c.id !== conversationId) return c;
     // Drop trailing assistant + user pair.
     const ms = [...c.messages];
@@ -601,7 +700,7 @@ export function chatRollbackLastPair(orgId: string | null, conversationId: strin
     }
     return { ...c, messages: ms, updatedAt: Date.now() };
   });
-  applyConversations(orgId, next);
+  applyConversations(owner, next);
   if (dropped.length > 0 && persistedThreads.has(conversationId)) {
     void deleteMessages(dropped);
   }
@@ -709,7 +808,8 @@ export function useChatStore(): ChatStore {
   const { org } = useActiveOrg();
   const orgId = org?.id ?? null;
 
-  const getSnapshot = useCallback(() => getOrgState(orgId), [orgId]);
+  // Merged view: this workspace's chats plus the workspace-less ones.
+  const getSnapshot = useCallback(() => chatViewSnapshot(orgId), [orgId]);
   const state = useSyncExternalStore(subscribeStore, getSnapshot, getSnapshot);
 
   // Pull the authoritative server copy on mount / workspace switch.
@@ -723,10 +823,16 @@ export function useChatStore(): ChatStore {
   // snapshot would strip this window's pending placeholder.
   useEffect(() => {
     function onStorage(e: StorageEvent) {
-      if (e.key !== cacheKey(orgId)) return;
-      const st = getOrgState(orgId);
+      // Either bucket on screen can change in another window: this
+      // workspace's, or the workspace-less one merged into it.
+      const changed =
+        e.key === cacheKey(orgId) ? orgId
+        : orgId !== null && e.key === cacheKey(null) ? null
+        : undefined;
+      if (changed === undefined) return;
+      const st = getOrgState(changed);
       if (st.conversations.some((c) => hasChatReplyInFlight(c.id))) return;
-      patchOrgState(orgId, { conversations: safeReadAll(orgId) });
+      patchOrgState(changed, { conversations: safeReadAll(changed) });
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

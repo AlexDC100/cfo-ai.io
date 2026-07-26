@@ -13,6 +13,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { useActiveOrg } from "@/lib/org";
 import { isPublicTestMode } from "@/lib/testMode";
+import { AppLoader } from "@/components/cfo/AppLoader";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   // PUBLIC_TEST_MODE — open-access posture. Every gated route renders
@@ -33,8 +34,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   /* eslint-enable react-hooks/rules-of-hooks */
 
+  // Refresh / cold visit: hold the screen with the branded loader rather than
+  // an empty page (2026-07-26 per operator). Both waits below gate every
+  // authed route, so there is genuinely nothing to render until they land.
   if (status === "loading") {
-    return <div className="min-h-screen bg-bg" aria-hidden />;
+    return <AppLoader label="Signing you in…" />;
   }
 
   if (!isAuthenticated) {
@@ -56,7 +60,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!onWorkspaceRoute) {
     if (orgLoading) {
-      return <div className="min-h-screen bg-bg" aria-hidden />;
+      return <AppLoader />;
     }
     if (needsOnboarding && org) {
       return <Navigate to="/workspace" replace />;

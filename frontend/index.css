@@ -966,3 +966,18 @@
   background-color: hsl(var(--brand) / 0.85);
   color: hsl(var(--bg));
 }
+
+/* ── App loading screen ──────────────────────────────────────────────
+ * The sliver in <AppLoader>'s indeterminate track sweeps left→right and
+ * back. Paired with `ask-ai-anim-fill` for the gradient itself, so the
+ * loader speaks the same visual language as the rest of the app. */
+@keyframes app-loader-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.app-loader-sweep {
+  animation: app-loader-sweep 1.15s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-loader-sweep { animation-duration: 2.4s; }
+}

@@ -47,6 +47,8 @@ import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
 import { useToast } from "@/hooks/use-toast";
 import { useEnsureCurrentPeriod } from "@/hooks/useEnsureCurrentPeriod";
+import { useActivePeriod } from "@/lib/activePeriod";
+import { ContentLoader } from "./AppLoader";
 import { UsageWarningBanner } from "./UsageWarningBanner";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
 
@@ -63,6 +65,17 @@ export function AppShell({ children }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
+  // Content-region loader (2026-07-26 per operator). Pages render straight
+  // from the period payload, which is EMPTY while its fetch is in flight — so
+  // a tab painted its no-data layout for a frame and then swapped in the real
+  // numbers. Hold the region until the payload lands so it's one paint.
+  //
+  // Only a genuine fetch triggers this: navigating between tabs on a period
+  // already in the query cache resolves synchronously and never flips
+  // `isLoading`. /chat is exempt — it's useful with no period at all, so
+  // covering it would be a regression, not a fix.
+  const activePeriod = useActivePeriod();
+  const contentLoading = activePeriod.isLoading && location.pathname !== "/chat";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -328,6 +341,11 @@ export function AppShell({ children }: Props) {
           />
           {children}
         </div>
+
+        {/* Held until the period payload lands — see `contentLoading` above.
+            Inside <main> but fixed-positioned, so it covers the content
+            region while the header and rail stay live and navigable. */}
+        {contentLoading && <ContentLoader sidebarCollapsed={sidebarCollapsed} />}
       </main>
 
       {/* Floating Ask CFO AI launcher removed per the operator's

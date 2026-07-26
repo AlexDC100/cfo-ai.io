@@ -279,28 +279,54 @@ export default function Workspace() {
           </div>
         </div>
       ) : (
-        <>
-          <PageHeader
-            hero
-            eyebrow="Workspace"
-            title={<>Set up your <span className="text-grad">workspace</span>.</>}
-            subtitle="Name your workspace, tune the decision rules that classify your products, and upload your data — three quick steps and CFO AI is ready to analyze."
-          />
-          <Onboarding
-            onDone={finishOnboarding}
-            // A restart on the current workspace prefills its industry; a
-            // brand-new SRL starts blank and must pick its own.
-            initialIndustryKey={creatingNew ? null : (ws.current?.industryKey ?? null)}
-            // Back from the first step returns to the workspaces screen.
-            // Only offered when there IS one to return to and the active
-            // workspace isn't itself mid-onboarding — otherwise the hub's own
-            // guard (`done && !activeNeedsOnboarding` above) would re-enter the
-            // wizard on the very next render and the button would read as
-            // broken.
-            canExit={ws.workspaces.length > 0 && !activeNeedsOnboarding}
-            onExit={() => { setCreatingNew(false); writeDone(true); setDone(true); }}
-          />
-        </>
+        // The setup wizard keeps the workspace rail beside it whenever there
+        // is anything to list (2026-07-26 per operator). Deleting your last
+        // active workspace drops you here, and without the rail the ones
+        // sitting in "Recently deleted" were unreachable — so a soft delete
+        // that is supposed to be restorable for 30 days became effectively
+        // permanent, with the wizard insisting you start over instead.
+        // Hidden only on a true first run (nothing active, nothing archived),
+        // where an empty rail would just crowd the wizard.
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          {(ws.workspaces.length > 0 || ws.archived.length > 0) && (
+            <div className="w-full lg:w-[260px] lg:shrink-0">
+              <WorkspaceHub
+                onEdit={(id) => { ws.select(id); setEditingId(id); }}
+                onCreate={startNewWorkspace}
+                createActive
+                // Picking a workspace closes the wizard and shows it. Only
+                // possible when that workspace is itself set up — one that
+                // still needs onboarding re-enters the wizard by design
+                // (`activeNeedsOnboarding`), which is what stops the app
+                // trapping the user on a workspace with no industry set.
+                onSelected={() => { setCreatingNew(false); writeDone(true); setDone(true); }}
+              />
+            </div>
+          )}
+
+          <div className="flex-1 min-w-0 space-y-8">
+            <PageHeader
+              hero
+              eyebrow="Workspace"
+              title={<>Set up your <span className="text-grad">workspace</span>.</>}
+              subtitle="Name your workspace, tune the decision rules that classify your products, and upload your data — three quick steps and CFO AI is ready to analyze."
+            />
+            <Onboarding
+              onDone={finishOnboarding}
+              // A restart on the current workspace prefills its industry; a
+              // brand-new SRL starts blank and must pick its own.
+              initialIndustryKey={creatingNew ? null : (ws.current?.industryKey ?? null)}
+              // Back from the first step returns to the workspaces screen.
+              // Only offered when there IS one to return to and the active
+              // workspace isn't itself mid-onboarding — otherwise the hub's own
+              // guard (`done && !activeNeedsOnboarding` above) would re-enter the
+              // wizard on the very next render and the button would read as
+              // broken.
+              canExit={ws.workspaces.length > 0 && !activeNeedsOnboarding}
+              onExit={() => { setCreatingNew(false); writeDone(true); setDone(true); }}
+            />
+          </div>
+        </div>
       )}
     </section>
   );
@@ -425,21 +451,20 @@ function Onboarding({
 
       {/* Wizard navigation */}
       <div className="flex items-center justify-between gap-3">
-        {/* Back appears from step 1 onward. At step 0 it becomes an EXIT to the
-            workspace list — but only when `canExit` (2026-07-26 per operator):
-            there has to be somewhere to go back TO, and leaving must not
-            immediately bounce the user straight back in. The parent computes
-            that; see its `canExit` prop. Without a target the slot renders a
-            spacer so Continue stays right-aligned. */}
-        {step > 0 || canExit ? (
+        {/* Back appears from step 1 onward. The step-0 "All workspaces" exit
+            was removed 2026-07-26 per operator — the workspace rail now sits
+            beside the wizard, so leaving is a click on a workspace there
+            rather than a button that duplicated it. `canExit` still gates
+            nothing here; the parent keeps computing it for that rail. */}
+        {step > 0 ? (
           <button
             type="button"
             onClick={back}
-            data-testid={step > 0 ? "onboarding-back" : "onboarding-exit"}
+            data-testid="onboarding-back"
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
           >
             <ArrowLeft size={14} strokeWidth={2} />
-            {step > 0 ? "Back" : "All workspaces"}
+            Back
           </button>
         ) : (
           <span />
@@ -692,6 +717,11 @@ function MonthsSection({
   // Which period the right-hand panel is showing. Local to this section —
   // it is NOT the app's active period.
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+  // `?period=` is the app-wide selection, which the sidebar's month label
+  // reads. Deleting the period it points at has to move it (2026-07-26 per
+  // operator) — otherwise the URL keeps naming a period that no longer
+  // exists and the rail shows a stale month.
+  const [urlParams, setUrlParams] = useSearchParams();
 
   async function confirmDeleteFile() {
     const target = fileDeleteTarget;
@@ -762,6 +792,20 @@ function MonthsSection({
     qc.removeQueries({ queryKey: ["period-documents", target.period_id] });
     forgetPeriodVerdictFor(target.period_id);
     setDeleteTarget(null);
+
+    // Move BOTH selections onto the period that takes its place — the local
+    // panel's and the app-wide `?period=`, so the sidebar's month label
+    // follows the deletion instead of naming a period that's gone. `periods`
+    // is newest-first, so the first survivor is the natural successor and
+    // matches what the right-hand panel falls back to on its own.
+    const successor = periods.find((p) => p.period_id !== target.period_id) ?? null;
+    setSelectedPeriodId(successor?.period_id ?? null);
+    if (urlParams.get("period") === target.period_id) {
+      const nextParams = new URLSearchParams(urlParams);
+      if (successor) nextParams.set("period", successor.period_id);
+      else nextParams.delete("period");
+      setUrlParams(nextParams, { replace: true });
+    }
 
     try {
       if ((target.documents?.length ?? 0) === 0) {
@@ -1566,7 +1610,25 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
 // a second time. The shared <SourceFilesRow /> is still used by the Dashboard
 // and Products.
 
-function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCreate: () => void }) {
+function WorkspaceHub({
+  onEdit,
+  onCreate,
+  createActive = false,
+  onSelected,
+}: {
+  onEdit: (id: string) => void;
+  onCreate: () => void;
+  /** Fired after a workspace row is picked. The setup wizard uses it to close
+   *  itself (2026-07-26 per operator): picking a workspace while the wizard is
+   *  open means "show me that one", but the wizard used to stay put because
+   *  its own `creatingNew` flag knew nothing about the rail. */
+  onSelected?: (id: string) => void;
+  /** True while the setup wizard is open — the rail then marks "Create
+   *  workspace" as the selected item (2026-07-26 per operator), because the
+   *  wizard beside it IS that action in progress. Without it the rail showed
+   *  nothing selected while you were plainly in the middle of creating one. */
+  createActive?: boolean;
+}) {
   const period = useActivePeriod();
   const navigate = useNavigate();
   const { workspaces, archived, currentId, select, setPeriod, restore, purge } = useWorkspaces();
@@ -1583,6 +1645,9 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
   // switch to land before navigating — otherwise the destination renders
   // against the outgoing workspace's cache for a frame.
   async function switchTo(id: string) {
+    // Re-picking the ACTIVE workspace is still meaningful while the wizard is
+    // open — it's how you dismiss it — so notify before the early return.
+    onSelected?.(id);
     if (id === currentId) return;
     // Fullscreen cover for the duration (2026-07-26 per operator) — a
     // workspace switch clears the whole query cache and refetches every
@@ -1632,39 +1697,12 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
         </div>
       ) : null}
 
-      {workspaces.length === 0 ? (
-        <div data-testid="workspace-empty">
-          <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
-            <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
-            Your workspaces
-          </div>
-          <h1 className="mt-3 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px]">
-            Create your first{" "}
-            <span className="text-grad">workspace</span>.
-          </h1>
-          <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
-            A workspace is your company's home in CFO AI — where your trial balances,
-            months, benchmarks and settings live together. Set up your company to start
-            working; then upload its trial balance ({" "}
-            <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
-            {" "}or{" "}
-            <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
-            {" "}from SAGA, WinMentor, SmartBill, NEXTUP or CIEL) and CFO AI reconstructs the
-            full picture: P&amp;L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and
-            Recommendations.
-          </p>
-          <div className="mt-5">
-            <button
-              type="button"
-              onClick={onCreate}
-              data-testid="workspace-empty-create"
-              className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-            >
-              Create workspace
-            </button>
-          </div>
-        </div>
-      ) : (
+      {/* The "Create your first workspace" hero was removed 2026-07-26 per
+          operator. The rail below already opens with a Create button, so an
+          empty workspace list simply renders that button on its own — one
+          affordance in one place instead of a separate full-page screen that
+          said the same thing. */}
+      {
       // Vertical rail (2026-07-26 per operator): one workspace per row, the
       // Create button the same width as the cards below it, and the whole
       // column pinned while the settings panel beside it scrolls.
@@ -1673,20 +1711,45 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
         data-testid="workspace-list"
       >
         <li>
+          {/* Selected state mirrors the workspace cards below exactly — the
+              animated teal fill, brand border and corner dot — so "what the
+              rail is currently on" reads the same whether that's a workspace
+              or the create flow. */}
           <button
             type="button"
             onClick={onCreate}
             data-testid="workspace-create"
-            className="group w-full flex flex-row items-center justify-center gap-2 rounded-2xl border border-rule px-3 py-3 text-center text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40 transition-colors"
+            data-active={createActive ? "true" : "false"}
+            aria-current={createActive ? "step" : undefined}
+            className={`group relative w-full flex flex-row items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-center transition-colors ${
+              createActive
+                ? "ask-ai-anim-fill [animation-duration:14s] border-brand/50 text-ink"
+                : "border-rule text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40"
+            }`}
           >
-            <span className="grid place-items-center h-7 w-7 shrink-0 rounded-full border border-rule group-hover:border-rule-strong transition-colors">
+            {createActive && (
+              <span
+                className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
+                title="Creating a workspace"
+              >
+                <span className="sr-only">Creating a workspace</span>
+              </span>
+            )}
+            <span
+              className={`grid place-items-center h-7 w-7 shrink-0 rounded-full border transition-colors ${
+                createActive ? "border-brand/50" : "border-rule group-hover:border-rule-strong"
+              }`}
+            >
               <Plus size={16} strokeWidth={2.25} />
             </span>
             <span className="text-[12.5px] font-medium leading-tight">Create workspace</span>
           </button>
         </li>
         {orderedWorkspaces.map((w) => {
-          const isActive = w.id === currentId;
+          // Exactly one selected item in the rail (2026-07-26 per operator).
+          // While the create wizard is open it owns the selection, so the
+          // still-active workspace must not also render as selected.
+          const isActive = !createActive && w.id === currentId;
           return (
             <li key={w.id} className="w-full">
               <div
@@ -1746,7 +1809,11 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
             in the SAME grid (no separate divider); each carries its countdown
             to permanent deletion. */}
         {archived.map((w) => (
-          <li key={w.id} className="w-[200px]">
+          // Full width like every other rail item. The old `w-[200px]` was a
+          // leftover from when this list was a horizontal grid; in the vertical
+          // rail it left the deleted cards visibly narrower than the Create
+          // button and the workspace cards above them.
+          <li key={w.id} className="w-full">
             <div
               data-testid="workspace-archived-item"
               className="relative flex h-full flex-col rounded-2xl border border-dashed border-rule bg-bg-2/30 px-4 py-2.5"
@@ -1787,7 +1854,7 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
           </li>
         ))}
       </ul>
-      )}
+      }
 
       <PurgeWorkspaceDialog
         workspace={purgeTarget}
@@ -1955,6 +2022,12 @@ function WorkspaceSettings({
 
   // Confirmation shown when leaving the tab with unsaved field changes.
   const [leaveWarnOpen, setLeaveWarnOpen] = useState(false);
+  // "Delete workspace" confirms first (2026-07-26 per operator) — it used to
+  // fire the moment the button was clicked, which is a lot of consequence for
+  // a single stray click on a destructive control. Soft delete, so this is a
+  // plain confirm rather than the type-the-name gate that guards the
+  // irreversible purge in PurgeWorkspaceDialog.
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // The name field is read-only until Edit is pressed. Focus + select must run
   // AFTER the re-render that clears `readOnly` — calling them in the same tick
@@ -2052,10 +2125,14 @@ function WorkspaceSettings({
             onBlur={() => setEditingName(false)}
             data-testid="workspace-settings-name"
             aria-readonly={!editingName}
+            // Locked: no text-selection highlight (2026-07-26 per operator).
+            // `readOnly` still lets you drag-select the name, which renders the
+            // selection colour and makes the field look editable when it
+            // isn't. `select-none` + a transparent selection removes that tell.
             className={`w-full h-10 px-3.5 rounded-lg border text-[14px] text-ink placeholder:text-ink-mute transition-colors focus:outline-none ${
               editingName
                 ? "border-rule bg-surface focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
-                : "border-rule/60 bg-bg-2/40 cursor-default"
+                : "border-rule/60 bg-bg-2/40 cursor-default select-none selection:bg-transparent selection:text-ink"
             }`}
           />
           {/* Edit / Done — styled like the public-companies search field
@@ -2141,7 +2218,7 @@ function WorkspaceSettings({
           {canDelete && (
             <button
               type="button"
-              onClick={onDelete}
+              onClick={() => setDeleteOpen(true)}
               data-testid="workspace-settings-delete"
               className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
             >
@@ -2169,6 +2246,42 @@ function WorkspaceSettings({
           </button>
         </div>
       </div>
+
+      {/* Delete confirmation. Soft delete — the workspace is hidden and
+          recoverable from "Recently deleted" for 30 days — so the copy leads
+          with what actually happens rather than an alarm the action doesn't
+          warrant. Permanent erasure is a separate, harder-gated action. */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-[440px]" data-testid="workspace-settings-delete-dialog">
+          <DialogHeader>
+            <DialogTitle>Delete “{workspace.name || "this workspace"}”?</DialogTitle>
+            <DialogDescription>
+              This hides the workspace and everything in it — documents, periods,
+              analyses and chat. You can restore it from “Recently deleted” for 30
+              days, after which it's erased permanently.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(false)}
+              data-testid="workspace-settings-delete-cancel"
+              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDeleteOpen(false); onDelete(); }}
+              data-testid="workspace-settings-delete-confirm"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+            >
+              <Trash2 size={14} strokeWidth={1.75} />
+              Delete workspace
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Unsaved-changes guard when leaving via "All workspaces". */}
       <Dialog open={leaveWarnOpen} onOpenChange={setLeaveWarnOpen}>
