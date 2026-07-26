@@ -10,7 +10,6 @@
 // The toggle is purely visual — URL state ownership (?view=all)
 // stays in Products.tsx so deep links + back-button work.
 
-import { motion } from "framer-motion";
 import { LayoutGrid, List as ListIcon } from "lucide-react";
 
 export type ProductsView = "categories" | "all";
@@ -29,17 +28,17 @@ const OPTIONS: ReadonlyArray<{
   { id: "all",        label: "All SKUs",    Icon: ListIcon },
 ];
 
+// Styled to match the Public Companies tab strip (Overview / Risk Radar /
+// Geographic Map) — 2026-07-26 per operator: a rounded-xl track with a static
+// bg-surface active pill + subtle shadow, rather than the old sliding
+// rounded-full segmented control.
 export function ViewToggle({ value, onChange }: Props) {
   return (
     <div
       role="tablist"
       aria-label="Products view mode"
       data-testid="products-view-toggle"
-      className="
-        inline-flex items-center p-0.5 rounded-full
-        bg-bg-2/60 border border-rule
-        shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]
-      "
+      className="inline-flex p-1 rounded-xl border border-rule/60 bg-bg-2/40 gap-1"
     >
       {OPTIONS.map((opt) => {
         const active = value === opt.id;
@@ -53,34 +52,18 @@ export function ViewToggle({ value, onChange }: Props) {
             data-testid={`view-toggle-${opt.id}`}
             data-active={active}
             className={`
-              relative inline-flex items-center gap-1.5
-              px-3 py-1.5 rounded-full
-              text-[12px] font-medium
-              transition-colors duration-150
-              ${active ? "text-ink" : "text-ink-mute hover:text-ink-soft"}
+              inline-flex items-center gap-1.5
+              h-8 px-3 rounded-lg
+              text-[12.5px] font-medium
+              transition-colors
+              ${active
+                ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
+                : "text-ink-soft hover:text-ink"}
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
             `}
           >
-            {/* Sliding indicator — Framer Motion `layoutId` smoothly
-                animates the pill from one option to the other on click.
-                Sits BEHIND the label/icon (z-0) so they stay readable. */}
-            {active && (
-              <motion.span
-                layoutId="products-view-toggle-pill"
-                className="
-                  absolute inset-0 rounded-full
-                  bg-surface border border-rule
-                  shadow-[0_1px_2px_rgba(0,0,0,0.06)]
-                "
-                transition={{ type: "spring", stiffness: 500, damping: 32 }}
-              />
-            )}
-            <opt.Icon
-              size={12}
-              strokeWidth={2}
-              className="relative z-10 shrink-0"
-            />
-            <span className="relative z-10">{opt.label}</span>
+            <opt.Icon size={13} strokeWidth={1.75} className="shrink-0" />
+            {opt.label}
           </button>
         );
       })}

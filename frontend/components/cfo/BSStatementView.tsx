@@ -144,8 +144,13 @@ export function BSStatementView({ statement, hideGuide = false }: Props) {
 }
 
 function BSSectionView({ section, currency }: { section: BSSection; currency: string }) {
-  if (section.lines.length === 0 && !section.subtotalLabel) return null;
+  // Hook BEFORE the empty-section bail-out (2026-07-26): this used to sit
+  // under it, so a re-render in which a section lost its lines ran one fewer
+  // hook than the previous render and React threw "Rendered fewer hooks than
+  // expected" — which is what crashed the dashboard on switching to a period
+  // with no trial balance behind it.
   const fmt = useAmountFormatter(currency);
+  if (section.lines.length === 0 && !section.subtotalLabel) return null;
   const subtotalAttrs = section.subtotalBucket
     ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
     : {};

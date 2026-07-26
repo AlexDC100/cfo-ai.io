@@ -15,7 +15,7 @@
 // Keeping the surface narrow makes navigation feel calm and product-led
 // rather than admin-led.
 
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -49,10 +49,24 @@ import {
   // LogOut import dropped — sign-out moved to AccountMenu. Re-add if
   // the sidebar row is ever restored (see comment near the System group).
   Building2,
+  ChevronLeft,
+  ChevronRight,
   Info,
   Loader2,
   type LucideIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  currentMonthEnd,
+  fetchWorkspacePeriodsDirect,
+  formatPeriodMonth,
+  useOrgPeriods,
+  type OrgPeriod,
+} from "@/lib/orgPeriods";
+import { useActiveOrg } from "@/lib/org";
+import { startPeriodSwitch } from "@/lib/periodSwitch";
+import { blockedByScan } from "@/lib/scanGuard";
+import { confirmLeaveUnsaved } from "@/lib/unsavedGuard";
 import { SUPPORTED_LANGUAGES, pickLanguageWithProfileSync } from "@/i18n";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
@@ -90,7 +104,15 @@ interface Props {
 // back to the public site). Everything else is disabled until a workspace
 // exists. The footer collapse toggle + disclaimer are SidebarActions, not in
 // this list, and are never gated.
-const ALWAYS_ENABLED = new Set(["/workspace", "/settings", "/"]);
+//
+// `/chat` is in the list (2026-07-26 per operator) because Ask CFO AI is
+// explicitly dual-mode: with a workspace it answers grounded in that company's
+// numbers, and WITHOUT one it still answers open-domain finance, accounting
+// and strategy questions — the chat shell has a "No workspace loaded —
+// open-domain mode" state built for exactly this. Greying it out denied the
+// one surface that works fine empty. It also runs on a Supabase Edge Function
+// rather than the engine, so it needs nothing else loaded.
+const ALWAYS_ENABLED = new Set(["/workspace", "/settings", "/", "/chat"]);
 
 // Sidebar items grouped by purpose. This replaces the previous flat
 // 5-item rail with three semantic groups (Intelligence / Analysis /
@@ -287,6 +309,12 @@ export function Sidebar({
           overflow-y-auto would otherwise compute overflow-x to auto and
           grow a horizontal scrollbar in the 55px rail. */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 space-y-3">
+        {/* Month stepper — moved here from TopHeader (2026-07-26 per
+            operator). Sits ABOVE the Intelligence divider so the active
+            month reads as the context every nav item below is scoped to.
+            Hidden in the collapsed rail: a month label has no icon-only
+            form, and squeezing arrows into 56px would misread as nav. */}
+        {!effectivelyCollapsed && <SidebarMonthStepper />}
         {groups.filter((g) => g.key !== "workspace").map((g) => (
           <Section
             key={g.key}
@@ -523,7 +551,13 @@ function SidebarLink({
     <NavLink
       to={href}
       data-testid={testId}
-      onClick={onClick}
+      onClick={(e) => {
+        // Leaving a page with unapplied edits warns first (see
+        // lib/unsavedGuard) — the settings tab reverts on unmount, and doing
+        // that silently loses work the user thought was saved.
+        if (!confirmLeaveUnsaved()) { e.preventDefault(); return; }
+        onClick?.();
+      }}
       onMouseEnter={onHover}
       onFocus={onHover}
       // Tooltip-via-title for collapsed-rail mode. Real Radix tooltip
@@ -642,6 +676,134 @@ function SidebarAction({
         {label}
       </span>
     </button>
+  );
+}
+
+/**
+ * Month stepper for the sidebar rail — prev/next arrows around the active
+ * month, cycling this workspace's uploaded periods (newest-first).
+ * `?period=<id>` is the app-wide active-period key, so stepping it re-scopes
+ * every tab at once; startPeriodSwitch() covers the app while that happens.
+ *
+ * Relocated from TopHeader — same behavior, including the looping ends
+ * (stepping back from the oldest month lands on the newest and vice versa).
+ * With no period loaded it shows a "No period" placeholder in the same slot
+ * (2026-07-26 per operator) — an empty gap read as a layout bug, and the
+ * placeholder tells a fresh workspace what's missing.
+ */
+function SidebarMonthStepper() {
+  const period = useActivePeriod();
+  const [params, setParams] = useSearchParams();
+  const { data: periodsData } = useOrgPeriods();
+  // Empty periods too (2026-07-26 per operator) — the engine feed above only
+  // knows analyzed periods, so a container created in the Workspace tab with
+  // no file yet would be invisible here. Merge in the direct Supabase feed
+  // (same ["org-periods", orgId] cache the Workspace tab populates, so a
+  // just-created period appears without an extra request).
+  const { org } = useActiveOrg();
+  const { data: directData } = useQuery({
+    queryKey: ["org-periods", org?.id],
+    queryFn: () => fetchWorkspacePeriodsDirect(org!.id),
+    enabled: !!org?.id,
+    staleTime: 60_000,
+  });
+  const periods = useMemo<OrgPeriod[]>(() => {
+    const engine = periodsData?.periods ?? [];
+    const seen = new Set(engine.map((p) => p.period_id));
+    const extras = (directData?.periods ?? []).filter((p) => !seen.has(p.period_id));
+    return [...engine, ...extras].sort((a, b) =>
+      (b.period_end ?? "").localeCompare(a.period_end ?? ""),
+    );
+  }, [periodsData, directData]);
+
+  // The resolved analysis period wins; a ?period= pointing at a known (maybe
+  // empty) period is next; with neither, fall back to the workspace's newest
+  // period so a fresh empty container still shows its month here.
+  const currentPeriodId = period.id ?? params.get("period");
+  const urlMatch = currentPeriodId
+    ? periods.find((p) => p.period_id === currentPeriodId) ?? null
+    : null;
+  const selectedMonth = period.id
+    ? formatPeriodMonth(period.periodEnd)
+    : urlMatch
+      ? formatPeriodMonth(urlMatch.period_end)
+      : periods[0]
+        ? formatPeriodMonth(periods[0].period_end)
+        : null;
+  const periodIdx = currentPeriodId
+    ? periods.findIndex((p) => p.period_id === currentPeriodId)
+    : -1;
+  // Newest-first ordering: the OLDER month is further down the list.
+  const olderPeriod = periodIdx >= 0 && periodIdx < periods.length - 1 ? periods[periodIdx + 1] : null;
+  const newerPeriod = periodIdx > 0 ? periods[periodIdx - 1] : null;
+  const prevTarget = olderPeriod ?? periods[0] ?? null;
+  const nextTarget = newerPeriod ?? periods[periods.length - 1] ?? null;
+  const showStepper = periods.length >= 2;
+
+  // Nothing loaded yet — show the CURRENT month rather than "No period"
+  // (2026-07-26 per operator). Every workspace keeps a permanent current-month
+  // period, so this is the month the app is about to land on anyway; naming it
+  // is both accurate and a better answer than a placeholder. Muted a step
+  // further than a real selection so it still reads as "nothing loaded".
+  if (!selectedMonth) {
+    return (
+      <div data-testid="sidebar-month-stepper" className="px-0.5">
+        <div className="flex items-center gap-1">
+          <span
+            data-testid="sidebar-month-current-fallback"
+            className="min-w-0 flex-1 text-center font-mono text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-mute/70"
+          >
+            {formatPeriodMonth(currentMonthEnd())}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  function goToPeriod(periodId: string) {
+    // Not while an analysis is running — see lib/scanGuard.
+    if (blockedByScan("period")) return;
+    const target = periods.find((p) => p.period_id === periodId);
+    startPeriodSwitch(formatPeriodMonth(target?.period_end) ?? undefined);
+    const sp = new URLSearchParams(params);
+    sp.set("period", periodId);
+    // Replace, not push — month stepping is substitution; Back should leave
+    // the page rather than replay every month stepped through.
+    setParams(sp, { replace: true });
+  }
+
+  return (
+    <div data-testid="sidebar-month-stepper" className="px-0.5">
+      <div className="flex items-center gap-1">
+        {showStepper && (
+          <button
+            type="button"
+            onClick={() => prevTarget && goToPeriod(prevTarget.period_id)}
+            aria-label="Previous month"
+            title={`Previous month (${formatPeriodMonth(prevTarget?.period_end) ?? ""})`}
+            data-testid="sidebar-prev-month"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
+          >
+            <ChevronLeft size={14} strokeWidth={2} />
+          </button>
+        )}
+        <span className="min-w-0 flex-1 text-center font-mono text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-soft truncate">
+          {selectedMonth}
+        </span>
+        {showStepper && (
+          <button
+            type="button"
+            onClick={() => nextTarget && goToPeriod(nextTarget.period_id)}
+            aria-label="Next month"
+            title={`Next month (${formatPeriodMonth(nextTarget?.period_end) ?? ""})`}
+            data-testid="sidebar-next-month"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
+          >
+            <ChevronRight size={14} strokeWidth={2} />
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

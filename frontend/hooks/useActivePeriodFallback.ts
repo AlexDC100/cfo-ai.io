@@ -39,6 +39,28 @@ import {
   writePeriodVerdict,
   forgetPeriodVerdict,
 } from "@/lib/dataPresence";
+import { getActiveOrgId } from "@/lib/activeOrg";
+import { fetchWorkspacePeriodsDirect, isCurrentMonthPeriod } from "@/lib/orgPeriods";
+
+/** The workspace's permanent current-month period, when it exists.
+ *
+ *  `active_period_id` is only set once a period has been ANALYZED, so a
+ *  workspace whose only period is the auto-created empty current month
+ *  resolved to "none" and painted the no-data empty state — even though a
+ *  perfectly good month was sitting there to upload into (2026-07-26 per
+ *  operator: "select this non-deletable period if no period is available").
+ *  Read straight from Supabase so this also works with the engine stopped. */
+async function currentMonthPeriodId(uid: string | null): Promise<string | null> {
+  const orgId = getActiveOrgId(uid);
+  if (!orgId) return null;
+  const payload = await fetchWorkspacePeriodsDirect(orgId);
+  if (!payload) return null;
+  const current = payload.periods.find((p) => isCurrentMonthPeriod(p.period_end));
+  // Fall back to the newest period when the current month somehow isn't there
+  // yet (useEnsureCurrentPeriod may still be creating it) — any real month
+  // beats an empty state.
+  return current?.period_id ?? payload.periods[0]?.period_id ?? null;
+}
 
 type ResolutionStatus = "ready" | "resolving" | "none";
 
@@ -136,8 +158,25 @@ export function useActivePeriodFallback(
     //   · string → known active period: canonicalize the URL without a fetch.
     const verdict = uid ? readPeriodVerdict(uid) : undefined;
     if (verdict === null) {
-      setStatus("none");
-      return;
+      // "No analyzed period" is no longer the same as "nowhere to go": the
+      // workspace always keeps a current-month container. Look for it before
+      // settling on the empty state.
+      let cancelledVerdict = false;
+      setStatus("resolving");
+      void (async () => {
+        const fallbackId = await currentMonthPeriodId(uid);
+        if (cancelledVerdict) return;
+        if (fallbackId) {
+          const target = opts.basePath ?? window.location.pathname;
+          navigate(
+            `${target}?period=${encodeURIComponent(fallbackId)}${window.location.hash || ""}`,
+            { replace: true },
+          );
+          return;
+        }
+        setStatus("none");
+      })();
+      return () => { cancelledVerdict = true; };
     }
     if (typeof verdict === "string") {
       const target = opts.basePath ?? window.location.pathname;
@@ -188,6 +227,18 @@ export function useActivePeriodFallback(
           // mark "ready" here because the URL change is what carries the
           // signal forward.
         } else {
+          // No ANALYZED period — but the workspace still keeps a current-month
+          // container to land on (see currentMonthPeriodId above).
+          const fallbackId = await currentMonthPeriodId(uid);
+          if (cancelled) return;
+          if (fallbackId) {
+            const target = opts.basePath ?? window.location.pathname;
+            navigate(
+              `${target}?period=${encodeURIComponent(fallbackId)}${window.location.hash || ""}`,
+              { replace: true },
+            );
+            return;
+          }
           // Remember "no periods" so this + sibling pages render the empty
           // state instantly (and callless) instead of re-running this lookup.
           if (uid) writePeriodVerdict(uid, null);

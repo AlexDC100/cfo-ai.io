@@ -13,37 +13,51 @@ import { SourceText } from "@/components/ui/SourceText";
 import { Money } from "@/components/ui/Money";
 import { useCurrency } from "@/stores/currency";
 import { formatMoneyFrom } from "@/lib/money";
-import { openStagedFile } from "@/lib/stagedFilePreview";
-import { readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
+import { openStagedFile, openUploadedFilePreview } from "@/lib/stagedFilePreview";
+import { clearStagedFiles, readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import type { Currency } from "@/lib/rates";
 import { categoryHint } from "@/lib/categoryHints";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertCircle,
+  ArrowDownToLine,
   ArrowUp,
   Boxes,
   Check,
+  CheckCircle2,
+  ChevronDown,
   Cloud,
   FileSpreadsheet,
+  Info,
   Loader2,
   Search,
   Sparkles,
   TableProperties,
   Layers,
   Cpu,
-  Eye,
   FileText,
+  Trash2,
   X,
 } from "lucide-react";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { CategoriesOverview, BackToCategoriesPill } from "@/components/cfo/products/CategoriesOverview";
 import { DioPersistenceBanner } from "@/components/cfo/products/DioPersistenceBanner";
 import { ViewToggle, type ProductsView } from "@/components/cfo/products/ViewToggle";
 import { TemplateDownloadCard } from "@/components/cfo/products/TemplateDownloadCard";
-import { DatasetsToggle, useDatasetsCount } from "@/components/cfo/DatasetsPanel";
 import { SkuDetailDrawer } from "@/components/cfo/SkuDetailDrawer";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
+import { useActiveOrg } from "@/lib/org";
+import { fetchWorkspacePeriodsDirect, formatPeriodMonth } from "@/lib/orgPeriods";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { useAuth } from "@/lib/auth";
 import { readSkuVerdict, writeSkuVerdict } from "@/lib/dataPresence";
@@ -71,18 +85,22 @@ import {
   clearUpload,
   isInFlight,
   patchUpload,
+  readUploadStore,
   startUpload,
   useUploadStore,
 } from "@/lib/uploadStore";
-import { ScanProgressView, SKU_DATASET_STEPS } from "@/components/cfo/ScanProgressView";
+import { ScanProgressView, SKU_DATASET_STEPS, SKU_STATUS_ORDINAL, SKU_STATUS_MESSAGES } from "@/components/cfo/ScanProgressView";
 import { isScanSpherePaused } from "@/components/cfo/CouncilSphereHost";
+import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { AddFileTile, SourceFilesRow } from "@/components/cfo/SourceFilesRow";
+import { FilterDropdown } from "@/components/ui/FilterDropdown";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { PRODUCTS_GUIDE } from "@/components/learning/pageGuides";
 // F5.0 Phase 8 — Products / SKU learning. The 3 bucket KPI labels
 // (Protect / Watch / Wind down) become click-to-learn — each routes to
 // the concept that explains its decision-rule logic. The SKU count
 // stays a raw label since it doesn't need explanation.
-import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
+import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +175,13 @@ interface DatasetSummary {
   uploaded_at: string;
   is_active: boolean;
   document_status: DocumentStatus | null;
+  /** Uploaded document behind this dataset — used to open the file preview. */
+  document_id?: string | null;
+  /** Month (financial_periods.id) this file was uploaded into. Drives the
+   *  per-month nesting of "Source files". `null`/absent = unassigned, which
+   *  shows under every month — that covers every upload made before the
+   *  pinning landed, and any engine build that predates the field. */
+  period_id?: string | null;
 }
 
 interface DatasetsListPayload {
@@ -300,6 +325,21 @@ export default function Products() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  // The period an upload nests under. `useActivePeriod()` only knows what's in
+  // the URL, and Products can be opened without `?period=` — in which case
+  // every SKU file landed unattached, showing up under no month at all. Fall
+  // back to the SIDEBAR's choice, resolved the same way it resolves: the
+  // workspace's newest period. Empty containers count — a month created in
+  // Workspace is a legitimate home for a sales file.
+  const { org: uploadOrg } = useActiveOrg();
+  const { data: uploadPeriodsPayload } = useQuery({
+    queryKey: ["org-periods", uploadOrg?.id ?? null],
+    queryFn: () => fetchWorkspacePeriodsDirect(uploadOrg!.id),
+    enabled: !!uploadOrg?.id,
+  });
+  const uploadPeriodId =
+    period.id ?? uploadPeriodsPayload?.periods[0]?.period_id ?? null;
+
   // Data-presence gate for the SKU (sales-dataset) domain. When the persisted
   // verdict for this user is `false` ("no datasets"), the datasets + inflight
   // queries below stay DISABLED so Products renders its empty dropzone instantly
@@ -352,27 +392,52 @@ export default function Products() {
       });
       return;
     }
-    const { row, error } = await uploadDocument(file, { scope: "sku" });
+    // Flip into the scan view immediately (docId lands after upload), the
+    // same way the dropzone does — this path used to show nothing but a
+    // toast until the inflight query happened to refetch.
+    startUpload({ docId: "", filename: file.name, status: "queued", surface: "products" });
+    // Pin the file to the month that's active right now, so it nests under
+    // that month in "Source files" (see uploadDocument's `periodId`).
+    const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
     if (!row) {
+      clearUpload();
       toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
       return;
     }
+    startUpload({ docId: row.id, filename: file.name, status: "queued", surface: "products" });
     const enq = await uploadEnqueue.enqueue(row.id);
-    if (enq.kind === "queued") {
-      // Data now exists — re-enable the gated datasets/inflight queries so the
-      // invalidations below actually refetch (they no-op while disabled).
-      if (uid) { writeSkuVerdict(uid, true); setSkuGate(true); }
-      // 2026-05-26 — invalidate BOTH the inflight query (so the
-      // big-middle <InflightCard/> takeover at line 544 triggers — that
-      // component renders only when useQuery(["sku-analysis","inflight"])
-      // returns a doc) AND the datasets list (so the new dataset row
-      // appears in DatasetsPanel mid-flight). Without the inflight
-      // invalidation the user saw nothing but a toast in the corner
-      // and assumed the upload failed silently.
-      void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
-      void qc.invalidateQueries({ queryKey: ["sales-datasets"] });
+    if (enq.kind !== "queued") {
+      // Modal/toast already surfaced by the hook.
+      clearUpload();
+      return;
     }
-  }, [toast, uploadEnqueue, qc, uid]);
+    // Data now exists — re-enable the gated datasets/inflight queries so the
+    // invalidations below actually refetch (they no-op while disabled).
+    if (uid) { writeSkuVerdict(uid, true); setSkuGate(true); }
+    // 2026-05-26 — invalidate BOTH the inflight query (so a reload mid-scan
+    // resumes on the query-driven surface) AND the datasets list (so the new
+    // dataset row appears in DatasetsPanel mid-flight).
+    void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
+    void qc.invalidateQueries({ queryKey: ["sales-datasets"] });
+    // Walk the store through every pipeline stage so the steps + council
+    // sphere animate; the page-level handoff owns the finish.
+    const unsub = subscribeToDocumentStatus(row.id, (next) => {
+      patchUpload({ status: next.status, error: next.error });
+      if (next.status === "analyzed") {
+        unsub();
+        toast({ title: "Analysis ready", description: file.name });
+        void qc.invalidateQueries({ queryKey: ["sales-datasets"] });
+      }
+      if (next.status === "failed") {
+        unsub();
+        toast({
+          title: "Analysis failed",
+          description: next.error ?? "Unknown error.",
+          variant: "destructive",
+        });
+      }
+    });
+  }, [toast, uploadEnqueue, qc, uid, uploadPeriodId]);
 
   // (Search debounce removed — replaced by useDeferredValue above. No
   // setTimeout/clearTimeout needed; React schedules the deferred work
@@ -395,7 +460,24 @@ export default function Products() {
     writeSkuVerdict(uid, has);
     setSkuGate(has);
   }, [uid, datasetsPayload]);
-  const activeDatasetId = params.get("dataset") ?? datasetsPayload?.active_dataset_id ?? null;
+  // Active dataset, scoped to the active month (2026-07-26). Files are pinned
+  // to the month they were uploaded into, so a `?dataset=` carried over from
+  // another month — or a backend `active_dataset_id` belonging to one — must
+  // NOT keep driving the page after a month switch: its pill is no longer on
+  // screen, so the table would show numbers with nothing selected to explain
+  // them. Fall back to this month's newest file instead. Unassigned files
+  // (period_id null) count as in-scope for every month, so nothing uploaded
+  // before the pinning shipped becomes unreachable.
+  const monthDatasets = useMemo(
+    () => datasetsForMonth(datasetsPayload?.datasets ?? [], period.id ?? null)
+      .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()),
+    [datasetsPayload?.datasets, period.id],
+  );
+  const requestedDatasetId = params.get("dataset") ?? datasetsPayload?.active_dataset_id ?? null;
+  const activeDatasetId =
+    requestedDatasetId && monthDatasets.some((d) => d.id === requestedDatasetId)
+      ? requestedDatasetId
+      : monthDatasets[0]?.id ?? null;
 
   // Active dataset's SKUs
   const { data: dsPayload, isLoading: loadingSkus } = useQuery({
@@ -474,17 +556,116 @@ export default function Products() {
     enabled: !!activeDatasetId && !!compareId && activeDatasetId !== compareId,
   });
 
-  // Live status — invalidate datasets list when an inflight upload terminates
+  // Live status for the QUERY-driven scan surface (an upload started on
+  // another device / before a refresh, or from the Datasets panel).
+  //
+  // 2026-07-26 — this used to invalidate ONLY on analyzed|failed, which is
+  // why the scan sat at "Queued for analysis…" for its entire run: nothing
+  // ever refreshed the query in between, so the steps + council sphere never
+  // walked. Every status now writes straight into the query cache, so the
+  // Products scan animates exactly like the dashboard's. Terminal statuses
+  // deliberately do NOT null the inflight doc here — the completion handoff
+  // below needs `analyzed` on screen to play the sphere's finale first.
   useEffect(() => {
-    if (!inflight) return;
-    const unsub = subscribeToDocumentStatus(inflight.id, (next) => {
+    const docId = inflight?.id;
+    if (!docId) return;
+    const unsub = subscribeToDocumentStatus(docId, (next) => {
+      qc.setQueryData<InflightDoc | null>(["sku-analysis", "inflight"], (prev) =>
+        prev && prev.id === docId
+          ? { ...prev, status: next.status, error: next.error }
+          : prev,
+      );
+      // Keep the store in step too when it's tracking this same doc — the
+      // council sphere paints off the store, so a resumed scan needs it.
+      const cur = readUploadStore().current;
+      if (cur && cur.surface === "products" && cur.docId === docId) {
+        patchUpload({ status: next.status, error: next.error });
+      }
       if (next.status === "analyzed" || next.status === "failed") {
         void qc.invalidateQueries({ queryKey: ["sales-datasets"] });
-        void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
       }
     });
     return unsub;
   }, [inflight?.id, qc]);
+
+  // Resume path — a scan already running when the page loads (refresh
+  // mid-analysis, or an upload started from another surface) lives only in
+  // the inflight query. Seed the upload store from it so the persistent
+  // council sphere (CouncilSphereHost paints off the store) shows up
+  // instead of leaving bare steps over an empty space.
+  useEffect(() => {
+    if (!inflight || !isInFlight(inflight.status)) return;
+    const cur = readUploadStore().current;
+    if (cur && cur.surface === "products" && cur.docId === inflight.id) return;
+    startUpload({
+      docId: inflight.id,
+      filename: inflight.filename,
+      status: inflight.status,
+      surface: "products",
+    });
+    // Keyed on id+status only — depending on the `inflight` object itself
+    // would re-run this on every refetch that returns an equal doc.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inflight?.id, inflight?.status]);
+
+  // ── The scan surface (one source of truth) ────────────────────────────────
+  // The upload store is PRIMARY while a Products upload is running: it's
+  // patched on every pipeline status by the subscription in scanOneFile, so
+  // it's the freshest signal. The inflight query is the RESUME path — it
+  // covers a page reload mid-scan and uploads kicked off from elsewhere.
+  const uploadCurrent = useUploadStore().current;
+  const productsUpload =
+    uploadCurrent && uploadCurrent.surface === "products" ? uploadCurrent : null;
+  const queryInflight =
+    inflight && !dismissedInflightIds.has(inflight.id) ? inflight : null;
+  const liveScanDoc: InflightDoc | null = productsUpload
+    ? {
+        id: productsUpload.docId,
+        filename: productsUpload.filename,
+        status: productsUpload.status,
+        error: productsUpload.error ?? null,
+      }
+    : queryInflight;
+  // Only a scan we actually WATCHED run gets the completion ceremony. The
+  // upload store persists to localStorage, so a scan that finished while the
+  // user was on another tab would otherwise greet them with a "Analysis
+  // ready" card for a file they finished with hours ago.
+  const watchedScanIds = useRef<Set<string>>(new Set());
+  if (liveScanDoc && isInFlight(liveScanDoc.status)) {
+    watchedScanIds.current.add(liveScanDoc.id);
+  }
+  const staleAnalyzed =
+    !!liveScanDoc
+    && liveScanDoc.status === "analyzed"
+    && !watchedScanIds.current.has(liveScanDoc.id);
+  const scanDoc: InflightDoc | null = staleAnalyzed ? null : liveScanDoc;
+  // …and drop that stale entry so the store doesn't hold a finished upload.
+  useEffect(() => {
+    if (staleAnalyzed) clearUpload();
+  }, [staleAnalyzed]);
+
+  // Completion handoff — fade the sphere out, then reveal the populated page
+  // with the file that just landed. The sphere pulls its orbs into the core
+  // and the "Analysis ready" card fades in over the cleared space; the card
+  // then WAITS for the user (2026-07-26 per operator — a timed auto-dismiss
+  // pulled it off screen ~1s after it finished fading in, before it could be
+  // read). Only "View results" leaves the scan view.
+  const revealResults = useCallback(() => {
+    if (uid) { writeSkuVerdict(uid, true); setSkuGate(true); }
+    clearUpload();
+    // Drop a stale ?dataset= / ?compare= so the page falls back to this
+    // month's NEWEST dataset — the one that just finished analyzing.
+    setParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      sp.delete("dataset");
+      sp.delete("compare");
+      return sp;
+    }, { replace: true });
+    qc.setQueryData(["sku-analysis", "inflight"], null);
+    void qc.invalidateQueries({ queryKey: ["sales-datasets"] });
+    void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
+  }, [qc, uid, setParams]);
+
 
   const refresh = useCallback(async () => {
     // A refresh follows an upload, so data now exists — re-enable the gated
@@ -503,8 +684,6 @@ export default function Products() {
   // the four early-return branches above skipped it, producing "Rendered more
   // hooks than during the previous render" when the component switched from a
   // loading branch into the main branch.
-  const datasetsCount = useDatasetsCount();
-
   // Filter chips now run on the 3-bucket model (Protect / Watch / Wind down).
   // Legacy ?state= URLs that named engine classifications (anchor / scale /
   // keep / etc.) are migrated into their 3-bucket parent on read so users
@@ -626,6 +805,50 @@ export default function Products() {
   }
 
   // ── Render branches
+  //
+  // The scan surface comes FIRST — before the datasets loader — because a
+  // finishing scan invalidates the datasets query, and letting that flash
+  // "Loading datasets…" over the sphere would cut the completion animation
+  // in half.
+  if (scanDoc) {
+    // Failed → keep the InflightCard (it carries the retry / hang-recovery
+    // UI). In-flight → show the council-sphere ScanProgressView, the same
+    // premium scan surface as the dashboard + the empty-state upload, instead
+    // of the old flat step-list card (removed 2026-07-25 per operator).
+    if (scanDoc.status === "failed") {
+      return (
+        <InflightCard
+          inflight={scanDoc}
+          onDismiss={() => {
+            clearUpload();
+            dismissInflight(scanDoc.id);
+          }}
+        />
+      );
+    }
+    // `analyzed` deliberately still renders here: onViewResults makes the
+    // sphere converge + fade behind a "Scan complete" card, and the handoff
+    // effect above swaps in the populated page a beat later.
+    return (
+      <section data-testid="products-scanning">
+        {uploadEnqueue.dialog}
+        <ScanProgressView
+          status={scanDoc.status}
+          steps={SKU_DATASET_STEPS}
+          statusOrdinals={SKU_STATUS_ORDINAL}
+          statusMessages={SKU_STATUS_MESSAGES}
+          onCancel={() => {
+            clearUpload();
+            dismissInflight(scanDoc.id);
+          }}
+          onViewResults={revealResults}
+          completeTitle="Analysis ready"
+          completeBody="Your product portfolio has been rebuilt — margins, buckets and the executive briefing are ready."
+        />
+      </section>
+    );
+  }
+
   if (loadingDatasets) {
     return (
       <>
@@ -637,36 +860,22 @@ export default function Products() {
     );
   }
 
-  if (inflight && !dismissedInflightIds.has(inflight.id)) {
-    // Failed → keep the InflightCard (it carries the retry / hang-recovery
-    // UI). In-flight → show the council-sphere ScanProgressView, the same
-    // premium scan surface as the dashboard + the empty-state upload, instead
-    // of the old flat step-list card (removed 2026-07-25 per operator).
-    if (inflight.status === "failed") {
-      return (
-        <InflightCard
-          inflight={inflight}
-          onDismiss={() => dismissInflight(inflight.id)}
-        />
-      );
-    }
-    return (
-      <ScanProgressView
-        status={inflight.status}
-        steps={SKU_DATASET_STEPS}
-        onCancel={() => dismissInflight(inflight.id)}
-      />
-    );
-  }
-
-  const hasAnyDataset = (datasetsPayload?.datasets.length ?? 0) > 0;
-
-  if (!hasAnyDataset) {
+  // Scoped to the ACTIVE MONTH, not the account (2026-07-26). With files
+  // nested under months, a month can legitimately have none while other
+  // months do — and in that case `activeDatasetId` resolves to null, which
+  // would otherwise fall through to the "Loading SKUs…" branch below and
+  // spin forever (its query is disabled without an id). The empty state is
+  // the correct surface: it offers the upload that fills this month.
+  // `datasets` still gets the FULL list — the stats strip and recent-imports
+  // panel there are account-level history, not month-scoped.
+  if (monthDatasets.length === 0) {
     return (
       <>
         <EmptyState
           onUploaded={refresh}
           datasets={datasetsPayload?.datasets ?? []}
+          monthLabel={period.id ? formatPeriodMonth(period.periodEnd) : null}
+          uploadPeriodId={uploadPeriodId}
         />
       </>
     );
@@ -706,41 +915,70 @@ export default function Products() {
       />
       {uploadEnqueue.dialog}
       <section className="space-y-6">
-        <header data-testid="portfolio-header">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <div className="label-eyebrow">{t("products.title")}</div>
-              <h1 className="mt-2 font-serif text-[34px] sm:text-[40px] leading-[1.05] tracking-[-0.02em] text-ink">
-                <Trans
-                  i18nKey="products.subtitle"
-                  values={{
-                    rows: dataset.row_count?.toLocaleString("en-GB") ?? "—",
-                    count: totals.sku_count.toLocaleString("en-GB"),
-                    categories: totals.category_count,
-                  }}
-                />
-              </h1>
-              <p className="mt-1 text-[12.5px] text-ink-mute">
-                {dataset.label} · <SourceText lang="ro">{dataset.source_filename}</SourceText> ·{" "}
-                {new Date(dataset.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* F5.0 Step 4 — Products page guide. Auto-opens for first-time
-                  guided-mode users; always-available CTA otherwise. */}
-              <GuideMeButton pageId="products" title="Products" steps={PRODUCTS_GUIDE} />
-              {/* Dataset switcher — header pill opens the right-anchored
-                  Datasets panel for full switch / rename / re-run / delete.
-                  Cmd/Ctrl+Shift+D also toggles. */}
-              <DatasetsToggle count={datasetsCount} />
-            </div>
-          </div>
+        {/* Source files for the active month + the upload dropzone on their
+            right (2026-07-26 per operator — replaced the pills row). Guide me
+            rides above, far right (F5.0 Step 4 — auto-opens for first-time
+            guided-mode users). */}
+        <DatasetSourceFiles
+          datasets={datasetsPayload?.datasets ?? []}
+          activeDatasetId={activeDatasetId}
+          activePeriodId={period.id ?? null}
+          activeMonthLabel={period.id ? formatPeriodMonth(period.periodEnd) : null}
+          onUpload={(f) => void handlePageUploadFile(f)}
+        />
 
+        {/* Header — dashboard/scenarios-style hero (2026-07-26 per operator):
+            Sparkles eyebrow, big serif headline with a text-grad phrase, and
+            a relaxed subtitle carrying the dataset facts that used to BE the
+            headline. No actions slot — Guide me rides the pills row above. */}
+        <PageHeader
+          hero
+          testid="portfolio-header"
+          eyebrow={t("products.title")}
+          title={
+            <>
+              Every SKU&apos;s margin, <span className="text-grad">ranked and graded</span>.
+            </>
+          }
+          subtitle={
+            <>
+              <Trans
+                i18nKey="products.subtitle"
+                values={{
+                  rows: dataset.row_count?.toLocaleString("en-GB") ?? "—",
+                  count: totals.sku_count.toLocaleString("en-GB"),
+                  categories: totals.category_count,
+                }}
+              />
+              {" — "}
+              {dataset.label} · <SourceText lang="ro">{dataset.source_filename}</SourceText> ·{" "}
+              {new Date(dataset.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.
+              Your source data is never altered.
+            </>
+          }
+        />
+
+        {/* Reconciliation chip — moved directly under the header description
+            (2026-07-26 per operator). Surfaces accuracy issues the moment
+            they happen: sums niv_krn across every loaded SKU and compares to
+            the backend-reported totals.niv_krn. Green ✓ when within 1 RON of
+            the source; amber ⚠ with the absolute delta otherwise.
+            Click-through reveals the per-SKU breakdown. */}
+        <header data-testid="portfolio-kpis">
+          {/* One row above the KPI tiles (2026-07-26 per operator): the
+              quality/reconciliation chip on the left, width-capped so its
+              paragraph can't run the full page, and Guide me on the right. */}
+          <div className="flex items-end justify-between gap-3 mb-2">
+            <div className="min-w-0 max-w-[840px]">
+              <ReconciliationChip dsPayload={dsPayload} currency={sourceCurrency} />
+            </div>
+            <GuideMeButton pageId="products" title="Products" steps={PRODUCTS_GUIDE} />
+          </div>
           {/* 4-tile KPI grid: SKUs total + the three threshold-reactive
               buckets. `counts3` recomputes via useMemo on every threshold
               change so dragging a Decision-rules slider live-updates these
               tiles — no refresh, no refetch. */}
-          <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {/* F5.0 Phase 8 — each bucket KPI label is now a click
                 target opening its concept popover (sku_classification
                 bucket = Protect / Watch / Wind Down). The SKU count
@@ -749,97 +987,79 @@ export default function Products() {
             <KpiCard data-testid="kpi-sku-count" label={t("products.kpi.skus")} value={totals.sku_count.toLocaleString("en-GB")} sub={t("products.kpi.skusSub", { cats: totals.category_count, brands: totals.brand_count })} />
             <KpiCard conceptKey="protect_bucket_count"   data-testid="kpi-protect"   label={t("products.kpi.protect")}  value={counts3.protect.toLocaleString("en-GB")}   sub={t("products.kpi.protectSub")} tone="strong" />
             <KpiCard conceptKey="watch_bucket_count"     data-testid="kpi-watch"     label={t("products.kpi.watch")}    value={counts3.watch.toLocaleString("en-GB")}     sub={t("products.kpi.watchSub")} tone="warn" />
-            <KpiCard conceptKey="wind_down_bucket_count" data-testid="kpi-wind-down" label={t("products.kpi.windDown")} value={counts3.wind_down.toLocaleString("en-GB")} sub={t("products.kpi.windDownSub")} tone="warn" />
+            <KpiCard conceptKey="wind_down_bucket_count" data-testid="kpi-wind-down" label={t("products.kpi.windDown")} value={counts3.wind_down.toLocaleString("en-GB")} sub={t("products.kpi.windDownSub")} tone="critical" />
           </div>
-
-          {/* Reconciliation chip — surfaces accuracy issues the moment
-              they happen. Sums niv_krn across every loaded SKU and
-              compares to the backend-reported totals.niv_krn. Green ✓
-              when within 1 RON of the source. Amber ⚠ with the absolute
-              delta if not. Click-through reveals the per-SKU breakdown
-              so the operator can see exactly where divergence came
-              from. Self-documenting Layer-D audit. */}
-          <ReconciliationChip dsPayload={dsPayload} currency={sourceCurrency} />
         </header>
+
+        {/* Company working-capital roll-up — moved to the top of the page
+            (2026-07-26 per operator), directly under the KPI tiles. Per-SKU
+            DIO covered rows aggregated to a company DIO (with coverage %),
+            combined with DSO/DPO from the loaded period's trial-balance
+            context (when available) into CCC = DIO + DSO − DPO. Each
+            component is labelled with its source; missing components show
+            "not available" rather than a fabricated value. */}
+        <WorkingCapitalRollup skus={dsPayload.skus} />
 
         {/* Search + filters */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-2 rounded-lg border border-rule bg-surface px-3 h-9 flex-1 min-w-[260px] max-w-[460px]">
-              <Search size={13} className="text-ink-mute" strokeWidth={1.75} />
+          {/* View toggle — "By category / All SKUs" pinned ABOVE the search
+              bar (2026-07-26 per operator). Pill-style segmented control;
+              URL state ownership stays here so deep links + back-button keep
+              working. */}
+          <ViewToggle
+            value={(params.get("view") ?? "categories") as ProductsView}
+            onChange={(v) => setUrlParam("view", v === "categories" ? null : v)}
+          />
+
+          {/* Search — full-width row (2026-07-26 per operator), styled like
+              the Public Companies search bar. Always visible; typing a query
+              auto-switches into the flat All-SKUs view (the only view the
+              search filters), so results are visible as you type. The button
+              blurs the field (dismisses the mobile keyboard) — an affordance,
+              not a submit. */}
+          <div className="flex flex-col sm:flex-row items-stretch gap-2.5 w-full">
+            <div className="
+              flex-1 min-w-0
+              flex items-center gap-3 h-12 px-4
+              rounded-xl border border-rule bg-surface
+              transition-colors
+            ">
+              <Search size={18} strokeWidth={1.75} className="text-ink-mute shrink-0" />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSearch(v);
+                  // Typing a query jumps into the All-SKUs view (the view the
+                  // search actually filters) so matches surface immediately.
+                  if (v && (params.get("view") ?? "categories") !== "all") {
+                    setUrlParam("view", "all");
+                  }
+                }}
                 placeholder={t("products.searchPlaceholder")}
-                className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-ink-mute"
+                spellCheck={false}
+                data-testid="products-search-input"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-ink placeholder:text-ink-mute tracking-[-0.005em]"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                  className="shrink-0 text-ink-mute hover:text-ink transition-colors"
+                >
+                  <X size={14} strokeWidth={2} />
+                </button>
+              )}
             </div>
-            <select value={brandFilter} onChange={(e) => setUrlParam("brand", e.target.value || null)} className="h-9 rounded-lg border border-rule bg-surface px-2.5 text-[12.5px] text-ink">
-              <option value="">{t("products.filters.allBrands", { count: totals.brand_count })}</option>
-              {/* Brand names are proper nouns — source data, never translated */}
-              {totals.brands.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <select value={categoryFilter} onChange={(e) => setUrlParam("category", e.target.value || null)} className="h-9 rounded-lg border border-rule bg-surface px-2.5 text-[12.5px] text-ink">
-              <option value="">{t("products.filters.allCategories", { count: totals.category_count })}</option>
-              {/* Romanian category codes — source data; categoryHints surfaces
-                  an inline translation in the per-row UI, not in the dropdown. */}
-              {totals.categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={channelFilter} onChange={(e) => setUrlParam("channel", e.target.value || null)} className="h-9 rounded-lg border border-rule bg-surface px-2.5 text-[12.5px] text-ink">
-              <option value="">{t("products.filters.allChannels")}</option>
-              {/* Channel codes (KA/DIST/EXP/OLN) are parser tokens — source data */}
-              {(["KA", "DIST", "EXP", "OLN"] as const).map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            {/* 2026-05-26 — Categories vs All-SKUs view toggle. Was a
-                <select> dropdown; now a pill-style segmented control
-                (Framer Motion `layoutId` slides the indicator between
-                positions). URL state ownership stays here so deep
-                links + back-button keep working. The legacy flat
-                358-row SkuTable below is unchanged — virtualization
-                (line 1355), memoization (line 415), and React 18
-                useDeferredValue search (line 281) handle the row count. */}
-            <ViewToggle
-              value={(params.get("view") ?? "categories") as ProductsView}
-              onChange={(v) => setUrlParam("view", v === "categories" ? null : v)}
-            />
-            <select value={`${sortKey}_${sortDir}`} onChange={(e) => {
-              // Sort keys themselves contain underscores (gm_krn, gm_pct,
-              // volume_tons, niv_krn). Split on the LAST underscore so the
-              // key+direction parse correctly.
-              const value = e.target.value;
-              const idx = value.lastIndexOf("_");
-              const k = value.slice(0, idx) as typeof sortKey;
-              const d = value.slice(idx + 1) as "asc" | "desc";
-              setSortKey(k);
-              setSortDir(d);
-            }} data-testid="sort-dropdown" className="h-9 rounded-lg border border-rule bg-surface px-2.5 text-[12.5px] text-ink">
-              <option value="gm_krn_desc">{t("products.sort.label") + " " + t("products.sort.gmDesc")}</option>
-              <option value="gm_krn_asc">{t("products.sort.label") + " " + t("products.sort.gmAsc")}</option>
-              <option value="gm_pct_desc">{t("products.sort.label") + " " + t("products.sort.gmPctDesc")}</option>
-              <option value="gm_pct_asc">{t("products.sort.label") + " " + t("products.sort.gmPctAsc")}</option>
-              <option value="volume_tons_desc">{t("products.sort.label") + " " + t("products.sort.volumeDesc")}</option>
-              <option value="niv_krn_desc">{t("products.sort.label") + " " + t("products.sort.nivDesc")}</option>
-              <option value="name_asc">{t("products.sort.label") + " " + t("products.sort.nameAsc")}</option>
-            </select>
-            <button
-              onClick={() => exportCsv(filtered, dataset.label, {
-                sourceCurrency: sourceCurrency,
-                displayCurrency: displayCurrencyForExport,
-                rate: exportRate,
-                rateDate: ratesPayload.rateDate,
-                provider: ratesPayload.provider,
-              })}
-              className="h-9 px-3 rounded-lg border border-rule bg-surface text-[12.5px] text-ink hover:bg-bg-2 transition-colors"
-              data-testid="export-portfolio"
-            >
-              {t("products.exportCsv")}
-            </button>
           </div>
-
-          {/* 3-bucket filter chips. Counts come from `counts3` (live
-              recompute on threshold change) so chip counts and KPI tiles
-              stay in lock-step. */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Filters row (All-SKUs view only, 2026-07-26 per operator) — the
+              3-bucket filter chips on the LEFT, and the brand / category /
+              channel / sort dropdowns pushed to the RIGHT (ml-auto), all on the
+              same line. Chip counts come from `counts3` (live recompute on
+              threshold change) so they stay in lock-step with the KPI tiles. */}
+          {(params.get("view") ?? "categories") === "all" && (
+          <div className="flex items-center gap-2 flex-wrap">
             <Chip testid="chip-all" label={t("products.buckets.all")} count={totals.sku_count} active={activeFilters.size === 0} onClick={() => setStateFilter(null)} />
             {(["protect", "watch", "wind_down"] as Bucket3[]).map((b) => {
               const n = counts3[b];
@@ -860,14 +1080,76 @@ export default function Products() {
                 />
               );
             })}
+            <div className="flex items-center gap-2 flex-wrap ml-auto">
+              <FilterDropdown
+                testid="filter-brand"
+                value={brandFilter}
+                onChange={(v) => setUrlParam("brand", v || null)}
+                placeholder={t("products.filters.allBrandsShort", "All brands")}
+                count={totals.brand_count}
+                // Brand names are proper nouns — source data, never translated.
+                options={[
+                  { value: "", label: t("products.filters.allBrandsShort", "All brands") },
+                  ...totals.brands.map((b) => ({ value: b, label: b })),
+                ]}
+              />
+              <FilterDropdown
+                testid="filter-category"
+                value={categoryFilter}
+                onChange={(v) => setUrlParam("category", v || null)}
+                placeholder={t("products.filters.allCategoriesShort", "All categories")}
+                count={totals.category_count}
+                options={[
+                  { value: "", label: t("products.filters.allCategoriesShort", "All categories") },
+                  ...totals.categories.map((c) => ({ value: c, label: c })),
+                ]}
+              />
+              <FilterDropdown
+                testid="filter-channel"
+                value={channelFilter}
+                onChange={(v) => setUrlParam("channel", v || null)}
+                placeholder={t("products.filters.allChannels")}
+                // Channel codes (KA/DIST/EXP/OLN) shown as their full names
+                // in the list (2026-07-26 per operator).
+                options={[
+                  { value: "", label: t("products.filters.allChannels") },
+                  ...(["KA", "DIST", "EXP", "OLN"] as const).map((c) => ({ value: c, label: CHANNEL_NAMES[c] })),
+                ]}
+              />
+              <FilterDropdown
+                testid="sort-dropdown"
+                value={`${sortKey}_${sortDir}`}
+                onChange={(v) => {
+                  // Sort keys themselves contain underscores (gm_krn, gm_pct,
+                  // volume_tons, niv_krn). Split on the LAST underscore so the
+                  // key+direction parse correctly.
+                  const idx = v.lastIndexOf("_");
+                  setSortKey(v.slice(0, idx) as typeof sortKey);
+                  setSortDir(v.slice(idx + 1) as "asc" | "desc");
+                }}
+                placeholder={t("products.sort.label")}
+                options={[
+                  { value: "gm_krn_desc", label: t("products.sort.label") + " " + t("products.sort.gmDesc") },
+                  { value: "gm_krn_asc", label: t("products.sort.label") + " " + t("products.sort.gmAsc") },
+                  { value: "gm_pct_desc", label: t("products.sort.label") + " " + t("products.sort.gmPctDesc") },
+                  { value: "gm_pct_asc", label: t("products.sort.label") + " " + t("products.sort.gmPctAsc") },
+                  { value: "volume_tons_desc", label: t("products.sort.label") + " " + t("products.sort.volumeDesc") },
+                  { value: "niv_krn_desc", label: t("products.sort.label") + " " + t("products.sort.nivDesc") },
+                  { value: "name_asc", label: t("products.sort.label") + " " + t("products.sort.nameAsc") },
+                ]}
+              />
+            </div>
           </div>
+          )}
 
+          {(params.get("view") ?? "categories") === "all" && (
           <div data-testid="sku-table-summary" className="text-[11.5px] text-ink-mute">
             {t("products.showing", {
               visible: filtered.length.toLocaleString("en-GB"),
               total: totals.sku_count.toLocaleString("en-GB"),
             })}
           </div>
+          )}
         </div>
 
         {compare && (
@@ -930,14 +1212,6 @@ export default function Products() {
           );
         })()}
 
-        {/* Company working-capital roll-up — per-SKU DIO covered rows
-         *  aggregated to a company DIO (with coverage %), combined with
-         *  DSO/DPO from the loaded period's trial-balance context
-         *  (when available) into CCC = DIO + DSO − DPO. Each component
-         *  is labelled with its source; missing components show
-         *  "not available" rather than a fabricated value. */}
-        <WorkingCapitalRollup skus={dsPayload.skus} />
-
         {/* 2026-05-26 — PortfolioTotalsBar removed at operator request.
             The card was rendering "Portofoliu total" with NIV/GM/Losses
             converted at the wrong unit scale (kRON values displayed as
@@ -947,6 +1221,73 @@ export default function Products() {
             Categories overview, so the bar was duplicate AND broken. The
             component function is left in place as dead code in case
             we want to restore a corrected version later. */}
+
+        {/* Divider above the export card (2026-07-26 per operator) — solid
+            rule, no faded edges. */}
+        <div aria-hidden className="h-px bg-rule-strong" />
+
+        {/* Export CSV — moved from a small filter-row button into a full card
+            at the bottom of the page (2026-07-26 per operator), styled like
+            the dashboard's "HTML financial analysis report" export card:
+            brand left sleeve, oversized faint background icon, serif title,
+            dense description, animated-gradient Download button bottom-right. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
+            <div className="w-2 shrink-0 bg-brand" />
+            <div className="relative flex-1 p-3.5 flex flex-col">
+              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-brand opacity-[0.08]">
+                <FileSpreadsheet size={230} strokeWidth={1} />
+              </div>
+              <div className="relative">
+                <h3 className="font-serif text-[26px] leading-tight text-ink">Download CSV</h3>
+                <p className="text-[13.5px] text-ink-soft mt-1">
+                  Every SKU in the current view — volume, NIV, gross margin and
+                  DIO — as a single spreadsheet-ready CSV. Respects your active
+                  filters and display currency; opens in Excel, Sheets or any
+                  tool.
+                </p>
+              </div>
+              <div className="relative mt-auto pt-6 flex justify-end">
+                <button
+                  onClick={() => exportCsv(filtered, dataset.label, {
+                    sourceCurrency: sourceCurrency,
+                    displayCurrency: displayCurrencyForExport,
+                    rate: exportRate,
+                    rateDate: ratesPayload.rateDate,
+                    provider: ratesPayload.provider,
+                  })}
+                  data-testid="export-portfolio"
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+                >
+                  <ArrowDownToLine size={15} strokeWidth={2} />
+                  Download
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Danger zone (2026-07-26 per operator) — ships in production, so the
+            copy is written for a real user about to lose real data, not for a
+            developer resetting a fixture. Lives at the very bottom, where a
+            destructive action can't be hit by reflex. */}
+        <div
+            data-testid="products-dev-tools"
+            className="mt-2 pt-5 border-t border-dashed border-rule flex items-center justify-between gap-3 flex-wrap"
+          >
+            <div>
+              <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-red-600/90">
+                Danger zone
+              </div>
+              <p className="text-[12px] text-ink-mute mt-0.5 max-w-[560px]">
+                Deleting your product data is permanent and cannot be undone.
+                Every SKU, margin and portfolio classification on this page is
+                erased. The source files stay in Recently deleted for 30 days
+                and are then removed for good.
+              </p>
+            </div>
+            <DevWipeDataButton />
+        </div>
       </section>
 
       <SkuDetailDrawer
@@ -984,8 +1325,11 @@ export default function Products() {
  * aggregation logic dropped/duplicated rows, or the FE is filtering
  * before counting.
  *
- * Renders inline below the KPI tiles. Green ✓ for clean match, amber ⚠
- * with the absolute delta if not.
+ * Renders inline below the KPI tiles. Voice + presentation mirror the
+ * Dashboard's AccuracyBanner (FinancialStatements.tsx): a full-sentence
+ * quality-check verdict with the measured reconciliation %, what's safe
+ * to use, and the standing cross-check caveat — teal for clean, alert
+ * tone with the specific gap when the sums diverge.
  */
 function ReconciliationChip({
   dsPayload,
@@ -1009,34 +1353,51 @@ function ReconciliationChip({
     // Values are stored as thousands of the source unit, so 1 base-unit
     // tolerance is `0.001` in kRON-space.
     const isClean = absDelta < 0.001;
-    return { expectedKrn, observedKrn, deltaKrn, absDelta, isClean };
+    const gapPct = expectedKrn !== 0 ? (absDelta / Math.abs(expectedKrn)) * 100 : 0;
+    return { expectedKrn, observedKrn, deltaKrn, absDelta, isClean, gapPct };
   }, [dsPayload]);
 
   if (!recon) return null;
-  const cls = recon.isClean
-    ? "border-[#5CD3C5]/30 bg-[#5CD3C5]/5 text-[#2AA89B] dark:text-[#8FE3D9]"
-    : "border-[#5CD3C5]/30 bg-[#5CD3C5]/5 text-[#2AA89B] dark:text-[#5CD3C5]";
+  const counted = (dsPayload?.skus ?? []).length.toLocaleString("en-GB");
+  const total = (dsPayload?.totals.sku_count ?? 0).toLocaleString("en-GB");
   return (
     <div
       data-testid="reconciliation-chip"
       data-clean={recon.isClean ? "true" : "false"}
-      className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11.5px] tabular-nums ${cls}`}
+      className={`mt-3 flex items-start gap-2.5 rounded-lg border-l-[3px] px-4 py-3 text-[12.5px] leading-relaxed text-ink-soft ${
+        recon.isClean
+          ? "border-[#8FE3D9]/40 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
+          : "border-alert/50 bg-alert/[0.06] dark:bg-alert/[0.08]"
+      }`}
       title={`Source NIV: ${fmtKron(recon.expectedKrn)} · SKU sum: ${fmtKron(recon.observedKrn)}`}
     >
-      <span aria-hidden>{recon.isClean ? "✓" : "⚠"}</span>
-      <span className="font-medium">
-        {recon.isClean
-          ? "Reconciles to source"
-          : (
-            <>
-              Reconciliation gap: {recon.deltaKrn >= 0 ? "+" : "−"}
-              {fmtKron(recon.absDelta)}
-            </>
-          )}
-      </span>
-      <span className="opacity-70">
-        · {(dsPayload?.skus ?? []).length.toLocaleString("en-GB")} of {dsPayload?.totals.sku_count.toLocaleString("en-GB")} SKUs counted
-      </span>
+      {recon.isClean ? (
+        <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
+      ) : (
+        <AlertCircle size={13} strokeWidth={1.75} className="text-alert mt-0.5 shrink-0" />
+      )}
+      <div>
+        {recon.isClean ? (
+          <>
+            <strong className="text-[#2AA89B] dark:text-[#5CD3C5]">Quality checks passed.</strong>{" "}
+            Extraction reconciles within <strong>{(Math.floor(recon.gapPct * 100) / 100).toFixed(2)}%</strong>{" "}
+            on this dataset (target: exact match to source). All <strong>{counted} of {total}</strong> SKUs
+            counted; per-SKU net invoiced value sums to the source total. Headline figures (NIV, gross
+            margin, cash trapped) are safe to use — cross-check on board-level / external decisions out of habit.
+          </>
+        ) : (
+          <>
+            <strong className="text-alert">Reconciliation gap — verify before external use.</strong>{" "}
+            The SKU-level sum differs from the source NIV total by{" "}
+            <strong>
+              {recon.deltaKrn >= 0 ? "+" : "−"}{fmtKron(recon.absDelta)} ({recon.gapPct.toFixed(2)}%)
+            </strong>{" "}
+            with {counted} of {total} SKUs counted — rows may have been dropped or duplicated during
+            extraction. Cross-check headline figures against your source before board reports or
+            external submissions.
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1056,32 +1417,414 @@ function KpiCard({
   tone?: "critical" | "warn" | "strong";
   conceptKey?: string;
 } & React.HTMLAttributes<HTMLDivElement>) {
-  const ring = tone === "critical" ? "border-red-300/60" : tone === "warn" ? "border-[#8FE3D9]/60" : tone === "strong" ? "border-[#8FE3D9]/60" : "border-rule";
-  const labelEl = conceptKey ? (
-    <LearnableRowLabel
-      conceptKey={conceptKey}
-      value={0}
-      data-testid={`products-kpi-label-${conceptKey}`}
-    >
-      {label}
-    </LearnableRowLabel>
-  ) : (
-    label
-  );
+  // Styled like the Benchmark preview cards (2026-07-26 per operator): a
+  // compact bordered card with a colored left rail, the value on the left,
+  // a small uppercase badge top-right, and a dense description below. Each
+  // tile carries a UNIQUE colour (2026-07-26 per operator) so SKUs / Protect /
+  // Watch / Wind down read distinctly at a glance:
+  //   · default (SKUs)  → brand teal
+  //   · strong (Protect) → emerald green
+  //   · warn (Watch)     → amber
+  //   · critical (Wind down) → red
+  const TONE_STYLES: Record<string, { rail: string; badge: string }> = {
+    strong: {
+      rail: "border-l-emerald-400 dark:border-l-emerald-500/60",
+      badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/[0.18] dark:text-emerald-200",
+    },
+    warn: {
+      rail: "border-l-amber-400 dark:border-l-amber-500/60",
+      badge: "bg-amber-100 text-amber-800 dark:bg-amber-500/[0.18] dark:text-amber-200",
+    },
+    critical: {
+      rail: "border-l-red-400 dark:border-l-red-500/60",
+      badge: "bg-red-100 text-red-800 dark:bg-red-500/[0.18] dark:text-red-200",
+    },
+    default: {
+      rail: "border-l-brand",
+      badge: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]",
+    },
+  };
+  const { rail, badge: badgeCls } = TONE_STYLES[tone ?? "default"] ?? TONE_STYLES.default;
+  // The learning popover click moved OFF the label pill and ONTO the WHOLE
+  // card (2026-07-26 per operator). The badge is now plain text (no hover / no
+  // click); clicking anywhere on a card with a conceptKey opens its concept
+  // popover, seeded from the card's own rect.
+  const { push } = usePopoverStack();
+  const clickable = !!conceptKey;
+  const openConcept = (rect: DOMRect) => {
+    if (!conceptKey) return;
+    push({ conceptKey, value: 0, triggerRect: rect });
+  };
   // FIT-1 (2026-06-08) — same min-w-0 + overflow-hidden + fluid font
   // pattern as KpiTile so SKU counts / currency strings shrink to fit
   // their grid cell rather than overflowing into the neighbour.
   return (
     <div
       {...rest}
-      className={`rounded-2xl border ${ring} bg-surface p-3.5 min-w-0 overflow-hidden`}
+      onClick={clickable ? (e) => openConcept(e.currentTarget.getBoundingClientRect()) : undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openConcept(e.currentTarget.getBoundingClientRect());
+              }
+            }
+          : undefined
+      }
+      data-testid={conceptKey ? `products-kpi-${conceptKey}` : undefined}
+      className={`rounded-lg border border-rule border-l-[3px] ${rail} bg-surface p-[18px] text-left min-w-0 overflow-hidden transition-colors ${clickable ? "cursor-pointer hover:bg-bg-2/40 hover:border-rule-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40" : ""}`}
     >
-      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-        {labelEl}
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="num-hero num-hero-fluid text-ink leading-none">{value}</div>
+        <span className={`-mt-1 -mr-1 shrink-0 text-[10px] uppercase tracking-[0.06em] font-semibold px-2 py-0.5 rounded ${badgeCls}`}>
+          {label}
+        </span>
       </div>
-      <div className="mt-2 num-hero num-hero-fluid text-ink leading-none">{value}</div>
-      {sub && <div className="text-[11px] text-ink-soft mt-0.5 leading-snug break-words">{sub}</div>}
+      {sub && <p className="text-[12.5px] text-ink-soft leading-relaxed break-words">{sub}</p>}
     </div>
+  );
+}
+
+// Open the uploaded file behind a dataset as a preview in a new tab
+// (2026-07-26 per operator). Resolves a short-lived signed URL for the stored
+// document (looked up by document_id) and hands it to openUploadedFilePreview,
+// which parses xlsx/csv into an HTML table since browsers can't preview them
+// inline. The tab opens synchronously (pop-up-blocker safe) and fills once the
+// bytes arrive.
+async function openDatasetFile(d: DatasetSummary): Promise<void> {
+  const name = d.source_filename ?? d.label ?? "dataset";
+  await openUploadedFilePreview(name, async () => {
+    const sb = getSupabase();
+    if (!sb || !d.document_id) return null;
+    const { data: doc } = await sb
+      .from("documents")
+      .select("storage_path")
+      .eq("id", d.document_id)
+      .single();
+    const path = (doc as { storage_path?: string } | null)?.storage_path;
+    if (!path) return null;
+    const { data } = await sb.storage.from("documents").createSignedUrl(path, 300);
+    return data?.signedUrl ?? null;
+  });
+}
+
+/**
+ * Which datasets belong to the month currently being viewed.
+ *
+ * A dataset is in scope when its file was uploaded into this month
+ * (`period_id` matches) OR when it carries no month at all. That second arm
+ * is deliberate and load-bearing: `period_id` is only populated for uploads
+ * made after the pinning shipped, so without it every previously-uploaded
+ * file would vanish from the page the moment this landed. Unassigned files
+ * therefore show under every month until they're re-uploaded or assigned.
+ *
+ * With no month loaded yet (`activePeriodId` null) nothing is filtered —
+ * there's no month to scope to, so showing everything is the honest answer.
+ */
+function datasetsForMonth(
+  datasets: DatasetSummary[],
+  activePeriodId: string | null,
+): DatasetSummary[] {
+  // Always a NEW array — callers sort the result in place, and returning the
+  // caller's own array here would mutate their props.
+  if (!activePeriodId) return [...datasets];
+  return datasets.filter((d) => !d.period_id || d.period_id === activePeriodId);
+}
+
+// ─── Source files + dropzone ────────────────────────────────────────────────
+//
+// The uploaded dataset files for the active month, newest first, with the
+// upload dropzone sitting to their right on the same strip.
+//
+// 2026-07-26 (per operator) this replaced the pills row that used to sit
+// above: an "Upload dataset" button, one "SKU n" pill per dataset, and the
+// dev-only "Wipe data" reset. Consequence worth knowing: with the pills gone
+// there's no inline dataset switcher, so a month holding MORE than one file
+// always renders its newest — switch datasets from the Datasets panel (⌘⇧D).
+// The tiles keep their original job (open the file's preview).
+function DatasetSourceFiles({
+  datasets,
+  activeDatasetId,
+  activePeriodId,
+  activeMonthLabel,
+  onUpload,
+  trailing,
+}: {
+  datasets: DatasetSummary[];
+  activeDatasetId: string | null;
+  activePeriodId: string | null;
+  activeMonthLabel: string | null;
+  /** Chosen/dropped file → upload + analyze straight away. */
+  onUpload: (file: File) => void;
+  /** Right-aligned content on the row above the tiles (the Guide me CTA). */
+  trailing?: ReactNode;
+}) {
+  // Newest-first, matching the dashboard month order, scoped to this month.
+  const ordered = datasetsForMonth(datasets, activePeriodId).sort(
+    (a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime(),
+  );
+  return (
+    <div className="space-y-3">
+      {trailing && (
+        <div className="flex items-center justify-end" data-testid="dataset-row-actions">
+          {trailing}
+        </div>
+      )}
+
+      <SourceFilesRow
+        testid="dataset-source-files"
+        files={ordered.map((d) => ({
+          id: d.id,
+          filename: d.source_filename ?? d.label,
+          uploadedAt: d.uploaded_at,
+          isActive: d.id === activeDatasetId,
+          onOpen: () => void openDatasetFile(d),
+        }))}
+        trailingHeading="Replace or add files"
+        trailing={
+          <AddFileTile
+            accept={PRODUCTS_UPLOAD_ACCEPT}
+            onFile={onUpload}
+            variant="wide"
+            label="Drop your dataset here"
+            hint={`XLSX · CSV · up to ${PRODUCTS_UPLOAD_MAX_MB} MB`}
+            title="Upload another dataset — click to browse or drop a file here"
+          />
+        }
+      />
+    </div>
+  );
+}
+
+// ─── Dev-only: delete every uploaded file on Products ───────────────────────
+//
+// A localhost-only reset so an upload → classify → verify loop can be re-run
+// from a clean slate without hand-deleting rows in Supabase Studio.
+//
+// GATE: none as of 2026-07-26 — the operator asked for this in production too,
+// so the former `import.meta.env.DEV` gate (which made the whole component dead
+// code in a build) is gone. It is now a real, shipping, irreversible bulk
+// delete behind a confirm dialog. If this ever needs restricting, gate it on
+// workspace role rather than build mode.
+//
+// SCOPE: the SKU datasets this page lists, and nothing else. Periods, the
+// dashboard analysis, workspaces, chats and the account are untouched — the
+// earlier version of this button also wiped periods across every workspace,
+// which is a different (and much larger) reset than "clear my Products
+// uploads". Each DELETE soft-deletes the dataset's parent document, so files
+// stay recoverable from Recently deleted for 30 days.
+//
+// Every request's outcome is checked. The first cut swallowed failures and
+// reported success regardless, so with the engine container stopped it
+// cheerfully announced "0 deleted" and reloaded — indistinguishable from a
+// button that does nothing.
+function DevWipeDataButton() {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+
+  async function wipe() {
+    setBusy(true);
+    try {
+      const h = await authHeader();
+      if (!h) {
+        toast({ title: "Not signed in", variant: "destructive" });
+        setBusy(false);
+        return;
+      }
+
+      // Re-reads the list the page itself renders. A non-ok response is the
+      // common failure — the engine container isn't running — and has to be
+      // reported as a failure, not silently read as "nothing to delete".
+      const listDatasets = async (): Promise<DatasetSummary[]> => {
+        let res: Response;
+        try {
+          res = await fetch(`${apiBase()}/api/sales-datasets`, { headers: h, cache: "no-store" });
+        } catch {
+          throw new Error(
+            `Couldn't reach the engine at ${apiBase()}. Is the backend container running?`,
+          );
+        }
+        if (!res.ok) {
+          throw new Error(`Listing datasets failed — ${res.status} ${res.statusText}.`);
+        }
+        return ((await res.json()) as DatasetsListPayload).datasets ?? [];
+      };
+
+      // Force the React Query world to match the fresh server list. This must
+      // run on EVERY exit path — including "the server is already empty".
+      // The page paints from the ["sales-datasets"] cache, which is
+      // deliberately sticky (30-min staleTime, refetchOnMount:false, persisted
+      // to localStorage by queryPersist) — so after a delete, an invalidate
+      // alone isn't what makes the screen change; the setQueryData is. The
+      // first version of this handler early-returned on an empty server list
+      // WITHOUT reconciling, which is exactly the "server empty, screen still
+      // shows a file, nothing ever corrects it" the operator hit.
+      const reconcile = (datasets: DatasetSummary[]) => {
+        qc.setQueryData<DatasetsListPayload>(["sales-datasets"], {
+          active_dataset_id: datasets[0]?.id ?? null,
+          datasets,
+        });
+        qc.removeQueries({ queryKey: ["sales-dataset"] });
+        qc.removeQueries({ queryKey: ["sales-dataset-compare"] });
+        void qc.invalidateQueries({ queryKey: ["sales-datasets-deleted"] });
+        void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
+        // ?dataset= may point at a deleted id; left in place the page
+        // re-requests it and lands on an empty payload instead of the empty
+        // state.
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("dataset")) {
+          url.searchParams.delete("dataset");
+          window.history.replaceState({}, "", url.toString());
+        }
+      };
+
+      const before = await listDatasets();
+      if (before.length === 0) {
+        reconcile([]);
+        toast({
+          title: "Already clean",
+          description:
+            "The server has no uploaded files — the ones on screen were a stale cache, now cleared.",
+        });
+        setOpen(false);
+        setBusy(false);
+        return;
+      }
+
+      // Pass 1 — the engine's soft-delete endpoint.
+      for (const d of before) {
+        try {
+          const r = await fetch(`${apiBase()}/api/sales-datasets/${d.id}`, {
+            method: "DELETE",
+            headers: h,
+          });
+          if (!r.ok) console.warn("[wipe] engine DELETE failed", d.id, r.status, await r.text());
+        } catch (err) {
+          console.warn("[wipe] engine DELETE threw", d.id, err);
+        }
+      }
+
+      // Pass 2 — verify, and finish the job directly for anything still listed.
+      //
+      // This exists because pass 1 can report 200 and change nothing: the
+      // endpoint stamps `documents.deleted_at` through PostgREST, and an UPDATE
+      // that matches zero rows is a success response, not an error. Writing the
+      // same column straight from the browser goes through the user's own RLS
+      // (`documents member update`), so it either works or surfaces a real
+      // error we can show — no third silent path.
+      let remaining = await listDatasets();
+      if (remaining.length > 0) {
+        const sb = getSupabase();
+        if (sb) {
+          const docIds = remaining.map((d) => d.document_id).filter((id): id is string => !!id);
+          if (docIds.length > 0) {
+            const { error } = await sb
+              .from("documents")
+              .update({ deleted_at: new Date().toISOString() })
+              .in("id", docIds);
+            if (error) throw new Error(`Direct delete failed: ${error.message}`);
+          }
+          // A dataset with no document_id can't be soft-deleted this way —
+          // there's nothing to stamp. Say so rather than looping.
+          const orphans = remaining.length - docIds.length;
+          if (orphans > 0) {
+            console.warn(`[wipe] ${orphans} dataset(s) have no document_id — cannot soft-delete`);
+          }
+        }
+        remaining = await listDatasets();
+      }
+
+      // Repaint from the verified server list — setQueryData, not invalidate,
+      // is what changes the screen (see `reconcile` above).
+      reconcile(remaining);
+
+      // Report what the SERVER says is left, not what we attempted — the whole
+      // point of the verify pass.
+      const gone = before.length - remaining.length;
+      if (remaining.length > 0) {
+        toast({
+          title: `${remaining.length} file(s) could not be deleted`,
+          description: remaining
+            .map((d) => d.source_filename ?? d.label)
+            .slice(0, 3)
+            .join(" · "),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: `Deleted ${gone} uploaded file${gone === 1 ? "" : "s"}`,
+          description: "Moved to Recently deleted — restorable for 30 days.",
+        });
+      }
+      setOpen(false);
+      setBusy(false);
+    } catch (err) {
+      toast({
+        title: "Couldn't delete the uploads",
+        description: err instanceof Error ? err.message : "Unknown error.",
+        variant: "destructive",
+      });
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="dev-wipe-data"
+        title="Permanently delete every uploaded file on Products"
+        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-dashed border-red-500/40 bg-red-500/[0.06] text-[11px] font-mono uppercase tracking-[0.08em] text-red-600 hover:bg-red-500/15 transition-colors"
+      >
+        <Trash2 size={12} strokeWidth={2} />
+        Wipe data
+      </button>
+
+      <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
+        <DialogContent className="sm:max-w-[440px]" data-testid="dev-wipe-dialog">
+          <DialogHeader>
+            <DialogTitle>Permanently delete your product data?</DialogTitle>
+            <DialogDescription>
+              This cannot be undone. Every SKU dataset on this page is removed
+              along with its classified portfolio, leaving Products empty.
+              <br />
+              <br />
+              The uploaded files move to Recently deleted, where they can be
+              restored for 30 days — after that they are gone for good. Your
+              periods, dashboard analysis, other workspaces and chats are not
+              touched.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void wipe()}
+              disabled={busy}
+              data-testid="dev-wipe-confirm"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} strokeWidth={1.75} />}
+              {busy ? "Deleting…" : "Delete all uploads"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1107,6 +1850,8 @@ function KpiCard({
 
 function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
   const period = useActivePeriod();
+  // "i" info modal explaining the four working-capital metrics.
+  const [infoOpen, setInfoOpen] = useState(false);
 
   // ── Per-SKU DIO coverage + company DIO ────────────────────────────
   const covered = useMemo(
@@ -1166,7 +1911,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
       const dpoRatio = r.efficiency.find((x) => x.key === "dpo");
       dso = dsoRatio && Number.isFinite(dsoRatio.value) ? dsoRatio.value : null;
       dpo = dpoRatio && Number.isFinite(dpoRatio.value) ? dpoRatio.value : null;
-      periodContextNote = `period: ${period.label ?? period.id ?? "loaded"}`;
+      periodContextNote = `${period.label ?? period.id ?? "loaded"}`;
     } catch {
       // Sample periods may not have a full balance sheet; leave nulls
       // and the panel will mark these "not available" honestly.
@@ -1188,23 +1933,34 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
   return (
     <section
       data-testid="wc-rollup-panel"
-      className="rounded-2xl border border-rule bg-surface px-5 py-5"
+      className="!mt-3"
     >
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
-        <div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-semibold">
-            Working-capital roll-up
-          </div>
-          <h4 className="font-serif text-[18px] leading-tight text-ink mt-1">
-            Company DIO · DSO · DPO · CCC
-          </h4>
-          <p className="text-[12px] text-ink-soft mt-1 max-w-[640px]">
-            DIO from uploaded SKU inventory &amp; COGS, covered rows only.
-            DSO / DPO from the period&rsquo;s trial-balance context. CCC is a
-            company roll-up, not per-SKU.
-          </p>
-        </div>
+      {/* Title on the left, description to its right, an "i" info button pinned
+          far right (2026-07-26 per operator). The old "Working-capital roll-up"
+          eyebrow was dropped — the title now leads; top gap tightened via the
+          section's -mt-3. */}
+      <div className="flex items-baseline gap-3 mb-1.5 min-w-0">
+        <h4 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold shrink-0">
+          Company DIO · DSO · DPO · CCC
+        </h4>
+        <p className="text-[12px] text-ink-soft min-w-0 truncate">
+          DIO from uploaded SKU inventory &amp; COGS, covered rows only.
+          DSO / DPO from the period&rsquo;s trial-balance context. CCC is a
+          company roll-up, not per-SKU.
+        </p>
+        <button
+          type="button"
+          onClick={() => setInfoOpen(true)}
+          data-testid="wc-info-btn"
+          aria-label="What do DIO, DSO, DPO and CCC mean?"
+          title="What do these mean?"
+          className="ml-auto shrink-0 self-center grid place-items-center h-6 w-6 rounded-full border border-rule text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/60 transition-colors"
+        >
+          <Info size={13} strokeWidth={2} />
+        </button>
       </div>
+
+      <WcInfoModal open={infoOpen} onOpenChange={setInfoOpen} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <WcCard
@@ -1218,6 +1974,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           }
           formula={companyDioFormulaNote}
           missingHint="Add Inventory value and COGS columns to the upload to compute DIO."
+          tone="teal"
           testid="wc-dio"
         />
         <WcCard
@@ -1226,6 +1983,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           unit="days"
           source={dso != null ? `from trial balance${periodContextNote ? ` · ${periodContextNote}` : ""}` : "no trial balance in this session"}
           missingHint="Load a period with a trial balance to compute DSO."
+          tone="blue"
           testid="wc-dso"
         />
         <WcCard
@@ -1234,6 +1992,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           unit="days"
           source={dpo != null ? `from trial balance${periodContextNote ? ` · ${periodContextNote}` : ""}` : "no trial balance in this session"}
           missingHint="Load a period with a trial balance to compute DPO."
+          tone="violet"
           testid="wc-dpo"
         />
         <WcCard
@@ -1250,21 +2009,79 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
               ? "CCC is computed only when DIO, DSO and DPO are all available."
               : undefined
           }
-          accent={ccc != null}
+          tone="amber"
           testid="wc-ccc"
         />
       </div>
 
-      <p className="mt-3 text-[11px] text-ink-mute italic">
-        Rows without inventory + COGS show DIO as &ldquo;—&rdquo; in the table above and are
-        excluded from the company DIO aggregate (never treated as zero).
-      </p>
     </section>
   );
 }
 
+// WcInfoModal — explains what each working-capital pill (DIO / DSO / DPO /
+// CCC) means, opened by the "i" button beside the section header.
+function WcInfoModal({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const items: { label: string; tone: string; title: string; body: string }[] = [
+    {
+      label: "DIO",
+      tone: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]",
+      title: "Days Inventory Outstanding",
+      body: "How many days, on average, stock sits before it sells — sum(Inventory) ÷ sum(COGS) × 365 across covered SKUs. Lower is leaner; a high DIO means cash is tied up in shelves and warehouses.",
+    },
+    {
+      label: "DSO",
+      tone: "bg-blue-100 text-blue-800 dark:bg-blue-500/[0.18] dark:text-blue-200",
+      title: "Days Sales Outstanding",
+      body: "How many days it takes to collect cash after a sale — receivables relative to revenue, read from the loaded period's trial balance. Lower means customers pay faster.",
+    },
+    {
+      label: "DPO",
+      tone: "bg-violet-100 text-violet-800 dark:bg-violet-500/[0.18] dark:text-violet-200",
+      title: "Days Payable Outstanding",
+      body: "How many days you take to pay suppliers — payables relative to COGS, from the trial balance. Higher means you hold onto cash longer (as long as it doesn't strain supplier terms).",
+    },
+    {
+      label: "CCC",
+      tone: "bg-amber-100 text-amber-800 dark:bg-amber-500/[0.18] dark:text-amber-200",
+      title: "Cash Conversion Cycle",
+      body: "The net days your cash is locked in operations — DIO + DSO − DPO, at the company level. It's the headline: how long from paying for inventory to collecting from customers. Lower (or negative) is stronger working-capital health.",
+    },
+  ];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Working-capital metrics</DialogTitle>
+          <DialogDescription>
+            What each pill measures and where the number comes from.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-2 space-y-3">
+          {items.map((it) => (
+            <div key={it.label} className="flex gap-3">
+              <span className={`shrink-0 h-fit whitespace-nowrap text-[10px] uppercase tracking-[0.06em] font-semibold px-2 py-0.5 rounded ${it.tone}`}>
+                {it.label}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-ink leading-tight">{it.title}</div>
+                <p className="text-[12.5px] text-ink-soft leading-relaxed mt-0.5">{it.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function WcCard({
-  label, value, unit, source, formula, missingHint, accent, testid,
+  label, value, unit, source, formula, missingHint, tone = "teal", testid,
 }: {
   label: string;
   value: number | null;
@@ -1272,37 +2089,63 @@ function WcCard({
   source: string;
   formula?: string;
   missingHint?: string;
-  accent?: boolean;
+  tone?: "teal" | "blue" | "violet" | "amber";
   testid?: string;
 }) {
   const available = value != null && Number.isFinite(value);
+  // Styled like the Products KPI / Benchmark preview cards (2026-07-26 per
+  // operator): colored left rail, big value + small unit on the left, uppercase
+  // label badge top-right, source/formula as the dense body. Each working-
+  // capital card carries a UNIQUE colour so DIO / DSO / DPO / CCC read
+  // distinctly at a glance.
+  const WC_TONES: Record<string, { rail: string; badge: string }> = {
+    teal: {
+      rail: "border-l-brand",
+      badge: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]",
+    },
+    blue: {
+      rail: "border-l-blue-400 dark:border-l-blue-500/60",
+      badge: "bg-blue-100 text-blue-800 dark:bg-blue-500/[0.18] dark:text-blue-200",
+    },
+    violet: {
+      rail: "border-l-violet-400 dark:border-l-violet-500/60",
+      badge: "bg-violet-100 text-violet-800 dark:bg-violet-500/[0.18] dark:text-violet-200",
+    },
+    amber: {
+      rail: "border-l-amber-400 dark:border-l-amber-500/60",
+      badge: "bg-amber-100 text-amber-800 dark:bg-amber-500/[0.18] dark:text-amber-200",
+    },
+  };
+  const { rail, badge: badgeCls } = WC_TONES[tone] ?? WC_TONES.teal;
   return (
     <div
       data-testid={testid}
       data-available={available ? "true" : "false"}
-      className={`rounded-xl border ${accent ? "border-brand/40" : "border-rule"} bg-bg-2/30 px-4 py-3`}
+      className={`rounded-lg border border-rule border-l-[3px] ${rail} bg-surface p-[18px] text-left min-w-0 overflow-hidden transition-colors hover:bg-bg-2/40 hover:border-rule-strong`}
     >
-      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-        {label}
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          {available ? (
+            <>
+              <span className="num-hero num-hero-fluid text-ink leading-none">
+                {Math.round(value).toLocaleString("en-GB")}
+              </span>
+              <span className="text-[12.5px] text-ink-soft shrink-0">{unit}</span>
+            </>
+          ) : (
+            <span className="text-[15px] text-ink-mute italic">not available</span>
+          )}
+        </div>
+        <span className={`-mt-1 -mr-1 shrink-0 whitespace-nowrap text-[10px] uppercase tracking-[0.06em] font-semibold px-2 py-0.5 rounded ${badgeCls}`}>
+          {label}
+        </span>
       </div>
-      <div className="mt-1 flex items-baseline gap-1.5">
-        {available ? (
-          <>
-            <span className="text-[22px] tabular-nums text-ink font-semibold leading-none">
-              {Math.round(value).toLocaleString("en-GB")}
-            </span>
-            <span className="text-[11.5px] text-ink-soft">{unit}</span>
-          </>
-        ) : (
-          <span className="text-[14px] text-ink-mute italic">not available</span>
-        )}
-      </div>
-      <div className="mt-1.5 text-[11px] text-ink-soft leading-snug">{source}</div>
+      <p className="text-[12.5px] text-ink-soft leading-relaxed break-words">{source}</p>
       {formula && available && (
-        <div className="mt-0.5 text-[10.5px] text-ink-mute leading-snug">{formula}</div>
+        <p className="mt-0.5 text-[11px] text-ink-mute leading-snug break-words">{formula}</p>
       )}
       {!available && missingHint && (
-        <div className="mt-1 text-[10.5px] text-ink-mute leading-snug">{missingHint}</div>
+        <p className="mt-0.5 text-[11px] text-ink-mute leading-snug break-words">{missingHint}</p>
       )}
     </div>
   );
@@ -1311,21 +2154,23 @@ function WcCard({
 function Chip({
   testid, label, count, active, onClick, dotClass, empty,
 }: { testid: string; label: string; count: number; active: boolean; onClick: () => void; dotClass?: string; empty?: boolean }) {
-  // `empty` chips (count = 0) render dimmed so they're visually distinct
-  // from populated buckets — but still clickable, so the user can see the
-  // full classification surface and confirm the bucket really is empty
-  // (vs the chip being missing entirely, which used to read as a bug).
+  // Styled like the Public Companies Explore pills (2026-07-26 per operator):
+  // rounded-full, h-9, brand-tinted when selected, count in a muted trailing
+  // span. `empty` chips (count = 0) render dimmed so they're visually distinct
+  // from populated buckets — but still clickable, so the user can see the full
+  // classification surface and confirm the bucket really is empty.
   const baseTone = active
-    ? "bg-ink text-paper border-ink"
+    ? "border-brand/60 bg-brand/15 text-ink hover:bg-brand/25"
     : empty
-      ? "bg-surface text-ink-mute/70 border-rule/60 hover:text-ink-soft hover:border-rule"
-      : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong";
+      ? "border-rule/60 bg-surface text-ink-mute/70 hover:text-ink-soft hover:border-rule"
+      : "border-rule bg-surface text-ink hover:bg-bg-2 hover:border-rule-strong";
   return (
     <button
       type="button"
       onClick={onClick}
       data-testid={testid}
-      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] border transition-colors ${baseTone}`}
+      aria-pressed={active}
+      className={`group inline-flex items-center gap-1.5 h-9 px-3 rounded-full border text-[13px] font-medium transition-colors ${baseTone}`}
     >
       {dotClass && (
         <span
@@ -1333,10 +2178,27 @@ function Chip({
         />
       )}
       {label}
-      <span className={`ml-0.5 ${active ? "text-paper/70" : "text-ink-mute"}`}>{count}</span>
+      <span className="text-[11px] text-ink-mute tabular-nums shrink-0">{count}</span>
     </button>
   );
 }
+
+// Channel code → full display name (2026-07-26 per operator) — the filter
+// list shows the readable name instead of the raw KA/DIST/EXP/OLN token.
+const CHANNEL_NAMES: Record<string, string> = {
+  KA: "Key accounts",
+  DIST: "Distribution",
+  EXP: "Export",
+  OLN: "Online",
+};
+
+// FilterDropdown — custom pill dropdown replacing the native <select> filters
+// (2026-07-26 per operator). Native selects can't fade-in or style their menu;
+// this Radix-Popover version gives: a pill trigger matching the filter chips,
+// a chevron with extra right gap, a faded (parenthesis-free) count on the
+// "all" placeholder, and a fade-in menu styled like the trigger.
+// Moved to components/ui/FilterDropdown.tsx (2026-07-26) so the decision-rules
+// controls can use the same pill dropdown instead of a native <select>.
 
 // DatasetSwitcher was replaced by <DatasetsToggle /> + <DatasetsPanel />;
 // inline <select> retired in favor of the slide-out panel.
@@ -1496,14 +2358,31 @@ function SkuTable({
     () => ({ financing: rulesState.financing ?? DEFAULT_FINANCING }),
     [rulesState.financing],
   );
+  // The table used to virtualize inside a fixed-height (h-[560px]) inner
+  // scroll container. Per operator (2026-07-26) that inner scrollbar is gone —
+  // the table now flows in the page and uses the full page scroll. We keep
+  // virtualization for perf (hundreds of rows) but drive it off the WINDOW
+  // via useWindowVirtualizer, offsetting by the table's distance from the top
+  // of the document (scrollMargin) so row positions stay correct.
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useEffect(() => {
+    const measure = () => {
+      const el = parentRef.current;
+      if (!el) return;
+      setScrollMargin(el.getBoundingClientRect().top + window.scrollY);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [rows.length]);
   // estimateSize: desktop row ≈ 52px; mobile card ≈ 132px. measureElement
-  // below corrects the estimate row-by-row so the scroll thumb stays
-  // accurate at every viewport without a media-query re-mount.
-  const rowVirtualizer = useVirtualizer({
+  // below corrects the estimate row-by-row so positions stay accurate at
+  // every viewport without a media-query re-mount.
+  const rowVirtualizer = useWindowVirtualizer({
     count: rows.length,
-    getScrollElement: () => parentRef.current,
     estimateSize: () => 52,
     overscan: 10,
+    scrollMargin,
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
@@ -1529,11 +2408,7 @@ function SkuTable({
         <div className="text-center">{t("products.columns.channels")}</div>
         <div>{t("products.columns.signal")}</div>
       </div>
-      <div
-        ref={parentRef}
-        data-testid="sku-table-scroll"
-        className="overflow-auto overscroll-contain h-[560px] sm:h-[600px]"
-      >
+      <div ref={parentRef} data-testid="sku-table-scroll">
         <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
           {rowVirtualizer.getVirtualItems().map((virt) => {
             const s = rows[virt.index];
@@ -1566,7 +2441,7 @@ function SkuTable({
                   top: 0,
                   left: 0,
                   width: "100%",
-                  transform: `translateY(${virt.start}px)`,
+                  transform: `translateY(${virt.start - rowVirtualizer.options.scrollMargin}px)`,
                 }}
                 className="border-b border-rule/60 hover:bg-bg-2/40 active:bg-bg-2/60 transition-colors cursor-pointer focus:outline-none focus:bg-bg-2/60 focus:ring-1 focus:ring-inset focus:ring-ink/20"
               >
@@ -1992,7 +2867,18 @@ const PRODUCTS_UPLOAD_ACCEPT = ".xlsx,.xls,.csv";
 function EmptyState({
   onUploaded,
   datasets,
+  monthLabel,
+  uploadPeriodId,
 }: {
+  /** Period the upload nests under — resolved by the page (URL period, else
+   *  the workspace's newest), NOT read from the URL here: Products can be
+   *  opened without `?period=`, and a file with no period shows up under no
+   *  month at all. */
+  uploadPeriodId: string | null;
+  /** Active month, when one is loaded. Present so the copy can say which
+   *  month is empty — with files nested under months, "no data yet" would be
+   *  wrong for a user who has uploads sitting on other months. */
+  monthLabel?: string | null;
   onUploaded: () => void;
   /** Real prior imports — drives the stats strip and recent-imports
    *  panel. Pass an empty array on a brand-new account; the strip and
@@ -2003,6 +2889,8 @@ function EmptyState({
   // Pricing V3 — wraps enqueuePipeline so the 402 extra-doc dialog +
   // 429 quota-blocked toast fire automatically.
   const uploadEnqueue = useUploadEnqueue();
+  // The month an upload nests under arrives as `uploadPeriodId` from the page
+  // (see its comment) — this component no longer reads the URL for it.
   const fileRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   // Staged-files flow (2026-07-25) — mirrors the dashboard dropzone:
@@ -2011,6 +2899,8 @@ function EmptyState({
   // store so a tab switch (which unmounts this page) doesn't drop the
   // selection.
   const [stagedFiles, setStagedFiles] = useState<File[]>(() => readStagedFiles("products"));
+  // Leaving Products abandons the pick — come back to an empty dropzone.
+  useEffect(() => () => clearStagedFiles("products"), []);
   const [scanning, setScanning] = useState(false);
   useEffect(() => {
     writeStagedFiles("products", stagedFiles);
@@ -2026,7 +2916,10 @@ function EmptyState({
       toast({ title: "File too large", description: `${(file.size/1_000_000).toFixed(1)} MB exceeds the ${PRODUCTS_UPLOAD_MAX_MB} MB limit.`, variant: "destructive" });
       return;
     }
-    setStagedFiles((prev) => [...prev, file]);
+    // ONE file at a time (2026-07-26 per operator) — a new pick REPLACES the
+    // staged file rather than appending. Array shape kept so the staged list
+    // and startScan keep iterating as before.
+    setStagedFiles([file]);
   }
 
   // Upload + analyze ONE file; resolves when the pipeline settles
@@ -2037,7 +2930,8 @@ function EmptyState({
       void (async () => {
         // Flip into the scan view immediately (docId lands after upload).
         startUpload({ docId: "", filename: file.name, status: "queued", surface: "products" });
-        const { row, error } = await uploadDocument(file, { scope: "sku" });
+        // Pin to the active month so the file nests under it in "Source files".
+        const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
         if (!row) {
           clearUpload();
           toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
@@ -2061,7 +2955,10 @@ function EmptyState({
           if (next.status === "analyzed") {
             unsub();
             toast({ title: "Analysis ready", description: file.name });
-            clearUpload();
+            // NOT clearUpload() — the page-level handoff keeps `analyzed`
+            // on screen long enough for the sphere to converge and fade,
+            // then swaps in the populated page. Clearing here would snap
+            // the scan view away mid-animation.
             onUploaded();
             resolve();
           }
@@ -2094,8 +2991,10 @@ function EmptyState({
     const waitWhilePaused = async () => {
       while (isScanSpherePaused()) await sleep(200);
     };
+    // Mirrors the REAL sku-scope pipeline walk — it never emits 'computing'
+    // (see pipeline.py), so the simulator skips it too.
     const steps: DocumentStatus[] = [
-      "extracting", "mapping", "computing", "narrating", "analyzed",
+      "extracting", "mapping", "narrating", "analyzed",
     ];
     startUpload({
       docId: `debug-${Date.now()}`,
@@ -2128,23 +3027,13 @@ function EmptyState({
     [datasets],
   );
 
-  // ── SCANNING VIEW (2026-07-24) — same experience as the dashboard:
-  // while a dataset analysis is in flight, this surface reduces to the
-  // pipeline steps + the persistent council sphere (CouncilSphereHost
-  // paints over the spacer). Reads the global upload store (hoisted
-  // above), so progress survives tab switches.
-  if (inflightDoc && isInFlight(inflightDoc.status)) {
-    return (
-      <section data-testid="products-empty">
-        {uploadEnqueue.dialog}
-        <ScanProgressView
-          status={inflightDoc.status}
-          steps={SKU_DATASET_STEPS}
-          onCancel={clearUpload}
-        />
-      </section>
-    );
-  }
+  // ── SCANNING VIEW — owned by the PAGE now (2026-07-26), not this
+  // component. Products renders one scan surface for every entry point
+  // (this dropzone, the Datasets-panel button, a mid-scan page reload) so
+  // the sphere + steps can't be handed off between two competing views
+  // mid-run — which is exactly how the walk used to freeze at "Queued for
+  // analysis…". `inflightDoc` is still read above for the debug simulator
+  // guard; the page-level branch renders the view.
 
   return (
     <section data-testid="products-empty">
@@ -2173,6 +3062,16 @@ function EmptyState({
               <span className="text-grad">what matters</span>.
             </h1>
             <p className="mt-4 text-[15.5px] text-ink-soft leading-relaxed max-w-[520px]">
+              {/* Files are pinned to the month that's active when they're
+                  uploaded, so name the month here — with other months
+                  possibly populated, an unqualified "upload your data" would
+                  read as "you have nothing at all", which may be false. */}
+              {monthLabel && datasets.length > 0 && (
+                <>
+                  No product data on <span className="text-ink">{monthLabel}</span> yet — anything you
+                  import here lands on that month.{" "}
+                </>
+              )}
               Drop a trading analysis or sales-by-SKU export. CFO AI streams every row, rolls them
               up to the SKU, classifies into anchor / scale / watch / wind-down, and surfaces
               loss-makers — with optional per-SKU DIO when{" "}
@@ -2181,17 +3080,9 @@ function EmptyState({
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
-              {/* Import (primary, animated gradient) — opens the OS file
-                  picker (drag-drop onto the dropzone below also stages files
-                  for the Start scan flow). */}
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                data-testid="products-hero-import"
-                className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-              >
-                Import
-              </button>
+              {/* The Import button that used to lead this row was removed
+                  (2026-07-26 per operator) — the dropzone below is the one
+                  import path. */}
               <button
                 type="button"
                 onClick={() => openAskCfoAi("Help me understand what my product dataset upload should look like, and what CFO AI will do with it.")}
@@ -2232,7 +3123,14 @@ function EmptyState({
             onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
-            onDrop={(e) => { e.preventDefault(); setDrag(false); Array.from(e.dataTransfer.files ?? []).forEach(stageFile); }}
+            // First file only — a drop can carry several regardless of the
+            // input's `multiple` attribute, which only governs the picker.
+            onDrop={(e) => {
+              e.preventDefault();
+              setDrag(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) stageFile(f);
+            }}
             data-drag-active={drag ? "true" : "false"}
             className={`
               relative overflow-hidden
@@ -2296,14 +3194,15 @@ function EmptyState({
               >
                 Import
               </button>
+              {/* Single-file only (2026-07-26 per operator). */}
               <input
                 ref={fileRef}
                 type="file"
-                multiple
                 accept={PRODUCTS_UPLOAD_ACCEPT}
                 className="hidden"
                 onChange={(e) => {
-                  Array.from(e.target.files ?? []).forEach(stageFile);
+                  const f = e.target.files?.[0];
+                  if (f) stageFile(f);
                   e.target.value = ""; // allow re-picking the same file later
                 }}
               />
@@ -2340,42 +3239,38 @@ function EmptyState({
                  until Start scan. Same block as the dashboard dropzone. */
               <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
                 <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-                  {stagedFiles.length} file{stagedFiles.length === 1 ? "" : "s"} ready to scan
+                  Uploaded files
                 </div>
-                <div className="space-y-2">
+                {/* Grid of staged-file cards — icon above name, everything
+                    centered; clicking the card opens the file in a new window;
+                    delete sits top-right and appears on hover only. */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {stagedFiles.map((f, i) => (
-                    <div
-                      key={`${f.name}-${f.size}-${i}`}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
-                        <div className="min-w-0">
-                          <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
-                          <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => void openStagedFile(f)}
-                          aria-label={`View ${f.name}`}
-                          data-testid={`view-staged-${i}`}
-                          className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                        >
-                          <Eye size={14} strokeWidth={2} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setStagedFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                          disabled={scanning}
-                          aria-label={`Remove ${f.name}`}
-                          data-testid={`discard-staged-${i}`}
-                          className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
-                        >
-                          <X size={14} strokeWidth={2} />
-                        </button>
-                      </div>
+                    <div key={`${f.name}-${f.size}-${i}`} className="group relative">
+                      <button
+                        type="button"
+                        onClick={() => void openStagedFile(f)}
+                        aria-label={`Open ${f.name} in a new window`}
+                        data-testid={`view-staged-${i}`}
+                        className="w-full flex flex-col items-center justify-center text-center gap-1.5 rounded-lg border border-rule bg-bg-2/40 px-3 py-4 hover:bg-bg-2/70 hover:border-rule-strong transition-colors"
+                      >
+                        <FileSpreadsheet size={22} strokeWidth={1.5} className="text-ink-mute" />
+                        <div className="w-full text-[12px] font-medium text-ink truncate">{f.name}</div>
+                        <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStagedFiles((prev) => prev.filter((_, idx) => idx !== i));
+                        }}
+                        disabled={scanning}
+                        aria-label={`Remove ${f.name}`}
+                        data-testid={`discard-staged-${i}`}
+                        className="absolute top-1.5 right-1.5 inline-flex items-center justify-center h-6 w-6 rounded-md text-ink-mute bg-surface/80 backdrop-blur hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none"
+                      >
+                        <X size={13} strokeWidth={2} />
+                      </button>
                     </div>
                   ))}
                 </div>

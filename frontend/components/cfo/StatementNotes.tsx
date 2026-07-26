@@ -52,6 +52,15 @@ const RELEVANCE_KEYWORDS: Record<StatementNotesScope, RegExp> = {
 
 type SeverityFilter = "all" | "critical" | "watch" | "info" | "recommendations";
 
+// Severity-rank for ordering inside the visible bucket. Critical items appear
+// first; recommendations land last unless explicitly filtered to. Module-level
+// because it's static — and because it used to be declared BELOW the
+// empty-state early return, which is what forced the sorting hooks down there
+// with it (see the hook-order note in the component).
+const SEVERITY_RANK: Record<string, number> = {
+  critical: 0, high: 1, medium: 2, low: 3, info: 4,
+};
+
 export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
   const [filter, setFilter] = useState<SeverityFilter>("all");
 
@@ -93,6 +102,33 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
 
   const totalCount = counts.all;
 
+  // ALL hooks run before the empty-state return below (2026-07-26). These two
+  // useMemos used to sit under it, so a period with notes followed by one
+  // without ran four hooks and then two on the same component instance —
+  // React's "Rendered fewer hooks than expected", which is exactly what
+  // crashed the dashboard when switching to a period with no trial balance.
+  // Their inputs all come from the useMemo above, so hoisting is free.
+
+  // Apply severity filter, sort, then split visible vs. hidden.
+  const visibleAlerts = useMemo(() => {
+    const all = [...relevantAlerts, ...otherAlerts];
+    const filtered =
+      filter === "all" ? all
+      : filter === "critical" ? all.filter((d) => d.alert.severity === "critical" || d.alert.severity === "high")
+      : filter === "watch"    ? all.filter((d) => d.alert.severity === "medium")
+      : filter === "info"     ? all.filter((d) => d.alert.severity === "low" || d.alert.severity === "info")
+      : []; // "recommendations" filter → no alerts visible
+    return [...filtered].sort(
+      (a, b) =>
+        (SEVERITY_RANK[a.alert.severity] ?? 9) - (SEVERITY_RANK[b.alert.severity] ?? 9),
+    );
+  }, [filter, relevantAlerts, otherAlerts]);
+
+  const visibleRecs = useMemo(() => {
+    const all = [...relevantRecs, ...otherRecs];
+    return filter === "all" || filter === "recommendations" ? all : [];
+  }, [filter, relevantRecs, otherRecs]);
+
   // Honest empty state. Never fabricate filler.
   if (totalCount === 0) {
     return (
@@ -114,33 +150,6 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
       </section>
     );
   }
-
-  // Severity-rank for ordering inside the visible bucket. Critical
-  // items appear first; recommendations land last unless explicitly
-  // filtered to.
-  const SEVERITY_RANK: Record<string, number> = {
-    critical: 0, high: 1, medium: 2, low: 3, info: 4,
-  };
-
-  // Apply severity filter, sort, then split visible vs. hidden.
-  const visibleAlerts = useMemo(() => {
-    const all = [...relevantAlerts, ...otherAlerts];
-    const filtered =
-      filter === "all" ? all
-      : filter === "critical" ? all.filter((d) => d.alert.severity === "critical" || d.alert.severity === "high")
-      : filter === "watch"    ? all.filter((d) => d.alert.severity === "medium")
-      : filter === "info"     ? all.filter((d) => d.alert.severity === "low" || d.alert.severity === "info")
-      : []; // "recommendations" filter → no alerts visible
-    return [...filtered].sort(
-      (a, b) =>
-        (SEVERITY_RANK[a.alert.severity] ?? 9) - (SEVERITY_RANK[b.alert.severity] ?? 9),
-    );
-  }, [filter, relevantAlerts, otherAlerts]);
-
-  const visibleRecs = useMemo(() => {
-    const all = [...relevantRecs, ...otherRecs];
-    return filter === "all" || filter === "recommendations" ? all : [];
-  }, [filter, relevantRecs, otherRecs]);
 
   const allVisible = [
     ...visibleAlerts.map((a) => ({ kind: "alert" as const, deduped: a })),

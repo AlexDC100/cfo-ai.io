@@ -9,8 +9,8 @@
 // shows the user's company name when signed in, or "Demo workspace" when in
 // demo mode — replaces the static "Financial Intelligence" brand line.
 
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Menu, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Menu, Sparkles } from "lucide-react";
 import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
 import { BackendStatusIndicator } from "./BackendStatusIndicator";
@@ -20,8 +20,6 @@ import { LearningHubMenu } from "@/components/learning/LearningHubMenu";
 import { useAuth } from "@/lib/auth";
 import { useWorkspaceName } from "@/lib/workspaceName";
 import { useWorkspaces } from "@/lib/workspaces";
-import { useActivePeriod } from "@/lib/activePeriod";
-import { formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
 
 interface Props {
   onOpenAi: () => void;
@@ -49,44 +47,11 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
   // instead of a stale name.
   const { currentId, loading: wsLoading } = useWorkspaces();
   const noWorkspace = status === "signed_in" && !wsLoading && !currentId;
-  // Selected month — from the active period's closing date. The tagline
-  // reads "[workspace] - [month]" so switching months (Workspace tab)
-  // is always reflected up here.
-  const period = useActivePeriod();
-  // Only show the month once a REAL period is loaded (period.id present) —
-  // without this a periodEnd that defaulted to today would surface the current
-  // date in the tagline even when no period has been created yet.
-  const selectedMonth = period.id ? formatPeriodMonth(period.periodEnd) : null;
+  // The selected month + its prev/next stepper moved to the sidebar
+  // (2026-07-26) — see SidebarMonthStepper in Sidebar.tsx. The period state
+  // and the startPeriodSwitch() call went with it; this header now renders
+  // only the workspace name in the tagline slot.
   const navigate = useNavigate();
-
-  // Month stepper — prev/next arrows beside the tagline cycle through this
-  // workspace's uploaded periods (newest-first). `?period=<id>` is the app-wide
-  // active-period key, so stepping it re-scopes every tab to that month.
-  const [params, setParams] = useSearchParams();
-  const { data: periodsData } = useOrgPeriods();
-  const periods = periodsData?.periods ?? [];
-  const currentPeriodId = period.id ?? params.get("period");
-  const periodIdx = currentPeriodId
-    ? periods.findIndex((p) => p.period_id === currentPeriodId)
-    : -1;
-  // Newest-first ordering: the OLDER month is further down the list (idx+1),
-  // the NEWER month is above it (idx-1).
-  const olderPeriod = periodIdx >= 0 && periodIdx < periods.length - 1 ? periods[periodIdx + 1] : null;
-  const newerPeriod = periodIdx > 0 ? periods[periodIdx - 1] : null;
-  // Looping stepper (2026-07-25): both arrows are ALWAYS active and wrap
-  // around — stepping back from the oldest month lands on the newest, forward
-  // from the newest lands on the oldest. Falls back to the list ends when the
-  // current period isn't in the list (periodIdx === -1).
-  const prevTarget = olderPeriod ?? periods[0] ?? null;
-  const nextTarget = newerPeriod ?? periods[periods.length - 1] ?? null;
-  const showMonthStepper = Boolean(selectedMonth) && periods.length >= 2;
-  function goToPeriod(periodId: string) {
-    const sp = new URLSearchParams(params);
-    sp.set("period", periodId);
-    // Replace, not push — month stepping is substitution, back should leave
-    // the page rather than replay every month stepped through.
-    setParams(sp, { replace: true });
-  }
 
   return (
     <header
@@ -142,41 +107,10 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
           <span className="font-mono text-[11.5px] uppercase tracking-[0.14em] font-normal text-ink truncate max-w-[240px]">
             {workspaceName || workspaceLabel || "Financial Intelligence"}
           </span>
-          {/* Selected month with its stepper. The BACK arrow (previous month)
-              sits to the LEFT of the month text; the forward arrow to its
-              right. Arrows only render when there's more than one month to
-              step through. */}
-          {selectedMonth && (
-            <span className="inline-flex items-center gap-0.5">
-              {showMonthStepper && (
-                <button
-                  type="button"
-                  onClick={() => prevTarget && goToPeriod(prevTarget.period_id)}
-                  aria-label="Previous month"
-                  title={`Previous month (${formatPeriodMonth(prevTarget?.period_end) ?? ""})`}
-                  data-testid="topbar-prev-month"
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
-                >
-                  <ChevronLeft size={14} strokeWidth={2} />
-                </button>
-              )}
-              <span className="font-mono text-[11.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft whitespace-nowrap">
-                {selectedMonth}
-              </span>
-              {showMonthStepper && (
-                <button
-                  type="button"
-                  onClick={() => nextTarget && goToPeriod(nextTarget.period_id)}
-                  aria-label="Next month"
-                  title={`Next month (${formatPeriodMonth(nextTarget?.period_end) ?? ""})`}
-                  data-testid="topbar-next-month"
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
-                >
-                  <ChevronRight size={14} strokeWidth={2} />
-                </button>
-              )}
-            </span>
-          )}
+          {/* The selected-month text + prev/next stepper moved to the
+              SIDEBAR (2026-07-26 per operator) — see SidebarMonthStepper,
+              which sits above the Intelligence divider. The header keeps
+              only the workspace name. */}
         </div>
         )}
 

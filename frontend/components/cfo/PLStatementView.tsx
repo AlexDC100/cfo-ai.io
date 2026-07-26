@@ -116,8 +116,11 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
 }
 
 function PLSectionView({ section, currency }: { section: PLSection; currency: string }) {
-  if (section.lines.length === 0 && !section.subtotalLabel) return null;
+  // Hook BEFORE the empty-section bail-out — see the same note in
+  // BSStatementView. A section that loses its lines between renders must not
+  // change this component's hook count.
   const fmt = useAmountFormatter(currency);
+  if (section.lines.length === 0 && !section.subtotalLabel) return null;
   const subtotalAttrs = section.subtotalBucket
     ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
     : {};

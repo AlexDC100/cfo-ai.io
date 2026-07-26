@@ -951,3 +951,18 @@
     color: white !important;
   }
 }
+
+/* ── Find-in-conversation (Ask CFO AI) ───────────────────────────────
+ * Painted by the CSS Custom Highlight API from useChatSearchHighlight —
+ * no <mark> wrappers, so React keeps ownership of every text node it
+ * renders (the assistant answer types out character by character).
+ * `chat-search` tints every match, `chat-search-active` the focused one
+ * the matches pill is stepping through. */
+::highlight(chat-search) {
+  background-color: hsl(var(--brand) / 0.28);
+  color: hsl(var(--ink));
+}
+::highlight(chat-search-active) {
+  background-color: hsl(var(--brand) / 0.85);
+  color: hsl(var(--bg));
+}

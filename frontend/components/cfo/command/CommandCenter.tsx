@@ -23,7 +23,7 @@
 // AiTab / AccountTab) so renames / additions stay surgical.
 
 import { useEffect, useState } from "react";
-import { BookOpen, Building2, Settings2, Upload, X, type LucideIcon } from "lucide-react";
+import { BookOpen, Building2, Settings2, X, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/sheet";
 import { GlossaryContent } from "@/components/learning/MetricGlossaryDrawer";
 import { CONCEPTS_BY_KEY } from "@/lib/learning/concepts";
-import { useActivePeriod } from "@/lib/activePeriod";
 import { useWorkspaceName } from "@/lib/workspaceName";
 
 import { DecisionRulesModal } from "./DecisionRulesModal";
@@ -72,8 +71,6 @@ export function CommandCenter({
   const navigate = useNavigate();
   // Live data behind the quick-action subtitles.
   const workspaceName = useWorkspaceName();
-  const period = useActivePeriod();
-  const dataConnected = !!period.id && !!period.statements;
   // Decision-rules modal — opened by its quick action after the panel
   // closes, so it lives OUTSIDE the Sheet (it survives the close).
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -180,13 +177,10 @@ export function CommandCenter({
                 onClick={() => setView("glossary")}
                 testId="command-quick-glossary"
               />
-              <QuickAction
-                icon={Upload}
-                label="Upload files"
-                sub={dataConnected ? "Data connected" : "No dataset yet"}
-                onClick={() => launch(onOpenUpload)}
-                testId="command-quick-upload"
-              />
+              {/* "Upload files" was removed 2026-07-26 per operator. The
+                  Data tab below this grid already carries the upload
+                  affordance, and every surface that needs a file has its own
+                  dropzone. */}
               <QuickAction
                 icon={Settings2}
                 label="Decision rules"

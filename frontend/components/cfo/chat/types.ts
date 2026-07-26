@@ -46,6 +46,11 @@ export interface ChatMessage {
   attachments?: ChatAttachment[];
   /** Set on the assistant turn while the request is in flight. */
   pending?: boolean;
+  /** Set when the user pressed Stop mid-generation. Renders as a muted
+   *  "Interrupted" marker on the assistant side; never persisted to the
+   *  server (kept in the localStorage cache so the marker survives a
+   *  refresh until the next server hydration). */
+  interrupted?: boolean;
 }
 
 export interface ChatConversation {

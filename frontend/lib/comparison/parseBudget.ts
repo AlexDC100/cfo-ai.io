@@ -111,36 +111,83 @@ interface HeaderMap {
   lastYearCol: number;
 }
 
-function detectHeaders(header: string[]): HeaderMap | null {
-  const idx = (preds: string[]) =>
-    header.findIndex((h) => {
-      const v = (h ?? "").toString().trim().toLowerCase();
-      return preds.some((p) => v.includes(p));
-    });
-  const lineCol = idx([
-    "line", "item", "metric", "indicator", "rand", "concept",
-    "label", "account", "post", "p&l", "pnl", "denumire", "cont", "descri",
-  ]);
-  const budgetCol = idx([
-    "budget", "bud", "plan", "bug", "target", "forecast", "fcst", "buget",
-  ]);
-  const lastYearCol = idx([
-    "last year", "last-year", "lastyear", "prior year", "prior-year", "ly", "py",
-    "an precedent", "anul precedent", "previous", "2023", "2024", "fy23", "fy24",
-  ]);
-  if (lineCol < 0 || budgetCol < 0) return null;
-  return { lineCol, budgetCol, lastYearCol };
+const LINE_HEADER_PREDS = [
+  "line", "item", "metric", "indicator", "rand", "concept",
+  "label", "account", "post", "p&l", "pnl", "denumire", "cont", "descri", "name",
+];
+const BUDGET_HEADER_PREDS = [
+  "budget", "bud", "plan", "bug", "target", "forecast", "fcst", "buget",
+];
+const LASTYEAR_HEADER_PREDS = [
+  "last year", "last-year", "lastyear", "prior year", "prior-year", "ly", "py",
+  "an precedent", "anul precedent", "previous", "2023", "2024", "fy23", "fy24",
+];
+
+/** First column whose header text matches any predicate. */
+function idxByHeader(header: string[], preds: string[]): number {
+  return header.findIndex((h) => {
+    const v = (h ?? "").toString().trim().toLowerCase();
+    return preds.some((p) => v.includes(p));
+  });
 }
 
-/** Locate the header row. Real budget exports frequently carry a title row, a
- *  logo/blank row, or a currency note above the actual header, so we scan the
- *  first several rows rather than assuming row 0. Returns the matched header
- *  map + the row index it was found at (data starts after it). */
+/** Column whose DATA cells look most like recognized P&L line names — used
+ *  when no column header matches (a plain "Account | Amount" export). Returns
+ *  -1 if no column has at least 2 recognizable lines. */
+function idxOfLineDataCol(rows: string[][], headerRow: number, ncols: number): number {
+  let bestCol = -1;
+  let bestHits = 1; // require ≥2 to beat this
+  for (let c = 0; c < ncols; c++) {
+    let hits = 0;
+    for (let r = headerRow + 1; r < rows.length; r++) {
+      if (normLineKey(rows[r][c] ?? "") !== null) hits++;
+    }
+    if (hits > bestHits) { bestHits = hits; bestCol = c; }
+  }
+  return bestCol;
+}
+
+/** Leftmost column (excluding the given ones) whose DATA cells are mostly
+ *  numeric — used as the budget column when no header names it (a plain
+ *  "Line | Amount" export). Returns -1 if none has ≥2 numeric cells. */
+function idxOfNumericCol(
+  rows: string[][], headerRow: number, ncols: number, exclude: number[],
+): number {
+  for (let c = 0; c < ncols; c++) {
+    if (exclude.includes(c)) continue;
+    let nums = 0;
+    for (let r = headerRow + 1; r < rows.length; r++) {
+      if (parseNumber(rows[r][c]) !== null) nums++;
+    }
+    if (nums >= 2) return c;
+  }
+  return -1;
+}
+
+/** Locate the header row + the three columns. Robust to (a) a title/logo/blank
+ *  row above the header (scans the first rows), (b) a budget column not literally
+ *  named "Budget" (falls back to the first numeric data column), and (c) a line
+ *  column not named "Line" (falls back to the column whose cells read as P&L
+ *  line names). */
 function findHeader(rows: string[][]): { hm: HeaderMap; at: number } | null {
   const limit = Math.min(rows.length, 20);
   for (let i = 0; i < limit; i++) {
-    const hm = detectHeaders(rows[i]);
-    if (hm) return { hm, at: i };
+    const header = rows[i];
+    const ncols = Math.max(
+      header.length,
+      ...rows.slice(i + 1, i + 6).map((r) => r.length),
+    );
+    let lineCol = idxByHeader(header, LINE_HEADER_PREDS);
+    const lastYearCol = idxByHeader(header, LASTYEAR_HEADER_PREDS);
+    let budgetCol = idxByHeader(header, BUDGET_HEADER_PREDS);
+
+    // Data-driven fallbacks when the header names don't match.
+    if (lineCol < 0) lineCol = idxOfLineDataCol(rows, i, ncols);
+    if (lineCol < 0) continue; // this row can't anchor the table
+    if (budgetCol < 0) budgetCol = idxOfNumericCol(rows, i, ncols, [lineCol, lastYearCol]);
+    if (budgetCol < 0) continue;
+
+    return { hm: { lineCol, budgetCol, lastYearCol }, at: i };
   }
   return null;
 }

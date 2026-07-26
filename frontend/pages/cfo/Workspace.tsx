@@ -17,16 +17,15 @@
 // company/period + quick-access cards into every analysis view. A "Restart
 // setup" link re-runs the flow.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowUp,
   Check,
   Clock,
   Cloud,
-  Eye,
   FileSpreadsheet,
   FolderOpen,
   Loader2,
@@ -37,8 +36,11 @@ import {
   Trash2,
   UploadCloud,
 } from "lucide-react";
-import type { DocumentRow } from "@/lib/supabase";
 import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
+import { getSupabase } from "@/lib/supabase";
+import { SourceFilesRow } from "@/components/cfo/SourceFilesRow";
+import { startWorkspaceSwitch } from "@/lib/periodSwitch";
+import { setUnsavedGuard } from "@/lib/unsavedGuard";
 
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import {
@@ -52,11 +54,27 @@ import {
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
 import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { toast } from "@/components/ui/sonner";
-import { useActivePeriod } from "@/lib/activePeriod";
-import { fetchOrgPeriodsFor, formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
+import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
+import {
+  createEmptyPeriod,
+  deleteEmptyPeriod,
+  fetchWorkspacePeriodsDirect,
+  formatPeriodMonth,
+  isCurrentMonthPeriod,
+  type OrgPeriod,
+  type OrgPeriodsPayload,
+} from "@/lib/orgPeriods";
+import { forgetPeriodVerdictFor } from "@/lib/dataPresence";
 import { uploadExcelToBackend } from "@/lib/api";
+import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import { setActiveRun, setAnalysis, setUploadAlerts } from "@/lib/runStore";
-import { resetDecisionRulesToDefaults } from "@/lib/decisionRulesStore";
+import {
+  readDecisionRules,
+  resetDecisionRulesToDefaults,
+  useDecisionRules,
+  writeDecisionRules,
+} from "@/lib/decisionRulesStore";
+import type { DecisionRulesState } from "@/lib/decisionRules";
 import { updateActiveOrg } from "@/lib/org";
 import { readWorkspaceName, writeWorkspaceName } from "@/lib/workspaceName";
 import { setPref, usePrefSync } from "@/lib/prefs";
@@ -143,38 +161,64 @@ export default function Workspace() {
   }, []);
   usePrefSync<boolean>("org", ONBOARDED_PREF_KEY, done, adoptOnboarded);
 
-  // Settings "tab" — its own header + description, replacing the hub view.
+  // Settings "tab" — the workspace rail STAYS on the left (2026-07-26 per
+  // operator: "always display the list of workspaces"). Opening a workspace's
+  // settings used to return a single-column page that replaced the hub, so the
+  // switcher vanished and the only way back to another company was the "All
+  // workspaces" link. Same two-column shape as the hub below, with the
+  // settings panel in place of the selected-workspace summary.
   if (editingWorkspace) {
     return (
-      <section className="max-w-[1280px] space-y-8" data-testid="workspace-page">
-        <PageHeader
-          hero
-          eyebrow="Workspace settings"
-          title={
-            <>
-              Manage <span className="text-grad">{editingWorkspace.name || "this workspace"}</span>.
-            </>
-          }
-          subtitle="Rename this workspace, tune the decision rules that classify its products, re-run the guided setup, or remove it. Changes apply to this workspace only."
-        />
-        <WorkspaceSettings
-          workspace={editingWorkspace}
-          canDelete={ws.canDelete}
-          onBack={() => setEditingId(null)}
-          onRename={(name) => { void ws.rename(editingWorkspace.id, name); }}
-          onChangeIndustry={(key) => { void ws.setIndustry(editingWorkspace.id, key, orgIndustryLabel(key)); }}
-          onDelete={() => {
-            const name = editingWorkspace.name;
-            setEditingId(null);
-            void ws.remove(editingWorkspace.id).then((ok) => {
-              toast[ok ? "success" : "error"](
-                ok
-                  ? `“${name || "Workspace"}” deleted — restorable for 30 days.`
-                  : "Couldn't delete that workspace.",
-              );
-            });
-          }}
-        />
+      // Pulled up and in (2026-07-26 per operator): AppShell pads every page
+      // with py-6→12 / px-4→10, which on this two-column screen left the rail
+      // floating well below the header and away from the sidebar. Negative
+      // margins claw back part of that padding for THIS page only, so the
+      // shared shell spacing stays correct everywhere else.
+      <section
+        className="max-w-[1280px] space-y-8 -mt-4 sm:-mt-6 lg:-mt-8 lg:-ml-6"
+        data-testid="workspace-page"
+      >
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <div className="w-full lg:w-[260px] lg:shrink-0">
+            <WorkspaceHub
+              // Switching rows inside settings keeps you in settings, now
+              // showing the workspace you just picked.
+              onEdit={(id) => { ws.select(id); setEditingId(id); }}
+              onCreate={startNewWorkspace}
+            />
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-8">
+            <PageHeader
+              hero
+              eyebrow="Workspace settings"
+              title={
+                <>
+                  Manage <span className="text-grad">{editingWorkspace.name || "this workspace"}</span>.
+                </>
+              }
+              subtitle="Rename this workspace, tune the decision rules that classify its products, re-run the guided setup, or remove it. Changes apply to this workspace only."
+            />
+            <WorkspaceSettings
+              workspace={editingWorkspace}
+              canDelete={ws.canDelete}
+              onBack={() => setEditingId(null)}
+              onRename={(name) => { void ws.rename(editingWorkspace.id, name); }}
+              onChangeIndustry={(key) => { void ws.setIndustry(editingWorkspace.id, key, orgIndustryLabel(key)); }}
+              onDelete={() => {
+                const name = editingWorkspace.name;
+                setEditingId(null);
+                void ws.remove(editingWorkspace.id).then((ok) => {
+                  toast[ok ? "success" : "error"](
+                    ok
+                      ? `“${name || "Workspace"}” deleted — restorable for 30 days.`
+                      : "Couldn't delete that workspace.",
+                  );
+                });
+              }}
+            />
+          </div>
+        </div>
       </section>
     );
   }
@@ -196,19 +240,23 @@ export default function Workspace() {
           while the list is still loading or when workspaces exist, so users who
           have workspaces never see the create form flash. */}
       {done && !activeNeedsOnboarding && (ws.loading || ws.workspaces.length > 0) ? (
-        <>
-          {/* Your workspaces — the switcher (with the Create card as its first
-              grid item) sits ABOVE the title so the title can name whichever
-              workspace is currently selected. */}
-          <WorkspaceHub
-            onEdit={(id) => { ws.select(id); setEditingId(id); }}
-            onCreate={startNewWorkspace}
-          />
+        // Two-column layout (2026-07-26 per operator): the workspace switcher
+        // becomes a narrow vertical rail on the left, the selected workspace's
+        // settings fill the rest. Stacks under lg, where a 260px rail beside a
+        // dense settings form stops being readable.
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <div className="w-full lg:w-[260px] lg:shrink-0">
+            <WorkspaceHub
+              onEdit={(id) => { ws.select(id); setEditingId(id); }}
+              onCreate={startNewWorkspace}
+            />
+          </div>
 
           {/* Title reflects the selected workspace; its edit tab renders
               directly beneath it. Gated on !ws.loading so it doesn't flash the
               "Manage" section for a stale active id during the initial resolve
               (the active id is only nulled once the workspace list resolves). */}
+          <div className="flex-1 min-w-0">
           {!ws.loading && ws.current && (
             <SelectedWorkspacePanel
               workspace={ws.current}
@@ -228,7 +276,8 @@ export default function Workspace() {
               }}
             />
           )}
-        </>
+          </div>
+        </div>
       ) : (
         <>
           <PageHeader
@@ -242,9 +291,13 @@ export default function Workspace() {
             // A restart on the current workspace prefills its industry; a
             // brand-new SRL starts blank and must pick its own.
             initialIndustryKey={creatingNew ? null : (ws.current?.industryKey ?? null)}
-            // Back from the first step always returns to the workspaces screen —
-            // which renders the no-workspaces hero when the user has none, so
-            // they're never trapped in the wizard.
+            // Back from the first step returns to the workspaces screen.
+            // Only offered when there IS one to return to and the active
+            // workspace isn't itself mid-onboarding — otherwise the hub's own
+            // guard (`done && !activeNeedsOnboarding` above) would re-enter the
+            // wizard on the very next render and the button would read as
+            // broken.
+            canExit={ws.workspaces.length > 0 && !activeNeedsOnboarding}
             onExit={() => { setCreatingNew(false); writeDone(true); setDone(true); }}
           />
         </>
@@ -265,10 +318,15 @@ export interface OnboardingIndustry {
 function Onboarding({
   onDone,
   onExit,
+  canExit = false,
   initialIndustryKey = null,
 }: {
   onDone: (industry: OnboardingIndustry | null) => void;
   onExit?: () => void;
+  /** Show the step-0 "All workspaces" exit. False when the user has nowhere to
+   *  go back to, or when the active workspace still needs onboarding (leaving
+   *  would re-enter the wizard on the next render — a dead button). */
+  canExit?: boolean;
   /** Prefill when restarting setup on a workspace that already has one. */
   initialIndustryKey?: string | null;
 }) {
@@ -367,17 +425,21 @@ function Onboarding({
 
       {/* Wizard navigation */}
       <div className="flex items-center justify-between gap-3">
-        {/* Back appears from step 1 onward; the step-0 "All workspaces" exit
-            button was removed per the operator. A spacer keeps Continue right. */}
-        {step > 0 ? (
+        {/* Back appears from step 1 onward. At step 0 it becomes an EXIT to the
+            workspace list — but only when `canExit` (2026-07-26 per operator):
+            there has to be somewhere to go back TO, and leaving must not
+            immediately bounce the user straight back in. The parent computes
+            that; see its `canExit` prop. Without a target the slot renders a
+            spacer so Continue stays right-aligned. */}
+        {step > 0 || canExit ? (
           <button
             type="button"
             onClick={back}
-            data-testid="onboarding-back"
+            data-testid={step > 0 ? "onboarding-back" : "onboarding-exit"}
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
           >
             <ArrowLeft size={14} strokeWidth={2} />
-            Back
+            {step > 0 ? "Back" : "All workspaces"}
           </button>
         ) : (
           <span />
@@ -592,120 +654,804 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
 
 // ─── Post-onboarding hub ─────────────────────────────────────────────────────
 
-// ─── Month switcher ──────────────────────────────────────────────────────────
-// One trial balance per month: every upload creates a period (its
-// closing date = the month it covers) scoped to the active workspace.
-// This section lists them newest-first as month pills; picking one sets
-// `?period=<id>` — the app-wide active-period key — so the dashboard,
-// statements, ratios, and the TopHeader "[workspace] - [month]" readout
-// all flip to that month's data. Hidden until the workspace has at
-// least one uploaded period.
+// ─── Periods ─────────────────────────────────────────────────────────────────
+// Periods are independent CONTAINERS (2026-07-26 per operator); files are
+// their contents. A period can exist with no file — created from the Add
+// dialog — and shows an "Attach trial balance" affordance until one lands.
+// Reads `financial_periods` DIRECTLY from Supabase (fetchWorkspacePeriodsDirect)
+// rather than the engine's /periods-with-documents feed, because that feed
+// deliberately skips doc-less periods (it drives the analysis surfaces).
+//
+// Uploading into a month never duplicates it: the pipeline's stage_persist
+// matches on (org_id, period_end) and ADOPTS the existing row — pre-created
+// empty periods included.
 
-function MonthsSection({ compact = false, orgId }: { compact?: boolean; orgId?: string }) {
-  // When an orgId is given, scope the months to THAT workspace (used by the
-  // selected-workspace panel); otherwise fall back to the active workspace.
-  const active = useOrgPeriods();
+function MonthsSection({
+  compact = false,
+  orgId,
+}: {
+  compact?: boolean;
+  orgId: string;
+}) {
   const scoped = useQuery({
     queryKey: ["org-periods", orgId],
-    queryFn: () => fetchOrgPeriodsFor(orgId as string),
+    queryFn: () => fetchWorkspacePeriodsDirect(orgId),
     enabled: !!orgId,
     staleTime: 60_000,
   });
-  const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
-  const selectedId = params.get("period");
-  const periods = orgId
-    ? (scoped.data?.periods ?? [])
-        .filter((p) => p.documents.length > 0)
-        .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""))
-    : (active.data?.periods ?? []);
+  const qc = useQueryClient();
 
-  // "Add month" — upload a new trial balance for another period. Routes to the
-  // dashboard's empty/upload state (?empty=1 forces it even when a period is
-  // already loaded) so the dropzone is ready.
+  // Which period the delete-confirmation dialog is open for. Deleting a period
+  // is destructive (it takes the analysis, metrics, briefing and alerts with
+  // it), so it always goes through a confirm step rather than firing on click.
+  const [deleteTarget, setDeleteTarget] = useState<OrgPeriod | null>(null);
+  // Which FILE the delete-confirmation dialog is open for (2026-07-26 per
+  // operator). Separate from the period target above: removing one attachment
+  // leaves the month itself in place.
+  const [fileDeleteTarget, setFileDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  // Which period the right-hand panel is showing. Local to this section —
+  // it is NOT the app's active period.
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+
+  async function confirmDeleteFile() {
+    const target = fileDeleteTarget;
+    if (!target) return;
+    setFileDeleteTarget(null);
+    const sb = getSupabase();
+    if (!sb) { toast.error("Not signed in."); return; }
+    // Soft-delete, matching every other delete path in the app: the row stays
+    // for 30 days in Recently deleted rather than being destroyed.
+    const { error } = await sb
+      .from("documents")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", target.id);
+    if (error) { toast.error(`Couldn't delete "${target.name}".`); return; }
+    void qc.invalidateQueries({ queryKey: ["org-periods", orgId] });
+    void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+    qc.removeQueries({ queryKey: ["period-documents"] });
+    toast.success(`“${target.name}” deleted — restorable for 30 days.`);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    const label = formatPeriodMonth(target.period_end) ?? target.period_label;
+
+    // Backstop for the disabled delete button. Guarding here too means a stale
+    // render (or a dialog opened just before the list changed) can't slip
+    // through. Two rules, in order of specificity:
+    //   1. The CURRENT month is permanent — it's the guaranteed landing spot
+    //      for today's upload and useEnsureCurrentPeriod would recreate it
+    //      immediately anyway, so deleting it only ever flickers.
+    //   2. A workspace keeps at least one period.
+    if (isCurrentMonthPeriod(target.period_end)) {
+      setDeleteTarget(null);
+      toast.info(`${label} is the current month — it can't be deleted.`);
+      return;
+    }
+    if (periods.length <= 1) {
+      setDeleteTarget(null);
+      toast.info("A workspace keeps at least one period — add another first.");
+      return;
+    }
+
+    // Reflect the delete IMMEDIATELY (2026-07-26 per operator). Invalidation
+    // alone left the card on screen for a full round trip — the DELETE, then a
+    // refetch of both period lists — which reads as the click not registering.
+    // So we drop the row from the caches up front and reconcile with the server
+    // afterwards, restoring the snapshots if the request fails.
+    const dropPeriod = (payload: OrgPeriodsPayload | null | undefined) => {
+      if (!payload) return payload;
+      return {
+        ...payload,
+        // A pointer at the period we just removed is worse than none: every
+        // consumer would resolve it and 404.
+        active_period_id:
+          payload.active_period_id === target.period_id ? null : payload.active_period_id,
+        periods: payload.periods.filter((p) => p.period_id !== target.period_id),
+      };
+    };
+    const scopedKey = ["org-periods", orgId];
+    const activeKey = ["periods-with-documents"];
+    const prevScoped = qc.getQueryData<OrgPeriodsPayload | null>(scopedKey);
+    const prevActive = qc.getQueryData<OrgPeriodsPayload | null>(activeKey);
+    qc.setQueryData<OrgPeriodsPayload | null>(scopedKey, dropPeriod);
+    qc.setQueryData<OrgPeriodsPayload | null>(activeKey, dropPeriod);
+    // Anything keyed by this period is now unreachable — drop it rather than
+    // leaving a warm cache entry for a deleted id.
+    qc.removeQueries({ queryKey: ["period-documents", target.period_id] });
+    forgetPeriodVerdictFor(target.period_id);
+    setDeleteTarget(null);
+
+    try {
+      if ((target.documents?.length ?? 0) === 0) {
+        // Empty container — no files to soft-delete, no engine analysis to
+        // unwind. A direct row delete under the user's own RLS is instant and
+        // works with the engine stopped.
+        const errMsg = await deleteEmptyPeriod(target.period_id);
+        if (errMsg) throw new Error(errMsg);
+        toast.success(`“${label}” deleted.`);
+      } else {
+        const { cfoApi } = await import("@/lib/cfoApi");
+        const res = await cfoApi.deletePeriod(target.period_id);
+        toast.success(`“${label}” deleted.`, {
+          description: res.documents_soft_deleted
+            ? `${res.documents_soft_deleted} file(s) moved to Recently deleted — restorable for 30 days.`
+            : undefined,
+        });
+      }
+      // Reconcile: the optimistic edit only removed the row, the server also
+      // moved the active period on and soft-deleted the files.
+      void qc.invalidateQueries({ queryKey: scopedKey });
+      void qc.invalidateQueries({ queryKey: activeKey });
+      void qc.invalidateQueries({ queryKey: ["workspace-docs", orgId] });
+    } catch (err) {
+      // Put the card back — the period still exists on the server.
+      if (prevScoped !== undefined) qc.setQueryData(scopedKey, prevScoped);
+      if (prevActive !== undefined) qc.setQueryData(activeKey, prevActive);
+      toast.error("Couldn't delete that period.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+  const periods = (scoped.data?.periods ?? [])
+    .slice()
+    .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
+
+  // "Add period" — opens a modal (2026-07-26 per operator) where the user
+  // picks WHICH period they're adding and drops its trial balance, instead of
+  // being routed away to the dashboard's upload state. Picking the month here
+  // is the point: it lands on `documents.period_end_hint`, which the engine
+  // prefers over its own filename/content detection, so the file is filed
+  // under the month the user meant rather than the month a filename implied.
+  //
+  // Shaped as a card so it sits in the same grid as the period cards below,
+  // styled to match the "Create workspace" card: centered circled Plus over a
+  // label, same rounded card and hover lift.
+  const [addOpen, setAddOpen] = useState(false);
+
+
   const addMonthBtn = (
     <button
       type="button"
-      onClick={(e) => { e.stopPropagation(); navigate("/dashboard?empty=1"); }}
+      onClick={(e) => { e.stopPropagation(); setAddOpen(true); }}
       data-testid="workspace-add-month"
-      className={`inline-flex items-center gap-1 rounded-full border border-dashed border-rule ${compact ? "h-8 px-3 text-[12px]" : "h-9 px-3.5 text-[13px]"} font-medium text-ink-mute hover:text-ink hover:border-brand/50 transition-colors`}
+      className="group h-full flex flex-col items-center justify-center gap-2 rounded-2xl border border-rule px-6 py-7 text-center text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40 transition-colors"
     >
-      <Plus size={compact ? 13 : 14} strokeWidth={2} />
-      Add month
+      <span className="grid place-items-center h-8 w-8 rounded-full border border-rule group-hover:border-rule-strong transition-colors">
+        <Plus size={18} strokeWidth={2.25} />
+      </span>
+      <span className="text-[12.5px] font-medium leading-tight">Add period</span>
     </button>
+  );
+
+  const addDialog = (
+    <AddPeriodDialog
+      open={addOpen}
+      onOpenChange={setAddOpen}
+      takenMonths={periods.map((p) => (p.period_end ?? "").slice(0, 7)).filter(Boolean)}
+      orgId={orgId}
+    />
   );
 
   // Even with no months yet, still offer "Add month" (compact/in-card only).
   if (periods.length === 0) {
     return compact ? (
-      <div className="mt-3 border-b border-rule/60 pb-4" data-testid="workspace-months">
-        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-2">Months</div>
+      <div className="border-t border-rule/60 pt-6" data-testid="workspace-months">
+        <StepHeading
+          title="Periods"
+          body="Each period is a month of this workspace. Create one and attach its trial balance whenever you're ready."
+        />
         {addMonthBtn}
+        {addDialog}
       </div>
     ) : null;
   }
 
-  function pickMonth(periodId: string) {
-    const sp = new URLSearchParams(params);
-    sp.set("period", periodId);
-    // Replace, not push — month switching is substitution, and back
-    // should leave the page, not replay every month ever selected.
-    setParams(sp, { replace: true });
-  }
+  // Period cards — a 2-up grid of rounded cards matching the Industry cards
+  // below. NOT selectable (2026-07-26 per operator): these are a read-out of
+  // what the workspace holds, and the app's active period is switched from the
+  // sidebar stepper. Each card names the period and lists every file behind
+  // it; a period with no files is a legitimate state (containers are
+  // independent of contents) and carries its own attach affordance.
+  //
+  // Hovering reveals a delete control for the period.
+  // Master/detail (2026-07-26 per operator): periods as a vertical list on the
+  // left, the SELECTED period's files on the right where they can be viewed
+  // and deleted. The selection is local to this panel — it decides which
+  // month's contents you're inspecting here, NOT the app's active period
+  // (that stays with the sidebar stepper), so browsing files can't silently
+  // re-scope the dashboard.
+  const selected = periods.find((p) => p.period_id === selectedPeriodId) ?? periods[0] ?? null;
+  const selectedDocs = selected?.documents ?? [];
 
   const pills = (
-    <div className="flex flex-wrap gap-2">
-      {periods.map((p) => {
-        const label = formatPeriodMonth(p.period_end) ?? p.period_label;
-        const selected = p.period_id === selectedId;
-        return (
-          <button
-            key={p.period_id}
-            type="button"
-            onClick={(e) => { e.stopPropagation(); pickMonth(p.period_id); }}
-            aria-pressed={selected}
-            data-testid={`workspace-month-${p.period_id}`}
-            className={`
-              inline-flex items-center gap-1.5 ${compact ? "h-8 px-3 text-[12px]" : "h-9 px-3.5 text-[13px]"} rounded-full border
-              font-medium tabular-nums transition-colors
-              ${selected
-                ? "border-brand/60 bg-brand/15 text-ink"
-                : "border-rule bg-surface text-ink-soft hover:text-ink hover:bg-bg-2/60 hover:border-rule-strong"}
-            `}
+    <div className="flex flex-col lg:flex-row gap-4 items-start">
+      {/* Left — the period list. */}
+      <div className="w-full lg:w-[240px] lg:shrink-0 flex flex-col gap-2">
+        {addMonthBtn}
+        {periods.map((p) => {
+          const label = formatPeriodMonth(p.period_end) ?? p.period_label;
+          const count = (p.documents ?? []).length;
+          const isSelected = selected?.period_id === p.period_id;
+          return (
+            <div
+              key={p.period_id}
+              data-testid={`workspace-month-${p.period_id}`}
+              data-selected={isSelected ? "true" : "false"}
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedPeriodId(p.period_id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedPeriodId(p.period_id); }
+              }}
+              aria-pressed={isSelected}
+              className={`group relative rounded-xl border px-3.5 py-3 cursor-pointer transition-colors ${
+                isSelected
+                  ? "border-brand/50 ask-ai-anim-fill [animation-duration:10s]"
+                  : "border-rule bg-bg-2/40 hover:border-rule-strong hover:bg-bg-2/70"
+              }`}
+            >
+              {/* Selection dot — top-right corner (2026-07-26 per operator);
+                  the same mark the workspace cards carry. */}
+              {isSelected && (
+                <span
+                  aria-hidden
+                  className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
+                />
+              )}
+              <div className="text-[13px] font-medium tabular-nums text-ink pr-5">{label}</div>
+              <div className="mt-0.5 text-[11px] text-ink-mute">
+                {count === 0 ? "No files attached" : `${count} file${count === 1 ? "" : "s"}`}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Right — the selected period's files: click to preview, hover to delete. */}
+      <div className="flex-1 min-w-0 w-full rounded-xl border border-rule bg-bg-2/20 p-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          {/* The period IS the title (2026-07-26 per operator) — "Uploaded
+              files" drops to an eyebrow above it. */}
+          <div className="min-w-0">
+            <div className="text-[15px] font-medium tabular-nums text-ink leading-tight">
+              {selected
+                ? formatPeriodMonth(selected.period_end) ?? selected.period_label
+                : "No period selected"}
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.14em] font-semibold text-ink-mute mt-0.5">
+              Uploaded files
+            </div>
+          </div>
+          {/* Delete the SELECTED period — moved off the list rows into this
+              panel (2026-07-26 per operator), where it reads as an action on
+              the month you're looking at rather than a hover target on every
+              row. Still refused on the last remaining period. */}
+          {selected && (
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(selected)}
+              disabled={periods.length <= 1 || isCurrentMonthPeriod(selected.period_end)}
+              data-testid={`workspace-month-delete-${selected.period_id}`}
+              aria-label={`Delete ${formatPeriodMonth(selected.period_end) ?? selected.period_label}`}
+              title={
+                isCurrentMonthPeriod(selected.period_end)
+                  ? "The current month is always kept — it's where today's upload lands"
+                  : periods.length <= 1
+                    ? "A workspace keeps at least one period — add another before deleting this one"
+                    : "Delete this period"
+              }
+              className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-red-500/30 bg-red-500/[0.06] text-[11.5px] font-medium text-red-600 hover:bg-red-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Trash2 size={12} strokeWidth={1.75} />
+              Delete period
+            </button>
+          )}
+        </div>
+        {selectedDocs.length === 0 ? (
+          <div
+            data-testid={`workspace-month-empty-${selected?.period_id ?? "none"}`}
+            className="flex flex-col items-center justify-center text-center gap-1.5 py-10 text-[11.5px] text-ink-mute/80"
           >
-            {label}
-          </button>
-        );
-      })}
-      {addMonthBtn}
+            <FileSpreadsheet size={30} strokeWidth={1.5} className="shrink-0 opacity-50" />
+            <span>No files attached</span>
+          </div>
+        ) : (
+          <div className="flex flex-col divide-y divide-rule/60">
+            {selectedDocs.map((d) => (
+              <div key={d.id} className="group relative w-full">
+                <button
+                  type="button"
+                  title={d.filename ?? undefined}
+                  data-testid={`workspace-file-${d.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void openUploadedFilePreview(d.filename ?? "document", async () => {
+                      const sb = getSupabase();
+                      if (!sb) return null;
+                      const { signedDocumentUrl } = await import("@/lib/supabase");
+                      const { data } = await sb
+                        .from("documents")
+                        .select("*")
+                        .eq("id", d.id)
+                        .single();
+                      return data ? signedDocumentUrl(data as never) : null;
+                    });
+                  }}
+                  className="w-full flex items-center gap-2.5 text-left rounded-lg border border-transparent bg-transparent pl-2.5 pr-12 py-2 transition-colors group-hover:border-rule-strong group-hover:bg-bg-2/70"
+                >
+                  <FileSpreadsheet size={20} strokeWidth={1.5} className="shrink-0 text-ink-mute" />
+                  <span className="min-w-0 flex-1">
+                    {/* `scope` is the engine's own split: 'sku' feeds Products,
+                        everything else feeds the dashboard's statements. */}
+                    <span
+                      data-testid={`workspace-file-scope-${d.id}`}
+                      className="block text-[9.5px] uppercase tracking-[0.1em] font-semibold text-ink-mute/80"
+                    >
+                      {d.scope === "sku" ? "Products" : "Trial balance"}
+                    </span>
+                    <span className="block text-[11.5px] font-medium text-ink break-words leading-snug">
+                      {d.filename ?? "Untitled file"}
+                    </span>
+                  </span>
+                  {d.status && d.status !== "analyzed" && (
+                    <span className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-ink-mute/80">
+                      {d.status === "failed" ? "failed" : "analyzing…"}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setFileDeleteTarget({ id: d.id, name: d.filename ?? "this file" }); }}
+                  data-testid={`workspace-file-delete-${d.id}`}
+                  aria-label={`Delete ${d.filename ?? "file"}`}
+                  title="Delete this file"
+                  className="absolute top-1/2 -translate-y-1/2 right-2 grid place-items-center h-9 w-9 rounded-lg text-ink-mute opacity-0 transition-opacity hover:text-red-600 hover:bg-red-500/10 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 size={17} strokeWidth={1.75} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 
-  // Compact — embedded inside a workspace item card: just a small label + the
-  // month pills, no standalone-section paragraph.
+  // Destructive — always confirmed, and the copy names what goes with it.
+  const deleteDialog = (
+    <>
+    <Dialog open={!!fileDeleteTarget} onOpenChange={(o) => { if (!o) setFileDeleteTarget(null); }}>
+      <DialogContent className="sm:max-w-[420px]" data-testid="workspace-file-delete-dialog">
+        <DialogHeader>
+          <DialogTitle>Delete this file?</DialogTitle>
+          <DialogDescription>
+            “{fileDeleteTarget?.name}” is removed from this period along with
+            the analysis derived from it. The file moves to Recently deleted
+            and can be restored for 30 days.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <button
+            type="button"
+            onClick={() => setFileDeleteTarget(null)}
+            className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void confirmDeleteFile()}
+            data-testid="workspace-file-delete-confirm"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+          >
+            <Trash2 size={14} strokeWidth={1.75} />
+            Delete file
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+      <DialogContent className="sm:max-w-[440px]" data-testid="workspace-period-delete-dialog">
+        <DialogHeader>
+          <DialogTitle>
+            Delete{" "}
+            {deleteTarget
+              ? formatPeriodMonth(deleteTarget.period_end) ?? deleteTarget.period_label
+              : "this period"}
+            ?
+          </DialogTitle>
+          <DialogDescription>
+            {(deleteTarget?.documents?.length ?? 0) === 0
+              ? "This period has no files — deleting it just removes the empty container."
+              : "This removes the period and everything derived from it — statements, ratios, valuation, briefing and alerts. Its uploaded file(s) move to Recently deleted and stay restorable for 30 days, but the analysis is not recoverable; re-uploading rebuilds it."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <button
+            type="button"
+            onClick={() => setDeleteTarget(null)}
+            className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+          >
+            Cancel
+          </button>
+          {/* No pending/spinner state: the dialog closes and the card
+              disappears on click, so the request settles behind an interface
+              that has already moved on. */}
+          <button
+            type="button"
+            onClick={() => void confirmDelete()}
+            data-testid="workspace-period-delete-confirm"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+          >
+            <Trash2 size={14} strokeWidth={1.75} />
+            Delete period
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
+  );
+
+  // Compact — embedded inside a workspace item card. Uses the same
+  // StepHeading + top-rule treatment as the Industry / Decision-rules
+  // sections below it (2026-07-26 per operator) so the panel reads as one
+  // consistent stack of settings rather than a small label followed by
+  // full-size sections.
   if (compact) {
     return (
-      <div className="mt-3 border-b border-rule/60 pb-4" data-testid="workspace-months">
-        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-2">
-          Months
-        </div>
+      <div className="border-t border-rule/60 pt-6" data-testid="workspace-months">
+        <StepHeading
+          title="Periods"
+          body="Each period is a month of this workspace; attach its trial balance whenever you're ready. Switch the period you're analyzing from the arrows beside the month in the sidebar."
+        />
         {pills}
+        {deleteDialog}
+        {addDialog}
       </div>
     );
   }
 
   return (
-    <section className="space-y-2" data-testid="workspace-months">
-      <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-        Months
-      </div>
-      <p className="text-[12px] text-ink-soft">
-        Each uploaded trial balance is one month of this workspace. Pick a
-        month to analyze it everywhere — upload a new trial balance from the
-        Dashboard to add the next month.
-      </p>
+    <section className="border-t border-rule/60 pt-6" data-testid="workspace-months">
+      <StepHeading
+        title="Periods"
+        body="Each period is a month of this workspace; attach its trial balance whenever you're ready."
+      />
       {pills}
+      {deleteDialog}
+      {addDialog}
     </section>
+  );
+}
+
+// ─── Add-period modal ────────────────────────────────────────────────────────
+// Pick the month, then drop that month's trial balance. Two things make the
+// month picker load-bearing rather than decorative:
+//
+//   · It writes `documents.period_end_hint`, which the engine's stage_persist
+//     prefers over its own filename/content detection — so "balanta_final.xlsx"
+//     files under the month the user chose instead of today's date.
+//   · A period is only ever created BY an upload (one trial balance per
+//     period), so there is no "create an empty period" to offer. The file is
+//     required, not optional.
+//
+// The period-end written is the LAST day of the chosen month, the Romanian
+// trial-balance convention the rest of the app assumes.
+//
+// Periods are independent of files (2026-07-26 per operator): confirming with
+// no file creates an EMPTY period — a direct `financial_periods` insert under
+// the user's own RLS, on screen instantly, engine not involved. Attaching a
+// file (here or later from the period card) uploads with periodEndHint = this
+// month; the pipeline's stage_persist matches (org_id, period_end) and adopts
+// the pre-created row, so the two paths always converge on ONE period.
+function AddPeriodDialog({
+  open,
+  onOpenChange,
+  takenMonths,
+  orgId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** "YYYY-MM" of periods this workspace already holds. Creating a second
+   *  EMPTY period for a taken month is blocked — the DB can't do it for us
+   *  (source_document_id is NULL on empty rows, and NULLs never collide in a
+   *  unique constraint). Uploading INTO a taken month is allowed: replace
+   *  semantics, newest file wins. */
+  takenMonths: string[];
+  orgId: string;
+}) {
+  const qc = useQueryClient();
+  const uploadEnqueue = useUploadEnqueue();
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [month, setMonth] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  // Month detected FROM the attached file ("YYYY-MM"), and whether the user
+  // has explicitly chosen to keep the period's own month over it.
+  const [detectedMonth, setDetectedMonth] = useState<string | null>(null);
+  const [mismatchDismissed, setMismatchDismissed] = useState(false);
+
+  // Reset per opening — a stale file from a previous visit is a real hazard
+  // here, since the confirm button uploads without a second look.
+  useEffect(() => {
+    if (!open) return;
+    setFile(null);
+    setBusy(false);
+    setDragging(false);
+    setDetectedMonth(null);
+    setMismatchDismissed(false);
+    const now = new Date();
+    setMonth(`${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`);
+  }, [open]);
+
+  // Read the attached file's own closing date (header text first, filename as
+  // fallback — same detector the Dashboard's confirm step uses). Feeds the
+  // mismatch prompt below; a re-pick resets any earlier "keep my month" choice
+  // since it was about a different file.
+  useEffect(() => {
+    setDetectedMonth(null);
+    setMismatchDismissed(false);
+    if (!file) return;
+    let cancelled = false;
+    void (async () => {
+      const { detectPeriodEndFromFile } = await import("@/lib/detectPeriodEnd");
+      const iso = await detectPeriodEndFromFile(file);
+      if (!cancelled) setDetectedMonth(iso ? iso.slice(0, 7) : null);
+    })();
+    return () => { cancelled = true; };
+  }, [file]);
+
+  const monthValid = /^\d{4}-\d{2}$/.test(month);
+  const duplicate = monthValid && takenMonths.includes(month);
+  // The file says one month, the period picker another. Surfaced as a choice
+  // (2026-07-26 per operator): switch the period to the file's date, or keep
+  // the chosen period — in which case the file is deliberately filed under it
+  // (periodEndHint overrides the engine's own detection).
+  const mismatch =
+    !!file &&
+    !!detectedMonth &&
+    monthValid &&
+    detectedMonth !== month &&
+    !mismatchDismissed;
+  // Without a file, confirming creates an empty container — which a taken
+  // month must block (it would be a silent duplicate). With a file it's a
+  // legitimate replace.
+  const blocked = duplicate && !file;
+
+  const refreshPeriodLists = () => {
+    void qc.invalidateQueries({ queryKey: ["org-periods", orgId] });
+    void qc.invalidateQueries({ queryKey: ["org-periods"] });
+    void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
+    void qc.invalidateQueries({ queryKey: ["workspace-docs", orgId] });
+  };
+
+  async function submit() {
+    if (!monthValid || busy || blocked || mismatch) return;
+    setBusy(true);
+    // Trial-balance convention: the period-end is the LAST day of the month.
+    const [y, m] = month.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const periodEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
+    const label = formatPeriodMonth(periodEnd) ?? month;
+
+    try {
+      // 1. The period itself — created up front (unless the month already
+      //    exists), so the card is real and on screen immediately, file or
+      //    no file. If an upload follows, the pipeline adopts this row.
+      if (!duplicate) {
+        const created = await createEmptyPeriod(orgId, periodEnd);
+        if ("error" in created) throw new Error(created.error);
+      }
+      refreshPeriodLists();
+
+      // 2. Optionally, the file into it.
+      if (file) {
+        const { uploadDocument, subscribeToDocumentStatus } = await import("@/lib/supabase");
+        const { row, error } = await uploadDocument(file, {
+          scope: "financial",
+          periodEndHint: periodEnd,
+        });
+        if (!row) throw new Error(error ?? "Upload failed.");
+        const enq = await uploadEnqueue.enqueue(row.id);
+        if (enq.kind !== "queued") {
+          // The hook already surfaced the reason (quota / transport /
+          // cancelled). The period exists either way — that's the point of
+          // creating it first.
+          onOpenChange(false);
+          setBusy(false);
+          return;
+        }
+        toast.success(`${label} added — analyzing ${file.name}…`);
+        const unsub = subscribeToDocumentStatus(row.id, (next) => {
+          if (next.status === "analyzed") {
+            unsub();
+            refreshPeriodLists();
+            // Reset the period PAYLOAD cache too — replace/adopt keeps the
+            // same period id, so a dashboard already viewing this period
+            // would otherwise keep painting the stale (empty, possibly
+            // cached-as-not-found) payload for its full staleTime.
+            // resetQueries, not removeQueries: only reset refetches queries
+            // that have active observers.
+            if (next.period_id) {
+              void qc.resetQueries({ queryKey: periodQueryKey(next.period_id) });
+            }
+            toast.success(`${label} is ready.`);
+          } else if (next.status === "failed") {
+            unsub();
+            refreshPeriodLists();
+            toast.error("Couldn't analyze that file.", { description: next.error ?? undefined });
+          }
+        });
+      } else {
+        toast.success(`${label} added.`, {
+          description: "No file yet — attach its trial balance from the period card anytime.",
+        });
+      }
+      onOpenChange(false);
+      setBusy(false);
+    } catch (err) {
+      toast.error("Couldn't add that period.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      {uploadEnqueue.dialog}
+      <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o); }}>
+        <DialogContent className="sm:max-w-[480px]" data-testid="workspace-add-period-dialog">
+          <DialogHeader>
+            <DialogTitle>Add a period</DialogTitle>
+            <DialogDescription>
+              Pick the month. Attaching its trial balance now is optional — the period exists
+              either way, and the month you pick is what any analysis gets filed under,
+              overriding whatever the file name says.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="add-period-month"
+                className="block text-[11px] uppercase tracking-[0.12em] font-semibold text-ink-mute mb-1.5"
+              >
+                Period
+              </label>
+              <input
+                id="add-period-month"
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                data-testid="workspace-add-period-month"
+                className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+              />
+              {duplicate && (
+                <p className="mt-1.5 text-[11.5px] text-amber-600" data-testid="workspace-add-period-duplicate">
+                  {file
+                    ? <>This workspace already has {formatPeriodMonth(`${month}-01`) ?? month} — this file replaces that period's analysis.</>
+                    : <>This workspace already has {formatPeriodMonth(`${month}-01`) ?? month}. Pick another month, or attach a file to replace that period's analysis.</>}
+                </p>
+              )}
+            </div>
+
+            {/* Single file, matching every other upload surface in the app. */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) setFile(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) setFile(f);
+              }}
+              data-testid="workspace-add-period-file"
+              className={`w-full flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center transition-colors ${
+                dragging
+                  ? "border-brand/60 bg-brand/[0.06]"
+                  : "border-rule hover:border-rule-strong hover:bg-bg-2/40"
+              }`}
+            >
+              {file ? (
+                <>
+                  <FileSpreadsheet size={22} strokeWidth={1.5} className="text-ink-mute" />
+                  <span className="text-[12.5px] font-medium text-ink max-w-full truncate">
+                    {file.name}
+                  </span>
+                  <span className="text-[11px] text-ink-mute">Click to choose a different file</span>
+                </>
+              ) : (
+                <>
+                  <UploadCloud size={22} strokeWidth={1.5} className="text-ink-mute" />
+                  <span className="text-[12.5px] font-medium text-ink">
+                    Drop the trial balance, or click to browse
+                  </span>
+                  <span className="text-[11px] text-ink-mute">
+                    Optional — you can attach it later from the period card
+                  </span>
+                </>
+              )}
+            </button>
+
+            {/* Date conflict — the file names a different month than the
+                period. Confirm stays disabled until one side wins, so a
+                mismatch can never slip through unnoticed. */}
+            {mismatch && (
+              <div
+                data-testid="workspace-add-period-mismatch"
+                className="rounded-lg border border-amber-500/40 bg-amber-500/[0.07] px-3 py-2.5"
+              >
+                <p className="text-[11.5px] text-ink">
+                  This file looks like{" "}
+                  <span className="font-semibold">
+                    {formatPeriodMonth(`${detectedMonth}-15`) ?? detectedMonth}
+                  </span>
+                  , but the period is set to{" "}
+                  <span className="font-semibold">{formatPeriodMonth(`${month}-15`) ?? month}</span>.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => detectedMonth && setMonth(detectedMonth)}
+                    data-testid="workspace-add-period-use-file-date"
+                    className="inline-flex items-center h-7 px-2.5 rounded-md border border-brand/40 bg-brand/10 text-[11.5px] font-medium text-ink hover:bg-brand/20 transition-colors"
+                  >
+                    Use file date ({formatPeriodMonth(`${detectedMonth}-15`) ?? detectedMonth})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMismatchDismissed(true)}
+                    data-testid="workspace-add-period-keep-date"
+                    className="inline-flex items-center h-7 px-2.5 rounded-md border border-rule text-[11.5px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2/60 transition-colors"
+                  >
+                    Keep {formatPeriodMonth(`${month}-15`) ?? month}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={busy}
+              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={!monthValid || busy || blocked || mismatch}
+              data-testid="workspace-add-period-confirm"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {busy && <Loader2 size={14} className="animate-spin" />}
+              {busy ? (file ? "Uploading…" : "Creating…") : "Add period"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -736,21 +1482,15 @@ function SelectedWorkspacePanel({
   const period = useActivePeriod();
   const monthsQ = useQuery({
     queryKey: ["org-periods", workspace.id],
-    queryFn: () => fetchOrgPeriodsFor(workspace.id),
+    queryFn: () => fetchWorkspacePeriodsDirect(workspace.id),
     staleTime: 60_000,
   });
-  const docsQ = useQuery({
-    queryKey: ["workspace-docs", workspace.id],
-    queryFn: async () => {
-      const { listDocumentsForOrg } = await import("@/lib/supabase");
-      return listDocumentsForOrg(workspace.id);
-    },
-    staleTime: 60_000,
-  });
-  const loading = monthsQ.isLoading || docsQ.isLoading;
+  const loading = monthsQ.isLoading;
 
+  // Top rule removed 2026-07-26 per operator — the panel's own hero header
+  // already separates it from the workspace list above.
   return (
-    <div className="space-y-6 border-t border-rule/60 pt-8" data-testid="selected-workspace-panel">
+    <div className="space-y-6" data-testid="selected-workspace-panel">
       <PageHeader
         hero
         eyebrow="Workspace settings"
@@ -761,38 +1501,26 @@ function SelectedWorkspacePanel({
         }
         subtitle="Rename this workspace, tune the decision rules that classify its products, or remove it. Changes apply to this workspace only."
       />
-      <div className="relative">
-        <div
-          aria-busy={loading}
-          className={`transition-[filter,opacity] duration-300 ${
-            loading ? "blur-md opacity-20 pointer-events-none select-none" : ""
-          }`}
-        >
-          <div className="space-y-6">
-            <MonthsSection compact orgId={workspace.id} />
-            <WorkspaceUploadsSection orgId={workspace.id} filterPeriodId={period.id} />
-            <WorkspaceSettings
-              key={workspace.id}
-              workspace={workspace}
-              canDelete={canDelete}
-              showBack={false}
-              onRename={onRename}
-              onChangeIndustry={onChangeIndustry}
-              onDelete={onDelete}
-            />
-          </div>
-        </div>
-        {loading && (
-          <div
-            className="absolute inset-0 grid place-items-center"
-            data-testid="workspace-panel-loading"
-          >
-            <div className="flex flex-col items-center gap-2 text-ink-mute">
-              <Loader2 size={26} strokeWidth={2} className="animate-spin text-brand-d" />
-              <span className="text-[12px] font-medium">Loading workspace…</span>
-            </div>
-          </div>
-        )}
+      {/* The blur-the-content-and-overlay-a-spinner treatment was removed
+          2026-07-26 per operator: switching workspace now shows the app-wide
+          fullscreen cover (startWorkspaceSwitch → PeriodSwitchOverlay), which
+          covers the WHOLE app rather than just this panel's subtree. Two
+          loading treatments at once read as a stutter. `aria-busy` stays so
+          assistive tech still knows the region is settling. */}
+      <div className="space-y-6" aria-busy={loading}>
+        {/* The separate Uploads section was removed 2026-07-26 per operator —
+            every file now appears inside its own period card above, so the
+            list was showing the same filenames a second time. */}
+        <MonthsSection compact orgId={workspace.id} />
+        <WorkspaceSettings
+          key={workspace.id}
+          workspace={workspace}
+          canDelete={canDelete}
+          showBack={false}
+          onRename={onRename}
+          onChangeIndustry={onChangeIndustry}
+          onDelete={onDelete}
+        />
       </div>
     </div>
   );
@@ -804,17 +1532,19 @@ function SelectedWorkspacePanel({
 function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
   const { data } = useQuery({
     queryKey: ["org-periods", orgId],
-    queryFn: () => fetchOrgPeriodsFor(orgId),
+    queryFn: () => fetchWorkspacePeriodsDirect(orgId),
     staleTime: 60_000,
   });
+  // Empty periods count — a container without a file is still a period the
+  // workspace holds (2026-07-26: periods are independent of files).
   const periods = (data?.periods ?? [])
-    .filter((p) => p.documents.length > 0)
+    .slice()
     .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
   return (
     <div className="mt-2 flex flex-wrap gap-1.5" data-testid="workspace-card-months">
       {periods.length === 0 ? (
         <span className="inline-flex items-center h-6 px-2 rounded-full border border-dashed border-rule text-[11px] font-medium text-ink-mute">
-          No months
+          No periods
         </span>
       ) : (
         periods.map((p) => (
@@ -830,88 +1560,11 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
   );
 }
 
-function WorkspaceUploadsSection({ orgId, filterPeriodId }: { orgId: string; filterPeriodId?: string | null }) {
-  // Uploads are always shown (no collapse) — fetched on mount, cached per org.
-  const { data: allDocs, isLoading } = useQuery({
-    queryKey: ["workspace-docs", orgId],
-    queryFn: async () => {
-      const { listDocumentsForOrg } = await import("@/lib/supabase");
-      return listDocumentsForOrg(orgId);
-    },
-    staleTime: 60_000,
-  });
-
-  // When a month is selected (active workspace), show only that month's files.
-  // Otherwise show everything the workspace has.
-  const docs = filterPeriodId
-    ? (allDocs ?? []).filter((d) => d.period_id === filterPeriodId)
-    : allDocs;
-
-  // Nothing to show → render nothing at all (no header, no empty text).
-  if (!isLoading && (!docs || docs.length === 0)) return null;
-
-  return (
-    <div className="mt-3 border-t border-rule/60 pt-2.5">
-      <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-2">
-        Uploads
-        {docs && docs.length > 0 && (
-          <span className="ml-1 font-normal tabular-nums normal-case tracking-normal">({docs.length})</span>
-        )}
-      </div>
-
-      <div data-testid="workspace-uploads-list">
-        {isLoading ? (
-          <div className="text-[12px] text-ink-mute py-1">Loading uploads…</div>
-        ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(docs ?? []).map((d) => (
-              <WorkspaceUploadRow key={d.id} doc={d} />
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function WorkspaceUploadRow({ doc }: { doc: DocumentRow }) {
-  const uploaded = doc.created_at
-    ? new Date(doc.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-    : null;
-
-  function view() {
-    void openUploadedFilePreview(doc.original_filename ?? "document", async () => {
-      const { signedDocumentUrl } = await import("@/lib/supabase");
-      return signedDocumentUrl(doc);
-    });
-  }
-
-  // The whole item is the affordance now — pressing it opens the file preview
-  // in a new tab (no status pill, no separate View button).
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); view(); }}
-        aria-label={`Preview ${doc.original_filename ?? "document"}`}
-        title="Open preview in a new tab"
-        data-testid="workspace-upload-view"
-        className="group/upload w-full flex items-center gap-2.5 rounded-lg border border-rule bg-bg-2/30 p-3 text-left hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
-      >
-        <FileSpreadsheet size={15} strokeWidth={1.75} className="text-ink-mute shrink-0" />
-        <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] text-ink truncate">{doc.original_filename}</div>
-          {uploaded && <div className="text-[10.5px] text-ink-mute">{uploaded}</div>}
-        </div>
-        <Eye
-          size={14}
-          strokeWidth={1.75}
-          className="text-ink-mute shrink-0 opacity-0 group-hover/upload:opacity-100 transition-opacity"
-        />
-      </button>
-    </li>
-  );
-}
+// WorkspaceUploadsSection + WorkspaceUploadRow removed 2026-07-26 per operator
+// — every uploaded file now renders inside its own period card (see
+// MonthsSection), so a separate workspace-wide list showed the same filenames
+// a second time. The shared <SourceFilesRow /> is still used by the Dashboard
+// and Products.
 
 function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCreate: () => void }) {
   const period = useActivePeriod();
@@ -931,8 +1584,14 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
   // against the outgoing workspace's cache for a frame.
   async function switchTo(id: string) {
     if (id === currentId) return;
-    await select(id);
+    // Fullscreen cover for the duration (2026-07-26 per operator) — a
+    // workspace switch clears the whole query cache and refetches every
+    // surface, so the alternative is watching the page repaint company by
+    // company. Replaces the local content blur this panel used to show, which
+    // only covered its own subtree and left the rest of the app mid-swap.
     const target = workspaces.find((w) => w.id === id);
+    startWorkspaceSwitch(target?.name || undefined);
+    await select(id);
     const qs = target?.periodId ? `?period=${encodeURIComponent(target.periodId)}` : "";
     navigate(`/workspace${qs}`, { replace: true });
   }
@@ -946,15 +1605,20 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
 
   const noneSelected = currentId == null;
 
+  // Active workspace leads the row, right after the Create card (2026-07-26
+  // per operator) — the one you're working in shouldn't be buried mid-list
+  // once several companies exist. Order is otherwise preserved, and the sort
+  // runs on a COPY so the shared `workspaces` array from the store isn't
+  // mutated out from under other consumers.
+  const orderedWorkspaces = currentId
+    ? [...workspaces].sort((a, b) => Number(b.id === currentId) - Number(a.id === currentId))
+    : workspaces;
+
   return (
     <div className="space-y-4">
-      {/* All workspaces — the label is omitted in the empty state, where the
-          hero's "Your workspaces" eyebrow already stands in for it. */}
-      {workspaces.length > 0 && (
-        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-          {workspaces.length === 1 ? "Your workspace" : "Your workspaces"}
-        </div>
-      )}
+      {/* The "Your workspace(s)" label was removed 2026-07-26 per operator —
+          the hero header above already names the surface, so it read as a
+          duplicate heading. */}
 
       {/* No workspace selected — the app can run with no active workspace
           (e.g. right after switching accounts). Surface it and point at the
@@ -1001,27 +1665,30 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
           </div>
         </div>
       ) : (
-      <ul className="flex flex-wrap gap-3 items-stretch" data-testid="workspace-list">
-        {/* Create workspace — a compact square, kept to its own size (not
-            stretched to match the item cards) and flush next to the first
-            item. */}
+      // Vertical rail (2026-07-26 per operator): one workspace per row, the
+      // Create button the same width as the cards below it, and the whole
+      // column pinned while the settings panel beside it scrolls.
+      <ul
+        className="flex flex-col gap-3 items-stretch lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2.5rem)] lg:overflow-y-auto chat-scroll"
+        data-testid="workspace-list"
+      >
         <li>
           <button
             type="button"
             onClick={onCreate}
             data-testid="workspace-create"
-            className="group h-full w-36 flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-rule px-3 py-3 text-center text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40 transition-colors"
+            className="group w-full flex flex-row items-center justify-center gap-2 rounded-2xl border border-rule px-3 py-3 text-center text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40 transition-colors"
           >
-            <span className="grid place-items-center h-8 w-8 rounded-full border border-rule group-hover:border-rule-strong transition-colors">
-              <Plus size={18} strokeWidth={2.25} />
+            <span className="grid place-items-center h-7 w-7 shrink-0 rounded-full border border-rule group-hover:border-rule-strong transition-colors">
+              <Plus size={16} strokeWidth={2.25} />
             </span>
             <span className="text-[12.5px] font-medium leading-tight">Create workspace</span>
           </button>
         </li>
-        {workspaces.map((w) => {
+        {orderedWorkspaces.map((w) => {
           const isActive = w.id === currentId;
           return (
-            <li key={w.id} className="w-[248px]">
+            <li key={w.id} className="w-full">
               <div
                 data-testid="workspace-list-item"
                 data-active={isActive ? "true" : "false"}
@@ -1033,9 +1700,14 @@ function WorkspaceHub({ onEdit, onCreate }: { onEdit: (id: string) => void; onCr
                 }}
                 aria-pressed={isActive}
                 aria-label={`Select ${w.name || "workspace"}`}
+                // Selected card carries the animated teal gradient
+                // (2026-07-26 per operator) — the same `.ask-ai-anim-fill`
+                // treatment as the selected industry card and the Ask CFO AI
+                // pill, so "chosen" reads identically everywhere. The long
+                // duration keeps a grid of cards calm.
                 className={`group relative h-full rounded-2xl border px-4 py-3 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                   isActive
-                    ? "border-brand/40 bg-brand/[0.06]"
+                    ? "ask-ai-anim-fill [animation-duration:14s] border-brand/50"
                     : "border-rule bg-surface hover:border-rule-strong hover:bg-bg-2/40"
                 }`}
               >
@@ -1244,22 +1916,70 @@ function WorkspaceSettings({
   showBack?: boolean;
 }) {
   // Field settings are STAGED locally and committed together by the bottom
-  // "Apply changes" button — the per-field Save was removed. `name` + industry
-  // are the tracked settings; decision rules keep their own live semantics
-  // (the DecisionRulesPanel applies immediately and is used elsewhere too).
+  // "Apply changes" button — the per-field Save was removed.
   const [name, setName] = useState(workspace.name);
   const [industryKey, setIndustryKey] = useState<string | null>(workspace.industryKey ?? null);
   const trimmed = name.trim();
   const nameChanged = trimmed.length > 0 && trimmed !== workspace.name;
   const industryChanged = (industryKey ?? "") !== (workspace.industryKey ?? "");
-  const dirty = nameChanged || industryChanged;
+
+  // Decision rules are staged too (2026-07-26 per operator — they used to
+  // commit on every drag). The panel still edits the live store, because its
+  // per-rule SKU counts and the thresholds' effect are the whole point of the
+  // control — reading them off a detached draft would mean duplicating the
+  // bucketing pipeline. What changes is COMMITMENT: we snapshot the state on
+  // entry, and leaving without pressing Apply restores that snapshot, so an
+  // abandoned session leaves the catalog graded exactly as it was found.
+  const rulesBaseline = useRef<DecisionRulesState>(readDecisionRules());
+  const liveRules = useDecisionRules();
+  const rulesChanged = useMemo(
+    () => JSON.stringify(liveRules) !== JSON.stringify(rulesBaseline.current),
+    [liveRules],
+  );
+  // Set once Apply runs, so the unmount revert below knows to stand down.
+  const rulesCommitted = useRef(false);
+
+  const dirty = nameChanged || industryChanged || rulesChanged;
+
+  // Revert on the way out — covers EVERY exit path (route change, workspace
+  // switch, tab close in-app), not just the "All workspaces" link that has its
+  // own confirm dialog.
+  useEffect(() => {
+    return () => {
+      if (rulesCommitted.current) return;
+      const current = readDecisionRules();
+      if (JSON.stringify(current) === JSON.stringify(rulesBaseline.current)) return;
+      writeDecisionRules(rulesBaseline.current);
+    };
+  }, []);
 
   // Confirmation shown when leaving the tab with unsaved field changes.
   const [leaveWarnOpen, setLeaveWarnOpen] = useState(false);
 
+  // The name field is read-only until Edit is pressed. Focus + select must run
+  // AFTER the re-render that clears `readOnly` — calling them in the same tick
+  // would target a still-read-only input, where select() is a no-op in some
+  // browsers. rAF is enough: React has committed by the next frame.
+  const [editingName, setEditingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  function startEditingName() {
+    setEditingName(true);
+    requestAnimationFrame(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    });
+  }
+
   function applyChanges() {
     if (nameChanged) onRename(trimmed);
     if (industryChanged && industryKey) onChangeIndustry(industryKey);
+    if (rulesChanged) {
+      // Nothing to write — the store already holds the edits. Committing means
+      // adopting them as the new baseline so the unmount revert leaves them
+      // alone.
+      rulesBaseline.current = readDecisionRules();
+    }
+    rulesCommitted.current = true;
     if (dirty) toast.success("Workspace settings applied.");
   }
 
@@ -1269,6 +1989,17 @@ function WorkspaceSettings({
     if (dirty) { setLeaveWarnOpen(true); return; }
     onBack();
   }
+
+  // Register the app-wide guard so a sidebar tab switch warns before the
+  // unmount revert throws the edits away (see lib/unsavedGuard).
+  useEffect(() => {
+    setUnsavedGuard(
+      dirty
+        ? "You have unapplied changes to this workspace's settings. Leaving now discards them.\n\nLeave without applying?"
+        : null,
+    );
+    return () => setUnsavedGuard(null);
+  }, [dirty]);
 
   // Also catch a full page unload / refresh while there are unsaved changes —
   // the SPA can't intercept a hard reload, so the browser's native prompt is
@@ -1294,16 +2025,74 @@ function WorkspaceSettings({
         </button>
       )}
 
-      {/* Name — staged; committed by "Apply changes" below (no inline Save). */}
-      <div>
+      {/* Name — read-only until Edit is pressed (2026-07-26 per operator), so
+          the field reads as the current name rather than an invitation to
+          type. Renaming is deliberate and rare; an always-live input next to
+          a workspace's identity is easy to change by accident. Still staged —
+          committed by "Apply changes", not on blur. */}
+      <div className="border-t border-rule/60 pt-6">
         <StepHeading title="Workspace name" body="Rename this workspace — usually the company or entity you're analyzing." />
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          data-testid="workspace-settings-name"
-          className="w-full h-10 px-3.5 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={name}
+            readOnly={!editingName}
+            onChange={(e) => setName(e.currentTarget.value)}
+            // Enter commits the edit affordance (not the settings — Apply
+            // changes still owns that) and Escape reverts to the stored name,
+            // matching how an inline rename is expected to behave.
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); setEditingName(false); }
+              if (e.key === "Escape") { setName(workspace.name); setEditingName(false); }
+            }}
+            // Clicking away re-locks the field. The typed value is KEPT (it's
+            // staged for "Apply changes") — only editability is given back, so
+            // blurring can't quietly discard a rename in progress.
+            onBlur={() => setEditingName(false)}
+            data-testid="workspace-settings-name"
+            aria-readonly={!editingName}
+            className={`w-full h-10 px-3.5 rounded-lg border text-[14px] text-ink placeholder:text-ink-mute transition-colors focus:outline-none ${
+              editingName
+                ? "border-rule bg-surface focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+                : "border-rule/60 bg-bg-2/40 cursor-default"
+            }`}
+          />
+          {/* Edit / Done — styled like the public-companies search field
+              (2026-07-26 per operator): rounded-xl on `surface`, with the
+              brand border + ring as its active treatment. The button STATE
+              tracks the field's: locked reads as neutral chrome, unlocked
+              carries the same brand ring the input itself shows, so the pair
+              reads as one control rather than a button beside a box.
+
+              onMouseDown preventDefault keeps focus in the input — without it
+              the input's onBlur re-locks the field a tick before this onClick
+              runs, and the button would toggle editing straight back on. */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              if (editingName) setEditingName(false);
+              else startEditingName();
+            }}
+            data-testid="workspace-settings-name-edit"
+            aria-pressed={editingName}
+            aria-label={editingName ? "Finish editing workspace name" : "Edit workspace name"}
+            title={editingName ? "Finish editing" : "Edit workspace name"}
+            className={`shrink-0 inline-flex items-center gap-1.5 h-10 px-4 rounded-xl border text-[13px] font-medium text-ink transition-all focus:outline-none ask-ai-anim-fill [animation-duration:10s] ${
+              editingName
+                ? "border-brand/60 ring-2 ring-brand/20"
+                : "border-brand/40 hover:border-brand/60"
+            }`}
+          >
+            {editingName ? (
+              <Check size={14} strokeWidth={2} />
+            ) : (
+              <Pencil size={14} strokeWidth={1.75} />
+            )}
+            {editingName ? "Done" : "Edit"}
+          </button>
+        </div>
       </div>
 
       {/* Industry — drives which benchmarks CFO AI compares this workspace
@@ -1321,7 +2110,7 @@ function WorkspaceSettings({
       <div className="border-t border-rule/60 pt-6">
         <StepHeading
           title="Decision rules"
-          body="These rules classify every product into Protect / Watch / Wind down. Tune the thresholds — changes apply immediately."
+          body="These rules classify every product into Protect / Watch / Wind down. Tune the thresholds, then press Apply changes — leaving without applying discards them."
         />
         <DecisionRulesPanel />
       </div>
@@ -1332,6 +2121,10 @@ function WorkspaceSettings({
           title="Setup & data"
           body="Deleting hides this workspace and everything in it. You can restore it for 30 days, after which its documents, periods and analyses are erased permanently. If it's your last workspace, you'll return to a clean slate to create a new one."
         />
+        {/* Apply shares this row with Reset + Delete (2026-07-26 per
+            operator). It's the single commit point for everything above —
+            name, industry and the decision rules — and stays disabled until
+            something actually changed. */}
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -1356,28 +2149,25 @@ function WorkspaceSettings({
               Delete workspace
             </button>
           )}
+          {/* Apply sits at the far right of this row (2026-07-26 per
+              operator) — the commit point for everything above, kept clear of
+              the destructive actions on the left. */}
+          {dirty && (
+            <span className="ml-auto text-[12.5px] text-amber-600" data-testid="workspace-settings-dirty">
+              You have unsaved changes.
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={applyChanges}
+            disabled={!dirty}
+            data-testid="workspace-settings-apply"
+            className={`${dirty ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
+          >
+            <Check size={14} strokeWidth={2} />
+            Apply changes
+          </button>
         </div>
-      </div>
-
-      {/* Apply bar — the single commit point for the tab's field settings
-          (name + industry). Disabled until something changed; shows an
-          unsaved-changes hint while dirty. */}
-      <div className="border-t border-rule/60 pt-6 flex flex-wrap items-center justify-end gap-3">
-        {dirty && (
-          <span className="text-[12.5px] text-amber-600 mr-auto" data-testid="workspace-settings-dirty">
-            You have unsaved changes.
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={applyChanges}
-          disabled={!dirty}
-          data-testid="workspace-settings-apply"
-          className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <Check size={14} strokeWidth={2} />
-          Apply changes
-        </button>
       </div>
 
       {/* Unsaved-changes guard when leaving via "All workspaces". */}

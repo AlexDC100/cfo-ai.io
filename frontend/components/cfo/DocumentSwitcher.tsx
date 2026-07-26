@@ -35,6 +35,7 @@ import {
   Loader2, AlertCircle, Building2,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { blockedByScan } from "@/lib/scanGuard";
 import { PUBLIC_RECORDS_ENABLED } from "@/config/features";
 
 const apiBase = (): string =>
@@ -266,6 +267,8 @@ export function DocumentSwitcher({ className, compact }: Props) {
   function selectEntry(e: SwitcherEntry) {
     setOpen(false);
     if (e.kind === "period") {
+      // Not while an analysis is running — see lib/scanGuard.
+      if (blockedByScan("period")) return;
       const sp = new URLSearchParams(params);
       sp.set("period", e.periodId);
       sp.delete("doc");

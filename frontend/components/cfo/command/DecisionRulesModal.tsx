@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import { FilterDropdown } from "@/components/ui/FilterDropdown";
 
 import {
   DEFAULT_FINANCING,
@@ -70,6 +71,32 @@ interface ActiveDatasetPayload {
 }
 interface DatasetSkusPayload {
   skus?: SkuLite[];
+}
+
+// Authenticated fetch against the engine — the SAME endpoints + query keys
+// Products uses, so the two share one cache entry. These queries used to pass
+// no queryFn at all (reading only whatever Products had cached), which
+// (a) logged a TanStack "No queryFn" warning on every mount and (b) left the
+// rules preview with zero SKUs unless the user had already visited /products
+// this session. Null on any failure — the panel degrades to its no-data state.
+const RULES_API_URL =
+  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+async function fetchEngineJson<T>(path: string): Promise<T | null> {
+  const { getSupabase } = await import("@/lib/supabase");
+  const sb = getSupabase();
+  if (!sb) return null;
+  const { data } = await sb.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return null;
+  try {
+    const r = await fetch(`${RULES_API_URL}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as T;
+  } catch {
+    return null;
+  }
 }
 
 interface Props {
@@ -312,12 +339,14 @@ export function DecisionRulesPanel() {
   const { t } = useTranslation();
   const state = useDecisionRules();
 
-  const { data: datasetsList } = useQuery<ActiveDatasetPayload>({
+  const { data: datasetsList } = useQuery<ActiveDatasetPayload | null>({
     queryKey: ["sales-datasets"],
+    queryFn: () => fetchEngineJson<ActiveDatasetPayload>("/api/sales-datasets"),
   });
   const activeId = datasetsList?.active_dataset_id ?? null;
   const { data: dsPayload } = useQuery<DatasetSkusPayload | null>({
     queryKey: ["sales-dataset", activeId],
+    queryFn: () => fetchEngineJson<DatasetSkusPayload>(`/api/sales-datasets/${activeId}/skus`),
     enabled: !!activeId,
   });
   const skus = useMemo<SkuLite[]>(() => dsPayload?.skus ?? [], [dsPayload]);
@@ -355,28 +384,31 @@ export function DecisionRulesPanel() {
         >
           {t("decision_rules.combination_logic", "Combination logic")}
         </label>
-        <select
+        {/* Shared pill dropdown (2026-07-26 per operator) — the same control
+            the Products filters use, replacing the native <select> that
+            rendered with the OS widget and ignored the design tokens. */}
+        <FilterDropdown
           id="dr-mode"
+          fullWidth
           value={state.combinationMode}
-          onChange={(e) => setCombinationMode(e.currentTarget.value as CombinationMode)}
-          data-testid="decision-rules-mode"
-          className="
-            w-full h-9 px-3 rounded-lg
-            border border-rule bg-surface
-            text-[13px] text-ink
-            focus:outline-none focus:ring-2 focus:ring-brand/40
-          "
-        >
-          <option value="worst_wins">
-            {t("decision_rules.mode.worst_wins", "Worst bucket wins (recommended)")}
-          </option>
-          <option value="all_agree">
-            {t("decision_rules.mode.all_agree", "All must agree (most conservative)")}
-          </option>
-          <option value="weighted">
-            {t("decision_rules.mode.weighted", "Weighted score")}
-          </option>
-        </select>
+          onChange={(v) => setCombinationMode(v as CombinationMode)}
+          testid="decision-rules-mode"
+          placeholder={t("decision_rules.combination_logic", "Combination logic")}
+          options={[
+            {
+              value: "worst_wins",
+              label: t("decision_rules.mode.worst_wins", "Worst bucket wins (recommended)"),
+            },
+            {
+              value: "all_agree",
+              label: t("decision_rules.mode.all_agree", "All must agree (most conservative)"),
+            },
+            {
+              value: "weighted",
+              label: t("decision_rules.mode.weighted", "Weighted score"),
+            },
+          ]}
+        />
         <p className="mt-1.5 text-[11.5px] text-ink-soft">
           {state.combinationMode === "worst_wins" &&
             t(
@@ -461,13 +493,20 @@ function RuleCard({
   const unit = t(rule.unitKey, rule.unitDefault);
   const label = t(rule.labelKey, rule.labelDefault);
 
-  const dim = !ruleState.enabled || availability.status === "missing";
+  // A disabled rule is a CHOICE, not an unavailable feature (2026-07-26 per
+  // operator): dimming the whole card — header, label and toggle included —
+  // read as "this isn't available to you". Now the header stays at full
+  // contrast, the card stays expanded, and only the controls blur out, so the
+  // card still shows what it would configure and the toggle that brings it
+  // back is the most legible thing on it.
+  const off = !ruleState.enabled && availability.status !== "missing";
 
   return (
     <div
       data-testid={`rule-card-${rule.id}`}
       data-availability={availability.status}
-      className={`rounded-xl border border-rule bg-surface ${dim ? "opacity-60" : ""}`}
+      data-rule-off={off ? "true" : "false"}
+      className="rounded-xl border border-rule bg-surface"
     >
       <div className="px-4 py-3 flex items-center gap-3 border-b border-rule/50">
         <div className="flex-1 min-w-0">
@@ -489,19 +528,31 @@ function RuleCard({
             </div>
           )}
         </div>
-        <ToggleSwitch
-          checked={ruleState.enabled}
-          disabled={availability.status === "missing"}
-          onChange={(v) => updateRuleState(rule.id, { enabled: v })}
-          testId={`rule-toggle-${rule.id}`}
-        />
+        <div className="flex items-center gap-2 shrink-0">
+          {off && (
+            <span className="text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink-soft">
+              {t("decision_rules.rule_off", "Off")}
+            </span>
+          )}
+          <ToggleSwitch
+            checked={ruleState.enabled}
+            disabled={availability.status === "missing"}
+            onChange={(v) => updateRuleState(rule.id, { enabled: v })}
+            testId={`rule-toggle-${rule.id}`}
+          />
+        </div>
       </div>
 
       {availability.status === "missing" ? (
         <MissingDataNotice rule={rule} missing={availability.missingFields} />
       ) : (
-        ruleState.enabled && (
-          <div className="px-4 py-3 space-y-3">
+        (
+          <div
+            aria-hidden={off}
+            className={`px-4 py-3 space-y-3 transition-[filter,opacity] duration-200 ${
+              off ? "blur-[2px] opacity-45 pointer-events-none select-none" : ""
+            }`}
+          >
             <Slider
               min={bounds.min}
               max={bounds.max}
@@ -635,14 +686,17 @@ function ToggleSwitch({
       data-testid={testId}
       className={`
         relative inline-flex h-5 w-9 shrink-0 items-center rounded-full
-        transition-colors
-        ${checked && !disabled ? "bg-brand" : "bg-rule"}
+        border transition-colors
+        ${checked && !disabled
+          ? "bg-brand border-brand"
+          : "bg-bg-2 border-rule-strong hover:border-brand/50"}
         ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
       `}
     >
       <span
         className={`
-          inline-block h-4 w-4 rounded-full bg-surface shadow transform transition-transform
+          inline-block h-4 w-4 rounded-full shadow transform transition-transform
+          ${checked ? "bg-surface" : "bg-ink-mute"}
           ${checked ? "translate-x-[18px]" : "translate-x-0.5"}
         `}
       />
@@ -752,25 +806,24 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <select
+        {/* Shared pill dropdown — see the combination-mode selector above.
+            Each preset carries its description into the menu, so the
+            trade-off is visible while choosing rather than only after. */}
+        <FilterDropdown
+          fullWidth
           value={selected}
-          onChange={(e) => {
-            const id = e.currentTarget.value;
+          onChange={(id) => {
             setSelected(id);
             applyPresetById(id, skus);
           }}
-          data-testid="preset-select"
-          className="
-            h-9 px-3 rounded-lg
-            border border-rule bg-surface
-            text-[13px] text-ink
-            focus:outline-none focus:ring-2 focus:ring-brand/40
-          "
-        >
-          {PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>{p.label}</option>
-          ))}
-        </select>
+          testid="preset-select"
+          placeholder={t("decision_rules.preset.title", "Preset")}
+          options={PRESETS.map((p) => ({
+            value: p.id,
+            label: p.label,
+            description: p.description,
+          }))}
+        />
         {previewPreset && (
           <p className="text-[11.5px] text-ink-soft leading-snug">
             {previewPreset.description}

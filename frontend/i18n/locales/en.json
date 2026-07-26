@@ -60,9 +60,13 @@
       "sheets": {
         "trading": "SKU-level sales rows. One row per SKU × channel × period.",
         "dio": "Days inventory outstanding per category. Region 2 (rows 28-52) is the canonical source.",
-        "trialBalance": "Romanian chart of accounts. Only needed for Dashboard reports."
+        "trialBalance": "Romanian chart of accounts. Only needed for Dashboard reports.",
+        "exampleMultiCol": "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
+        "exampleSaga": "The compact SAGA export: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances."
       },
-      "fallbackNote": "Your own .xlsx files still work — the template is the recommended path because it removes ambiguity."
+      "fallbackNote": "Your own .xlsx files still work — the template is the recommended path because it removes ambiguity.",
+      "insideExamples": "Inside the example files",
+      "fallbackNoteDashboard": "Your accounting system's own export works too, as long as it follows one of these column structures."
     }
   },
   "dashboard": {
@@ -244,7 +248,13 @@
     "less": "less",
     "showMore": "Show more",
     "showLess": "Show less",
-    "emDash": "—"
+    "emDash": "—",
+    "unit": {
+      "ron": "RON",
+      "days": "days",
+      "tons": "tons",
+      "percent": "%"
+    }
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -685,6 +695,16 @@
       "spread_label": "Bank margin spread",
       "spread_hint": "Additional spread above the base rate the bank charges. Tune to model different banking relationships.",
       "avg_per_sku": "Avg per SKU: {{avg}} · DIO and inventory required to compute; SKUs without either skip the financing rule."
+    },
+    "revert": "Revert",
+    "apply": "Apply",
+    "rule": {
+      "gross_profit": "Gross profit per SKU",
+      "dio": "Days inventory outstanding (DIO)",
+      "volume": "Volume (tons)",
+      "revenue": "Revenue per SKU",
+      "adjusted_gm_pct": "Adjusted GM % (after financing)",
+      "margin_pct": "Margin %"
     }
   }
 }

@@ -13,9 +13,9 @@
 //     so they only apply once the user engages them (key present in store).
 //     The reset ✕ detaches the lever.
 
-import { useScenario, SCENARIO_TEMPLATES } from "@/stores/scenario";
+import { useScenario } from "@/stores/scenario";
 import { SCENARIO_LEVERS, type ScenarioLever } from "@/lib/scenarios/levers";
-import { RotateCcw, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function valueLabel(lever: ScenarioLever, v: number): string {
@@ -30,61 +30,14 @@ function valueLabel(lever: ScenarioLever, v: number): string {
 export function AdjustmentEditor() {
   const {
     leverValues,
-    activeTemplateKey,
-    isDirty,
     setLever,
     removeLever,
-    applyTemplate,
-    reset,
   } = useScenario();
 
   return (
     <div className="space-y-5" data-testid="adjustment-editor">
-      {/* Templates */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
-            Start from a template
-          </div>
-          {isDirty && (
-            <button
-              type="button"
-              onClick={reset}
-              data-testid="scenario-reset"
-              className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink min-h-[28px] px-1.5 rounded"
-            >
-              <RotateCcw className="w-3 h-3" />
-              Reset
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {SCENARIO_TEMPLATES.map((tpl) => {
-            const isActive = activeTemplateKey === tpl.key;
-            return (
-              <button
-                key={tpl.key}
-                type="button"
-                onClick={() => applyTemplate(tpl.key)}
-                data-testid={`scenario-template-${tpl.key}`}
-                className={cn(
-                  "text-left rounded-lg border px-3 py-2.5 transition-colors min-h-[44px]",
-                  isActive
-                    ? "border-[hsl(173,57%,55%)]/60 bg-[hsl(173,57%,55%)]/[0.06] ring-1 ring-[hsl(173,57%,55%)]/20"
-                    : "border-rule bg-surface hover:bg-bg-2/50",
-                )}
-              >
-                <div className="text-[12.5px] font-medium text-ink">{tpl.name}</div>
-                <div className="text-[10.5px] text-ink-mute leading-snug line-clamp-2 mt-0.5">
-                  {tpl.description}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Levers */}
+      {/* Levers — the templates ("Start from a template") moved above the
+          drivers + results grid (ScenarioTemplateCards) 2026-07-26. */}
       <div>
         <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
           Adjust the drivers

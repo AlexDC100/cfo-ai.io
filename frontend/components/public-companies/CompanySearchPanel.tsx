@@ -170,29 +170,8 @@ export function CompanySearchPanel({
           )}
         </div>
 
-        <button
-          onClick={() => {
-            const top = results[0] ?? (suggestions[0] ? toHit(suggestions[0]) : null);
-            if (top) handleHitClick(top.ticker);
-          }}
-          disabled={results.length === 0 && suggestions.length === 0}
-          data-testid="public-companies-fetch"
-          className="
-            inline-flex items-center justify-center
-            h-12 px-5 rounded-xl
-            ask-ai-anim-fill [animation-duration:10s]
-            border border-brand/40 text-ink
-            text-[13.5px] font-medium
-            hover:border-brand/60
-            disabled:opacity-50 disabled:cursor-not-allowed
-            transition-colors
-            shrink-0
-          "
-        >
-          Search
-        </button>
         {/* Data-sources "i" — relocated from the company grid's header
-            (2026-07-24) to sit beside the search action. */}
+            (2026-07-24) to sit beside the search field. */}
         <div className="shrink-0 self-center">
           <DataSourcesInfoButton />
         </div>

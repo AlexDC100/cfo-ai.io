@@ -24,17 +24,31 @@ interface Props {
   onAfterPick?: () => void;
   /** Tighter spacing for the slide-over variant. */
   compact?: boolean;
+  /** Controlled search term. The shell owns it so the open conversation can
+   *  highlight the same matches (find-in-conversation). */
+  query?: string;
+  onQueryChange?: (next: string) => void;
 }
 
-export function CFOHistorySidebar({ store, onAfterPick, compact = false }: Props) {
-  const [query, setQuery] = useState("");
+export function CFOHistorySidebar({
+  store, onAfterPick, compact = false, query: queryProp, onQueryChange,
+}: Props) {
+  // Uncontrolled fallback keeps the slide-over panel working unchanged.
+  const [ownQuery, setOwnQuery] = useState("");
+  const query = queryProp ?? ownQuery;
+  const setQuery = onQueryChange ?? setOwnQuery;
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return store.conversations;
-    return store.conversations.filter((c) =>
-      c.title.toLowerCase().includes(q) ||
-      c.messages.some((m) => m.content.toLowerCase().includes(q)),
-    );
+    const base = !q
+      ? store.conversations
+      : store.conversations.filter((c) =>
+          c.title.toLowerCase().includes(q) ||
+          c.messages.some((m) => m.content.toLowerCase().includes(q)),
+        );
+    // Most-recent activity first. Sorting on `updatedAt` (bumped every time the
+    // user sends a message / a reply lands) means chatting in any conversation
+    // moves it to the top of the list — not just newly-created ones.
+    return [...base].sort((a, b) => b.updatedAt - a.updatedAt);
   }, [store.conversations, query]);
 
   return (

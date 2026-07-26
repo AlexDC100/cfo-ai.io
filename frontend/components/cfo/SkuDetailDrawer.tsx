@@ -9,9 +9,10 @@
 // slide-in-from-right animation, so the page chrome (top header, sidebar)
 // stays interactive while the drawer is open.
 
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Loader2, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { Money } from "@/components/ui/Money";
@@ -190,24 +191,12 @@ export function SkuDetailDrawer({
   currency = "RON",
 }: Props) {
   const open = !!sku;
-  const closeBtnRef = useRef<HTMLButtonElement>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
   // CUR-FIX-D — string-returning kRON formatter for sub-labels (the BreakdownRow
   // `sub` slot is a plain string and used inside template literals). Display
   // tiles use <Money> directly for live FX.
   const fmtKronCur = useKronFormatter(currency);
-
-  // ESC closes; focus close button on open for a11y.
-  useEffect(() => {
-    if (!open) return;
-    closeBtnRef.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
 
   const decisionMutation = useMutation({
     mutationFn: async (decision: string | null) => {
@@ -248,33 +237,50 @@ export function SkuDetailDrawer({
   const saving = decisionMutation.isPending;
 
   return (
-    <>
-      <div
-        data-testid="sku-drawer-backdrop"
-        onClick={onClose}
-        aria-hidden
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
-      />
-      <aside
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent
+        side="right"
         data-testid="sku-detail-drawer"
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="sku-drawer-title"
-        style={{
-          paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
+        // EXACT same shell as the global Command Center drawer (2026-07-26 per
+        // operator): a floating rounded panel with a margin gutter, strong
+        // border, shadow-4, and an absolutely-positioned close button.
         className="
-          fixed right-0 top-0 bottom-0 z-50
-          w-[100vw] sm:w-[92vw] sm:max-w-[520px]
-          bg-surface border-l border-rule shadow-2xl
+          w-[calc(100vw-16px)] sm:w-[440px] sm:max-w-[460px]
+          p-0 m-2 sm:m-3 h-[calc(100dvh-16px)] sm:h-[calc(100dvh-24px)]
+          rounded-2xl sm:rounded-3xl
+          bg-surface dark:bg-bg-2
+          border border-rule-strong
+          text-ink
+          shadow-4
+          [&>button.absolute]:hidden
           flex flex-col
-          motion-safe:animate-in motion-safe:slide-in-from-right
-          motion-safe:duration-200 motion-safe:ease-out
         "
+        style={{
+          marginTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+          marginBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)",
+          marginRight: "calc(env(safe-area-inset-right) + 0.5rem)",
+          maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem)",
+        }}
       >
-        <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-rule">
-          <div className="min-w-0">
+        <SheetTitle className="sr-only">SKU detail</SheetTitle>
+        {/* Close button — absolutely positioned top-right, wrapped in a div so
+            it isn't a direct button.absolute child (that selector hides Radix's
+            default close). Matches the Command Center exactly. */}
+        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex items-center justify-center text-ink-mute hover:text-ink active:bg-bg-2/60 h-11 w-11 sm:h-7 sm:w-7 rounded-md transition-colors"
+          >
+            <X size={18} className="sm:hidden" strokeWidth={1.75} />
+            <X size={16} className="hidden sm:block" strokeWidth={1.75} />
+          </button>
+        </div>
+
+        <header className="px-5 pt-5 pb-4 border-b border-rule">
+          <div className="min-w-0 pr-8">
             <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
               SKU detail
             </div>
@@ -288,15 +294,6 @@ export function SkuDetailDrawer({
               {[sku.brand, sku.category].filter(Boolean).join(" · ") || "No brand or category"}
             </p>
           </div>
-          <button
-            ref={closeBtnRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close panel"
-            className="text-ink-mute hover:text-ink p-1 rounded-md hover:bg-bg-2 transition-colors shrink-0"
-          >
-            <X size={18} strokeWidth={1.75} />
-          </button>
         </header>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-5">
@@ -511,8 +508,8 @@ export function SkuDetailDrawer({
             </button>
           )}
         </footer>
-      </aside>
-    </>
+      </SheetContent>
+    </Sheet>
   );
 }
 

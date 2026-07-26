@@ -122,11 +122,15 @@ export function CouncilSphereHost({
 
   const live =
     upload.current && isInFlight(upload.current.status) ? upload.current : null;
-  // Keep painting through the completion fade: once the status ticks to the
-  // terminal `analyzed` the doc is no longer "in flight", but the scan view
-  // holds it on screen for its "Scan complete" card, so the sphere must stay
-  // mounted (faded to 0) rather than vanishing abruptly.
-  const docId = live?.docId ?? (complete ? upload.current?.docId ?? null : null);
+  // Keep painting through the FINALE, not just the fade. `analyzed` makes the
+  // doc "not in flight", so this gate used to drop the sphere the instant the
+  // analysis landed — and since `complete` only flips a second later (after
+  // the convergence), the host unmounted for that exact second and the orbs'
+  // pull into the core was never on screen: the sphere just popped out.
+  // Holding the mount while `finalizing` keeps the whole sequence visible —
+  // converge (~1s) → fade → ghost behind the completion card.
+  const docId =
+    live?.docId ?? (finalizing || complete ? upload.current?.docId ?? null : null);
   if (!docId) return null;
 
   // Visible only where a fullscreen scanning view renders: the dashboard
@@ -150,9 +154,11 @@ export function CouncilSphereHost({
         top: SPHERE_TOP_OFFSET,
         height,
         visibility: visible ? "visible" : "hidden",
-        // Fade the whole sphere layer out when the analysis lands, so the
-        // scan view's completion card takes over a clean space.
-        opacity: complete ? 0 : 1,
+        // Fade the sphere down once the analysis lands so the completion
+        // card owns the space — but not to nothing: it settles at a ghost
+        // (2026-07-26 per operator) so the sphere is still there, behind
+        // the "View results" screen, instead of blinking out of existence.
+        opacity: complete ? 0.14 : 1,
       }}
     >
       {/* Mirror the content wrapper's clamp + gutters (AppShell <main>)

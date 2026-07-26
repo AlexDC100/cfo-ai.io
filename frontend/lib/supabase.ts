@@ -589,10 +589,11 @@ export function subscribeToDocumentStatus(
   onChange: (row: DocumentRow) => void,
 ): () => void {
   if (!client) return () => {};
+  const activeClient = client;
   const filter = documentId ? `id=eq.${documentId}` : undefined;
   const base = documentId ? `doc-${documentId}` : "docs-all";
   const channelName = `${base}:${++_docChannelSeq}`;
-  const channel = client
+  const channel = activeClient
     .channel(channelName)
     .on(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -602,8 +603,51 @@ export function subscribeToDocumentStatus(
       (payload: any) => onChange(payload.new as DocumentRow),
     )
     .subscribe();
+
+  // Polling backstop (single-doc only). Supabase realtime silently no-ops
+  // when the `documents` table isn't in the realtime publication or the
+  // socket can't connect (common in local dev / behind some proxies). Without
+  // a fallback the scan UI never sees extracting→…→analyzed|failed and stays
+  // pinned on the optimistic "queued" forever. Poll the row every 4s and push
+  // the same onChange whenever the status actually changes; stop once terminal.
+  let poll: ReturnType<typeof setInterval> | null = null;
+  if (documentId) {
+    let lastStatus: DocumentStatus | null = null;
+    let inFlight = false;
+    const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const { data, error } = await activeClient
+          .from("documents")
+          .select("*")
+          .eq("id", documentId)
+          .single();
+        if (error || !data) return;
+        const row = data as DocumentRow;
+        if (row.status !== lastStatus) {
+          lastStatus = row.status;
+          onChange(row);
+          if (row.status === "analyzed" || row.status === "failed") {
+            if (poll) { clearInterval(poll); poll = null; }
+          }
+        }
+      } catch {
+        // transient — next tick retries
+      } finally {
+        inFlight = false;
+      }
+    };
+    poll = setInterval(() => void tick(), 4000);
+    // Kick an immediate probe so a doc that already terminated (e.g. the
+    // backend failed the analysis before this subscription mounted) is
+    // reflected without waiting a full interval.
+    void tick();
+  }
+
   return () => {
-    void client?.removeChannel(channel);
+    if (poll) { clearInterval(poll); poll = null; }
+    void activeClient.removeChannel(channel);
   };
 }
 
@@ -631,7 +675,17 @@ export interface UploadResult {
  */
 export async function uploadDocument(
   file: File,
-  options: { scope?: "financial" | "sku"; periodEndHint?: string | null } = {},
+  options: {
+    scope?: "financial" | "sku";
+    periodEndHint?: string | null;
+    /** Pin the document to a month up front. Used by SKU uploads, which the
+     *  engine pipeline deliberately does NOT resolve a period for (its
+     *  finalize passes `period_id=None`, and `_admin_set_status` omits the
+     *  key rather than nulling it — so a value set here survives the run).
+     *  Lets the Products "Source files" list nest files under the month that
+     *  was active when they were uploaded. */
+    periodId?: string | null;
+  } = {},
 ): Promise<UploadResult> {
   if (!client) return { row: null, error: "Authentication isn't configured (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY)." };
 
@@ -766,6 +820,10 @@ export async function uploadDocument(
     // filename/content detection. Included only when the caller supplied one;
     // if the column isn't migrated yet the insert retries without it below.
     ...(options.periodEndHint ? { period_end_hint: options.periodEndHint } : {}),
+    // Pin to a month at insert time (see the `periodId` option's docs). Only
+    // when the caller supplied one — omitting the key leaves the column NULL,
+    // which the Products file list reads as "unassigned, show in every month".
+    ...(options.periodId ? { period_id: options.periodId } : {}),
   };
 
   let ins = await client.from("documents").insert(baseRow).select().single();
@@ -776,6 +834,15 @@ export async function uploadDocument(
     const { period_end_hint: _omit, ...withoutHint } = baseRow;
     void _omit;
     ins = await client.from("documents").insert(withoutHint).select().single();
+  }
+  // Same degrade for period_id: an unmigrated column (or an FK/RLS rejection
+  // on the period) must never cost the user their upload — the file still
+  // lands, just unassigned to a month.
+  if (ins.error && options.periodId && /period_id/i.test(ins.error.message)) {
+    console.info("[supabase] period_id rejected on documents — retrying without it (file will be month-unassigned)");
+    const { period_id: _omitPeriod, ...withoutPeriod } = baseRow;
+    void _omitPeriod;
+    ins = await client.from("documents").insert(withoutPeriod).select().single();
   }
   const { data, error } = ins;
   if (error) {
@@ -827,6 +894,46 @@ export async function listDocumentsForOrg(orgId: string, limit = 50): Promise<Do
     .limit(limit);
   if (error) {
     console.warn("[supabase] listDocumentsForOrg failed:", error.message);
+    return [];
+  }
+  return (data ?? []) as DocumentRow[];
+}
+
+/**
+ * Documents pinned to one month. Backs the "Source files" row on the Dashboard
+ * — the uploads that produced the numbers currently on screen.
+ *
+ * Takes no orgId: RLS already scopes `documents` to the caller's memberships,
+ * and a period belongs to exactly one org, so the period id alone is a safe
+ * and sufficient filter. Saves plumbing the active org through every caller.
+ */
+/**
+ * Documents pinned to one period.
+ *
+ * `scope` narrows the list to one upload kind — the Dashboard passes
+ * "financial" so a SKU workbook uploaded on Products (which pins to the same
+ * month) doesn't appear among the files backing the trial-balance numbers.
+ * Omit it to get every document on the period, which is what a
+ * workspace-level file list wants. The column is NOT NULL DEFAULT 'financial'
+ * (schema_phase3.sql:392), so an equality filter can't drop legacy rows.
+ */
+export async function listDocumentsForPeriod(
+  periodId: string,
+  limit = 50,
+  scope?: "financial" | "sku",
+): Promise<DocumentRow[]> {
+  if (!client) return [];
+  let q = client
+    .from("documents")
+    .select("*")
+    .eq("period_id", periodId)
+    .is("deleted_at", null);
+  if (scope) q = q.eq("scope", scope);
+  const { data, error } = await q
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn("[supabase] listDocumentsForPeriod failed:", error.message);
     return [];
   }
   return (data ?? []) as DocumentRow[];

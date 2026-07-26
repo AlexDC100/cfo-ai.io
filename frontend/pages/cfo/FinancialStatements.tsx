@@ -19,9 +19,11 @@
 //   • HTML report (downloadReport) — single-file, browser-printable to PDF
 //   • Excel workbook (downloadExcelReport) — 8-sheet xlsx model
 
-import { useMemo, useState, useRef, useCallback, useEffect } from "react";
+import { useMemo, useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AddFileTile, SourceFilesRow } from "@/components/cfo/SourceFilesRow";
+import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
@@ -47,7 +49,7 @@ import type { Currency } from "@/lib/rates";
 import { useDisplayCurrency, useRates } from "@/stores/currency";
 import { convertFromTo } from "@/lib/money";
 import { openStagedFile } from "@/lib/stagedFilePreview";
-import { readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
+import { clearStagedFiles, readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { BSStatementView } from "@/components/cfo/BSStatementView";
@@ -72,7 +74,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { detectPeriodEndFromFilename, detectPeriodEndFromFile, formatDetectedMonth } from "@/lib/detectPeriodEnd";
-import { formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
+import { fetchWorkspacePeriodsDirect, formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
+import { useActiveOrg } from "@/lib/org";
+import { cfoApi } from "@/lib/cfoApi";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,10 +122,9 @@ import {
   TrendingUp,
   ArrowUp,
   Cloud,
-  Eye,
-  Plus,
   UploadCloud,
   X,
+  Trash2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -149,9 +152,11 @@ import {
   buildStatementsFromTrialBalance,
   parseTrialBalance,
 } from "@/lib/trialBalanceParser";
-import { downloadExcelReport } from "@/lib/financialExports";
+// financialExports (and its xlsx dependency, ~430 KB) is dynamic-imported at
+// the Download click site so the Dashboard chunk doesn't ship SpreadsheetML
+// codecs to users who never export.
 import { SAMPLE_DATASETS, SAMPLES_ENABLED } from "@/data/sampleStatements";
-import { useActivePeriod, type PeriodValuation } from "@/lib/activePeriod";
+import { periodQueryKey, useActivePeriod, type PeriodValuation } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import {
   clearUpload,
@@ -207,6 +212,12 @@ const TAB_GUIDES: Record<string, { pageId: string; title: string; steps: GuideSt
   risks:           { pageId: "risk-credit",   title: "Risk & Credit", steps: RISK_GUIDE },
   recommendations: { pageId: "recommendations", title: "Recommendations", steps: RECOMMENDATIONS_GUIDE },
 };
+
+/** What the dashboard accepts as a financial document. Shared by the hidden
+ *  page input and the "Add file" tile in the Source-files row so the two can't
+ *  drift. */
+const DASHBOARD_UPLOAD_ACCEPT =
+  ".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif,.pptx,.ppt,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
 export default function FinancialStatements() {
   const { t } = useTranslation();
@@ -349,6 +360,44 @@ export default function FinancialStatements() {
   // ~line 468 alongside the URL-hydration effect (still there in spirit; the
   // effect that consumes `remotePeriod` stays in its original position).
   const remotePeriod = useActivePeriod();
+
+  // The SIDEBAR's selected period, for the pre-scan confirm dialog
+  // (2026-07-26 per operator). Deliberately NOT remotePeriod: that's the
+  // resolved analysis payload, and an EMPTY period selected in the sidebar
+  // has no analysis to resolve — remotePeriod misses it and the dialog's
+  // "Selected period" card would come up blank. Resolve ?period= against the
+  // same two feeds the sidebar stepper merges (both cache-shared, so this
+  // adds no requests).
+  const { org: activeOrgForPeriods } = useActiveOrg();
+  const { data: enginePeriodsData } = useOrgPeriods();
+  const { data: directPeriodsData } = useQuery({
+    queryKey: ["org-periods", activeOrgForPeriods?.id],
+    queryFn: () => fetchWorkspacePeriodsDirect(activeOrgForPeriods!.id),
+    enabled: !!activeOrgForPeriods?.id,
+    staleTime: 60_000,
+  });
+  const sidebarPeriod = useMemo(() => {
+    // Same merge + order as SidebarMonthStepper: engine periods first,
+    // deduped, newest month first.
+    const engine = enginePeriodsData?.periods ?? [];
+    const seen = new Set(engine.map((p) => p.period_id));
+    const all = [
+      ...engine,
+      ...(directPeriodsData?.periods ?? []).filter((p) => !seen.has(p.period_id)),
+    ].sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
+    // Same fallback chain as the stepper's label too: the URL's period, else
+    // the newest workspace period. Without the last step, a fresh workspace
+    // whose only period is an empty container shows a month in the sidebar
+    // (the stepper's own fallback) while this resolved null — and the
+    // dialog's "Selected period" card rendered "—" (operator-reported).
+    //
+    // A pid that IS set but isn't in the feeds (a sample/demo period) stays
+    // null on purpose — the caller's remotePeriod fallback carries the
+    // sample's own month, which is more truthful than the newest real period.
+    const pid = searchParams.get("period") ?? remotePeriod.id;
+    if (pid) return all.find((p) => p.period_id === pid) ?? null;
+    return all[0] ?? null;
+  }, [searchParams, remotePeriod.id, enginePeriodsData, directPeriodsData]);
 
   // Statements-derived metrics — only computed when statements is non-null,
   // otherwise the tabs that need them aren't visible anyway.
@@ -581,6 +630,36 @@ export default function FinancialStatements() {
     }
   }, [remotePeriod.isLoaded, remotePeriod.id, remotePeriod.statements, remotePeriod.invoices, remotePeriod.availableTypes, remotePeriod.label, remotePeriod.source]);
 
+  // …and the mirror image of it: a period with NOTHING behind it must clear
+  // this page back to State A (2026-07-26). The hydration effect above only
+  // ever WRITES — it bails on a period with no statements — so stepping from
+  // a month that has a trial balance to an empty one (a container created in
+  // Workspace, or one whose document was deleted) left the previous month's
+  // numbers on screen under the new month's name. Anything that isn't a real
+  // loaded period resets: empty payload, 404 for a stale id, deleted source.
+  //
+  // Guards: `isLoading` so the reset can't fire mid-fetch and flash the
+  // dropzone, and `source === "sample"` so picking a dev sample (which sets
+  // these locally, with no remote period) isn't wiped by its own selection.
+  useEffect(() => {
+    if (!remotePeriod.id) return;
+    if (remotePeriod.isLoading) return;
+    if (remotePeriod.source === "sample") return;
+    if (remotePeriod.statements || remotePeriod.invoices) return;
+    setStatements(null);
+    setInvoices(null);
+    setAvailableTypes(new Set());
+    setActiveSampleId(null);
+    setParseSource(null);
+    setUploadName(null);
+  }, [
+    remotePeriod.id,
+    remotePeriod.isLoading,
+    remotePeriod.source,
+    remotePeriod.statements,
+    remotePeriod.invoices,
+  ]);
+
   // Single canonical upload entry point. Used by:
   //   - Empty-state dropzone (drag-and-drop or "Choose a file")
   //   - Replace dropdown's "Choose a file…" menu item
@@ -614,6 +693,7 @@ export default function FinancialStatements() {
   function viewResults() {
     const periodId = awaitingView?.periodId ?? uploadInFlight?.periodId ?? null;
     setAwaitingView(null);
+    console.info("[scan] viewResults →", periodId ?? "(no period)");
     if (periodId) {
       toast({ title: "Analysis ready", description: "Loaded into Dashboard." });
       // The scan just created (or replaced) a period — the workspace's month
@@ -642,32 +722,44 @@ export default function FinancialStatements() {
     // …unless we're intentionally holding the analyzed upload to show the
     // "Scan complete" card (awaitingView) — clearing it here would yank the
     // card away before the user clicks "View results".
-    if (!hasPeriodLoaded && uploadInFlight?.status === "analyzed" && !awaitingView) {
+    //
+    // ALSO exempt analyzed uploads that carry a periodId (2026-07-26): that's
+    // a scan that just COMPLETED and is being handed off, not a stale
+    // leftover. The external-store flush means this effect can observe
+    // status=analyzed one render before awaitingView lands — clearing in
+    // that window killed the handoff (see the auto-open effect below).
+    if (
+      !hasPeriodLoaded &&
+      uploadInFlight?.status === "analyzed" &&
+      !awaitingView &&
+      !uploadInFlight.periodId
+    ) {
       clearUpload();
     }
-  }, [hasPeriodLoaded, uploadInFlight?.status, awaitingView]);
+  }, [hasPeriodLoaded, uploadInFlight?.status, uploadInFlight?.periodId, awaitingView]);
 
-  // Auto-open on completion (2026-07-25): once a dashboard scan finishes and
-  // produced a real period, select that month and drop straight into the
-  // dashboard — no "View results" click required. The short delay lets the
-  // "Scan complete" card + sphere finish register before the transition. The
-  // manual button stays as a fallback (and covers the DEV simulation, which
-  // has no real period so this guard skips it).
-  useEffect(() => {
-    if (uploadInFlight?.status === "analyzed" && awaitingView?.periodId) {
-      const t = setTimeout(() => { viewResults(); }, 1200);
-      return () => clearTimeout(t);
-    }
-    // viewResults reads current state via closure; gating on the two values
-    // below is what matters, so it's intentionally not in the dep list.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadInFlight?.status, awaitingView?.periodId]);
+  // Completion hand-off — the same sequence Products runs (2026-07-26 per
+  // operator), with the dashboard's own five trial-balance steps: the sphere
+  // pulls its orbs into the core (~1s), the layer fades to a ghost, the
+  // "Scan complete" card comes up over it — and then it WAITS. There used to
+  // be a 2400ms auto-open here; it pulled the card off screen about a second
+  // after it finished fading in, so the finish read as a flicker. Only "View
+  // results" (viewResults, via awaitingView) leaves the scan view now.
+  //
+  // What the auto-open was defending, and why it's safe to drop: awaitingView
+  // is React state set in the analyzed handler, so the auto-clear hedge above
+  // (which observes the external upload store, flushed synchronously) can't
+  // yank the hand-off out from under it. That was the real bug behind "the
+  // dashboard never changes after a scan" — the fix is the gate, not the
+  // timer.
 
   // Files staged for scanning. Choosing/dropping files ADDS them here;
   // nothing is uploaded until the user clicks "Start scan" (no auto-scan).
-  // Seeded from + mirrored to the module-level store so a tab switch
-  // (which unmounts this page) doesn't drop the selection.
+  // Mirrored to the module-level store so a re-render can't drop the
+  // selection — but LEAVING the tab does (cleared on unmount, 2026-07-26
+  // per operator), so returning offers a clean dropzone.
   const [stagedFiles, setStagedFiles] = useState<File[]>(() => readStagedFiles("dashboard"));
+  useEffect(() => () => clearStagedFiles("dashboard"), []);
   const [scanning, setScanning] = useState(false);
   // "Add month" modal (opened from the month-pills row) — holds the dashboard
   // dropzone so the next month can be uploaded without the inline zone.
@@ -715,11 +807,15 @@ export default function FinancialStatements() {
       });
       return;
     }
-    // Stage the file — do NOT upload yet (dedupe by name + size). The scan
-    // starts only when the user clicks "Start scan".
-    setStagedFiles((prev) =>
-      prev.some((f) => f.name === file.name && f.size === file.size) ? prev : [...prev, file],
-    );
+    // Stage the file — do NOT upload yet. The scan starts only when the user
+    // clicks "Start scan".
+    //
+    // ONE file at a time (2026-07-26 per operator): a newly chosen file
+    // REPLACES whatever was staged rather than appending. The staged array
+    // shape is kept (the dialog, the staged-file list and runScan all iterate
+    // it) so this is a single-element invariant, not a refactor of every
+    // consumer.
+    setStagedFiles([file]);
   }
 
   function discardStagedFile(index: number) {
@@ -771,6 +867,27 @@ export default function FinancialStatements() {
             if (next.period_id) {
               void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
               void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+              // The period PAYLOAD too (2026-07-26). The cache used to rely on
+              // "a re-run produces a brand-new period_id, so the URL key
+              // changes" — no longer true: replace-month semantics and the
+              // adopt-the-selected-empty-period flow reuse the SAME id, so
+              // navigating to ?period=<id> after the scan repainted the STALE
+              // payload for its full 30-min staleTime and the dashboard
+              // "didn't change" (operator-reported). Two traps here:
+              //   · The stale entry can even be a cached `{kind:"not_found"}` —
+              //     fetchPeriodFromApi resolves 404s as SUCCESS data, so an
+              //     empty period viewed before the upload caches "not found"
+              //     as fresh.
+              //   · removeQueries (the first fix) is NOT reliable on a query
+              //     with active observers — the observer can keep serving its
+              //     in-memory data without refetching. resetQueries is the
+              //     API documented to reset AND refetch active observers.
+              void queryClient.resetQueries({ queryKey: periodQueryKey(next.period_id) });
+              // …and the month's Source-files tiles, so the file that just
+              // landed shows up there immediately instead of a staleTime
+              // later. Prefix key — matches the scoped
+              // ["period-documents", id, "financial"] entry.
+              void queryClient.invalidateQueries({ queryKey: ["period-documents", next.period_id] });
             }
             void (async () => {
               if (navigateOnDone) {
@@ -797,6 +914,7 @@ export default function FinancialStatements() {
                   // card's "View results" button (viewResults) navigates. The
                   // completion card is skipped when the tab isn't mounted, so a
                   // background batch that finishes off-screen still resolves.
+                  console.info("[scan] analyzed → period", next.period_id, "— opening in 2.4s");
                   setAwaitingView({ periodId: next.period_id });
                   resolve();
                   return;
@@ -845,7 +963,10 @@ export default function FinancialStatements() {
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
-    Array.from(e.dataTransfer.files ?? []).forEach((f) => void onFileChosen(f));
+    // First file only — a drop can carry several regardless of the input's
+    // `multiple` attribute, which governs the picker dialog and nothing else.
+    const file = e.dataTransfer.files?.[0];
+    if (file) void onFileChosen(file);
   }
 
   // DEV-only: simulate the upload → analysis pipeline without a real file
@@ -947,15 +1068,17 @@ export default function FinancialStatements() {
         * UploadAndSamplePanel which is unmounted in State B → fileRef.current
         * was null → clicking the menu item did nothing.
         */}
+      {/* Single-file only (2026-07-26 per operator) — no `multiple`, and the
+          handler takes just the first entry so a multi-file drag can't slip
+          past the picker's own restriction. */}
       <input
         ref={fileRef}
         type="file"
-        multiple
-        accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif,.pptx,.ppt,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        accept={DASHBOARD_UPLOAD_ACCEPT}
         className="hidden"
         onChange={(e) => {
-          const files = Array.from(e.target.files ?? []);
-          files.forEach((f) => void onFileChosen(f));
+          const file = e.target.files?.[0];
+          if (file) void onFileChosen(file);
           e.target.value = "";  // allow re-picking the same file later
         }}
       />
@@ -966,6 +1089,21 @@ export default function FinancialStatements() {
       {periodConfirm && (
         <PeriodConfirmDialog
           files={periodConfirm}
+          // The SIDEBAR's selection (?period= resolved against the stepper's
+          // merged feeds) — covers empty periods, which the analysis payload
+          // (remotePeriod) can't resolve. remotePeriod remains the fallback
+          // for sample/demo periods, which the feeds don't list.
+          activePeriodEnd={
+            sidebarPeriod?.period_end ?? (remotePeriod.id ? remotePeriod.periodEnd : null)
+          }
+          activePeriodId={sidebarPeriod?.period_id ?? remotePeriod.id}
+          // No documents ⇒ an empty container — safe to rename to the file's
+          // month when the user picks "Scan and update period".
+          activePeriodEmpty={
+            sidebarPeriod
+              ? sidebarPeriod.documents.length === 0
+              : !remotePeriod.sourceDocumentFilename
+          }
           onConfirm={runScan}
           onCancel={() => setPeriodConfirm(null)}
         />
@@ -1035,57 +1173,20 @@ export default function FinancialStatements() {
         <>
         {hasPeriodLoaded ? (
           <>
-            {/* Month pills (left) + a "notes & recommendations" jump pill
-                (top-right of the content) showing the warning count; clicking
-                scrolls to the Notes & recommendations section of the open tab. */}
-            <div className="flex items-start justify-between gap-3">
-              <DashboardMonthPills
-                activePeriodId={remotePeriod.id ?? searchParams.get("period")}
-                onSelect={(periodId) =>
-                  setSearchParams((prev) => {
-                    const sp = new URLSearchParams(prev);
-                    sp.set("period", periodId);
-                    return sp;
-                  }, { replace: true })
-                }
-                onAddMonth={() => setAddMonthOpen(true)}
-              />
-              {(() => {
-                // Count of ALL notes for this period (engine recommendations +
-                // alerts) — matches the "Notes & recommendations" section.
-                const alertRows = remotePeriod.alerts ?? [];
-                const notesTotal =
-                  (remotePeriod.recommendations?.length ?? 0) + alertRows.length;
-                if (notesTotal === 0) return null;
-                // Rank the pill colour by the WORST severity present: red for
-                // critical/high, amber for watch (medium), blue for info
-                // (low/info), teal when it's only recommendations.
-                const sev = (a: { severity?: string }) => a.severity ?? "";
-                const tone = alertRows.some((a) => sev(a) === "critical" || sev(a) === "high")
-                  ? "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20"
-                  : alertRows.some((a) => sev(a) === "medium")
-                    ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
-                    : alertRows.some((a) => sev(a) === "low" || sev(a) === "info")
-                      ? "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
-                      : "border-brand/50 bg-brand/10 text-brand-d hover:bg-brand/20";
-                return (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      document
-                        .querySelector('[data-testid^="statement-notes-"]')
-                        ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                    }
-                    data-testid="notes-jump-pill"
-                    title="Jump to Notes & recommendations"
-                    className={`shrink-0 self-center inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-semibold tabular-nums transition-colors ${tone}`}
-                  >
-                    <AlertTriangle size={17} strokeWidth={2} />
-                    {notesTotal}
-                  </button>
-                );
-              })()}
-            </div>
+            {/* Source files (2026-07-26) — the uploads behind THIS month's
+                numbers, in the same tile row Products uses under its pills.
+                Financial-scope documents here (that's what "add a file" adds
+                on this surface), SKU datasets there. */}
+            <DashboardSourceFiles
+              periodId={remotePeriod.id ?? searchParams.get("period")}
+              onAddFile={(f) => {
+                // Stage it, then open the add-month flow so the file is
+                // visible with Start scan (and the period-confirm step still
+                // runs). This is what the removed "Add month" pill opened.
+                void onFileChosen(f);
+                setAddMonthOpen(true);
+              }}
+            />
             {/* Loaded-month header beside the official-template card: the
                 Financial Analysis title + CFO briefing occupy the left column,
                 the "Start from the official template" card sits to their right
@@ -1157,18 +1258,11 @@ export default function FinancialStatements() {
                   Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every
                   upload is auto-checked — clean trial balances reconcile within 0.5% of source.
                 </p>
-                {/* Import (primary, animated gradient — opens the file
-                    picker) + Ask CFO AI (same secondary style as the
-                    Products hero's button). */}
+                {/* Ask CFO AI (same secondary style as the Products hero's
+                    button). The Import button that used to lead this row was
+                    removed (2026-07-26 per operator) — the dropzone below is
+                    the one import path. */}
                 <div className="mt-5 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    data-testid="dashboard-hero-import"
-                    className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-                  >
-                    Import
-                  </button>
                   <button
                     type="button"
                     onClick={() =>
@@ -1483,23 +1577,11 @@ export default function FinancialStatements() {
                   </Tooltip>
                 );
               })}
-              {/* Single consolidated "Guide me" — opens the active tab's guide.
-                  Sits after Export with a hairline divider to its left. On a tab
-                  with no guide (Export) it still renders, but dimmed +
-                  non-interactive. */}
-              <span aria-hidden className="shrink-0 self-center ml-4 mr-3.5 h-5 w-px bg-rule" />
-              <button
-                type="button"
-                onClick={() => activeGuide && setGuideOpen(true)}
-                disabled={!activeGuide}
-                data-testid="guide-me-tabbar"
-                className={`shrink-0 self-center inline-flex items-center gap-1.5 h-8 px-3 rounded-xl ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[12px] font-medium transition-colors ${
-                  activeGuide ? "hover:border-brand/60" : "opacity-40 cursor-not-allowed"
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Guide me
-              </button>
+              {/* "Guide me" moved OUT of the tab bar (2026-07-26) — it now
+                  rides above the Source-files row, matching Products. Two
+                  identical buttons on one screen would have been the cost of
+                  copying that section over wholesale. It stays tab-aware:
+                  the trigger still opens the ACTIVE tab's guide. */}
             </TabsList>
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 left-0 w-6 bg-gradient-to-r from-bg to-transparent" />
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 right-0 w-6 bg-gradient-to-l from-bg to-transparent" />
@@ -1565,6 +1647,17 @@ export default function FinancialStatements() {
               />
             </>
           ) : (
+            <>
+            {/* Notes & recommendations jump pill — moved down here
+                (2026-07-26 per operator) so it sits directly above the
+                metrics grid instead of at the top of the page. Colour ranks
+                by the WORST severity present: red for critical/high, amber
+                for watch, blue for info, teal when it's only
+                recommendations. */}
+            <NotesJumpPill
+              alerts={remotePeriod.alerts ?? []}
+              recommendationCount={remotePeriod.recommendations?.length ?? 0}
+            />
             <StateBOverview
               statements={statements}
               invoices={invoices}
@@ -1578,6 +1671,7 @@ export default function FinancialStatements() {
               canonicalMargins={dashboardCanonicalMargins}
               netIncomeStatutory={canonicalNetIncomeStatutory}
             />
+            </>
           )}
         </TabsContent>
 
@@ -1985,7 +2079,11 @@ export default function FinancialStatements() {
               </div>
               <div className="relative mt-auto pt-6 flex justify-end">
                 <button
-                  onClick={() => downloadExcelReport(statements)}
+                  onClick={() =>
+                    import("@/lib/financialExports").then((m) =>
+                      m.downloadExcelReport(statements),
+                    )
+                  }
                   className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
                 >
                   <ArrowDownToLine size={15} strokeWidth={2} />
@@ -2021,6 +2119,9 @@ export default function FinancialStatements() {
           )}
         </TabsContent>
       </Tabs>
+        {/* Dev tools — bottom of the page, below every tab's content. Ships
+            in production per the operator (2026-07-26); see DashboardDevTools. */}
+        <DashboardDevTools />
         </>
         )}
       </TooltipProvider>
@@ -2065,34 +2166,59 @@ function friendlyUploadError(detail: string | undefined | null): string {
 }
 
 // ─── Period-end confirmation dialog ──────────────────────────────────────────
-// Before a scan runs, show the closing month auto-detected from each file's
-// name and let the user confirm or pick the right one. A blank month means
-// "let the engine detect it" (its filename/content detection still runs).
+// Before a scan runs, the user resolves a date conflict as an ACTION
+// (2026-07-26 per operator), not a date pick:
+//   · "Change the period to match the file" — the selected period takes the
+//     file's closing month. When the selected period is an empty container,
+//     its row is literally renamed (updatePeriodEnd) BEFORE the upload, so
+//     the periodEndHint then finds that same row by (org_id, period_end) and
+//     adopts it — no dangling empty month, no sibling period.
+//   · "Ignore the file's date" — the file uploads into the selected period,
+//     whose month wins via periodEndHint.
+// The free month input only returns as a fallback when NEITHER side offers a
+// date.
 function PeriodConfirmDialog({
   files,
+  activePeriodEnd,
+  activePeriodId,
+  activePeriodEmpty,
   onConfirm,
   onCancel,
 }: {
   files: File[];
+  /** period_end of the app's currently selected period (ISO), null when no
+   *  period is loaded — then only the file-date option renders. */
+  activePeriodEnd?: string | null;
+  /** Its id — needed to rename the container on "match the file". */
+  activePeriodId?: string | null;
+  /** True when the selected period has no source document yet. Renaming is
+   *  only safe then: a period with an analysis keeps its month, and "match
+   *  the file" degrades to filing under the file's month as its own period. */
+  activePeriodEmpty?: boolean;
   onConfirm: (dates: Record<string, string | null>) => void;
   onCancel: () => void;
 }) {
-  // Per-file month value as "YYYY-MM" (what <input type="month"> uses).
-  // Seeded synchronously from the filename so the dialog opens with a value;
-  // then upgraded from file CONTENT once the async read resolves (below).
-  const [months, setMonths] = useState<Record<string, string>>(() => {
+  const activeMonth =
+    activePeriodEnd && /^\d{4}-\d{2}/.test(activePeriodEnd)
+      ? activePeriodEnd.slice(0, 7)
+      : null;
+
+  // What the FILE says, per file ("YYYY-MM"). Seeded synchronously from the
+  // filename so the dialog opens with a value; upgraded from file CONTENT
+  // once the async read resolves.
+  const [detected, setDetected] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const f of files) {
       const iso = detectPeriodEndFromFilename(f.name);
-      init[f.name] = iso ? iso.slice(0, 7) : "";
+      if (iso) init[f.name] = iso.slice(0, 7);
     }
     return init;
   });
-  // Files the user has manually edited — never overwrite their choice when the
-  // async content detection lands.
-  const touched = useRef<Set<string>>(new Set());
-  // Whether we're still reading file contents for a better guess.
+  // Manual fallback month, only used when neither source has a date.
+  const [manual, setManual] = useState<Record<string, string>>({});
   const [reading, setReading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -2104,14 +2230,7 @@ function PeriodConfirmDialog({
         if (iso) found[f.name] = iso.slice(0, 7);
       }
       if (cancelled) return;
-      setMonths((prev) => {
-        const next = { ...prev };
-        for (const f of files) {
-          if (touched.current.has(f.name)) continue; // respect manual edits
-          if (found[f.name]) next[f.name] = found[f.name];
-        }
-        return next;
-      });
+      setDetected((prev) => ({ ...prev, ...found }));
       setReading(false);
     })();
     return () => {
@@ -2121,90 +2240,226 @@ function PeriodConfirmDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function confirm() {
+  // The decision lives in the FOOTER (2026-07-26 per operator) — the cards
+  // above are informational (selected vs detected). Two actions:
+  //   · "keep"   — Scan: ignore the file's date, upload into the selected
+  //                period (its month is the hint).
+  //   · "update" — Scan and update period: the period takes the file's month.
+  async function confirm(action: "keep" | "update") {
+    if (confirming) return;
+    setConfirming(true);
+    const lastDayIso = (ym: string) => {
+      // Trial-balance convention: the period-end is the LAST day of the month.
+      const [y, m] = ym.split("-").map(Number);
+      const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      return `${ym}-${String(last).padStart(2, "0")}`;
+    };
+    // Per-file month under the chosen action. Either source may be missing;
+    // the other fills in, then the manual fallback, then null (engine detects).
+    const resolvedMonth = (f: File): string | null => {
+      const fileYm = detected[f.name] ?? null;
+      const m = manual[f.name];
+      const manualYm = m && /^\d{4}-\d{2}$/.test(m) ? m : null;
+      return action === "update"
+        ? fileYm ?? activeMonth ?? manualYm
+        : activeMonth ?? fileYm ?? manualYm;
+    };
+
     const dates: Record<string, string | null> = {};
     for (const f of files) {
-      const ym = months[f.name];
-      if (ym && /^\d{4}-\d{2}$/.test(ym)) {
-        // Trial-balance convention: the period-end is the LAST day of the month.
-        const [y, m] = ym.split("-").map(Number);
-        const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-        dates[f.name] = `${ym}-${String(last).padStart(2, "0")}`;
+      const ym = resolvedMonth(f);
+      dates[f.name] = ym ? lastDayIso(ym) : null; // null → the engine detects it
+    }
+
+    // "Scan and update period": rename the selected EMPTY container to the
+    // file's month first, so the hint below adopts that same row instead of
+    // leaving it dangling and creating a sibling. Only for empty periods —
+    // one with an analysis keeps its month.
+    const firstYm = files[0] ? detected[files[0].name] ?? null : null;
+    if (
+      action === "update" &&
+      activePeriodId &&
+      activePeriodEmpty &&
+      firstYm &&
+      firstYm !== activeMonth
+    ) {
+      const { updatePeriodEnd } = await import("@/lib/orgPeriods");
+      const err = await updatePeriodEnd(activePeriodId, lastDayIso(firstYm));
+      if (err) {
+        // Non-fatal: the scan still files under the file's month (its own
+        // period); the empty container just stays where it was.
+        console.warn("[period-confirm] rename failed:", err);
       } else {
-        dates[f.name] = null; // no confirmed month — the engine detects it
+        void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+        void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
       }
     }
+
     onConfirm(dates);
   }
+
+  // Mid-month day dodges timezone month-shift in toLocaleDateString.
+  const monthLabel = (ym: string | null) =>
+    ym ? formatDetectedMonth(`${ym}-15`) || ym : "";
 
   const multiple = files.length > 1;
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
       <DialogContent className="sm:max-w-[480px]" data-testid="period-confirm-dialog">
-        <DialogHeader>
-          <DialogTitle>Confirm the {multiple ? "periods" : "period"}</DialogTitle>
-          <DialogDescription>
-            We detected the closing month from {multiple ? "each file's name" : "the file name"}.
-            Confirm it or pick the right month — this becomes the period the analysis is filed under.
-          </DialogDescription>
-        </DialogHeader>
+        {/* The header names the situation: a conflict gets the decision
+            framing; agreement or a missing side gets a plain confirm. Based
+            on the first file — uploads are single-file (2026-07-26). */}
+        {(() => {
+          const firstYm = files[0] ? detected[files[0].name] ?? null : null;
+          const conflict = !!firstYm && !!activeMonth && firstYm !== activeMonth;
+          return (
+            <DialogHeader>
+              <DialogTitle>
+                {conflict ? "The file's date doesn't match the period" : "Confirm the period"}
+              </DialogTitle>
+              <DialogDescription>
+                {conflict
+                  ? "“Scan and update period” moves the period to the file's month. “Scan” ignores the file's date and uploads into the period you have selected."
+                  : "This is the period the analysis will be filed under."}
+              </DialogDescription>
+            </DialogHeader>
+          );
+        })()}
 
         <div className="space-y-3 max-h-[46vh] overflow-y-auto">
           {files.map((f) => {
-            // Label reflects the RESOLVED month (content detection, then
-            // filename), converting "YYYY-MM" back to an ISO date for display.
-            const ym = months[f.name];
-            const detectedIso = ym && /^\d{4}-\d{2}$/.test(ym) ? `${ym}-01` : null;
+            const fileYm = detected[f.name] ?? null;
+            const agree = !!fileYm && !!activeMonth && fileYm === activeMonth;
+            const periodCard = (title: string, ym: string | null) => (
+              <div className="flex-1 min-w-0 rounded-lg border border-rule bg-surface px-3 py-2.5 text-center">
+                <span className="block text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
+                  {title}
+                </span>
+                <span className="block text-[13px] font-medium tabular-nums text-ink mt-0.5">
+                  {ym ? monthLabel(ym) : "—"}
+                </span>
+              </div>
+            );
             return (
-              <div key={f.name} className="rounded-lg border border-rule bg-bg-2/30 px-3 py-2.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
-                  <span className="text-[12.5px] text-ink truncate">{f.name}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <label className="text-[11.5px] text-ink-mute">
-                    {reading && !detectedIso ? (
-                      <span className="text-ink-mute">Reading file…</span>
-                    ) : detectedIso ? (
-                      <>Detected: <span className="text-ink-soft font-medium">{formatDetectedMonth(detectedIso)}</span></>
+              <div key={f.name} className="space-y-2">
+                {/* The file itself, above the comparison — click opens its
+                    preview in a new window (same renderer the staged-file
+                    list uses), so what's being filed can be inspected before
+                    deciding where it lands. */}
+                <button
+                  type="button"
+                  onClick={() => void openStagedFile(f)}
+                  data-testid="period-confirm-file-preview"
+                  title="Open a preview in a new window"
+                  className="w-full flex items-center gap-2 rounded-lg border border-rule bg-bg-2/30 px-3 py-2.5 text-left hover:border-rule-strong hover:bg-bg-2/60 transition-colors"
+                >
+                  <FileSpreadsheet size={16} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                  <span className="text-[12.5px] font-medium text-ink truncate">{f.name}</span>
+                  <span className="ml-auto shrink-0 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+                    Preview
+                  </span>
+                </button>
+
+                {agree ? (
+                  // Both sources name the same month — nothing to decide.
+                  <p className="text-[11.5px] text-ink-soft px-0.5">
+                    <span className="font-medium text-ink">{monthLabel(fileYm)}</span> — the file
+                    matches your selected period.
+                  </p>
+                ) : fileYm || activeMonth ? (
+                  // Selected vs detected, side by side.
+                  <div className="flex items-center gap-2.5" data-testid="period-confirm-vs">
+                    {periodCard("Selected period", activeMonth)}
+                    <span className="shrink-0 text-[10.5px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
+                      vs
+                    </span>
+                    {fileYm ? (
+                      periodCard("Detected period", fileYm)
                     ) : (
-                      <span className="text-ink-soft">No date found — pick one</span>
+                      <div className="flex-1 min-w-0 rounded-lg border border-dashed border-rule px-3 py-2.5 text-center">
+                        <span className="block text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
+                          Detected period
+                        </span>
+                        <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11.5px] text-ink-mute">
+                          {reading ? (
+                            <>
+                              <Loader2 size={11} className="animate-spin" />
+                              Reading…
+                            </>
+                          ) : (
+                            "No date found"
+                          )}
+                        </span>
+                      </div>
                     )}
-                  </label>
-                  <input
-                    type="month"
-                    value={months[f.name] ?? ""}
-                    onChange={(e) => {
-                      touched.current.add(f.name);
-                      setMonths((prev) => ({ ...prev, [f.name]: e.target.value }));
-                    }}
-                    data-testid="period-confirm-month"
-                    className="h-9 px-2.5 rounded-lg border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
-                  />
-                </div>
+                  </div>
+                ) : (
+                  // Neither source has a date — the old manual picker returns
+                  // as the last resort.
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-[11.5px] text-ink-mute">
+                      {reading ? "Reading file…" : "No date found — pick one"}
+                    </label>
+                    <input
+                      type="month"
+                      value={manual[f.name] ?? ""}
+                      onChange={(e) =>
+                        setManual((prev) => ({ ...prev, [f.name]: e.target.value }))
+                      }
+                      data-testid="period-confirm-month"
+                      className="h-9 px-2.5 rounded-lg border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
-        <DialogFooter>
-          <button
-            type="button"
-            onClick={onCancel}
-            data-testid="period-confirm-cancel"
-            className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={confirm}
-            data-testid="period-confirm-scan"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-          >
-            Use {multiple ? "these dates" : "this date"} · Scan
-          </button>
-        </DialogFooter>
+        {/* The footer IS the decision (2026-07-26 per operator — Cancel was
+            replaced by the second action; Esc / the X still dismiss):
+              · "Scan and update period" — the period takes the file's month.
+                Only offered when the two sides actually disagree.
+              · "Scan" — upload into the selected period as-is. */}
+        {(() => {
+          const firstYm = files[0] ? detected[files[0].name] ?? null : null;
+          const conflict = !!firstYm && !!activeMonth && firstYm !== activeMonth;
+          return (
+            <DialogFooter className="gap-2">
+              {/* "Scan and update period" is the PRIMARY (gradient) action on
+                  the right; plain "Scan" sits secondary on the left
+                  (2026-07-26 per operator — swapped from the initial cut).
+                  With no conflict there's no update button, so "Scan" — the
+                  only action — takes the primary treatment back. */}
+              <button
+                type="button"
+                onClick={() => void confirm("keep")}
+                disabled={confirming}
+                data-testid="period-confirm-scan"
+                className={
+                  conflict
+                    ? "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 disabled:opacity-50 transition-colors"
+                    : "inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-50 transition-colors"
+                }
+              >
+                {confirming && !conflict && <Loader2 size={14} className="animate-spin" />}
+                Scan
+              </button>
+              {conflict && (
+                <button
+                  type="button"
+                  onClick={() => void confirm("update")}
+                  disabled={confirming}
+                  data-testid="period-confirm-scan-update"
+                  className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-50 transition-colors"
+                >
+                  {confirming && <Loader2 size={14} className="animate-spin" />}
+                  Scan and update period
+                </button>
+              )}
+            </DialogFooter>
+          );
+        })()}
       </DialogContent>
     </Dialog>
   );
@@ -3326,56 +3581,270 @@ async function previewExampleInNewTab(file: string): Promise<void> {
 // pinned above the loaded-month header. The FIRST item is an "Add month"
 // button (opens the file picker); the rest are the months newest-first,
 // the active one highlighted, each switching ?period= on click.
-function DashboardMonthPills({
-  activePeriodId,
-  onSelect,
-  onAddMonth,
-}: {
-  activePeriodId: string | null;
-  onSelect: (periodId: string) => void;
-  onAddMonth: () => void;
-}) {
-  const { data } = useOrgPeriods();
-  const periods = data?.periods ?? [];
+/**
+ * "Source files" for the active month on the Dashboard — the same tile row
+ * Products renders under its pills (shared <SourceFilesRow />), fed with the
+ * FINANCIAL documents pinned to this period. Each tile opens the stored file
+ * in a preview tab via a short-lived signed URL.
+ *
+ * Renders nothing when the month has no documents: periods can also arrive
+ * from a sample dataset or a re-analysis with no live upload behind them, and
+ * an empty "Source files" heading would read as a broken section.
+ */
+
+// ── Dev tools: wipe this workspace's dashboard data ─────────────────────────
+//
+// Deletes every period in the active workspace through the engine's
+// DELETE /api/period/{id}, which soft-deletes the attached documents (they
+// stay restorable from Recently deleted for 30 days) and removes the
+// derivatives — statements, metrics, briefings, alerts, recommendations.
+//
+// NOT build-gated (2026-07-26 per operator): this ships to production. It is
+// an irreversible bulk action behind a confirm dialog; if it ever needs
+// restricting, gate it on workspace role rather than build mode.
+//
+// The workspace is left with no periods, so `useEnsureCurrentPeriod` creates
+// a fresh container for the current month on the next render — the user lands
+// on the dropzone rather than a broken empty screen.
+function DashboardDevTools() {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { org } = useActiveOrg();
+
+  async function wipe() {
+    if (!org?.id) return;
+    setBusy(true);
+    try {
+      const payload = await fetchWorkspacePeriodsDirect(org.id);
+      const periods = payload?.periods ?? [];
+      if (periods.length === 0) {
+        toast({ title: "Already clean", description: "This workspace has no periods." });
+        setOpen(false);
+        setBusy(false);
+        return;
+      }
+      let deleted = 0;
+      const failed: string[] = [];
+      for (const p of periods) {
+        const ok = await cfoApi.deletePeriod(p.period_id).then(
+          (r) => r.ok !== false,
+          () => false,
+        );
+        if (ok) deleted += 1;
+        else failed.push(formatPeriodMonth(p.period_end) ?? p.period_label);
+      }
+      // Repaint from scratch — every period-scoped cache entry is now stale.
+      queryClient.removeQueries({ queryKey: ["period"] });
+      queryClient.removeQueries({ queryKey: ["period-documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+      void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+      if (failed.length > 0) {
+        toast({
+          title: `${failed.length} period(s) could not be deleted`,
+          description: failed.slice(0, 3).join(" · "),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: `Deleted ${deleted} period${deleted === 1 ? "" : "s"}`,
+          description: "Files moved to Recently deleted — restorable for 30 days.",
+        });
+      }
+      setOpen(false);
+      setBusy(false);
+    } catch (err) {
+      toast({
+        title: "Couldn't wipe this workspace",
+        description: err instanceof Error ? err.message : "Unknown error.",
+        variant: "destructive",
+      });
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-5" data-testid="dashboard-month-pills">
-      {/* Add month — always the first item. Styled like the workspace "Create
-          workspace" button: neutral gray (no brand accent/gradient), a circled
-          Plus, hover lifts to ink + stronger rule. */}
+    <div
+      data-testid="dashboard-dev-tools"
+      className="mt-10 pt-5 border-t border-dashed border-rule flex items-center justify-between gap-3 flex-wrap"
+    >
+      <div>
+        <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-red-600/90">
+          Danger zone
+        </div>
+        <p className="text-[12px] text-ink-mute mt-0.5 max-w-[560px]">
+          Deleting this workspace&rsquo;s months is permanent and cannot be
+          undone. Statements, ratios, valuation, risk scores and
+          recommendations are erased for every month. The source files stay in
+          Recently deleted for 30 days and are then removed for good.
+        </p>
+      </div>
       <button
         type="button"
-        onClick={onAddMonth}
-        data-testid="dashboard-month-add"
-        title="Add another month"
-        className="group inline-flex items-center gap-1.5 h-8 pl-1.5 pr-3.5 rounded-full border border-brand/50 bg-brand/10 text-brand-d text-[12px] font-semibold shadow-[0_2px_10px_-4px_rgba(92,211,197,0.5)] hover:bg-brand/20 hover:border-brand/70 transition-colors"
+        onClick={() => setOpen(true)}
+        data-testid="dashboard-wipe-data"
+        title="Permanently delete every month in this workspace"
+        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-dashed border-red-500/40 bg-red-500/[0.06] text-[11px] font-mono uppercase tracking-[0.08em] text-red-600 hover:bg-red-500/15 transition-colors"
       >
-        <span className="grid place-items-center h-5 w-5 rounded-full bg-brand text-bg shadow-[0_0_8px_rgba(92,211,197,0.5)]">
-          <Plus size={13} strokeWidth={2.5} />
-        </span>
-        Add month
+        <Trash2 size={12} strokeWidth={2} />
+        Wipe data
       </button>
-      {periods.map((p) => {
-        const isActive = p.period_id === activePeriodId;
-        return (
-          <button
-            key={p.period_id}
-            type="button"
-            onClick={() => onSelect(p.period_id)}
-            data-testid="dashboard-month-pill"
-            aria-pressed={isActive}
-            className={`inline-flex items-center h-8 px-3 rounded-full border text-[12px] font-medium tabular-nums transition-colors ${
-              isActive
-                ? "border-brand/40 bg-brand/[0.08] text-ink"
-                : "border-rule bg-surface/60 text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2/50"
-            }`}
-          >
-            {formatPeriodMonth(p.period_end) ?? p.period_label}
-          </button>
-        );
-      })}
+
+      <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
+        <DialogContent className="sm:max-w-[440px]" data-testid="dashboard-wipe-dialog">
+          <DialogHeader>
+            <DialogTitle>Permanently delete every month in this workspace?</DialogTitle>
+            <DialogDescription>
+              This cannot be undone. Every month goes, along with everything
+              derived from it — statements, ratios, valuation, risk scores and
+              recommendations.
+              <br />
+              <br />
+              The uploaded files move to Recently deleted, where they can be
+              restored for 30 days — after that they are gone for good. Other
+              workspaces, your Products datasets and your chats are not
+              touched.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void wipe()}
+              disabled={busy}
+              data-testid="dashboard-wipe-confirm"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} strokeWidth={1.75} />}
+              {busy ? "Deleting…" : "Delete all periods"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+/** The "N notes" pill that scrolls to the Notes & recommendations section.
+ *  Renders nothing when the period has no alerts and no recommendations. */
+function NotesJumpPill({
+  alerts,
+  recommendationCount,
+}: {
+  alerts: Array<{ severity?: string }>;
+  recommendationCount: number;
+}) {
+  const notesTotal = recommendationCount + alerts.length;
+  if (notesTotal === 0) return null;
+  const sev = (a: { severity?: string }) => a.severity ?? "";
+  const tone = alerts.some((a) => sev(a) === "critical" || sev(a) === "high")
+    ? "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20"
+    : alerts.some((a) => sev(a) === "medium")
+      ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+      : alerts.some((a) => sev(a) === "low" || sev(a) === "info")
+        ? "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+        : "border-brand/50 bg-brand/10 text-brand-d hover:bg-brand/20";
+  return (
+    <div className="flex justify-end mb-3">
+      <button
+        type="button"
+        onClick={() =>
+          document
+            .querySelector('[data-testid^="statement-notes-"]')
+            ?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+        data-testid="notes-jump-pill"
+        title="Jump to Notes & recommendations"
+        className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-semibold tabular-nums transition-colors ${tone}`}
+      >
+        <AlertTriangle size={17} strokeWidth={2} />
+        {notesTotal}
+      </button>
+    </div>
+  );
+}
+
+function DashboardSourceFiles({
+  periodId,
+  onAddFile,
+  trailing,
+}: {
+  periodId: string | null;
+  /** Chosen/dropped trial balance. Unlike Products (which uploads on the
+   *  spot) the dashboard stages it and opens the add-month flow, so the
+   *  period-confirmation step still runs. */
+  onAddFile: (file: File) => void;
+  /** Right-aligned content above the tiles. Empty today — the Guide me pill
+   *  that briefly lived here was removed (2026-07-26 per operator) — kept as
+   *  the slot Products uses for the same row. */
+  trailing?: ReactNode;
+}) {
+  // FINANCIAL scope only (2026-07-26). A SKU workbook uploaded on Products
+  // pins to the same month, so an unfiltered list showed it here among the
+  // files backing the trial-balance numbers — which it doesn't back at all.
+  // The scope is part of the query key: the two lists must not share a cache
+  // entry.
+  const { data: docs } = useQuery({
+    queryKey: ["period-documents", periodId, "financial"],
+    queryFn: async () => {
+      if (!periodId) return [];
+      const { listDocumentsForPeriod } = await import("@/lib/supabase");
+      return listDocumentsForPeriod(periodId, 50, "financial");
+    },
+    enabled: !!periodId,
+  });
+
+  return (
+    <div className="mb-5 space-y-3">
+      {trailing && (
+        <div className="flex items-center justify-end" data-testid="dashboard-row-actions">
+          {trailing}
+        </div>
+      )}
+      <SourceFilesRow
+        testid="dashboard-source-files"
+        files={(docs ?? []).map((d) => ({
+          id: d.id,
+          filename: d.original_filename,
+          uploadedAt: d.created_at,
+          onOpen: () =>
+            void openUploadedFilePreview(d.original_filename ?? "document", async () => {
+              const { signedDocumentUrl } = await import("@/lib/supabase");
+              return signedDocumentUrl(d);
+            }),
+        }))}
+        trailingHeading="Replace or add files"
+        trailing={
+          // Same strip as Products (2026-07-26 per operator): heading line
+          // carries "Replace or add files", an "or" separates the existing
+          // files from the zone, and the zone is the full dropzone with its
+          // own Import button.
+          <AddFileTile
+            accept={DASHBOARD_UPLOAD_ACCEPT}
+            onFile={onAddFile}
+            variant="wide"
+            label="Drop your trial balance here"
+            hint="PDF · XLSX · CSV · image"
+            title="Add a trial balance to this workspace — click to browse or drop one here"
+          />
+        }
+      />
+    </div>
+  );
+}
+
+// DashboardMonthPills deleted (2026-07-26 per operator). It rendered the
+// workspace's months as pills above the loaded-month header ("Dec 2025", …)
+// plus an "Add month" button. Both are gone: the sidebar stepper switches
+// months, and the "Add file" tile in the Source-files row adds one.
 
 // DashboardTemplateCard — the /products "Start from the official
 // template" card, dashboard flavour: Trial Balance leads as required,
@@ -3536,40 +4005,39 @@ function DashboardAddMonthZone({
           ) : (
             <div className="relative text-left" data-testid="dashboard-staged-files">
               <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-                {stagedFiles.length} file{stagedFiles.length === 1 ? "" : "s"} ready to scan
+                Uploaded files
               </div>
               <div className="space-y-2">
+                {/* The row ITSELF opens the preview (2026-07-26 per operator
+                    — the separate Eye button was removed); X stays as its own
+                    sibling since buttons can't nest. */}
                 {stagedFiles.map((f, i) => (
                   <div
                     key={`${f.name}-${f.size}-${i}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 pr-3 transition-colors hover:border-rule-strong hover:bg-bg-2/70"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => onViewStaged(f)}
+                      aria-label={`Preview ${f.name}`}
+                      title="Open a preview in a new window"
+                      className="flex flex-1 items-center gap-2 min-w-0 px-3 py-2 text-left"
+                    >
                       <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
                       <div className="min-w-0">
                         <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
                         <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => onViewStaged(f)}
-                        aria-label={`View ${f.name}`}
-                        className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                      >
-                        <Eye size={14} strokeWidth={2} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDiscardStaged(i)}
-                        disabled={scanning}
-                        aria-label={`Remove ${f.name}`}
-                        className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
-                      >
-                        <X size={14} strokeWidth={2} />
-                      </button>
-                    </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDiscardStaged(i)}
+                      disabled={scanning}
+                      aria-label={`Remove ${f.name}`}
+                      className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                    >
+                      <X size={14} strokeWidth={2} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -3959,42 +4427,41 @@ function UploadAndSamplePanel({
              Each has an X to discard; nothing uploads until Start scan. */
           <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
             <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-              {stagedFiles.length} file{stagedFiles.length === 1 ? "" : "s"} ready to scan
+              Uploaded files
             </div>
             <div className="space-y-2">
+              {/* The row ITSELF opens the preview (2026-07-26 per operator —
+                  the separate Eye button was removed); X stays as its own
+                  sibling since buttons can't nest. */}
               {stagedFiles.map((f, i) => (
                 <div
                   key={`${f.name}-${f.size}-${i}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 pr-3 transition-colors hover:border-rule-strong hover:bg-bg-2/70"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => void openStagedFile(f)}
+                    aria-label={`Preview ${f.name}`}
+                    title="Open a preview in a new window"
+                    data-testid={`view-staged-${i}`}
+                    className="flex flex-1 items-center gap-2 min-w-0 px-3 py-2 text-left"
+                  >
                     <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
                     <div className="min-w-0">
                       <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
                       <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => void openStagedFile(f)}
-                      aria-label={`View ${f.name}`}
-                      data-testid={`view-staged-${i}`}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                    >
-                      <Eye size={14} strokeWidth={2} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDiscardStaged(i)}
-                      disabled={scanning}
-                      aria-label={`Remove ${f.name}`}
-                      data-testid={`discard-staged-${i}`}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
-                    >
-                      <X size={14} strokeWidth={2} />
-                    </button>
-                  </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDiscardStaged(i)}
+                    disabled={scanning}
+                    aria-label={`Remove ${f.name}`}
+                    data-testid={`discard-staged-${i}`}
+                    className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                  >
+                    <X size={14} strokeWidth={2} />
+                  </button>
                 </div>
               ))}
             </div>

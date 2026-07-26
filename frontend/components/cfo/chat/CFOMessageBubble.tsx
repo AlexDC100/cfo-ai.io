@@ -33,7 +33,21 @@ interface Props {
 export function CFOMessageBubble({ message, animate = false, onType }: Props) {
   const isUser = message.role === "user";
   if (isUser) return <UserBubble message={message} />;
+  // Stop pressed mid-generation — a muted marker in the assistant slot
+  // (left side, same placement as an answer), like Claude's "Interrupted".
+  if (message.interrupted) return <InterruptedMarker />;
   return <AssistantBubble message={message} animate={animate} onType={onType} />;
+}
+
+// ─── Interrupted marker ──────────────────────────────────────────
+function InterruptedMarker() {
+  return (
+    <motion.div className="mb-6 max-w-[1000px]" data-role="assistant" data-testid="chat-interrupted">
+      <div className="text-[13.5px] leading-[1.65] italic text-ink-mute select-none">
+        Interrupted
+      </div>
+    </motion.div>
+  );
 }
 
 // ─── Typewriter hook ─────────────────────────────────────────────

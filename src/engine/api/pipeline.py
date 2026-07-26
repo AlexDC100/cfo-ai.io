@@ -307,7 +307,12 @@ any other accounting / business document.
 ADDITIONAL EXTRACTION FOR SKU/SALES DOCUMENTS:
 If the document contains SKU-level or product-level rollups (sales by
 product, trading analysis, invoice register with line items, inventory
-report), populate the `skus` array with one row per distinct SKU.
+report), populate the `skus` array with the MOST MATERIAL rows only —
+AT MOST 25 rows, ranked by revenue (or volume when revenue is absent).
+DO NOT echo every line: the full per-SKU portfolio is parsed separately
+by a deterministic reader, so this array is only a representative sample
+for the executive briefing. Emitting hundreds of rows overflows the
+output budget and truncates the JSON — keep it to 25 at most.
 Each SKU row: { sku, brand, category, channel, volume, volume_unit,
 units_sold, revenue, cogs, gross_margin, gross_margin_pct,
 inventory_value, days_inventory_on_hand }. All numeric fields default to
@@ -377,7 +382,7 @@ CRITICAL RULES — read these before extracting:
     "top_records": [string],
     "warnings": [string]
   },
-  "skus": [
+  "skus": [                              // AT MOST 25 most-material rows (sample only)
     {
       "sku": "string (full descriptor incl. weight/format)",
       "brand": "string | null",
@@ -961,7 +966,14 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     try:
         resp = client.messages.create(
             model="claude-opus-4-7",
-            max_tokens=8000,
+            # 2026-07-26 — was 8000, which truncated the JSON mid-string on
+            # sales-analysis files (detected_type="sales_analysis" emits every
+            # SKU row into `skus`), surfacing as "Claude returned invalid JSON:
+            # Unterminated string". 16000 gives headroom for the illustrative
+            # trading files. NOTE: a very large SKU list can still exceed this —
+            # the durable fix is deterministic SKU extraction (see _sales_extract)
+            # rather than emitting all rows through the model.
+            max_tokens=16000,
             system=[
                 {"type": "text", "text": _BROAD_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
             ],
@@ -5009,7 +5021,7 @@ def build_router() -> APIRouter:
             rows = client.select(
                 "sales_datasets",
                 order="uploaded_at.desc",
-                columns="*,documents!inner(original_filename,status,deleted_at)",
+                columns="*,documents!inner(original_filename,status,deleted_at,period_id)",
             )
         active = [r for r in rows if not (r.get("documents") or {}).get("deleted_at")]
         return {
@@ -5024,6 +5036,18 @@ def build_router() -> APIRouter:
                 "is_active": r.get("is_active", True),
                 "document_status": (r.get("documents") or {}).get("status"),
                 "deleted_at": (r.get("documents") or {}).get("deleted_at"),
+                # Exposed so the Products "Source files" cards can open the
+                # uploaded file preview in a new tab (2026-07-26).
+                "document_id": r.get("document_id"),
+                # Month this file belongs to, so the Products file list can
+                # nest files under the active period (2026-07-26). Set by the
+                # FRONTEND at upload time from the then-active period — the
+                # SKU pipeline branch deliberately resolves no period of its
+                # own (it finalizes with period_id=None, which
+                # _admin_set_status omits rather than nulls, so the value
+                # survives). NULL for every pre-existing upload; the FE treats
+                # NULL as "unassigned" and shows it under every month.
+                "period_id": (r.get("documents") or {}).get("period_id"),
             } for r in active],
         }
 

@@ -22,6 +22,7 @@ import { useBudgetComparison } from "@/stores/budget";
 import { KpiVarianceStrip } from "@/components/comparison/KpiVarianceStrip";
 import { VarianceTable, type VarianceView } from "@/components/comparison/VarianceTable";
 import { BudgetUploadCard, BudgetTemplateCard } from "@/components/comparison/BudgetUploadCard";
+import { ComingSoon } from "@/components/cfo/ComingSoon";
 import { LastYearSourcePicker, type LastYearSelection } from "@/components/comparison/LastYearSourcePicker";
 import type { Statements } from "@/lib/financialReport";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
@@ -116,24 +117,27 @@ function VarianceInner({
 
   return (
     <div className="max-w-[1560px] space-y-5">
-      {/* Top-left "Replace / Upload budget" pill — styled like the dashboard
-          month pills (brand accent, circled icon). Opens the budget file
-          picker in <BudgetUploadCard> via a window event (the card owns the
-          hidden <input>). */}
-      <div className="flex items-center">
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("cfo:request-budget-upload"))}
-          data-testid="variance-replace-budget"
-          title={uploaded ? "Replace budget file" : "Upload a budget file"}
-          className="group inline-flex items-center gap-1.5 h-8 pl-1.5 pr-3.5 rounded-full border border-brand/50 bg-brand/10 text-brand-d text-[12px] font-semibold shadow-[0_2px_10px_-4px_rgba(92,211,197,0.5)] hover:bg-brand/20 hover:border-brand/70 transition-colors"
-        >
-          <span className="grid place-items-center h-5 w-5 rounded-full bg-brand text-bg shadow-[0_0_8px_rgba(92,211,197,0.5)]">
-            <Upload size={12} strokeWidth={2.5} />
-          </span>
-          {uploaded ? "Replace budget" : "Upload budget"}
-        </button>
-      </div>
+      {/* Top-left "Replace budget" pill — styled like the dashboard month
+          pills (brand accent, circled icon). Shown ONLY once a budget file is
+          uploaded (2026-07-26 per operator); before that, the under-header
+          Import button + dropzone handle the first upload. Opens the picker in
+          <BudgetUploadCard> via a window event (the card owns the input). */}
+      {uploaded && (
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("cfo:request-budget-upload"))}
+            data-testid="variance-replace-budget"
+            title="Replace budget file"
+            className="group inline-flex items-center gap-1.5 h-8 pl-1.5 pr-3.5 rounded-full border border-brand/50 bg-brand/10 text-brand-d text-[12px] font-semibold shadow-[0_2px_10px_-4px_rgba(92,211,197,0.5)] hover:bg-brand/20 hover:border-brand/70 transition-colors"
+          >
+            <span className="grid place-items-center h-5 w-5 rounded-full bg-brand text-bg shadow-[0_0_8px_rgba(92,211,197,0.5)]">
+              <Upload size={12} strokeWidth={2.5} />
+            </span>
+            Replace budget
+          </button>
+        </div>
+      )}
 
       {/* Hero row — header on the left, the official budget-template card on
           the right (2026-07-25 per operator, mirroring the dashboard/products
@@ -160,18 +164,11 @@ function VarianceInner({
               </>
             }
           />
-          {/* Import + Ask CFO AI — under the header, mirroring the products
-              hero. Import opens the budget file picker (via the same event the
-              header pill uses); Ask CFO AI carries a variance-scoped prompt. */}
+          {/* Ask CFO AI — under the header, mirroring the products hero.
+              The Import button that used to lead this row was removed
+              (2026-07-26 per operator); the upload card below is the one
+              import path. */}
           <div className="-mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent("cfo:request-budget-upload"))}
-              data-testid="variance-hero-import"
-              className="inline-flex items-center justify-center h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-            >
-              Import
-            </button>
             <button
               type="button"
               onClick={() => openAskCfoAi("Help me read my Budget vs Actual vs Last-Year variance — which lines are favorable or unfavorable, and what's driving the biggest gaps?")}
@@ -186,7 +183,12 @@ function VarianceInner({
         <BudgetTemplateCard />
       </div>
 
-      <BudgetUploadCard uploaded={uploaded} isDemo={!!isDemo} onSave={save} onClear={clear} />
+      {/* Coming soon (2026-07-26 per operator) — the zone stays on screen,
+          blurred and inert, so the feature reads as "not yet" rather than
+          "missing". */}
+      <ComingSoon note="Uploading a budget deck and comparing it against actuals lands in an upcoming release.">
+        <BudgetUploadCard uploaded={uploaded} isDemo={!!isDemo} onSave={save} onClear={clear} />
+      </ComingSoon>
 
       {/* The comparison section — the "Compare against last year" picker, the
           KPI variance strip, and the variance table — only renders once a

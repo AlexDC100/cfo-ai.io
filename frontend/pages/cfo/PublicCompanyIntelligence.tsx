@@ -15,7 +15,7 @@ import { PublicShell } from "@/components/cfo/PublicShell";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useAuth } from "@/lib/auth";
 import { CompanySearchPanel, searchUniverse } from "@/components/public-companies/CompanySearchPanel";
-import { MarketsOverview, PeerSection, type GridFilter } from "@/components/public-companies/MarketsOverview";
+import { MarketsOverview, type GridFilter } from "@/components/public-companies/MarketsOverview";
 import { BenchmarkingPanel } from "@/components/public-companies/BenchmarkingPanel";
 import { StockDetailDrawer } from "@/components/public-companies/StockDetailDrawer";
 // Phase A — AI Intelligence layer. RiskRadar is the new 8-card radar
@@ -303,6 +303,7 @@ export default function PublicCompanyIntelligence() {
                 icon={Activity}
                 label="Risk Radar"
                 testid="tab-risk-radar"
+                disabled
               />
               <TabPill
                 active={view === "map"}
@@ -310,12 +311,13 @@ export default function PublicCompanyIntelligence() {
                 icon={Globe}
                 label="Geographic Map"
                 testid="tab-map"
+                disabled
               />
             </div>
           </div>
-          <div className="w-full xl:w-[720px] xl:shrink-0">
-            <PeerSection rows={allCompanies} onSelect={handleSelectTicker} />
-          </div>
+          {/* "Your real peer" pairing removed (2026-07-26 per operator). The
+              PeerSection component still lives in MarketsOverview.tsx if it's
+              ever wanted back; nothing renders it today. */}
         </div>
 
         {/* Risk Radar tab — short-circuit before the overview block.
@@ -372,11 +374,47 @@ export default function PublicCompanyIntelligence() {
           onRangeChange={handleRangeChange}
         />
 
-        {/* Footer source attribution */}
+        {/* Footer source attribution — describes what THIS page actually
+            loaded (2026-07-26 per operator), not a fixed roadmap sentence.
+            The counts come from the same payload the tables render, so a
+            demo-mode session or a partial universe says so plainly. */}
         <div className="mt-10 pt-6 border-t border-rule/60 text-[11px] text-ink-mute text-center">
-          Sources: <span className="font-medium">Nasdaq Data Link · Sharadar Equities Bundle (SF1 + DAILY)</span>.
-          {" "}
-          SEC EDGAR + Manual / CSV ingestion land in a follow-up release.
+          {(() => {
+            const loaded = universeQuery.data?.companies ?? [];
+            const bvbCount = loaded.filter((c) => c.exchange === "BVB").length;
+            const usCount = loaded.length - bvbCount;
+            if (universeQuery.isLoading) return "Loading sources…";
+            if (demoMode) {
+              return (
+                <>
+                  Source: <span className="font-medium">bundled sample data</span> — the
+                  live market feed isn&apos;t configured on this deployment, so every
+                  figure on this page is illustrative.
+                </>
+              );
+            }
+            return (
+              <>
+                Sources:{" "}
+                {usCount > 0 && (
+                  <>
+                    <span className="font-medium">
+                      Nasdaq Data Link · Sharadar Equities Bundle (SF1 fundamentals + DAILY prices)
+                    </span>{" "}
+                    for {usCount} US-listed {usCount === 1 ? "company" : "companies"}
+                  </>
+                )}
+                {usCount > 0 && bvbCount > 0 && "; "}
+                {bvbCount > 0 && (
+                  <>
+                    <span className="font-medium">Bursa de Valori București</span> reference
+                    data for {bvbCount} BVB {bvbCount === 1 ? "listing" : "listings"}
+                  </>
+                )}
+                . Fundamentals are end-of-day; prices refresh every 5 minutes.
+              </>
+            );
+          })()}
         </div>
       </div>
     </Shell>
@@ -395,22 +433,31 @@ interface TabPillProps {
   icon: typeof Activity;
   label: string;
   testid?: string;
+  /** Renders the tab but refuses selection (2026-07-26 per operator — Risk
+   *  Radar and Geographic Map are off). Kept visible-but-dimmed rather than
+   *  hidden so the sections don't silently disappear. */
+  disabled?: boolean;
 }
 
-function TabPill({ active, onClick, icon: Icon, label, testid }: TabPillProps) {
+function TabPill({ active, onClick, icon: Icon, label, testid, disabled = false }: TabPillProps) {
   return (
     <button
       type="button"
       role="tab"
       aria-selected={active}
+      aria-disabled={disabled}
+      disabled={disabled}
       onClick={onClick}
       data-testid={testid}
+      title={disabled ? `${label} is currently unavailable` : undefined}
       className={`
         inline-flex items-center gap-1.5
         h-8 px-3 rounded-lg
         text-[12.5px] font-medium
         transition-colors
-        ${active
+        ${disabled
+          ? "text-ink-mute opacity-40 cursor-not-allowed"
+          : active
           ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
           : "text-ink-soft hover:text-ink"}
       `}

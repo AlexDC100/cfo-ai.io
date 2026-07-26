@@ -14,7 +14,7 @@
 // Lives INSIDE the ReportingContextProvider (the cards read
 // useReportingMetrics there). Wrapped by DashboardProvider for the store.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   DndContext,
   closestCenter,
@@ -93,13 +93,6 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
     reorderCards(arrayMove(ids, oldIndex, newIndex));
   }
 
-  // "Add metric" tile — one at the front, plus enough fillers to complete the
-  // last 4-column row so the grid never looks half-empty. Column footprint:
-  // sm = 1 col, md/lg = 2 cols; +1 for the front tile itself.
-  const COLS = 4;
-  const usedUnits = 1 + cards.reduce((sum, c) => sum + (c.size === "sm" ? 1 : 2), 0);
-  const trailingAddTiles = (COLS - (usedUnits % COLS)) % COLS;
-
   const addMetricTile = (key: string) => (
     <button
       key={`add-metric-${key}`}
@@ -121,6 +114,82 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
       <span className="text-[11.5px] font-medium">Add metric</span>
     </button>
   );
+
+  // ── Grid assembly — every hole gets an "Add metric" tile ─────────────
+  // Simulates CSS sparse auto-placement on the lg 4-column grid: a 2-col
+  // card that doesn't fit the remaining row wraps to the next row and
+  // permanently strands the free cells it skipped (default grid-auto-flow
+  // never backfills). Each stranded cell gets a filler tile inserted in DOM
+  // order exactly where the hole opens — the browser's own auto-placement
+  // then drops it into that hole — plus trailing tiles to square off the
+  // last row (including cells alongside a tall `lg` card's second row).
+  const COLS = 4;
+  const gridChildren: ReactNode[] = [];
+  {
+    const occ: boolean[][] = [];
+    const isFree = (rr: number, cc: number) => !occ[rr]?.[cc];
+    const occupy = (rr: number, cc: number) => {
+      (occ[rr] ??= [])[cc] = true;
+    };
+    let r = 0;
+    let c = 0;
+    let fillerN = 0;
+    const advance = () => {
+      c += 1;
+      if (c >= COLS) {
+        c = 0;
+        r += 1;
+      }
+    };
+    const fits = (w: number, h: number) => {
+      if (c + w > COLS) return false;
+      for (let dr = 0; dr < h; dr++) {
+        for (let dc = 0; dc < w; dc++) {
+          if (!isFree(r + dr, c + dc)) return false;
+        }
+      }
+      return true;
+    };
+
+    // The dedicated tile at the FRONT of the grid, always cell (0,0).
+    gridChildren.push(addMetricTile("front"));
+    occupy(0, 0);
+
+    for (const card of cards) {
+      const w = card.size === "sm" ? 1 : 2;
+      const h = card.size === "lg" ? 2 : 1;
+      while (!fits(w, h)) {
+        if (isFree(r, c)) {
+          gridChildren.push(addMetricTile(`gap-${fillerN++}`));
+          occupy(r, c);
+        }
+        advance();
+      }
+      gridChildren.push(
+        <MetricCard
+          key={card.id}
+          card={card}
+          editMode={editMode}
+          overrides={overrides}
+          series={series}
+          view={effectiveView}
+        />,
+      );
+      for (let dr = 0; dr < h; dr++) {
+        for (let dc = 0; dc < w; dc++) occupy(r + dr, c + dc);
+      }
+    }
+
+    // Trailing — pad every remaining free cell through the last occupied row.
+    const maxRow = occ.length - 1;
+    while (r <= maxRow) {
+      if (isFree(r, c)) {
+        gridChildren.push(addMetricTile(`trail-${fillerN++}`));
+        occupy(r, c);
+      }
+      advance();
+    }
+  }
 
   return (
     <section data-testid="configurable-dashboard" className="mb-3">
@@ -198,21 +267,9 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
           strategy={rectSortingStrategy}
         >
           <div className="grid grid-cols-2 lg:grid-cols-4 auto-rows-[minmax(0,1fr)] gap-3">
-            {/* Add metric — a square tile at the FRONT of the grid. */}
-            {addMetricTile("front")}
-            {cards.map((card) => (
-              <MetricCard
-                key={card.id}
-                card={card}
-                editMode={editMode}
-                overrides={overrides}
-                series={series}
-                view={effectiveView}
-              />
-            ))}
-            {/* Filler add-metric tiles padding the trailing empty cells so the
-                grid always reads as full (each opens the concept picker too). */}
-            {Array.from({ length: trailingAddTiles }).map((_, i) => addMetricTile(`fill-${i}`))}
+            {/* Front add-metric tile + cards + a filler tile in every hole
+                (see grid-assembly simulation above). */}
+            {gridChildren}
           </div>
         </SortableContext>
       </DndContext>

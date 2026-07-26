@@ -99,10 +99,9 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("heic2any")) return "heic2any";
 
           // xlsx: SpreadsheetML parser used by financialExports.ts to
-          // build .xlsx report exports. Currently static-imported, so
-          // shipped on every Dashboard mount. Keeping it isolated here
-          // primes a future PR to dynamic-import it from the export
-          // button click — until then, at least it's a stable cache key.
+          // build .xlsx report exports. Dynamic-imported everywhere
+          // (export button click, upload parsers), so it only downloads
+          // when actually used; this keeps it a stable cache key.
           if (id.includes("/xlsx/") || id.startsWith("xlsx/")) return "xlsx";
 
           // ── App-wide framework/runtime chunks (stable across deploys

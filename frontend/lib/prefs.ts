@@ -81,8 +81,46 @@ export function subscribePrefs(cb: (scope: PrefScope) => void): () => void {
   };
 }
 
-/** Remote value for `key`, or undefined when unset / not yet hydrated. */
+// ── Local-write precedence ─────────────────────────────────────────────
+//
+// A value the user just set on THIS device must never be undone by a server
+// read that predates it. Two ways that happened before this map existed
+// (operator-reported 2026-07-26: the RON/EUR/USD toggle snapped back to RON
+// moments after clicking):
+//
+//   1. RACE — `useActiveOrg` is mounted by many components, and every mount
+//      calls load() → hydrateOrgPrefs(). One firing between the click and
+//      the set_org_pref round-trip re-reads the OLD value, and usePrefSync
+//      dutifully "adopts" it, reverting the click.
+//   2. WRITE FAILURE — if the RPC errors (migration not applied, offline,
+//      RLS), the server keeps returning the old value FOREVER, so every
+//      later hydration reverts the choice again.
+//
+// Both are fixed by remembering what this device wrote and letting it win.
+// A pending write is cleared only when the server confirms it, so case 2
+// degrades to "device-local", which is this module's stated contract.
+const pendingWrites = new Map<string, unknown>();
+
+function writeKey(scope: PrefScope, key: string): string {
+  return `${scope}:${key}`;
+}
+
+/** Overlay this device's unconfirmed writes onto a freshly-read bag. */
+function applyPendingWrites(scope: PrefScope, bag: Bag): Bag {
+  let out = bag;
+  for (const [k, value] of pendingWrites) {
+    const [s, ...rest] = k.split(":");
+    if (s !== scope) continue;
+    out = { ...out, [rest.join(":")]: value };
+  }
+  return out;
+}
+
+/** Remote value for `key`, or undefined when unset / not yet hydrated.
+ *  An unconfirmed local write shadows the server value (see above). */
 export function getRemotePref<T>(scope: PrefScope, key: string): T | undefined {
+  const pending = pendingWrites.get(writeKey(scope, key));
+  if (pending !== undefined) return pending as T;
   const bag = scope === "user" ? userBag : orgBag;
   if (!bag) return undefined;
   return bag[key] as T | undefined;
@@ -117,7 +155,7 @@ export async function hydrateUserPrefs(): Promise<void> {
     warn("hydrateUserPrefs", error.message);
     return;
   }
-  userBag = (data?.prefs as Bag | null) ?? {};
+  userBag = applyPendingWrites("user", (data?.prefs as Bag | null) ?? {});
   emit("user");
 }
 
@@ -145,7 +183,7 @@ export async function hydrateOrgPrefs(orgId: string | null): Promise<void> {
     return;
   }
   if (orgBagFor !== orgId) return; // switched again mid-flight
-  orgBag = (data?.prefs as Bag | null) ?? {};
+  orgBag = applyPendingWrites("org", (data?.prefs as Bag | null) ?? {});
   emit("org");
 }
 
@@ -154,6 +192,7 @@ export function resetPrefs(): void {
   userBag = null;
   orgBag = null;
   orgBagFor = null;
+  pendingWrites.clear();
 }
 
 // ── Writes ─────────────────────────────────────────────────────────────
@@ -170,8 +209,14 @@ export function setPref(scope: PrefScope, key: string, value: unknown): void {
   } else if (orgBag) {
     orgBag = { ...orgBag, [key]: value };
   }
+  // Hold the write until the server confirms it, so a hydration that raced
+  // the RPC (or an RPC that failed outright) can't revert the user's choice.
+  const wk = writeKey(scope, key);
+  pendingWrites.set(wk, value);
 
   const client = getSupabase();
+  // No Supabase (signed-out / self-host): the choice is device-local and the
+  // pending entry is the only thing keeping it authoritative. Keep it.
   if (!client) return;
 
   void (async () => {
@@ -183,7 +228,10 @@ export function setPref(scope: PrefScope, key: string, value: unknown): void {
         p_key: key,
         p_value: value ?? null,
       });
-      if (error) warn(`setPref(user:${key})`, error.message);
+      if (error) { warn(`setPref(user:${key})`, error.message); return; }
+      // Confirmed — later reads can come from the server again. Guard against
+      // clearing a NEWER write that landed while this request was in flight.
+      if (pendingWrites.get(wk) === value) pendingWrites.delete(wk);
       return;
     }
 
@@ -195,7 +243,8 @@ export function setPref(scope: PrefScope, key: string, value: unknown): void {
       p_key: key,
       p_value: value ?? null,
     });
-    if (error) warn(`setPref(org:${key})`, error.message);
+    if (error) { warn(`setPref(org:${key})`, error.message); return; }
+    if (pendingWrites.get(wk) === value) pendingWrites.delete(wk);
   })();
 }
 

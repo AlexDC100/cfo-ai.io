@@ -33,15 +33,11 @@ const METRICS: Metric[] = [
 
 export function BenchmarkingPanel({ rows = DEMO_WATCHLIST }: Props) {
   return (
-    <section
-      data-testid="public-companies-benchmark-panel"
-      className="rounded-3xl border border-rule bg-surface p-5 sm:p-7"
-    >
+    // Bare section (2026-07-26 per operator) — the rounded card wrapper and
+    // the "Step 3 · …" eyebrow are gone; the tiles below carry the framing.
+    <section data-testid="public-companies-benchmark-panel">
       <div className="mb-5">
-        <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute">
-          Step 3 · Compare across the peer group
-        </div>
-        <h2 className="font-serif text-[22px] text-ink leading-tight tracking-[-0.005em] mt-1">
+        <h2 className="font-serif text-[22px] text-ink leading-tight tracking-[-0.005em]">
           Benchmarking
         </h2>
         <p className="text-[12.5px] text-ink-soft mt-1.5 max-w-[560px]">
@@ -78,38 +74,54 @@ function BenchmarkTile({ metric, rows }: { metric: Metric; rows: WatchlistRow[] 
   const laggard = rows[idxWorst];
   const Icon = metric.icon;
 
+  // Card anatomy (2026-07-26 per operator), matching the dashboard's export
+  // cards: an oversized faint metric glyph anchored bottom-left and clipped by
+  // the card (overflow-hidden), the numbers riding above it, and the
+  // leader/laggard pair moved into a filled sleeve across the bottom. The
+  // metric name is a pill carrying the animated brand gradient.
   return (
     <div
       data-testid={`public-companies-benchmark-${metric.key}`}
       className="
+        relative flex flex-col overflow-hidden
         rounded-2xl border border-rule bg-bg-2/30
-        p-4
-        hover:border-brand/30 transition-colors
       "
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="
-          flex h-9 w-9 items-center justify-center
-          rounded-lg bg-bg-2 text-ink-soft
-        ">
-          <Icon size={15} strokeWidth={1.75} />
-        </div>
-        <span className="text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink-mute">
-          {metric.shortLabel}
-        </span>
+      {/* Oversized glyph — decorative, bottom-left, clipped by the card. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-16 -left-10 text-brand opacity-[0.08]"
+      >
+        <Icon size={220} strokeWidth={1} />
       </div>
 
-      <div className="mt-3">
-        <div className="text-[11px] text-ink-mute">Median</div>
-        <div className="font-serif text-[22px] text-ink leading-tight tabular-nums tracking-[-0.005em]">
-          {formatMetric(median, metric.unit)}
+      <div className="relative p-4">
+        {/* Metric pill — top-right corner of the card (2026-07-26 per
+            operator), so the numbers below start at the card's top edge. */}
+        <div className="flex justify-end">
+          <span className="
+            inline-flex items-center h-6 px-2.5 rounded-full
+            ask-ai-anim-fill [animation-duration:10s]
+            border border-brand/40
+            text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink
+          ">
+            {metric.shortLabel}
+          </span>
         </div>
-        <div className="mt-1 text-[10.5px] text-ink-mute tabular-nums">
-          P25 {formatMetric(p25, metric.unit)} · P75 {formatMetric(p75, metric.unit)}
+
+        <div className="mt-3">
+          <div className="text-[11px] text-ink-mute">Median</div>
+          <div className="font-serif text-[34px] text-ink leading-tight tabular-nums tracking-[-0.01em]">
+            {formatMetric(median, metric.unit)}
+          </div>
+          <div className="mt-1 text-[10.5px] text-ink-mute tabular-nums">
+            P25 {formatMetric(p25, metric.unit)} · P75 {formatMetric(p75, metric.unit)}
+          </div>
         </div>
       </div>
 
-      <div className="mt-3 pt-3 border-t border-rule/60 space-y-1">
+      {/* Bottom sleeve — leader + laggard, on their own filled band. */}
+      <div className="relative mt-auto border-t border-rule/60 bg-bg-2/60 px-4 py-2.5 space-y-1">
         <LeaderRow
           icon={<ArrowUp size={11} className="text-[#2AA89B] dark:text-[#8FE3D9]" />}
           label="Leader"

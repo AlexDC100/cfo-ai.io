@@ -60,9 +60,13 @@
       "sheets": {
         "trading": "Rânduri la nivel de SKU. Câte un rând per SKU × canal × perioadă.",
         "dio": "Zile de stoc pe categorie. Region 2 (rândurile 28-52) este sursa canonică.",
-        "trialBalance": "Plan de conturi românesc. Necesar doar pentru rapoartele Dashboard."
+        "trialBalance": "Plan de conturi românesc. Necesar doar pentru rapoartele Dashboard.",
+        "exampleMultiCol": "Cod cont + denumire cont, apoi perechi de coloane Debit/Credit pentru solduri inițiale, rulaje, sume totale și solduri finale — formatul pe 10 coloane exportat de SAGA și de majoritatea programelor românești.",
+        "exampleSaga": "Exportul SAGA compact: cod cont + denumire cont cu perechi Debit/Credit pentru solduri inițiale, rulaje și solduri finale."
       },
-      "fallbackNote": "Fișierele .xlsx proprii funcționează în continuare — șablonul este calea recomandată pentru că elimină ambiguitatea."
+      "fallbackNote": "Fișierele .xlsx proprii funcționează în continuare — șablonul este calea recomandată pentru că elimină ambiguitatea.",
+      "insideExamples": "În fișierele exemplu",
+      "fallbackNoteDashboard": "Exportul propriului tău program de contabilitate funcționează la fel, atâta timp cât respectă una dintre aceste structuri de coloane."
     }
   },
   "dashboard": {
@@ -244,7 +248,13 @@
     "less": "mai puțin",
     "showMore": "Arată mai mult",
     "showLess": "Arată mai puțin",
-    "emDash": "—"
+    "emDash": "—",
+    "unit": {
+      "ron": "RON",
+      "days": "zile",
+      "tons": "tone",
+      "percent": "%"
+    }
   },
   "errors": {
     "generic": "Ceva nu a funcționat. Încearcă din nou.",
@@ -685,6 +695,16 @@
       "spread_label": "Marja băncii",
       "spread_hint": "Marja suplimentară peste rata de bază percepută de bancă. Ajustează pentru a modela relații bancare diferite.",
       "avg_per_sku": "Medie per SKU: {{avg}} · DIO și stocul sunt necesare pentru calcul; SKU-urile fără oricare dintre ele sar peste regula de finanțare."
+    },
+    "revert": "Anulează",
+    "apply": "Aplică",
+    "rule": {
+      "gross_profit": "Profit brut per SKU",
+      "dio": "Zile de stoc (DIO)",
+      "volume": "Volum (tone)",
+      "revenue": "Venit per SKU",
+      "adjusted_gm_pct": "GM % ajustat (după finanțare)",
+      "margin_pct": "Marjă %"
     }
   }
 }

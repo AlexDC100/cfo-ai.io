@@ -29,6 +29,7 @@ import { applyCascade } from "@/lib/scenarios/cascade";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
 import { computeMetric, detectCovenantBreaches } from "@/lib/scenarios/covenants";
 import { AdjustmentEditor } from "@/components/scenarios/AdjustmentEditor";
+import { ScenarioTemplateCards } from "@/components/scenarios/ScenarioTemplateCards";
 import { ScenarioComparison } from "@/components/scenarios/ScenarioComparison";
 import { CovenantPanel } from "@/components/scenarios/CovenantPanel";
 import type { Statements } from "@/lib/financialReport";
@@ -134,13 +135,21 @@ function ScenariosInner({
         }
       />
 
-      {active && (
-        <ImpactSummary
-          leverageBase={leverageBase}
-          leverageScen={leverageScen}
-          breachCount={breachCount}
-        />
-      )}
+      {/* Templates — full-width, above the drivers + results grid (2026-07-26
+          per operator), styled like the Ask CFO AI prompt cards. The live
+          impact summary (Net debt/EBITDA + covenants) sits to the right of the
+          "Start from a template" label when a scenario is active. */}
+      <ScenarioTemplateCards
+        headerRight={
+          active ? (
+            <ImpactSummary
+              leverageBase={leverageBase}
+              leverageScen={leverageScen}
+              breachCount={breachCount}
+            />
+          ) : undefined
+        }
+      />
 
       {/* Two-column workspace: editor (left) + results (right). */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] gap-5 items-start">

@@ -68,6 +68,27 @@ export function forgetPeriodVerdict(uid: string): void {
   }
 }
 
+/** Forget any remembered verdict that points at `periodId` — call this when a
+ *  period is DELETED. Without it the remembered id survives the delete and the
+ *  next bare-URL visit canonicalizes straight to a period that no longer
+ *  exists. Sweeps every uid because the caller (the Workspace tab) doesn't
+ *  carry one, and a verdict naming a deleted period is wrong for any user. */
+export function forgetPeriodVerdictFor(periodId: string): void {
+  for (const [uid, v] of periodMem) {
+    if (v === periodId) periodMem.delete(uid);
+  }
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(PERIOD_PREFIX) && localStorage.getItem(k) === periodId) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 // ── sku (datasets) verdict ─────────────────────────────────────────────────
 // undefined = unknown (must resolve); false = no datasets; true = has datasets.
 

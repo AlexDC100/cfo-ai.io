@@ -4,6 +4,9 @@
 // for the trailing pending assistant turn.
 
 import { useCallback, useEffect, useRef } from "react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
+
+import { useChatSearchHighlight } from "./useChatSearchHighlight";
 import { CFOMessageBubble } from "./CFOMessageBubble";
 import { CFOTypingIndicator } from "./CFOTypingIndicator";
 import type { ChatMessage } from "./types";
@@ -29,13 +32,25 @@ interface Props {
    *  document scrollbar (under the top bar) as every other tab. Default false =
    *  self-contained inner scroller (used by the compact slide-over panel). */
   documentScroll?: boolean;
+  /** Find-in-conversation term, mirrored from the history sidebar's search
+   *  box. Matches are tinted in place and counted in a floating pill. */
+  searchQuery?: string;
+  /** Clear the search from the pill's ✕. */
+  onClearSearch?: () => void;
 }
 
 export function CFOMessageList({
   messages, groundedLabel, bottomInset = false, topInset = false, wideContent = false,
-  documentScroll = false,
+  documentScroll = false, searchQuery = "", onClearSearch,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  // Root for find-in-conversation. In document-scroll mode `ref` isn't
+  // attached to anything, so the highlighter gets its own container ref.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  // Revision = "the rendered text may have changed": message count plus the
+  // length of the last body, which is what grows while an answer types out.
+  const revision = `${messages.length}:${messages[messages.length - 1]?.content.length ?? 0}`;
+  const search = useChatSearchHighlight(contentRef, searchQuery, revision);
   const stickToBottom = useRef(true);
 
   // ── Typewriter bookkeeping ──────────────────────────────────────
@@ -149,6 +164,52 @@ export function CFOMessageList({
     </div>
   );
 
+  const searchPill = searchQuery.trim() ? (
+    <div
+      className="sticky top-2 z-20 flex justify-center pointer-events-none"
+      data-testid="chat-search-pill"
+    >
+      <div className="pointer-events-auto inline-flex items-center gap-1 h-8 pl-3 pr-1.5 rounded-full border border-rule bg-surface/95 backdrop-blur shadow-[0_8px_24px_-16px_rgba(0,0,0,0.5)]">
+        <span className="text-[11.5px] tabular-nums text-ink-soft">
+          {search.count === 0
+            ? "No matches"
+            : `${search.index + 1} of ${search.count}`}
+        </span>
+        <button
+          type="button"
+          onClick={search.prev}
+          disabled={search.count === 0}
+          aria-label="Previous match"
+          data-testid="chat-search-prev"
+          className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronUp size={13} strokeWidth={2} />
+        </button>
+        <button
+          type="button"
+          onClick={search.next}
+          disabled={search.count === 0}
+          aria-label="Next match"
+          data-testid="chat-search-next"
+          className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronDown size={13} strokeWidth={2} />
+        </button>
+        {onClearSearch && (
+          <button
+            type="button"
+            onClick={onClearSearch}
+            aria-label="Clear search"
+            data-testid="chat-search-clear"
+            className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 transition-colors"
+          >
+            <X size={13} strokeWidth={2} />
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   // Document-scroll mode (full /chat page): no inner scroller — the messages
   // flow in the document and the page's own scrollbar (under the top bar)
   // scrolls them, exactly like every other tab.
@@ -160,7 +221,8 @@ export function CFOMessageList({
         aria-live="polite"
         data-testid="chat-messages"
       >
-        {body}
+        {searchPill}
+        <div ref={contentRef}>{body}</div>
       </div>
     );
   }
@@ -179,7 +241,8 @@ export function CFOMessageList({
           the full available width (no centering) so the conversation uses all
           horizontal space; the scroller's scrollbar still hugs the screen's
           right edge. */}
-      <div className="min-h-full flex flex-col justify-end">
+      {searchPill}
+      <div ref={contentRef} className="min-h-full flex flex-col justify-end">
         {body}
       </div>
     </div>

@@ -17,6 +17,7 @@
 import { useCallback, useMemo } from "react";
 
 import { daysUntilPurge, useActiveOrg, type Organization } from "./org";
+import { blockedByScan } from "./scanGuard";
 
 export interface Workspace {
   id: string;
@@ -147,6 +148,18 @@ export function useWorkspaces(): WorkspacesApi {
     setWorkspacePeriod(id, periodId);
   }, []);
 
+  // Every workspace switcher in the app (TopHeader, the hub cards, the
+  // sidebar) goes through this one `select`, so guarding here covers them
+  // all: switchOrg clears the whole query cache, which would pull the rug
+  // out from under a running scan.
+  const select = useCallback(
+    async (id: string) => {
+      if (blockedByScan("workspace")) return;
+      await switchOrg(id);
+    },
+    [switchOrg],
+  );
+
   return {
     workspaces,
     archived: archivedList,
@@ -158,7 +171,7 @@ export function useWorkspaces(): WorkspacesApi {
     // hub's empty state + Create flow), so there's nothing to protect against.
     canDelete: orgs.length >= 1,
     create: createWorkspace,
-    select: switchOrg,
+    select,
     rename: renameWorkspace,
     setIndustry: setWorkspaceIndustry,
     upsertCurrentName,

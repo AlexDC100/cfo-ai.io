@@ -13,9 +13,8 @@
 // content inside the dropdown.
 
 import { useState } from "react";
-import { Sparkles, ChevronDown, BookOpen, Check, RotateCcw } from "lucide-react";
+import { Sparkles, ChevronDown, Check } from "lucide-react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { openGlossary } from "@/components/learning/MetricGlossaryDrawer";
 import { useLearningMode, type LearningMode } from "@/stores/learningMode";
 import { cn } from "@/lib/utils";
 
@@ -44,13 +43,10 @@ const MODE_ROWS: ModeRow[] = [
 ];
 
 export function LearningHubMenu() {
-  const { mode, coachDismissed, tutorialsSeen, setMode, resetAll } =
-    useLearningMode();
+  const { mode, setMode } = useLearningMode();
   const [open, setOpen] = useState(false);
 
   const activeRow = MODE_ROWS.find((r) => r.value === mode) ?? MODE_ROWS[1];
-  const completedCount = Object.values(tutorialsSeen).filter(Boolean).length;
-  const hasInteractedWithCoach = coachDismissed || completedCount > 0;
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -106,30 +102,11 @@ export function LearningHubMenu() {
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           )}
         >
-          {/* Header — "Guide me…" lead-in. Reads like Music's "Show in
-              Library" header, not a full-blown Settings section. */}
-          <div className="px-3 pt-2.5 pb-1.5">
-            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft/70">
-              Guide me
-            </div>
-            <div className="text-[11.5px] text-ink-soft mt-0.5 leading-snug">
-              Currently{" "}
-              <span className="font-medium text-ink">
-                {activeRow.label.toLowerCase()}
-              </span>
-              {hasInteractedWithCoach && (
-                <>
-                  {" · "}
-                  <span>{completedCount}</span> tour
-                  {completedCount === 1 ? "" : "s"}
-                </>
-              )}
-            </div>
-          </div>
-
           {/* Mode rows. Single-column rather than a 3-up segmented
               control: gives space for the one-line hint without forcing
-              the header into mobile-tablet sizing. */}
+              the header into mobile-tablet sizing. (The "Guide me" header,
+              "Currently…" line, Open Glossary and Reset rows were removed
+              2026-07-26 per operator — the dropdown is just the mode picker.) */}
           <div role="radiogroup" aria-label="Learning mode" className="flex flex-col">
             {MODE_ROWS.map((row) => {
               const active = mode === row.value;
@@ -181,64 +158,6 @@ export function LearningHubMenu() {
               );
             })}
           </div>
-
-          {/* Divider — hairline so the next row reads as a separate
-              category without breaking the dropdown's quiet rhythm. */}
-          <div className="mx-3 my-1.5 h-px bg-rule/70" />
-
-          {/* Glossary entry — same action that the standalone pill
-              used to fire. The hub now subsumes both surfaces so the
-              top bar stays uncluttered. */}
-          <button
-            type="button"
-            data-testid="top-learning-hub-glossary"
-            onClick={() => {
-              setOpen(false);
-              // Defer so the dropdown's exit animation doesn't fight
-              // the glossary's enter.
-              queueMicrotask(openGlossary);
-            }}
-            className={cn(
-              "group w-full text-left",
-              "flex items-center gap-2.5",
-              "px-3 py-2 rounded-xl",
-              "text-[13px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2",
-              "transition-colors",
-              "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
-            )}
-          >
-            <BookOpen className="w-3.5 h-3.5 shrink-0" />
-            <span className="flex-1">Open Glossary</span>
-            <span
-              aria-hidden
-              className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft/60"
-            >
-              every term
-            </span>
-          </button>
-
-          {/* Reset — only visible when there's something to reset.
-              Keeps the empty state from looking cluttered. */}
-          {hasInteractedWithCoach && (
-            <button
-              type="button"
-              data-testid="top-learning-hub-reset"
-              onClick={() => {
-                resetAll();
-              }}
-              className={cn(
-                "group w-full text-left",
-                "flex items-center gap-2.5",
-                "px-3 py-1.5 mt-0.5 rounded-xl",
-                "text-[11.5px] text-ink-soft hover:text-ink hover:bg-bg-2",
-                "transition-colors",
-                "outline-none focus-visible:ring-2 focus-visible:ring-[hsl(173,57%,55%)]/40",
-              )}
-            >
-              <RotateCcw className="w-3 h-3 shrink-0" />
-              <span>Reset coach + page tours</span>
-            </button>
-          )}
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>

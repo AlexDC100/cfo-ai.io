@@ -45,7 +45,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Onboarding lives on /workspace now (the setup wizard there) — the
   // standalone /onboarding page was removed 2026-07-23. Don't bounce when
   // already on /workspace, that would loop.
-  const onWorkspaceRoute = location.pathname === "/workspace";
+  //
+  // /chat is exempt too (2026-07-26 per operator: "make Ask CFO AI available
+  // always"). It's the one surface that is fully useful with no workspace
+  // data — open-domain finance/accounting/strategy Q&A — and it runs on a
+  // Supabase Edge Function, so it depends on nothing the onboarding wizard
+  // sets up. Exempting it can't loop: it's a leaf route, not a redirect target.
+  const onWorkspaceRoute =
+    location.pathname === "/workspace" || location.pathname === "/chat";
 
   if (!onWorkspaceRoute) {
     if (orgLoading) {

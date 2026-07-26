@@ -445,71 +445,29 @@ export function StockDetailDrawer({
           flex items-center gap-2 flex-wrap
           bg-bg-2/30
         ">
-          <button
-            type="button"
-            onClick={handleOpenFullAnalysis}
-            data-testid="stock-drawer-open-full"
-            className="
-              inline-flex items-center gap-1.5
-              h-8 px-3 rounded-lg
-              border border-rule bg-surface
-              text-[12px] font-medium text-ink
-              hover:bg-bg-2 transition-colors
-            "
-          >
-            <BookOpen size={12} strokeWidth={2} />
-            Open full analysis
-            <ArrowUpRight size={11} strokeWidth={2} className="text-ink-mute" />
-          </button>
-          {/* Add-as-peer — gated by a "Coming soon" toast (see handler).
-              The `alreadyPeer` state still drives the visual chip so any
-              previously-added peers stay visually marked, but the button
-              click no longer mutates the peer set. */}
-          <button
-            type="button"
-            onClick={handleAddPeer}
-            data-testid="stock-drawer-add-peer"
-            className="
-              inline-flex items-center gap-1.5
-              h-8 px-3 rounded-lg
-              border border-rule bg-surface text-[12px] font-medium text-ink
-              hover:bg-bg-2 transition-colors
-            "
-          >
-            <Plus size={12} strokeWidth={2} />
-            Add as peer
-          </button>
+          {/* "Open full analysis" removed 2026-07-26 per operator. Ask CFO AI
+              carries the header pill's exact treatment (animated gradient
+              fill, brand border, pill radius) so the same action looks the
+              same wherever it appears. */}
           <button
             type="button"
             onClick={handleAskCfoAi}
             data-testid="stock-drawer-ask-cfo-ai"
+            aria-label="Ask CFO AI"
             className="
-              inline-flex items-center gap-1.5
-              h-8 px-3 rounded-lg
-              text-[12px] font-medium
-              text-ink-soft hover:text-brand-d
-              hover:bg-brand/10 transition-colors
+              ask-ai-anim-fill
+              inline-flex items-center justify-center gap-1.5
+              h-9 px-3.5 rounded-full
+              border border-brand/40 text-ink
+              hover:border-brand/60
+              text-[12.5px] font-medium
+              transition-colors
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
             "
           >
-            <Sparkles size={12} strokeWidth={1.75} />
+            <Sparkles size={14} strokeWidth={1.75} />
             Ask CFO AI
           </button>
-          <a
-            href={`https://data.nasdaq.com/data/SHARADAR/SF1-${snapshot.ticker}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="stock-drawer-sf1-link"
-            className="
-              ml-auto inline-flex items-center gap-1
-              h-8 px-2 rounded-lg
-              text-[11px] text-ink-mute
-              hover:text-ink hover:bg-bg-2 transition-colors
-            "
-          >
-            <BookOpen size={11} strokeWidth={1.75} />
-            SF1 source
-            <ArrowUpRight size={10} strokeWidth={1.75} />
-          </a>
         </footer>
       </SheetContent>
     </Sheet>

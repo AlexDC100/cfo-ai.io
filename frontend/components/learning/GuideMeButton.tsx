@@ -60,18 +60,20 @@ export function GuideMeButton({
         data-testid={`guide-trigger-${pageId}`}
         className={
           className ??
+          // Matches the dashboard tab-bar "Guide me" button (2026-07-26 per
+          // operator): rounded-xl, h-8, animated brand gradient, non-uppercase
+          // 12px medium label.
           `
             inline-flex items-center gap-1.5
-            text-[11px] uppercase tracking-[0.1em] font-semibold
-            text-[hsl(173,57%,38%)] hover:text-[hsl(173,57%,30%)]
-            px-2.5 py-1 rounded-md
-            bg-[hsl(173,57%,55%)]/[0.08] hover:bg-[hsl(173,57%,55%)]/[0.14]
-            border border-[hsl(173,57%,55%)]/[0.20]
+            h-8 px-3 rounded-xl
+            text-[12px] font-medium text-ink
+            ask-ai-anim-fill [animation-duration:10s]
+            border border-brand/40 hover:border-brand/60
             transition-colors
           `
         }
       >
-        <Sparkles className="w-3 h-3" />
+        <Sparkles className="w-3.5 h-3.5" />
         Guide me
       </button>
       <PageGuideOverlay

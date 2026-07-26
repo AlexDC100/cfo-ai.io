@@ -21,6 +21,7 @@ import { PopoverStackRenderer } from "@/components/learning/PopoverStackRenderer
 import { MetricGlossaryDrawer } from "@/components/learning/MetricGlossaryDrawer";
 import { LearningModeProvider } from "@/stores/learningMode";
 import { LanguageSwitchOverlay } from "@/components/LanguageSwitchOverlay";
+import { PeriodSwitchOverlay } from "@/components/cfo/PeriodSwitchOverlay";
 import "@/styles/learning.css";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -188,6 +189,11 @@ function App() {
               Mounted above BrowserRouter so it survives route transitions;
               renders into document.body via a portal. */}
           <LanguageSwitchOverlay />
+          {/* Fullscreen cover while the active month switches — the period
+              change re-scopes every tab at once, so without it the page
+              repaints piecemeal as each query settles. Inside
+              QueryClientProvider: it dismisses on the live fetch count. */}
+          <PeriodSwitchOverlay />
           {/* TestModeBanner — mounted ABOVE BrowserRouter so it persists
               across route transitions without re-mounting and without
               depending on any route-scoped context. Renders null when

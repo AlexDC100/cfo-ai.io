@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ToastAction } from "@/components/ui/toast";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
+import { blockedByScan } from "@/lib/scanGuard";
 import { periodQueryKey } from "@/lib/activePeriod";
 import {
   getSupabase,
@@ -311,6 +312,8 @@ export function DocsPanel() {
   const recentlyDeleted = data?.recently_deleted ?? [];
 
   function switchTo(periodId: string) {
+    // Not while an analysis is running — see lib/scanGuard.
+    if (blockedByScan("period")) return;
     const sp = new URLSearchParams(params);
     sp.set("period", periodId);
     // `replace` not `navigate` — period switching is substitution, not

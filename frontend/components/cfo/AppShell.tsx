@@ -46,6 +46,7 @@ import { useWorkspaces } from "@/lib/workspaces";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
 import { useToast } from "@/hooks/use-toast";
+import { useEnsureCurrentPeriod } from "@/hooks/useEnsureCurrentPeriod";
 import { UsageWarningBanner } from "./UsageWarningBanner";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
 
@@ -55,6 +56,10 @@ interface Props {
 }
 
 export function AppShell({ children }: Props) {
+  // A workspace always has at least one period — if the active one has none,
+  // this creates an empty container for the current month. Lives here (one
+  // mount, app-wide) so two surfaces can't race to create the same month.
+  useEnsureCurrentPeriod();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -67,17 +72,26 @@ export function AppShell({ children }: Props) {
   // 2026-07-24), preserving ?period= and delivering the prompt into the
   // composer once the chat shell has mounted and published its ref.
   const goToChat = useCallback(
-    (prompt: string | null, opts?: { newChat?: boolean }) => {
+    (prompt: string | null, opts?: { newChat?: boolean; focus?: boolean }) => {
       const period = params.get("period");
       navigate(period ? `/chat?period=${encodeURIComponent(period)}` : "/chat");
-      if (!prompt && !opts?.newChat) return;
+      if (!prompt && !opts?.newChat && !opts?.focus) return;
       let tries = 0;
       const deliver = () => {
         const handle = getChatShellRef();
         if (handle) {
           if (opts?.newChat) handle.newChat();
-          if (prompt) handle.setComposer(prompt);
-          else handle.focusComposer();
+          if (prompt) {
+            // newChat() changes the active conversation, which REMOUNTS the
+            // composer (its React key is the conversation id). Setting the
+            // text synchronously here would land it on the composer that's
+            // about to unmount — the fresh one then reads an empty draft and
+            // the prompt is lost. Defer to the next tick so it lands on the
+            // newly-mounted composer instead.
+            setTimeout(() => getChatShellRef()?.setComposer(prompt), 0);
+          } else {
+            handle.focusComposer();
+          }
           return;
         }
         if (++tries < 40) setTimeout(deliver, 50);
@@ -100,7 +114,9 @@ export function AppShell({ children }: Props) {
         const handle = getChatShellRef();
         if (handle) {
           handle.newChat();
-          if (prompt) handle.setComposer(prompt);
+          // Defer the text so it lands on the composer freshly remounted by
+          // newChat() (its key is the conversation id), not the unmounting one.
+          if (prompt) setTimeout(() => getChatShellRef()?.setComposer(prompt), 0);
           else handle.focusComposer();
           return;
         }
@@ -145,21 +161,28 @@ export function AppShell({ children }: Props) {
     };
   }, []);
 
-  // "Ask CFO AI" smart-open — always lands the user in a FRESH
-  // conversation (2026-07-24 directive), on /chat directly or after
-  // navigating there. (The store's createNew reuses an existing empty
-  // conversation rather than stacking blanks.) Prompt-carrying chips go
-  // through the event path above and keep the current conversation.
+  // "Ask CFO AI" nav entry — RESUMES the conversation the user last had open
+  // (2026-07-26 per operator), rather than starting a fresh one. Leaving the
+  // tab to check a number on another page and coming back is the common move,
+  // and forcing a new conversation each time (the 2026-07-24 directive this
+  // replaces) meant the thread you were mid-way through slid into history and
+  // you landed on a blank composer. The store already persists the open
+  // conversation id (useChatStore's CHAT_CURRENT_KEY), so simply NOT creating
+  // one restores it — on /chat we just focus the composer.
+  //
+  // Starting a new conversation is still one click away: "New chat" in the
+  // history sidebar. And a PROMPT-carrying entry (a page's suggestion chip,
+  // via the event listener above) still forces a fresh thread, since a
+  // question asked from another surface shouldn't append to an unrelated one.
   const openAskCfoAi = useCallback(() => {
     if (location.pathname.startsWith("/chat")) {
       const handle = getChatShellRef();
       if (handle) {
-        handle.newChat();
         handle.focusComposer();
         return;
       }
     }
-    goToChat(null, { newChat: true });
+    goToChat(null, { focus: true });
   }, [location.pathname, goToChat]);
   // Slide-out panels — when either is open on wide screens, main
   // content reflows left to avoid being covered.

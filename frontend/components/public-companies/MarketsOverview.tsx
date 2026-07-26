@@ -384,10 +384,13 @@ export function MarketsOverview({
               give every pill the SAME width so sizes don't vary with
               label length; long labels marquee on hover. Multi-select:
               clicking toggles membership in the grid filter. */
-          <div
-            data-testid="markets-explore"
-            className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2"
-          >
+          <div data-testid="markets-explore">
+            {/* Section title (2026-07-26 per operator) — the pill field had
+                none, so it read as loose chrome rather than a filter list. */}
+            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+              Filter the universe
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-1.5">
             {/* Active search renders as a synthetic selected pill first
                 in the list — clicking it clears the search. */}
             {searchFilter && (
@@ -403,6 +406,7 @@ export function MarketsOverview({
             {[...moverItems, ...themeItems, ...sectorItems].map((it) => (
               <Pill key={it.testId} {...it} />
             ))}
+            </div>
           </div>
         }
       />
@@ -472,25 +476,34 @@ export function PeerSection({
     // ask-ai-anim-fill = the same animated teal-gradient background the
     // "Ask CFO AI" pill in the top header uses (sweeping brand tint,
     // static border on the element; see index.css).
+    // Card treatment ported from "Start from the official template"
+    // (2026-07-26 per operator): brand left sleeve, oversized faint mark
+    // clipped bottom-left, serif title, dense description. The animated
+    // gradient fill stays — it's what marks this as the AI-picked peer.
     <section
       data-testid="markets-peer-section"
-      className="ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.47px] [animation-duration:28.8s] [--af-a1:0.14] [--af-a2:0.06] w-full max-w-[860px] rounded-3xl border border-brand/40 px-3 sm:px-4 py-4"
+      className="relative flex overflow-hidden w-full max-w-[860px] rounded-3xl border border-brand/40"
     >
-      {/* Header — the original callout's title + rationale (restored
-          2026-07-24, was a hover tooltip in the pill era), with an AI
-          mark on the left spanning both lines. Uncapped width — the
-          text runs the full section. */}
-      <div className="mb-3 flex items-start gap-3">
-        <Sparkles size={28} strokeWidth={2} className="shrink-0 mt-0.5 text-brand" />
-        <div>
-          <div className="text-[15px] font-semibold text-ink mb-0.5">
-            Your real peer · {privateName} vs. {row.companyName}
-          </div>
-          <div className="text-[11.5px] text-ink-soft leading-relaxed">
-            {pair.rationale(privateName, fmtRonShort(privateRevenue))}
-          </div>
+      <div className="w-2 shrink-0 bg-brand" />
+      <div className="ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.47px] [animation-duration:28.8s] [--af-a1:0.14] [--af-a2:0.06] relative flex-1 min-w-0 px-4 sm:px-5 py-4">
+        {/* Oversized decorative mark — bottom-left, clipped by the card. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-16 -left-10 text-brand opacity-[0.08]"
+        >
+          <Sparkles size={240} strokeWidth={1} />
         </div>
-      </div>
+
+        {/* Header — the original callout's title + rationale (restored
+            2026-07-24, was a hover tooltip in the pill era). */}
+        <div className="relative mb-3">
+          <h3 className="font-serif text-[24px] text-ink leading-tight tracking-[-0.01em]">
+            Your real peer · {privateName} vs. {row.companyName}
+          </h3>
+          <p className="mt-1.5 text-[12.5px] text-ink-soft leading-relaxed">
+            {pair.rationale(privateName, fmtRonShort(privateRevenue))}
+          </p>
+        </div>
       {/* Tiles centred with a "vs" separator between them. */}
       <div className="flex items-center justify-center gap-3 sm:gap-4">
         {/* Private-company tile — same shell as CompanyTile, but built
@@ -568,6 +581,7 @@ export function PeerSection({
         >
           Compare
         </button>
+      </div>
       </div>
     </section>
   );
@@ -1021,8 +1035,8 @@ function Pill({
       data-testid={testId}
       aria-pressed={selected}
       className={`
-        group flex w-full items-center justify-center gap-1.5 h-9 px-3 rounded-full border
-        text-[13px] font-medium transition-colors
+        group flex w-full items-center justify-center gap-1.5 h-7 px-2.5 rounded-full border
+        text-[11.5px] font-medium transition-colors
         ${disabled
           ? "opacity-40 cursor-not-allowed border-rule text-ink-mute"
           : selected
@@ -1031,10 +1045,10 @@ function Pill({
         }
       `}
     >
-      <span className="min-w-0 max-w-[180px]">
+      <span className="min-w-0 max-w-[150px]">
         <HoverMarquee text={label} />
       </span>
-      <span className="text-[11px] text-ink-mute tabular-nums shrink-0">{count}</span>
+      <span className="text-[10px] text-ink-mute tabular-nums shrink-0">{count}</span>
     </button>
   );
 

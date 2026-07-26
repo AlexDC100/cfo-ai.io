@@ -91,11 +91,11 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
             "
             data-testid="chat-prompt-card"
           >
-            {/* Icon + title — top-aligned to the card edge, horizontally
-                centered, with a fixed height so the divider lands at the same
-                spot on every card regardless of 1- vs 2-line titles. */}
-            <div className="flex items-start justify-center gap-2 pt-1 min-h-[52px] text-center">
-              <Icon size={24} strokeWidth={1.75} className="text-brand-d shrink-0 mt-px" />
+            {/* Icon + title — vertically centered together (2026-07-26), with
+                a fixed height so the divider lands at the same spot on every
+                card regardless of 1- vs 2-line titles. */}
+            <div className="flex items-center justify-center gap-2 min-h-[52px] text-center">
+              <Icon size={24} strokeWidth={1.75} className="text-brand-d shrink-0" />
               <span className="text-[12.5px] font-medium text-ink leading-tight">{p.title}</span>
             </div>
             <div aria-hidden className="w-40 max-w-full mx-auto h-px bg-gradient-to-r from-transparent via-rule-strong to-transparent mt-1 mb-3" />

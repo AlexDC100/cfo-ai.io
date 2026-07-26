@@ -9,10 +9,12 @@
 //     same store instance backs both surfaces because both consume
 //     the same localStorage key — opening the slide-over from /benchmark
 //     shows the same conversations as the /chat page.
-//   · The SEND PIPELINE is owned here: build messages array, build
-//     workspace snapshot from props, call `cfoApi.chatLlm()`, update
-//     the store. The API call shape is byte-identical to what
-//     Chat.tsx used before this redesign.
+//   · The SEND PIPELINE is NOT owned here (2026-07-26 redesign): the shell
+//     only gathers the context (snapshot, currency, public-company) and
+//     hands it to `startChatTurn` (chatTurns.ts), which runs the request
+//     at module level. Navigating away — which unmounts this shell —
+//     changes nothing: the reply keeps generating in the background and
+//     lands in the module store (useChatStore.ts).
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -24,13 +26,7 @@ import { useActiveOrg } from "@/lib/org";
 import { CFOHistorySidebar } from "./CFOHistorySidebar";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useChatStore } from "./useChatStore";
-import { CfoApiError, cfoApi } from "@/lib/cfoApi";
-import {
-  beginChatReply,
-  endChatReply,
-  registerChatReplyAbort,
-  unregisterChatReplyAbort,
-} from "@/lib/chatPendingStore";
+import { startChatTurn, stopChatTurn, useChatCapBlocked } from "./chatTurns";
 import { useCurrency } from "@/stores/currency";
 import { useAuth } from "@/lib/auth";
 import { getActiveOrgId } from "@/lib/activeOrg";
@@ -74,6 +70,11 @@ interface Props {
   onPickConversationFromHistory?: () => void;
 }
 
+// Whether the entrance freeze has already played this session.
+// Module-level on purpose: it must survive the shell unmounting on every
+// tab switch, which is what made the freeze re-apply on every return.
+let chatEntrancePlayed = false;
+
 export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOChatShell(
   {
     workspaceSnapshot,
@@ -98,12 +99,34 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // state instead of animating. `stillEntrance` additionally applies the
   // `.chat-entrance-still` CSS freeze (index.css) that halts EVERY css
   // animation/transition in the subtree until the first interaction.
+  // Find-in-conversation: the history search box also searches message
+  // bodies, so the term has to reach the open conversation to highlight there
+  // (2026-07-26 per operator).
+  const [chatQuery, setChatQuery] = useState("");
   const interactedRef = useRef(false);
-  const [stillEntrance, setStillEntrance] = useState(true);
+  // Once per SESSION, not per mount (2026-07-26 per operator). The freeze is
+  // an entrance treatment for the first time you land on the tab; re-applying
+  // it on every remount meant leaving /chat and coming back froze the typing
+  // dots and the send spinner mid-animation until you clicked something —
+  // and while a reply was in flight that read as the assistant having hung.
+  const [stillEntrance, setStillEntrance] = useState(() => !chatEntrancePlayed);
   const markInteracted = () => {
     interactedRef.current = true;
+    chatEntrancePlayed = true;
     if (stillEntrance) setStillEntrance(false);
   };
+
+  // Safety release: never hold the freeze longer than a beat. A mount the user
+  // never clicks into (they came back from another tab while a reply was in
+  // flight) would otherwise keep every animation paused indefinitely.
+  useEffect(() => {
+    if (!stillEntrance) return;
+    const t = window.setTimeout(() => {
+      chatEntrancePlayed = true;
+      setStillEntrance(false);
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [stillEntrance]);
   // The measured culprit on tab entry (2026-07-25 probe): the TopHeader
   // "Ask CFO AI" pill and the currency toggle's selected segment run
   // continuous gradient sweeps OUTSIDE this shell's subtree, so the
@@ -122,6 +145,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     if (variant !== "page" || !stillEntrance) return;
     const release = () => {
       interactedRef.current = true;
+      chatEntrancePlayed = true;
       setStillEntrance(false);
     };
     window.addEventListener("pointerdown", release, { capture: true });
@@ -148,13 +172,10 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   const publicCompanyContext = usePublicCompanyChatContext();
 
   // Pricing V3 (refined spec §14) — when the backend returns 429
-  // chat_cap_reached, we lock the composer for the rest of the session and
-  // surface a banner. The user still sees the cap-reached card in the
-  // thread (rendered by `completeAssistantTurn` below); the banner +
-  // disabled input prevents pointless retries.
-  const [capBlocked, setCapBlocked] = useState<
-    { headline: string; body: string; href: string } | null
-  >(null);
+  // chat_cap_reached, chatTurns locks the composer for the rest of the
+  // session (module state — survives tab switches) and this hook mirrors it
+  // into the banner + hard input-disable.
+  const capBlocked = useChatCapBlocked();
 
   useImperativeHandle(ref, () => ({
     focusComposer: () => composerRef.current?.focus(),
@@ -221,141 +242,29 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   })(promptPills);
 
   // ── Send pipeline ───────────────────────────────────────────────
-  const send = useCallback(async (text: string, attachments: ChatAttachment[]) => {
-    // 1. Optimistic UI — drop the user turn + a pending assistant
-    //    placeholder into the store. The store auto-creates a
-    //    conversation on the very first message of a brand-new session.
-    const { conversationId, assistantId } = store.appendUserTurn({
-      content: text,
-      attachments: attachments.length > 0 ? attachments : undefined,
-      organizationId: null,
+  // Gather the context and hand off to the module-level controller. The
+  // request runs in the background from here on — this shell can unmount
+  // (tab switch) without affecting the turn.
+  const send = useCallback((text: string, attachments: ChatAttachment[]) => {
+    startChatTurn({
+      orgId: org?.id ?? null,
+      text,
+      attachments,
       periodId,
       periodLabel,
+      groundedLabel,
+      workspaceSnapshot,
+      companyName,
+      displayCurrency: currencyDisplay,
+      sourceCurrency: currencySource,
+      rates: currencyRates,
+      // NASDAQ-13 — only shipped when the operator has a Nasdaq ticker
+      // open. Workspace chat without public-company context sends
+      // `undefined` here and the backend skips the block.
+      publicCompany: publicCompanyContext ?? undefined,
     });
-
-    // 2. Build the message-history payload from the store snapshot at
-    //    THIS moment, INCLUDING the just-appended user turn. (We can't
-    //    rely on a re-render here — we read the freshest state.)
-    const conv = store.conversations.find((c) => c.id === conversationId);
-    const priorMessages = conv
-      ? conv.messages.filter((m) => !m.pending && m.content)
-      : [];
-    // Inject the just-sent user message (in case state hasn't flushed
-    // by the time we build the payload).
-    const payloadMessages = [
-      ...priorMessages.map((m) => ({ role: m.role, content: m.content })),
-      { role: "user" as const, content: text },
-    ];
-    // Deduplicate consecutive identical user turns (defensive — happens
-    // if the state already had the user message when we read it).
-    const dedup: typeof payloadMessages = [];
-    for (const m of payloadMessages) {
-      const last = dedup[dedup.length - 1];
-      if (last && last.role === m.role && last.content === m.content) continue;
-      dedup.push(m);
-    }
-
-    // Global in-flight signal — keeps the nav rail's "Ask CFO AI" item
-    // showing a thinking spinner if the user switches tabs mid-reply.
-    beginChatReply();
-    // Abort handle — deleting THIS conversation mid-reply cancels the
-    // request so the thinking state ends immediately (useChatStore.remove
-    // fires abortChatReply).
-    const aborter = new AbortController();
-    registerChatReplyAbort(conversationId, () => aborter.abort());
-    try {
-      // CUR-FIX — inject display currency + FX context so the backend
-      // system prompt can instruct the model to cite figures in the
-      // user's chosen currency. Without these, the model defaults to
-      // the source currency it sees in `dataset_summary`, which is
-      // wrong any time the toggle differs from the period's source.
-      const fxRate =
-        currencyDisplay === currencySource
-          ? 1
-          : (currencyRates.rates[currencyDisplay] ?? 1) /
-            (currencyRates.rates[currencySource] ?? 1);
-      const response = await cfoApi.chatLlm({
-        messages: dedup,
-        dataset_summary: workspaceSnapshot,
-        page: "Ask CFO AI",
-        company_name: companyName ?? "Workspace",
-        mode: "workspace",
-        display_currency: currencyDisplay,
-        fx_context: {
-          source_currency: currencySource,
-          display_currency: currencyDisplay,
-          rate: fxRate,
-          // RatesPayload uses `as_of` (date the upstream published the
-          // rate) and `source` (BNR or fallback). The backend's
-          // LlmFxContext expects `rate_date` + `provider` so we map here.
-          rate_date: currencyRates.as_of,
-          provider: currencyRates.source,
-        },
-        // NASDAQ-13 — only shipped when the operator has a Nasdaq
-        // ticker open. Workspace chat without public-company context
-        // sends `undefined` here and the backend skips the block.
-        public_company: publicCompanyContext ?? undefined,
-      }, aborter.signal);
-      const answer = (response?.answer ?? "").trim() || "(no response)";
-      store.completeAssistantTurn({
-        conversationId,
-        assistantId,
-        content: answer,
-        groundedPeriod: groundedLabel,
-      });
-    } catch (err) {
-      // Conversation was deleted mid-reply — the fetch was aborted on
-      // purpose. Nothing to render (the conversation is gone); just let
-      // the finally block clear the in-flight state.
-      if (aborter.signal.aborted) return;
-      // Pricing V3 — render the chat-cap-reached 429 as a friendly
-      // upgrade-CTA message, not as a generic transport error.
-      // Detail shape from backend:
-      //   { code: 'chat_cap_reached', kind: 'daily_cap_reached' |
-      //     'monthly_cap_reached', plan_key, daily_used, daily_cap,
-      //     monthly_used, monthly_cap, message, upgrade_url }
-      if (err instanceof CfoApiError && err.status === 429) {
-        const detail = (err.detail ?? {}) as {
-          code?: string;
-          kind?: string;
-          message?: string;
-          upgrade_url?: string;
-        };
-        if (detail.code === "chat_cap_reached") {
-          const headline =
-            detail.kind === "daily_cap_reached"
-              ? "Daily Ask CFO AI limit reached"
-              : "Monthly Ask CFO AI limit reached";
-          const body = detail.message ??
-            "You've hit your plan's chat cap. It resets automatically — or upgrade for more headroom.";
-          const link = detail.upgrade_url ?? "/pricing";
-          store.completeAssistantTurn({
-            conversationId,
-            assistantId,
-            content: `**${headline}**\n\n${body}\n\n[See plans →](${link})`,
-            error: false,
-          });
-          // Lock the composer for the rest of the session (spec §14
-          // "disable + message if blocked"). The thread already shows
-          // the long-form 429 card; the composer banner is the short
-          // form + a hard input-disable so users can't keep retrying.
-          setCapBlocked({ headline, body, href: link });
-          return;
-        }
-      }
-      const msg = err instanceof Error ? err.message : "Couldn't reach the assistant.";
-      store.completeAssistantTurn({
-        conversationId,
-        assistantId,
-        content: `**Couldn't reach the assistant.** ${msg}\n\nTry again in a moment.`,
-        error: true,
-      });
-    } finally {
-      unregisterChatReplyAbort(conversationId);
-      endChatReply();
-    }
   }, [
-    store,
+    org?.id,
     workspaceSnapshot,
     periodId,
     periodLabel,
@@ -365,6 +274,12 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     currencyRates,
     publicCompanyContext,
   ]);
+
+  // Stop button — interrupts the open conversation's generating reply.
+  // chatTurns stamps the muted "Interrupted" marker into the thread.
+  const stopCurrent = useCallback(() => {
+    if (store.currentId) stopChatTurn(store.currentId);
+  }, [store.currentId]);
 
   const pending = useMemo(
     () => {
@@ -390,7 +305,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   const contextLine = hasPeriod ? (
     <>
       Grounded in <span className="text-ink-soft">{companyName || "your workspace"}</span>
-      {periodLabel ? <> · <span className="text-ink-soft">{periodLabel}</span></> : null}
+      {/* The active period's label falls back to the company name, so without
+          this check the pill read "X · X" (2026-07-26 per operator). */}
+      {periodLabel && periodLabel !== companyName ? (
+        <> · <span className="text-ink-soft">{periodLabel}</span></>
+      ) : null}
     </>
   ) : (
     <>No workspace loaded — open-domain mode</>
@@ -426,6 +345,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           ref={composerRef}
           pending={pending}
           onSubmit={send}
+          onStop={stopCurrent}
           placeholder={expectGrounded ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
           contextLine={contextLine}
           disclosure={disclosure}
@@ -515,6 +435,8 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               <CFOHistorySidebar
                 store={store}
                 onAfterPick={onPickConversationFromHistory}
+                query={chatQuery}
+                onQueryChange={setChatQuery}
               />
             </div>
           </motion.div>
@@ -522,21 +444,16 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       </AnimatePresence>
 
       <div className="relative flex-1 min-w-0 flex flex-col min-h-[calc(100dvh-7rem)]">
-        {/* mode="wait" + exit fade: sending the first message fades the
-            header + suggested-question cards OUT before the conversation
-            takes over, instead of hard-swapping. initial={false} keeps
-            tab entry instant — only the exit animates. */}
+        {/* Content swap is instant — no fade (2026-07-26 per operator:
+            "remove the fade in content effect when changing chat items"). The
+            empty-state ↔ conversation swap snaps rather than cross-fading. */}
         <AnimatePresence mode="wait" initial={false}>
         {!store.current || store.current.messages.length === 0 ? (
           // An empty conversation shows the SAME content as the no-chats
           // screen: the dashboard-style header + prompt starters.
           <motion.div
             key="chat-empty-content"
-            exit={{ opacity: 0 }}
-            // Duration 0 until the user interacts: a hydration-driven swap
-            // on tab entry snaps to the end state; a user-sent first
-            // message fades the empty state out.
-            transition={{ duration: interactedRef.current ? 0.2 : 0, ease: "easeOut" }}
+            transition={{ duration: 0 }}
             className={`flex-1 ${contentPadX} pb-8`}
           >
             <PageHeader
@@ -550,7 +467,15 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           </motion.div>
         ) : (
           <div key="chat-live-content" className="flex-1 -mt-3 sm:-mt-7 lg:-mt-9">
-            <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} bottomInset wideContent documentScroll />
+            <CFOMessageList
+              messages={store.current.messages}
+              groundedLabel={groundedLabel}
+              bottomInset
+              wideContent
+              documentScroll
+              searchQuery={chatQuery}
+              onClearSearch={() => setChatQuery("")}
+            />
           </div>
         )}
         </AnimatePresence>
@@ -590,6 +515,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               ref={composerRef}
               pending={pending}
               onSubmit={send}
+              onStop={stopCurrent}
               placeholder={expectGrounded ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
               blockedReason={capBlocked}
             />

@@ -19,3 +19,14 @@ export function writeStagedFiles(scope: string, files: File[]): void {
   if (files.length > 0) staged.set(scope, files);
   else staged.delete(scope);
 }
+
+/** Drop a surface's staged selection.
+ *
+ * Dropzones call this on unmount (2026-07-26 per operator): leaving a tab
+ * abandons the pick, so coming back offers an empty dropzone rather than a
+ * file the user chose minutes ago and may no longer mean to scan. The store
+ * still does its original job WITHIN a visit — a re-render can't lose the
+ * selection, only navigating away does. */
+export function clearStagedFiles(scope: string): void {
+  staged.delete(scope);
+}

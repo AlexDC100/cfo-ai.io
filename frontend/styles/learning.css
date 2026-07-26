@@ -158,3 +158,54 @@
 /* Inside the popover the formula-value buttons stay interactive
  * regardless of mode — once a popover is open the user is clearly in
  * learning mode for that interaction. */
+
+/* ── Statement tabs: boxed triggers instead of an underline ───────────
+ *
+ * 2026-07-26 (per operator) — in P&L / Balance Sheet / Cash Flow every
+ * interactive number is wrapped in its own bounded cell so it's obvious at a
+ * glance what can be tapped, and the gradient underline is dropped there (it
+ * read as noise once a whole column carried it).
+ *
+ * Alignment note: the box adds 1px border + 6px padding on the right, so the
+ * PLAIN (non-interactive) amount cells in the same column get a matching 7px
+ * of right padding — otherwise interactive and static figures in one column
+ * would sit 7px apart. */
+
+.pl-statement .learnable-number,
+.bs-statement .learnable-number,
+.cf-statement .learnable-number {
+  border: 1px solid hsl(var(--rule));
+  border-radius: 6px;
+  padding: 1px 6px;
+  background: hsl(var(--surface) / 0.55);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+/* No underline inside the statements — the box IS the affordance. */
+.pl-statement .learnable-number::after,
+.bs-statement .learnable-number::after,
+.cf-statement .learnable-number::after {
+  content: none;
+}
+
+.pl-statement .learnable-number:hover,
+.bs-statement .learnable-number:hover,
+.cf-statement .learnable-number:hover,
+.pl-statement .learnable-number:focus-visible,
+.bs-statement .learnable-number:focus-visible,
+.cf-statement .learnable-number:focus-visible {
+  border-color: hsl(var(--brand) / 0.65);
+  background: hsl(var(--brand) / 0.08);
+  color: inherit;
+}
+
+/* Keep the figures in one vertical line: static cells match the box's
+ * inner right offset (6px padding + 1px border). */
+.pl-statement .pl-amount:not(.learnable-number),
+.cf-statement .cf-amount:not(.learnable-number),
+.bs-statement .bs-amount:not(.learnable-number) {
+  padding-right: 7px;
+}

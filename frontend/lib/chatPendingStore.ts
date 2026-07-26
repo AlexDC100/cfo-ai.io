@@ -46,6 +46,14 @@ export function unregisterChatReplyAbort(conversationId: string): void {
   aborters.delete(conversationId);
 }
 
+/** True while a reply is generating for this conversation. Used by chat
+ *  hydration to keep the LOCAL copy of an active conversation — the server
+ *  copy doesn't have the pending assistant placeholder the in-flight
+ *  completion is about to write into. */
+export function hasChatReplyInFlight(conversationId: string): boolean {
+  return aborters.has(conversationId);
+}
+
 /** Abort the in-flight reply for a conversation (no-op when none). */
 export function abortChatReply(conversationId: string): void {
   const abort = aborters.get(conversationId);

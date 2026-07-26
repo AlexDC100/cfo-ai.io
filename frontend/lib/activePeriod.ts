@@ -333,9 +333,18 @@ export function useActivePeriod(): ActivePeriod {
     queryKey: periodId ? periodQueryKey(periodId) : ["period", "__noop__"],
     queryFn: () => fetchPeriodFromApi(periodId!),
     enabled: !!periodId && isUuid(periodId),
-    // staleTime tuned in the App.tsx QueryClient defaults (5 min); a re-run
-    // pipeline produces a brand-new period_id (new UUID), so we don't need
-    // aggressive invalidation here — the URL key changes for new data.
+    // staleTime comes from the queryClient defaults (30 min). NOTE the old
+    // assumption here — "a re-run produces a brand-new period_id, so the URL
+    // key changes for new data" — no longer holds (2026-07-26): replace-month
+    // semantics and the adopt-the-selected-empty-period flow reuse the SAME
+    // period id with new contents. Every upload path that lands on an
+    // existing id MUST queryClient.resetQueries(periodQueryKey(id)) on
+    // analyzed (scanOneFile and the Workspace AddPeriodDialog both do), or
+    // the dashboard keeps painting the stale payload for the full staleTime.
+    // resetQueries specifically: it refetches ACTIVE observers; removeQueries
+    // does not, and a 404 for a then-empty period is cached as SUCCESS data
+    // ({kind:"not_found"}), so invalidation must not be skipped "because the
+    // query errored" — it didn't.
   });
 
   return useMemo(() => {
@@ -363,6 +372,39 @@ export function useActivePeriod(): ActivePeriod {
         return { ...EMPTY, id: periodId, isLoading: false };
       }
       const payload = remote.data;
+
+      // An EMPTY period container — created in Workspace ("Add period") and
+      // not yet given a file, or one whose document was deleted. The engine
+      // still answers 200 for it: `GET /api/period/{id}` assembles
+      // `statements` from `statement_line_items`, and with none it returns a
+      // fully-formed statement of ZEROS rather than null. Consumers checking
+      // `statements !== null` therefore read it as a loaded period and paint
+      // a zeroed dashboard (which is also what fed empty sections into the
+      // statement views and tripped their hook-order bug).
+      //
+      // Both signals must be empty: line items AND metrics. A period that
+      // analyzed but persisted no line items would still carry metrics, and
+      // that's a broken analysis worth showing, not an empty container.
+      const emptyContainer =
+        (payload.line_items?.length ?? 0) === 0 && (payload.metrics?.length ?? 0) === 0;
+      if (emptyContainer) {
+        return {
+          ...EMPTY,
+          id: payload.period.id,
+          // Keep the identity fields so the month pills / sidebar can still
+          // name this period; everything data-bearing stays empty so every
+          // surface renders its own upload state.
+          label: payload.organization?.name ?? null,
+          periodEnd: payload.period.period_end ?? null,
+          industry: payload.organization?.industry_display_name ?? null,
+          availableTypes: [] as DocumentType[],
+          isLoaded: false,
+          isLoading: false,
+          source: null,
+          notFound: false,
+        };
+      }
+
       return {
         id: payload.period.id,
         label: payload.statements.companyName ?? payload.organization?.name ?? null,

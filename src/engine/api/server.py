@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
@@ -31,6 +32,7 @@ from ..pipeline import run_pipeline
 from ..storage import PostgresAdapter, create_engine_from_url
 from ._benchmarks import build_router as create_benchmarks_router
 from ._billing import build_router as create_billing_router
+from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
 from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
@@ -132,6 +134,15 @@ def create_app(
         description="Daily decision engine for SKU rationalization.",
     )
 
+    # Gzip large JSON responses (period reports run to hundreds of KB). In
+    # prod Caddy compresses at the edge and will pass an already-encoded body
+    # through untouched; this covers dev and any direct :8000 access. Added
+    # BEFORE CORSMiddleware so CORS stays the outermost middleware (Starlette
+    # runs later-added middleware first) and preflights never hit the gzipper.
+    # No engine endpoint streams (SSE moved to the chat-llm Edge Function), so
+    # response buffering here is safe.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+
     # CORS — the React dev server runs on a different port. Tighten in prod.
     app.add_middleware(
         CORSMiddleware,
@@ -202,6 +213,15 @@ def create_app(
     # Scheduler-only (ENGINE_API_TOKEN); permanently deletes workspaces
     # whose 30-day recovery window has closed.
     app.include_router(create_workspaces_router())
+    # F6.0.4 — per-user dashboard card layout (GET/PUT /api/dashboard/config).
+    # Mounted 2026-07-26 per _dashboard.py's own deploy checklist: the FE
+    # (frontend/lib/dashboard/configApi.ts) has been calling it on every
+    # dashboard mount and taking a 404 each time, which is harmless (it falls
+    # back to localStorage) but printed a console error per load.
+    # Safe without schema_phase_dashboard_config.sql applied: GET degrades to
+    # {"cards": []} when the table is missing and PUT returns 503, so the FE
+    # simply stays device-local — the same outcome as the 404, minus the noise.
+    app.include_router(create_dashboard_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

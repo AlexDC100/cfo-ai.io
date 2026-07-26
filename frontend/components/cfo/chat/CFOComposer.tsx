@@ -7,7 +7,9 @@
 //   · attach button (UI only — populates the local attachments list,
 //     backend wiring is out of scope; chips render via CFOFilePreview)
 //   · focus glow + keyboard-shortcut hint
-//   · disabled while a turn is pending
+//   · while a turn is generating: typing stays enabled, SENDING is
+//     blocked, and the send button becomes a Stop button (Claude-style
+//     square) that interrupts the reply via `onStop`
 //
 // The composer exposes a `focus()` method via forwardRef so the
 // "Ask CFO AI" entry point (when already on /chat) can focus the
@@ -15,7 +17,7 @@
 
 import { AnimatePresence } from "framer-motion";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Paperclip, ArrowUp, CornerDownLeft } from "lucide-react";
+import { Paperclip, ArrowUp, CornerDownLeft, Square } from "lucide-react";
 import { CFOFilePreview } from "./CFOFilePreview";
 import { readDraft, writeDraft } from "./chatDrafts";
 import type { ChatAttachment } from "./types";
@@ -27,10 +29,13 @@ export interface CFOComposerHandle {
 }
 
 interface Props {
-  /** Disable input + send while a turn is in flight. */
+  /** A reply is generating for the open conversation. Typing stays
+   *  enabled; sending is blocked and the send button becomes Stop. */
   pending: boolean;
   /** Fired when the user submits (Enter or Send click). */
   onSubmit: (text: string, attachments: ChatAttachment[]) => void;
+  /** Fired by the Stop button while `pending` — interrupts the reply. */
+  onStop?: () => void;
   /** Placeholder copy — page sets this based on whether a period is loaded. */
   placeholder?: string;
   /** Optional context line rendered above the textarea (e.g. "Grounded in …"). */
@@ -68,6 +73,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   {
     pending,
     onSubmit,
+    onStop,
     placeholder = "Ask CFO AI anything…",
     contextLine,
     disclosure,
@@ -77,9 +83,11 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   },
   ref,
 ) {
-  // Hard-disable when a chat cap has been hit. The composer treats this as
-  // a stronger version of `pending`: input, attach, and send are all locked.
-  const hardDisabled = pending || !!blockedReason;
+  // Hard-disable ONLY when a chat cap has been hit: input, attach, and send
+  // are all locked. `pending` is softer — the user can keep typing their next
+  // question while the answer generates; only SENDING is blocked (and the
+  // send button becomes Stop).
+  const hardDisabled = !!blockedReason;
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   // Restore this conversation's unsent draft on mount. The shell keys the
@@ -127,7 +135,9 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
 
   function submit() {
     const trimmed = text.trim();
-    if (!trimmed || hardDisabled) return;
+    // No sending while a reply is generating — Enter is a no-op and the
+    // send button is replaced by Stop for the duration.
+    if (!trimmed || pending || hardDisabled) return;
     onSubmit(trimmed, attachments);
     setText("");
     // Clear the draft synchronously too — the first message of a new
@@ -144,11 +154,15 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     }
   }
 
+  // ONE attachment at a time (2026-07-26 per operator — single-file uploads
+  // app-wide). A new pick REPLACES the current attachment rather than adding
+  // to it; the attachments array shape is unchanged so the preview chips and
+  // remove button keep working.
   function onFiles(files: FileList | null) {
-    if (!files) return;
-    const next: ChatAttachment[] = [];
-    for (const f of Array.from(files)) {
-      next.push({
+    const f = files?.[0];
+    if (!f) return;
+    setAttachments([
+      {
         id: `att-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
         name: f.name,
         size: f.size,
@@ -156,9 +170,8 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
         // UI-only state for now; a future backend hookup will move this
         // through uploading → reading → extracting → ready.
         status: "queued",
-      });
-    }
-    setAttachments((cur) => [...cur, ...next]);
+      },
+    ]);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -281,7 +294,6 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             <input
               ref={fileRef}
               type="file"
-              multiple
               accept={ACCEPT}
               onChange={(e) => onFiles(e.target.files)}
               className="hidden"
@@ -293,21 +305,38 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!text.trim() || hardDisabled}
-            data-testid="chat-send"
-            aria-label="Send message"
-            className="
-              inline-flex items-center justify-center h-8 w-8 rounded-lg
-              ask-ai-anim-fill [animation-duration:10s]
-              border border-brand/40 text-ink
-              disabled:[background-image:none] disabled:animate-none disabled:bg-bg-2 disabled:border-transparent disabled:text-ink-mute disabled:cursor-not-allowed
-            "
-          >
-            <ArrowUp size={14} strokeWidth={2.25} />
-          </button>
+          {pending ? (
+            <button
+              type="button"
+              onClick={onStop}
+              data-testid="chat-stop"
+              aria-label="Stop generating"
+              title="Stop generating"
+              className="
+                inline-flex items-center justify-center h-8 w-8 rounded-lg
+                ask-ai-anim-fill [animation-duration:10s]
+                border border-brand/40 text-ink
+              "
+            >
+              <Square size={10} strokeWidth={0} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!text.trim() || hardDisabled}
+              data-testid="chat-send"
+              aria-label="Send message"
+              className="
+                inline-flex items-center justify-center h-8 w-8 rounded-lg
+                ask-ai-anim-fill [animation-duration:10s]
+                border border-brand/40 text-ink
+                disabled:[background-image:none] disabled:animate-none disabled:bg-bg-2 disabled:border-transparent disabled:text-ink-mute disabled:cursor-not-allowed
+              "
+            >
+              <ArrowUp size={14} strokeWidth={2.25} />
+            </button>
+          )}
         </div>
       </div>
 

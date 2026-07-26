@@ -165,9 +165,28 @@ export interface DecisionRulesState {
 
 // ─── Catalog ────────────────────────────────────────────────────────────────
 
-/** Get a SKU field defensively; null if not a finite number. */
-function num(v: number | null | undefined): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
+/** Get a SKU field defensively; null if not a finite number.
+ *
+ * IMPORTANT (2026-07-26): PostgREST serializes Postgres `numeric` columns as
+ * JSON *strings* (to preserve arbitrary precision) — `sku_aggregates`
+ * `days_inventory_on_hand`, `cogs_krn`, `inventory_value_krn` (and, depending
+ * on the column type, `gm_krn` / `niv_krn` / `volume_tons`) arrive as e.g.
+ * "93.00" rather than 93. The table renders them fine because JS coerces in
+ * arithmetic (`"93" * 1000`, `Math.round("93")`), but the decision-rule
+ * `compute()` functions ran the raw value through this helper — and the old
+ * strict `typeof v === "number"` check turned every string into `null`, so
+ * EVERY rule abstained and `combineBuckets([])` returned "watch" for the whole
+ * portfolio (the "every SKU shows Watch" bug). Coercing numeric strings here
+ * fixes the signal at the source; number-typed fields are unaffected. */
+function num(v: number | string | null | undefined): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (t === "") return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 export const RULES: readonly RuleDefinition[] = [

@@ -27,6 +27,7 @@ import { Money } from "@/components/ui/Money";
 // legacy component is left in src/ as quiet dead code; no remaining
 // callers in this codebase.
 import { IndustryBadge, IndustryPicker } from "@/components/cfo/industry";
+import { ComingSoon } from "@/components/cfo/ComingSoon";
 import { Level1BenchmarkView } from "@/components/cfo/Level1BenchmarkView";
 import { EmptyState } from "@/components/cfo/ui/EmptyState";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
@@ -553,26 +554,31 @@ export default function BenchmarkReportPage() {
             testid="benchmark-needs-industry-header"
           />
           <BenchmarkPreviewStrip />
-          <EmptyState
-            icon={BarChart3}
-            title={isCaenMissing ? "Industry not set yet." : "No benchmark data for this industry."}
-            subtitle={data.message
-              || (isCaenMissing
-                ? "Open the industry picker — it shows the full RO CAEN catalog with a one-click pick."
-                : "The picker shows which industries are currently seeded; switch to one of those.")}
-            primary={{
-              label: isCaenMissing ? "Confirm industry" : "Change industry",
-              onClick: () => setShowPicker(true),
-              testid: "benchmark-confirm-caen-btn",
-            }}
-            secondary={{
-              label: "Open Dashboard",
-              onClick: () => navigateToDashboard(navigate),
-              testid: "benchmark-needs-industry-dashboard",
-            }}
-            footnote="No fabricated peer data is ever shown — once the industry is picked and seeded, real peer medians load instantly."
-            testid="benchmark-needs-industry-empty"
-          />
+          {/* Coming soon (2026-07-26 per operator) — industry benchmarks
+              aren't seeded end-to-end yet, so the panel renders blurred
+              instead of presenting a dead-end error as a normal state. */}
+          <ComingSoon note="Peer medians and industry bands are being seeded. Once your industry is live this fills in automatically — no fabricated peer data is ever shown.">
+            <EmptyState
+              icon={BarChart3}
+              title={isCaenMissing ? "Industry not set yet." : "No benchmark data for this industry."}
+              subtitle={data.message
+                || (isCaenMissing
+                  ? "Open the industry picker — it shows the full RO CAEN catalog with a one-click pick."
+                  : "The picker shows which industries are currently seeded; switch to one of those.")}
+              primary={{
+                label: isCaenMissing ? "Confirm industry" : "Change industry",
+                onClick: () => setShowPicker(true),
+                testid: "benchmark-confirm-caen-btn",
+              }}
+              secondary={{
+                label: "Open Dashboard",
+                onClick: () => navigateToDashboard(navigate),
+                testid: "benchmark-needs-industry-dashboard",
+              }}
+              footnote="No fabricated peer data is ever shown — once the industry is picked and seeded, real peer medians load instantly."
+              testid="benchmark-needs-industry-empty"
+            />
+          </ComingSoon>
         </div>
         {/* 2026-05-24 — IndustryPicker is the single industry-edit surface.
             Auto-opens on caen_not_set (set above) and also opens from every

@@ -27,6 +27,17 @@
 
 import { useMemo } from "react";
 import { ArrowLeft, ChevronRight, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { categoryHint } from "@/lib/categoryHints";
+
+// Display the category name in English (2026-07-26 per operator). The raw
+// Romanian code (e.g. LEGUME CONSERVATE) is looked up in the shared
+// CATEGORY_HINTS dictionary and title-cased; unknown categories fall back to
+// the original source label so nothing ever renders blank.
+function toEnglishLabel(raw: string): string {
+  const hint = categoryHint(raw, "en");
+  if (!hint) return raw;
+  return hint.replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 interface SkuRow {
   id: string;
@@ -228,15 +239,13 @@ export function CategoriesOverview({
       data-testid="categories-overview"
       className="space-y-3"
     >
-      <header className="flex items-baseline justify-between gap-3 flex-wrap">
-        <h2 className="font-serif text-[20px] text-ink tracking-[-0.005em]">
-          {categories.length} {categories.length === 1 ? "category" : "categories"}
-        </h2>
-        <span className="text-[11.5px] text-ink-mute">
-          Sorted by revenue · click any card to drill into its SKUs
-        </span>
-      </header>
-      <ul className="space-y-3">
+      {/* Header removed 2026-07-26 per operator (both the "N categories"
+          heading and the "Sorted by revenue…" caption). */}
+      {/* Card grid (2026-07-26 per operator) — categories laid out as a
+          responsive grid instead of a single stacked column. `items-stretch`
+          (grid default) + `h-full` on each card equalizes heights per row
+          despite the optional Adjusted-GM / DIO-warning lines. */}
+      <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {categories.map((c) => (
           <CategoryCard
             key={c.category}
@@ -261,15 +270,15 @@ function CategoryCard({
   const dioOverYear = cat.dioDays != null && cat.dioDays > 365;
   const adjustedGmNegative = cat.adjustedGmPct != null && cat.adjustedGmPct < 0;
   return (
-    <li>
+    <li className="h-full">
       <button
         type="button"
         onClick={onClick}
         data-testid={`category-card-${cat.category.toLowerCase().replace(/\s+/g, "-")}`}
         className={`
-          group w-full text-left rounded-2xl border bg-surface p-5
-          transition-all duration-150
-          hover:shadow-sm hover:bg-bg-2/30 hover:-translate-y-[1px]
+          group flex h-full w-full flex-col text-left rounded-2xl border bg-surface p-5
+          transition-colors duration-150
+          hover:shadow-sm hover:bg-bg-2/30
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
           ${dioOverYear
             ? "border-[#8FE3D9]/60 dark:border-[#5CD3C5]/30"
@@ -277,38 +286,45 @@ function CategoryCard({
           }
         `}
       >
-        {/* Top row — emoji + name + meta + bucket badge */}
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="text-[26px] leading-none shrink-0">{cat.emoji}</span>
-            <div className="min-w-0">
-              <h3 className="text-[15.5px] font-semibold text-ink leading-tight tracking-[-0.005em]">
-                {cat.display}
-              </h3>
-              <div className="text-[11.5px] text-ink-mute mt-0.5">
-                {cat.skuCount.toLocaleString("en-US")} SKUs ·{" "}
-                {cat.brandCount} {cat.brandCount === 1 ? "brand" : "brands"} ·{" "}
-                {cat.channelCount} {cat.channelCount === 1 ? "channel" : "channels"}
-              </div>
-            </div>
+        {/* Top row — name + meta (emoji removed 2026-07-26; the top-right
+            bucket badge removed 2026-07-26 per operator) */}
+        <div className="min-w-0">
+          <h3 className="text-[15.5px] font-semibold text-ink leading-tight tracking-[-0.005em]">
+            {toEnglishLabel(cat.display)}
+          </h3>
+          <div className="text-[11.5px] text-ink-mute mt-0.5">
+            {cat.skuCount.toLocaleString("en-US")} SKUs ·{" "}
+            {cat.brandCount} {cat.brandCount === 1 ? "brand" : "brands"} ·{" "}
+            {cat.channelCount} {cat.channelCount === 1 ? "channel" : "channels"}
           </div>
-          <BucketBadge bucket={cat.bucket} />
         </div>
 
-        {/* KPI grid — Volume / NIV / GM / DIO */}
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Divider under the header (2026-07-26 per operator) — hairline
+            gradient rule separating the title/meta from the KPI grid. */}
+        <div aria-hidden className="mt-3 h-px bg-gradient-to-r from-transparent via-rule-strong to-transparent" />
+
+        {/* KPI grid — Volume / NIV / GM / DIO. 2×2 within each card so the
+            cells stay legible at the narrower grid-cell width. */}
+        {/* 2×2 KPI grid with cross dividers between the cells (2026-07-26 per
+            operator). Borders on the top-left cell's right/bottom edges + the
+            bottom-left cell's right edge + the top-right cell's bottom edge
+            form a clean + separator; padding keeps values off the rules. */}
+        <div className="mt-4 grid grid-cols-2">
           <KpiCell
             label="Volume"
             value={fmtCompactKg(cat.totalVolumeKg)}
+            className="border-r border-b border-rule/60 pr-4 pb-3"
           />
           <KpiCell
             label="NIV"
             value={fmtCompactRon(cat.totalNiv)}
+            className="border-b border-rule/60 pl-4 pb-3"
           />
           <KpiCell
             label="GM"
             value={fmtCompactRon(cat.totalGm)}
             sub={cat.gmPct != null ? `${(cat.gmPct * 100).toFixed(1)}%` : null}
+            className="border-r border-rule/60 pr-4 pt-3"
           />
           <KpiCell
             label="DIO"
@@ -322,31 +338,9 @@ function CategoryCard({
               : cat.dioDays > 180 ? "warning"
               : "positive"
             }
+            className="pl-4 pt-3"
           />
         </div>
-
-        {/* Adjusted GM line — visible only when financing cost computable */}
-        {cat.financingCost != null && cat.adjustedGm != null && (
-          <div className="mt-3 pt-3 border-t border-rule/40 text-[12px] text-ink-soft">
-            Adjusted GM:{" "}
-            <span
-              className={`font-medium tabular-nums ${
-                adjustedGmNegative
-                  ? "text-red-700 dark:text-red-300"
-                  : "text-ink"
-              }`}
-            >
-              {cat.adjustedGmPct != null
-                ? `${(cat.adjustedGmPct * 100).toFixed(1)}%`
-                : "—"
-              }
-            </span>
-            {" "}
-            <span className="text-ink-mute">
-              (after {fmtCompactRon(cat.financingCost)} financing cost)
-            </span>
-          </div>
-        )}
 
         {/* DIO > 365 warning callout */}
         {dioOverYear && (
@@ -359,12 +353,45 @@ function CategoryCard({
           </div>
         )}
 
-        {/* Chevron — visual affordance for "drill in" */}
-        <div className="mt-3 flex justify-end">
+        {/* Flexible spacer — pins the sleeve to the bottom AND guarantees a
+            minimum gap above it even when the card content is tall (2026-07-26
+            per operator). flex-1 fills free space; min-h keeps the gap when the
+            card is exactly full. */}
+        <div aria-hidden className="flex-1 min-h-[12px]" />
+
+        {/* Bottom sleeve — full-bleed footer pinned to the card's bottom edge
+            (2026-07-26 per operator). The Adjusted GM (when computable) sits on
+            the left and the drill chevron ">" moved into this sleeve on the
+            right. Negative margins cancel the card's p-5 padding so it spans
+            edge-to-edge; rounded-b-2xl matches the card corners. */}
+        <div className="-mx-5 -mb-5 px-5 py-2.5 bg-bg-2/50 border-t border-rule/60 rounded-b-2xl flex items-center justify-between gap-3">
+          <div className="text-[12px] text-ink-soft min-w-0">
+            {cat.financingCost != null && cat.adjustedGm != null && (
+              <>
+                Adjusted GM:{" "}
+                <span
+                  className={`font-medium tabular-nums ${
+                    adjustedGmNegative
+                      ? "text-red-700 dark:text-red-300"
+                      : "text-ink"
+                  }`}
+                >
+                  {cat.adjustedGmPct != null
+                    ? `${(cat.adjustedGmPct * 100).toFixed(1)}%`
+                    : "—"
+                  }
+                </span>
+                {" "}
+                <span className="text-ink-mute">
+                  (after {fmtCompactRon(cat.financingCost)} financing cost)
+                </span>
+              </>
+            )}
+          </div>
           <ChevronRight
             size={14}
             strokeWidth={2}
-            className="text-ink-mute group-hover:text-ink-soft group-hover:translate-x-0.5 transition-all"
+            className="text-ink-mute group-hover:text-ink-soft group-hover:translate-x-0.5 transition-all shrink-0"
           />
         </div>
       </button>
@@ -410,11 +437,13 @@ function KpiCell({
   value,
   sub,
   tone,
+  className,
 }: {
   label: string;
   value: string;
   sub?: string | null;
   tone?: "positive" | "warning" | "danger" | null;
+  className?: string;
 }) {
   const valueClass =
     tone === "danger" ? "text-red-700 dark:text-red-300"
@@ -422,15 +451,15 @@ function KpiCell({
     : tone === "positive" ? "text-[#2AA89B] dark:text-[#8FE3D9]"
     : "text-ink";
   return (
-    <div className="space-y-0.5">
+    <div className={`space-y-0.5 ${className ?? ""}`}>
       <div className="text-[10px] uppercase tracking-[0.08em] text-ink-mute font-medium">
         {label}
       </div>
-      <div className={`text-[15px] font-semibold tabular-nums leading-tight ${valueClass}`}>
+      <div className={`text-[19px] font-semibold tabular-nums leading-tight ${valueClass}`}>
         {value}
       </div>
       {sub && (
-        <div className="text-[10.5px] text-ink-mute tabular-nums">{sub}</div>
+        <div className="text-[12px] text-ink-mute tabular-nums">{sub}</div>
       )}
     </div>
   );
@@ -462,8 +491,7 @@ export function BackToCategoriesPill({
         Back to categories
       </button>
       <div className="flex items-center gap-2">
-        <span className="text-[22px] leading-none">{iconForCategory(categoryLabel)}</span>
-        <span className="font-serif text-[18px] text-ink">{categoryLabel}</span>
+        <span className="font-serif text-[18px] text-ink">{toEnglishLabel(categoryLabel)}</span>
       </div>
     </div>
   );
