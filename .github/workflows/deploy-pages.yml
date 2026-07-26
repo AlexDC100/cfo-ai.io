@@ -1,0 +1,104 @@
+# Publish the Vite frontend to GitHub Pages.
+#
+# This is a SECOND deployment target, not a replacement: production is the
+# Docker frontend on the Hostinger VPS (see deploy/DEPLOY_HOSTINGER_VPS.md),
+# served at the domain root. Pages serves a static copy under /<repo>/.
+#
+# Two things make the same source work in both places:
+#   · VITE_BASE_PATH — set here only, so Vite emits asset URLs under the repo
+#     path. The VPS build leaves it unset and gets "/" (see vite.config.ts).
+#     React Router picks the same value up via import.meta.env.BASE_URL.
+#   · 404.html — Pages has no SPA rewrite rule, so a deep link like
+#     /cfo-ai.io/dashboard would 404. Serving a copy of index.html as 404.html
+#     hands those URLs back to the client-side router.
+#
+# BEFORE THIS WORKS, the repo needs one secret:
+#   VITE_SUPABASE_ANON_KEY  (Settings → Secrets and variables → Actions)
+# Vite inlines env at BUILD time, so it cannot be supplied later at runtime.
+# The anon key is designed to be public (RLS is what protects the data), but
+# it still doesn't belong committed in the tree.
+#
+# AND the deployed origin must be allow-listed in two places, or sign-in and
+# every API call will fail from the Pages URL specifically:
+#   · the backend's CORS_ORIGINS
+#   · Supabase → Authentication → URL Configuration → Redirect URLs
+
+name: Deploy frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Lets a deploy be triggered by hand from any branch (Actions → this
+  # workflow → Run workflow), which is how a feature branch gets previewed
+  # without merging to main first.
+  workflow_dispatch:
+
+# GITHUB_TOKEN needs to write the Pages deployment and mint the OIDC token
+# actions/deploy-pages exchanges for a deploy credential.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race to publish. `cancel-in-progress: false` so an
+# in-flight publish finishes rather than leaving the site half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `enablement: true` turns Pages on for the repo if it isn't already,
+      # so this doesn't depend on someone flipping a settings toggle first.
+      # It also outputs `base_path`, which is where the repo-path prefix
+      # below comes from rather than being hardcoded.
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://api.cfo-ai.finance' }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://cjclenykwlngqvapmisb.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_ANON_KEY is not set. Add it under Settings → Secrets and variables → Actions. Without it the published site cannot reach Supabase and every sign-in fails."
+            exit 1
+          fi
+          npm run build
+
+      # SPA fallback + .nojekyll (Jekyll would otherwise strip any path
+      # beginning with an underscore).
+      - name: Add SPA fallback
+        run: |
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

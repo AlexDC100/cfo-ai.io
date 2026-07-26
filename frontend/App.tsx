@@ -204,7 +204,13 @@ function App() {
               Supabase calls (uploads, INSERT into documents, RLS-scoped
               selects) work in test mode. No-op in production posture. */}
           <TestModeSessionBoot />
-          <BrowserRouter>
+          {/* basename follows Vite's `base`. It is "/" for the VPS build (the
+              app is served at the domain root) and "/<repo>/" for GitHub
+              Pages project sites, where every route is nested under the repo
+              path. Reading it from BASE_URL means one build config drives
+              both — hardcoding either one breaks the other. Vite's BASE_URL
+              carries a trailing slash; React Router wants none. */}
+          <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             {/* LanguageSync resolves the active UI language each render
                 via the auth-aware priority chain in useLanguage.ts and
                 pushes the result into i18next + <html lang="...">.

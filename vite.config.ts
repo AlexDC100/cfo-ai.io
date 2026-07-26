@@ -19,6 +19,13 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // Where the app is served from. Defaults to the domain root, which is what
+  // the VPS Docker build needs. GitHub Pages project sites live under
+  // /<repo>/, so the Pages workflow sets VITE_BASE_PATH=/cfo-ai.io/ for that
+  // build only — keeping one config correct for both targets rather than
+  // hardcoding a base that would break whichever deploy it wasn't written for.
+  base: process.env.VITE_BASE_PATH || "/",
+
   server: {
     host: "::",
     port: 5173,
