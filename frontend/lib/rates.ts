@@ -1,7 +1,14 @@
 // FX rate fetching + caching.
-// Pulls daily rates from the backend's /api/fx-rates endpoint (which
-// proxies BNR XML server-side, sidestepping the CORS issue with bnr.ro).
+// Pulls daily rates from the `fx-rates` Supabase Edge Function (which
+// proxies BNR XML server-side, sidestepping the CORS issue with bnr.ro,
+// and shares one cached rate across all users via `fx_rates_cache`).
 // Falls back to bundled rates so the app NEVER renders garbage.
+//
+// Moved off the Python engine's GET /api/fx-rates so currency conversion
+// keeps working with `cfo-ai-backend` stopped — same reasoning as chat
+// (root CLAUDE.md, "Milestone D"). The engine endpoint still exists and
+// still returns the identical shape, so it stays the fallback when
+// VITE_SUPABASE_URL isn't configured.
 
 export type Currency = "RON" | "EUR" | "USD";
 
@@ -39,6 +46,24 @@ const TTL_MS = 24 * 60 * 60 * 1000;   // 24 hours
 import { SITE } from "@/config/site";
 
 const API_URL = SITE.apiUrl;
+
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, "");
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+/** Where to ask for rates: the Edge Function when Supabase is configured,
+ *  the engine otherwise. Both return the same `RatesPayload` shape. */
+function ratesEndpoint(forceRefresh: boolean): { url: string; headers: Record<string, string> } {
+  const qs = forceRefresh ? "?refresh=true" : "";
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (SUPABASE_URL) {
+    // The function is deployed --no-verify-jwt (rates are public reference
+    // data and the landing page renders them signed-out), but the platform
+    // gateway still wants an apikey when one is available.
+    if (SUPABASE_ANON_KEY) headers.apikey = SUPABASE_ANON_KEY;
+    return { url: `${SUPABASE_URL}/functions/v1/fx-rates${qs}`, headers };
+  }
+  return { url: `${API_URL}/api/fx-rates${qs}`, headers };
+}
 
 type CacheRecord = {
   payload: RatesPayload;
@@ -99,11 +124,8 @@ export async function fetchRates(opts: { forceRefresh?: boolean } = {}): Promise
   }
 
   try {
-    const url = `${API_URL}/api/fx-rates${opts.forceRefresh ? "?refresh=true" : ""}`;
-    const resp = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const { url, headers } = ratesEndpoint(opts.forceRefresh === true);
+    const resp = await fetch(url, { method: "GET", headers });
     if (!resp.ok) {
       throw new Error(`HTTP ${resp.status}`);
     }

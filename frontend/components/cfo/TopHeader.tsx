@@ -14,6 +14,7 @@ import { Menu, Sparkles } from "lucide-react";
 import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
 import { BackendStatusIndicator } from "./BackendStatusIndicator";
+import { NotificationsMenu } from "./NotificationsMenu";
 import { CurrencyToggle } from "./CurrencyToggle";
 import { LanguageToggle } from "./LanguageToggle";
 import { LearningHubMenu } from "@/components/learning/LearningHubMenu";
@@ -185,6 +186,11 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
             <LanguageToggle />
           </div>
         )}
+
+        {/* Notifications — bell + modal list of the workspace's open
+            alerts. Immediately left of the account icon. Signed-in only:
+            alerts are org-scoped, so there's nothing to show a visitor. */}
+        {status === "signed_in" && user && <NotificationsMenu />}
 
         {status === "signed_in" && user ? (
           <AccountMenu onOpen={onOpenAccount} />

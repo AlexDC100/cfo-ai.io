@@ -16,28 +16,20 @@
 //
 // When extras_count is 0, the "+€0.00" line is hidden to avoid noise.
 
-import { Loader2 } from "lucide-react";
 import { formatEur } from "@/lib/pricingConfig";
 import { useUpcomingInvoice } from "@/lib/stripeBilling";
 
 export function UpcomingInvoicePreview() {
-  const { data, isLoading } = useUpcomingInvoice();
+  const { data } = useUpcomingInvoice();
 
-  // Loading: tiny inline spinner so the page doesn't jump on every refetch
-  if (isLoading) {
-    return (
-      <div
-        data-testid="upcoming-invoice-loading"
-        className="rounded-xl border border-rule/60 bg-bg-2/40 px-4 py-3 flex items-center gap-2 text-[12px] text-ink-soft"
-      >
-        <Loader2 size={12} className="animate-spin" />
-        Loading upcoming invoice…
-      </div>
-    );
-  }
-
-  // No active sub → render nothing. The "Current plan" + "Manage" row
-  // already tells the trial user what they need to know.
+  // Nothing to show → render nothing. That covers both "still loading" and
+  // "no active subscription".
+  //
+  // The loading state used to be a bordered "Loading upcoming invoice…"
+  // spinner card. It was there to stop the page jumping on refetch, but in
+  // practice it did the opposite: users without a Stripe subscription —
+  // the majority — saw a box appear and then disappear on every mount,
+  // announcing an invoice they were never going to get.
   if (!data) return null;
 
   const { base_amount, extras_count, extras_amount, total_estimated, next_invoice_date } = data;

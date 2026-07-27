@@ -5,7 +5,7 @@
 // pill pattern used by CurrencyToggle / LanguageToggle elsewhere in
 // the app so it feels native.
 
-import { Sparkles, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useLearningMode, type LearningMode } from "@/stores/learningMode";
 import { cn } from "@/lib/utils";
 
@@ -57,24 +57,41 @@ export function LearningSettingsSection() {
               data-testid={`settings-learning-mode-${opt.value}`}
               aria-pressed={active}
               className={cn(
-                "text-left p-3.5 rounded-xl border transition-all",
+                "relative text-left p-3.5 rounded-xl border transition-all bg-surface",
                 active
-                  ? "border-[hsl(173,57%,55%)]/40 bg-[hsl(173,57%,55%)]/[0.08]"
-                  : "border-rule bg-surface hover:bg-bg-2",
+                  // `.ask-ai-anim-fill` (index.css) = the app's seam-free 45°
+                  // teal gradient that slowly sweeps across the element.
+                  // Reused rather than hand-rolling a second animated
+                  // gradient; it handles the diagonal-tiling seam and turns
+                  // itself off under prefers-reduced-motion.
+                  //
+                  // SELECTED CARD ONLY — the animation is what marks the
+                  // chosen mode. Running it on all three made every card look
+                  // selected and put motion under three blocks of description
+                  // text at once. Alphas stay below the pill's defaults
+                  // (0.26 / 0.12) so the sweep doesn't fight the copy.
+                  ? "ask-ai-anim-fill border-[hsl(173,57%,55%)]/40 [--af-a1:0.16] [--af-a2:0.05]"
+                  : "border-rule hover:bg-bg-2",
               )}
             >
-              <div className="flex items-center justify-between mb-1.5">
+              {active && (
+                // Same selected-marker as the workspace cards
+                // (Workspace.tsx) — glowing brand dot, absolutely pinned to
+                // the card corner. In-flow beside the title it inherited the
+                // title's line-height and sat too low.
                 <span
-                  className={cn(
-                    "text-[13.5px] font-semibold",
-                    active ? "text-[hsl(173,57%,38%)]" : "text-ink",
-                  )}
+                  className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
+                  title={`${opt.label} selected`}
                 >
-                  {opt.label}
+                  <span className="sr-only">Selected</span>
                 </span>
-                {active && (
-                  <Sparkles className="w-3.5 h-3.5 text-[hsl(173,57%,38%)]" />
-                )}
+              )}
+              {/* Title stays `text-ink` in both states — the dot, border and
+                  animated fill already mark the selection, and recolouring
+                  the label as well made it the only heading in Settings that
+                  changes colour. `pr-4` keeps it clear of the dot. */}
+              <div className="text-[13.5px] font-semibold text-ink mb-1.5 pr-4">
+                {opt.label}
               </div>
               <div className="text-[11.5px] leading-snug text-ink-soft">
                 {opt.description}
@@ -84,22 +101,35 @@ export function LearningSettingsSection() {
         })}
       </div>
 
-      {/* Status + reset */}
-      <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-[12px] text-ink-soft min-w-0">
-          {hasDismissedCoach || completedCount > 0 ? (
-            <>
-              First-run coach{" "}
-              <span className="text-ink font-medium">
-                {hasDismissedCoach ? "dismissed" : "pending"}
-              </span>
-              {" · "}
-              <span className="text-ink font-medium">{completedCount}</span>{" "}
-              page tour{completedCount === 1 ? "" : "s"} completed
-            </>
-          ) : (
-            "No learning interactions yet — turn on Guided to see the first-run coach."
-          )}
+      {/* Status + reset. Styled as a `DocGuideCard` (the "what can I upload"
+          cards in FinancialStatements.tsx): surface background, brand-tinted
+          3px left rule, uppercase eyebrow over the body copy. Was a flat
+          bg-bg-2/40 pill, which read as a disabled input rather than a
+          status card. */}
+      <div className="rounded-lg border border-rule border-l-[3px] border-l-brand bg-surface p-3 flex items-center justify-between gap-3 flex-wrap text-left">
+        <div className="min-w-0">
+          {/* Copy describes what Reset will DO, not just what's been seen —
+              the state readout alone ("coach dismissed · 3 tours completed")
+              left the button's effect to be inferred. Counts stay in the
+              sentence so the consequence is concrete. */}
+          <div className="text-[11.5px] text-ink-soft leading-relaxed">
+            {hasDismissedCoach || completedCount > 0 ? (
+              <>
+                Reset brings back the first-run coach
+                {hasDismissedCoach ? " (dismissed)" : ""}
+                {completedCount > 0 && (
+                  <>
+                    {" "}and replays{" "}
+                    <span className="text-ink font-medium">{completedCount}</span>{" "}
+                    completed page tour{completedCount === 1 ? "" : "s"}
+                  </>
+                )}
+                . Your learning mode above stays as it is.
+              </>
+            ) : (
+              "Nothing to reset yet — the coach and page tours haven't been seen. Turn on Guided to see them."
+            )}
+          </div>
         </div>
         <button
           type="button"

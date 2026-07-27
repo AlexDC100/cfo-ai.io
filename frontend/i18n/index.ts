@@ -41,8 +41,12 @@ import ro from "./locales/ro.json";
 // up-to-date with new translation keys. Re-adding a language is a JSON
 // drop in ./locales/ + an entry here + the resources block below.
 
+// `flag` is the glyph shown beside each language in the pickers. English
+// uses the 🇪🇺 EU flag rather than 🇬🇧: the language offered is English as
+// the product's lingua franca, not United-Kingdom-specific — and the users
+// are Romanian SMEs, for whom a GB flag is the odd one out next to 🇷🇴.
 export const SUPPORTED_LANGUAGES = [
-  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "en", label: "English", flag: "🇪🇺" },
   { code: "ro", label: "Română",  flag: "🇷🇴" },
 ] as const;
 

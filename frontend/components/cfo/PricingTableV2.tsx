@@ -46,6 +46,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { getSupabase } from "@/lib/supabase";
+import { STARTER_FEATURES, PRO_FEATURES } from "@/lib/planFeatures";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -94,9 +95,20 @@ interface Props {
    *  /pricing to show the "billing not connected" copy if Stripe price_ids
    *  aren't wired. */
   onUnlockIntro?: () => void;
+  /** Set false to hide the two acquisition CTAs below the plan cards — the
+   *  Intro Unlock strip and the "start a 7-day free trial" signup link.
+   *  Both assume a visitor who hasn't bought yet, so on Settings → Billing
+   *  they offered an existing subscriber a one-time trial unlock and a link
+   *  to /signup. Defaults true so /pricing and the landing page are
+   *  unchanged. */
+  showAcquisitionCtas?: boolean;
 }
 
-export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) {
+export function PricingTableV2({
+  currentPlanKey = null,
+  onUnlockIntro,
+  showAcquisitionCtas = true,
+}: Props) {
   const { config, loading } = usePricingConfig();
   const { status } = useAuth();
   const navigate = useNavigate();
@@ -193,7 +205,7 @@ export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) 
       {/* Intro Unlock — small one-time strip BELOW the main plans.
           Strictly NOT a plan card. The component refuses to render if
           the backend ever marked intro recurring (defence-in-depth). */}
-      {intro && (
+      {intro && showAcquisitionCtas && (
         <div className="mt-6">
           <IntroUnlockCallout
             plan={intro}
@@ -205,17 +217,19 @@ export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) 
       {/* Free trial tail-link — spec §6 doesn't show trial as a plan
           card, but new users still need a 'try first' entry point.
           A small link beneath the cards is the lightest-weight surface. */}
-      <p className="mt-6 text-center text-[12.5px] text-ink-soft">
-        Or{" "}
-        <Link
-          to="/signup"
-          className="font-medium text-brand-d hover:text-brand underline-offset-2 hover:underline"
-          data-testid="pricing-trial-link"
-        >
-          start a 7-day free trial
-        </Link>{" "}
-        — one document, no card required.
-      </p>
+      {showAcquisitionCtas && (
+        <p className="mt-6 text-center text-[12.5px] text-ink-soft">
+          Or{" "}
+          <Link
+            to="/signup"
+            className="font-medium text-brand-d hover:text-brand underline-offset-2 hover:underline"
+            data-testid="pricing-trial-link"
+          >
+            start a 7-day free trial
+          </Link>{" "}
+          — one document, no card required.
+        </p>
+      )}
     </section>
   );
 }
@@ -224,26 +238,6 @@ export function PricingTableV2({ currentPlanKey = null, onUnlockIntro }: Props) 
 // Plan features — these are copy contracts from spec §6. Keep stable;
 // changing them changes the marketing surface.
 // ─────────────────────────────────────────────────────────────────────
-
-const STARTER_FEATURES = [
-  "5 financial documents / month",
-  "Romanian bilanț, balanță, invoices, public filings",
-  "CFO AI financial summary",
-  "Basic ratios and risk flags",
-  "PDF / HTML report export",
-  "Ask CFO AI: 10/day, 50/month",
-];
-
-const PRO_FEATURES = [
-  "15 financial documents / month",
-  "Full CFO reports",
-  "Trial balance analysis",
-  "Benchmark intelligence",
-  "Valuation module",
-  "Board-ready reports",
-  "Ask CFO AI: 40/day, 200/month",
-  "Faster processing priority",
-];
 
 // ─────────────────────────────────────────────────────────────────────
 // PlanCard

@@ -1,24 +1,32 @@
 // Settings → Billing section.
 //
-// LAYOUT (May 2026 simplification per operator directive)
+// LAYOUT (Jul 2026 — plan cards replace the plain "Current plan" line)
 // ────────────────────────────────────────────────────────
 //   Billing
 //
-//   Current plan
-//   Pro · €39.99 / mo
+//   ┌── STARTER ──────────┐  ┌── PRO ── Most popular ──┐
+//   │  €14.99 / month     │  │  €39.99 / month         │
+//   │  [ Current plan ]   │  │  [ Start Pro ]          │
+//   └─────────────────────┘  └─────────────────────────┘
 //
-//   Billing email
-//   alex@example.com
+//                                    [ Manage subscription ]
 //
-//   [ Manage subscription ]
+// The plan cards ARE the current-plan readout — `PricingTableV2` flips
+// the matching tier's CTA to "Current plan" (disabled). That replaced a
+// static "Current plan / Pro · €39.99 / mo" field, which named the tier
+// but offered no way to change it without a trip to /pricing.
+//
+// Note this is `PricingTableV2` (Starter/Pro, priced from
+// /api/pricing/config), NOT the marketing site's `pricingGrid` HTML in
+// Landing.tsx (Solo/Business, hardcoded €19.99/€59). Those are older plan
+// names with no checkout wiring, so rendering them to a signed-in user
+// would offer tiers that don't exist in Stripe.
 //
 // What this surface DOES:
-//   · Reads the current plan name + price from /api/plan/state (server
-//     truth — the same source PricingTableV2 and the AccountMenu read,
-//     so prices stay consistent everywhere)
-//   · Shows the billing email (currently the user's account email; if
-//     a separate billing_email column lands later, swap the field name
-//     in one place)
+//   · Renders the live plan cards, with the user's own tier marked and
+//     every other tier a working checkout CTA. Prices come from
+//     /api/pricing/config — the same server truth /pricing and the
+//     AccountMenu read, so nothing drifts between surfaces.
 //   · "Manage subscription" routes to the Stripe customer portal when
 //     a Stripe subscription exists. For trial / intro / no-sub users
 //     it routes to /pricing so they can pick a tier.
@@ -57,9 +65,11 @@ import {
 // async error to toast.
 import { usePlanState, type PlanState } from "@/lib/planState";
 import { useAuth } from "@/lib/auth";
-import { formatEur } from "@/lib/pricingConfig";
+import { formatEur, type PlanKey } from "@/lib/pricingConfig";
 import { SITE } from "@/config/site";
 import { UpcomingInvoicePreview } from "./UpcomingInvoicePreview";
+import { CurrentPlanCard } from "./CurrentPlanCard";
+import { UsageThisMonth } from "./pricing/UsageThisMonth";
 
 export function BillingSection() {
   // Stripe sub state — used to route "Manage subscription" to the
@@ -78,6 +88,13 @@ export function BillingSection() {
 
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+
+  // Feed the plan cards the tier the user is actually on so the matching
+  // card renders "Current plan" (disabled) instead of a checkout CTA.
+  // `undefined` means "no current plan" to PricingTableV2 (all CTAs live),
+  // which is the right read while plan state is still resolving.
+  const currentPlanKey: PlanKey | null =
+    (planState?.plan_key as PlanKey | undefined) ?? null;
 
   /** Re-introduced (May 2026, Stripe go-live):
    *   · If the user has a Stripe-linked subscription (any tier),
@@ -98,9 +115,14 @@ export function BillingSection() {
       const ok = await openBillingPortal();
       if (ok) return; // browser navigated away
     }
-    // Fallback: no active sub, OR portal call failed → /pricing
+    // Fallback: no active sub, OR portal call failed → the marketing site's
+    // pricing tab, NOT the in-app /pricing route (owner's directive
+    // 2026-07-27). Landing.tsx selects its page from the hash — see its
+    // `applyHash` / `VALID_PAGES` — so the target is `/#/pricing`, not a
+    // path segment. A plain `/pricing` would land on the separate in-app
+    // pricing route instead.
     setBusy(false);
-    navigate("/pricing");
+    navigate("/#/pricing");
   }
 
   if (subLoading || planLoading) {
@@ -120,64 +142,59 @@ export function BillingSection() {
       data-testid="settings-billing"
       data-plan-key={planState?.plan_key ?? "unknown"}
     >
-      <div className="rounded-2xl border border-rule bg-surface px-5 py-5 space-y-4">
-        {/* Current plan — name + price · cadence */}
-        <Field label="Current plan">
-          <span
-            data-testid="billing-current-plan-line"
-            className="text-[14px] text-ink"
-          >
-            <span className="font-medium">
-              {planState?.plan_display_name ?? "Free trial"}
-            </span>
-            <span className="text-ink-soft"> · </span>
-            <span
-              data-testid="billing-current-plan-price"
-              className="tabular-nums"
-            >
-              {planPriceLine(planState)}
-            </span>
-          </span>
-        </Field>
+      <div className="space-y-6">
+        {/* The plan cards themselves are the "current plan" readout: the
+            tier the user is on renders as "Current plan" + disabled, and
+            every other tier is a live checkout CTA. That replaced the
+            label-over-value "Current plan / Pro · €39.99 / mo" line, which
+            stated the tier but gave no way to move off it without a trip
+            to /pricing. Prices come from the same /api/pricing/config the
+            cards on /pricing read, so nothing can drift between the two
+            surfaces. */}
+        {/* Usage meters first — "how much have I used?" is the question a
+            user opens this section with; the plan card below answers "of
+            what?". `compact` drops UsageThisMonth's /pricing page chrome. */}
+        <UsageThisMonth compact />
 
-        {/* Billing email — auth email today; swap for a billing_email
-            column when that ships. */}
-        <Field label="Billing email">
-          <span
-            data-testid="billing-email"
-            className="text-[14px] text-ink truncate"
-          >
-            {user?.email ?? "—"}
-          </span>
-        </Field>
+        {/* One card — the plan the user is actually on — in the marketing
+            site's card design. The full Starter+Pro grid lives at /pricing;
+            repeating it here made Settings a second storefront when the
+            question this surface answers is "what am I on?". */}
+        <CurrentPlanCard />
 
         {/* WS2 — live counter for the next invoice (base + metered extras +
             total). Hidden for trial / pre-checkout users; renders itself
             null when /api/billing/upcoming-invoice returns no subscription. */}
         <UpcomingInvoicePreview />
 
-        {/* Manage subscription — single CTA. Stripe portal when
-            possible, /pricing fallback otherwise. */}
-        <div className="pt-1">
+        {/* The "Billing email" field and the divider above this row were
+            removed 2026-07-27 — the address was the account email already
+            shown in Settings → Profile, so it restated a fact one section
+            up and made the plan cards look like they ended in a form.
+            The Stripe portal CTA stays: the cards sell tiers, they don't
+            manage an existing subscription (card on file, invoices,
+            cancel). Falls back to /pricing when there's no Stripe sub. */}
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={handleManage}
             disabled={busy}
             data-testid="billing-manage-subscription"
+            // Animated teal sweep, matching the selected language/currency
+            // pills and the profile Edit button.
             className="
+              ask-ai-anim-fill
               inline-flex items-center justify-center gap-2
               h-10 px-4 rounded-md
-              bg-ink text-paper text-[13px] font-medium
-              hover:bg-ink/90 transition-colors
-              disabled:opacity-60
+              bg-surface border border-brand/50
+              text-[13px] text-ink font-medium
+              transition-colors disabled:opacity-60
+              [--af-band:90px] [--af-shift:509.1px]
+              [--af-a1:0.34] [--af-a2:0.12] [animation-duration:7.2s]
             "
           >
-            {busy ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <ExternalLink size={12} strokeWidth={1.75} />
-            )}
-            Manage subscription
+            {busy && <Loader2 size={13} className="animate-spin" />}
+            Manage
           </button>
         </div>
       </div>

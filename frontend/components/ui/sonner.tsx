@@ -10,6 +10,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // Always render every toast in full. Sonner's default is the
+      // collapsed stack — the newest toast on top with the rest peeking
+      // behind it as slivers, expanding only on hover — which meant two
+      // toasts fired close together produced two different-looking
+      // notifications depending on timing, and the older one was
+      // unreadable until moused over. `expand` pins it to the
+      // one-card-per-toast list in every case.
+      expand
+      // With nothing collapsing, an unbounded list could run off-screen;
+      // sonner's default cap is 3, which is low once expanded.
+      visibleToasts={5}
       toastOptions={{
         classNames: {
           // !important-flagged app tokens — the previous group-[.toaster]

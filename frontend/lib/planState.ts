@@ -112,6 +112,18 @@ let cachedState: PlanState | null = (() => {
   }
 })();
 
+type PlanListener = (s: PlanState | null, e: PlanApiError | null) => void;
+const listeners = new Set<PlanListener>();
+
+/** In-flight request shared by every mounted hook. Settings → Plan alone
+ *  mounts three consumers (BillingSection, UsageThisMonth, CurrentPlanCard);
+ *  before this, each fired its OWN GET /api/plan/state and each kept its own
+ *  error state. One of those racing requests failing was enough to blank
+ *  UsageThisMonth — which hides on error — while the other two rendered
+ *  fine, so the usage cards vanished the moment the plan card resolved.
+ *  Now one request serves all callers and they can't disagree. */
+let inflight: Promise<PlanState> | null = null;
+
 function setCachedState(s: PlanState): void {
   cachedState = s;
   try {
@@ -119,6 +131,22 @@ function setCachedState(s: PlanState): void {
   } catch {
     /* ignore quota / disabled storage */
   }
+  for (const l of listeners) l(s, null);
+}
+
+/** Fetch plan state, coalescing concurrent callers onto one request. */
+function loadPlanState(force = false): Promise<PlanState> {
+  if (inflight && !force) return inflight;
+  inflight = (async () => {
+    try {
+      const s = await authedFetch<PlanState>("GET", "/api/plan/state");
+      setCachedState(s);
+      return s;
+    } finally {
+      inflight = null;
+    }
+  })();
+  return inflight;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -141,9 +169,7 @@ export function usePlanState(): {
     setLoading(true);
     setError(null);
     try {
-      const s = await authedFetch<PlanState>("GET", "/api/plan/state");
-      setCachedState(s);
-      setState(s);
+      setState(await loadPlanState(true));
     } catch (e) {
       if (e instanceof PlanApiError) setError(e);
       else setError(new PlanApiError(String(e), 0, null));
@@ -152,19 +178,26 @@ export function usePlanState(): {
     }
   }, []);
 
+  // Adopt state fetched by ANY other mounted consumer, so a component that
+  // mounts mid-flight doesn't need its own request to catch up.
+  useEffect(() => {
+    const l: PlanListener = (s, e) => {
+      if (s) { setState(s); setError(null); setLoading(false); }
+      else if (e) { setError(e); setLoading(false); }
+    };
+    listeners.add(l);
+    return () => { listeners.delete(l); };
+  }, []);
+
   useEffect(() => {
     let mounted = true;
-    void (async () => {
-      try {
-        const s = await authedFetch<PlanState>("GET", "/api/plan/state");
-        if (mounted) { setCachedState(s); setState(s); setLoading(false); }
-      } catch (e) {
+    void loadPlanState()
+      .then((s) => { if (mounted) { setState(s); setError(null); setLoading(false); } })
+      .catch((e) => {
         if (!mounted) return;
-        if (e instanceof PlanApiError) setError(e);
-        else setError(new PlanApiError(String(e), 0, null));
+        setError(e instanceof PlanApiError ? e : new PlanApiError(String(e), 0, null));
         setLoading(false);
-      }
-    })();
+      });
     return () => { mounted = false; };
   }, []);
 

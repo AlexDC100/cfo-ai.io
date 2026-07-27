@@ -20,27 +20,44 @@ import { MessageSquare, ScrollText, UploadCloud } from "lucide-react";
 
 import { planUsagePct, usePlanState, type PlanState } from "@/lib/planState";
 
-export function UsageThisMonth() {
-  const { state, loading, error } = usePlanState();
-  // Unauthed / not-loaded / error → render nothing. The /pricing page
-  // is also the public marketing surface; this section is only
-  // meaningful for signed-in users. PlanUsageCard in Settings has the
-  // explicit error/retry surface for the authed Settings view.
-  if (loading || error || !state) return null;
+export function UsageThisMonth({ compact = false }: {
+  /** Drop the page chrome — the /pricing width clamp, vertical padding and
+   *  the big serif "Where you stand right now." header — so the cards can
+   *  be embedded inside an existing section. Settings → Plan renders them
+   *  above the current-plan card, where that heading would be a second
+   *  title under the section's own. Defaults false so /pricing is
+   *  unchanged. */
+  compact?: boolean;
+} = {}) {
+  const { state, error } = usePlanState();
+  // No state to show → render nothing. The /pricing page is also the public
+  // marketing surface; this section is only meaningful for signed-in users.
+  //
+  // Gating on `state` alone, NOT on `loading || error`: those flip during a
+  // background revalidation, and hiding on them meant the cards could
+  // appear and then vanish while a perfectly good `state` was still in hand
+  // (the cached value survives a failed refresh). An error with no state is
+  // still nothing to draw, so it falls out of the same check.
+  if (!state) return null;
+  // A failed refresh over good cached data is not worth a visible error
+  // here — the numbers on screen are the last known truth.
+  void error;
 
   return (
     <section
       data-testid="usage-this-month"
-      className="max-w-[1080px] mx-auto px-5 sm:px-8 py-10"
+      className={compact ? "" : "max-w-[1080px] mx-auto px-5 sm:px-8 py-10"}
     >
-      <header className="mb-6">
-        <div className="text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
-          This month's usage
-        </div>
-        <h2 className="mt-2 font-serif text-[26px] sm:text-[32px] leading-[1.1] text-ink">
-          Where you stand right now.
-        </h2>
-      </header>
+      {!compact && (
+        <header className="mb-6">
+          <div className="text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
+            This month's usage
+          </div>
+          <h2 className="mt-2 font-serif text-[26px] sm:text-[32px] leading-[1.1] text-ink">
+            Where you stand right now.
+          </h2>
+        </header>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <DocumentsCard state={state} />
         <ChatCard state={state} />
