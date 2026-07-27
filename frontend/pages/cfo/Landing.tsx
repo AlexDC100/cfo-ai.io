@@ -238,7 +238,7 @@ function header(
         ${langOpen ? `
         <div style="position:absolute;right:0;top:calc(100% + 12px);min-width:170px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:14px;padding:6px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);z-index:60">
           ${SUPPORTED_LANGUAGES.map((l) => `
-          <button data-act="lang:${l.code}" class="menu-item" style="gap:9px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.flag} ${l.label}${l.code === langCode ? `<span style="margin-left:auto">✓</span>` : ""}</button>`).join("")}
+          <button data-act="lang:${l.code}" class="menu-item" style="gap:9px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.badge} ${l.label}${l.code === langCode ? `<span style="margin-left:auto">✓</span>` : ""}</button>`).join("")}
         </div>` : ""}
       </div>${authArea}
     </div>
@@ -257,7 +257,7 @@ function header(
     </div>
     <div style="height:1px;background:var(--rule-soft);margin:10px 4px"></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 4px">
-      ${SUPPORTED_LANGUAGES.map((l) => `<button data-act="lang:${l.code}" class="menu-item" style="width:auto;flex:0 0 auto;gap:7px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.flag} ${l.label}</button>`).join("")}
+      ${SUPPORTED_LANGUAGES.map((l) => `<button data-act="lang:${l.code}" class="menu-item" style="width:auto;flex:0 0 auto;gap:7px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.badge} ${l.label}</button>`).join("")}
     </div>
     <div style="height:1px;background:var(--rule-soft);margin:10px 4px"></div>
     <div style="display:flex;flex-direction:column;gap:8px;padding:0 4px">

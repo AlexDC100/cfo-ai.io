@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { supabaseEnabled } from "@/lib/supabase";
+import { markNewsletterOptInPending } from "@/lib/newsletterOptIn";
+import { TermsDialog } from "./TermsDialog";
 import { Check, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
 import {
   getPlan,
@@ -102,6 +104,11 @@ export function AuthCard({
   // sent it — give it a moment" UX cue.
   const [resendCooldownSec, setResendCooldownSec] = useState(0);
   const [resendInfo, setResendInfo] = useState<string | null>(null);
+  // Signup consent. `acceptedTerms` gates submission; `wantsNewsletter` is
+  // optional and acted on only after the account actually exists.
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [wantsNewsletter, setWantsNewsletter] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
 
   // Derived view-model — pure useMemo, deterministic.
   const displayName = useMemo(
@@ -252,6 +259,10 @@ export function AuthCard({
       setError("Passwords don't match.");
       return;
     }
+    if (mode === "sign_up" && !acceptedTerms) {
+      setError("Please accept the Terms of Service to create an account.");
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "sign_in") {
@@ -266,8 +277,17 @@ export function AuthCard({
           companyName: companyName.trim(),
         });
         if (error) setError(error.message);
-        else if (needsConfirmation) setConfirmEmail(email);
-        else authedRedirect();
+        else {
+          // Ticking the box IS the consent — no separate "confirm your
+          // subscription" email. We can't subscribe outright here because
+          // with email confirmation on there is no session yet, so the
+          // intent is parked and flushed by lib/auth.tsx the first time a
+          // session exists (i.e. once the account-confirmation link has
+          // been clicked and the address is proven). See lib/newsletterOptIn.ts.
+          if (wantsNewsletter) markNewsletterOptInPending(email);
+          if (needsConfirmation) setConfirmEmail(email);
+          else authedRedirect();
+        }
       }
     } finally {
       setBusy(false);
@@ -561,6 +581,56 @@ export function AuthCard({
               </Field>
             )}
 
+            {mode === "sign_up" && (
+              <div className="flex flex-col gap-2.5 pt-1">
+                {/* Consent is REQUIRED and deliberately not pre-ticked — a
+                    pre-ticked box is not consent under GDPR. The Terms open
+                    in a modal rather than a link, because navigating away
+                    from a half-filled signup form loses everything typed. */}
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.currentTarget.checked)}
+                    data-testid="signup-accept-terms"
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer"
+                  />
+                  <span className="text-[11.5px] leading-snug text-ink-soft">
+                    I have read and agree to the{" "}
+                    <button
+                      type="button"
+                      // stopPropagation: without it the click bubbles to the
+                      // <label> and toggles the checkbox as a side effect of
+                      // opening the document the user hasn't read yet.
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setTermsOpen(true); }}
+                      data-testid="signup-open-terms"
+                      // `brand-light`, not `brand-l` — tailwind.config.ts
+                      // names the scale DEFAULT/dark/light/tint, so
+                      // `hover:text-brand-l` compiles to nothing at all.
+                      className="text-brand font-medium underline underline-offset-2 hover:text-brand-light"
+                    >
+                      Terms of Service
+                    </button>
+                    <span className="text-brand"> *</span>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={wantsNewsletter}
+                    onChange={(e) => setWantsNewsletter(e.currentTarget.checked)}
+                    data-testid="signup-newsletter"
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer"
+                  />
+                  <span className="text-[11.5px] leading-snug text-ink-soft">
+                    Subscribe to the newsletter — occasional product updates and
+                    Romanian SME finance insights. Unsubscribe any time.
+                  </span>
+                </label>
+              </div>
+            )}
+
             <p className="text-[10.5px] text-ink-mute">
               <span className="text-brand">*</span> Required
             </p>
@@ -600,6 +670,10 @@ export function AuthCard({
           </p>
         </>
       )}
+
+      {/* Mounted at the card root, outside the `confirmEmail` branch, so the
+          document stays readable no matter which state the card is in. */}
+      <TermsDialog open={termsOpen} onOpenChange={setTermsOpen} />
     </div>
   );
 }

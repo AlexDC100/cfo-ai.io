@@ -958,7 +958,7 @@ function LanguageIconButton() {
                   ${isActive ? "text-ink font-medium" : "text-ink-soft"}
                 `}
               >
-                <span className="text-[14px] leading-none">{lng.flag}</span>
+                <span className="font-mono text-[10.5px] tracking-[0.08em] text-ink-mute leading-none w-[18px]">{lng.badge}</span>
                 <span className="flex-1">{lng.label}</span>
                 {isActive && <span aria-hidden className="text-brand">✓</span>}
               </button>

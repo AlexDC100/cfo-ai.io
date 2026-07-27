@@ -45,26 +45,47 @@ def _load_env(path: Path) -> dict:
     return env
 
 
-def _email_shell(heading: str, body: str, button_label: str) -> str:
-    """The branded shell from RESEND_SETUP.md Step 6b (navy/amber v5 styling)."""
-    return f"""<table width="100%" cellpadding="0" cellspacing="0" style="background:#fafbfc;padding:24px 0;font-family:Helvetica,Arial,sans-serif;">
-  <tr><td align="center">
-    <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border:1px solid #d6dde6;border-radius:8px;overflow:hidden;">
-      <tr><td style="background:linear-gradient(135deg,#003366,#1a5490);padding:22px 28px;">
-        <span style="color:#fff;font-size:18px;font-weight:700;">CFO&nbsp;AI</span>
+def _email_shell(eyebrow: str, heading: str, body: str, button_label: str,
+                 note: str) -> str:
+    """The branded shell — cream page, white card, teal hairline, pill CTA.
+
+    Rebranded 2026-07 alongside src/engine/api/_email_templates.py; the old
+    navy #003366 / amber gradient shell no longer exists in the product.
+    This markup is byte-for-byte what supabase-auth-email-templates.html
+    holds — that file is the manual-paste fallback, this is the automated
+    path. Change one, change the other, or the dashboard and the repo drift.
+
+    `{{{{ .ConfirmationURL }}}}` escapes to a literal `{{ .ConfirmationURL }}`
+    for Supabase to substitute — it carries the secure token, never remove it.
+    """
+    return f"""<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f4f2;padding:40px 0;font-family:'Inter',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr><td align="center" style="padding:0 16px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #ededea;border-radius:16px;overflow:hidden;">
+      <tr><td style="height:3px;background:#5CD3C5;font-size:0;line-height:0;">&nbsp;</td></tr>
+      <tr><td style="padding:26px 36px 0 36px;">
+        <table cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="font-size:17px;font-weight:500;letter-spacing:-0.005em;color:#1a1a1a;line-height:1;">CFO <span style="color:#2AA89B;">AI</span></td></tr>
+          <tr><td style="padding-top:6px;font-family:Consolas,monospace;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#808080;line-height:1;">Financial Intelligence</td></tr>
+        </table>
       </td></tr>
-      <tr><td style="padding:28px;">
-        <h1 style="font-size:20px;color:#003366;margin:0 0 12px;">{heading}</h1>
-        <p style="font-size:14px;line-height:1.6;color:#33404f;margin:0 0 20px;">
-          {body}
-        </p>
-        <p style="margin:0 0 8px;">
-          <a href="{{{{ .ConfirmationURL }}}}" style="display:inline-block;background:#003366;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:6px;">{button_label}</a>
-        </p>
+      <tr><td style="padding:26px 36px 0 36px;">
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;">
+          <tr>
+            <td width="8" valign="middle" style="width:8px;font-size:0;line-height:0;"><div style="width:8px;height:8px;background:#5CD3C5;font-size:0;line-height:8px;">&nbsp;</div></td>
+            <td style="padding-left:12px;font-family:Consolas,monospace;font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#454545;">{eyebrow}</td>
+          </tr>
+        </table>
+        <h1 style="margin:0 0 14px 0;font-family:'Instrument Serif',Georgia,'Times New Roman',serif;font-size:30px;font-weight:400;line-height:1.15;letter-spacing:-0.01em;color:#1a1a1a;">{heading}</h1>
+        <p style="margin:0 0 24px 0;font-size:16px;line-height:1.55;color:#454545;">{body}</p>
+        <table cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#1a1a1a" style="background:#1a1a1a;border-radius:999px;">
+          <a href="{{{{ .ConfirmationURL }}}}" style="display:inline-block;padding:15px 30px;font-size:15px;font-weight:500;color:#ffffff;text-decoration:none;border-radius:999px;">{button_label}</a>
+        </td></tr></table>
+        <p style="margin:18px 0 0 0;font-size:14px;line-height:1.55;color:#808080;">{note}</p>
       </td></tr>
-      <tr><td style="padding:0 28px 28px;">
-        <hr style="border:none;border-top:1px solid #e0e6ed;margin:8px 0 16px;">
-        <p style="font-size:11px;color:#8a97a8;margin:0;">CFO AI — Romanian SME financial analysis.</p>
+      <tr><td style="padding:32px 36px 30px 36px;">
+        <div style="height:1px;background:#ededea;font-size:0;line-height:0;">&nbsp;</div>
+        <p style="margin:18px 0 0 0;font-size:12px;line-height:1.6;color:#808080;">CFO AI — financial analysis for small and mid-sized companies.</p>
+        <p style="margin:8px 0 0 0;font-size:12px;line-height:1.6;color:#808080;"><a href="https://cfo-ai.io" style="color:#2AA89B;text-decoration:none;">cfo-ai.io</a></p>
       </td></tr>
     </table>
   </td></tr>
@@ -72,17 +93,22 @@ def _email_shell(heading: str, body: str, button_label: str) -> str:
 
 
 RECOVERY_HTML = _email_shell(
+    "Account security",
     "Reset your password",
-    "We received a request to reset your CFO AI password. Click below to choose a new one. "
-    "This link expires in 60 minutes. If you didn't request it, you can ignore this email.",
+    "We received a request to reset your CFO AI password. Choose a new one "
+    "below — the link expires in 60 minutes.",
     "Reset password",
+    "If you didn't request this, you can safely ignore this email — your "
+    "password stays unchanged.",
 )
 
 CONFIRMATION_HTML = _email_shell(
+    "Welcome",
     "Confirm your email",
-    "Welcome to CFO AI. Click below to confirm your email address and activate your account. "
-    "If you didn't create an account, you can ignore this email.",
+    "Welcome to CFO AI. Confirm your email address to activate your account "
+    "and start turning a trial balance into CFO-grade analysis.",
     "Confirm email",
+    "If you didn't create this account, you can ignore this email.",
 )
 
 

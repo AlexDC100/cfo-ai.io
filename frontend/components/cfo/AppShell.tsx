@@ -43,6 +43,7 @@ import { getChatShellRef } from "./chat/sharedShellRef";
 import { OPEN_ASK_CFO_AI_EVENT, type OpenAskCfoAiDetail } from "./chat/openAskCfoAi";
 import { useAuth } from "@/lib/auth";
 import { useWorkspaces } from "@/lib/workspaces";
+import { useActiveOrg } from "@/lib/org";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
 import { useToast } from "@/hooks/use-toast";
@@ -230,7 +231,16 @@ export function AppShell({ children }: Props) {
   // content runs full-width until they create one. Gated on !loading so the
   // sidebar doesn't flash out during the initial workspace resolve.
   const { workspaces, loading: wsLoading } = useWorkspaces();
-  const noWorkspaces = !wsLoading && workspaces.length === 0;
+  // Also true when a workspace EXISTS but hasn't been set up yet — the state
+  // a brand-new account lands in, since signup auto-creates an org with no
+  // industry_key. AuthGuard already bounces every data route back to
+  // /workspace in that state (`needsOnboarding`), so leaving those tabs
+  // looking live meant every click silently ricocheted back to the wizard.
+  // Dimming them makes the rail describe what the guard will actually do.
+  // `ALWAYS_ENABLED` in Sidebar keeps Workspaces, Settings, Ask CFO AI and
+  // the website clickable throughout.
+  const { needsOnboarding } = useActiveOrg();
+  const noWorkspaces = !wsLoading && (workspaces.length === 0 || needsOnboarding);
   const sidebarHandlers = {
     onSettings: () => navigate("/settings"),
     onOpenCommandCenter: () => setDrawerOpen(true),

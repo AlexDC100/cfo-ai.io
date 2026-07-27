@@ -20,6 +20,7 @@ import type { Session, User, AuthError } from "@supabase/supabase-js";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { clearDataPresence } from "@/lib/dataPresence";
+import { flushNewsletterOptIn } from "@/lib/newsletterOptIn";
 import {
   isPublicTestMode,
   TEST_USER_ID,
@@ -186,6 +187,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearDataPresence();
       }
       priorUserId = nextUserId;
+
+      // Newsletter opt-in ticked at signup is parked in localStorage and
+      // consumed here, on the first event that carries a real session —
+      // INITIAL_SESSION after the confirmation link, or SIGNED_IN. It marks
+      // the address confirmed directly (no second opt-in email), which is
+      // only sound at this point because holding a session proves the user
+      // clicked the account-confirmation link. No-op when nothing is
+      // pending, so the periodic TOKEN_REFRESHED ticks cost nothing.
+      if (s?.user) void flushNewsletterOptIn(s.user.email);
 
       setSession(s);
       setStatus(s ? "signed_in" : "signed_out");

@@ -593,7 +593,7 @@ function LanguageCard() {
                     : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong",
                 )}
               >
-                <span>{lang.flag}</span>
+                <span className="font-mono text-[10px] tracking-[0.08em] text-ink-mute">{lang.badge}</span>
                 <span>{lang.label}</span>
               </button>
             );

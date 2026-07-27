@@ -41,13 +41,20 @@ import ro from "./locales/ro.json";
 // up-to-date with new translation keys. Re-adding a language is a JSON
 // drop in ./locales/ + an entry here + the resources block below.
 
-// `flag` is the glyph shown beside each language in the pickers. English
-// uses the 🇪🇺 EU flag rather than 🇬🇧: the language offered is English as
-// the product's lingua franca, not United-Kingdom-specific — and the users
-// are Romanian SMEs, for whom a GB flag is the odd one out next to 🇷🇴.
+// `badge` is the short tag shown beside each language in the pickers.
+//
+// It is the LANGUAGE CODE, not a flag emoji. Flags were tried twice (🇬🇧 then
+// 🇪🇺) and both were wrong for the same two reasons:
+//   1. Windows' Segoe UI Emoji has no flag glyphs at all, so every
+//      regional-indicator pair degrades to its two letters — 🇪🇺 rendered as
+//      the literal text "EU" next to "English", and 🇬🇧 as "GB" before it.
+//   2. A language is not a country. English isn't the UK's or the EU's, and
+//      picking any one flag for it is a claim we don't need to make.
+// The code is unambiguous, renders identically on every platform, and is
+// what the user asked to see.
 export const SUPPORTED_LANGUAGES = [
-  { code: "en", label: "English", flag: "🇪🇺" },
-  { code: "ro", label: "Română",  flag: "🇷🇴" },
+  { code: "en", label: "English", badge: "EN" },
+  { code: "ro", label: "Română",  badge: "RO" },
 ] as const;
 
 export type SupportedLanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];

@@ -233,6 +233,24 @@ export default function Workspace() {
   // adopted `workspace_onboarded` org-pref even when industry_key was never set).
   const activeNeedsOnboarding = !!ws.current && !ws.current.industryKey;
 
+  // A brand-new account: signup auto-created exactly one workspace, it still
+  // needs setup, nothing is archived, and the user isn't adding a second one.
+  // The rail is hidden here — there is nothing to switch BETWEEN, so a
+  // vertical list holding "Create workspace" plus the single workspace the
+  // wizard is already setting up is just noise beside the form.
+  //
+  // Every other reason this branch renders still gets the rail, which is why
+  // this is deliberately narrow rather than `!done`:
+  //   · archived.length > 0 — deleted their last workspace; the rail is the
+  //     only route back to "Recently deleted" within the 30-day window
+  //   · workspaces.length > 1 — a real switcher
+  //   · creatingNew — adding one alongside existing companies
+  const isFirstRun =
+    !creatingNew
+    && ws.archived.length === 0
+    && ws.workspaces.length <= 1
+    && activeNeedsOnboarding;
+
   return (
     <section className="max-w-[1280px] space-y-8" data-testid="workspace-page">
       {/* With zero workspaces (e.g. the user deleted them all) drop straight
@@ -288,12 +306,23 @@ export default function Workspace() {
         // Hidden only on a true first run (nothing active, nothing archived),
         // where an empty rail would just crowd the wizard.
         <div className="flex flex-col lg:flex-row gap-8 items-start">
-          {(ws.workspaces.length > 0 || ws.archived.length > 0) && (
+          {!isFirstRun && (ws.workspaces.length > 0 || ws.archived.length > 0) && (
             <div className="w-full lg:w-[260px] lg:shrink-0">
               <WorkspaceHub
                 onEdit={(id) => { ws.select(id); setEditingId(id); }}
                 onCreate={startNewWorkspace}
-                createActive
+                // Only when the wizard is genuinely CREATING one. It used to
+                // be unconditional, but this branch also renders when an
+                // EXISTING workspace still needs onboarding
+                // (`activeNeedsOnboarding` — true for the workspace auto-
+                // created at signup, which has no industry_key yet). In that
+                // case nothing is being created, so marking "Create
+                // workspace" as selected left a brand-new account looking at
+                // a rail where its own workspace was never the selected item
+                // and appeared unreachable. With `creatingNew`, the rail
+                // falls back to `w.id === currentId` and the auto-created
+                // workspace reads as selected, which is what it is.
+                createActive={creatingNew}
                 // Picking a workspace closes the wizard and shows it. Only
                 // possible when that workspace is itself set up — one that
                 // still needs onboarding re-enters the wizard by design

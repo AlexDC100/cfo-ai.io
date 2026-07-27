@@ -3612,6 +3612,17 @@ function DashboardDevTools() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { org } = useActiveOrg();
+  // Only offer the wipe once there is something to wipe. `useOrgPeriods`
+  // already filters to periods that actually hold documents, so this is
+  // "has the user uploaded anything into this workspace".
+  //
+  // Before this, a brand-new workspace showed a red "Danger zone /
+  // permanent and cannot be undone" panel directly beneath the empty
+  // dropzone — the most alarming thing on the first screen, offering to
+  // destroy data that doesn't exist. (The button was not a no-op either:
+  // it toasted "Already clean".)
+  const { data: orgPeriods } = useOrgPeriods();
+  const hasUploads = (orgPeriods?.periods.length ?? 0) > 0;
 
   async function wipe() {
     if (!org?.id) return;
@@ -3663,6 +3674,10 @@ function DashboardDevTools() {
       setBusy(false);
     }
   }
+
+  // Nothing uploaded → no danger zone. Placed after every hook so the hook
+  // order stays unconditional.
+  if (!hasUploads) return null;
 
   return (
     <div

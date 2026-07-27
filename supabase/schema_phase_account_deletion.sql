@@ -23,11 +23,18 @@
 -- four callers (cron purge, single-workspace purge, delete-all-data,
 -- delete-account).
 --
--- ⚠ ORDERING: this file redefines `_purge_org_data`. If
--- schema_phase_workspace_purge_now.sql is ever re-run afterwards it restores
--- the old single-function form and `_purge_org_content` loses its only
--- caller — re-run THIS file after it, the same way
--- schema_phase_security_hardening.sql must follow schema_phase5.
+-- ⚠ ORDERING: this file redefines `_purge_org_data`, and so do TWO earlier
+-- migrations — schema_phase_workspace_purge_now.sql (which created it) and
+-- schema_phase_storage_purge_fix.sql (which added the storage GUC guard).
+-- THIS FILE MUST BE THE LAST OF THE THREE TO RUN. If either earlier file is
+-- re-applied afterwards it restores the old single-function form and
+-- `_purge_org_content` loses its only caller. Same discipline as
+-- schema_phase_security_hardening.sql having to follow schema_phase5.
+--
+-- The storage-delete guard from schema_phase_storage_purge_fix.sql is
+-- carried forward inside `_purge_org_content` below — see the comment
+-- there. Dropping it is what caused the 42501 "direct deletion from storage
+-- tables is not allowed" failure on 2026-07-27.
 --
 -- OWNER-ONLY: both RPCs act on orgs where the caller's membership role is
 -- 'owner'. Workspaces the caller merely belongs to are untouched — their
@@ -35,8 +42,9 @@
 -- workspace and its data survive for the other members.
 --
 -- OPERATOR RUNBOOK
---   1. Apply schema_phase_multi_workspace.sql and
---      schema_phase_workspace_purge_now.sql first.
+--   1. Apply schema_phase_multi_workspace.sql,
+--      schema_phase_workspace_purge_now.sql and
+--      schema_phase_storage_purge_fix.sql first.
 --   2. Run this file in Supabase Studio.
 --   3. IMMEDIATELY click Dashboard → Settings → API → "Reload schema cache".
 --   4. Smoke-test on a THROWAWAY account before letting it near real users.
@@ -72,9 +80,25 @@ begin
   end loop;
 
   -- Uploaded files live under {org_id}/uploads/… in the documents bucket.
+  --
+  -- Supabase ships a `storage.protect_delete()` trigger that raises 42501
+  -- ("direct deletion from storage tables is not allowed, use the storage
+  -- API instead") on ANY direct delete from storage.objects, unless the
+  -- transaction-local GUC below is set — that flag is the escape hatch the
+  -- trigger itself checks. Set tightly around the one statement that needs
+  -- it and flipped back immediately, so nothing else inherits delete rights.
+  --
+  -- This mirrors schema_phase_storage_purge_fix.sql, which added the same
+  -- guard to `_purge_org_data` on 2026-07-23. When this file extracted the
+  -- shared body into `_purge_org_content` it was based on the ORIGINAL
+  -- pre-fix version and dropped the GUC, which re-broke every purge path
+  -- (workspace purge, the cron, delete-all-data and delete-account) with
+  -- that exact 42501. Restored here.
+  perform set_config('storage.allow_delete_query', 'true', true);
   delete from storage.objects
    where bucket_id = 'documents'
      and (storage.foldername(name))[1] = p_org_id::text;
+  perform set_config('storage.allow_delete_query', 'false', true);
 end;
 $$;
 
