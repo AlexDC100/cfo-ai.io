@@ -44,11 +44,41 @@ from .universe import DEFAULT_UNIVERSE, universe_meta, universe_tickers
 # BVB feed yet.
 
 def _bvb_seed_rows() -> List[Dict[str, Any]]:
-    """Return the BVB seed rows in display order. Each row is the
-    canonical PublicCompanyFinancialSnapshot shape — no transformation
-    needed beyond shallow-copy so the caller can mutate freely without
+    """Return the BVB seed rows in display order, enriched with live
+    quotes. Each row is the canonical PublicCompanyFinancialSnapshot
+    shape — shallow-copied so the caller can mutate freely without
     aliasing the in-memory seed table."""
-    return [dict(row) for row in _bvb_universe().values()]
+    rows = [dict(row) for row in _bvb_universe().values()]
+    quotes = _bvb_live_quotes()
+    for row in rows:
+        q = quotes.get(row["ticker"])
+        if q:
+            row["price"] = q.get("price", row.get("price"))
+            if q.get("priceChangePct") is not None:
+                row["priceChangePct"] = q["priceChangePct"]
+    return rows
+
+
+# BVB quote cache (2026-07-23) — one batched Yahoo spark sweep per TTL
+# window covers all 88 tickers in ~5 HTTP calls. Failure degrades to the
+# seed's price=None (never a fake number).
+_BVB_QUOTES_TTL_S = 5 * 60
+_bvb_quotes_cache: Dict[str, Any] = {"at": 0.0, "quotes": {}}
+
+
+def _bvb_live_quotes() -> Dict[str, Dict[str, float]]:
+    now = time.time()
+    if now - _bvb_quotes_cache["at"] < _BVB_QUOTES_TTL_S:
+        return _bvb_quotes_cache["quotes"]
+    try:
+        from .providers.yahoo_bvb import fetch_bvb_spark_quotes
+        quotes = fetch_bvb_spark_quotes(list(_bvb_universe().keys()))
+    except Exception:  # noqa: BLE001 — quotes are strictly best-effort
+        logger.exception("[universe] BVB quote sweep failed")
+        quotes = _bvb_quotes_cache["quotes"]  # keep last-known on failure
+    _bvb_quotes_cache["at"] = now
+    _bvb_quotes_cache["quotes"] = quotes
+    return quotes
 
 logger = logging.getLogger(__name__)
 

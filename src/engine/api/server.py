@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
@@ -29,14 +30,16 @@ from ..config import Config, load_config
 from ..models import CategoryRow
 from ..pipeline import run_pipeline
 from ..storage import PostgresAdapter, create_engine_from_url
-from .ask import build_router as create_ask_router
 from ._benchmarks import build_router as create_benchmarks_router
 from ._billing import build_router as create_billing_router
+from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
 from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
+from ._newsletter import build_router as create_newsletter_router
 from ._pricing_routes import build_router as create_pricing_router
 from ._test_mode import build_router as create_test_mode_router
+from ._org import create_workspaces_router
 from .cfo_ai import create_cfo_router
 from .financial_statements import build_router as create_financial_statements_router
 from .frontend import create_frontend_router
@@ -131,6 +134,15 @@ def create_app(
         description="Daily decision engine for SKU rationalization.",
     )
 
+    # Gzip large JSON responses (period reports run to hundreds of KB). In
+    # prod Caddy compresses at the edge and will pass an already-encoded body
+    # through untouched; this covers dev and any direct :8000 access. Added
+    # BEFORE CORSMiddleware so CORS stays the outermost middleware (Starlette
+    # runs later-added middleware first) and preflights never hit the gzipper.
+    # No engine endpoint streams (SSE moved to the chat-llm Edge Function), so
+    # response buffering here is safe.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+
     # CORS — the React dev server runs on a different port. Tighten in prod.
     app.add_middleware(
         CORSMiddleware,
@@ -151,8 +163,10 @@ def create_app(
     app.include_router(create_financial_statements_router())
     # Phase 3 — async pipeline orchestrator + period read endpoint
     app.include_router(create_pipeline_router())
-    # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III)
-    app.include_router(create_ask_router())
+    # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III) —
+    # removed 2026-07-24 (ask.py deleted). It had tool-use + live pipeline
+    # re-grounding the Edge Function doesn't replicate, but nothing in the
+    # frontend ever called `/api/ask` — confirmed dead, not a duplicate.
     # Stripe-backed billing (checkout, portal, webhook, renewal cron)
     app.include_router(create_billing_router())
     # Phase 7 — industry-benchmark comparison (suggest / set-caen / report).
@@ -173,6 +187,11 @@ def create_app(
     # `GET /api/plan/state` drives the Settings usage card; admin
     # endpoint surfaces the below-COGS warnings.
     app.include_router(create_pricing_router())
+    # Email — newsletter (double opt-in subscribe / confirm / unsubscribe),
+    # admin broadcast to confirmed subscribers, and the renewal-email queue
+    # drain. All app-originated mail goes through Resend (see _email.py).
+    # Auth emails (reset/confirm) are delivered by Supabase via Resend SMTP.
+    app.include_router(create_newsletter_router())
     # NASDAQ-6 — public-company routes (/api/public/search,
     # /api/public/companies/:ticker, /api/public/companies/:ticker/sync,
     # /api/public/health). Requires NASDAQ_API_KEY in env for full
@@ -190,6 +209,19 @@ def create_app(
     # returns 404 when the env flag is off so production posture
     # surfaces no test-mode endpoint.
     app.include_router(create_test_mode_router())
+    # Workspace lifecycle — POST /api/workspaces/cron/purge-expired.
+    # Scheduler-only (ENGINE_API_TOKEN); permanently deletes workspaces
+    # whose 30-day recovery window has closed.
+    app.include_router(create_workspaces_router())
+    # F6.0.4 — per-user dashboard card layout (GET/PUT /api/dashboard/config).
+    # Mounted 2026-07-26 per _dashboard.py's own deploy checklist: the FE
+    # (frontend/lib/dashboard/configApi.ts) has been calling it on every
+    # dashboard mount and taking a 404 each time, which is harmless (it falls
+    # back to localStorage) but printed a console error per load.
+    # Safe without schema_phase_dashboard_config.sql applied: GET degrades to
+    # {"cards": []} when the table is missing and PUT returns 503, so the FE
+    # simply stays device-local — the same outcome as the 404, minus the noise.
+    app.include_router(create_dashboard_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

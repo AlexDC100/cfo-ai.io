@@ -1,0 +1,298 @@
+// F6.0.1b (2026-06-21) — Budget file parser (client-side).
+//
+// Parses an uploaded budget workbook into a ComparisonDataset. Expected shape
+// (matches the downloadable template): a row per P&L line with a Line column,
+// a Budget column, and an optional "Last year" column. Header names are
+// matched loosely (en/ro synonyms) so a lightly-reformatted file still works.
+//
+// CSV is parsed natively (no dependency). XLSX is parsed via a LAZY import of
+// the `xlsx` lib (already a dep, ~280KB) so the variance page chunk stays
+// small for users who never upload.
+
+import {
+  type ComparisonDataset,
+  type VarianceLineKey,
+  VARIANCE_LINES,
+} from "./types";
+
+/** Label / key aliases → canonical line key. Lowercased, stripped. */
+const LINE_ALIASES: Record<string, VarianceLineKey> = {};
+for (const def of VARIANCE_LINES) {
+  LINE_ALIASES[def.key] = def.key;
+  LINE_ALIASES[def.label.toLowerCase()] = def.key;
+}
+Object.assign(LINE_ALIASES, {
+  revenue: "operating_revenue",
+  "operating revenue": "operating_revenue",
+  "net turnover": "operating_revenue",
+  turnover: "operating_revenue",
+  sales: "operating_revenue",
+  "cifra de afaceri": "operating_revenue",
+  niv: "operating_revenue",
+  "cost of sales": "cogs",
+  "cost of goods sold": "cogs",
+  "cost of goods": "cogs",
+  "direct materials": "cogs",
+  "gross profit": "gross_profit",
+  "gross margin": "gross_profit",
+  "direct margin": "gross_profit",
+  gm: "gross_profit",
+  opex: "opex",
+  "operating expenses": "opex",
+  "operating costs": "opex",
+  sga: "opex",
+  ebitda: "ebitda",
+  "d&a": "depreciation",
+  "depreciation & amortization": "depreciation",
+  "depreciation and amortization": "depreciation",
+  depreciation: "depreciation",
+  amortization: "depreciation",
+  ebit: "ebit",
+  "operating result": "ebit",
+  "operating profit": "ebit",
+  "net financial result": "net_financial_result",
+  "financial result": "net_financial_result",
+  "net financial": "net_financial_result",
+  "income tax": "income_tax",
+  tax: "income_tax",
+  "profit tax": "income_tax",
+  "net profit": "net_profit",
+  "net income": "net_profit",
+  "net result": "net_profit",
+  "profit net": "net_profit",
+} satisfies Record<string, VarianceLineKey>);
+
+function normLineKey(raw: string): VarianceLineKey | null {
+  const k = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  return LINE_ALIASES[k] ?? null;
+}
+
+/** Parse a numeric cell tolerating EU/US thousands+decimal styles, spaces,
+ *  currency symbols, and parenthesised negatives. Returns null if unparseable. */
+export function parseNumber(raw: unknown): number | null {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  if (typeof raw !== "string") return null;
+  let s = raw.trim();
+  if (!s) return null;
+  const neg = /^\(.*\)$/.test(s);
+  s = s.replace(/[()\s€$£%]/g, "").replace(/RON|EUR|USD|lei/gi, "");
+  if (!s) return null;
+  // Decide decimal separator: if both "," and "." present, the LAST one is
+  // the decimal. If only "," present and it looks like a decimal (≤2 digits
+  // after), treat as decimal; else thousands.
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  if (lastComma > -1 && lastDot > -1) {
+    if (lastComma > lastDot) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      s = s.replace(/,/g, "");
+    }
+  } else if (lastComma > -1) {
+    const decimals = s.length - lastComma - 1;
+    s = decimals <= 2 ? s.replace(",", ".") : s.replace(/,/g, "");
+  } else if (lastDot > -1) {
+    // Dot-only. Romanian/EU exports use "." as the THOUSANDS separator, so
+    // "4.913" = 4913 not 4.913. Heuristic: multiple dots, or a single dot
+    // with exactly 3 trailing digits (the thousands-group signature), means
+    // grouping — strip it. 1/2/4+ trailing digits is a genuine decimal.
+    const dots = (s.match(/\./g) || []).length;
+    const decimals = s.length - lastDot - 1;
+    if (dots > 1 || decimals === 3) s = s.replace(/\./g, "");
+  }
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return neg ? -n : n;
+}
+
+interface HeaderMap {
+  lineCol: number;
+  budgetCol: number;
+  lastYearCol: number;
+}
+
+const LINE_HEADER_PREDS = [
+  "line", "item", "metric", "indicator", "rand", "concept",
+  "label", "account", "post", "p&l", "pnl", "denumire", "cont", "descri", "name",
+];
+const BUDGET_HEADER_PREDS = [
+  "budget", "bud", "plan", "bug", "target", "forecast", "fcst", "buget",
+];
+const LASTYEAR_HEADER_PREDS = [
+  "last year", "last-year", "lastyear", "prior year", "prior-year", "ly", "py",
+  "an precedent", "anul precedent", "previous", "2023", "2024", "fy23", "fy24",
+];
+
+/** First column whose header text matches any predicate. */
+function idxByHeader(header: string[], preds: string[]): number {
+  return header.findIndex((h) => {
+    const v = (h ?? "").toString().trim().toLowerCase();
+    return preds.some((p) => v.includes(p));
+  });
+}
+
+/** Column whose DATA cells look most like recognized P&L line names — used
+ *  when no column header matches (a plain "Account | Amount" export). Returns
+ *  -1 if no column has at least 2 recognizable lines. */
+function idxOfLineDataCol(rows: string[][], headerRow: number, ncols: number): number {
+  let bestCol = -1;
+  let bestHits = 1; // require ≥2 to beat this
+  for (let c = 0; c < ncols; c++) {
+    let hits = 0;
+    for (let r = headerRow + 1; r < rows.length; r++) {
+      if (normLineKey(rows[r][c] ?? "") !== null) hits++;
+    }
+    if (hits > bestHits) { bestHits = hits; bestCol = c; }
+  }
+  return bestCol;
+}
+
+/** Leftmost column (excluding the given ones) whose DATA cells are mostly
+ *  numeric — used as the budget column when no header names it (a plain
+ *  "Line | Amount" export). Returns -1 if none has ≥2 numeric cells. */
+function idxOfNumericCol(
+  rows: string[][], headerRow: number, ncols: number, exclude: number[],
+): number {
+  for (let c = 0; c < ncols; c++) {
+    if (exclude.includes(c)) continue;
+    let nums = 0;
+    for (let r = headerRow + 1; r < rows.length; r++) {
+      if (parseNumber(rows[r][c]) !== null) nums++;
+    }
+    if (nums >= 2) return c;
+  }
+  return -1;
+}
+
+/** Locate the header row + the three columns. Robust to (a) a title/logo/blank
+ *  row above the header (scans the first rows), (b) a budget column not literally
+ *  named "Budget" (falls back to the first numeric data column), and (c) a line
+ *  column not named "Line" (falls back to the column whose cells read as P&L
+ *  line names). */
+function findHeader(rows: string[][]): { hm: HeaderMap; at: number } | null {
+  const limit = Math.min(rows.length, 20);
+  for (let i = 0; i < limit; i++) {
+    const header = rows[i];
+    const ncols = Math.max(
+      header.length,
+      ...rows.slice(i + 1, i + 6).map((r) => r.length),
+    );
+    let lineCol = idxByHeader(header, LINE_HEADER_PREDS);
+    const lastYearCol = idxByHeader(header, LASTYEAR_HEADER_PREDS);
+    let budgetCol = idxByHeader(header, BUDGET_HEADER_PREDS);
+
+    // Data-driven fallbacks when the header names don't match.
+    if (lineCol < 0) lineCol = idxOfLineDataCol(rows, i, ncols);
+    if (lineCol < 0) continue; // this row can't anchor the table
+    if (budgetCol < 0) budgetCol = idxOfNumericCol(rows, i, ncols, [lineCol, lastYearCol]);
+    if (budgetCol < 0) continue;
+
+    return { hm: { lineCol, budgetCol, lastYearCol }, at: i };
+  }
+  return null;
+}
+
+function rowsToDataset(rows: string[][], label: string): ComparisonDataset {
+  if (rows.length < 2) throw new Error("File looks empty — need a header row plus data.");
+  const found = findHeader(rows);
+  if (!found) {
+    throw new Error(
+      "Couldn't find the columns. The file needs a header row with a Line column and a Budget column (a Last year column is optional).",
+    );
+  }
+  const { hm, at: headerRow } = found;
+  const budget: Partial<Record<VarianceLineKey, number>> = {};
+  const lastYear: Partial<Record<VarianceLineKey, number>> = {};
+  let matched = 0;
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const key = normLineKey(r[hm.lineCol] ?? "");
+    if (!key) continue;
+    const b = parseNumber(r[hm.budgetCol]);
+    if (b !== null) {
+      budget[key] = b;
+      matched++;
+    }
+    if (hm.lastYearCol >= 0) {
+      const ly = parseNumber(r[hm.lastYearCol]);
+      if (ly !== null) lastYear[key] = ly;
+    }
+  }
+  if (matched === 0) {
+    throw new Error(
+      "No recognised P&L lines found. Use the template's line names (Revenue, EBITDA, Net profit, …).",
+    );
+  }
+  return { budget, lastYear, label, source: "upload", updatedAt: new Date().toISOString() };
+}
+
+function parseCsv(text: string): string[][] {
+  // Minimal CSV: handles quoted fields + commas inside quotes + ; delimiter.
+  const delim = text.split("\n")[0].includes(";") && !text.split("\n")[0].includes(",") ? ";" : ",";
+  const out: string[][] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const cells: string[] = [];
+    let cur = "";
+    let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (q && line[i + 1] === '"') { cur += '"'; i++; }
+        else q = !q;
+      } else if (c === delim && !q) {
+        cells.push(cur); cur = "";
+      } else cur += c;
+    }
+    cells.push(cur);
+    out.push(cells.map((c) => c.trim()));
+  }
+  return out;
+}
+
+/** Parse an uploaded budget file into a ComparisonDataset. Throws a
+ *  user-readable Error on any structural problem. */
+export async function parseBudgetFile(file: File): Promise<ComparisonDataset> {
+  const name = file.name;
+  const label = name.replace(/\.[^.]+$/, "");
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".pptx") || lower.endsWith(".ppt")) {
+    // Dynamic import keeps the (heavier) pptx + unzip path out of the main
+    // chunk and avoids a static import cycle (parsePptxBudget → parseNumber).
+    const { parsePptxBudget } = await import("./parsePptxBudget");
+    return parsePptxBudget(file);
+  }
+  if (lower.endsWith(".csv") || lower.endsWith(".txt")) {
+    const text = await file.text();
+    return rowsToDataset(parseCsv(text), label);
+  }
+  if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+    const XLSX = await import("xlsx");
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    // Try every sheet, not just the first — a budget workbook may keep the
+    // figures on a later tab (a cover/notes sheet in front is common). Return
+    // the first sheet that parses; if none do, surface the last error.
+    let lastErr: unknown = null;
+    for (const sheetName of wb.SheetNames) {
+      const sheet = wb.Sheets[sheetName];
+      if (!sheet) continue;
+      const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+        header: 1,
+        raw: false,
+        defval: "",
+      });
+      try {
+        return rowsToDataset(rows.map((r) => r.map((c) => String(c ?? ""))), label);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error(
+          "Couldn't find the columns. The file needs a header row with a Line column and a Budget column (a Last year column is optional).",
+        );
+  }
+  throw new Error("Unsupported file type. Upload a .csv or .xlsx budget file.");
+}

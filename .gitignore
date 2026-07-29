@@ -7,18 +7,22 @@ __pycache__/
 output/*.json
 .DS_Store
 
+# Local dev compose override — never deployed
+docker-compose.override.yml
+
 # Production secrets — never commit
 .env
 .env.local
 .env.production
 
 # Frontend build artifacts
-scandi-desk-main/node_modules/
-scandi-desk-main/dist/
-scandi-desk-main/.vite/
+node_modules/
+dist/
+.vite/
 
-# Local data dumps
-data/
+# Local data dumps (top-level only — must not match frontend/data/, which is
+# bundled source, e.g. frontend/data/dailyRun.ts)
+/data/
 
 # Runtime artifacts (do not commit)
 logs/
@@ -32,6 +36,6 @@ files/
 out/
 test-results/
 test-results*/
-scandi-desk-main/test-results/
-scandi-desk-main/test-results*/
+test-results/
+test-results*/
 .DS_Store

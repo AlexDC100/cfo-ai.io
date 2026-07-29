@@ -1,0 +1,598 @@
+{
+  "ALR": {
+    "anaf_name": "ALRO SA",
+    "caen": 2442,
+    "cui": 1515374,
+    "fetched_at": "2026-07-23T20:00:13+00:00",
+    "fields": {
+      "cash": 604564512.0,
+      "debtToEquity": 2.32,
+      "equity": 881906206.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 15321476.0,
+      "netMargin": 0.45,
+      "revenue": 3400459880.0,
+      "roa": 0.51
+    },
+    "year": 2024
+  },
+  "AQ": {
+    "anaf_name": "SC AQUILA PART PROD COM SA",
+    "caen": 4690,
+    "cui": 6484554,
+    "fetched_at": "2026-07-23T20:00:14+00:00",
+    "fields": {
+      "cash": 14542732.0,
+      "debtToEquity": 1.11,
+      "equity": 516843371.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 73951161.0,
+      "netMargin": 2.8,
+      "revenue": 2640264486.0,
+      "roa": 6.85
+    },
+    "year": 2024
+  },
+  "ARS": {
+    "anaf_name": "AEROSTAR SA",
+    "caen": 3031,
+    "cui": 950531,
+    "fetched_at": "2026-07-23T20:00:15+00:00",
+    "fields": {
+      "cash": 31199651.0,
+      "debtToEquity": 0.14,
+      "equity": 620332835.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 95724564.0,
+      "netMargin": 16.39,
+      "revenue": 584004013.0,
+      "roa": 12.07
+    },
+    "year": 2024
+  },
+  "ARTE": {
+    "anaf_name": "SC ARTEGO SA",
+    "caen": 2219,
+    "cui": 2157428,
+    "fetched_at": "2026-07-23T20:00:17+00:00",
+    "fields": {
+      "cash": 7309228.0,
+      "debtToEquity": 0.21,
+      "equity": 92396743.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 1332223.0,
+      "netMargin": 0.92,
+      "revenue": 144842306.0,
+      "roa": 1.17
+    },
+    "year": 2024
+  },
+  "ATB": {
+    "anaf_name": "SC ANTIBIOTICE SA",
+    "caen": 2110,
+    "cui": 1973096,
+    "fetched_at": "2026-07-23T20:00:18+00:00",
+    "fields": {
+      "cash": 2681342.0,
+      "debtToEquity": 0.41,
+      "equity": 894308823.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 102202828.0,
+      "netMargin": 15.14,
+      "revenue": 675010971.0,
+      "roa": 8.01
+    },
+    "year": 2024
+  },
+  "BIO": {
+    "anaf_name": "BIOFARM SA",
+    "caen": 2120,
+    "cui": 341563,
+    "fetched_at": "2026-07-23T20:00:19+00:00",
+    "fields": {
+      "cash": 123843963.0,
+      "debtToEquity": 0.13,
+      "equity": 478261456.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 74396967.0,
+      "netMargin": 25.94,
+      "revenue": 286780014.0,
+      "roa": 13.41
+    },
+    "year": 2024
+  },
+  "BNET": {
+    "anaf_name": "BITTNET SYSTEMS S.A.",
+    "caen": 6220,
+    "cui": 21181848,
+    "fetched_at": "2026-07-23T20:00:20+00:00",
+    "fields": {
+      "cash": 15329850.0,
+      "debtToEquity": 0.56,
+      "equity": 92764764.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 9791750.0,
+      "netMargin": 106.0,
+      "revenue": 9237909.0,
+      "roa": 6.78
+    },
+    "year": 2024
+  },
+  "BRD": {
+    "anaf_name": "BRD - Groupe Societe Generale S.A.",
+    "caen": 6419,
+    "cui": 361579,
+    "fetched_at": "2026-07-23T20:00:21+00:00",
+    "fields": {
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "revenue": 6308635210.0
+    },
+    "year": 2024
+  },
+  "BVB": {
+    "anaf_name": "BURSA DE VALORI BUCURESTI S.A.",
+    "caen": 6611,
+    "cui": 17777754,
+    "fetched_at": "2026-07-23T20:00:23+00:00",
+    "fields": {
+      "cash": 3290544.0,
+      "debtToEquity": 0.07,
+      "equity": 111884340.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 1188121.0,
+      "netMargin": 2.98,
+      "revenue": 39857894.0,
+      "roa": 0.91
+    },
+    "year": 2024
+  },
+  "CBC": {
+    "anaf_name": "CARBOCHIM SA",
+    "caen": 2391,
+    "cui": 201535,
+    "fetched_at": "2026-07-23T20:00:24+00:00",
+    "fields": {
+      "cash": 29085601.0,
+      "debtToEquity": 0.65,
+      "equity": 59470891.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": -1222697.0,
+      "netMargin": -4.14,
+      "revenue": 29543388.0,
+      "roa": -1.24
+    },
+    "year": 2024
+  },
+  "CMP": {
+    "anaf_name": "COMPA SA",
+    "caen": 2932,
+    "cui": 788767,
+    "fetched_at": "2026-07-23T20:00:25+00:00",
+    "fields": {
+      "cash": 14732068.0,
+      "debtToEquity": 0.17,
+      "equity": 519728502.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 3324462.0,
+      "netMargin": 0.55,
+      "revenue": 604023987.0,
+      "roa": 0.52
+    },
+    "year": 2024
+  },
+  "COTE": {
+    "anaf_name": "CONPET S.A.",
+    "caen": 4950,
+    "cui": 1350020,
+    "fetched_at": "2026-07-23T20:00:26+00:00",
+    "fields": {
+      "cash": 136176830.0,
+      "debtToEquity": 0.1,
+      "equity": 730693250.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 49323047.0,
+      "netMargin": 9.24,
+      "revenue": 533618409.0,
+      "roa": 5.78
+    },
+    "year": 2024
+  },
+  "CRC": {
+    "anaf_name": "CHIMCOMPLEX SA BORZESTI",
+    "caen": 2013,
+    "cui": 960322,
+    "fetched_at": "2026-07-23T20:00:27+00:00",
+    "fields": {
+      "cash": 78831503.0,
+      "debtToEquity": 0.48,
+      "equity": 2047440101.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 4481383.0,
+      "netMargin": 0.3,
+      "revenue": 1495531942.0,
+      "roa": 0.15
+    },
+    "year": 2024
+  },
+  "EL.BVB": {
+    "anaf_name": "SOCIETATEA ENERGETICA ELECTRICA SA",
+    "caen": 7022,
+    "cui": 13267221,
+    "fetched_at": "2026-07-23T20:00:29+00:00",
+    "fields": {
+      "cash": 8013268.0,
+      "debtToEquity": 0.19,
+      "equity": 4009798664.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 69323757.0,
+      "netMargin": 614.64,
+      "revenue": 11278771.0,
+      "roa": 1.45
+    },
+    "year": 2024
+  },
+  "ELMA": {
+    "anaf_name": "ELECTROMAGNETICA S.A.",
+    "caen": 2651,
+    "cui": 414118,
+    "fetched_at": "2026-07-23T20:00:30+00:00",
+    "fields": {
+      "cash": 73532271.0,
+      "debtToEquity": 0.11,
+      "equity": 384722509.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": -7407144.0,
+      "netMargin": -7.58,
+      "revenue": 97667981.0,
+      "roa": -1.71
+    },
+    "year": 2024
+  },
+  "EVER": {
+    "anaf_name": "EVERGENT Investments SA",
+    "caen": 6499,
+    "cui": 2816642,
+    "fetched_at": "2026-07-23T20:00:31+00:00",
+    "fields": {
+      "cash": 91183630.0,
+      "debtToEquity": 0.04,
+      "equity": 2982415623.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 126530269.0,
+      "roa": 3.73
+    },
+    "year": 2024
+  },
+  "FP": {
+    "anaf_name": "FONDUL PROPRIETATEA SA",
+    "caen": 6430,
+    "cui": 18253260,
+    "fetched_at": "2026-07-23T20:00:32+00:00",
+    "fields": {
+      "cash": 558205549.0,
+      "debtToEquity": 0.13,
+      "equity": 2162116720.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 251532566.0,
+      "roa": 10.25
+    },
+    "year": 2024
+  },
+  "H2O": {
+    "anaf_name": "SPEEH HIDROELECTRICA SA",
+    "caen": 3511,
+    "cui": 13267213,
+    "fetched_at": "2026-07-23T20:00:34+00:00",
+    "fields": {
+      "cash": 1377580711.0,
+      "debtToEquity": 0.12,
+      "equity": 22816427630.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 4071551582.0,
+      "netMargin": 42.15,
+      "revenue": 9659879145.0,
+      "roa": 15.11
+    },
+    "year": 2024
+  },
+  "IARV": {
+    "anaf_name": "IAR SA",
+    "caen": 3032,
+    "cui": 1132930,
+    "fetched_at": "2026-07-23T20:00:35+00:00",
+    "fields": {
+      "cash": 5032468.0,
+      "debtToEquity": 1.64,
+      "equity": 267124360.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 31544924.0,
+      "netMargin": 8.27,
+      "revenue": 381619358.0,
+      "roa": 3.9
+    },
+    "year": 2024
+  },
+  "M": {
+    "anaf_name": "MED LIFE SA",
+    "caen": 8622,
+    "cui": 8422035,
+    "fetched_at": "2026-07-23T20:00:36+00:00",
+    "fields": {
+      "cash": 15335770.0,
+      "debtToEquity": 2.8,
+      "equity": 345657756.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 22496331.0,
+      "netMargin": 3.14,
+      "revenue": 716937391.0,
+      "roa": 1.71
+    },
+    "year": 2024
+  },
+  "MECF": {
+    "anaf_name": "MECANICA CEAHLAU SA",
+    "caen": 2830,
+    "cui": 2045262,
+    "fetched_at": "2026-07-23T20:00:37+00:00",
+    "fields": {
+      "cash": 445731.0,
+      "debtToEquity": 0.26,
+      "equity": 47273774.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": -6416895.0,
+      "netMargin": -27.1,
+      "revenue": 23681787.0,
+      "roa": -10.56
+    },
+    "year": 2024
+  },
+  "OIL": {
+    "anaf_name": "OIL TERMINAL SA",
+    "caen": 5224,
+    "cui": 2410163,
+    "fetched_at": "2026-07-23T20:00:38+00:00",
+    "fields": {
+      "cash": 51742031.0,
+      "debtToEquity": 0.5,
+      "equity": 576088003.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 19203979.0,
+      "netMargin": 4.05,
+      "revenue": 473989928.0,
+      "roa": 2.17
+    },
+    "year": 2024
+  },
+  "ONE": {
+    "anaf_name": "ONE UNITED PROPERTIES SA",
+    "caen": 6420,
+    "cui": 22767862,
+    "fetched_at": "2026-07-23T20:00:40+00:00",
+    "fields": {
+      "cash": 141783900.0,
+      "debtToEquity": 0.16,
+      "equity": 1432399293.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 120992871.0,
+      "netMargin": 821.06,
+      "revenue": 14736212.0,
+      "roa": 7.35
+    },
+    "year": 2024
+  },
+  "SFG": {
+    "anaf_name": "SPHERA FRANCHISE GROUP SA",
+    "caen": 7010,
+    "cui": 37586457,
+    "fetched_at": "2026-07-23T20:00:41+00:00",
+    "fields": {
+      "cash": 12422205.0,
+      "debtToEquity": 0.07,
+      "equity": 691989249.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 88719532.0,
+      "netMargin": 208.86,
+      "revenue": 42478980.0,
+      "roa": 11.94
+    },
+    "year": 2024
+  },
+  "SNG": {
+    "anaf_name": "Societatea Nationala de Gaze Naturale ROMGAZ SA",
+    "caen": 620,
+    "cui": 14056826,
+    "fetched_at": "2026-07-23T20:00:42+00:00",
+    "fields": {
+      "cash": 1712258254.0,
+      "debtToEquity": 0.36,
+      "equity": 13950177301.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 3090696860.0,
+      "netMargin": 41.03,
+      "revenue": 7531970469.0,
+      "roa": 15.59
+    },
+    "year": 2024
+  },
+  "SNN": {
+    "anaf_name": "SN NUCLEAREARELECTRICA SA",
+    "caen": 3511,
+    "cui": 10874881,
+    "fetched_at": "2026-07-23T20:00:43+00:00",
+    "fields": {
+      "cash": 1641133393.0,
+      "debtToEquity": 0.11,
+      "equity": 12343231489.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 1708188496.0,
+      "netMargin": 36.5,
+      "revenue": 4680533991.0,
+      "roa": 12.1
+    },
+    "year": 2024
+  },
+  "SNO": {
+    "anaf_name": "SANTIERUL NAVAL ORSOVA",
+    "caen": 3011,
+    "cui": 1614734,
+    "fetched_at": "2026-07-23T20:00:44+00:00",
+    "fields": {
+      "cash": 10955209.0,
+      "debtToEquity": 0.27,
+      "equity": 87742403.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 5936340.0,
+      "netMargin": 5.95,
+      "revenue": 99781672.0,
+      "roa": 5.28
+    },
+    "year": 2024
+  },
+  "SNP": {
+    "anaf_name": "OMV PETROM SA",
+    "caen": 610,
+    "cui": 1590082,
+    "fetched_at": "2026-07-23T20:00:46+00:00",
+    "fields": {
+      "cash": 8919405021.0,
+      "debtToEquity": 0.23,
+      "equity": 37621075425.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 4143914310.0,
+      "netMargin": 13.96,
+      "revenue": 29692697896.0,
+      "roa": 7.5
+    },
+    "year": 2024
+  },
+  "SOCP": {
+    "anaf_name": "SOCEP S.A.",
+    "caen": 5224,
+    "cui": 1870767,
+    "fetched_at": "2026-07-23T20:00:47+00:00",
+    "fields": {
+      "cash": 1190333.0,
+      "debtToEquity": 0.72,
+      "equity": 405091047.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 87828440.0,
+      "netMargin": 42.81,
+      "revenue": 205167708.0,
+      "roa": 11.76
+    },
+    "year": 2024
+  },
+  "TBM": {
+    "anaf_name": "TURBOMECANICA S.A.",
+    "caen": 3030,
+    "cui": 3156315,
+    "fetched_at": "2026-07-23T20:00:48+00:00",
+    "fields": {
+      "cash": 25417158.0,
+      "debtToEquity": 0.66,
+      "equity": 152477253.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 16158631.0,
+      "netMargin": 11.54,
+      "revenue": 139985852.0,
+      "roa": 6.26
+    },
+    "year": 2024
+  },
+  "TEL": {
+    "anaf_name": "CNTEE TRANSELECTRICA SA",
+    "caen": 3513,
+    "cui": 13328043,
+    "fetched_at": "2026-07-23T20:00:49+00:00",
+    "fields": {
+      "cash": 671557851.0,
+      "debtToEquity": 0.72,
+      "equity": 5814974673.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 585924311.0,
+      "netMargin": 7.67,
+      "revenue": 7639092966.0,
+      "roa": 5.5
+    },
+    "year": 2024
+  },
+  "TGN": {
+    "anaf_name": "SNTGN TRANSGAZ SA MEDIAS",
+    "caen": 4950,
+    "cui": 13068733,
+    "fetched_at": "2026-07-23T20:00:50+00:00",
+    "fields": {
+      "cash": 554730910.0,
+      "debtToEquity": 1.05,
+      "equity": 4278816797.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 392029950.0,
+      "netMargin": 17.72,
+      "revenue": 2212225271.0,
+      "roa": 3.81
+    },
+    "year": 2024
+  },
+  "TLV": {
+    "anaf_name": "BANCA TRANSILVANIA S.A.",
+    "caen": 6419,
+    "cui": 5022670,
+    "fetched_at": "2026-07-23T20:00:52+00:00",
+    "fields": {
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "revenue": 13317892643.0
+    },
+    "year": 2024
+  },
+  "TRP": {
+    "anaf_name": "TERAPLAST SA",
+    "caen": 2221,
+    "cui": 3094980,
+    "fetched_at": "2026-07-23T20:00:53+00:00",
+    "fields": {
+      "cash": 5380082.0,
+      "debtToEquity": 0.62,
+      "equity": 467979930.0,
+      "latestPeriod": "FY2024",
+      "latestPeriodEnd": "2024-12-31",
+      "netIncome": 19723591.0,
+      "netMargin": 3.07,
+      "revenue": 642362872.0,
+      "roa": 2.46
+    },
+    "year": 2024
+  }
+}

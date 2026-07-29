@@ -1,7 +1,0 @@
-src/components/ui/pagination.tsx:52:    <span>Previous</span>
-src/components/ui/pagination.tsx:59:    <span>Next</span>
-src/components/ui/sheet.tsx:62:          <span className="sr-only">Close</span>
-src/components/ui/dialog.tsx:47:        <span className="sr-only">Close</span>
-src/components/cfo/DatasetsPanel.tsx:683:            <AlertDialogCancel>Cancel</AlertDialogCancel>
-src/components/cfo/SearchDialog.tsx:165:        <DialogTitle className="sr-only">Search</DialogTitle>
-src/components/cfo/DocsPanel.tsx:925:            <AlertDialogCancel>Cancel</AlertDialogCancel>

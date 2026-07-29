@@ -1,10 +1,13 @@
-"""Industry-benchmark API routes — `GET/POST /api/benchmarks/*`.
+"""Industry-benchmark API routes — `GET /api/benchmarks/*`.
 
 Routes implemented:
-    GET  /api/benchmarks/available-industries     — list seeded CAEN codes
-    GET  /api/benchmarks/suggest/{period_id}      — auto-suggest CAEN from P&L
-    POST /api/benchmarks/set-caen                 — user confirms CAEN on the org
-    GET  /api/benchmarks/report/{period_id}       — compute or fetch cached report
+    GET  /api/benchmarks/report/{period_id}         — compute or fetch cached report
+    GET  /api/benchmarks/public-records/latest       — Level-1 benchmark from a
+                                                        public-records-summary document
+
+(`available-industries` / `suggest/{period_id}` / `set-caen` were removed
+2026-07-24 — superseded by `_industry_intelligence.py`'s profiles/search/
+assignment routes; see that removal note further down this file.)
 
 All routes auth via the JWT header (Bearer …) like every other
 endpoint in this project. RLS does the per-tenant scoping at the
@@ -25,6 +28,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from . import _supabase
+from . import _org
 from ._benchmark_engine import build_benchmark_report
 # F3.1e: CAEN map moved into the Romania country pack.
 from engine.country_packs.ro_romania.caen_industry_map import caen_to_category, caen_label_fallback
@@ -228,160 +232,39 @@ def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
         return "", "unknown"
 
 
-def _resolve_user_org(jwt: str) -> tuple[str, str]:
-    """Resolve (user_id, org_id) from a JWT. Mirrors the pattern used in
-    pipeline.py — get_user(jwt) → memberships → org_id. Caller gets a
-    401/404 if either step fails."""
-    with _supabase.per_user(jwt) as client:
-        user = client.get_user(jwt)
-    user_id = user.get("id") if user else None
-    if not user_id:
-        raise HTTPException(401, "Could not resolve user from JWT.")
-    with _supabase.admin() as ac:
-        mems = ac.select("memberships", filters={"user_id": f"eq.{user_id}"}, limit=1)
-    if not mems:
-        raise HTTPException(404, "User has no organization membership.")
-    org_id = mems[0]["org_id"]
-    return user_id, org_id
+def _resolve_user_org(jwt: str, org_id: Optional[str] = None) -> tuple[str, str]:
+    """Resolve (user_id, org_id) for the caller's ACTIVE workspace.
+
+    Thin wrapper over _org.resolve_org so this module keeps its historical
+    call signature; the multi-workspace logic (validate the X-Org-Id header
+    against membership, else fall back to the oldest one) lives in one place.
+    """
+    return _org.resolve_org(jwt, org_id)
 
 
 # ─── Request / response shapes ──────────────────────────────────────────────
 
 
-class SuggestResponse(BaseModel):
-    period_id: str
-    suggested_caen: Optional[str]
-    suggested_label: Optional[str]
-    confidence: float
-
-
-class SetCaenRequest(BaseModel):
-    caen_code: str
-    org_id: Optional[str] = None  # optional — defaults to the caller's org
-
-
-class SetCaenResponse(BaseModel):
-    updated: bool
-    caen_code: str
-    org_id: str
-
-
 # ─── Router ─────────────────────────────────────────────────────────────────
+#
+# `GET /api/benchmarks/available-industries`, `GET .../suggest/{period_id}`,
+# and `POST .../set-caen` were removed 2026-07-24 (backend cleanup) — zero
+# frontend callers (confirmed by grep; the `IndustryPicker` UI those
+# docstrings referenced now runs against `_industry_intelligence.py`'s
+# `/api/industry/profiles` + `/api/industry/search` + `/api/industry/
+# assignment/{period_id}` instead, which IS what's live). `_load_period_
+# signals` stayed — `_resolve_effective_caen` below still calls it for the
+# Step-2 confident-auto-detect fallback, so it wasn't actually orphaned.
 
 
 def build_router() -> APIRouter:
     router = APIRouter(tags=["benchmarks"])
 
-    @router.get("/api/benchmarks/available-industries")
-    def list_available_industries(authorization: Optional[str] = Header(None)) -> List[Dict[str, Any]]:
-        """Return every distinct CAEN code present in `industry_benchmarks`.
-        Drives the dropdown in `IndustryConfirmModal`."""
-        # JWT is required (catalogue is readable by any authenticated
-        # user per the RLS policy — we just need a valid session token).
-        _require_jwt(authorization)
-        with _supabase.admin() as ac:
-            rows = ac.select(
-                "industry_benchmarks",
-                columns="caen_code,caen_label,industry_category",
-                order="caen_code.asc",
-            )
-        # Deduplicate (one row per metric per CAEN exists in the table).
-        seen: Dict[str, Dict[str, Any]] = {}
-        for r in rows:
-            code = r["caen_code"]
-            if code not in seen:
-                seen[code] = {
-                    "caen_code": code,
-                    "caen_label": r.get("caen_label"),
-                    "industry_category": r.get("industry_category"),
-                }
-        return list(seen.values())
-
-    @router.get("/api/benchmarks/suggest/{period_id}", response_model=SuggestResponse)
-    def suggest_industry(
-        period_id: str,
-        authorization: Optional[str] = Header(None),
-    ) -> SuggestResponse:
-        """Auto-suggest a CAEN from the period's calculated_metrics +
-        statement_line_items. Returns confidence so the UI can downweight
-        ambiguous matches.
-
-        Shares its signal-flattening helper (`_load_period_signals`) with
-        `_resolve_effective_caen` so the user-facing suggestion and the
-        internal benchmark auto-detect stay in lock-step.
-        """
-        jwt = _require_jwt(authorization)
-        flat = _load_period_signals(jwt, period_id)
-        caen, label, confidence = suggest_caen_code(flat)
-        return SuggestResponse(
-            period_id=period_id,
-            suggested_caen=caen,
-            suggested_label=label,
-            confidence=confidence,
-        )
-
-    @router.post("/api/benchmarks/set-caen", response_model=SetCaenResponse)
-    def set_caen_code(
-        req: SetCaenRequest,
-        authorization: Optional[str] = Header(None),
-    ) -> SetCaenResponse:
-        """User confirms / overrides the CAEN code on their org. Marked
-        as 'user' source so we can distinguish operator-confirmed
-        classifications from auto-suggestions later."""
-        jwt = _require_jwt(authorization)
-        _, org_id = _resolve_user_org(jwt)
-        # Spec allows the request to carry org_id explicitly (multi-org
-        # users) but we still scope to a membership we can verify.
-        target_org = req.org_id or org_id
-        if req.org_id and req.org_id != org_id:
-            # User asked to update a different org — verify membership.
-            with _supabase.admin() as ac:
-                # NB: we already trust `org_id` from _resolve_user_org;
-                # if the request points elsewhere we deny. Phase 2 can
-                # add multi-org support behind an explicit membership
-                # check.
-                raise HTTPException(403, "Cross-org CAEN updates require explicit membership.")
-
-        # Validate the CAEN against the seeded catalogue so we don't
-        # accept typos or made-up codes.
-        with _supabase.admin() as ac:
-            valid = ac.select(
-                "industry_benchmarks",
-                filters={"caen_code": f"eq.{req.caen_code}"},
-                columns="caen_code",
-                limit=1,
-            )
-            if not valid:
-                raise HTTPException(
-                    400,
-                    f"CAEN {req.caen_code} is not in the benchmark catalogue. "
-                    f"Call /api/benchmarks/available-industries for the list.",
-                )
-            ac.update(
-                "organizations",
-                {
-                    "caen_code": req.caen_code,
-                    "caen_code_confirmed_at": datetime.now(timezone.utc).isoformat(),
-                    "caen_code_source": "user",
-                },
-                filters={"id": f"eq.{target_org}"},
-            )
-            # Invalidate any cached benchmark reports for this org. The
-            # cache key is period_id, so a stale row carrying the OLD
-            # CAEN's comparisons would otherwise be served back to the
-            # FE on next read until the period itself is re-analyzed.
-            # Deleting all of the org's cache rows forces recompute on
-            # next /api/benchmarks/report call against the NEW caen_code.
-            try:
-                ac.delete("benchmark_reports", filters={"org_id": f"eq.{target_org}"})
-            except Exception:
-                logger.exception("[benchmarks] cache invalidation on caen-change failed (non-fatal)")
-        return SetCaenResponse(updated=True, caen_code=req.caen_code, org_id=target_org)
-
     @router.get("/api/benchmarks/report/{period_id}")
     def get_benchmark_report(
         period_id: str,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
         """Build (or fetch cached) benchmark report for a period.
 
@@ -392,7 +275,7 @@ def build_router() -> APIRouter:
              cache it, and return.
         """
         jwt = _require_jwt(authorization)
-        _, org_id = _resolve_user_org(jwt)
+        _, org_id = _resolve_user_org(jwt, x_org_id)
 
         with _supabase.per_user(jwt) as client:
             periods = client.select(
@@ -622,6 +505,7 @@ def build_router() -> APIRouter:
     def get_public_records_benchmark(
         document_id: Optional[str] = None,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
         """Build a Level-1 benchmark from the latest (or specified)
         public-records-summary document. Designed for the case where
@@ -644,7 +528,7 @@ def build_router() -> APIRouter:
             warnings: ["upload trial balance for EBITDA / DIO / ..."] }
         """
         jwt = _require_jwt(authorization)
-        _, org_id = _resolve_user_org(jwt)
+        _, org_id = _resolve_user_org(jwt, x_org_id)
 
         # 1. Locate the public-records document.
         with _supabase.per_user(jwt) as client:

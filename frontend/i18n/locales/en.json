@@ -1,0 +1,714 @@
+{
+  "sidebar": {
+    "workspaces": "Workspaces",
+    "website": "Website",
+    "workflow": "Workflow",
+    "language_label": "Change language",
+    "workspace": "Workspace",
+    "dashboard": "Dashboard",
+    "cash": "Cash",
+    "profit": "Profit",
+    "products": "Products",
+    "decisions": "Decisions",
+    "alerts": "Alerts",
+    "benchmark": "Benchmark",
+    "scenarios": "Scenarios",
+    "variance": "Budget vs Actual",
+    "chat": "Ask CFO AI",
+    "publicCompanies": "Public Companies",
+    "settings": "Settings",
+    "upload": "Upload Center",
+    "reports": "Reports",
+    "inventory": "Inventory",
+    "invoices": "Invoices",
+    "footer_note": "AI-assisted financial recommendations only. Final decisions remain with management.",
+    "multi_year_history": "Multi-Year History"
+  },
+  "topbar": {
+    "ask": "Ask CFO AI",
+    "notifications": "Notifications",
+    "open_command_center": "Open command center",
+    "switch_theme_light": "Switch to light theme",
+    "switch_theme_dark": "Switch to dark theme"
+  },
+  "upload": {
+    "hero_title": "Upload your trial balance to begin",
+    "hero_subtitle": "We'll extract financials, compute 25+ ratios, flag risks, and produce a board-ready analysis. Language and accounting format are auto-detected.",
+    "choose_file": "Choose a file",
+    "uploading": "Uploading…",
+    "paste_text_button": "Paste trial balance",
+    "paste_text_dialog_title": "Paste a trial balance",
+    "paste_text_dialog_description": "Paste any chart of accounts — language and format are auto-detected.",
+    "paste_text_placeholder": "Paste your trial balance text here — any language, any chart of accounts.",
+    "accepted_formats": "PDF · XLSX · CSV · JPG · PNG",
+    "drop_or_click": "Drop a file or click to browse",
+    "drop_here": "Drop your file here",
+    "tagline": "Detect · OCR · extract · ratios · Opus 4.7 narrative — end-to-end",
+    "size_limit": "Up to 25 MB",
+    "template": {
+      "title": "Start from the official template",
+      "titleCompact": "Use the official template",
+      "description": "Skip the guesswork — the template has the exact sheet names, column headers, and row offsets the parser expects. Download, fill in your rows, re-upload.",
+      "descriptionCompact": "Exact sheet names + columns the parser expects.",
+      "download": "Download template",
+      "formatDocs": "What's inside",
+      "showFormat": "What's inside",
+      "hideFormat": "Hide details",
+      "whatsInside": "Sheets in the template",
+      "required": "Required",
+      "optional": "Optional",
+      "sheets": {
+        "trading": "SKU-level sales rows. One row per SKU × channel × period.",
+        "dio": "Days inventory outstanding per category. Region 2 (rows 28-52) is the canonical source.",
+        "trialBalance": "Romanian chart of accounts. Only needed for Dashboard reports.",
+        "exampleMultiCol": "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
+        "exampleSaga": "The compact SAGA export: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances."
+      },
+      "fallbackNote": "Your own .xlsx files still work — the template is the recommended path because it removes ambiguity.",
+      "insideExamples": "Inside the example files",
+      "fallbackNoteDashboard": "Your accounting system's own export works too, as long as it follows one of these column structures."
+    }
+  },
+  "dashboard": {
+    "label_eyebrow": "Get started",
+    "hero_pre": "Upload your",
+    "hero_highlight": "trial balance",
+    "hero_post": "to unlock the full CFO analysis.",
+    "hero_subtitle": "XLSX or PDF, exported from your accounting system — SAGA, WinMentor, SmartBill, NEXTUP, CIEL. This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is auto-checked — clean trial balances reconcile within 0.5% of source.",
+    "kpi": {
+      "revenue": "Revenue",
+      "ebitda": "EBITDA",
+      "net_income": "Net income",
+      "total_debt": "Total debt",
+      "margin": "margin"
+    },
+    "briefing_label": "CFO briefing"
+  },
+  "products": {
+    "title": "Portfolio",
+    "buckets": {
+      "protect": "Protect",
+      "watch": "Watch",
+      "windDown": "Wind down",
+      "all": "All"
+    },
+    "filters": {
+      "allBrands": "All brands ({{count}})",
+      "allCategories": "All categories ({{count}})",
+      "allChannels": "All channels"
+    },
+    "sort": {
+      "label": "Sort:",
+      "gmDesc": "GM ↓ (profit)",
+      "gmAsc": "GM ↑ (loss-makers first)",
+      "gmPctDesc": "GM% ↓",
+      "gmPctAsc": "GM% ↑",
+      "volumeDesc": "Volume ↓",
+      "nivDesc": "NIV ↓",
+      "nameAsc": "Name A→Z"
+    },
+    "exportCsv": "Export CSV",
+    "showing": "Showing {{visible}} of {{total}} SKUs",
+    "columns": {
+      "skuCategory": "SKU · Category",
+      "volume": "Volume (t)",
+      "niv": "NIV (kRON)",
+      "gmPct": "GM%",
+      "gm": "GM (kRON)",
+      "dio": "DIO (days)",
+      "lines": "# lines",
+      "channels": "# channels",
+      "signal": "Signal"
+    },
+    "dioUnavailable": "—",
+    "dioUnavailableHint": "n/a",
+    "empty": {
+      "dropHere": "Drop your dataset here",
+      "noDataset": "No dataset connected",
+      "uploadToStart": "Upload a sales export to start analysis"
+    },
+    "comparison": "Comparison",
+    "searchPlaceholder": "Search SKU, brand, category…",
+    "loading": {
+      "datasets": "Loading datasets…",
+      "skus": "Loading SKUs…"
+    },
+    "kpi": {
+      "skus": "SKUs",
+      "skusSub": "{{cats}} cats · {{brands}} brands",
+      "protect": "Protect",
+      "protectSub": "anchors + scale",
+      "watch": "Watch",
+      "watchSub": "monitor closely",
+      "windDown": "Wind down",
+      "windDownSub": "reduce exposure"
+    },
+    "subtitle": "{{rows}} line rows · {{count}} unique SKUs across {{categories}} categories",
+    "table": {
+      "emptyFiltered": "No SKUs match these filters.",
+      "dioMissingTooltip": "DIO not available — inventory value and/or COGS not provided for this SKU"
+    }
+  },
+  "onboarding": {
+    "eyebrow": "Step 1 of 2 · Industry",
+    "welcome": "Welcome",
+    "intro": "Pick the closest match to your company's industry. CFO AI applies industry-appropriate benchmarks — a 4× Debt/EBITDA is normal in real estate and alarming in B2B SaaS.",
+    "company_name": "Company name",
+    "industry": "Industry",
+    "continue": "Continue to upload",
+    "missing_industry": "Pick an industry to continue",
+    "save_failed": "Couldn't save",
+    "save_failed_body": "Check your connection and try again.",
+    "footer_note": "You can change this later from Settings · Workspace."
+  },
+  "auth": {
+    "sign_in": "Sign in",
+    "sign_up": "Create account",
+    "sign_out": "Sign out",
+    "email": "Work email",
+    "password": "Password",
+    "full_name": "Full name",
+    "company": "Company name",
+    "back_to_home": "Back to home",
+    "welcome": "Welcome to CFO AI"
+  },
+  "settings": {
+    "language": "Language",
+    "language_description": "Choose the language for the interface and AI-generated analysis.",
+    "title": "Account",
+    "subtitle": "Your profile, language, industry and plan — all in one place. Changes save to your account and apply across every tab instantly.",
+    "profile_title": "Profile",
+    "profile_subtitle": "How CFO AI introduces you across the app.",
+    "full_name": "Full name",
+    "first_name": "First name",
+    "last_name": "Last name",
+    "company": "Company",
+    "role": "Role",
+    "email": "Email",
+    "save_profile": "Save profile",
+    "edit": "Edit",
+    "done": "Done",
+    "saving": "Saving…",
+    "workspace_title": "Workspace",
+    "workspace_subtitle": "The label that appears in the top header.",
+    "workspace_name": "Workspace name",
+    "save_workspace": "Save workspace",
+    "billing_title": "Plan",
+    "billing_subtitle": "Subscription, payment, and invoices.",
+    "subscription_title": "Subscription",
+    "subscription_subtitle": "Plan, trial, and renewal — all in one place.",
+    "security_title": "Security",
+    "security_subtitle": "Password, sign out, two-factor.",
+    "password": "Password",
+    "send_reset_email": "Send reset email",
+    "sending": "Sending…",
+    "2fa": "Two-factor authentication",
+    "coming_soon": "Coming soon",
+    "sign_out": "Sign out",
+    "sign_out_device": "Sign out of this device",
+    "cancel_subscription": "Cancel subscription",
+    "cancel_at_period_end": "Cancel at period end",
+    "reactivate": "Reactivate",
+    "refresh": "Refresh",
+    "change_plan": "Change plan",
+    "renews_on": "Renews on",
+    "trial_ends": "Trial ends",
+    "trial": "Trial",
+    "auto_renews": "No — auto-renews",
+    "ending_soon": "Yes — won't auto-renew"
+  },
+  "common": {
+    "add": "Add",
+    "delete": "Delete",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "open": "Open",
+    "upload": "Upload",
+    "download": "Download",
+    "search": "Search",
+    "apply": "Apply",
+    "reset": "Reset",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "loading": "Loading…",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "done": "Done",
+    "continue": "Continue",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "yes": "Yes",
+    "no": "No",
+    "and": "and",
+    "or": "or",
+    "retry": "Retry",
+    "notAvailable": "not available",
+    "unknown": "unknown",
+    "more": "more",
+    "less": "less",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "emDash": "—",
+    "unit": {
+      "ron": "RON",
+      "days": "days",
+      "tons": "tons",
+      "percent": "%"
+    }
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Connection problem. Check your internet and try again.",
+    "unauthorized": "Session expired. Please sign in again.",
+    "serverError": "Something went wrong on our side. Our team has been notified.",
+    "fileTooLarge": "File too large. Maximum size: {{max}}.",
+    "unsupportedFormat": "Unsupported file format. Use XLSX, PDF, or CSV.",
+    "parseError": "Could not read this file.",
+    "uploadFailed": "Upload failed.",
+    "saveFailed": "Could not save changes.",
+    "deleteFailed": "Could not delete.",
+    "loadFailed": "Could not load data."
+  },
+  "toasts": {
+    "languageChanged": "Language: {{lang}}",
+    "currencyChanged": "Currency: {{currency}}",
+    "settingsSaved": "Settings saved",
+    "linkCopied": "Link copied to clipboard",
+    "exportReady": "Export ready",
+    "uploadStarted": "Upload started",
+    "uploadComplete": "Upload complete",
+    "analysisComplete": "Analysis ready",
+    "deleted": "Deleted",
+    "restored": "Restored"
+  },
+  "confirmations": {
+    "deleteTitle": "Delete?",
+    "deleteDetail": "This action cannot be undone.",
+    "discardTitle": "Discard unsaved changes?",
+    "discardDetail": "Your edits will be lost."
+  },
+  "empty": {
+    "noResults": "No results",
+    "noResultsHint": "Try a different search term or clear filters."
+  },
+  "page": {
+    "titles": {
+      "dashboard": "Dashboard — CFO AI",
+      "products": "Products — CFO AI",
+      "documents": "Documents — CFO AI",
+      "settings": "Settings — CFO AI",
+      "decisions": "Decisions — CFO AI",
+      "alerts": "Alerts — CFO AI",
+      "benchmark": "Benchmark — CFO AI",
+      "chat": "Ask CFO AI",
+      "reports": "Reports — CFO AI",
+      "onboarding": "Welcome — CFO AI",
+      "notFound": "Page not found — CFO AI",
+      "login": "Sign in — CFO AI",
+      "signup": "Create account — CFO AI"
+    }
+  },
+  "totals": {
+    "title": "Total portfolio",
+    "volume": "Volume",
+    "niv": "NIV",
+    "gm": "GM",
+    "losses": "Losses"
+  },
+  "datasets": {
+    "title": "Recent imports",
+    "more": "{{count}} more",
+    "columns": {
+      "file": "File",
+      "rows": "Rows",
+      "skus": "SKUs",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Active",
+      "analyzed": "Analyzed",
+      "processing": "Processing",
+      "failed": "Failed",
+      "unknown": "Unknown"
+    }
+  },
+  "expectedFormat": {
+    "eyebrow": "Expected format",
+    "title": "Sales / trading analysis — XLSX",
+    "intro": "One row per SKU-channel-period line. Headers below show the column names the parser recognizes (Romanian and English variants both accepted).",
+    "required": "Only <c1>Denumire produs</c1> and <c2>NIV</c2> are required overall;",
+    "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> are optional but unlock per-SKU <c3>DIO</c3>;",
+    "rollup": "the company-level <c1>CCC</c1> roll-up additionally uses the period trial balance for DSO / DPO.",
+    "downloadExample": "Download example (XLSX)",
+    "exampleCaption": "Anonymized example — match these columns; fictional data.",
+    "exampleFooter": "Placeholder rows for illustration only — replace with your real export. The third row deliberately omits <c1>Inventory value</c1> & <c2>COGS</c2> to demonstrate the \"DIO not available\" rendering: rows without both inputs show \"—\", never 0, and are excluded from the company DIO aggregate."
+  },
+  "workingCapital": {
+    "title": "Working-capital roll-up",
+    "subtitle": "Company DIO · DSO · DPO · CCC",
+    "explainer": "DIO from uploaded SKU inventory & COGS, covered rows only. DSO / DPO from the period's trial-balance context. CCC is a company roll-up, not per-SKU.",
+    "companyDIO": "Company DIO",
+    "notAvailable": "not available",
+    "notAvailableReason": "Inventory / COGS not provided on any SKU",
+    "addColumnsHint": "Add Inventory value and COGS columns to the upload to compute DIO.",
+    "dsoLabel": "DSO",
+    "dpoLabel": "DPO",
+    "cccLabel": "CCC",
+    "dsoSource": "from trial balance · period: {{period}}",
+    "cccMissing": "missing: {{what}}",
+    "cccExplain": "CCC is computed only when DIO, DSO and DPO are all available.",
+    "exclusionNote": "Rows without inventory + COGS show DIO as \"—\" in the table above and are excluded from the company DIO aggregate (never treated as zero).",
+    "days": "days"
+  },
+  "landing": {
+    "hero": {
+      "headline": "The first benchmark tool built for private businesses.",
+      "subhead": "Upload your trial balance. We match you with public companies your size, in your sector. See exactly how you compare on margin, growth, leverage, and cash — with named comparisons, not vague industry averages.",
+      "quickTry": "Quick try",
+      "upload": {
+        "eyebrow": "Your data",
+        "title": "Upload a trial balance or P&L",
+        "description": "Bilanț, balance sheet, or any standard format. Parsed in 90 seconds — same engine that powers the public-company analysis.",
+        "cta": "Try free",
+        "hint": "No card · 90s"
+      },
+      "markets": {
+        "eyebrow": "Public companies",
+        "title": "Analyze Hain Celestial in 10 seconds",
+        "description": "5,000+ NASDAQ + NYSE companies. SEC EDGAR + Nasdaq Sharadar data. Same engine as your own analysis.",
+        "cta": "Pick a company",
+        "hint": "No signup · 10s"
+      },
+      "eyebrow": "Built for private businesses",
+      "workflowLabel": "The full workflow",
+      "step1": {
+        "title": "Upload your books",
+        "sub": "Bilanț, P&L, any format · 90s"
+      },
+      "step2": {
+        "title": "Get peer matches",
+        "sub": "Public companies your size in your sector"
+      },
+      "step3": {
+        "title": "See yourself in context",
+        "sub": "Named peers, not vague averages"
+      },
+      "primaryCta": "Start free — no card required",
+      "noCard": "No credit card",
+      "fast": "90 seconds",
+      "cancel": "Cancel anytime",
+      "alreadyExploring": "Just exploring? Researching a public company first?",
+      "browsePublicCompanies": "Browse the public-company library",
+      "disclaimer": "AI-assisted analysis. Final decisions remain with your management team."
+    },
+    "publicCo": {
+      "eyebrow": "Public Company Intelligence",
+      "headline": "Read 5,000+ public companies the way a CFO does.",
+      "subhead": "No upload. No signup. Pick a ticker, see the full analysis in under 10 seconds.",
+      "tryAnother": "Try another",
+      "openFull": "Open full {{ticker}} analysis",
+      "samplePreview": "Sample preview",
+      "previewCaption": "Snapshot · 12-quarter trend · peer benchmark — all live in the full hub. Sign in not required.",
+      "transition": "Want to compare your own business?",
+      "uploadOwnData": "Upload your trial balance",
+      "cards": {
+        "coverage": {
+          "label": "Tickers covered",
+          "detail": "All NASDAQ + NYSE-listed companies, latest 10-K and 10-Q filings."
+        },
+        "source": {
+          "label": "SEC EDGAR data",
+          "detail": "Direct from the regulator's XBRL feed via Nasdaq Sharadar — always current."
+        },
+        "engine": {
+          "label": "Same as your data",
+          "detail": "What you see for Apple is what you'll see for your own trial balance — same engine."
+        }
+      }
+    },
+    "bridge": {
+      "headline": "Pick public peers your size. Compare your numbers to theirs.",
+      "subhead": "Not Apple. Not Microsoft. Actual mid-market public companies in your actual sector — companies you could realistically aspire to.",
+      "step1": {
+        "title": "Upload your trial balance",
+        "body": "Romanian bilanț, P&L, or any standard format. Parsed in 90 seconds."
+      },
+      "step2": {
+        "title": "Pick public peers",
+        "body": "We suggest public companies in your sector and size. Add 3–5 of them."
+      },
+      "step3": {
+        "title": "See yourself in context",
+        "body": "Your numbers, your peers, your industry range — all on one chart."
+      }
+    },
+    "realPeers": {
+      "eyebrow": "Real peers, not mega-caps",
+      "headline": "Browse 5,000+ public companies. Find the 5 that look like you.",
+      "subhead": "Filter by size, sector, geography. Add peers one at a time. They join your Benchmark page as named comparison anchors.",
+      "notMegaCaps": "These companies actually look like yours — $50M to $5B market cap, not trillion-dollar tech.",
+      "moreInSector": "More in this sector",
+      "browseAll": "Browse all 5,000+ public companies",
+      "categories": {
+        "consumer": {
+          "label": "Consumer goods / Food",
+          "description": "Packaged foods, beverages, household products"
+        },
+        "energy": {
+          "label": "Energy / Industrials",
+          "description": "Resource extraction, equipment, logistics"
+        },
+        "manufacturing": {
+          "label": "Manufacturing",
+          "description": "Industrial equipment, components, specialty"
+        },
+        "healthcare": {
+          "label": "Healthcare / Services",
+          "description": "Specialty clinics, home care, devices"
+        },
+        "retail": {
+          "label": "Retail / E-commerce",
+          "description": "Specialty stores, online, distribution"
+        },
+        "software": {
+          "label": "Software / Tech services",
+          "description": "SaaS, IT services, software distribution"
+        }
+      }
+    },
+    "demo": {
+      "sectionHeadline": "This is what you'll see, in 90 seconds.",
+      "sectionSubhead": "Your numbers as a private business, side-by-side with real public peers and the industry range. No more guessing where you stand.",
+      "frameLabel": "This is what you'll see",
+      "revenue": "revenue",
+      "companySector": "Consumer goods",
+      "samplePrivate": "Sample private business",
+      "peersAdded": "Peers you've added",
+      "insightLabel": "Insight",
+      "insightBody": "Below peer EBITDA, above growth median. Investment in margin = leverage point.",
+      "tryWithMine": "Try with my own data",
+      "vsPeers": "vs peers",
+      "you": "You",
+      "median": "Median",
+      "metrics": {
+        "ebitdaMargin": "EBITDA margin",
+        "revenueGrowth": "Revenue growth YoY"
+      }
+    },
+    "learn": {
+      "badge": "CFO AI Learn",
+      "headline": "Every number, traceable. Every formula, walkable.",
+      "subhead": "Most dashboards hand you a number and trust you to believe it. This one lets you tap any value and walk it back — definition, formula, then the actual trial-balance accounts behind it.",
+      "footnote": "108 concepts in the glossary today — RAS / GAAP cross-references, plain-English explanations, and per-industry benchmarks. Press Cmd-K inside the app to search them all.",
+      "layer1": {
+        "label": "Definition",
+        "title": "Tap any number",
+        "body": "A plain-English explanation pops up. No CFA charter required — every concept reads at smart-business-user level."
+      },
+      "layer2": {
+        "label": "Formula",
+        "title": "Trace the calculation",
+        "body": "See exactly how the value was computed. Tap any operand to keep drilling — EBITDA opens to EBIT + D&A, EBIT opens to Revenue − OpEx, all the way down."
+      },
+      "layer3": {
+        "label": "Source",
+        "title": "Back to your trial balance",
+        "body": "At the bottom of every chain are the raw RAS accounts — 701, 602, 5121. Click through to see the actual debit / credit movements from your upload."
+      }
+    }
+  },
+  "statements": {
+    "pl": {
+      "title": "P&L",
+      "ebitda": "EBITDA",
+      "keyMargins": "Key margins",
+      "recon": {
+        "heading": "Reconciliation to statutory ct 121",
+        "capitalizedOwnWork": "+ Capitalized own work",
+        "statutoryTotal": "= Net profit — statutory (ct 121)"
+      },
+      "footnote": {
+        "flag": "Two things worth flagging given the structure:"
+      }
+    },
+    "bs": {
+      "title": "BALANCE SHEET",
+      "assets": "ASSETS",
+      "equityLiab": "EQUITY & LIABILITIES",
+      "totalAssets": "TOTAL ASSETS",
+      "totalEquityLiab": "TOTAL EQUITY & LIABILITIES",
+      "drift": "Balance sheet drift",
+      "note": "Note"
+    },
+    "cf": {
+      "title": "CASH FLOW",
+      "indirectMethod": "Indirect method",
+      "approximated": {
+        "heading": "Cash flow is approximated",
+        "body": "This is a single-period upload, so working-capital movements and financing detail can't be computed exactly. The reconciliation plug absorbs unmodeled accounts. For exact figures, upload the prior year trial balance as well.",
+        "cta": "Upload prior period",
+        "hint": "e.g. balance FY2024 alongside FY2025"
+      },
+      "operating": {
+        "header": "OPERATING ACTIVITIES",
+        "netProfit": "Net profit",
+        "depreciation": "+ Depreciation & amortization",
+        "cfBeforeWc": "Operating CF before WC changes",
+        "wcChanges": "Working capital changes:",
+        "cashFromOperating": "Cash from operating activities"
+      },
+      "investing": {
+        "header": "INVESTING ACTIVITIES",
+        "cashUsed": "Cash used in investing"
+      },
+      "financing": {
+        "header": "FINANCING ACTIVITIES",
+        "ltDraws": "LT bank loan drawdowns",
+        "ltRepays": "LT bank loan repayments",
+        "dividendsPaid": "Dividends paid in cash",
+        "onlyDeclared": "only declared, see note",
+        "cashFromFinancing": "Cash from financing"
+      },
+      "recon": {
+        "netChange": "Net change in cash",
+        "opening": "Opening cash",
+        "closing": "Closing cash",
+        "drift": "Reconciliation drift"
+      },
+      "notes": "NOTES"
+    }
+  },
+  "peerReport": {
+    "loading": "Loading peer comparison…",
+    "errorTitle": "Couldn't load peer comparison",
+    "emptyTitle": "No peer data available",
+    "methodologyNote": "Methodology note",
+    "cols": {
+      "line": "Line",
+      "company": "Company",
+      "peer": "Peer",
+      "delta": "Δ",
+      "verdict": "Verdict",
+      "financialImpact": "Financial impact",
+      "severity": "Severity"
+    }
+  },
+  "multiYear": {
+    "loading": "Loading multi-year history…",
+    "cols": {
+      "year": "Year",
+      "revenue": "Revenue",
+      "netProfit": "Net profit",
+      "ebitda": "EBITDA",
+      "totalAssets": "Total assets",
+      "equity": "Equity"
+    },
+    "source": "Source. Data extracted from publicly-filed ONRC financial statements."
+  },
+  "benchmarkPage": {
+    "yourCompany": "Your company",
+    "peersTable": {
+      "heading": "1. Peers — who holds the industry positions",
+      "leaderIntro": "Industry leader identified:",
+      "leaderRevenue": "revenue",
+      "leaderMargin": "margin",
+      "leaderSpec": "Specialization",
+      "cols": {
+        "company": "Company",
+        "year": "Year",
+        "revenue": "Revenue",
+        "netProfit": "Net profit",
+        "netMargin": "Net margin",
+        "specialization": "Specialization",
+        "verdict": "Verdict"
+      },
+      "tiers": {
+        "leader": "LEADER",
+        "strong": "STRONG",
+        "median": "MEDIAN",
+        "thin_margin": "THIN MARGIN",
+        "distressed": "DISTRESSED",
+        "self": "YOUR COMPANY"
+      }
+    }
+  },
+  "authCallback": {
+    "verifying": "Verifying your email…",
+    "verifyingSub": "Hold on a second — we're finishing your sign-in.",
+    "success": "You're signed in.",
+    "successSub": "Taking you to your workspace now…",
+    "errorTitle": "We hit a snag",
+    "errorGeneric": "Something went wrong while signing you in.",
+    "expired": "We couldn't complete sign-in. The verification link may have expired or already been used.",
+    "notConfigured": "Authentication isn't configured on this build.",
+    "retrySignup": "Request a new link",
+    "backToSignin": "Back to sign in"
+  },
+  "buckets": {
+    "wind_down": "Wind down",
+    "watch": "Watch",
+    "protect": "Protect"
+  },
+  "decision_rules": {
+    "title": "Decision rules",
+    "trigger_subtitle": "Bucket thresholds (Protect / Watch / Wind down). Saved to this browser.",
+    "subtitle_multi": "Combine multiple rules to categorize SKUs. Changes apply instantly and are saved to this browser.",
+    "back_to_products": "Back to Products",
+    "reset": "Reset to defaults",
+    "combination_logic": "Combination logic",
+    "final_distribution": "Final bucket distribution (combined)",
+    "skus_total": "SKUs total",
+    "footer_note": "Changes apply instantly. Threshold values are saved to this browser.",
+    "changes_apply_instantly": "Changes apply instantly",
+    "done_see_results": "Done — see results",
+    "lower_better": "lower is better",
+    "partial_coverage": "Available for {{covered}} of {{total}} SKUs",
+    "slider_aria": "Bucket cutoffs",
+    "lower_cutoff": "Wind down ⟶ Watch",
+    "upper_cutoff_inv": "Protect ⟶ Watch",
+    "upper_cutoff": "Watch ⟶ Protect",
+    "lower_cutoff_inv": "Watch ⟶ Wind down",
+    "range_hint": "Range",
+    "weight": "Weight",
+    "missing_data": "Data missing",
+    "missing_data_body": "Requires columns: {{fields}}. Re-upload with these fields included or map them in the data import step.",
+    "mode": {
+      "worst_wins": "Worst bucket wins (recommended)",
+      "all_agree": "All must agree (most conservative)",
+      "weighted": "Weighted score",
+      "worst_wins_hint": "If any rule flags a SKU for Wind down, the SKU is Wind down. Recommended.",
+      "all_agree_hint": "Protect requires every active rule to agree. Most conservative.",
+      "weighted_hint": "Each rule contributes a score, weighted average decides the final bucket."
+    },
+    "preset": {
+      "title": "Preset",
+      "active": "Active",
+      "apply": "Apply preset",
+      "needs_data": "Load a dataset to apply (percentiles need SKU data)."
+    },
+    "financing": {
+      "title": "Financing assumptions",
+      "total_rate": "Total annual rate",
+      "portfolio_cost": "Portfolio cost",
+      "cost_label": "Cost of financing",
+      "cost_hint": "Annual interest rate on working capital. Typical RON corporate financing is 5–8%.",
+      "spread_label": "Bank margin spread",
+      "spread_hint": "Additional spread above the base rate the bank charges. Tune to model different banking relationships.",
+      "avg_per_sku": "Avg per SKU: {{avg}} · DIO and inventory required to compute; SKUs without either skip the financing rule."
+    },
+    "revert": "Revert",
+    "apply": "Apply",
+    "rule": {
+      "gross_profit": "Gross profit per SKU",
+      "dio": "Days inventory outstanding (DIO)",
+      "volume": "Volume (tons)",
+      "revenue": "Revenue per SKU",
+      "adjusted_gm_pct": "Adjusted GM % (after financing)",
+      "margin_pct": "Margin %"
+    }
+  }
+}

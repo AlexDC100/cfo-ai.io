@@ -77,3 +77,8 @@ end$$;
 --    so reverting is "just leave it"; the only behavioral change is that
 --    deleting a period now cleans up derivatives at the DB level.)
 -- ---------------------------------------------------------------------------
+
+-- Schema-migration discipline (CLAUDE.md): optimistic PostgREST reload; on
+-- Supabase managed infra ALSO click Dashboard → Settings → API → "Reload
+-- schema cache" after applying.
+NOTIFY pgrst, 'reload schema';

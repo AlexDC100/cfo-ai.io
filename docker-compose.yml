@@ -47,8 +47,8 @@ services:
 
   frontend:
     build:
-      context: ./scandi-desk-main
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.frontend
       args:
         # Empty string → frontend uses relative URLs (/api, /health) so
         # the existing scandia-caddy routes /api/* to cfo-ai-backend

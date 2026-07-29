@@ -112,6 +112,31 @@ def get_price_history(
         if cached and now - cached["_cached_at"] < _ttl_for(r):
             return cached["payload"]
 
+    # ── BVB branch (2026-07-23) — Romanian tickers never existed in
+    #    Sharadar, so they used to fall straight to the demo synth. Yahoo
+    #    Finance carries the whole BVB market under ".RO"; real RON series,
+    #    labelled source="bvb_yahoo". Any fetch failure falls through to
+    #    the demo synth exactly like the Nasdaq path.
+    from .bvb_seed import get_bvb_snapshot
+    if get_bvb_snapshot(t) is not None:
+        from .providers.yahoo_bvb import fetch_bvb_price_history
+        bvb_points = fetch_bvb_price_history(t, r)
+        if bvb_points:
+            payload = _envelope(
+                t, r, bvb_points,
+                mode="live", source="bvb_yahoo", message=None,
+            )
+            payload["currency"] = "RON"
+        else:
+            payload = _envelope(
+                t, r, _synth_series(t, r),
+                mode="demo", source="demo",
+                message="Live BVB price feed unavailable — showing an illustrative series.",
+            )
+            payload["currency"] = "RON"
+        _warm_cache[cache_key] = {"_cached_at": now, "payload": payload}
+        return payload
+
     nasdaq = adapter or NasdaqAdapter()
     payload: Dict[str, Any]
 

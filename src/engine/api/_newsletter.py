@@ -1,0 +1,565 @@
+"""Newsletter + app-mail HTTP routes (Resend-backed).
+
+PUBLIC (no auth)
+  POST /api/newsletter/subscribe            {email, source?}  → double opt-in
+  GET  /api/newsletter/confirm?token=…      confirm link from the email
+  GET  /api/newsletter/unsubscribe?token=…  one-click unsubscribe
+
+PER-USER (Bearer JWT)
+  GET  /api/newsletter/status               caller's subscription status
+  POST /api/newsletter/subscribe-me         subscribe the signed-in user
+                                            (email already verified → no
+                                            double opt-in, instant confirm)
+  POST /api/newsletter/unsubscribe-me       unsubscribe the signed-in user
+
+ADMIN (Bearer JWT + PRICING_ADMIN_USER_IDS allowlist)
+  GET  /api/newsletter/subscribers          counts by status
+  POST /api/newsletter/broadcast            {subject, heading, content_html}
+                                            → send to all confirmed subscribers
+  POST /api/newsletter/drain-renewals       drain renewal_email_queue via Resend
+
+All writes use the service-role Supabase client (subscribe is public, so
+there's no user RLS context). Email delivery is best-effort: a Resend
+outage never fails the HTTP request — it's logged to email_send_log.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+
+from . import _email, _email_templates, _supabase
+
+
+logger = logging.getLogger(__name__)
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+# ── Auth helpers (local copy — same pattern as _pricing_routes.py) ──────────
+
+def _require_jwt(authorization: Optional[str]) -> str:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(401, "Missing Bearer token.")
+    return authorization.split(" ", 1)[1].strip()
+
+
+def _user_from_jwt(jwt: str) -> Dict[str, Any]:
+    with _supabase.per_user(jwt) as client:
+        user = client.get_user(jwt)
+    if not user or not user.get("id"):
+        raise HTTPException(401, "Could not resolve user from JWT.")
+    return user
+
+
+def _is_admin(user_id: str) -> bool:
+    allow = os.environ.get("PRICING_ADMIN_USER_IDS", "")
+    return user_id in {u.strip() for u in allow.split(",") if u.strip()}
+
+
+# ── Link builders ───────────────────────────────────────────────────────────
+
+def _api_base(request: Request) -> str:
+    """Origin the confirm/unsubscribe links point at — the backend itself.
+    Prefer an explicit PUBLIC_API_URL (set in prod behind a proxy); fall
+    back to the request's own base URL (correct in local dev)."""
+    explicit = os.environ.get("PUBLIC_API_URL", "").strip()
+    return (explicit or str(request.base_url)).rstrip("/")
+
+
+def _app_url() -> str:
+    return os.environ.get("APP_URL", "http://localhost:5173").rstrip("/")
+
+
+def _confirm_url(request: Request, token: str) -> str:
+    return f"{_api_base(request)}/api/newsletter/confirm?token={token}"
+
+
+def _unsubscribe_url(request: Request, token: str) -> str:
+    return f"{_api_base(request)}/api/newsletter/unsubscribe?token={token}"
+
+
+# ── Logging helper ──────────────────────────────────────────────────────────
+
+def _log_send(client: "_supabase.SupabaseClient", *, to: str, kind: str,
+              subject: str, result: Dict[str, Any]) -> None:
+    status = "skipped" if result.get("skipped") else ("sent" if result.get("ok") else "failed")
+    try:
+        client.insert("email_send_log", {
+            "to_email": to,
+            "kind": kind,
+            "subject": subject,
+            "provider_id": result.get("id"),
+            "status": status,
+            "error": (None if result.get("ok") else str(result.get("error") or result.get("reason"))),
+        }, returning=False)
+    except Exception:  # noqa: BLE001 — logging must never break a send
+        logger.exception("[newsletter] email_send_log insert failed")
+
+
+def _normalize_email(raw: str) -> str:
+    e = (raw or "").strip().lower()
+    if not _EMAIL_RE.match(e):
+        raise HTTPException(422, "A valid email address is required.")
+    return e
+
+
+# ── Request models ──────────────────────────────────────────────────────────
+
+class SubscribeRequest(BaseModel):
+    email: str
+    source: Optional[str] = None
+
+
+class BroadcastRequest(BaseModel):
+    subject: str
+    heading: str
+    content_html: str
+
+
+class DebugSendRequest(BaseModel):
+    # One of the keys in _DEBUG_MAIL_KINDS. The email is always delivered to
+    # the *caller's own* verified address — never an arbitrary recipient — so
+    # this endpoint can't be turned into a spam relay.
+    kind: str
+
+
+# ── Debug/preview: every app-originated mail type, self-sent ────────────────
+#
+# Each entry renders the branded template with representative placeholder
+# data and returns (subject, html). Confirm/unsubscribe/reset links point at
+# harmless sample tokens — clicking them just hits the normal public routes
+# with an invalid token (→ friendly redirect), which is exactly right for a
+# preview. Keep this list in sync with _email_templates.py.
+
+def _debug_render(kind: str, *, request: Request, email: str) -> Dict[str, str]:
+    sample_confirm = _confirm_url(request, "sample-preview-token")
+    sample_unsub = _unsubscribe_url(request, "sample-preview-token")
+    sample_reset = f"{_app_url()}/login?type=recovery&token=sample-preview-token"
+    sample_signup = f"{_app_url()}/login?type=signup&token=sample-preview-token"
+
+    if kind == "newsletter_confirm":
+        return {
+            "subject": "Confirm your CFO AI newsletter subscription",
+            "html": _email_templates.newsletter_confirm(confirm_url=sample_confirm),
+        }
+    if kind == "newsletter_welcome":
+        return {
+            "subject": "Welcome to the CFO AI newsletter",
+            "html": _email_templates.newsletter_welcome(unsubscribe_url=sample_unsub),
+        }
+    if kind == "newsletter_broadcast":
+        return {
+            "subject": "Sample broadcast — CFO AI product update",
+            "html": _email_templates.newsletter_broadcast(
+                heading="Product update",
+                content_html=(
+                    "<p style='margin:0 0 12px 0;'>This is a preview of how a "
+                    "broadcast email looks. Admin-composed content lands here — "
+                    "paragraphs, <strong>bold</strong>, and links all render inline.</p>"
+                    "<p style='margin:0;'>Nothing was sent to your subscribers; "
+                    "this went only to you.</p>"
+                ),
+                unsubscribe_url=sample_unsub,
+            ),
+        }
+    if kind == "renewal_reminder":
+        return {
+            "subject": "Your CFO AI subscription renews soon",
+            "html": _email_templates.renewal_reminder(
+                renewal_date="15 August 2026",
+                amount_label="€99",
+                manage_url=f"{_app_url()}/settings",
+                days_ahead=7,
+            ),
+        }
+    if kind == "password_reset":
+        return {
+            "subject": "Reset your CFO AI password",
+            "html": _email_templates.password_reset(reset_url=sample_reset),
+        }
+    if kind == "signup_confirm":
+        return {
+            "subject": "Confirm your CFO AI email",
+            "html": _email_templates.signup_confirm(confirm_url=sample_signup),
+        }
+    raise HTTPException(422, f"Unknown mail kind: {kind!r}")
+
+
+_DEBUG_MAIL_KINDS = [
+    "newsletter_confirm",
+    "newsletter_welcome",
+    "newsletter_broadcast",
+    "renewal_reminder",
+    "password_reset",
+    "signup_confirm",
+]
+
+
+# ── Router ──────────────────────────────────────────────────────────────────
+
+def build_router() -> APIRouter:
+    router = APIRouter(tags=["newsletter"])
+
+    # ─── PUBLIC: subscribe (double opt-in) ─────────────────────────────
+    @router.post("/api/newsletter/subscribe")
+    def subscribe(req: SubscribeRequest, request: Request) -> Dict[str, Any]:
+        email = _normalize_email(str(req.email))
+        with _supabase.admin() as client:
+            rows = client.select(
+                "newsletter_subscribers",
+                filters={"email": f"eq.{email}"},
+                columns="id,status,confirm_token,unsubscribe_token",
+            )
+            if rows:
+                row = rows[0]
+                if row["status"] == "confirmed":
+                    return {"status": "already_subscribed"}
+                # pending or previously unsubscribed → (re)send confirmation
+                client.update(
+                    "newsletter_subscribers",
+                    {"status": "pending"},
+                    filters={"id": f"eq.{row['id']}"},
+                )
+                confirm_token = row["confirm_token"]
+            else:
+                created = client.insert("newsletter_subscribers", {
+                    "email": email,
+                    "status": "pending",
+                    "source": req.source or "web",
+                }, returning=True)
+                confirm_token = created[0]["confirm_token"]
+
+            result = _email.send_email(
+                to=email,
+                subject="Confirm your CFO AI newsletter subscription",
+                html=_email_templates.newsletter_confirm(
+                    confirm_url=_confirm_url(request, confirm_token)),
+            )
+            _log_send(client, to=email, kind="newsletter_confirm",
+                      subject="Confirm your CFO AI newsletter subscription", result=result)
+
+        return {"status": "confirmation_sent", "delivered": bool(result.get("ok"))}
+
+    # ─── PUBLIC: confirm link ──────────────────────────────────────────
+    # Clicked directly from an email → on ANY failure we redirect to the
+    # site with an error flag rather than show a raw 500 page.
+    @router.get("/api/newsletter/confirm")
+    def confirm(request: Request, token: str = Query(...)) -> RedirectResponse:
+        try:
+            with _supabase.admin() as client:
+                rows = client.select(
+                    "newsletter_subscribers",
+                    filters={"confirm_token": f"eq.{token}"},
+                    columns="id,email,status,unsubscribe_token",
+                )
+                if not rows:
+                    return RedirectResponse(f"{_app_url()}/?newsletter=invalid", status_code=302)
+                row = rows[0]
+                if row["status"] != "confirmed":
+                    client.update(
+                        "newsletter_subscribers",
+                        {"status": "confirmed", "confirmed_at": "now()"},
+                        filters={"id": f"eq.{row['id']}"},
+                    )
+                    result = _email.send_email(
+                        to=row["email"],
+                        subject="Welcome to the CFO AI newsletter",
+                        html=_email_templates.newsletter_welcome(
+                            unsubscribe_url=_unsubscribe_url(request, row["unsubscribe_token"])),
+                    )
+                    _log_send(client, to=row["email"], kind="newsletter_welcome",
+                              subject="Welcome to the CFO AI newsletter", result=result)
+            return RedirectResponse(f"{_app_url()}/?newsletter=confirmed", status_code=302)
+        except Exception:  # noqa: BLE001 — never show a raw 500 to an email click
+            logger.exception("[newsletter] confirm failed for token")
+            return RedirectResponse(f"{_app_url()}/?newsletter=error", status_code=302)
+
+    # ─── PUBLIC: unsubscribe link ──────────────────────────────────────
+    @router.get("/api/newsletter/unsubscribe")
+    def unsubscribe(token: str = Query(...)) -> RedirectResponse:
+        try:
+            with _supabase.admin() as client:
+                rows = client.select(
+                    "newsletter_subscribers",
+                    filters={"unsubscribe_token": f"eq.{token}"},
+                    columns="id,status",
+                )
+                if rows and rows[0]["status"] != "unsubscribed":
+                    client.update(
+                        "newsletter_subscribers",
+                        {"status": "unsubscribed", "unsubscribed_at": "now()"},
+                        filters={"id": f"eq.{rows[0]['id']}"},
+                    )
+            return RedirectResponse(f"{_app_url()}/?newsletter=unsubscribed", status_code=302)
+        except Exception:  # noqa: BLE001
+            logger.exception("[newsletter] unsubscribe failed for token")
+            return RedirectResponse(f"{_app_url()}/?newsletter=error", status_code=302)
+
+    # ─── PER-USER: status ──────────────────────────────────────────────
+    @router.get("/api/newsletter/status")
+    def my_status(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        email = (user.get("email") or "").strip().lower()
+        if not email:
+            return {"status": "none"}
+        with _supabase.admin() as client:
+            rows = client.select(
+                "newsletter_subscribers",
+                filters={"email": f"eq.{email}"},
+                columns="status",
+            )
+        return {"status": rows[0]["status"] if rows else "none"}
+
+    # ─── PER-USER: subscribe self (instant confirm) ────────────────────
+    @router.post("/api/newsletter/subscribe-me")
+    def subscribe_me(request: Request,
+                     authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        email = (user.get("email") or "").strip().lower()
+        if not email:
+            raise HTTPException(400, "No email on the signed-in account.")
+        with _supabase.admin() as client:
+            # Email is already verified by Supabase Auth → skip double opt-in.
+            client.upsert("newsletter_subscribers", {
+                "email": email,
+                "status": "confirmed",
+                "confirmed_at": "now()",
+                "user_id": user["id"],
+                "source": "settings",
+            }, on_conflict="email")
+            rows = client.select(
+                "newsletter_subscribers",
+                filters={"email": f"eq.{email}"},
+                columns="unsubscribe_token",
+            )
+            unsub = rows[0]["unsubscribe_token"] if rows else ""
+            result = _email.send_email(
+                to=email,
+                subject="Welcome to the CFO AI newsletter",
+                html=_email_templates.newsletter_welcome(
+                    unsubscribe_url=_unsubscribe_url(request, unsub)),
+            )
+            _log_send(client, to=email, kind="newsletter_welcome",
+                      subject="Welcome to the CFO AI newsletter", result=result)
+        return {"status": "confirmed"}
+
+    # ─── PER-USER: unsubscribe self ────────────────────────────────────
+    @router.post("/api/newsletter/unsubscribe-me")
+    def unsubscribe_me(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        email = (user.get("email") or "").strip().lower()
+        with _supabase.admin() as client:
+            client.update(
+                "newsletter_subscribers",
+                {"status": "unsubscribed", "unsubscribed_at": "now()"},
+                filters={"email": f"eq.{email}"},
+            )
+        return {"status": "unsubscribed"}
+
+    # ─── PER-USER: debug send (self only) ──────────────────────────────
+    # Delivers a preview of any app mail type to the signed-in user's own
+    # verified email. Recipient is ALWAYS the caller — no `to` field — so
+    # this is safe to expose to any authenticated user; you can only email
+    # yourself. Useful for eyeballing the branded templates end-to-end.
+    #
+    # `GET /api/newsletter/debug-kinds` was removed 2026-07-24 (backend
+    # cleanup) — zero frontend callers; the Settings debug-send UI hardcodes
+    # its own kind list rather than fetching this. `_DEBUG_MAIL_KINDS` itself
+    # stays — `debug_send`/`debug_send_all` below still validate against it.
+
+    @router.post("/api/newsletter/debug-send")
+    def debug_send(req: DebugSendRequest, request: Request,
+                   authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        email = (user.get("email") or "").strip().lower()
+        if not email:
+            raise HTTPException(400, "No email on the signed-in account.")
+        if not _email.is_configured():
+            raise HTTPException(503, "RESEND_API_KEY is not configured on the backend.")
+
+        rendered = _debug_render(req.kind, request=request, email=email)
+        result = _email.send_email(
+            to=email,
+            subject=f"[Preview] {rendered['subject']}",
+            html=rendered["html"],
+        )
+        with _supabase.admin() as client:
+            _log_send(client, to=email, kind=f"debug:{req.kind}",
+                      subject=rendered["subject"], result=result)
+
+        if not result.get("ok"):
+            # Surface the provider error rather than a silent 200 so the
+            # debug button can show a real failure toast.
+            raise HTTPException(
+                502,
+                f"Send failed: {result.get('error') or result.get('reason') or 'unknown error'}",
+            )
+        return {"status": "sent", "to": email, "kind": req.kind, "id": result.get("id")}
+
+    @router.post("/api/newsletter/debug-send-all")
+    def debug_send_all(request: Request,
+                       authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        # Same self-only guarantee as debug-send, but delivers every mail type
+        # in ONE Resend batch call (single request → immune to the per-request
+        # rate limit that six rapid debug-send calls would trip).
+        user = _user_from_jwt(_require_jwt(authorization))
+        email = (user.get("email") or "").strip().lower()
+        if not email:
+            raise HTTPException(400, "No email on the signed-in account.")
+        if not _email.is_configured():
+            raise HTTPException(503, "RESEND_API_KEY is not configured on the backend.")
+
+        rendered = {kind: _debug_render(kind, request=request, email=email)
+                    for kind in _DEBUG_MAIL_KINDS}
+        result = _email.send_batch([
+            {"to": email, "subject": f"[Preview] {r['subject']}", "html": r["html"]}
+            for r in rendered.values()
+        ])
+        with _supabase.admin() as client:
+            for kind, r in rendered.items():
+                _log_send(client, to=email, kind=f"debug:{kind}",
+                          subject=r["subject"], result=result)
+
+        if not result.get("ok"):
+            raise HTTPException(
+                502,
+                f"Send failed: {result.get('error') or result.get('reason') or 'unknown error'}",
+            )
+        return {"status": "sent", "to": email, "sent": result.get("sent", 0),
+                "kinds": _DEBUG_MAIL_KINDS}
+
+    # ─── ADMIN: subscriber counts ──────────────────────────────────────
+    @router.get("/api/newsletter/subscribers")
+    def subscriber_counts(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        if not _is_admin(user["id"]):
+            raise HTTPException(403, "Admin-only. Add the user_id to PRICING_ADMIN_USER_IDS.")
+        counts: Dict[str, int] = {"pending": 0, "confirmed": 0, "unsubscribed": 0}
+        with _supabase.admin() as client:
+            for st in counts:
+                rows = client.select(
+                    "newsletter_subscribers",
+                    filters={"status": f"eq.{st}"},
+                    columns="id",
+                )
+                counts[st] = len(rows)
+        counts["total"] = sum(counts.values())
+        return counts
+
+    # ─── ADMIN: broadcast to all confirmed subscribers ─────────────────
+    @router.post("/api/newsletter/broadcast")
+    def broadcast(req: BroadcastRequest, request: Request,
+                  authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        if not _is_admin(user["id"]):
+            raise HTTPException(403, "Admin-only. Add the user_id to PRICING_ADMIN_USER_IDS.")
+        if not _email.is_configured():
+            raise HTTPException(503, "RESEND_API_KEY is not configured on the backend.")
+
+        with _supabase.admin() as client:
+            subs = client.select(
+                "newsletter_subscribers",
+                filters={"status": "eq.confirmed"},
+                columns="email,unsubscribe_token",
+            )
+            recipients = [s for s in subs if s.get("email")]
+            sent = failed = 0
+            # Each recipient needs their OWN unsubscribe link → build per-
+            # recipient messages and chunk into batches of 100 (Resend's cap).
+            for i in range(0, len(recipients), 100):
+                chunk = recipients[i:i + 100]
+                messages = [{
+                    "to": s["email"],
+                    "subject": req.subject,
+                    "html": _email_templates.newsletter_broadcast(
+                        heading=req.heading,
+                        content_html=req.content_html,
+                        unsubscribe_url=_unsubscribe_url(request, s["unsubscribe_token"]),
+                    ),
+                } for s in chunk]
+                result = _email.send_batch(messages)
+                if result.get("ok"):
+                    sent += result.get("sent", len(chunk))
+                else:
+                    failed += result.get("failed", len(chunk))
+
+            status = ("sent" if failed == 0 and sent > 0
+                      else "partial" if sent > 0 else "failed")
+            try:
+                client.insert("newsletter_broadcasts", {
+                    "heading": req.heading,
+                    "subject": req.subject,
+                    "content_html": req.content_html,
+                    "sent_by": user["id"],
+                    "recipient_count": len(recipients),
+                    "sent_count": sent,
+                    "failed_count": failed,
+                    "status": status,
+                }, returning=False)
+            except Exception:  # noqa: BLE001
+                logger.exception("[newsletter] broadcast record insert failed")
+
+        return {"status": status, "recipients": len(recipients), "sent": sent, "failed": failed}
+
+    # ─── ADMIN: drain the renewal-email queue ──────────────────────────
+    @router.post("/api/newsletter/drain-renewals")
+    def drain_renewals(limit: int = Query(200, ge=1, le=1000),
+                       authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        user = _user_from_jwt(_require_jwt(authorization))
+        if not _is_admin(user["id"]):
+            raise HTTPException(403, "Admin-only. Add the user_id to PRICING_ADMIN_USER_IDS.")
+
+        drained = failed = 0
+        with _supabase.admin() as client:
+            try:
+                pending = client.select(
+                    "renewal_email_queue",
+                    filters={"status": "eq.queued"},
+                    columns="id,payload",
+                    limit=limit,
+                    order="send_at.asc",
+                )
+            except Exception:  # noqa: BLE001 — table may not exist in older envs
+                logger.exception("[newsletter] renewal_email_queue read failed")
+                return {"drained": 0, "failed": 0, "note": "renewal_email_queue unavailable"}
+
+            for row in pending:
+                payload = row.get("payload") or {}
+                to = payload.get("to")
+                if not to:
+                    continue
+                vars_ = payload.get("vars") or {}
+                html = _email_templates.renewal_reminder(
+                    renewal_date=vars_.get("renewal_date", ""),
+                    amount_label=vars_.get("renewal_price", "€99"),
+                    manage_url=vars_.get("manage_url", f"{_app_url()}/settings/billing"),
+                    days_ahead=int(vars_.get("days_ahead", 0) or 0),
+                )
+                result = _email.send_email(
+                    to=to,
+                    subject=payload.get("subject", "Your CFO AI subscription renews soon"),
+                    html=html,
+                )
+                _log_send(client, to=to, kind="renewal_reminder",
+                          subject=payload.get("subject", ""), result=result)
+                if result.get("ok"):
+                    client.update("renewal_email_queue",
+                                  {"status": "sent", "sent_at": "now()"},
+                                  filters={"id": f"eq.{row['id']}"})
+                    drained += 1
+                else:
+                    client.update("renewal_email_queue",
+                                  {"status": "failed", "error": str(result.get("error") or result.get("reason"))},
+                                  filters={"id": f"eq.{row['id']}"})
+                    failed += 1
+
+        return {"drained": drained, "failed": failed}
+
+    return router

@@ -1,0 +1,299 @@
+/* ──────────────────────────────────────────────────────────────────
+   Marketing tokens — Cleo structural design × Stripe/Mercury/Linear warmth.
+   ──────────────────────────────────────────────────────────────────
+   Scope: marketing surfaces only (`/`, `/pricing`, `/about`, `/security`,
+   `/signin`, `/signup`). The authenticated app keeps its own tokens
+   (see index.css :root + .dark blocks).
+
+   These tokens are exposed under the `--m-*` namespace so they can never
+   collide with the app's --bg/--ink/--brand variables. To opt a route into
+   the marketing palette, wrap its root in `.marketing-surface` and the
+   `.m-*` utilities below take over.
+
+   IMPORTANT — typography rule: every serif use here is UPRIGHT (regular).
+   No italic. Instrument Serif at 400 weight, never italic 400. The previous
+   gradient-italic experiment is removed; this is the warm-cream B2B mode.
+   ────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Text — neutral near-black greyscale ─────────────────────── */
+  --m-text-primary:       #1a1a1a;
+  --m-text-secondary:     #454545;
+  --m-text-muted:         #808080;
+
+  /* ── Surfaces — neutral greyscale tones ──────────────────────── */
+  --m-surface-page:       #f5f4f2;   /* off-white — primary page bg */
+  --m-surface-section:    #fafafa;   /* lighter — alternating sections */
+  --m-surface-pill:       #e6e6e6;   /* nav pills */
+  --m-surface-pill-hover: #dadada;
+  --m-surface-card:       #ffffff;   /* pure white for tactile cards */
+  --m-surface-dark:       #1a1a1a;   /* near-black for inverse sections */
+
+  /* ── Accent — the single teal accent #5CD3C5 ─────────────────── */
+  --m-accent-primary:     #1a1a1a;   /* primary CTA = near-black */
+  --m-accent-coral:       #5CD3C5;   /* teal accent: status pills, scroll bar */
+  --m-accent-sage:        #2AA89B;   /* teal-dark: verified / accuracy */
+  --m-accent-cobalt:      #2AA89B;   /* teal-dark: focus rings, data emphasis */
+
+  /* ── Borders — barely visible, neutral ───────────────────────── */
+  --m-border-soft:        rgba(0, 0, 0, 0.06);
+  --m-border-default:     rgba(0, 0, 0, 0.12);
+  --m-border-emphasis:    rgba(0, 0, 0, 0.20);
+
+  /* ── Shadows — tactile depth ─────────────────────────────────── */
+  --m-shadow-pill:        0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.06);
+  --m-shadow-card:        0 12px 32px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.05);
+  --m-shadow-card-deep:   0 24px 60px rgba(0, 0, 0, 0.14), 0 8px 16px rgba(0, 0, 0, 0.07);
+
+  /* ── Radii ───────────────────────────────────────────────────── */
+  --m-radius-pill:        9999px;
+  --m-radius-card:        16px;
+  --m-radius-card-lg:     24px;
+  --m-radius-card-xl:     32px;
+
+  /* ── Spacing — generous, allow pages to breathe ──────────────── */
+  --m-space-section:      160px;
+  --m-space-section-md:   120px;
+  --m-space-section-sm:   96px;
+
+  /* ── Type families ───────────────────────────────────────────── */
+  --m-font-serif:   "Instrument Serif", "Cormorant Garamond", Georgia, serif;
+  --m-font-sans:    "Inter", system-ui, -apple-system, sans-serif;
+  --m-font-mono:    "JetBrains Mono", "IBM Plex Mono", monospace;
+
+  /* ── Type scales (fluid) ─────────────────────────────────────── */
+  --m-text-hero:       clamp(48px, 7vw, 88px);
+  --m-text-display:    clamp(36px, 5vw, 60px);
+  --m-text-h1:         clamp(32px, 4vw, 48px);
+  --m-text-h2:         clamp(24px, 3vw, 36px);
+  --m-text-h3:         20px;
+  --m-text-body-lg:    19px;
+  --m-text-body:       17px;
+  --m-text-small:      15px;
+  --m-text-eyebrow:    12px;
+
+  /* ── Leading + tracking ──────────────────────────────────────── */
+  --m-leading-hero:    1.05;
+  --m-leading-heading: 1.15;
+  --m-leading-body:    1.55;
+  --m-tracking-hero:    -0.015em;
+  --m-tracking-tight:   -0.01em;
+  --m-tracking-eyebrow: 0.18em;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Utility classes — `.m-*` namespace.
+   Wrap a page root in `.marketing-surface` and apply these directly.
+   ────────────────────────────────────────────────────────────────── */
+
+.marketing-surface {
+  background: var(--m-surface-page);
+  color: var(--m-text-primary);
+  font-family: var(--m-font-sans);
+  /* Disable the body::before mesh gradient from the app theme so the cream
+     reads pure. Per-section overrides reintroduce subtle texture. */
+}
+.marketing-surface ::selection {
+  background: var(--m-text-primary);
+  color: var(--m-surface-page);
+}
+
+/* Typography ─────────────────────────────────────────────────────── */
+.m-eyebrow {
+  font-family: var(--m-font-mono);
+  font-size: var(--m-text-eyebrow);
+  letter-spacing: var(--m-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--m-text-secondary);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.m-eyebrow-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--m-accent-coral);
+  display: inline-block;
+}
+
+.m-hero {
+  font-family: var(--m-font-serif);
+  font-size: var(--m-text-hero);
+  line-height: var(--m-leading-hero);
+  letter-spacing: var(--m-tracking-hero);
+  color: var(--m-text-primary);
+  font-weight: 400;
+  font-style: normal;   /* NEVER italic — the B2B refinement vs Cleo */
+}
+.m-display {
+  font-family: var(--m-font-serif);
+  font-size: var(--m-text-display);
+  line-height: var(--m-leading-heading);
+  letter-spacing: var(--m-tracking-tight);
+  color: var(--m-text-primary);
+  font-weight: 400;
+  font-style: normal;
+}
+.m-h1 {
+  font-family: var(--m-font-serif);
+  font-size: var(--m-text-h1);
+  line-height: var(--m-leading-heading);
+  letter-spacing: var(--m-tracking-tight);
+  color: var(--m-text-primary);
+  font-weight: 400;
+  font-style: normal;
+}
+.m-h2 {
+  font-family: var(--m-font-serif);
+  font-size: var(--m-text-h2);
+  line-height: var(--m-leading-heading);
+  color: var(--m-text-primary);
+  font-weight: 400;
+  font-style: normal;
+}
+.m-body-lg {
+  font-family: var(--m-font-sans);
+  font-size: var(--m-text-body-lg);
+  line-height: var(--m-leading-body);
+  color: var(--m-text-secondary);
+}
+.m-body {
+  font-family: var(--m-font-sans);
+  font-size: var(--m-text-body);
+  line-height: var(--m-leading-body);
+  color: var(--m-text-secondary);
+}
+.m-small {
+  font-family: var(--m-font-sans);
+  font-size: var(--m-text-small);
+  line-height: 1.5;
+  color: var(--m-text-muted);
+}
+
+/* Surfaces ───────────────────────────────────────────────────────── */
+.m-section          { padding-block: var(--m-space-section); }
+.m-section-md       { padding-block: var(--m-space-section-md); }
+.m-section-sm       { padding-block: var(--m-space-section-sm); }
+.m-surface-section  { background: var(--m-surface-section); }
+.m-surface-dark     { background: var(--m-surface-dark); color: #f5f5f5; }
+.m-surface-dark .m-hero,
+.m-surface-dark .m-display,
+.m-surface-dark .m-h1,
+.m-surface-dark .m-h2 { color: #f5f5f5; }
+.m-surface-dark .m-body,
+.m-surface-dark .m-body-lg,
+.m-surface-dark .m-small { color: rgba(245, 245, 245, 0.78); }
+
+/* Pills ──────────────────────────────────────────────────────────── */
+.m-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--m-surface-pill);
+  color: var(--m-text-primary);
+  border-radius: var(--m-radius-pill);
+  padding: 12px 20px;
+  font-family: var(--m-font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: var(--m-shadow-pill);
+  transition: background-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+  text-decoration: none;
+}
+.m-pill:hover { background: var(--m-surface-pill-hover); }
+
+.m-pill-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--m-accent-primary);
+  color: var(--m-surface-card);
+  border-radius: var(--m-radius-pill);
+  padding: 16px 28px;
+  font-family: var(--m-font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: var(--m-shadow-pill);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  text-decoration: none;
+}
+.m-pill-cta:hover {
+  transform: scale(1.02);
+  box-shadow: var(--m-shadow-card);
+}
+.m-pill-cta:active { transform: scale(0.98); }
+
+.m-link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--m-font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--m-text-primary);
+  text-decoration: none;
+  transition: gap 200ms ease;
+}
+.m-link-arrow:hover { gap: 10px; }
+
+/* Cards ──────────────────────────────────────────────────────────── */
+.m-card {
+  background: var(--m-surface-card);
+  border-radius: var(--m-radius-card-lg);
+  box-shadow: var(--m-shadow-card);
+  padding: 20px;
+}
+.m-card-deep {
+  background: var(--m-surface-card);
+  border-radius: var(--m-radius-card-lg);
+  box-shadow: var(--m-shadow-card-deep);
+  padding: 20px;
+}
+
+/* Big numbers — UPRIGHT serif (no italic). Used in Proof section and
+   on the pricing prices. */
+.m-num {
+  font-family: var(--m-font-serif);
+  font-size: var(--m-text-hero);
+  line-height: 1;
+  font-weight: 400;
+  font-style: normal;
+  color: var(--m-text-primary);
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus rings ────────────────────────────────────────────────────── */
+.marketing-surface :focus-visible {
+  outline: 2px solid var(--m-accent-cobalt);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* Subtle organic noise overlay — used on the hero only, applied via
+   `.m-hero-section` so it never bleeds onto data surfaces. */
+.m-hero-section { position: relative; }
+.m-hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/></svg>");
+  opacity: 0.03;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  z-index: 0;
+}
+.m-hero-section > * { position: relative; z-index: 1; }
+
+/* Respect reduced motion globally for the marketing surface. */
+@media (prefers-reduced-motion: reduce) {
+  .marketing-surface *,
+  .marketing-surface *::before,
+  .marketing-surface *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -41,6 +41,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from . import _detect
+from . import _org
 from . import _supabase
 from . import _usage_limits
 from . import _valuation
@@ -306,7 +307,12 @@ any other accounting / business document.
 ADDITIONAL EXTRACTION FOR SKU/SALES DOCUMENTS:
 If the document contains SKU-level or product-level rollups (sales by
 product, trading analysis, invoice register with line items, inventory
-report), populate the `skus` array with one row per distinct SKU.
+report), populate the `skus` array with the MOST MATERIAL rows only —
+AT MOST 25 rows, ranked by revenue (or volume when revenue is absent).
+DO NOT echo every line: the full per-SKU portfolio is parsed separately
+by a deterministic reader, so this array is only a representative sample
+for the executive briefing. Emitting hundreds of rows overflows the
+output budget and truncates the JSON — keep it to 25 at most.
 Each SKU row: { sku, brand, category, channel, volume, volume_unit,
 units_sold, revenue, cogs, gross_margin, gross_margin_pct,
 inventory_value, days_inventory_on_hand }. All numeric fields default to
@@ -376,7 +382,7 @@ CRITICAL RULES — read these before extracting:
     "top_records": [string],
     "warnings": [string]
   },
-  "skus": [
+  "skus": [                              // AT MOST 25 most-material rows (sample only)
     {
       "sku": "string (full descriptor incl. weight/format)",
       "brand": "string | null",
@@ -960,7 +966,14 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     try:
         resp = client.messages.create(
             model="claude-opus-4-7",
-            max_tokens=8000,
+            # 2026-07-26 — was 8000, which truncated the JSON mid-string on
+            # sales-analysis files (detected_type="sales_analysis" emits every
+            # SKU row into `skus`), surfacing as "Claude returned invalid JSON:
+            # Unterminated string". 16000 gives headroom for the illustrative
+            # trading files. NOTE: a very large SKU list can still exceed this —
+            # the durable fix is deterministic SKU extraction (see _sales_extract)
+            # rather than emitting all rows through the model.
+            max_tokens=16000,
             system=[
                 {"type": "text", "text": _BROAD_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
             ],
@@ -1109,8 +1122,23 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
     in step 4 below. Adding source_document_id to the SELECT closes that
     collision. (See Bug A fix: src/engine/api/pipeline.py:910-922.)
     """
+    # User-confirmed period-end wins (2026-07-25). The upload flow detects the
+    # closing month from the filename and lets the user confirm/edit it; the
+    # chosen date lands on documents.period_end_hint. When present it overrides
+    # both the extracted (content) and filename-derived dates so the period is
+    # filed under exactly the month the user confirmed.
+    hint = doc.get("period_end_hint")
+    period_end_hint: Optional[str] = None
+    if hint:
+        try:
+            period_end_hint = date.fromisoformat(str(hint)[:10]).isoformat()
+        except (TypeError, ValueError):
+            period_end_hint = None
+
     period_end_str = parsed.get("period_end")
-    if period_end_str:
+    if period_end_hint:
+        period_end = period_end_hint
+    elif period_end_str:
         try:
             period_end = date.fromisoformat(period_end_str).isoformat()
         except (TypeError, ValueError):
@@ -1154,40 +1182,74 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 filters={"id": f"eq.{period_id}"},
             )
         else:
-            # 2. Insert a fresh period row. The unique constraint on
-            #    (org_id, period_end) prevents races — if another concurrent
-            #    upload races to insert, this raises 23505 and we re-select.
-            try:
-                inserted = admin_client.insert(
+            # 2a. Duplicate-month = REPLACE (2026-07-25 operator directive).
+            #     No period exists for THIS document, but one may already exist
+            #     for this MONTH from a DIFFERENT document. Under the current
+            #     one-company-per-workspace model, a same-month upload is the
+            #     same company's same month, so it must REPLACE that month's
+            #     period rather than create a second period for the same month
+            #     ("don't allow duplicate months in a workspace"). We re-point
+            #     the existing period at the replacing document and let step 4
+            #     below wipe + re-insert its line items — newest upload wins.
+            #
+            #     NB: this deliberately relaxes the Bug-A separation (which
+            #     kept different documents on the same date in separate
+            #     periods to stop a *different company's* file from wiping the
+            #     first). That protection is unnecessary inside a single-company
+            #     workspace; org isolation still keeps other workspaces safe.
+            month_periods = admin_client.select(
+                "financial_periods",
+                filters={
+                    "org_id": f"eq.{doc['org_id']}",
+                    "period_end": f"eq.{period_end}",
+                },
+                order="updated_at.desc",  # newest first if legacy duplicates exist
+            )
+            if month_periods:
+                period_id = month_periods[0]["id"]
+                admin_client.update(
                     "financial_periods",
                     {
-                        "org_id": doc["org_id"],
-                        "source_document_id": doc["id"],
-                        "period_start": period_start,
-                        "period_end": period_end,
-                        "currency": parsed.get("currency") or "RON",
+                        "source_document_id": doc["id"],  # take over the month
+                        "currency": parsed.get("currency") or month_periods[0].get("currency") or "RON",
                         "extraction_confidence": parsed.get("confidence", 0.5),
+                        "updated_at": _now_iso(),
                     },
-                    returning=True,
+                    filters={"id": f"eq.{period_id}"},
                 )
-                period_id = inserted[0]["id"]
-            except Exception:
-                # Race-loser: re-select on the 3-col tuple — matches the
-                # post-Bug-A unique constraint. Reuse the winner. Only ever
-                # collides on a re-run of the same document; different
-                # documents on the same date are not in conflict.
-                rows = admin_client.select(
-                    "financial_periods",
-                    filters={
-                        "org_id": f"eq.{doc['org_id']}",
-                        "period_end": f"eq.{period_end}",
-                        "source_document_id": f"eq.{doc['id']}",
-                    },
-                    single=True,
-                )
-                if not rows:
-                    raise
-                period_id = rows[0]["id"]
+            else:
+                # 2b. Genuinely new month — insert a fresh period row. If a
+                #     concurrent upload races to insert the same tuple, the
+                #     unique constraint raises and we re-select the winner.
+                try:
+                    inserted = admin_client.insert(
+                        "financial_periods",
+                        {
+                            "org_id": doc["org_id"],
+                            "source_document_id": doc["id"],
+                            "period_start": period_start,
+                            "period_end": period_end,
+                            "currency": parsed.get("currency") or "RON",
+                            "extraction_confidence": parsed.get("confidence", 0.5),
+                        },
+                        returning=True,
+                    )
+                    period_id = inserted[0]["id"]
+                except Exception:
+                    # Race-loser: another upload for this month won. Re-select
+                    # by (org_id, period_end) and reuse it — same replace
+                    # semantics as 2a.
+                    rows = admin_client.select(
+                        "financial_periods",
+                        filters={
+                            "org_id": f"eq.{doc['org_id']}",
+                            "period_end": f"eq.{period_end}",
+                        },
+                        order="updated_at.desc",
+                    )
+                    if not rows:
+                        raise
+                    period_id = rows[0]["id"]
 
         # 3. Pin the document to the resolved period. Documents drive period
         #    ownership now — multiple docs per period.
@@ -2097,6 +2159,32 @@ def _convert_briefing_facts(
         else:
             out[k] = v
     return out
+
+
+def stage_council(doc: Dict[str, Any], parsed: Dict[str, Any],
+                  assembled: Dict[str, Any]) -> Dict[str, Any]:
+    """Advisory AI-council review of EXTRACTION INTEGRITY (added 2026-07-20).
+
+    A panel of independent Claude personas — reconciliation / completeness /
+    classification auditors — scans the freshly-assembled statements; a
+    deterministic chair returns a consensus verdict (pass / warn / fail).
+
+    Advisory by design: this stage NEVER blocks the pipeline and NEVER
+    raises. Any failure (no API key, provider down, malformed output)
+    degrades to the deterministic baseline inside `_ai_council.run_council`,
+    which is itself exception-safe. The caller surfaces the verdict + any
+    findings by appending `council_findings_as_alerts(...)` to
+    `validation_alerts`, so they flow through the existing 'data_quality'
+    alerts channel with no schema migration.
+
+    Returns the full council result dict, or {} if the stage itself errors.
+    """
+    from . import _ai_council
+    try:
+        return _ai_council.run_council(assembled, parsed, document_id=doc.get("id"))
+    except Exception:  # noqa: BLE001 — advisory stage must never break analysis
+        logger.exception("[stage_council] failed (non-fatal)")
+        return {}
 
 
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
@@ -3245,6 +3333,25 @@ def _run_pipeline_sync(document_id: str) -> None:
                 except Exception:  # noqa: BLE001
                     logger.exception("[pipeline] statutory anchor override failed (non-fatal)")
             validation_alerts = stage_validate(doc, assembled, period_id)
+            # AI Council — advisory extraction-integrity review (2026-07-20).
+            # A panel of independent Claude personas scans the extraction and a
+            # deterministic chair returns a consensus verdict. Non-blocking:
+            # findings are appended to validation_alerts as 'data_quality'
+            # advisories and surface in the existing alerts UI. stage_council
+            # never raises; a missing API key degrades to a deterministic
+            # rule-based verdict.
+            council_result = stage_council(doc, parsed, assembled)
+            if council_result:
+                from . import _ai_council
+                logger.info(
+                    "[pipeline] ai_council verdict=%s confidence=%.2f findings=%d (doc=%s)",
+                    council_result.get("verdict"),
+                    council_result.get("confidence", 0.0),
+                    len(council_result.get("findings", []) or []),
+                    document_id,
+                )
+                validation_alerts = list(validation_alerts) + \
+                    _ai_council.council_findings_as_alerts(council_result)
             # Industry classification fallback. When the org's industry_key is
             # unset or "generic", run the auto-classifier on the assembled
             # statements — for EEI this detects real_estate_commercial from
@@ -3291,7 +3398,24 @@ def _run_pipeline_sync(document_id: str) -> None:
             doc, assembled, metrics, org, period_id,
             parsed=parsed, valuation=valuation_payload,
         )
-        stage_persist_narrative(doc, period_id, narrative, validation_alerts)
+        # Non-fatal: the narrative/recommendations/alerts persistence is a
+        # supplementary layer on top of the analysis, which is already
+        # persisted (stage_persist + calculated_metrics + valuation above).
+        # A failure here — e.g. a schema-drift 409 when the
+        # schema_phase_notes_period_scope migration (period_id column +
+        # (period_id, alert_key) unique) hasn't been applied, or the period
+        # being deleted mid-run — must NOT fail the whole scan. This mirrors
+        # the "period vanished" skip inside stage_persist_narrative and the
+        # non-fatal handling every other side-effect in this pipeline uses.
+        try:
+            stage_persist_narrative(doc, period_id, narrative, validation_alerts)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "[pipeline] narrative/alerts persistence failed (non-fatal) — "
+                "analysis still succeeds; briefing/recommendations/alerts may be "
+                "incomplete for %s until schema_phase_notes_period_scope is applied",
+                document_id,
+            )
 
         # Persist the assembled statements blob on financial_periods so the
         # period read endpoint can return it without re-deriving.
@@ -4096,7 +4220,10 @@ def build_router() -> APIRouter:
             }
 
     @router.get("/api/org/periods-with-documents")
-    def list_periods_with_documents(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    def list_periods_with_documents(
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
         """Right-anchored Docs panel feed: every financial_period the user's
         org has, with the source documents that produced it, ordered newest
         first. Plus a `recently_deleted` shelf for soft-deleted docs that
@@ -4107,17 +4234,15 @@ def build_router() -> APIRouter:
         from datetime import datetime, timezone, timedelta
 
         jwt = _require_jwt(authorization)
-        with _supabase.per_user(jwt) as client:
-            # Caller's active org (first membership).
-            session = client.get_user(jwt)
-            user_id = session.get("id") or session.get("user", {}).get("id")
-            if not user_id:
-                raise HTTPException(401, "Could not resolve user from JWT.")
-            mems = client.select("memberships", filters={"user_id": f"eq.{user_id}"}, limit=1)
-            if not mems:
+        # Caller's ACTIVE workspace — validated against membership, not the
+        # first row. See _org.resolve_org.
+        try:
+            _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        except HTTPException as exc:
+            if exc.status_code == 404:
                 return {"active_period_id": None, "periods": [], "recently_deleted": []}
-            org_id = mems[0]["org_id"]
-
+            raise
+        with _supabase.per_user(jwt) as client:
             periods = client.select(
                 "financial_periods",
                 filters={"org_id": f"eq.{org_id}"},
@@ -4401,6 +4526,7 @@ def build_router() -> APIRouter:
     @router.post("/api/documents/clear-mine")
     def clear_my_uploads(
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
         """Settings → Data → "Clear all my uploaded documents."
         Soft-deletes every live document in the caller's org with a
@@ -4430,21 +4556,15 @@ def build_router() -> APIRouter:
         Returns: {"deleted_count": N, "org_id": "..."}.
         """
         jwt = _require_jwt(authorization)
-        # Inline org resolution — mirrors the pattern used by the
-        # adjacent /api/org/periods-with-documents endpoint above
-        # (line ~3160). Kept inline to avoid a cross-module import
-        # from _benchmarks.py (which would create a circular dep).
-        with _supabase.per_user(jwt) as client:
-            session = client.get_user(jwt)
-            user_id = session.get("id") or session.get("user", {}).get("id")
-            if not user_id:
-                raise HTTPException(401, "Could not resolve user from JWT.")
-            mems = client.select(
-                "memberships", filters={"user_id": f"eq.{user_id}"}, limit=1,
-            )
-            if not mems:
+        # Caller's ACTIVE workspace. This used to be inlined (to dodge a
+        # circular import from _benchmarks.py) and took the first membership;
+        # _org has no router deps, so it can be imported safely.
+        try:
+            _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        except HTTPException as exc:
+            if exc.status_code == 404:
                 return {"deleted_count": 0, "org_id": None, "deleted_at": None}
-            org_id = mems[0]["org_id"]
+            raise
 
         now = _now_iso()
         # Single UPDATE via PostgREST — atomic, org-scoped via the
@@ -4901,7 +5021,7 @@ def build_router() -> APIRouter:
             rows = client.select(
                 "sales_datasets",
                 order="uploaded_at.desc",
-                columns="*,documents!inner(original_filename,status,deleted_at)",
+                columns="*,documents!inner(original_filename,status,deleted_at,period_id)",
             )
         active = [r for r in rows if not (r.get("documents") or {}).get("deleted_at")]
         return {
@@ -4916,6 +5036,18 @@ def build_router() -> APIRouter:
                 "is_active": r.get("is_active", True),
                 "document_status": (r.get("documents") or {}).get("status"),
                 "deleted_at": (r.get("documents") or {}).get("deleted_at"),
+                # Exposed so the Products "Source files" cards can open the
+                # uploaded file preview in a new tab (2026-07-26).
+                "document_id": r.get("document_id"),
+                # Month this file belongs to, so the Products file list can
+                # nest files under the active period (2026-07-26). Set by the
+                # FRONTEND at upload time from the then-active period — the
+                # SKU pipeline branch deliberately resolves no period of its
+                # own (it finalizes with period_id=None, which
+                # _admin_set_status omits rather than nulls, so the value
+                # survives). NULL for every pre-existing upload; the FE treats
+                # NULL as "unassigned" and shows it under every month.
+                "period_id": (r.get("documents") or {}).get("period_id"),
             } for r in active],
         }
 

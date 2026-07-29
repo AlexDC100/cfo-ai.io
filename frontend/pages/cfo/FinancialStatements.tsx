@@ -1,0 +1,5581 @@
+// /dashboard — Financial Statement Intelligence flagship page.
+//
+// Multi-tab dashboard wrapped in the standard AppShell:
+//   Overview · Statements · Ratios · Valuation · Risks · Recommendations · Export
+//
+// Inputs:
+//   • Sample picker (synthetic fictional datasets — Step 2 of the REAL-AUTH prompt)
+//   • Drop-zone upload (PDF/XLSX/CSV/JPG/PNG) — sole upload entry point
+//     after F3-UX-2 removed the paste-trial-balance dialog
+//
+// Engines (all pure TypeScript, run client-side):
+//   • computeRatios()         — 25+ ratios (financialReport.ts)
+//   • runDcf() / runGraham()  — intrinsic valuation (financialValuation.ts)
+//   • runPiotroski()          — 9-point quality screen
+//   • computeCreditScore()    — composite 0–100 → S&P-style rating
+//   • multiPeriodGrowth()     — y/y trend + CAGR
+//
+// Exports:
+//   • HTML report (downloadReport) — single-file, browser-printable to PDF
+//   • Excel workbook (downloadExcelReport) — 8-sheet xlsx model
+
+import { useMemo, useState, useRef, useCallback, useEffect, type ReactNode } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AddFileTile, SourceFilesRow } from "@/components/cfo/SourceFilesRow";
+import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
+import { useBudgetComparison } from "@/stores/budget";
+import { parseBudgetFile } from "@/lib/comparison/parseBudget";
+import { useTranslation } from "react-i18next";
+import { Money } from "@/components/ui/Money";
+import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
+import { ReportingContextProvider } from "@/components/learning/ReportingContextProvider";
+import { PageGuideOverlay, type GuideStep } from "@/components/learning/PageGuideOverlay";
+import { PL_GUIDE, CF_GUIDE, RATIOS_GUIDE, RECOMMENDATIONS_GUIDE, RISK_GUIDE } from "@/components/learning/pageGuides";
+import { BALANCE_SHEET_GUIDE } from "@/components/learning/balanceSheetGuide";
+import { VALUATION_GUIDE } from "@/components/learning/valuationGuide";
+import { factToConceptKey, factLabel } from "@/lib/learning/concepts/recommendations";
+import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
+import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
+import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetrics";
+import { ConfigurableDashboard } from "@/components/dashboard/ConfigurableDashboard";
+import { DashboardProvider } from "@/stores/dashboard";
+import { DashboardViewProvider } from "@/stores/dashboardView";
+import { DemoBanner } from "@/components/dashboard/DemoBanner";
+import { buildMultiYearSeries } from "@/lib/learning/multiPeriodSeries";
+import { DEMO_SAMPLE_ID } from "@/lib/demo/demoCompany";
+import type { Currency } from "@/lib/rates";
+import { useDisplayCurrency, useRates } from "@/stores/currency";
+import { convertFromTo } from "@/lib/money";
+import { openStagedFile } from "@/lib/stagedFilePreview";
+import { clearStagedFiles, readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
+import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import { PLStatementView } from "@/components/cfo/PLStatementView";
+import { BSStatementView } from "@/components/cfo/BSStatementView";
+import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
+import { NavValuationView } from "@/components/cfo/NavValuationView";
+import {
+  EbitdaMultiplePrimaryCard,
+  ValuationCrossChecksDisclosure,
+  HeavyReReasonBanner,
+} from "@/components/cfo/EbitdaMultiplePrimaryCard";
+import { pickPLBuilder, buildPLStatementFromAggregates } from "@/lib/buildPlStatement";
+import { buildBSStatement } from "@/lib/buildBsStatement";
+import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
+import { buildNavCascade } from "@/lib/buildNavCascade";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { detectPeriodEndFromFilename, detectPeriodEndFromFile, formatDetectedMonth } from "@/lib/detectPeriodEnd";
+import { fetchWorkspacePeriodsDirect, formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
+import { useActiveOrg } from "@/lib/org";
+import { cfoApi } from "@/lib/cfoApi";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  AlertCircle,
+  ArrowDownToLine,
+  ArrowRight,
+  Building2,
+  // P0-FIX (2026-06-01) — `Check` was used at line 2822 inside
+  // UploadProgressCard's STEPS render for the "done" step state but
+  // had never been imported. Survived TS check (Vite/SWC treats
+  // capitalized JSX as a component reference and trusts the runtime
+  // module graph). At runtime: as soon as one upload step transitioned
+  // to done state (status='mapping' → step 1 done → render <Check/>) →
+  // ReferenceError: Check is not defined → InlineErrorBoundary fallback.
+  // Explains why steps 3-6 never lit up — the card crashed the moment
+  // step 1 completed.
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  FileSpreadsheet,
+  FileText,
+  Info,
+  Loader2,
+  Presentation,
+  Scale,
+  Shield,
+  Sparkles,
+  TrendingUp,
+  ArrowUp,
+  Cloud,
+  UploadCloud,
+  X,
+  Trash2,
+} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  computeRatios,
+  deriveTotals,
+  downloadReport,
+  formatRatio,
+  generateRecommendations,
+  verdictLabel,
+  type Ratio,
+  type RatioBundle,
+  type Recommendation,
+  type Statements,
+} from "@/lib/financialReport";
+import {
+  computeCostOfCapital,
+  computeCreditScore,
+  deriveCashFlow,
+  multiPeriodGrowth,
+  runDcf,
+  runGraham,
+  runPiotroski,
+} from "@/lib/financialValuation";
+import {
+  buildStatementsFromTrialBalance,
+  parseTrialBalance,
+} from "@/lib/trialBalanceParser";
+// financialExports (and its xlsx dependency, ~430 KB) is dynamic-imported at
+// the Download click site so the Dashboard chunk doesn't ship SpreadsheetML
+// codecs to users who never export.
+import { SAMPLE_DATASETS, SAMPLES_ENABLED } from "@/data/sampleStatements";
+import { periodQueryKey, useActivePeriod, type PeriodValuation } from "@/lib/activePeriod";
+import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
+import {
+  clearUpload,
+  patchUpload,
+  startUpload,
+  useUploadStore,
+} from "@/lib/uploadStore";
+import { InlineErrorBoundary } from "@/components/cfo/InlineErrorBoundary";
+import { CouncilVisualizer } from "@/components/cfo/CouncilVisualizer";
+import { ScanProgressView, TRIAL_BALANCE_STEPS } from "@/components/cfo/ScanProgressView";
+import { isScanSpherePaused } from "@/components/cfo/CouncilSphereHost";
+import { TemplateDownloadCard } from "@/components/cfo/products/TemplateDownloadCard";
+import { StatementNotes } from "@/components/cfo/StatementNotes";
+import { ValuationSection } from "@/components/cfo/ValuationSection";
+import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
+import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
+import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
+import { SourceQualityBanner } from "@/components/cfo/SourceQualityBanner";
+import { DocsToggle, useDocsCount } from "@/components/cfo/DocsPanel";
+import { PublicRecordsQuickCard } from "@/components/cfo/PublicRecordsQuickCard";
+import { PUBLIC_RECORDS_ENABLED } from "@/config/features";
+import {
+  allTabs,
+  disabledHint,
+  resolveActiveTab,
+  tabEnabled,
+  type DocumentType,
+  type TabId,
+} from "@/lib/financialStatementTabs";
+import {
+  customerAnalytics,
+  paymentsAnalytics,
+  vatAnalytics,
+  type Invoice,
+} from "@/lib/invoiceAnalytics";
+// CustomersTab / PaymentsTab / MarginTab / VatTab were removed in the
+// 9-tab restructure. Their canonical signals (customer concentration,
+// DSO, paid-on-time, net VAT) still surface as KPI tiles in the
+// `InvoiceKpiStrip` at the top of the page when invoice data is loaded.
+// The archived bottom-tab implementations were removed in the 2026-07
+// dead-code cleanup (recoverable from git history: frontend/_removed/tabs/).
+import { useToast } from "@/hooks/use-toast";
+
+// Consolidated tab guides (2026-07-25) — the per-tab "Guide me" buttons were
+// removed; a single button in the tab bar opens the guide for the ACTIVE tab.
+// Keyed by TabId. Tabs without an entry (export) show no guide button.
+const TAB_GUIDES: Record<string, { pageId: string; title: string; steps: GuideStep[] }> = {
+  pl:              { pageId: "pnl",           title: "P&L",           steps: PL_GUIDE },
+  balance_sheet:   { pageId: "balance-sheet", title: "Balance Sheet", steps: BALANCE_SHEET_GUIDE },
+  cash_flow:       { pageId: "cash-flow",     title: "Cash Flow",     steps: CF_GUIDE },
+  ratios:          { pageId: "ratios",        title: "Ratios",        steps: RATIOS_GUIDE },
+  valuation:       { pageId: "valuation",     title: "Valuation",     steps: VALUATION_GUIDE },
+  risks:           { pageId: "risk-credit",   title: "Risk & Credit", steps: RISK_GUIDE },
+  recommendations: { pageId: "recommendations", title: "Recommendations", steps: RECOMMENDATIONS_GUIDE },
+};
+
+/** What the dashboard accepts as a financial document. Shared by the hidden
+ *  page input and the "Add file" tile in the Source-files row so the two can't
+ *  drift. */
+const DASHBOARD_UPLOAD_ACCEPT =
+  ".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif,.pptx,.ppt,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+export default function FinancialStatements() {
+  const { t } = useTranslation();
+  // Initial state — empty. The page starts as a sample picker / upload zone;
+  // tab visibility evolves as the user picks a sample or uploads a document.
+  // This honors the master-prompt acceptance: "with no documents uploaded:
+  // only Overview · Recommendations · Export tabs are visible."
+  const [statements, setStatements] = useState<Statements | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [availableTypes, setAvailableTypes] = useState<Set<DocumentType>>(new Set());
+  const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
+  const [uploadName, setUploadName] = useState<string | null>(null);
+  const [parseSource, setParseSource] = useState<{
+    documentName: string;
+    /** null when we don't have real extraction confidence — banner skips
+     *  the "confidence X%" chip rather than fabricating 100%. */
+    confidence: number | null;
+    warnings: string[];
+    /** null when we don't have real account count — banner skips the
+     *  "N accounts" chip rather than rendering "0 accounts". */
+    accountCount: number | null;
+  } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  // F6.0.1c — a PowerPoint/CSV/XLSX budget deck dropped on the MAIN upload
+  // is a budget, not a trial balance; intercept it (see onFileChosen) and
+  // route it to the Budget vs Actual variance store instead of the engine.
+  const { uploaded: budgetDeck, save: saveBudgetDeck } = useBudgetComparison();
+  // Pricing V3 — wraps enqueuePipeline so 402 (extra-doc) opens the
+  // confirm dialog, 429 (quota blocked) surfaces a toast, and queued
+  // proceeds normally. `uploadEnqueue.dialog` is rendered in JSX
+  // below so the modal lives in the same tree as the upload action.
+  const uploadEnqueue = useUploadEnqueue();
+
+  // Hand-off slot — populated by /upload's "Run analysis" flow. We hydrate
+  // statements + availableTypes here on mount so the page lights up with the
+  // user's extracted data without needing to refetch from the DB. Cleared
+  // immediately so a refresh shows the empty workspace cleanly.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("cfoai.parsed");
+      if (!raw) return;
+      sessionStorage.removeItem("cfoai.parsed");
+      const payload = JSON.parse(raw) as {
+        statements: Statements;
+        availableTypes: DocumentType[];
+        source: {
+          documentName: string;
+          confidence: number;
+          warnings: string[];
+          accountCount: number;
+        };
+      };
+      setStatements(payload.statements);
+      setAvailableTypes(new Set(payload.availableTypes));
+      setActiveSampleId("uploaded");
+      setParseSource(payload.source);
+    } catch {
+      /* ignore — corrupted hand-off slot is non-fatal */
+    }
+  }, []);
+
+  // ── Watchdog: on page load, ask the BE to re-enqueue any docs that got
+  // stuck at status='queued' with pipeline_started_at=null (i.e. uploaded
+  // but the worker thread never ran — typically /api/pipeline/run failed at
+  // upload moment). Idempotent. Without this, a user landing on Financial
+  // Statements after a backend hiccup sees their inflight doc spinning
+  // forever at "Step 0 of 6 · Queued for analysis…".
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { recoverStuckPipelines } = await import("@/lib/supabase");
+        await recoverStuckPipelines();
+      } catch {
+        /* non-fatal — page still renders */
+      }
+    })();
+  }, []);
+
+  // ─── Tab state + URL sync ───────────────────────────────────────────────
+  // Phase F: every tab is always visible. `enabled[id]` says whether the user
+  // can click it; disabled tabs render with the same styling but tooltipped.
+  // ?tab=customers selects a tab on load + writes back when the user clicks.
+  // ?period=<sample_id> hydrates State B directly on initial render.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const enabled = useMemo(() => tabEnabled(availableTypes), [availableTypes]);
+  const tabs = useMemo(() => allTabs(), []);
+  const activeTab = resolveActiveTab(searchParams.get("tab"), enabled);
+  // Single "Guide me" button in the tab bar opens the ACTIVE tab's guide.
+  const activeGuide = TAB_GUIDES[activeTab];
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  // The defining state-flip for Phase F: anything loaded → State B. Anything
+  // missing → State A. The page chrome below this is conditional on the flag.
+  const hasPeriodLoaded = statements !== null || invoices !== null;
+
+  const onTabChange = useCallback((next: string) => {
+    setSearchParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      // P&L is the default landing now — a clean URL (no ?tab) means P&L.
+      if (next === "pl") sp.delete("tab");
+      else sp.set("tab", next);
+      return sp;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // When a sample (or upload) lands, surface the period in the URL so a
+  // refresh hydrates straight into State B without flashing State A.
+  function setPeriodParam(periodId: string | null) {
+    setSearchParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      if (periodId) sp.set("period", periodId);
+      else sp.delete("period");
+      // Setting a period always supersedes the "empty state" sticky flag —
+      // user just uploaded / picked a sample, so they explicitly want
+      // content rendered, not the empty state.
+      sp.delete("empty");
+      return sp;
+    }, { replace: true });
+  }
+
+  // F3-UX-2: applyTrialBalance() helper removed alongside paste-text UI.
+  // Backend POST /api/paste-trial-balance endpoint left intact pending a
+  // separate cleanup chunk that audits other callers (none found in FE).
+
+  // 2026-05-24 — auto-canonicalize the URL when ?period= is missing but
+  // the user has a default period set in /api/org/periods-with-documents.
+  // Without this, opening /dashboard from the sidebar (which doesn't
+  // preserve the period query) shows the empty "Upload your trial balance"
+  // state even when the user has docs loaded. See useActivePeriodFallback
+  // for the shared pattern (also used by Benchmark, Peer, Comprehensive).
+  useActivePeriodFallback();
+
+  // F1.e — `useActivePeriod()` hoisted up so the engine-canonical margin
+  // pair (`dashboardCanonicalMargins` below) can read from `remotePeriod.metrics`
+  // before `ratios` / `recommendations` consume it. The hook body itself is
+  // unchanged — only the declaration line moved. Original location was at
+  // ~line 468 alongside the URL-hydration effect (still there in spirit; the
+  // effect that consumes `remotePeriod` stays in its original position).
+  const remotePeriod = useActivePeriod();
+
+  // The SIDEBAR's selected period, for the pre-scan confirm dialog
+  // (2026-07-26 per operator). Deliberately NOT remotePeriod: that's the
+  // resolved analysis payload, and an EMPTY period selected in the sidebar
+  // has no analysis to resolve — remotePeriod misses it and the dialog's
+  // "Selected period" card would come up blank. Resolve ?period= against the
+  // same two feeds the sidebar stepper merges (both cache-shared, so this
+  // adds no requests).
+  const { org: activeOrgForPeriods } = useActiveOrg();
+  const { data: enginePeriodsData } = useOrgPeriods();
+  const { data: directPeriodsData } = useQuery({
+    queryKey: ["org-periods", activeOrgForPeriods?.id],
+    queryFn: () => fetchWorkspacePeriodsDirect(activeOrgForPeriods!.id),
+    enabled: !!activeOrgForPeriods?.id,
+    staleTime: 60_000,
+  });
+  const sidebarPeriod = useMemo(() => {
+    // Same merge + order as SidebarMonthStepper: engine periods first,
+    // deduped, newest month first.
+    const engine = enginePeriodsData?.periods ?? [];
+    const seen = new Set(engine.map((p) => p.period_id));
+    const all = [
+      ...engine,
+      ...(directPeriodsData?.periods ?? []).filter((p) => !seen.has(p.period_id)),
+    ].sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
+    // Same fallback chain as the stepper's label too: the URL's period, else
+    // the newest workspace period. Without the last step, a fresh workspace
+    // whose only period is an empty container shows a month in the sidebar
+    // (the stepper's own fallback) while this resolved null — and the
+    // dialog's "Selected period" card rendered "—" (operator-reported).
+    //
+    // A pid that IS set but isn't in the feeds (a sample/demo period) stays
+    // null on purpose — the caller's remotePeriod fallback carries the
+    // sample's own month, which is more truthful than the newest real period.
+    const pid = searchParams.get("period") ?? remotePeriod.id;
+    if (pid) return all.find((p) => p.period_id === pid) ?? null;
+    return all[0] ?? null;
+  }, [searchParams, remotePeriod.id, enginePeriodsData, directPeriodsData]);
+
+  // Statements-derived metrics — only computed when statements is non-null,
+  // otherwise the tabs that need them aren't visible anyway.
+  const totals = useMemo(() => (statements ? deriveTotals(statements) : null), [statements]);
+  // F6.1 — Multi-year series (oldest → newest) built once from the active
+  // period's historicalPeriods. Drives the dashboard Trend view; empty
+  // (available=0/1) for single-period uploads, which keeps the Trend toggle
+  // disabled. The demo company carries five years so Trend lights up.
+  const multiYearSeries = useMemo(() => buildMultiYearSeries(statements), [statements]);
+  const isDemoPeriod = remotePeriod.source === "sample" && remotePeriod.id === DEMO_SAMPLE_ID;
+  // F1.e — Engine-canonical margin pair used by the Ratios tab Profitability
+  // section so EBITDA margin / Net margin agree with the dashboard tile and
+  // the P&L Key Margins block. Falls back to FE arithmetic when the engine
+  // row is missing (pre-v2.1 cached period).
+  const dashboardCanonicalMargins = useMemo(() => {
+    const ebitdaRow = remotePeriod.metrics.find((mt) => mt.name === "ebitda_margin");
+    const netRow = remotePeriod.metrics.find((mt) => mt.name === "net_margin");
+    return {
+      ebitdaMargin:
+        typeof ebitdaRow?.value === "number" ? ebitdaRow.value : null,
+      netMargin: typeof netRow?.value === "number" ? netRow.value : null,
+    };
+  }, [remotePeriod.metrics]);
+  // ‡ F1.e — Engine canonical statutory net profit (ct.121). Plumbed into
+  // the dashboard tile and the CFO AI Summary block so the RON figure
+  // agrees with the margin.
+  const canonicalNetIncomeStatutory = useMemo(() => {
+    const row = remotePeriod.metrics.find((mt) => mt.name === "net_income_statutory");
+    return typeof row?.value === "number" ? row.value : null;
+  }, [remotePeriod.metrics]);
+  // F3.11 — F3.9 source-data quality telemetry. Derived FE-side from
+  // the four numeric metrics the BE persists post-F3.11
+  // (source_imbalance_pct / _abs / _closing_debit_sum / _closing_credit_sum).
+  // Returns null on pre-F3.11 cached periods, Claude-extracted uploads,
+  // and statutory F30/F10 files — banner renders nothing in those
+  // cases. The warn flag is derived from pct > 2.0 (the canonical
+  // F3.9 threshold) rather than persisted separately to keep the
+  // metrics shape strictly numeric.
+  const sourceDataQuality = useMemo(() => {
+    const find = (n: string) => {
+      const row = remotePeriod.metrics.find((mt) => mt.name === n);
+      return typeof row?.value === "number" ? row.value : null;
+    };
+    const pct = find("source_imbalance_pct");
+    const abs = find("source_imbalance_abs");
+    const sumD = find("source_closing_debit_sum");
+    const sumC = find("source_closing_credit_sum");
+    if (pct === null || abs === null || sumD === null || sumC === null) {
+      return null;
+    }
+    return {
+      raw_imbalance_pct: pct,
+      raw_imbalance_abs: abs,
+      sum_closing_debit: sumD,
+      sum_closing_credit: sumC,
+      warn: pct > 2.0,
+      warn_threshold_pct: 2.0,
+    };
+  }, [remotePeriod.metrics]);
+  // F2.2 — Engine-canonical metrics map. Every ratio that has a direct
+  // engine equivalent (current/quick/cash/gross_margin/net_margin/
+  // debt_to_ebitda/debt_to_equity/equity_ratio/interest_coverage/dscr/
+  // dso/dio/dpo/ccc/asset_turnover/roa/roe/roic/altman_*) is sourced
+  // from this map so the Ratios tab matches the engine calculated_metrics
+  // to the cent. Fallback to FE arithmetic only for pre-v2.1 periods.
+  const metricsByName = useMemo(() => {
+    const out: Record<string, number | null> = {};
+    for (const mt of remotePeriod.metrics) {
+      out[mt.name] = typeof mt.value === "number" ? mt.value : null;
+    }
+    return out;
+  }, [remotePeriod.metrics]);
+  const ratios = useMemo(
+    () => (statements ? computeRatios(statements, dashboardCanonicalMargins, metricsByName) : null),
+    [statements, dashboardCanonicalMargins, metricsByName],
+  );
+  const recommendations = useMemo(
+    () => (statements && ratios ? generateRecommendations(statements, ratios) : []),
+    [statements, ratios],
+  );
+
+  const criticalCount = recommendations.filter((r) => r.priority === "critical").length;
+  const highCount = recommendations.filter((r) => r.priority === "high").length;
+
+  function pickSample(id: string, opts: { additive?: boolean } = {}) {
+    const found = SAMPLE_DATASETS.find((s) => s.id === id);
+    if (!found) return;
+    setActiveSampleId(id);
+    // Phase F: picking from State B's [Replace ▾] dropdown is REPLACE (a
+    // user actively swapping samples doesn't want the prior data sticking
+    // around). Picking from State A is also replace because nothing was
+    // loaded. Additive stacking (statements + invoices) is now opt-in via the
+    // `additive` flag, surfaced in the dropdown as "Add ... on top".
+    if (opts.additive) {
+      if (found.statements !== undefined) setStatements(found.statements);
+      if (found.invoicesGetter !== undefined) setInvoices(found.invoicesGetter());
+      setAvailableTypes((prev) => new Set([...prev, ...found.availableTypes]));
+    } else {
+      setStatements(found.statements ?? null);
+      setInvoices(found.invoicesGetter ? found.invoicesGetter() : null);
+      setAvailableTypes(new Set(found.availableTypes));
+    }
+    setUploadName(null);
+    setParseSource(null);
+    setPeriodParam(found.id);
+  }
+
+  async function resetWorkspace() {
+    // Two phases:
+    //   1. If the URL has ?period=<uuid> AND it points to a real (non-
+    //      sample) period, delete it server-side. Without this step the
+    //      "Reset (clear period)" item only wiped local state — the period
+    //      and all its documents/line items/metrics stayed in the DB and
+    //      reappeared on next page load.
+    //   2. Always clear the local React state + URL so the dashboard
+    //      returns to the empty/upload state immediately.
+    const periodParam = searchParams.get("period");
+    const looksLikeUuid =
+      !!periodParam && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(periodParam);
+    if (looksLikeUuid) {
+      const ok = window.confirm(
+        "Clear this period? This permanently removes the analysis (P&L, balance sheet, ratios, briefing) " +
+          "and moves the attached document(s) to Recently deleted (restorable for 30 days). Cannot be undone.",
+      );
+      if (!ok) return;
+      try {
+        const { getSupabase } = await import("@/lib/supabase");
+        const sb = getSupabase();
+        const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
+        const token = session?.session?.access_token;
+        const apiUrl =
+          (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+        if (token) {
+          const r = await fetch(`${apiUrl}/api/period/${periodParam}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!r.ok) {
+            const body = await r.json().catch(() => null);
+            toast({
+              title: "Couldn't clear period",
+              description:
+                (body && (body.detail?.message || body.detail)) ||
+                "The server didn't accept the delete. Try again or refresh.",
+              variant: "destructive",
+            });
+            return;
+          }
+          toast({
+            title: "Period cleared",
+            description: "Analysis removed; documents moved to Recently deleted.",
+          });
+        }
+      } catch (err) {
+        toast({
+          title: "Couldn't reach the backend",
+          description: err instanceof Error ? err.message : "Network error.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setStatements(null);
+    setInvoices(null);
+    setAvailableTypes(new Set());
+    setActiveSampleId(null);
+    setUploadName(null);
+    setParseSource(null);
+    // F3-FE-FIX-1 (root cause A): clear uploadInFlight too. Without this,
+    // a Reset after a completed analysis left the loader rendering
+    // "Analyzing your document… Step 6 of 6 · Analysis ready" with a
+    // stale filename, because State A wraps `uploadInFlight ? <Progress/>
+    // : <Empty/>` and the stale "analyzed" inflight stayed truthy.
+    clearUpload();
+    // After a reset, force the dashboard into its empty state instead of
+    // letting `useActivePeriodFallback` auto-resolve to the next-most-recent
+    // period (which is what was making "Reset" feel like "Next document").
+    // The `empty=1` flag is read by useActivePeriodFallback() — it short-
+    // circuits the lookup so the user lands on the upload + sample picker
+    // + "Search public companies" cards, exactly where they can pick the
+    // next action themselves.
+    setSearchParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      sp.delete("tab");
+      sp.delete("period");
+      sp.set("empty", "1");
+      return sp;
+    }, { replace: true });
+  }
+
+  // ─── URL hydration ──────────────────────────────────────────────────────
+  // ?period=<sample_id|uuid> on first render → resolve via useActivePeriod()
+  // (handles both fictional samples and pipeline-produced uploads). Hydrates
+  // local statements/invoices/availableTypes in sync with the URL so the rest
+  // of this page (which still uses local state) stays correct.
+  // NOTE: `remotePeriod` was hoisted to the top of this component above; the
+  // hydration effect below still references the same object — same hook
+  // call, just declared earlier so F1.e's canonical-margin useMemo can
+  // read `remotePeriod.metrics` before `ratios` consumes it.
+  useEffect(() => {
+    if (!remotePeriod.isLoaded || !remotePeriod.statements) return;
+    setStatements(remotePeriod.statements);
+    if (remotePeriod.invoices) setInvoices(remotePeriod.invoices);
+    setAvailableTypes(new Set(remotePeriod.availableTypes));
+    setActiveSampleId(remotePeriod.id ?? "remote");
+    if (remotePeriod.source === "upload") {
+      // accountCount + confidence are not currently sourced from the period
+      // payload — the orchestrator emits them per-stage in `pipeline_state`
+      // but those fields aren't propagated through `remotePeriod` yet. Until
+      // they are, setting them to 0/1 here fabricates a "0 accounts ·
+      // confidence 100%" banner that's structurally contradictory and lies
+      // to the user. Setting them to null makes the banner render the
+      // honest minimum ("Extracted from · <filename>") and skip the false
+      // metric chips. Will rewire once the period payload exposes the
+      // real extraction stats.
+      setParseSource({
+        // Prefer the real source-document filename (e.g. "Carniprod Trial
+        // Balance 2025.xlsx") over `remotePeriod.label`, which is the
+        // workspace/company name (e.g. "alexandru.crestin's organization")
+        // — the banner is supposed to say "Extracted from <file>", not
+        // "Extracted from <user>".
+        documentName:
+          remotePeriod.sourceDocumentFilename ??
+          remotePeriod.label ??
+          "Uploaded document",
+        confidence: null,
+        warnings: [],
+        accountCount: null,
+      });
+    }
+  }, [remotePeriod.isLoaded, remotePeriod.id, remotePeriod.statements, remotePeriod.invoices, remotePeriod.availableTypes, remotePeriod.label, remotePeriod.source]);
+
+  // …and the mirror image of it: a period with NOTHING behind it must clear
+  // this page back to State A (2026-07-26). The hydration effect above only
+  // ever WRITES — it bails on a period with no statements — so stepping from
+  // a month that has a trial balance to an empty one (a container created in
+  // Workspace, or one whose document was deleted) left the previous month's
+  // numbers on screen under the new month's name. Anything that isn't a real
+  // loaded period resets: empty payload, 404 for a stale id, deleted source.
+  //
+  // Guards: `isLoading` so the reset can't fire mid-fetch and flash the
+  // dropzone, and `source === "sample"` so picking a dev sample (which sets
+  // these locally, with no remote period) isn't wiped by its own selection.
+  useEffect(() => {
+    if (!remotePeriod.id) return;
+    if (remotePeriod.isLoading) return;
+    if (remotePeriod.source === "sample") return;
+    if (remotePeriod.statements || remotePeriod.invoices) return;
+    setStatements(null);
+    setInvoices(null);
+    setAvailableTypes(new Set());
+    setActiveSampleId(null);
+    setParseSource(null);
+    setUploadName(null);
+  }, [
+    remotePeriod.id,
+    remotePeriod.isLoading,
+    remotePeriod.source,
+    remotePeriod.statements,
+    remotePeriod.invoices,
+  ]);
+
+  // Single canonical upload entry point. Used by:
+  //   - Empty-state dropzone (drag-and-drop or "Choose a file")
+  //   - Replace dropdown's "Choose a file…" menu item
+  //   - Statements > Documents section (when added)
+  // Pushes the file to Storage, creates the documents row, kicks off the
+  // pipeline, subscribes to status changes, and navigates to
+  // /dashboard?period=<id> once the orchestrator hits 'analyzed'.
+  // Active upload — now LIFTED to the global persistent store
+  // (src/lib/uploadStore.ts). The store uses useSyncExternalStore +
+  // localStorage so the in-flight upload survives:
+  //   • navigation across pages (the previous local-useState lived on
+  //     this component, so a hop to /products dropped it)
+  //   • page refresh (analysis resumes via the rehydrate-on-mount path
+  //     in AppShell, see src/components/cfo/AppShell.tsx)
+  // The variable name `uploadInFlight` is preserved as the read-side
+  // binding so downstream JSX (State A + State B overlay) keeps reading
+  // exactly the same shape as before.
+  // Only the DASHBOARD's own uploads drive this page's scan takeover / State-A
+  // progress. A products (SKU) upload lives in the same store but must NOT make
+  // the dashboard flip into its scan view — it renders on /products instead.
+  const _upload = useUploadStore().current;
+  const uploadInFlight = _upload && _upload.surface !== "products" ? _upload : null;
+
+  // When a scan lands, we HOLD the analyzed upload on screen (instead of
+  // auto-routing into State B) so the scan view can show its "Scan complete"
+  // card. `awaitingView` carries the period to open; the card's "View
+  // results" button (viewResults) performs the deferred navigation. Declared
+  // BEFORE the analyzed auto-clear hedge below, which reads it (a later
+  // declaration would be a temporal-dead-zone throw in that effect's deps).
+  const [awaitingView, setAwaitingView] = useState<{ periodId: string | null } | null>(null);
+  function viewResults() {
+    const periodId = awaitingView?.periodId ?? uploadInFlight?.periodId ?? null;
+    setAwaitingView(null);
+    console.info("[scan] viewResults →", periodId ?? "(no period)");
+    if (periodId) {
+      toast({ title: "Analysis ready", description: "Loaded into Dashboard." });
+      // The scan just created (or replaced) a period — the workspace's month
+      // list is now stale. Invalidate it so the top-bar month selector, the
+      // month arrows, and the Workspace month pills / Months section all show +
+      // select the new month rather than lagging a full staleTime behind.
+      void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+      setSearchParams((prev) => {
+        const sp = new URLSearchParams(prev);
+        sp.set("period", periodId);
+        return sp;
+      }, { replace: true });
+    }
+    clearUpload();
+  }
+
+  // F3-FE-FIX-1 (Option 2 defensive guard): if hasPeriodLoaded ever
+  // flips to false while a stale `analyzed` inflight is still around,
+  // auto-clear it. Targeted clears in resetWorkspace() + the post-
+  // analyze handler cover the known paths; this hedge covers any
+  // unknown state path that drops statements without clearing
+  // inflight (including the unverified "stuck after refresh" symptom
+  // reported by the operator but not reproducible from code-reading).
+  useEffect(() => {
+    // …unless we're intentionally holding the analyzed upload to show the
+    // "Scan complete" card (awaitingView) — clearing it here would yank the
+    // card away before the user clicks "View results".
+    //
+    // ALSO exempt analyzed uploads that carry a periodId (2026-07-26): that's
+    // a scan that just COMPLETED and is being handed off, not a stale
+    // leftover. The external-store flush means this effect can observe
+    // status=analyzed one render before awaitingView lands — clearing in
+    // that window killed the handoff (see the auto-open effect below).
+    if (
+      !hasPeriodLoaded &&
+      uploadInFlight?.status === "analyzed" &&
+      !awaitingView &&
+      !uploadInFlight.periodId
+    ) {
+      clearUpload();
+    }
+  }, [hasPeriodLoaded, uploadInFlight?.status, uploadInFlight?.periodId, awaitingView]);
+
+  // Completion hand-off — the same sequence Products runs (2026-07-26 per
+  // operator), with the dashboard's own five trial-balance steps: the sphere
+  // pulls its orbs into the core (~1s), the layer fades to a ghost, the
+  // "Scan complete" card comes up over it — and then it WAITS. There used to
+  // be a 2400ms auto-open here; it pulled the card off screen about a second
+  // after it finished fading in, so the finish read as a flicker. Only "View
+  // results" (viewResults, via awaitingView) leaves the scan view now.
+  //
+  // What the auto-open was defending, and why it's safe to drop: awaitingView
+  // is React state set in the analyzed handler, so the auto-clear hedge above
+  // (which observes the external upload store, flushed synchronously) can't
+  // yank the hand-off out from under it. That was the real bug behind "the
+  // dashboard never changes after a scan" — the fix is the gate, not the
+  // timer.
+
+  // Files staged for scanning. Choosing/dropping files ADDS them here;
+  // nothing is uploaded until the user clicks "Start scan" (no auto-scan).
+  // Mirrored to the module-level store so a re-render can't drop the
+  // selection — but LEAVING the tab does (cleared on unmount, 2026-07-26
+  // per operator), so returning offers a clean dropzone.
+  const [stagedFiles, setStagedFiles] = useState<File[]>(() => readStagedFiles("dashboard"));
+  useEffect(() => () => clearStagedFiles("dashboard"), []);
+  const [scanning, setScanning] = useState(false);
+  // "Add month" modal (opened from the month-pills row) — holds the dashboard
+  // dropzone so the next month can be uploaded without the inline zone.
+  const [addMonthOpen, setAddMonthOpen] = useState(false);
+  // Files awaiting period-end confirmation before the scan runs (null = dialog
+  // closed). Set by startScan; cleared by the dialog's confirm/cancel.
+  const [periodConfirm, setPeriodConfirm] = useState<File[] | null>(null);
+  useEffect(() => {
+    writeStagedFiles("dashboard", stagedFiles);
+  }, [stagedFiles]);
+
+  // Stage one file (budget decks route straight to Variance; oversize is
+  // rejected). Does NOT upload — that happens on Start scan via scanOneFile.
+  async function onFileChosen(file: File) {
+    // F6.0.1c — Budget-deck interception. A PowerPoint / budget workbook is
+    // NOT a trial balance and must not go to the engine extraction pipeline.
+    // Parse it client-side into the Budget vs Actual store and route there.
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".pptx") || lower.endsWith(".ppt")) {
+      try {
+        const ds = await parseBudgetFile(file);
+        saveBudgetDeck(ds);
+        const n = Object.keys(ds.budget).length;
+        toast({
+          title: "Budget deck loaded",
+          description: `${n} P&L line${n === 1 ? "" : "s"} from ${file.name} — opening Budget vs Actual.`,
+        });
+        navigate("/dashboard/variance");
+      } catch (e) {
+        toast({
+          title: "Couldn't read that budget deck",
+          description: e instanceof Error ? e.message : "Unknown parse error.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    const MAX_BYTES = 25 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast({
+        title: "File too large",
+        description: `${(file.size / 1_000_000).toFixed(1)} MB exceeds the 25 MB limit.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    // Stage the file — do NOT upload yet. The scan starts only when the user
+    // clicks "Start scan".
+    //
+    // ONE file at a time (2026-07-26 per operator): a newly chosen file
+    // REPLACES whatever was staged rather than appending. The staged array
+    // shape is kept (the dialog, the staged-file list and runScan all iterate
+    // it) so this is a single-element invariant, not a refactor of every
+    // consumer.
+    setStagedFiles([file]);
+  }
+
+  function discardStagedFile(index: number) {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function dismissAllStaged() {
+    setStagedFiles([]);
+  }
+
+  // Upload + enqueue + await terminal status for ONE staged file. Hand-off to
+  // State B (navigation / toast) happens only when navigateOnDone — the last
+  // file in a batch; earlier files are processed silently, periods persist.
+  function scanOneFile(file: File, navigateOnDone: boolean, periodEndHint: string | null = null): Promise<void> {
+    return new Promise<void>((resolve) => {
+      void (async () => {
+        setUploadName(file.name);
+        startUpload({ docId: "", filename: file.name, status: "queued" });
+        const { uploadDocument, subscribeToDocumentStatus, getSupabase } =
+          await import("@/lib/supabase");
+        const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint });
+        if (!row) {
+          clearUpload();
+          toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
+          resolve();
+          return;
+        }
+        startUpload({ docId: row.id, filename: file.name, status: "queued" });
+        const enq = await uploadEnqueue.enqueue(row.id);
+        if (enq.kind !== "queued") {
+          const reason =
+            enq.kind === "quota_blocked" ? enq.message
+            : enq.kind === "transport_failed" ? enq.message
+            : "Upload was cancelled.";
+          patchUpload({ status: "failed", error: reason });
+          resolve();
+          return;
+        }
+        const unsub = subscribeToDocumentStatus(row.id, (next) => {
+          patchUpload({ status: next.status, error: next.error, periodId: next.period_id ?? null });
+          if (next.status === "analyzed") {
+            unsub();
+            // A new month/period row now exists for this workspace. Refresh the
+            // workspace Months lists (Workspace-tab card pills + the active
+            // workspace's Months section, keyed ["org-periods", orgId]) AND the
+            // active-workspace month selector (["periods-with-documents"]) so
+            // the new month item shows up in the workspaces' months list right
+            // away instead of lagging a full staleTime behind.
+            if (next.period_id) {
+              void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+              void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+              // The period PAYLOAD too (2026-07-26). The cache used to rely on
+              // "a re-run produces a brand-new period_id, so the URL key
+              // changes" — no longer true: replace-month semantics and the
+              // adopt-the-selected-empty-period flow reuse the SAME id, so
+              // navigating to ?period=<id> after the scan repainted the STALE
+              // payload for its full 30-min staleTime and the dashboard
+              // "didn't change" (operator-reported). Two traps here:
+              //   · The stale entry can even be a cached `{kind:"not_found"}` —
+              //     fetchPeriodFromApi resolves 404s as SUCCESS data, so an
+              //     empty period viewed before the upload caches "not found"
+              //     as fresh.
+              //   · removeQueries (the first fix) is NOT reliable on a query
+              //     with active observers — the observer can keep serving its
+              //     in-memory data without refetching. resetQueries is the
+              //     API documented to reset AND refetch active observers.
+              void queryClient.resetQueries({ queryKey: periodQueryKey(next.period_id) });
+              // …and the month's Source-files tiles, so the file that just
+              // landed shows up there immediately instead of a staleTime
+              // later. Prefix key — matches the scoped
+              // ["period-documents", id, "financial"] entry.
+              void queryClient.invalidateQueries({ queryKey: ["period-documents", next.period_id] });
+            }
+            void (async () => {
+              if (navigateOnDone) {
+                // Public-records summary → route to multi-year history.
+                if (!next.period_id) {
+                  try {
+                    const sb = getSupabase();
+                    const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
+                    const token = session?.session?.access_token;
+                    const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+                    const r = await fetch(`${apiUrl}/api/public-records/by-document/${row.id}`, {
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    });
+                    if (r.ok) {
+                      toast({ title: "Multi-year history ready", description: `${file.name} parsed — view the trends.` });
+                      window.location.href = `/multi-year-history?doc=${row.id}`;
+                      return;
+                    }
+                  } catch { /* fall through */ }
+                }
+                if (next.period_id) {
+                  // Don't route into State B yet — hold the analyzed upload on
+                  // screen so the scan view shows its "Scan complete" card; the
+                  // card's "View results" button (viewResults) navigates. The
+                  // completion card is skipped when the tab isn't mounted, so a
+                  // background batch that finishes off-screen still resolves.
+                  console.info("[scan] analyzed → period", next.period_id, "— opening in 2.4s");
+                  setAwaitingView({ periodId: next.period_id });
+                  resolve();
+                  return;
+                }
+                toast({ title: "Analysis complete", description: `${file.name} processed but no financial period was created. The document type may not be supported.` });
+              }
+              clearUpload();
+              resolve();
+            })();
+          }
+          if (next.status === "failed") {
+            unsub();
+            toast({ title: "Analysis failed", description: next.error ?? "Unknown error.", variant: "destructive" });
+            resolve();
+          }
+        });
+      })();
+    });
+  }
+
+  // Start scan → first confirm each file's period-end date (auto-detected from
+  // the filename, editable) via the dialog, THEN run the batch with the chosen
+  // dates. periodConfirm holds the files awaiting confirmation.
+  function startScan() {
+    if (scanning || stagedFiles.length === 0) return;
+    setPeriodConfirm([...stagedFiles]);
+  }
+
+  // Scan every staged file sequentially; the last one navigates into its
+  // result. Clears the staged list when the batch finishes. `dates` maps
+  // filename → confirmed ISO period-end (or null to let the engine detect).
+  async function runScan(dates: Record<string, string | null>) {
+    setPeriodConfirm(null);
+    if (scanning || stagedFiles.length === 0) return;
+    setScanning(true);
+    const batch = [...stagedFiles];
+    for (let i = 0; i < batch.length; i++) {
+      await scanOneFile(batch[i], i === batch.length - 1, dates[batch[i].name] ?? null);
+    }
+    // Reset the drop zone once the batch is done — staged list AND the
+    // "Received: <filename>" indicator, so it returns to a clean empty state.
+    setStagedFiles([]);
+    setUploadName(null);
+    setScanning(false);
+  }
+
+  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    // First file only — a drop can carry several regardless of the input's
+    // `multiple` attribute, which governs the picker dialog and nothing else.
+    const file = e.dataTransfer.files?.[0];
+    if (file) void onFileChosen(file);
+  }
+
+  // DEV-only: simulate the upload → analysis pipeline without a real file
+  // or backend call. Drives the global upload store through the same
+  // DocumentStatus sequence the real pipeline emits (queued → extracting →
+  // mapping → computing → narrating → analyzed), so UploadProgressCard
+  // animates end-to-end exactly as it would for a genuine upload. The
+  // existing auto-clear effect (analyzed + !hasPeriodLoaded) resets the
+  // card back to the dropzone when the walk completes. Never ships to
+  // production — gated behind import.meta.env.DEV at the call site.
+  async function simulateFileProcess() {
+    if (uploadInFlight) return; // don't clobber a real in-flight upload
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Cancel-confirmation pause: hold the walk while the scan view's
+    // "Cancel this analysis?" state is up.
+    const waitWhilePaused = async () => {
+      while (isScanSpherePaused()) await sleep(200);
+    };
+    const steps: Array<import("@/lib/supabase").DocumentStatus> = [
+      "extracting", "mapping", "computing", "narrating", "analyzed",
+    ];
+    startUpload({
+      docId: `debug-${Date.now()}`,
+      filename: "debug_simulation.xlsx",
+      status: "queued",
+    });
+    // Deliberately UNHURRIED (2026-07-24): long enough for the council
+    // sphere to evolve through its full visual arc and for every
+    // pipeline step to be readable — this is the tool for eyeballing
+    // the scanning view, not a smoke test.
+    await sleep(2500);
+    for (const status of steps) {
+      await waitWhilePaused();
+      // Hold the analyzed upload so the "Scan complete" card shows (same as
+      // the real path). Set BEFORE patching analyzed so the auto-clear hedge,
+      // which fires on the status change, sees awaitingView and stands down.
+      if (status === "analyzed") setAwaitingView({ periodId: null });
+      patchUpload({ status });
+      await sleep(status === "analyzed" ? 2000 : 6000);
+    }
+    // Leave the completion card up — "View results" (no real period in the
+    // simulation) clears it via viewResults(). No auto-clear here.
+  }
+
+  // F5.0 Phase 1.5 — Reporting metrics snapshot for LearnableNumber
+  // recursion. Pulled from the active period's canonical envelope so the
+  // formula popovers can drill from EBITDA Margin → EBITDA → EBIT →
+  // Revenue → source accounts. When no period is loaded the provider
+  // wraps with an empty snapshot and the formulas degrade to structural
+  // skeletons — no crash, no broken layout.
+  // LEARN-FIX-2 — extracted to lib/learning/buildReportingMetrics.ts
+  // so the popover can call the SAME builder via useActivePeriod when
+  // it sits outside this provider (App-root PopoverStackRenderer).
+  const reportingMetricsSnapshot = useMemo<ReportingMetrics>(
+    () => buildReportingMetricsSnapshot(statements),
+    [statements],
+  );
+
+  return (
+    <ReportingContextProvider
+      metrics={reportingMetricsSnapshot}
+      currency={statements?.currency ?? "RON"}
+      locale="en"
+      // LEARN-FIX-1 — plumb per-account line items so source-account
+      // composition bars inside the popover read REAL engine amounts
+      // (keyed by ro_account_code) instead of the 0-RON placeholder
+      // from staticSourceAccounts().
+      lineItems={remotePeriod.lineItems ?? []}
+    >
+    <>
+    {/* The first-run LearningCoach card ("Learn how CFO AI reads your
+        numbers") was removed from this surface 2026-07-24 per operator
+        directive; the component still exists for other mounts. */}
+      {/* Pricing V3 — extra-doc confirm dialog mounts here so the modal
+          sits inside the same tree as the upload action. Renders `null`
+          unless the hook has a pending extra-doc decision. */}
+      {uploadEnqueue.dialog}
+      {/*
+        Phase F — two states, one route.
+        ─────────────────────────────────
+        State A (no period):  Hero + 11 tabs (3 enabled / 8 disabled w/ tooltip)
+                              + upload zone + sample picker right panel.
+        State B (period loaded):  Compact company header + Replace ▾ dropdown
+                                  + Re-run + 11 tabs (enabled per visibility)
+                                  + KPI grid + AI summary + mini statements
+                                  + top 3 risks/opportunities.
+        Transition is a 200ms cross-fade. Refresh on ?period=X hydrates
+        directly into State B (see useEffect above). The upload zone is
+        verifiably absent in State B (acceptance F.5).
+      */}
+      {/* Page-level hidden file input.
+        *
+        * Rendered ALWAYS (not nested inside UploadAndSamplePanel) so both
+        * states can trigger it via `fileRef.current?.click()`:
+        *   · State A (empty): the dropzone's "Choose a file" button
+        *   · State B (period loaded): the Replace dropdown's "Choose a file…"
+        *
+        * Bug it fixes: prior to this, `<input ref={fileRef}>` lived inside
+        * UploadAndSamplePanel which is unmounted in State B → fileRef.current
+        * was null → clicking the menu item did nothing.
+        */}
+      {/* Single-file only (2026-07-26 per operator) — no `multiple`, and the
+          handler takes just the first entry so a multi-file drag can't slip
+          past the picker's own restriction. */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept={DASHBOARD_UPLOAD_ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void onFileChosen(file);
+          e.target.value = "";  // allow re-picking the same file later
+        }}
+      />
+
+      {/* Period-end confirmation — auto-detects each staged file's closing
+          month from its filename and lets the user confirm or edit before
+          analysis runs. */}
+      {periodConfirm && (
+        <PeriodConfirmDialog
+          files={periodConfirm}
+          // The SIDEBAR's selection (?period= resolved against the stepper's
+          // merged feeds) — covers empty periods, which the analysis payload
+          // (remotePeriod) can't resolve. remotePeriod remains the fallback
+          // for sample/demo periods, which the feeds don't list.
+          activePeriodEnd={
+            sidebarPeriod?.period_end ?? (remotePeriod.id ? remotePeriod.periodEnd : null)
+          }
+          activePeriodId={sidebarPeriod?.period_id ?? remotePeriod.id}
+          // No documents ⇒ an empty container — safe to rename to the file's
+          // month when the user picks "Scan and update period".
+          activePeriodEmpty={
+            sidebarPeriod
+              ? sidebarPeriod.documents.length === 0
+              : !remotePeriod.sourceDocumentFilename
+          }
+          onConfirm={runScan}
+          onCancel={() => setPeriodConfirm(null)}
+        />
+      )}
+
+      {/* Add-month modal — the dashboard dropzone, opened by the "Add month"
+          pill above the header. Starting a scan closes the modal so the
+          period-confirm dialog + full-screen scan takeover can show. */}
+      <Dialog open={addMonthOpen} onOpenChange={setAddMonthOpen}>
+        <DialogContent className="sm:max-w-[640px]" data-testid="add-month-modal">
+          <DialogHeader>
+            <DialogTitle>Add another month</DialogTitle>
+            <DialogDescription>
+              Drop next month's trial balance to add it to this workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <DashboardAddMonthZone
+            hideHeader
+            stagedFiles={stagedFiles}
+            scanning={scanning}
+            onDrop={onDrop}
+            onTriggerFile={() => fileRef.current?.click()}
+            onViewStaged={(f) => void openStagedFile(f)}
+            onDiscardStaged={discardStagedFile}
+            onDismissAll={dismissAllStaged}
+            onStartScan={() => { setAddMonthOpen(false); startScan(); }}
+            onSimulate={() => { setAddMonthOpen(false); void simulateFileProcess(); }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Consolidated page-guide overlay — driven by the single "Guide me"
+          button in the tab bar; shows the ACTIVE tab's guide. */}
+      {activeGuide && (
+        <PageGuideOverlay
+          open={guideOpen}
+          pageId={activeGuide.pageId}
+          title={activeGuide.title}
+          steps={activeGuide.steps}
+          onClose={() => setGuideOpen(false)}
+        />
+      )}
+
+      {/* FE-FIX-2 (revised): State B upload overlay — full-viewport
+          centred card with a subtle blurred backdrop, so the upload
+          progress feels foregrounded (modal-like) rather than glued to
+          the top of the viewport. Replaces the earlier `top-4` placement
+          which read as "badly placed" against the dashboard underneath.
+          Card is centred both axes; entrance fades + zooms; backdrop is
+          translucent enough that the user can still see the dashboard
+          re-bucketing in the background, but the upload card commands
+          the eye. */}
+
+      <TooltipProvider delayDuration={150}>
+        {/* Scan takeover — whenever an upload is in flight, the WHOLE surface
+            (both State A entry and State B loaded-month) reduces to the pipeline
+            steps + council sphere, so scanning a new month from the dashboard
+            dropzone looks identical to the first upload. */}
+        {uploadInFlight ? (
+          <ScanProgressView
+            status={uploadInFlight.status}
+            steps={TRIAL_BALANCE_STEPS}
+            onCancel={clearUpload}
+            onViewResults={viewResults}
+          />
+        ) : (
+        <>
+        {hasPeriodLoaded ? (
+          <>
+            {/* Source files (2026-07-26) — the uploads behind THIS month's
+                numbers, in the same tile row Products uses under its pills.
+                Financial-scope documents here (that's what "add a file" adds
+                on this surface), SKU datasets there. */}
+            <DashboardSourceFiles
+              periodId={remotePeriod.id ?? searchParams.get("period")}
+              onAddFile={(f) => {
+                // Stage it, then open the add-month flow so the file is
+                // visible with Start scan (and the period-confirm step still
+                // runs). This is what the removed "Add month" pill opened.
+                void onFileChosen(f);
+                setAddMonthOpen(true);
+              }}
+            />
+            {/* Loaded-month header beside the official-template card: the
+                Financial Analysis title + CFO briefing occupy the left column,
+                the "Start from the official template" card sits to their right
+                (moved out of the add-month zone below). */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 items-start mb-6">
+              <div className="min-w-0">
+                <CompactPeriodHeader
+                  statements={statements}
+                  invoices={invoices}
+                  activeSampleId={activeSampleId}
+                  onPickSample={pickSample}
+                  onTriggerFile={() => fileRef.current?.click()}
+                  onReset={resetWorkspace}
+                  briefing={remotePeriod.briefing}
+                  briefingPeriodId={remotePeriod.id}
+                />
+              </div>
+              <div className="relative">
+                <DashboardTemplateCard />
+              </div>
+            </div>
+            {/* Accuracy note — full-width, directly under the header + official-
+                template section. */}
+            <AccuracyBanner
+              assembledBs={statements?.assembled_bs as Record<string, number> | undefined}
+              sourceDataQuality={sourceDataQuality ?? null}
+            />
+            {/* The add-another-month dropzone now lives in a modal opened by
+                the "Add month" pill (see the Dialog near the period-confirm
+                dialog above) — no longer inline here. */}
+          </>
+        ) : uploadInFlight ? null : (
+          <section className="mb-10 transition-opacity duration-200 relative">
+            {/* Hidden entirely while a scan is in flight (2026-07-24) — the
+                scanning view is just the pipeline steps + the council
+                sphere, no "Get started" copy. */}
+            {/* Atmospheric brand glow now lives in AppShell (applied app-wide
+             *  behind every tab's content), so the hero no longer paints its
+             *  own — that would double the glow only on the dashboard. */}
+
+            {/* 2-column hero (2026-07-24, mirrors /products): copy on the
+                left, the official-template card (with example trial
+                balances) on the right; stacks below lg. */}
+            <div className="relative grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6 items-start">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+                  <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+                  {t("dashboard.label_eyebrow")}
+                </div>
+                <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif">
+                  {t("dashboard.hero_pre")}{" "}
+                  <span className="text-grad">{t("dashboard.hero_highlight")}</span>
+                  {" "}{t("dashboard.hero_post")}
+                </h1>
+                {/* File-type words rendered as pills, so this is hardcoded JSX
+                    rather than the plain-text i18n string. */}
+                <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
+                  <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
+                  {" "}or{" "}
+                  <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
+                  , exported from your accounting system —{" "}
+                  {["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"].map((sys, i, arr) => (
+                    <span key={sys}>
+                      <span className="font-semibold text-brand-d">{sys}</span>
+                      {i < arr.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
+                  . This is the document the full analysis is built for: P&amp;L, Balance Sheet, Cash Flow,
+                  Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every
+                  upload is auto-checked — clean trial balances reconcile within 0.5% of source.
+                </p>
+                {/* Ask CFO AI (same secondary style as the Products hero's
+                    button). The Import button that used to lead this row was
+                    removed (2026-07-26 per operator) — the dropzone below is
+                    the one import path. */}
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openAskCfoAi(
+                        "What will CFO AI do with my trial balance? Walk me through the analysis I'll get after uploading — P&L, balance sheet, ratios, valuation, risks.",
+                      )
+                    }
+                    data-testid="dashboard-ask-cfo-ai"
+                    className="
+                      inline-flex items-center gap-2 h-10 px-4 rounded-lg
+                      border border-rule bg-surface/70 backdrop-blur
+                      text-[13px] font-medium text-ink
+                      hover:bg-bg-2/60 hover:border-rule-strong
+                      transition-colors
+                    "
+                  >
+                    <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
+                    Ask CFO AI
+                  </button>
+                </div>
+              </div>
+              <div className="relative">
+                <DashboardTemplateCard />
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Accuracy banner moved 2026-07-25 — it now renders directly under the
+            CFO briefing in the header (see the State B header column), not here
+            above the KPI tiles. */}
+
+        {/* Statutory-format limitation banner — only shows when this
+            period was loaded from an ANAF Formular F30+F10 filing, where
+            line-item drilldown isn't available. */}
+        {hasPeriodLoaded && remotePeriod.detectedType === "statutory_f30_f10" && (
+          <StatutoryFormatBanner />
+        )}
+
+        {/* KPI strip — driven by the SAME P&L statement the Financial
+            Statements tab renders. This guarantees dashboard headlines and
+            the detailed P&L always show identical numbers (operating view:
+            722 + 767 in revenue, statutory net profit). */}
+        {hasPeriodLoaded && statements && totals && (() => {
+          // F1.e — Pull the engine-canonical margin pair from
+          // calculated_metrics so dashboard tile / Key Margins / Summary
+          // all show the SAME number. Falls back to FE arithmetic ONLY
+          // when the engine row is missing (cached pre-v2.1 period).
+          const canonicalEbitdaMarginRow = remotePeriod.metrics.find(
+            (mt) => mt.name === "ebitda_margin",
+          );
+          const canonicalNetMarginRow = remotePeriod.metrics.find(
+            (mt) => mt.name === "net_margin",
+          );
+          const canonicalEbitdaMargin =
+            typeof canonicalEbitdaMarginRow?.value === "number"
+              ? canonicalEbitdaMarginRow.value
+              : null;
+          const canonicalNetMargin =
+            typeof canonicalNetMarginRow?.value === "number"
+              ? canonicalNetMarginRow.value
+              : null;
+          const canonicalMargins = {
+            ebitdaMargin: canonicalEbitdaMargin,
+            netMargin: canonicalNetMargin,
+          };
+          const pl = pickPLBuilder(
+            {
+              lineItems: remotePeriod.lineItems,
+              entity: statements.companyName ?? "Entity",
+              period: statements.periodLabel,
+              currency: statements.currency,
+              canonicalMargins,
+            },
+            statements,
+          );
+          const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
+          // ── KPI-tile EBITDA view selection (overrides F2.5 / F1.e) ──
+          //
+          // F2.5 routed the EBITDA tile through the engine canonical
+          // `ebitda` metric (operational / cash view, excludes 722
+          // capitalized own work). On entities where the OPERATING
+          // REVENUE tile INCLUDES 722 (real-estate investment vehicles
+          // like EEI Imobiliara: revenue 4.91M including 2.16M of CIP),
+          // routing EBITDA through the cash view produced a tile that
+          // read RON −37K / −1.3% margin — visually broken next to
+          // a 4.91M revenue tile, and contradicting the AI briefing
+          // which honestly reports +2.15M EBITDA / +43.75% margin
+          // (the OPERATING view that includes 722).
+          //
+          // Fix: align the EBITDA tile + its margin sub-label with the
+          // SAME basis as the OPERATING REVENUE tile next to it. The FE
+          // PL builder already computes `pl.ebitda` as the operating
+          // view (totalOperatingRevenue − totalOpexCash, per
+          // buildPlStatement.ts comment line 182). Use that directly for
+          // the value AND derive the margin against
+          // totalOperatingRevenue so both tiles speak the same basis.
+          //
+          // Why not the engine `ebitda_margin` metric? Because on
+          // current engine output (v2.1), that metric also uses the
+          // operational denominator (class-70 turnover, 2.73M for EEI)
+          // — which produces the same inconsistency the tile suffered
+          // from. Pinning to FE arithmetic on the visible revenue
+          // denominator keeps the dashboard self-consistent until the
+          // engine emits a dedicated `ebitda_operating_view` /
+          // `ebitda_margin_operating_view` metric pair we can trust.
+          //
+          // Same reasoning for net margin: the Net Profit tile value
+          // reads `net_income_statutory` (the ct.121 anchor, includes
+          // 722's contribution to profit). Its margin must also use the
+          // operating revenue denominator so the displayed %  reflects
+          // "statutory net profit ÷ total operating revenue", not
+          // "operational net income ÷ class-70 turnover".
+          // ── Overview EBITDA tile: hybrid canonical routing ──────────
+          //
+          // The tile VALUE reads engine `assembled_pl.ebitda_statutory`
+          // (the legally-reported EBITDA, includes 722 + 758 + 781). The
+          // MARGIN sub-label divides that canonical numerator by the
+          // FE-built `totalOperatingRevenue` denominator — the same
+          // basis the OPERATING REVENUE tile to the left renders.
+          //
+          // Why hybrid: engine emits `calculated_metrics.ebitda_margin`
+          // computed from `ebitda` (cash view that excludes 722 for
+          // asset-heavy entities), not `ebitda_statutory`. On Scandia
+          // those coincide (no 722/758/781 wedge) so the engine metric
+          // looks fine. On EEI they diverge (cash EBITDA −36K vs
+          // statutory 2.13M) — routing the tile margin to the engine
+          // metric would render −1.34%, contradicting the briefing's
+          // 43.7%. Computing locally from the canonical numerator + the
+          // FE denominator pins the displayed margin to the same basis
+          // as the EBITDA tile value and is closed-form correct across
+          // both operating businesses and asset-heavy entities.
+          //
+          // Fallback to `pl.ebitda` handles old persisted envelopes
+          // pre-v2.1 that lack `ebitda_statutory`. On those fixtures
+          // pl.ebitda is the operating view, which is the same number
+          // the dashboard rendered before this routing — graceful
+          // degradation, not a regression.
+          //
+          // Out of scope here (operator decision, scope-sweep): the
+          // Recommendations engine intentionally stays on operating-view
+          // (`pl.ebitda`); the PL statement table's boxed EBITDA stays
+          // on builder basis so line items sum.
+          const tileEbitdaCanonical =
+            typeof statements.assembled_pl?.ebitda_statutory === "number"
+              ? statements.assembled_pl.ebitda_statutory
+              : null;
+          const tileEbitdaRon = tileEbitdaCanonical ?? pl.ebitda;
+          // (F6.0.4) ebitdaMarginPct removed — the EBITDA-margin metric is
+          // now a configurable card that computes margin from the same
+          // canonical EBITDA via resolveConceptValue's override overlay.
+          // ‡ F1.e — Net profit RON on the tile reads engine canonical
+          // `net_income_statutory` (the ct.121 anchor) so the magnitude
+          // and the margin agree. Order of preference:
+          //   1. engine `net_income_statutory` (canonical, always when v2.1)
+          //   2. FE `pl.netProfitStatutory` (operational + 722, only ≠
+          //      operational when capitalized own-work is present)
+          //   3. FE `pl.netProfit` (operational; final fallback)
+          const niStatRow = remotePeriod.metrics.find(
+            (mt) => mt.name === "net_income_statutory",
+          );
+          const tileNetProfitRon =
+            typeof niStatRow?.value === "number"
+              ? niStatRow.value
+              : typeof pl.netProfitStatutory === "number"
+                ? pl.netProfitStatutory
+                : pl.netProfit;
+          // (F6.0.4) netMarginPct removed — net margin is now an addable
+          // configurable card; resolveConceptValue computes it from the
+          // canonical net-profit override so the basis stays consistent.
+          // Honest source label. Trial balance + statutory F30+F10 produce
+          // similar but NOT identical metrics (711 inventory variation is
+          // explicit in TB, aggregated inside the F30 operating result).
+          // Per the spec's "ONE HONEST CAUTION": never let the UI pretend
+          // they're interchangeable.
+          const sourceTooltip =
+            remotePeriod.detectedType === "statutory_f30_f10"
+              ? "Source: statutory statement (Formular F30 + F10). Aggregate-only — no per-account drilldown."
+              : remotePeriod.detectedType === "trial_balance"
+                ? "Source: trial balance. Full account-level granularity."
+                : null;
+          return (
+            <div title={sourceTooltip ?? undefined}>
+              {/* F6.1 — Demo banner: only when the active period is the
+                  fictional Meridian demo (public/marketing surface). "Upload
+                  yours" opens the same file picker; a real upload replaces
+                  the demo. Renders nothing once the visitor has their own
+                  data loaded. */}
+              {isDemoPeriod && (
+                <DemoBanner onUpload={() => fileRef.current?.click()} />
+              )}
+              {/* F6.0.4 (2026-06-20) — Configurable dashboard.
+                  Replaces the legacy fixed 4-tile KPI strip with a
+                  user-configurable card grid. The first four default
+                  cards (operating_revenue, ebitda, net_profit,
+                  total_debt) receive canonical value OVERRIDES so they
+                  render byte-identical to the pre-F6.0.4 tiles — the
+                  engine-routed EBITDA + net-profit numbers, not the raw
+                  snapshot. Additional cards the user adds resolve from
+                  the ReportingMetrics snapshot. Wrapped in
+                  DashboardProvider for the per-user layout store.
+                  F6.1 — DashboardViewProvider adds the Snapshot/Trend
+                  toggle; `series` feeds the per-card sparklines. */}
+              <DashboardProvider>
+                <DashboardViewProvider>
+                  <ConfigurableDashboard
+                    overrides={{
+                      operating_revenue: totalOperatingRevenue,
+                      ebitda: tileEbitdaRon,
+                      net_profit: tileNetProfitRon,
+                      total_debt: totals.totalDebt,
+                      // Risk / opportunity count cards — critical+high are
+                      // "risks", medium+info are "opportunities" (same split
+                      // as the overview's Top-3 lists).
+                      open_risks: criticalCount + highCount,
+                      open_opportunities: recommendations.filter(
+                        (r) => r.priority === "medium" || r.priority === "info",
+                      ).length,
+                    }}
+                    series={multiYearSeries}
+                  />
+                </DashboardViewProvider>
+              </DashboardProvider>
+              {/* Source badge — kept ONLY for the statutory (F30+F10) case,
+                  which explains why its EBITDA can differ from a trial-balance
+                  upload. The plain "Source: trial balance" label was removed
+                  2026-07-25 (redundant noise on the common path). */}
+              {sourceTooltip && remotePeriod.detectedType === "statutory_f30_f10" && (
+                <div
+                  data-testid="kpi-source-badge"
+                  className="text-[10.5px] text-ink-mute mb-3 -mt-1"
+                >
+                  Source: statutory statement (Formular F30 + F10)
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Budget vs Actual dashboard entry point removed 2026-07-25 — it's now
+            a first-class sidebar item ("Budget vs Actual" → /dashboard/variance),
+            so the inline doorway here is redundant. */}
+
+        {/* Second KPI row — invoice analytics (when invoices loaded). */}
+        {hasPeriodLoaded && invoices && invoices.length > 0 && <InvoiceKpiStrip invoices={invoices} />}
+
+        <div className={hasPeriodLoaded ? "mb-8" : ""} />
+
+        {/* Width is governed site-wide by AppShell's content clamp — no
+            per-page max-width here (see AppShell.tsx). */}
+        <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
+          {/* The tab bar (Overview · Statements · … · Recommendations ·
+              Export) is hidden until a document is loaded — the empty state
+              is just the upload surface, so the tab strip only appears once
+              there's data to navigate. Enabled tabs render normally; tabs
+              still missing their data render disabled (45% opacity + tooltip). */}
+          {hasPeriodLoaded && (
+          <div className="relative">
+            <TabsList
+              data-testid="tabs-list"
+              className="
+                h-auto bg-transparent p-0
+                flex flex-nowrap sm:flex-wrap justify-start sm:justify-center gap-1
+                overflow-x-auto sm:overflow-visible scrollbar-none
+              "
+            >
+              {tabs.map((t) => {
+                const isEnabled = enabled[t.id];
+                if (isEnabled) {
+                  return (
+                    <TabsTrigger
+                      key={t.id}
+                      value={t.id}
+                      data-testid={`tab-${t.id}`}
+                      className="
+                        shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
+                        text-ink-soft hover:text-ink
+                        data-[state=active]:text-ink data-[state=active]:font-semibold
+                        data-[state=active]:bg-surface
+                        data-[state=active]:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_hsl(var(--rule-strong)/0.4)]
+                        data-[state=active]:ring-1 data-[state=active]:ring-inset data-[state=active]:ring-brand/10
+                        rounded-xl whitespace-nowrap
+                        transition-all duration-150
+                      "
+                    >
+                      {t.label}
+                    </TabsTrigger>
+                  );
+                }
+                // Disabled tab — Radix won't fire tooltip events on a
+                // disabled trigger, so we render a styled span lookalike
+                // and wrap it in <Tooltip>.
+                return (
+                  <Tooltip key={t.id}>
+                    <TooltipTrigger asChild>
+                      <span
+                        role="tab"
+                        aria-disabled="true"
+                        data-testid={`tab-${t.id}`}
+                        className="
+                          shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
+                          rounded-xl whitespace-nowrap
+                          opacity-40 cursor-not-allowed select-none text-ink-soft
+                        "
+                      >
+                        {t.label}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[280px] text-[12px] leading-snug">
+                      {disabledHint(t.id)}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+              {/* "Guide me" moved OUT of the tab bar (2026-07-26) — it now
+                  rides above the Source-files row, matching Products. Two
+                  identical buttons on one screen would have been the cost of
+                  copying that section over wholesale. It stays tab-aware:
+                  the trigger still opens the ACTIVE tab's guide. */}
+            </TabsList>
+            <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 left-0 w-6 bg-gradient-to-r from-bg to-transparent" />
+            <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 right-0 w-6 bg-gradient-to-l from-bg to-transparent" />
+          </div>
+          )}
+
+        {/* OVERVIEW ─────────────────────────────────────────────────────── */}
+        <TabsContent value="overview" className="mt-6 space-y-6">
+          {/* F3.11 — Source-data quality WARN banner. Renders only when
+              `sourceDataQuality.warn === true` (closing-side imbalance >2%)
+              — see SourceQualityBanner for the hide-when-OK logic. Placed
+              above ExtractionConfidenceBanner so source-data issues are
+              the FIRST thing the operator sees on a problematic upload.
+
+              F3.14 B1 — When telemetry is genuinely missing AND the period
+              DOES have meaningful TB data (statements is loaded), surface
+              the quiet "n/a" pill explaining that source-quality is RAS-
+              specific and pointing to the BS reconciliation rec instead.
+              Per ADR-1 in ADR_F3_14_DEFERRED_ITEMS.md. The `telemetryAvailable`
+              flag is false ONLY when statements exist but sourceDataQuality
+              doesn't — i.e., Claude-path upload (EEI PDFs, etc.). Pre-load
+              and dataless states still show no banner. */}
+          {/* 2026-07-25 — the benign "n/a" info pill (Claude-extracted
+              uploads) and the "Extracted from · <file>" banner were removed
+              from the overview per operator directive; the header briefing now
+              carries the source context. `telemetryAvailable` is forced true so
+              only the REAL >2% source-imbalance WARN can still render (kept: it
+              flags trial balances that don't reconcile). */}
+          <SourceQualityBanner
+            sourceQuality={sourceDataQuality}
+            currency={statements?.currency ?? "RON"}
+            telemetryAvailable
+          />
+
+          {!hasPeriodLoaded ? (
+            // STATE A — entry surface. The drop zone stays mounted during a
+            // scan and renders the progress in-place (steps animate to the
+            // top); there is no separate progress modal/card.
+            //
+            // ABOVE the dropzone, we surface the user's most recent public-
+            // records upload as a Level-1 quick card (renders nothing when
+            // there's no public-records data).
+            <>
+              <PublicRecordsQuickCard />
+              <UploadAndSamplePanel
+                statements={statements}
+                activeSampleId={activeSampleId}
+                uploadName={uploadName}
+                onPickSample={pickSample}
+                onReset={undefined}
+                onTriggerFile={() => fileRef.current?.click()}
+                onDrop={onDrop}
+                fileRef={fileRef}
+                onFileChosen={onFileChosen}
+                onSimulate={simulateFileProcess}
+                stagedFiles={stagedFiles}
+                onDiscardStaged={discardStagedFile}
+                onDismissAll={dismissAllStaged}
+                onStartScan={startScan}
+                scanning={scanning}
+                inflight={uploadInFlight}
+                onViewResults={viewResults}
+              />
+            </>
+          ) : (
+            <>
+            {/* Notes & recommendations jump pill — moved down here
+                (2026-07-26 per operator) so it sits directly above the
+                metrics grid instead of at the top of the page. Colour ranks
+                by the WORST severity present: red for critical/high, amber
+                for watch, blue for info, teal when it's only
+                recommendations. */}
+            <NotesJumpPill
+              alerts={remotePeriod.alerts ?? []}
+              recommendationCount={remotePeriod.recommendations?.length ?? 0}
+            />
+            <StateBOverview
+              statements={statements}
+              invoices={invoices}
+              ratios={ratios}
+              recommendations={recommendations}
+              criticalCount={criticalCount}
+              highCount={highCount}
+              onJumpToTab={onTabChange}
+              valuation={remotePeriod.valuation}
+              periodId={remotePeriod.id}
+              canonicalMargins={dashboardCanonicalMargins}
+              netIncomeStatutory={canonicalNetIncomeStatutory}
+            />
+            </>
+          )}
+        </TabsContent>
+
+        {/* P&L ──────────────────────────────────────────────────────────── */}
+        {enabled.pl && statements && (
+          <TabsContent value="pl" className="mt-6 space-y-8 min-h-[400px]">
+            <PLStatementView
+              hideGuide
+              statement={pickPLBuilder(
+                {
+                  lineItems: remotePeriod.lineItems,
+                  entity: statements.companyName ?? "Entity",
+                  period: statements.periodLabel,
+                  currency: statements.currency,
+                  // F1.e — Engine-canonical margin pair so the Key Margins
+                  // block on the P&L tab collapses to 2 rows matching the
+                  // dashboard tile and the Ratios tab.
+                  canonicalMargins: dashboardCanonicalMargins,
+                },
+                statements,
+              )}
+            />
+            {/* Server-emitted, period-keyed notes & recommendations
+             *  rendered as part of the P&L tab. Honest empty-state when
+             *  the engine produced none for this period — never filler. */}
+            <StatementNotes
+              recommendations={remotePeriod.recommendations}
+              alerts={remotePeriod.alerts}
+              relevantTo="pl"
+            />
+          </TabsContent>
+        )}
+
+        {/* BALANCE SHEET ───────────────────────────────────────────────── */}
+        {enabled.balance_sheet && statements && (
+          <TabsContent value="balance_sheet" className="mt-6 space-y-8 min-h-[400px]">
+            {remotePeriod.lineItems && remotePeriod.lineItems.length > 0 ? (
+              <BSStatementView
+                hideGuide
+                statement={buildBSStatement({
+                  lineItems: remotePeriod.lineItems,
+                  entity: statements.companyName ?? "Entity",
+                  asOf: statements.periodLabel ?? "Period end",
+                  comparativeDate: "Opening",
+                  currency: statements.currency,
+                  // F1.n — Anchor "Current year net profit (121)" to the
+                  // STATUTORY ct.121 closing balance, not the FE-recomputed
+                  // operational net profit. The engine emits this as the
+                  // `net_income_statutory` calculated metric (already
+                  // plumbed in F1.e as `canonicalNetIncomeStatutory`).
+                  // Fallback chain handles older cached periods that
+                  // lack the canonical row: FE statutory (operational +
+                  // 722) → FE operational (the prior behavior).
+                  currentYearNetProfit:
+                    canonicalNetIncomeStatutory
+                    ?? buildPLStatementFromAggregates(statements).netProfitStatutory
+                    ?? buildPLStatementFromAggregates(statements).netProfit,
+                  // F2.1 — Engine canonical `assembled_bs` for top-level
+                  // totals + per-engine-bucket residual surfacing. When
+                  // present, BS totals match engine to the cent and any
+                  // FE row-enumeration gap renders as a labeled "Other
+                  // [bucket]" line. Falls back to legacy FE-recompute
+                  // behavior when assembled_bs absent (pre-v2.1 cached
+                  // periods).
+                  assembledBs: (statements as Statements & {
+                    assembled_bs?: Record<string, number>;
+                  }).assembled_bs,
+                })}
+              />
+            ) : (
+              <BalanceSheetTable statements={statements} />
+            )}
+            <StatementNotes
+              recommendations={remotePeriod.recommendations}
+              alerts={remotePeriod.alerts}
+              relevantTo="bs"
+            />
+          </TabsContent>
+        )}
+
+        {/* CASH FLOW ──────────────────────────────────────────────────── */}
+        {enabled.cash_flow && statements && (
+          <TabsContent value="cash_flow" className="mt-6 space-y-8 min-h-[400px]">
+            <CashFlowStatementView
+              hideGuide
+              statement={buildCashFlowStatement({
+                pl: (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl,
+                bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,
+                cf: (statements as Statements & { assembled_cf?: Record<string, number> }).assembled_cf,
+                lineItems: remotePeriod.lineItems ?? [],
+                entity: statements.companyName ?? "Entity",
+                period: statements.periodLabel ?? "Period",
+                currency: statements.currency,
+                yearLabel: (() => {
+                  const lbl = statements.periodLabel ?? "";
+                  const m = lbl.match(/\b(20\d{2})\b/);
+                  return m ? m[1] : "the period";
+                })(),
+              })}
+            />
+            <StatementNotes
+              recommendations={remotePeriod.recommendations}
+              alerts={remotePeriod.alerts}
+              relevantTo="cf"
+            />
+          </TabsContent>
+        )}
+
+        {/* RATIOS ──────────────────────────────────────────────────────── */}
+        {enabled.ratios && ratios && (
+          <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
+            <RatiosTabContent ratios={ratios} statements={statements} />
+          </TabsContent>
+        )}
+
+        {/* Customers / Payments / Margin / VAT tabs removed in the
+            9-tab restructure — non-FMCG companies (the majority of users)
+            don't benefit from them; the relevant signals (margin metrics,
+            VAT compliance) now surface on the Overview KPI strip and
+            the Recommendations card stack. Old `?tab=customers|payments|
+            margin|vat` URLs redirect to a sensible tab via
+            `resolveActiveTab`'s legacy-slug map. */}
+
+        {/* VALUATION — Primary: EV/EBITDA peer-multiple. Cross-checks: DCF +
+            WACC + Graham (client-side math, demoted from headline). The new
+            ValuationSection also renders on the Overview tab as the hero,
+            so visiting this tab is for users who want to drill into the
+            cross-checks themselves. */}
+        {enabled.valuation && statements && (
+          <TabsContent value="valuation" className="mt-6 space-y-10 min-h-[400px]">
+            {/* ── Phase 2: EBITDA-multiple primary for ~99% of companies
+             *  (operating businesses, Core EBITDA basis, client-side
+             *  slider). Heavy-RE → NAV primary, EBITDA-multiple second
+             *  with an on-screen reason banner. DCF + Graham collapsed
+             *  into a single Cross-checks disclosure, default closed.
+             *  Method routing reuses the engine's existing CRE signal
+             *  (industry name + rental-dominated heuristic + the
+             *  PeriodValuation.primary_method field) — no parallel
+             *  detector. */}
+            {(() => {
+              // Robust CRE detection — handles all the forms the upstream
+              // payload uses (industry_key snake_case, display name,
+              // Romanian display) + rental-dominated revenue heuristic.
+              const indRaw = String(statements.industry ?? remotePeriod.industry ?? "").toLowerCase();
+              const indNorm = indRaw.replace(/[^a-z]/g, "");
+              const explicitCre =
+                indNorm.includes("realestate") ||
+                indNorm.includes("commercialrealestate") ||
+                indNorm.includes("residentialrealestate") ||
+                indNorm.includes("investitiiimobiliare") ||
+                indNorm.includes("imobiliar");
+              const apForRouting = (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl;
+              let rentalDominated = false;
+              if (apForRouting) {
+                const rev = apForRouting.revenue ?? 0;
+                const totalOp = apForRouting.total_operating_revenue ?? rev;
+                rentalDominated = totalOp > 0 && rev / totalOp > 0.5 &&
+                  (apForRouting.capitalized_own_work_memo ?? 0) > 100_000;
+              }
+              // Asset-intensity fallback signal (PPE + investment_property
+              // + CIP) / total assets ≥ 0.6 — used to surface the heavy-RE
+              // reason line when the industry label is missing or wrong.
+              const abForRouting = (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs;
+              const ASSET_INTENSITY_THRESHOLD = 0.6;
+              let assetIntensity: number | null = null;
+              if (abForRouting && (abForRouting.total_assets ?? 0) > 0) {
+                const heavyAssets =
+                  (abForRouting.ppe_net ?? 0) +
+                  (abForRouting.investment_property ?? 0) +
+                  (abForRouting.cip ?? 0);
+                assetIntensity = heavyAssets / abForRouting.total_assets;
+              }
+              const assetIntensityHeavy = assetIntensity !== null && assetIntensity >= ASSET_INTENSITY_THRESHOLD;
+              const engineSaysAssetBased = remotePeriod.valuation?.primary_method === "asset_based";
+              const isCre = explicitCre || rentalDominated || engineSaysAssetBased || assetIntensityHeavy;
+
+              // Canonical metric object — single source of truth for
+              // EBITDA / net debt. Same builder the Overview tab uses.
+              const canonical = buildCanonicalMetricsFromInputs({
+                assembled_pl: apForRouting as Record<string, number> | undefined,
+                assembled_bs: abForRouting as Record<string, number> | undefined,
+                line_items: remotePeriod.lineItems,
+                company: statements.companyName ?? null,
+                period: statements.periodLabel ?? null,
+                period_id: remotePeriod.id,
+                source: "trial_balance",
+              });
+
+              if (isCre) {
+                const ap = apForRouting;
+                const ab = abForRouting;
+                const sa = (statements as Statements & { subAggregates?: Record<string, number> }).subAggregates;
+                if (ap && ab) {
+                  const cascade = buildNavCascade({
+                    pl: ap,
+                    bs: ab,
+                    subAgg: sa,
+                    lineItems: remotePeriod.lineItems ?? [],
+                    industry: indRaw,
+                  });
+
+                  // Build the reason lines — surface WHY NAV is primary
+                  // so the routing isn't silent.
+                  const reasonLines: string[] = [];
+                  if (explicitCre) reasonLines.push(`Industry classified as real-estate (${indRaw}).`);
+                  if (rentalDominated) reasonLines.push("Revenue is rental-dominated (account 706 ≥ 50% of operating revenue).");
+                  if (engineSaysAssetBased) reasonLines.push("Engine valuation pipeline already routed this period to asset-based primary.");
+                  if (assetIntensityHeavy && assetIntensity !== null) {
+                    reasonLines.push(`Asset intensity ${(assetIntensity * 100).toFixed(0)}% (PPE + investment property + CIP / total assets) is above the ${(ASSET_INTENSITY_THRESHOLD * 100).toFixed(0)}% threshold for heavy-RE routing.`);
+                  }
+
+                  return (
+                    <>
+                      <HeavyReReasonBanner reasonLines={reasonLines} />
+                      {/* NAV cascade — PRIMARY for CRE */}
+                      <NavValuationView
+                        cascade={cascade}
+                        entity={statements.companyName ?? "Entity"}
+                        period={statements.periodLabel ?? "Period"}
+                        currency={statements.currency}
+                      />
+                      {/* EBITDA-multiple SECOND — still visible because
+                       *  lenders + brokers reference it, but explicitly
+                       *  framed as the secondary method. */}
+                      {canonical && (
+                        <section className="space-y-3">
+                          <header>
+                            <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                              Secondary · EBITDA-multiple cross-check
+                            </div>
+                          </header>
+                          <EbitdaMultiplePrimaryCard
+                            hideGuide
+                            metrics={canonical}
+                            valuation={remotePeriod.valuation}
+                            currency={statements.currency}
+                          />
+                        </section>
+                      )}
+                      {/* Existing persisted-override flow remains
+                       *  available as the operator-facing tuning UI. */}
+                      {remotePeriod.valuation && remotePeriod.id && (
+                        <ValuationCrossChecksDisclosure>
+                          <ValuationSection
+                            valuation={remotePeriod.valuation}
+                            periodId={remotePeriod.id}
+                            currency={statements.currency}
+                          />
+                        </ValuationCrossChecksDisclosure>
+                      )}
+                    </>
+                  );
+                }
+              }
+
+              // ── Non-CRE: EBITDA-multiple is PRIMARY ──────────────
+              // Canonical-aware client-side primary card on top,
+              // existing persisted-override ValuationSection follows
+              // (for users who want to set board-grade assumptions),
+              // then DCF + Graham collapsed into Cross-checks.
+              return (
+                <>
+                  {canonical && (
+                    <>
+                      <EbitdaMultiplePrimaryCard
+                        hideGuide
+                        metrics={canonical}
+                        valuation={remotePeriod.valuation}
+                        currency={statements.currency}
+                      />
+                      {/* Itemized 758 → 781 → Core bridge anchor — the
+                       *  provenance line in the primary card jumps here. */}
+                      <div id="ebitda-bridge">
+                        <EbitdaReconciliationPanel metrics={canonical} currency={statements.currency} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Existing persisted-override flow — operator-tuning
+                   *  surface, kept for board-grade assumption setting. */}
+                  {remotePeriod.valuation && remotePeriod.id && (
+                    <section>
+                      <header className="mb-3">
+                        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                          Persisted assumptions
+                        </div>
+                        <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px]">
+                          Set custom EBITDA, multiple, debt or cash for board reporting. Persists to
+                          this period; the primary card above always reflects the latest canonical
+                          values plus your slider position.
+                        </p>
+                      </header>
+                      <ValuationSection
+                        valuation={remotePeriod.valuation}
+                        periodId={remotePeriod.id}
+                        currency={statements.currency}
+                      />
+                    </section>
+                  )}
+
+                  {/* Cross-checks · DCF + WACC + Graham — collapsed
+                   *  into a single disclosure per the Phase 2 spec.
+                   *  Default closed; the user can expand to see the
+                   *  intrinsic-value calculations and the >30%
+                   *  divergence flag. Not deleted. */}
+                  <ValuationCrossChecksDisclosure>
+                    <ValuationPanel statements={statements} valuation={remotePeriod.valuation} />
+                  </ValuationCrossChecksDisclosure>
+                </>
+              );
+            })()}
+          </TabsContent>
+        )}
+
+        {/* RISKS & CREDIT ──────────────────────────────────────────────── */}
+        {enabled.risks && statements && (
+          <TabsContent value="risks" className="mt-6 space-y-6 min-h-[400px]">
+            <RisksPanel
+              statements={statements}
+              // F2.4 — engine canonical envelopes. RisksPanel reads
+              // composite / letter / subscores / Piotroski from
+              // assembled_metrics (30/20/15/10/10/10/5 weights, F1.h
+              // letter ladder, engine-emitted piotroski).
+              creditEnvelope={
+                (remotePeriod.assembled_metrics as { credit?: import("@/lib/financialValuation").CreditEnvelope } | null)?.credit
+              }
+              piotroskiEnvelope={
+                (remotePeriod.assembled_metrics as { piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope } | null)?.piotroski
+                ?? (statements as unknown as {
+                  assembled_piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope;
+                }).assembled_piotroski
+              }
+              metricsByName={metricsByName}
+            />
+          </TabsContent>
+        )}
+
+        {/* RECOMMENDATIONS ─────────────────────────────────────────────── */}
+        <TabsContent value="recommendations" className="mt-6 space-y-3 min-h-[400px]">
+          {statements && recommendations.length > 0 ? (
+            recommendations.map((rec) => (
+              <RecommendationCard key={rec.id} rec={rec} currency={statements.currency} />
+            ))
+          ) : (
+            <EmptyTabState
+              title="No recommendations yet"
+              body="Upload a balance sheet, P&L, or trial balance to receive prioritized recommendations."
+              ctaTab="overview"
+              onCta={() => onTabChange("overview")}
+            />
+          )}
+        </TabsContent>
+
+        {/* EXPORT ─────────────────────────────────────────────────────── */}
+        <TabsContent value="export" className="mt-6 space-y-4 min-h-[400px]">
+          {!statements ? (
+            <EmptyTabState
+              title="Nothing to export yet"
+              body="Load a sample or upload a financial statement to enable HTML and Excel exports."
+              ctaTab="overview"
+              onCta={() => onTabChange("overview")}
+            />
+          ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+          {/* HTML report — brand sleeve. */}
+          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
+            <div className="w-2 shrink-0 bg-brand" />
+            <div className="relative flex-1 p-3.5 flex flex-col">
+              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-brand opacity-[0.08]">
+                <FileText size={230} strokeWidth={1} />
+              </div>
+              <div className="relative">
+                <h3 className="font-serif text-[26px] leading-tight text-ink">HTML financial analysis report</h3>
+                <p className="text-[13.5px] text-ink-soft mt-1">
+                  Single-file HTML — opens in any browser, prints to PDF cleanly.
+                  Includes balance sheet, P&L, all 25+ ratios with verdicts,
+                  bankruptcy assessment, and prioritized recommendations.
+                </p>
+              </div>
+              <div className="relative mt-auto pt-6 flex justify-end">
+                <button
+                  onClick={() => downloadReport(statements)}
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+                >
+                  <ArrowDownToLine size={15} strokeWidth={2} />
+                  Download
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Excel workbook — green sleeve. */}
+          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
+            <div className="w-2 shrink-0 bg-green-600" />
+            <div className="relative flex-1 p-3.5 flex flex-col">
+              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-green-600 opacity-[0.09]">
+                <FileSpreadsheet size={230} strokeWidth={1} />
+              </div>
+              <div className="relative">
+                <h3 className="font-serif text-[26px] leading-tight text-ink">Excel workbook</h3>
+                <p className="text-[13.5px] text-ink-soft mt-1">
+                  8-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow,
+                  valuation (WACC + DCF + Graham), credit & risk, recommendations.
+                </p>
+              </div>
+              <div className="relative mt-auto pt-6 flex justify-end">
+                <button
+                  onClick={() =>
+                    import("@/lib/financialExports").then((m) =>
+                      m.downloadExcelReport(statements),
+                    )
+                  }
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+                >
+                  <ArrowDownToLine size={15} strokeWidth={2} />
+                  Download
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* PowerPoint deck — orange sleeve. Coming next (no download yet). */}
+          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
+            <div className="w-2 shrink-0 bg-orange-500" />
+            <div className="relative flex-1 p-3.5 flex flex-col">
+              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-orange-500 opacity-[0.09]">
+                <Presentation size={230} strokeWidth={1} />
+              </div>
+              <div className="relative">
+                <h3 className="font-serif text-[26px] leading-tight text-ink">PowerPoint deck</h3>
+                <p className="text-[13.5px] text-ink-soft mt-1">
+                  Investor-grade pptx export with cover slide, KPIs, ratios, valuation,
+                  and recommendations slides arrives in the next phase.
+                </p>
+              </div>
+              <div className="relative mt-auto pt-6 flex justify-end">
+                <span className="inline-flex items-center gap-1.5 text-[11.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+                  <Sparkles size={11} strokeWidth={2} />
+                  Coming next
+                </span>
+              </div>
+            </div>
+          </div>
+          </div>
+          )}
+        </TabsContent>
+      </Tabs>
+        {/* Dev tools — bottom of the page, below every tab's content. Ships
+            in production per the operator (2026-07-26); see DashboardDevTools. */}
+        <DashboardDevTools />
+        </>
+        )}
+      </TooltipProvider>
+
+    </>
+    </ReportingContextProvider>
+  );
+}
+
+// ─── Sub-components ─────────────────────────────────────────────────────────
+
+// Phase 5 — Friendly mapper for upload / paste error messages. Users
+// shouldn't see "BadZipFile" or python tracebacks; map known patterns to
+// actionable copy. Anything that doesn't match falls through unchanged.
+function friendlyUploadError(detail: string | undefined | null): string {
+  const d = (detail || "").toString();
+  if (!d) return "Couldn't finish analysis. Please try again or contact support if it persists.";
+  if (/BadZipFile|not a zip file/i.test(d)) {
+    return "This looks like a legacy Excel file (.xls). The backend now reads those — try re-uploading. If you still see this, the backend may need to be restarted to pick up the latest code.";
+  }
+  if (/password|encrypted/i.test(d)) {
+    return "This file is password-protected. Remove the password and re-upload.";
+  }
+  if (/CorruptedFileError|file is corrupted/i.test(d)) {
+    return "This file appears to be corrupted. Try re-exporting from your accounting software.";
+  }
+  if (/Couldn't identify these columns|non-standard layout/i.test(d)) {
+    return "This file has a non-standard column layout. Try renaming your columns to 'Cont', 'Nume Cont', 'Debit', 'Credit' and re-upload, or contact support.";
+  }
+  if (/empty/i.test(d) && /paste/i.test(d)) {
+    return "Paste area is empty. Copy your trial balance from Excel first.";
+  }
+  if (/network|fetch failed|Failed to fetch/i.test(d)) {
+    return "Couldn't reach the analysis backend. Check your connection or try again in a moment.";
+  }
+  // Pass through backend-provided detail if it looks user-facing (no
+  // python traceback noise, no internal symbols).
+  if (!/Traceback|File ".*\.py"|TypeError|KeyError|AttributeError/i.test(d)) {
+    return d;
+  }
+  return "Couldn't finish analysis. Please try again or contact support if it persists.";
+}
+
+// ─── Period-end confirmation dialog ──────────────────────────────────────────
+// Before a scan runs, the user resolves a date conflict as an ACTION
+// (2026-07-26 per operator), not a date pick:
+//   · "Change the period to match the file" — the selected period takes the
+//     file's closing month. When the selected period is an empty container,
+//     its row is literally renamed (updatePeriodEnd) BEFORE the upload, so
+//     the periodEndHint then finds that same row by (org_id, period_end) and
+//     adopts it — no dangling empty month, no sibling period.
+//   · "Ignore the file's date" — the file uploads into the selected period,
+//     whose month wins via periodEndHint.
+// The free month input only returns as a fallback when NEITHER side offers a
+// date.
+function PeriodConfirmDialog({
+  files,
+  activePeriodEnd,
+  activePeriodId,
+  activePeriodEmpty,
+  onConfirm,
+  onCancel,
+}: {
+  files: File[];
+  /** period_end of the app's currently selected period (ISO), null when no
+   *  period is loaded — then only the file-date option renders. */
+  activePeriodEnd?: string | null;
+  /** Its id — needed to rename the container on "match the file". */
+  activePeriodId?: string | null;
+  /** True when the selected period has no source document yet. Renaming is
+   *  only safe then: a period with an analysis keeps its month, and "match
+   *  the file" degrades to filing under the file's month as its own period. */
+  activePeriodEmpty?: boolean;
+  onConfirm: (dates: Record<string, string | null>) => void;
+  onCancel: () => void;
+}) {
+  const activeMonth =
+    activePeriodEnd && /^\d{4}-\d{2}/.test(activePeriodEnd)
+      ? activePeriodEnd.slice(0, 7)
+      : null;
+
+  // What the FILE says, per file ("YYYY-MM"). Seeded synchronously from the
+  // filename so the dialog opens with a value; upgraded from file CONTENT
+  // once the async read resolves.
+  const [detected, setDetected] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const f of files) {
+      const iso = detectPeriodEndFromFilename(f.name);
+      if (iso) init[f.name] = iso.slice(0, 7);
+    }
+    return init;
+  });
+  // Manual fallback month, only used when neither source has a date.
+  const [manual, setManual] = useState<Record<string, string>>({});
+  const [reading, setReading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    let cancelled = false;
+    setReading(true);
+    (async () => {
+      const found: Record<string, string> = {};
+      for (const f of files) {
+        const iso = await detectPeriodEndFromFile(f);
+        if (iso) found[f.name] = iso.slice(0, 7);
+      }
+      if (cancelled) return;
+      setDetected((prev) => ({ ...prev, ...found }));
+      setReading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Files are fixed for the dialog's lifetime (a snapshot passed by startScan).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The decision lives in the FOOTER (2026-07-26 per operator) — the cards
+  // above are informational (selected vs detected). Two actions:
+  //   · "keep"   — Scan: ignore the file's date, upload into the selected
+  //                period (its month is the hint).
+  //   · "update" — Scan and update period: the period takes the file's month.
+  async function confirm(action: "keep" | "update") {
+    if (confirming) return;
+    setConfirming(true);
+    const lastDayIso = (ym: string) => {
+      // Trial-balance convention: the period-end is the LAST day of the month.
+      const [y, m] = ym.split("-").map(Number);
+      const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      return `${ym}-${String(last).padStart(2, "0")}`;
+    };
+    // Per-file month under the chosen action. Either source may be missing;
+    // the other fills in, then the manual fallback, then null (engine detects).
+    const resolvedMonth = (f: File): string | null => {
+      const fileYm = detected[f.name] ?? null;
+      const m = manual[f.name];
+      const manualYm = m && /^\d{4}-\d{2}$/.test(m) ? m : null;
+      return action === "update"
+        ? fileYm ?? activeMonth ?? manualYm
+        : activeMonth ?? fileYm ?? manualYm;
+    };
+
+    const dates: Record<string, string | null> = {};
+    for (const f of files) {
+      const ym = resolvedMonth(f);
+      dates[f.name] = ym ? lastDayIso(ym) : null; // null → the engine detects it
+    }
+
+    // "Scan and update period": rename the selected EMPTY container to the
+    // file's month first, so the hint below adopts that same row instead of
+    // leaving it dangling and creating a sibling. Only for empty periods —
+    // one with an analysis keeps its month.
+    const firstYm = files[0] ? detected[files[0].name] ?? null : null;
+    if (
+      action === "update" &&
+      activePeriodId &&
+      activePeriodEmpty &&
+      firstYm &&
+      firstYm !== activeMonth
+    ) {
+      const { updatePeriodEnd } = await import("@/lib/orgPeriods");
+      const err = await updatePeriodEnd(activePeriodId, lastDayIso(firstYm));
+      if (err) {
+        // Non-fatal: the scan still files under the file's month (its own
+        // period); the empty container just stays where it was.
+        console.warn("[period-confirm] rename failed:", err);
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+        void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+      }
+    }
+
+    onConfirm(dates);
+  }
+
+  // Mid-month day dodges timezone month-shift in toLocaleDateString.
+  const monthLabel = (ym: string | null) =>
+    ym ? formatDetectedMonth(`${ym}-15`) || ym : "";
+
+  const multiple = files.length > 1;
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent className="sm:max-w-[480px]" data-testid="period-confirm-dialog">
+        {/* The header names the situation: a conflict gets the decision
+            framing; agreement or a missing side gets a plain confirm. Based
+            on the first file — uploads are single-file (2026-07-26). */}
+        {(() => {
+          const firstYm = files[0] ? detected[files[0].name] ?? null : null;
+          const conflict = !!firstYm && !!activeMonth && firstYm !== activeMonth;
+          return (
+            <DialogHeader>
+              <DialogTitle>
+                {conflict ? "The file's date doesn't match the period" : "Confirm the period"}
+              </DialogTitle>
+              <DialogDescription>
+                {conflict
+                  ? "“Scan and update period” moves the period to the file's month. “Scan” ignores the file's date and uploads into the period you have selected."
+                  : "This is the period the analysis will be filed under."}
+              </DialogDescription>
+            </DialogHeader>
+          );
+        })()}
+
+        <div className="space-y-3 max-h-[46vh] overflow-y-auto">
+          {files.map((f) => {
+            const fileYm = detected[f.name] ?? null;
+            const agree = !!fileYm && !!activeMonth && fileYm === activeMonth;
+            const periodCard = (title: string, ym: string | null) => (
+              <div className="flex-1 min-w-0 rounded-lg border border-rule bg-surface px-3 py-2.5 text-center">
+                <span className="block text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
+                  {title}
+                </span>
+                <span className="block text-[13px] font-medium tabular-nums text-ink mt-0.5">
+                  {ym ? monthLabel(ym) : "—"}
+                </span>
+              </div>
+            );
+            return (
+              <div key={f.name} className="space-y-2">
+                {/* The file itself, above the comparison — click opens its
+                    preview in a new window (same renderer the staged-file
+                    list uses), so what's being filed can be inspected before
+                    deciding where it lands. */}
+                <button
+                  type="button"
+                  onClick={() => void openStagedFile(f)}
+                  data-testid="period-confirm-file-preview"
+                  title="Open a preview in a new window"
+                  className="w-full flex items-center gap-2 rounded-lg border border-rule bg-bg-2/30 px-3 py-2.5 text-left hover:border-rule-strong hover:bg-bg-2/60 transition-colors"
+                >
+                  <FileSpreadsheet size={16} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                  <span className="text-[12.5px] font-medium text-ink truncate">{f.name}</span>
+                  <span className="ml-auto shrink-0 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+                    Preview
+                  </span>
+                </button>
+
+                {agree ? (
+                  // Both sources name the same month — nothing to decide.
+                  <p className="text-[11.5px] text-ink-soft px-0.5">
+                    <span className="font-medium text-ink">{monthLabel(fileYm)}</span> — the file
+                    matches your selected period.
+                  </p>
+                ) : fileYm || activeMonth ? (
+                  // Selected vs detected, side by side.
+                  <div className="flex items-center gap-2.5" data-testid="period-confirm-vs">
+                    {periodCard("Selected period", activeMonth)}
+                    <span className="shrink-0 text-[10.5px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
+                      vs
+                    </span>
+                    {fileYm ? (
+                      periodCard("Detected period", fileYm)
+                    ) : (
+                      <div className="flex-1 min-w-0 rounded-lg border border-dashed border-rule px-3 py-2.5 text-center">
+                        <span className="block text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
+                          Detected period
+                        </span>
+                        <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11.5px] text-ink-mute">
+                          {reading ? (
+                            <>
+                              <Loader2 size={11} className="animate-spin" />
+                              Reading…
+                            </>
+                          ) : (
+                            "No date found"
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Neither source has a date — the old manual picker returns
+                  // as the last resort.
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-[11.5px] text-ink-mute">
+                      {reading ? "Reading file…" : "No date found — pick one"}
+                    </label>
+                    <input
+                      type="month"
+                      value={manual[f.name] ?? ""}
+                      onChange={(e) =>
+                        setManual((prev) => ({ ...prev, [f.name]: e.target.value }))
+                      }
+                      data-testid="period-confirm-month"
+                      className="h-9 px-2.5 rounded-lg border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* The footer IS the decision (2026-07-26 per operator — Cancel was
+            replaced by the second action; Esc / the X still dismiss):
+              · "Scan and update period" — the period takes the file's month.
+                Only offered when the two sides actually disagree.
+              · "Scan" — upload into the selected period as-is. */}
+        {(() => {
+          const firstYm = files[0] ? detected[files[0].name] ?? null : null;
+          const conflict = !!firstYm && !!activeMonth && firstYm !== activeMonth;
+          return (
+            <DialogFooter className="gap-2">
+              {/* "Scan and update period" is the PRIMARY (gradient) action on
+                  the right; plain "Scan" sits secondary on the left
+                  (2026-07-26 per operator — swapped from the initial cut).
+                  With no conflict there's no update button, so "Scan" — the
+                  only action — takes the primary treatment back. */}
+              <button
+                type="button"
+                onClick={() => void confirm("keep")}
+                disabled={confirming}
+                data-testid="period-confirm-scan"
+                className={
+                  conflict
+                    ? "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 disabled:opacity-50 transition-colors"
+                    : "inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-50 transition-colors"
+                }
+              >
+                {confirming && !conflict && <Loader2 size={14} className="animate-spin" />}
+                Scan
+              </button>
+              {conflict && (
+                <button
+                  type="button"
+                  onClick={() => void confirm("update")}
+                  disabled={confirming}
+                  data-testid="period-confirm-scan-update"
+                  className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-50 transition-colors"
+                >
+                  {confirming && <Loader2 size={14} className="animate-spin" />}
+                  Scan and update period
+                </button>
+              )}
+            </DialogFooter>
+          );
+        })()}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ExtractionConfidenceBanner({
+  source,
+}: {
+  source: {
+    documentName: string;
+    confidence: number | null;
+    warnings: string[];
+    accountCount: number | null;
+  };
+}) {
+  // When confidence is null we don't have a real extraction metric to show.
+  // Treat "unknown" as non-low (emerald) — we're not actively warning the
+  // user about quality, we just don't have the number plumbed yet. Hides
+  // the false "0 accounts · confidence 100%" pattern previously shipped.
+  const hasConfidence = typeof source.confidence === "number";
+  const hasCount = typeof source.accountCount === "number";
+  const pct = hasConfidence ? Math.round((source.confidence as number) * 100) : null;
+  const low = hasConfidence && (source.confidence as number) < 0.8;
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-3.5 flex items-start gap-3 ${
+        low
+          ? "border-[#8FE3D9]/60 bg-[#E6F7F4] text-[#1B7268]"
+          : "border-[#8FE3D9]/60 bg-[#E6F7F4] text-[#1B7268]"
+      }`}
+    >
+      <Sparkles size={16} className={`mt-0.5 shrink-0 ${low ? "text-[#2AA89B]" : "text-[#2AA89B]"}`} strokeWidth={1.75} />
+      <div className="flex-1 text-[13px] leading-relaxed">
+        <div>
+          <strong>{low ? "Verify the extracted data" : "Extracted from"}</strong> ·{" "}
+          <span className="font-mono text-[12px]">{source.documentName}</span>
+          {hasCount && (
+            <> · {source.accountCount} accounts</>
+          )}
+          {hasConfidence && (
+            <> · <strong>confidence {pct}%</strong></>
+          )}
+        </div>
+        {source.warnings.length > 0 && (
+          <ul className="mt-1.5 list-disc list-inside space-y-0.5 text-[12px]">
+            {source.warnings.slice(0, 5).map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+            {source.warnings.length > 5 && (
+              <li className="opacity-60">+ {source.warnings.length - 5} more</li>
+            )}
+          </ul>
+        )}
+        {low && (
+          <p className="mt-1.5 text-[12px] opacity-80">
+            Some lines were inferred — open Financial statements to spot-check before sharing externally.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── CFO Briefing card — currency-aware ─────────────────────────────────
+// The briefing prose is generated by Opus 4.7 with numbers baked into the
+// text ("8,121,590 RON revenue"). The top-bar currency toggle can't reformat
+// baked text, so we re-POST to /briefing/regenerate?currency=X whenever the
+// toggle changes. Server FX-converts briefing_facts before the LLM call,
+// LLM re-narrates in the new currency. Loading state shows the cached RON
+// briefing greyed out + a spinner so the user knows fresh prose is incoming.
+function CFOBriefingCard({
+  periodId,
+  baseBriefing,
+}: {
+  periodId: string;
+  baseBriefing: string;
+}) {
+  const display = useDisplayCurrency();
+  const [text, setText] = useState<string>(baseBriefing);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset to baseline if user switches periods (different periodId)
+  // OR returns to RON (the canonical persisted briefing).
+  useEffect(() => {
+    if (display === "RON") {
+      setText(baseBriefing);
+      setError(null);
+    }
+  }, [baseBriefing, display]);
+
+  useEffect(() => {
+    if (display === "RON") return;
+    // Debounce 600ms so rapid RON→EUR→USD toggles don't fire 3 Opus calls.
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { getSupabase } = await import("@/lib/supabase");
+        const sb = getSupabase();
+        const { data: session } = sb
+          ? await sb.auth.getSession()
+          : { data: { session: null } };
+        const token = session?.session?.access_token;
+        if (!token) {
+          throw new Error("Not signed in");
+        }
+        const apiUrl =
+          (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+        const res = await fetch(
+          `${apiUrl}/api/period/${periodId}/briefing/regenerate?currency=${display}`,
+          { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!cancelled && typeof data.briefing === "string" && data.briefing.length > 0) {
+          setText(data.briefing);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [display, periodId]);
+
+  // Chrome-less (2026-07-25): the briefing IS the header's subtitle, so it
+  // drops the bordered card and renders as plain prose styled like the
+  // subtitle across the app's tab headers (soft ink, relaxed leading) — just
+  // a small eyebrow label above and the accuracy note below.
+  return (
+    <div data-testid="cfo-briefing" className="mt-3 max-w-[1040px]">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">
+          <Sparkles size={11} strokeWidth={2} />
+          CFO briefing — Opus 4.7
+          {display !== "RON" && (
+            <span className="text-ink-mute normal-case tracking-normal">
+              · displayed in {display}
+            </span>
+          )}
+        </div>
+        {loading && (
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+            <Loader2 size={12} className="animate-spin" />
+            Regenerating in {display}…
+          </div>
+        )}
+      </div>
+      <p
+        className={`text-[14.5px] sm:text-[15px] text-ink-soft leading-relaxed transition-opacity ${loading ? "opacity-60" : ""}`}
+      >
+        {text}
+      </p>
+      {error && (
+        <p className="mt-2 text-[11px] text-[#2AA89B]">
+          Couldn't regenerate in {display} ({error}). Showing RON version.
+        </p>
+      )}
+      <p className="mt-3 text-[11px] italic text-ink-mute leading-relaxed">
+        Generated from automated trial-balance extraction — accuracy auto-measured
+        per upload (clean uploads reconcile within 0.5%). Cross-check headline numbers
+        against your source on critical decisions.
+      </p>
+    </div>
+  );
+}
+
+function InvoiceKpiStrip({ invoices }: { invoices: Invoice[] }) {
+  const customers = useMemo(() => customerAnalytics(invoices), [invoices]);
+  const payments = useMemo(() => paymentsAnalytics(invoices), [invoices]);
+  const vat = useMemo(() => vatAnalytics(invoices), [invoices]);
+  const cur = invoices[0]?.currency ?? "RON";
+  return (
+    <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+      <KpiTile
+        label="Top customer share"
+        value={`${(customers.top_1_share * 100).toFixed(1)}%`}
+        sub={customers.customers[0]?.name?.slice(0, 26) ?? "—"}
+      />
+      <KpiTile
+        label="DSO"
+        value={`${payments.dso_days.toFixed(0)} days`}
+        sub="Days sales outstanding"
+      />
+      <KpiTile
+        label="Paid on time"
+        value={`${(payments.paid_on_time_pct * 100).toFixed(0)}%`}
+        sub="Of settled invoices"
+      />
+      <KpiTile
+        label="Net VAT"
+        value={`${cur} ${(vat.net_vat / 1000).toFixed(0)}K`}
+        sub={vat.net_vat > 0 ? "Payable to ANAF" : "Refund position"}
+      />
+    </section>
+  );
+}
+
+function EmptyTabState({
+  title,
+  body,
+  ctaTab: _ctaTab,
+  onCta,
+}: {
+  title: string;
+  body: string;
+  ctaTab: TabId;
+  onCta: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-rule bg-bg-2/20 p-12 text-center">
+      <div className="mx-auto h-12 w-12 rounded-full bg-bg-2 text-ink-mute flex items-center justify-center mb-3">
+        <FileText size={20} strokeWidth={1.5} />
+      </div>
+      <h3 className="font-serif text-[20px] text-ink">{title}</h3>
+      <p className="text-[13px] text-ink-soft mt-1 max-w-[460px] mx-auto">{body}</p>
+      <button
+        onClick={onCta}
+        className="mt-4 inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand text-paper text-[13px] font-medium hover:bg-brand-d transition-colors"
+      >
+        Pick a sample or upload
+      </button>
+    </div>
+  );
+}
+
+// Persistent data-accuracy disclosure — rendered once at the top of the
+// dashboard above the KPI tiles. Dismissable via localStorage so it doesn't
+// re-nag returning users; collapses to a small "About data accuracy" link
+// in the same slot once dismissed, so the disclosure is always discoverable.
+//
+// 2026-05-24 rewrite — replaced the hardcoded "~90%+ accurate" marketing
+// claim with REAL drift-based messaging. The banner now reads three states
+// from the same signals the ExtractionAccuracyBanner uses:
+//   • clean    (drift < 0.5% AND source TB balanced) → green confidence:
+//                "Quality checks passed — extraction accuracy XX.XX%."
+//   • watch    (drift 0.5-2% OR source 0.5-2% imbalance) → amber call-out
+//                naming the specific signal that's off
+//   • problem  (drift > 2% OR source > 2% imbalance) → red warning
+//                naming the SPECIFIC issue ("source TB has X.XX% debit /
+//                credit imbalance") so the user knows what to fix
+// Default copy on a CLEAN upload is confident sub-0.5% messaging; alert
+// copy is reserved for periods that actually have a measurable issue. No
+// more nagging clean uploads with marketing-fear claims.
+interface AccuracyBannerProps {
+  /** assembled_bs for the current period — provides bs_balance_delta + total_assets */
+  assembledBs?: Record<string, number> | null;
+  /** F3.11 source-data-quality telemetry (null on pre-F3.11 / Claude-extracted / statutory periods) */
+  sourceDataQuality?: { raw_imbalance_pct: number; raw_imbalance_abs: number } | null;
+}
+
+function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps) {
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("accuracy_banner_dismissed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  // ── Compute the measured signals ──────────────────────────────────
+  const totalAssets = Number(assembledBs?.total_assets ?? 0);
+  const bsDelta = Number(assembledBs?.bs_balance_delta ?? NaN);
+  const bsDriftPct = isFinite(bsDelta) && totalAssets > 0
+    ? (Math.abs(bsDelta) / totalAssets) * 100
+    : null;
+  const sourceImbalancePct = sourceDataQuality?.raw_imbalance_pct ?? null;
+
+  // ── Severity bands ────────────────────────────────────────────────
+  // CLEAN: BS reconciles within 0.5% AND source TB balanced within 0.5%
+  // WATCH: either signal between 0.5% and 2%
+  // PROBLEM: either signal above 2% (would noticeably affect headline numbers)
+  const worstPct = Math.max(bsDriftPct ?? 0, sourceImbalancePct ?? 0);
+  const band: "clean" | "watch" | "problem" | "unknown" =
+    bsDriftPct === null && sourceImbalancePct === null
+      ? "unknown"
+      : worstPct < 0.5
+      ? "clean"
+      : worstPct < 2
+      ? "watch"
+      : "problem";
+
+  // Dismissed → small re-open link (always discoverable per disclosure
+  // discipline; never hide drift warnings even when dismissed — see below).
+  if (dismissed && band === "clean") {
+    return (
+      <button
+        type="button"
+        data-testid="accuracy-banner-link"
+        onClick={() => {
+          try { localStorage.removeItem("accuracy_banner_dismissed"); } catch { /* private mode */ }
+          setDismissed(false);
+        }}
+        className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink mb-3"
+      >
+        <CheckCircle2 size={11} strokeWidth={1.75} className="text-[#2AA89B]" />
+        Quality checks passed · About data accuracy
+      </button>
+    );
+  }
+  // Watch + problem bands ALWAYS render — dismissal doesn't suppress
+  // real warnings. User can dismiss the green state only.
+
+  // ── Render per band ───────────────────────────────────────────────
+  const tone =
+    band === "clean"
+      ? {
+          border: "border-[#8FE3D9]/40",
+          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
+        }
+      : band === "watch"
+      ? {
+          border: "border-[#8FE3D9]/50",
+          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
+        }
+      : band === "problem"
+      ? {
+          border: "border-alert/50",
+          bg: "bg-alert/[0.06] dark:bg-alert/[0.08]",
+          icon: <AlertCircle size={13} strokeWidth={1.75} className="text-alert mt-0.5 shrink-0" />,
+          headline: "text-alert",
+        }
+      : {
+          border: "border-rule",
+          bg: "bg-bg-2/40",
+          icon: <Info size={13} strokeWidth={1.75} className="text-ink-mute mt-0.5 shrink-0" />,
+          headline: "text-ink",
+        };
+
+  return (
+    <div
+      data-testid="accuracy-banner"
+      data-band={band}
+      className={`flex items-start justify-between gap-3 mb-3 rounded-lg border-l-[3px] ${tone.border} ${tone.bg} px-4 py-3`}
+    >
+      <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
+        {tone.icon}
+        <div>
+          {band === "clean" && (
+            <>
+              <strong className={tone.headline}>Quality checks passed.</strong>{" "}
+              Extraction reconciles within <strong>{(Math.floor(worstPct * 100) / 100).toFixed(2)}%</strong>{" "}
+              on this document (target: under 0.5%). Balance sheet balances; source debits and credits agree.
+              Headline figures (revenue, EBITDA, net profit, debt, equity) are safe to use —
+              cross-check on board-level / external decisions out of habit.
+            </>
+          )}
+          {band === "watch" && (
+            <>
+              <strong className={tone.headline}>Verify before external use.</strong>{" "}
+              {sourceImbalancePct !== null && sourceImbalancePct >= 0.5 ? (
+                <>
+                  Your source trial balance has a{" "}
+                  <strong>{sourceImbalancePct.toFixed(2)}% debit / credit imbalance</strong>{" "}
+                  (small, but not zero).{" "}
+                </>
+              ) : null}
+              {bsDriftPct !== null && bsDriftPct >= 0.5 ? (
+                <>
+                  Reconstructed balance sheet drifts <strong>{bsDriftPct.toFixed(2)}%</strong> from total assets.{" "}
+                </>
+              ) : null}
+              Cross-check headline numbers (revenue, EBITDA, net profit, debt, equity)
+              against your source before board reports or external submissions.
+            </>
+          )}
+          {band === "problem" && (
+            <>
+              <strong className={tone.headline}>Data quality issue — don't use figures externally without fixing.</strong>{" "}
+              {sourceImbalancePct !== null && sourceImbalancePct >= 2 ? (
+                <>
+                  Your source trial balance has a{" "}
+                  <strong>{sourceImbalancePct.toFixed(2)}% debit / credit imbalance</strong>{" "}
+                  (debits don't equal credits) — re-export from your accounting system after running its trial-balance reconciliation.{" "}
+                </>
+              ) : null}
+              {bsDriftPct !== null && bsDriftPct >= 2 ? (
+                <>
+                  The reconstructed balance sheet differs from your assets by{" "}
+                  <strong>{bsDriftPct.toFixed(2)}%</strong> — accounts may be missing or misclassified.{" "}
+                </>
+              ) : null}
+              Headline numbers below (revenue, EBITDA, net profit, debt, equity) may not match your source.
+              Resolve the source-data issue before any external use.
+            </>
+          )}
+          {band === "unknown" && (
+            <>
+              <strong className={tone.headline}>About data accuracy.</strong>{" "}
+              Each upload is auto-checked against its source trial balance. Clean uploads pass with under
+              0.5% drift; if anything is off, you'll see a specific warning here naming the issue
+              (source imbalance, account misclassification, etc.). Headline numbers are always safe to
+              cross-check against your source.
+            </>
+          )}
+        </div>
+      </div>
+      {/* Dismiss (×) removed 2026-07-25 — the accuracy note now sits under the
+          CFO briefing and always shows; it's a per-document signal, not a nag. */}
+    </div>
+  );
+}
+
+// Statutory-format limitation banner — fires only when the active
+// period's source document was detected as an ANAF Formular F30+F10
+// filing rather than a raw trial balance. F30+F10 carries aggregate
+// totals only, so a chunk of the platform (line-item drilldown, 711
+// inventory variation memo, SKU rollups) isn't available. We surface
+// that honestly here so the user doesn't think the missing tabs are
+// a bug.
+function StatutoryFormatBanner() {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div
+      data-testid="statutory-format-banner"
+      className="mb-3 rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3"
+    >
+      <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
+        <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <strong className="text-ink">Statutory format detected (Formular F30 + F10).</strong>{" "}
+          Headline figures (revenue, EBITDA, debt, equity) extracted from your filed
+          financial statements.
+          <button
+            type="button"
+            data-testid="statutory-banner-toggle"
+            onClick={() => setExpanded((v) => !v)}
+            className="ml-1 text-[12px] text-[#2AA89B] hover:text-[#1B7268] underline-offset-2 hover:underline"
+          >
+            {expanded ? "Hide details" : "What's not available with this format"}
+          </button>
+          {expanded && (
+            <>
+              <ul className="mt-2 list-disc pl-5 text-[12px] space-y-0.5">
+                <li>Per-account drilldown (only aggregate categories)</li>
+                <li>SKU-level analysis (requires a sales export)</li>
+                <li>Working-capital roll-forward at account level</li>
+                <li>Inventory variation memo (account 711) split-out</li>
+              </ul>
+              <p className="mt-2 text-[12px]">
+                For deeper analysis, upload your raw trial balance from your accounting software.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiTile({
+  label,
+  value,
+  sub,
+  ...rest
+}: {
+  label: string;
+  /** Accepts string (legacy) OR ReactNode (preferred — lets callers pass
+   *  <Money> which subscribes to currency context and re-renders live
+   *  when the user toggles RON / EUR / USD). */
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  // FIT-1 (2026-06-08) — `overflow-hidden` + `min-w-0` lets the tile
+  // shrink to fit its grid cell so a long RON / EUR currency string
+  // inside doesn't blow out the column. `num-hero-fluid` clamps the
+  // font-size between 18-30 px so the same hero number reads at full
+  // size on the dashboard hero but auto-compacts in a tight 6-col row.
+  return (
+    <div
+      className="rounded-xl border border-rule bg-surface px-4 py-3 min-w-0 overflow-hidden"
+      {...rest}
+    >
+      <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{label}</div>
+      <div className="mt-2 num-hero num-hero-fluid text-ink leading-none">
+        {value}
+      </div>
+      {sub && <div className="mt-0.5 text-[11.5px] text-ink-soft leading-snug break-words">{sub}</div>}
+    </div>
+  );
+}
+
+// ─── Phase F: State B compact header + Replace ▾ dropdown ─────────────────
+
+function CompactPeriodHeader({
+  statements,
+  invoices,
+  activeSampleId,
+  onPickSample,
+  onTriggerFile,
+  onReset,
+  briefing,
+  briefingPeriodId,
+}: {
+  statements: Statements | null;
+  invoices: Invoice[] | null;
+  activeSampleId: string | null;
+  onPickSample: (id: string, opts?: { additive?: boolean }) => void;
+  onTriggerFile: () => void;
+  onReset: () => void;
+  /** Server-generated CFO briefing (Opus 4.7). When present it becomes the
+   *  header's subtitle — the briefing IS the description of the loaded
+   *  workspace. Empty for samples, where the generic descriptive line shows
+   *  instead. */
+  briefing?: string | null;
+  briefingPeriodId?: string | null;
+}) {
+  const companyName =
+    statements?.companyName
+    ?? (invoices && invoices.length > 0 ? "Invoice register" : "Loaded period");
+  const rawPeriodLabel = statements?.periodLabel ?? (invoices ? `${invoices.length.toLocaleString()} invoices` : "");
+  // Show month + year only — drop the day. A full date ("2026-05-26") becomes
+  // "May 2026"; non-date labels ("FY 2025", "120 invoices") are left as-is.
+  const periodLabel = formatPeriodMonth(rawPeriodLabel) ?? rawPeriodLabel;
+
+  // The Replace dropdown also offers "Add ... on top" for samples that
+  // contribute a different document type than what's already loaded — that's
+  // how the user assembles a full balance sheet + invoices workspace.
+  const currentlyHas: DocumentType[] = [];
+  if (statements) currentlyHas.push("bilant", "pl");
+  if (invoices) currentlyHas.push("invoice_register");
+
+  // 2026-05-26 (mobile fix): stack vertically on mobile so the
+  // company name + period heading reads as one line instead of
+  // getting squeezed by the DocsToggle + Replace dropdown.
+  return (
+    <header className="mb-6" data-testid="compact-period-header">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+      <div className="min-w-0">
+        {/* Loaded-workspace header — matches the Public Company Intelligence
+            hero format (brand eyebrow + big serif title with a gradient
+            highlight + a descriptive subtitle) so the two intelligence
+            surfaces read the same. Copy describes the dashboard's own panel
+            content (statements, ratios, valuation, risk, briefing). */}
+        <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+          <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
+          Financial Analysis
+        </div>
+        <h1 className="mt-3 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px]">
+          {companyName}
+          {periodLabel && (
+            <span className="text-ink-soft font-normal"> · {periodLabel}</span>
+          )}{" "}
+          — <span className="text-grad">the full financial picture</span>.
+        </h1>
+      </div>
+      </div>
+      {/* The CFO briefing (Opus 4.7) IS the header's description of the loaded
+          workspace — it renders full-width beneath the title/actions row.
+          Samples have no briefing, so they fall back to the generic line. */}
+      {briefing && briefingPeriodId ? (
+        <CFOBriefingCard periodId={briefingPeriodId} baseBriefing={briefing} />
+      ) : (
+        <p className="mt-3 text-[14px] text-ink-soft max-w-[620px] leading-relaxed">
+          Every statement rebuilt from your trial balance — P&amp;L, balance
+          sheet and cash flow — with ratios, valuation, a credit-risk score and
+          ranked recommendations. Explore each in the tabs below.
+        </p>
+      )}
+    </header>
+  );
+}
+
+// ─── Phase F: State B Overview body ───────────────────────────────────────
+// Sections in the order specified by §F.4:
+//   1. AI summary (deterministic for now; LLM upgrade in Phase G's narrate())
+//   2. Mini financial statements (BS / P&L / CF cards, top 6 lines each)
+//   3. Top 3 risks · Top 3 opportunities (split from recommendations)
+//   4. Footer with re-run
+
+function StateBOverview({
+  statements,
+  invoices,
+  ratios,
+  recommendations,
+  criticalCount,
+  highCount,
+  onJumpToTab,
+  valuation,
+  periodId,
+  canonicalMargins,
+  netIncomeStatutory,
+}: {
+  statements: Statements | null;
+  invoices: Invoice[] | null;
+  ratios: ReturnType<typeof computeRatios> | null;
+  recommendations: Recommendation[];
+  criticalCount: number;
+  highCount: number;
+  onJumpToTab: (tab: string) => void;
+  valuation: import("@/lib/activePeriod").PeriodValuation | null;
+  periodId: string | null;
+  // F1.e — Engine-canonical margin pair plumbed in so the CFO AI Summary
+  // block matches the dashboard tile and the P&L Key Margins block.
+  canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null };
+  // ‡ F1.e — Engine canonical statutory net profit (ct.121) so the RON
+  // figure in the summary block matches the dashboard tile.
+  netIncomeStatutory?: number | null;
+}) {
+  // 2026-05-24 — display currency threaded into the briefing snippet so
+  // the "Operating revenue X with Y% EBITDA margin and net profit Z"
+  // line matches whatever the user has the global toggle set to (matches
+  // the KPI tiles + the Statements tables).
+  const display = useDisplayCurrency();
+  const ratesPayload = useRates();
+  const summary = useMemo(
+    () =>
+      buildDeterministicSummary({
+        statements,
+        invoices,
+        ratios,
+        criticalCount,
+        highCount,
+        canonicalMargins,
+        netIncomeStatutory,
+        display,
+        rates: ratesPayload.rates,
+      }),
+    [statements, invoices, ratios, criticalCount, highCount, canonicalMargins, netIncomeStatutory, display, ratesPayload],
+  );
+
+  // Risks = critical + high recommendations (top 3).
+  // Opportunities = medium / info recommendations (top 3).
+  return (
+    <div className="space-y-7" data-testid="state-b-overview">
+      {/* The "CFO AI summary" card was removed 2026-07-25 — the header's CFO
+          briefing (Opus 4.7) is now the single narrative summary, so a second
+          shorter summary here was redundant. */}
+
+      {/* Enterprise & Equity Value — HERO valuation section on Dashboard.
+          EBITDA × peer-multiple is the headline; DCF + EV/Revenue are
+          cross-checks. Renders only when the pipeline produced a
+          valuations row for this period. */}
+      {valuation && periodId && (
+        <section data-testid="dashboard-valuation">
+          <ValuationSection
+            valuation={valuation}
+            periodId={periodId}
+            currency={statements?.currency ?? "RON"}
+          />
+        </section>
+      )}
+
+      {/* The "Top 3 risks · Top 3 opportunities" section was removed
+          2026-07-25 — those now surface as the Risks / Opportunities count
+          cards in the KPI grid above (and in full in the Recommendations tab). */}
+    </div>
+  );
+}
+
+function buildDeterministicSummary({
+  statements,
+  invoices,
+  ratios,
+  criticalCount,
+  highCount,
+  canonicalMargins,
+  netIncomeStatutory,
+  display,
+  rates,
+}: {
+  statements: Statements | null;
+  invoices: Invoice[] | null;
+  ratios: ReturnType<typeof computeRatios> | null;
+  criticalCount: number;
+  highCount: number;
+  // F1.e — Engine-canonical margin pair from calculated_metrics so this
+  // summary block matches every other margin display on the dashboard.
+  canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null };
+  // ‡ F1.e — Engine canonical statutory net profit (ct.121) so the RON
+  // figure in the summary agrees with the dashboard tile.
+  netIncomeStatutory?: number | null;
+  // 2026-05-24 — display currency + rates passed in from the caller's
+  // useCurrency() so the summary text converts source → display alongside
+  // the rest of the dashboard.
+  display: Currency;
+  rates: import("@/lib/rates").Rates;
+}): string {
+  const parts: string[] = [];
+  // Compact display-currency formatter — matches the formatCurrency()
+  // contract (returns "<CCY> 413.7M") but converts via the FX rates first.
+  const fmtCompact = (n: number, src: string): string => {
+    const converted = convertFromTo(n, src as Currency, display, rates);
+    const abs = Math.abs(converted);
+    let body: string;
+    if (abs >= 1_000_000_000) body = `${(converted / 1_000_000_000).toFixed(2)}B`;
+    else if (abs >= 1_000_000) body = `${(converted / 1_000_000).toFixed(2)}M`;
+    else if (abs >= 1_000) body = `${(converted / 1_000).toFixed(0)}K`;
+    else body = converted.toFixed(0);
+    return `${display} ${body}`;
+  };
+  if (statements && ratios) {
+    // Use the operating-view P&L so the summary matches the dashboard
+    // KPI tiles and the Financial Statements tab. EBITDA includes the
+    // 722 capitalized own-work / 767 discounts in revenue (reference
+    // convention); Net profit is the statutory bottom line.
+    const pl = buildPLStatementFromAggregates(statements, canonicalMargins);
+    const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
+    // F1.e — Prefer engine-canonical margin so summary matches the rest of
+    // the page; ×100 because engine emits a ratio and the UI shows percent.
+    const ebitdaMargin =
+      canonicalMargins && canonicalMargins.ebitdaMargin != null
+        ? canonicalMargins.ebitdaMargin * 100
+        : totalOperatingRevenue > 0
+          ? (pl.ebitda / totalOperatingRevenue) * 100
+          : 0;
+    // ‡ F1.e — Net profit RON in the summary is engine-canonical
+    // `net_income_statutory` (ct.121). Falls back to `pl.netProfitStatutory`
+    // / `pl.netProfit` only when the canonical row is unavailable.
+    const summaryNetProfit =
+      typeof netIncomeStatutory === "number"
+        ? netIncomeStatutory
+        : typeof pl.netProfitStatutory === "number"
+          ? pl.netProfitStatutory
+          : pl.netProfit;
+    const dteRatio = ratios.leverage.find((r) => r.key === "debt_to_ebitda");
+    parts.push(
+      `Operating revenue ${fmtCompact(totalOperatingRevenue, statements.currency)} with ` +
+      `${ebitdaMargin.toFixed(1)}% EBITDA margin and net profit ${fmtCompact(summaryNetProfit, statements.currency)}.`,
+    );
+    // Leverage paragraph — uses the same statutory EBITDA basis the
+    // Overview tile renders, computed locally from canonical numerator
+    // (engine `ebitda_statutory`) ÷ statement-level total debt. We do
+    // NOT route through `dteRatio.value` (which reads engine
+    // `calculated_metrics.debt_to_ebitda`) because that metric divides
+    // by cash-view `ebitda` rather than statutory — see comment on the
+    // tile rewire above for the EEI failure mode (−384× artifact).
+    // FE-arithmetic fallback through `pl.ebitda` preserves graceful
+    // degradation for pre-v2.1 envelopes.
+    const summaryEbitdaRon =
+      typeof statements.assembled_pl?.ebitda_statutory === "number"
+        ? statements.assembled_pl.ebitda_statutory
+        : pl.ebitda;
+    if (dteRatio && summaryEbitdaRon > 0) {
+      const dte = deriveTotals(statements).totalDebt / summaryEbitdaRon;
+      parts.push(
+        `Leverage ${dte.toFixed(2)}× Debt/EBITDA — ${
+          dte > 4.5 ? "stretched, refinancing risk elevated"
+          : dte > 3 ? "elevated, monitor covenants"
+          : "comfortable"
+        }.`,
+      );
+    } else if (dteRatio) {
+      parts.push(
+        `Leverage: EBITDA near zero — use LTV or NOI/debt-service instead of Debt/EBITDA for this asset profile.`,
+      );
+    }
+  }
+  if (invoices && invoices.length > 0) {
+    const ca = customerAnalytics(invoices);
+    parts.push(
+      `${invoices.filter((i) => i.direction === "sale").length.toLocaleString()} sales invoices across ${ca.customer_count} customers; ` +
+      `top customer ${(ca.top_1_share * 100).toFixed(1)}% of revenue.`,
+    );
+  }
+  if (criticalCount > 0 || highCount > 0) {
+    parts.push(
+      `${criticalCount} critical and ${highCount} high-priority recommendation${criticalCount + highCount === 1 ? "" : "s"} require attention.`,
+    );
+  }
+  return parts.join(" ");
+}
+
+function MiniStatements({
+  statements,
+  onJumpToTab,
+}: {
+  statements: Statements;
+  onJumpToTab: (tab: string) => void;
+}) {
+  const t = deriveTotals(statements);
+  const cur = statements.currency;
+  const cf = deriveCashFlow(statements);
+
+  // Pick the top-6 most material lines per statement. "Material" = absolute
+  // amount; we want the user to see real numbers without having to open the
+  // full statement.
+  const bsLines = [
+    ["Cash & equivalents", statements.balanceSheet.cash],
+    ["Property, plant & equipment", statements.balanceSheet.propertyPlantEquipment],
+    ["Accounts receivable", statements.balanceSheet.accountsReceivable],
+    ["Long-term debt", statements.balanceSheet.longTermDebt],
+    ["Accounts payable", statements.balanceSheet.accountsPayable],
+    ["Total equity", t.totalEquity],
+  ] as const;
+  const plLines = [
+    ["Revenue", statements.incomeStatement.revenue],
+    ["Operating expenses", -statements.incomeStatement.operatingExpenses],
+    ["EBITDA", t.ebitda],
+    ["D&A", -statements.incomeStatement.depreciationAmortization],
+    ["Interest expense", -statements.incomeStatement.interestExpense],
+    ["Net income", t.netIncome],
+  ] as const;
+  const cfLines = [
+    ["Net income", cf.netIncome],
+    ["+ D&A", cf.depreciationAmortization],
+    ["− ΔWorking capital", -cf.workingCapitalChange],
+    ["Cash from ops", cf.cfo],
+    ["− Capex", -cf.capex],
+    ["Free cash flow", cf.fcf],
+  ] as const;
+
+  return (
+    <section data-testid="mini-statements" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <MiniCard title="Balance sheet" lines={bsLines} currency={cur} onOpen={() => onJumpToTab("statements")} />
+      <MiniCard title="P&L" lines={plLines} currency={cur} onOpen={() => onJumpToTab("statements")} />
+      <MiniCard title="Cash flow (derived)" lines={cfLines} currency={cur} onOpen={() => onJumpToTab("statements")} />
+    </section>
+  );
+}
+
+function MiniCard({
+  title,
+  lines,
+  currency,
+  onOpen,
+}: {
+  title: string;
+  lines: ReadonlyArray<readonly [string, number]>;
+  currency: string;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-rule bg-surface overflow-hidden flex flex-col">
+      <div className="px-4 py-2.5 bg-bg-2/40 border-b border-rule">
+        <h3 className="text-[12px] uppercase tracking-[0.1em] text-ink-mute font-medium">{title}</h3>
+      </div>
+      <ul className="divide-y divide-rule/50 flex-1">
+        {lines.map(([label, amount]) => (
+          <li key={label} className="px-4 py-2 flex items-center justify-between gap-2 text-[12.5px]">
+            <span className="text-ink-soft truncate">{label}</span>
+            <span className={`tabular-nums font-medium ${amount < 0 ? "text-ink-soft" : "text-ink"}`}>
+              {amount < 0 ? `(${fmtMoney(Math.abs(amount), currency)})` : fmtMoney(amount, currency)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={onOpen}
+        className="text-[11.5px] text-brand-d hover:text-brand transition-colors px-4 py-2 border-t border-rule text-left inline-flex items-center gap-1"
+      >
+        View full statements
+        <ArrowRight size={11} strokeWidth={2} />
+      </button>
+    </div>
+  );
+}
+
+function RiskOpsList({
+  title,
+  tone,
+  items,
+  currency,
+  emptyText,
+  onJumpToTab,
+  jumpTab,
+}: {
+  title: string;
+  tone: "warn" | "ok";
+  items: Recommendation[];
+  currency: string;
+  emptyText: React.ReactNode;
+  onJumpToTab: (tab: string) => void;
+  jumpTab: string;
+}) {
+  const headerColor = tone === "warn" ? "text-[#2AA89B]" : "text-[#2AA89B]";
+  // The WHOLE card is the interactive element (2026-07-25) — the inner text
+  // no longer carries its own hover box. Hover styling copied from the Ask
+  // CFO AI suggestion cards: bg fades out on hover, with a brand focus ring.
+  return (
+    <button
+      type="button"
+      onClick={() => onJumpToTab(jumpTab)}
+      className="group block w-full text-left rounded-2xl border border-rule bg-surface overflow-hidden hover:bg-transparent transition-colors duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-brand/30"
+    >
+      <div className="px-5 py-3 border-b border-rule">
+        <h3 className={`text-[12px] uppercase tracking-[0.1em] font-medium ${headerColor}`}>{title}</h3>
+      </div>
+      {items.length === 0 ? (
+        <p className="px-5 py-4 text-[12.5px] text-ink-soft">{emptyText}</p>
+      ) : (
+        <ul className="divide-y divide-rule/50">
+          {items.map((rec) => (
+            <li key={rec.id} className="px-5 py-3">
+              <div className="text-[13px] text-ink font-medium leading-tight">{rec.title}</div>
+              <div className="text-[12px] text-ink-soft mt-0.5 line-clamp-2 leading-snug">{rec.rationale}</div>
+              {rec.estimatedImpact && (
+                <div className="text-[11.5px] text-[#2AA89B] mt-1">
+                  Estimated impact: <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / yr
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </button>
+  );
+}
+
+function CalloutCard({
+  tone,
+  title,
+  body,
+  metric,
+  metricLabel,
+}: {
+  tone: "strong" | "healthy" | "watch" | "critical";
+  title: string;
+  body: string;
+  metric?: string;
+  metricLabel?: string;
+}) {
+  const tones: Record<string, { ring: string; chip: string; chipText: string; label: string }> = {
+    strong: { ring: "border-[#8FE3D9]/60", chip: "bg-[#E6F7F4]", chipText: "text-[#2AA89B]", label: "Strong" },
+    healthy: { ring: "border-[#8FE3D9]/60", chip: "bg-[#E6F7F4]", chipText: "text-[#2AA89B]", label: "Healthy" },
+    watch: { ring: "border-[#8FE3D9]/60", chip: "bg-[#E6F7F4]", chipText: "text-[#2AA89B]", label: "Watch" },
+    critical: { ring: "border-red-300/60", chip: "bg-red-50", chipText: "text-red-700", label: "Critical" },
+  };
+  const t = tones[tone];
+  return (
+    <div className={`rounded-2xl border ${t.ring} bg-surface p-5`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-medium">{title}</div>
+        <span className={`text-[10.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full ${t.chip} ${t.chipText}`}>
+          {t.label}
+        </span>
+      </div>
+      {metric && (
+        <div className="mb-2">
+          <div className="font-serif text-[26px] text-ink leading-tight">{metric}</div>
+          {metricLabel && <div className="text-[11px] text-ink-mute uppercase tracking-[0.1em]">{metricLabel}</div>}
+        </div>
+      )}
+      <p className="text-[13px] text-ink-soft leading-snug">{body}</p>
+    </div>
+  );
+}
+
+/**
+ * Honest, measured extraction-accuracy banner. Replaces the old hardcoded
+ * "Automated extraction is typically 90%+ accurate" marketing claim.
+ *
+ * The number shown is REAL — computed from the just-uploaded document's
+ * balance-sheet reconciliation: accuracy = 100% − |bs_balance_delta| / total_assets.
+ * On calibrated Romanian fixtures this lands 99.97% (Scandia 0.03% drift),
+ * 100.00% (EEI), 99.00% (Sibiu 1% drift), down to 92.6% on noisier source data
+ * (Carniprod 7.4% drift). Never invents a number; never rounds up.
+ *
+ * Three states:
+ *   1. analyzing (no statements yet)         → "Measuring extraction accuracy…"
+ *   2. analyzed + drift available            → green/amber/red band + real number
+ *   3. analyzed but no BS data (rare legacy) → quiet "Verify key numbers" advisory
+ *      (no number claim — honesty over marketing).
+ */
+function ExtractionAccuracyBanner({
+  analyzed,
+  assembledBs,
+}: {
+  analyzed: boolean;
+  assembledBs?: Record<string, number> | null;
+}) {
+  // ── State 1: still analyzing ─────────────────────────────────────
+  if (!analyzed) {
+    return (
+      <div className="mt-5 flex gap-2.5 rounded-lg border border-rule bg-bg-2/40 px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-soft">
+        <Loader2 size={13} strokeWidth={1.75} className="text-ink-mute mt-0.5 shrink-0 animate-spin" />
+        <div>
+          <strong className="text-ink">Measuring extraction accuracy…</strong>{" "}
+          Computed from balance-sheet reconciliation on your document. Final
+          number appears once analysis completes.
+        </div>
+      </div>
+    );
+  }
+
+  // ── State 3: analyzed but no BS data (compute impossible) ───────
+  const totalAssets = Number(assembledBs?.total_assets ?? 0);
+  const bsDelta = Number(assembledBs?.bs_balance_delta ?? NaN);
+  if (!isFinite(bsDelta) || totalAssets <= 0) {
+    return (
+      <div className="mt-5 flex gap-2.5 rounded-lg border border-rule bg-bg-2/40 px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-soft">
+        <Info size={13} strokeWidth={1.75} className="text-ink-mute mt-0.5 shrink-0" />
+        <div>
+          <strong className="text-ink">Extraction accuracy not measurable on this document.</strong>{" "}
+          Verify key numbers (revenue, EBITDA, debt, equity) against your
+          source before sharing or using for decisions.
+        </div>
+      </div>
+    );
+  }
+
+  // ── State 2: analyzed + real number ─────────────────────────────
+  const driftPct = (Math.abs(bsDelta) / totalAssets) * 100;
+  const accuracyPct = Math.max(0, 100 - driftPct);
+  // NEVER round up. Truncate to 2 decimals for the headline; if accuracy
+  // is mathematically 100.00% (zero drift), show "100.00%" honestly.
+  const accuracyLabel = (Math.floor(accuracyPct * 100) / 100).toFixed(2);
+  const driftLabel = driftPct < 0.01
+    ? "< 0.01%"
+    : `${(Math.floor(driftPct * 100) / 100).toFixed(2)}%`;
+
+  // Bands (honesty over rounding):
+  //   ≥ 99.5%  → green ("strong")
+  //   ≥ 97.0%  → amber ("verify")
+  //   <  97%   → red   ("review carefully")
+  const band: "high" | "medium" | "low" =
+    accuracyPct >= 99.5 ? "high" : accuracyPct >= 97 ? "medium" : "low";
+
+  const tone =
+    band === "high"
+      ? {
+          border: "border-[#8FE3D9]/40",
+          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
+        }
+      : band === "medium"
+      ? {
+          border: "border-[#8FE3D9]/40",
+          bg: "bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.06]",
+          icon: <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
+          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
+        }
+      : {
+          border: "border-alert/40",
+          bg: "bg-alert/5",
+          icon: <AlertCircle size={13} strokeWidth={2} className="text-alert mt-0.5 shrink-0" />,
+          headline: "text-alert",
+        };
+
+  const advice =
+    band === "high"
+      ? "Strong reconciliation. Spot-check key figures (revenue, EBITDA, debt, equity) as routine."
+      : band === "medium"
+      ? "Verify key figures (revenue, EBITDA, debt, equity) against your source before sharing or relying on this analysis."
+      : "Review every line before sharing or using for decisions — extraction may have misclassified material amounts.";
+
+  return (
+    <div
+      data-testid="extraction-accuracy-banner"
+      data-accuracy-pct={accuracyLabel}
+      data-band={band}
+      className={`mt-5 flex gap-2.5 rounded-lg border ${tone.border} ${tone.bg} px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-soft`}
+    >
+      {tone.icon}
+      <div>
+        <strong className={tone.headline}>Extraction accuracy: {accuracyLabel}%</strong>{" "}
+        <span className="text-ink-soft">
+          — balance sheet reconciles within{" "}
+          <span className="tabular-nums">{driftLabel}</span> drift on this document.
+        </span>{" "}
+        {advice}
+      </div>
+    </div>
+  );
+}
+
+// Preview an example workbook in a NEW TAB without downloading it. A plain
+// <a href="*.xlsx" target="_blank"> just triggers a download (browsers
+// can't render xlsx inline), so we parse the sheet with SheetJS and open a
+// rendered HTML table instead. The tab is opened synchronously inside the
+// click gesture (so it isn't popup-blocked) and filled once parsed.
+// Module scope (2026-07-24) — used by BOTH the hero's template card
+// (example trial balances) and the upload panel.
+async function previewExampleInNewTab(file: string): Promise<void> {
+  const tab = window.open("", "_blank");
+  if (tab) {
+    tab.document.write(
+      "<!doctype html><title>Loading preview…</title>" +
+      "<body style=\"font:14px system-ui;padding:24px\">Loading preview…</body>",
+    );
+  }
+  try {
+    const res = await fetch(`/examples/${file}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const XLSX = await import("xlsx");
+    const wb = XLSX.read(buf, { type: "array" });
+    const sheetName = wb.SheetNames[0];
+    const tableHtml = XLSX.utils.sheet_to_html(wb.Sheets[sheetName]);
+    const doc =
+      `<!doctype html><html><head><meta charset="utf-8"><title>${file}</title><style>` +
+      "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
+      "h1{font-size:15px;margin:0 0 12px;color:#1B7268}" +
+      "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
+      "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
+      "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
+      `</style></head><body><h1>${file} · sheet "${sheetName}" (example — fictional data)</h1>${tableHtml}</body></html>`;
+    if (tab) {
+      tab.document.open();
+      tab.document.write(doc);
+      tab.document.close();
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    if (tab) {
+      tab.document.open();
+      tab.document.write(
+        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
+        `Couldn't load preview: ${msg}. ` +
+        `<a href="/examples/${file}" download>Download instead</a>.</body>`,
+      );
+      tab.document.close();
+    }
+  }
+}
+
+// DashboardMonthPills — the workspace's uploaded months as a pill row,
+// pinned above the loaded-month header. The FIRST item is an "Add month"
+// button (opens the file picker); the rest are the months newest-first,
+// the active one highlighted, each switching ?period= on click.
+/**
+ * "Source files" for the active month on the Dashboard — the same tile row
+ * Products renders under its pills (shared <SourceFilesRow />), fed with the
+ * FINANCIAL documents pinned to this period. Each tile opens the stored file
+ * in a preview tab via a short-lived signed URL.
+ *
+ * Renders nothing when the month has no documents: periods can also arrive
+ * from a sample dataset or a re-analysis with no live upload behind them, and
+ * an empty "Source files" heading would read as a broken section.
+ */
+
+// ── Dev tools: wipe this workspace's dashboard data ─────────────────────────
+//
+// Deletes every period in the active workspace through the engine's
+// DELETE /api/period/{id}, which soft-deletes the attached documents (they
+// stay restorable from Recently deleted for 30 days) and removes the
+// derivatives — statements, metrics, briefings, alerts, recommendations.
+//
+// NOT build-gated (2026-07-26 per operator): this ships to production. It is
+// an irreversible bulk action behind a confirm dialog; if it ever needs
+// restricting, gate it on workspace role rather than build mode.
+//
+// The workspace is left with no periods, so `useEnsureCurrentPeriod` creates
+// a fresh container for the current month on the next render — the user lands
+// on the dropzone rather than a broken empty screen.
+function DashboardDevTools() {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { org } = useActiveOrg();
+  // Only offer the wipe once there is something to wipe. `useOrgPeriods`
+  // already filters to periods that actually hold documents, so this is
+  // "has the user uploaded anything into this workspace".
+  //
+  // Before this, a brand-new workspace showed a red "Danger zone /
+  // permanent and cannot be undone" panel directly beneath the empty
+  // dropzone — the most alarming thing on the first screen, offering to
+  // destroy data that doesn't exist. (The button was not a no-op either:
+  // it toasted "Already clean".)
+  const { data: orgPeriods } = useOrgPeriods();
+  const hasUploads = (orgPeriods?.periods.length ?? 0) > 0;
+
+  async function wipe() {
+    if (!org?.id) return;
+    setBusy(true);
+    try {
+      const payload = await fetchWorkspacePeriodsDirect(org.id);
+      const periods = payload?.periods ?? [];
+      if (periods.length === 0) {
+        toast({ title: "Already clean", description: "This workspace has no periods." });
+        setOpen(false);
+        setBusy(false);
+        return;
+      }
+      let deleted = 0;
+      const failed: string[] = [];
+      for (const p of periods) {
+        const ok = await cfoApi.deletePeriod(p.period_id).then(
+          (r) => r.ok !== false,
+          () => false,
+        );
+        if (ok) deleted += 1;
+        else failed.push(formatPeriodMonth(p.period_end) ?? p.period_label);
+      }
+      // Repaint from scratch — every period-scoped cache entry is now stale.
+      queryClient.removeQueries({ queryKey: ["period"] });
+      queryClient.removeQueries({ queryKey: ["period-documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+      void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+      if (failed.length > 0) {
+        toast({
+          title: `${failed.length} period(s) could not be deleted`,
+          description: failed.slice(0, 3).join(" · "),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: `Deleted ${deleted} period${deleted === 1 ? "" : "s"}`,
+          description: "Files moved to Recently deleted — restorable for 30 days.",
+        });
+      }
+      setOpen(false);
+      setBusy(false);
+    } catch (err) {
+      toast({
+        title: "Couldn't wipe this workspace",
+        description: err instanceof Error ? err.message : "Unknown error.",
+        variant: "destructive",
+      });
+      setBusy(false);
+    }
+  }
+
+  // Nothing uploaded → no danger zone. Placed after every hook so the hook
+  // order stays unconditional.
+  if (!hasUploads) return null;
+
+  return (
+    <div
+      data-testid="dashboard-dev-tools"
+      className="mt-10 pt-5 border-t border-dashed border-rule flex items-center justify-between gap-3 flex-wrap"
+    >
+      <div>
+        <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-red-600/90">
+          Danger zone
+        </div>
+        <p className="text-[12px] text-ink-mute mt-0.5 max-w-[560px]">
+          Deleting this workspace&rsquo;s months is permanent and cannot be
+          undone. Statements, ratios, valuation, risk scores and
+          recommendations are erased for every month. The source files stay in
+          Recently deleted for 30 days and are then removed for good.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="dashboard-wipe-data"
+        title="Permanently delete every month in this workspace"
+        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-dashed border-red-500/40 bg-red-500/[0.06] text-[11px] font-mono uppercase tracking-[0.08em] text-red-600 hover:bg-red-500/15 transition-colors"
+      >
+        <Trash2 size={12} strokeWidth={2} />
+        Wipe data
+      </button>
+
+      <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
+        <DialogContent className="sm:max-w-[440px]" data-testid="dashboard-wipe-dialog">
+          <DialogHeader>
+            <DialogTitle>Permanently delete every month in this workspace?</DialogTitle>
+            <DialogDescription>
+              This cannot be undone. Every month goes, along with everything
+              derived from it — statements, ratios, valuation, risk scores and
+              recommendations.
+              <br />
+              <br />
+              The uploaded files move to Recently deleted, where they can be
+              restored for 30 days — after that they are gone for good. Other
+              workspaces, your Products datasets and your chats are not
+              touched.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void wipe()}
+              disabled={busy}
+              data-testid="dashboard-wipe-confirm"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} strokeWidth={1.75} />}
+              {busy ? "Deleting…" : "Delete all periods"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** The "N notes" pill that scrolls to the Notes & recommendations section.
+ *  Renders nothing when the period has no alerts and no recommendations. */
+function NotesJumpPill({
+  alerts,
+  recommendationCount,
+}: {
+  alerts: Array<{ severity?: string }>;
+  recommendationCount: number;
+}) {
+  const notesTotal = recommendationCount + alerts.length;
+  if (notesTotal === 0) return null;
+  const sev = (a: { severity?: string }) => a.severity ?? "";
+  const tone = alerts.some((a) => sev(a) === "critical" || sev(a) === "high")
+    ? "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20"
+    : alerts.some((a) => sev(a) === "medium")
+      ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+      : alerts.some((a) => sev(a) === "low" || sev(a) === "info")
+        ? "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+        : "border-brand/50 bg-brand/10 text-brand-d hover:bg-brand/20";
+  return (
+    <div className="flex justify-end mb-3">
+      <button
+        type="button"
+        onClick={() =>
+          document
+            .querySelector('[data-testid^="statement-notes-"]')
+            ?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+        data-testid="notes-jump-pill"
+        title="Jump to Notes & recommendations"
+        className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-semibold tabular-nums transition-colors ${tone}`}
+      >
+        <AlertTriangle size={17} strokeWidth={2} />
+        {notesTotal}
+      </button>
+    </div>
+  );
+}
+
+function DashboardSourceFiles({
+  periodId,
+  onAddFile,
+  trailing,
+}: {
+  periodId: string | null;
+  /** Chosen/dropped trial balance. Unlike Products (which uploads on the
+   *  spot) the dashboard stages it and opens the add-month flow, so the
+   *  period-confirmation step still runs. */
+  onAddFile: (file: File) => void;
+  /** Right-aligned content above the tiles. Empty today — the Guide me pill
+   *  that briefly lived here was removed (2026-07-26 per operator) — kept as
+   *  the slot Products uses for the same row. */
+  trailing?: ReactNode;
+}) {
+  // FINANCIAL scope only (2026-07-26). A SKU workbook uploaded on Products
+  // pins to the same month, so an unfiltered list showed it here among the
+  // files backing the trial-balance numbers — which it doesn't back at all.
+  // The scope is part of the query key: the two lists must not share a cache
+  // entry.
+  const { data: docs } = useQuery({
+    queryKey: ["period-documents", periodId, "financial"],
+    queryFn: async () => {
+      if (!periodId) return [];
+      const { listDocumentsForPeriod } = await import("@/lib/supabase");
+      return listDocumentsForPeriod(periodId, 50, "financial");
+    },
+    enabled: !!periodId,
+  });
+
+  return (
+    <div className="mb-5 space-y-3">
+      {trailing && (
+        <div className="flex items-center justify-end" data-testid="dashboard-row-actions">
+          {trailing}
+        </div>
+      )}
+      <SourceFilesRow
+        testid="dashboard-source-files"
+        files={(docs ?? []).map((d) => ({
+          id: d.id,
+          filename: d.original_filename,
+          uploadedAt: d.created_at,
+          onOpen: () =>
+            void openUploadedFilePreview(d.original_filename ?? "document", async () => {
+              const { signedDocumentUrl } = await import("@/lib/supabase");
+              return signedDocumentUrl(d);
+            }),
+        }))}
+        trailingHeading="Replace or add files"
+        trailing={
+          // Same strip as Products (2026-07-26 per operator): heading line
+          // carries "Replace or add files", an "or" separates the existing
+          // files from the zone, and the zone is the full dropzone with its
+          // own Import button.
+          <AddFileTile
+            accept={DASHBOARD_UPLOAD_ACCEPT}
+            onFile={onAddFile}
+            variant="wide"
+            label="Drop your trial balance here"
+            hint="PDF · XLSX · CSV · image"
+            title="Add a trial balance to this workspace — click to browse or drop one here"
+          />
+        }
+      />
+    </div>
+  );
+}
+
+// DashboardMonthPills deleted (2026-07-26 per operator). It rendered the
+// workspace's months as pills above the loaded-month header ("Dec 2025", …)
+// plus an "Add month" button. Both are gone: the sidebar stepper switches
+// months, and the "Add file" tile in the Source-files row adds one.
+
+// DashboardTemplateCard — the /products "Start from the official
+// template" card, dashboard flavour: Trial Balance leads as required,
+// and the example trial balances REPLACE the template Download/View
+// buttons as the card's action rows. Mounted in the page hero's right
+// column (beside the title), like /products.
+function DashboardTemplateCard() {
+  return (
+    <TemplateDownloadCard
+      variant="prominent"
+      context="dashboard"
+      actions={
+        <div className="mt-3.5" data-testid="trial-balance-examples">
+          <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+            Example trial balances
+          </div>
+          <div className="space-y-2">
+            {[
+              { label: "Multi-column format", file: "example_trial_balance_8col.xlsx", testid: "8col" },
+              { label: "Standard SAGA format", file: "example_trial_balance_6col.xlsx", testid: "6col" },
+            ].map((ex) => (
+              <div
+                key={ex.file}
+                className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-medium text-ink truncate">
+                    {ex.label} <span className="text-ink-mute font-normal">(XLSX)</span>
+                  </div>
+                  <div className="text-[10.5px] text-ink-mute">
+                    Fictional data; demonstrates the required structure.
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void previewExampleInNewTab(ex.file)}
+                    data-testid={`view-example-${ex.testid}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                  >
+                    <ExternalLink size={12} strokeWidth={2} />
+                    View
+                  </button>
+                  <a
+                    href={`/examples/${ex.file}`}
+                    download={ex.file}
+                    data-testid={`download-example-${ex.testid}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
+                  >
+                    <ArrowDownToLine size={12} strokeWidth={2} />
+                    Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+    />
+  );
+}
+
+// DashboardAddMonthZone — the loaded-state ("State B") upload affordance: a
+// compact drop target plus the official-template card, laid out like the
+// empty-state hero / /products. Dropping or importing a file stages it (the
+// same staged-files → Start scan → period-confirm flow the empty state uses),
+// so a workspace that already has a month can take the next one in place.
+function DashboardAddMonthZone({
+  stagedFiles,
+  scanning,
+  onDrop,
+  onTriggerFile,
+  onViewStaged,
+  onDiscardStaged,
+  onDismissAll,
+  onStartScan,
+  onSimulate,
+  hideHeader = false,
+}: {
+  stagedFiles: File[];
+  scanning: boolean;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onTriggerFile: () => void;
+  onViewStaged: (file: File) => void;
+  onDiscardStaged: (index: number) => void;
+  onDismissAll: () => void;
+  onStartScan: () => void;
+  /** Localhost-only: simulate a scan without a real file/backend. */
+  onSimulate?: () => void;
+  /** Hide the "Add another month" eyebrow (the modal supplies its own title). */
+  hideHeader?: boolean;
+}) {
+  const [dragActive, setDragActive] = useState(false);
+  const staged = stagedFiles.length > 0;
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+  return (
+    <section className={hideHeader ? "" : "mb-8"} data-testid="dashboard-add-month">
+      {!hideHeader && (
+        <div className="mb-3 inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+          <UploadCloud size={12} strokeWidth={2.25} className="text-brand-d" />
+          Add another month
+        </div>
+      )}
+      {/* Drop target — full width now that the official-template card moved up
+          beside the loaded-month header. */}
+      <div>
+        <div
+          data-testid="dashboard-add-month-dropzone"
+          onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+          onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+          onDrop={(e) => { setDragActive(false); onDrop(e); }}
+          data-drag-active={dragActive ? "true" : "false"}
+          className={`
+            relative overflow-hidden rounded-2xl border-2 border-dashed
+            p-5 sm:p-6 transition-all duration-150
+            ${dragActive
+              ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30"
+              : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
+          `}
+        >
+          <div aria-hidden className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-brand/8 blur-3xl" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-12 text-ink opacity-[0.06]">
+            <Cloud size={280} strokeWidth={1} />
+            <ArrowUp size={100} strokeWidth={2.5} className="absolute left-1/2 top-[60%] -translate-x-1/2 -translate-y-1/2" />
+          </div>
+
+          {/* Localhost-only debug button — simulate a scan without a real
+              file or backend. Never rendered on the deployed site. */}
+          {isLocalhost && onSimulate && (
+            <button
+              type="button"
+              data-testid="debug-simulate-upload"
+              onClick={onSimulate}
+              className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
+            >
+              Debug: simulate scan
+            </button>
+          )}
+
+          {!staged ? (
+            <div className="relative flex flex-col items-center text-center py-2">
+              <h3 className="text-[15px] font-semibold text-ink">
+                {dragActive ? "Drop your file to upload" : "Drop next month's trial balance"}
+              </h3>
+              <p className="text-[12px] text-ink-soft mt-1">XLSX · CSV · PDF · up to 25 MB</p>
+              <button
+                type="button"
+                onClick={onTriggerFile}
+                data-testid="dashboard-add-month-import"
+                className="mt-3.5 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
+              >
+                Import
+              </button>
+            </div>
+          ) : (
+            <div className="relative text-left" data-testid="dashboard-staged-files">
+              <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+                Uploaded files
+              </div>
+              <div className="space-y-2">
+                {/* The row ITSELF opens the preview (2026-07-26 per operator
+                    — the separate Eye button was removed); X stays as its own
+                    sibling since buttons can't nest. */}
+                {stagedFiles.map((f, i) => (
+                  <div
+                    key={`${f.name}-${f.size}-${i}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 pr-3 transition-colors hover:border-rule-strong hover:bg-bg-2/70"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onViewStaged(f)}
+                      aria-label={`Preview ${f.name}`}
+                      title="Open a preview in a new window"
+                      className="flex flex-1 items-center gap-2 min-w-0 px-3 py-2 text-left"
+                    >
+                      <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
+                        <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDiscardStaged(i)}
+                      disabled={scanning}
+                      aria-label={`Remove ${f.name}`}
+                      className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                    >
+                      <X size={14} strokeWidth={2} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={onDismissAll}
+                  disabled={scanning}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                >
+                  <X size={13} strokeWidth={2} />
+                  Dismiss all
+                </button>
+                <button
+                  type="button"
+                  onClick={onStartScan}
+                  disabled={scanning}
+                  data-testid="dashboard-add-month-start-scan"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
+                >
+                  {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
+                  {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function UploadAndSamplePanel({
+  statements,
+  activeSampleId,
+  uploadName,
+  onPickSample,
+  onReset,
+  onTriggerFile,
+  onDrop,
+  fileRef,
+  onFileChosen,
+  onSimulate,
+  stagedFiles,
+  onDiscardStaged,
+  onDismissAll,
+  onStartScan,
+  scanning,
+  inflight,
+  onViewResults,
+}: {
+  statements: Statements | null;
+  activeSampleId: string | null;
+  uploadName: string | null;
+  onPickSample: (id: string) => void;
+  onReset?: () => void;
+  onTriggerFile: () => void;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  fileRef: React.RefObject<HTMLInputElement>;
+  onFileChosen: (file: File) => void;
+  /** Localhost-only: simulate a scan without a real file/backend. Renders a
+   *  debug button over the drop zone when supplied AND running on localhost. */
+  onSimulate?: () => void;
+  /** Files staged for scanning (choosing/dropping adds; nothing uploads until
+   *  onStartScan). When non-empty, the list replaces the example-files list. */
+  stagedFiles: File[];
+  onDiscardStaged: (index: number) => void;
+  onDismissAll: () => void;
+  onStartScan: () => void;
+  scanning: boolean;
+  /** Live per-file scan progress. When set, the drop zone renders progress
+   *  in-place (council visualizer + steps) instead of the idle upload UI. */
+  inflight: { status: import("@/lib/supabase").DocumentStatus; filename: string; docId: string } | null;
+  /** Opens the just-finished analysis — wired to the scan view's "Scan
+   *  complete" card so the user confirms the hand-off into State B. */
+  onViewResults: () => void;
+}) {
+  // Drag-over state — drives the dropzone's "file hovering" styling and the
+  // "Drop your file to upload" affordance text.
+  const [dragActive, setDragActive] = useState(false);
+
+  // In-flight scan progress. `scanActive` flips the drop zone from its idle
+  // upload UI to the in-place progress view (no separate modal/card).
+  const scanActive = !!inflight;
+  const PIPELINE_STEPS = [
+    "Detect format",
+    "Extract data",
+    "Rebuild statements",
+    "Calculate ratios",
+    "Generate recs",
+  ];
+  const STATUS_ORDINAL: Record<string, number> = {
+    queued: 0, extracting: 1, mapping: 2, computing: 3, narrating: 4, analyzed: 5, failed: 0,
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    queued: "Queued for analysis…",
+    extracting: "Reading the document…",
+    mapping: "Mapping accounts…",
+    computing: "Computing ratios…",
+    narrating: "Generating insights…",
+    analyzed: "Analysis ready",
+    failed: "Analysis failed",
+  };
+  const currentOrdinal = inflight ? (STATUS_ORDINAL[inflight.status] ?? 0) : 0;
+  const statusLabel = inflight ? (STATUS_LABEL[inflight.status] ?? inflight.status) : "";
+
+  // Localhost-only gate for the "simulate scan" debug button — it must never
+  // appear on the deployed site, only when developing against localhost.
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+
+  // ── SCANNING VIEW (2026-07-24) ─────────────────────────────────────
+  // While a scan is in flight the entry surface reduces to exactly two
+  // things: the pipeline steps pinned at the top of the page, and the
+  // council sphere filling the rest of the viewport. The hero copy,
+  // document-type guide, dropzone chrome, and samples all hide until
+  // the scan settles (analyzed → State B takes over; failed → this
+  // branch exits and the idle surface returns).
+  if (scanActive && inflight) {
+    return (
+      <ScanProgressView
+        status={inflight.status}
+        steps={TRIAL_BALANCE_STEPS}
+        onCancel={clearUpload}
+        onViewResults={onViewResults}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* ── HERO CALLOUT — empty-state primary CTA ──────────────────────
+          Only the legacy listafirme.ro pitch (UploadHeroCallout) renders as
+          a separate hero, and only when PUBLIC_RECORDS_ENABLED is on. In the
+          current product (flag off) the guided trial-balance copy is NOT a
+          separate card — it's folded into the drop-zone below as that card's
+          header (see the header block inside data-testid="upload-dropzone").
+          Rendered only on the empty state so the dashboard isn't crowded
+          once the user has data. */}
+      {PUBLIC_RECORDS_ENABLED && <UploadHeroCallout />}
+
+      {/* Document-type guide — always-visible grid above the drop
+          section, headed by the same "Expected format" section label
+          /products uses. */}
+      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+        Expected format
+      </h2>
+      <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="upload-document-guide">
+        <DocGuideCard
+          title="Trial balance (balanță de verificare)"
+          format="XLSX · CSV · PDF"
+          shows="Per-account drilldown, full P&L + BS + cash flow reconciliation, 25+ ratios, valuation, credit score, peer benchmarks"
+          where={[
+            { label: "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)", href: null },
+            { label: "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)", href: null },
+          ]}
+          tone="best"
+        />
+        {PUBLIC_RECORDS_ENABLED && (
+          <DocGuideCard
+            title="Public records summary"
+            format="PDF only"
+            shows="Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history."
+            where={[
+              { label: "listafirme.ro/<company-slug>-<CUI>", href: "https://listafirme.ro" },
+              { label: "termene.ro/firma/<CUI>", href: "https://termene.ro" },
+              { label: "firme.info/<CUI>", href: "https://firme.info" },
+              { label: "risco.ro/cui-<CUI>", href: "https://risco.ro" },
+            ]}
+            tone="free"
+          />
+        )}
+        <DocGuideCard
+          title="Statutory ANAF filing"
+          format="XLSX (Formular F30 + F10)"
+          shows="Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers."
+          where={[
+            { label: "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX", href: "https://anaf.ro" },
+            { label: "Your accountant's archive — the annual filing they sent to ANAF", href: null },
+          ]}
+          tone="ok"
+        />
+        <DocGuideCard
+          title="Sales / trading analysis"
+          format="XLSX export"
+          shows="SKU-level portfolio classification (anchor / scale / watch / eliminate), DIO + capital trap detection. Renders in /products."
+          where={[
+            { label: "Your ERP's Trading Analysis report (XLSX)", href: null },
+            { label: "Pivot of monthly sales with: SKU, volume, revenue, GM, DIO, customer category", href: null },
+          ]}
+          tone="ok"
+        />
+      </div>
+
+
+      {/* The official-template card moved beside the page title (the
+          hero's right column, like /products) — see DashboardTemplateCard
+          rendered from the page hero. */}
+
+      <div className={`grid grid-cols-1 ${SAMPLES_ENABLED ? "lg:grid-cols-[1.2fr_1fr]" : ""} gap-4`}>
+      {/* Upload zone — premium AI ingestion surface. Same logic, same
+       *  callbacks, same hidden <input ref={fileRef}> at the page root.
+       *  Only the chrome was upgraded: glass card, gradient icon,
+       *  ring-glow on drag-over, refined chip styling. */}
+      <div
+        data-testid="upload-dropzone"
+        onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+        onDrop={(e) => { setDragActive(false); onDrop(e); }}
+        data-drag-active={dragActive ? "true" : "false"}
+        className={`
+          relative overflow-hidden
+          rounded-2xl border-2 border-dashed
+          backdrop-blur-sm
+          p-6 sm:p-7
+          flex flex-col items-center justify-center text-center
+          min-h-[240px]
+          transition-all duration-150
+          ${dragActive
+            ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
+            : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
+        `}
+      >
+        {/* Atmospheric brand glow */}
+        <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-brand/8 blur-3xl" />
+
+        {/* Oversized upload mark — decorative, pinned to the bottom-left
+            corner and clipped by the card's overflow-hidden (2026-07-24;
+            replaces the small icon tile that sat above the heading). */}
+        {/* Composed cloud + up-arrow mark. `opacity` on the WRAPPER (not
+            alpha in the stroke color): everything flattens to one layer
+            first, so overlapping strokes — including where the arrow
+            crosses the cloud — never stack to double opacity. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-32 -left-16 text-ink opacity-[0.08]"
+        >
+          <Cloud size={440} strokeWidth={1} />
+          <ArrowUp
+            size={160}
+            strokeWidth={2.5}
+            className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2"
+          />
+        </div>
+
+        {/* Localhost-only debug button — simulate a scan without a real file
+            or backend. Never rendered on the deployed site. */}
+        {isLocalhost && onSimulate && (
+          <button
+            type="button"
+            data-testid="debug-simulate-upload"
+            onClick={onSimulate}
+            className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
+          >
+            Debug: simulate scan
+          </button>
+        )}
+
+        {/* Idle head — drag & drop + Choose a file. Fades/collapses out when a
+            scan starts (the progress steps then take over the drop zone). */}
+        <AnimatePresence initial={false}>
+          {!scanActive && (
+            <motion.div
+              key="dz-head"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.25 }}
+              className="relative flex flex-col items-center overflow-hidden"
+            >
+              {/* Products-style dropzone content (2026-07-24) — heading +
+                  format line + bordered chooser; the icon moved to the
+                  card's bottom-left corner as an oversized decorative
+                  mark. */}
+              <h3 className="text-[16px] font-semibold text-ink">
+                {dragActive ? "Drop your file to upload" : "Drop your trial balance here"}
+              </h3>
+              <p className="text-[12.5px] text-ink-soft mt-1">
+                XLSX · CSV · PDF · up to 25 MB
+              </p>
+              {/* Same treatment as the sidebar's ACTIVE tab: animated
+                  teal gradient fill + brand border. */}
+              <button
+                onClick={onTriggerFile}
+                className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
+              >
+                Import
+              </button>
+              {uploadName && (
+                <div className="mt-3 text-[11.5px] text-ink-mute">
+                  Received: <span className="text-ink">{uploadName}</span>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* AI Council visualizer — the live "thinking" sphere, driven by the
+         *  council's Supabase Realtime broadcast for this document. Renders
+         *  only during a scan, scaled into the drop zone; wrapped so a canvas
+         *  error degrades to the step progress below instead of crashing. */}
+        <AnimatePresence initial={false}>
+          {scanActive && inflight?.docId && (
+            <motion.div
+              key="dz-council"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="relative w-full"
+            >
+              <InlineErrorBoundary
+                tag="CouncilVisualizer"
+                label="The council visualizer hit a snag — analysis is still running; watch the steps below."
+                onReset={() => { /* visual-only; nothing to reset */ }}
+              >
+                <CouncilVisualizer documentId={inflight.docId} />
+              </InlineErrorBoundary>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Pipeline steps. Idle: a preview of what CFO AI will do. During a
+         *  scan: the idle head above fades out and (via layout animation)
+         *  these steps glide to the TOP of the drop zone, lighting up to the
+         *  current stage — the in-place progress that replaces the old modal. */}
+        <motion.ol
+          layout
+          transition={{ type: "spring", stiffness: 260, damping: 30 }}
+          className={`relative w-full max-w-[560px] mx-auto flex items-start justify-between gap-2 ${scanActive ? "mt-1" : "mt-6"}`}
+          aria-label="Analysis pipeline"
+          data-testid="upload-pipeline"
+        >
+          {/* Connector line — drawn behind the dots */}
+          <span aria-hidden className="absolute top-4 left-3 right-3 h-px bg-gradient-to-r from-transparent via-rule to-transparent" />
+          {PIPELINE_STEPS.map((label, i) => {
+            const done = scanActive && i < currentOrdinal;
+            const active = scanActive && i === currentOrdinal;
+            return (
+              <li key={label} className="relative flex-1 min-w-0 flex flex-col items-center text-center">
+                <span className={`
+                  relative z-10 inline-flex items-center justify-center
+                  h-8 w-8 rounded-full text-[12px] font-semibold tabular-nums
+                  shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors duration-300
+                  ${done
+                    ? "bg-brand text-paper border border-brand"
+                    : active
+                    ? "bg-brand/15 text-brand-d border border-brand ring-2 ring-brand/30"
+                    : "bg-surface text-ink-soft border border-rule"}
+                `}>
+                  {/* Slow sonar glow while active; fades out (700ms) when
+                      the next step starts — same treatment as
+                      ScanProgressView's circles. */}
+                  <span
+                    aria-hidden
+                    className={`absolute -inset-px rounded-full step-pulse transition-opacity duration-700 ease-out ${active ? "opacity-100" : "opacity-0"}`}
+                  />
+                  {`0${i + 1}`}
+                </span>
+                <span className={`mt-2 text-[11.5px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[100px] ${active ? "text-ink" : "text-ink-mute"}`}>
+                  {label}
+                </span>
+              </li>
+            );
+          })}
+        </motion.ol>
+
+        {/* Live status line during a scan. */}
+        <AnimatePresence initial={false}>
+          {scanActive && (
+            <motion.p
+              key="dz-status"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              aria-live="polite"
+              className="relative mt-4 text-[13px] font-medium text-ink"
+            >
+              {statusLabel}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        {!scanActive && (stagedFiles.length > 0 ? (
+          /* Staged files — replaces the example list once files are added.
+             Each has an X to discard; nothing uploads until Start scan. */
+          <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
+            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+              Uploaded files
+            </div>
+            <div className="space-y-2">
+              {/* The row ITSELF opens the preview (2026-07-26 per operator —
+                  the separate Eye button was removed); X stays as its own
+                  sibling since buttons can't nest. */}
+              {stagedFiles.map((f, i) => (
+                <div
+                  key={`${f.name}-${f.size}-${i}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 pr-3 transition-colors hover:border-rule-strong hover:bg-bg-2/70"
+                >
+                  <button
+                    type="button"
+                    onClick={() => void openStagedFile(f)}
+                    aria-label={`Preview ${f.name}`}
+                    title="Open a preview in a new window"
+                    data-testid={`view-staged-${i}`}
+                    className="flex flex-1 items-center gap-2 min-w-0 px-3 py-2 text-left"
+                  >
+                    <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-medium text-ink truncate">{f.name}</div>
+                      <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDiscardStaged(i)}
+                    disabled={scanning}
+                    aria-label={`Remove ${f.name}`}
+                    data-testid={`discard-staged-${i}`}
+                    className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                  >
+                    <X size={14} strokeWidth={2} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={onDismissAll}
+                disabled={scanning}
+                data-testid="dismiss-all-staged"
+                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+              >
+                <X size={13} strokeWidth={2} />
+                Dismiss all
+              </button>
+              <button
+                type="button"
+                onClick={onStartScan}
+                disabled={scanning}
+                data-testid="start-scan"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
+              >
+                {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
+                {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+              </button>
+            </div>
+          </div>
+        ) : null)}
+
+        {/* The "Every upload is auto-checked" note was removed
+            2026-07-24 per operator directive. */}
+      </div>
+
+      {/* Sample picker — production default OFF (set VITE_ENABLE_SAMPLES=true
+          for development with fictional fixtures). When disabled, the entire
+          right-rail panel is omitted and the dropzone above spans full-width. */}
+      {SAMPLES_ENABLED && (
+      <div data-testid="sample-picker-panel" className="rounded-2xl border border-rule bg-surface p-5">
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <h3 className="font-serif text-[16px] text-ink">Try a sample</h3>
+          <div className="flex items-center gap-3">
+            {statements && (
+              <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium truncate max-w-[140px]">
+                {statements.companyName}
+              </span>
+            )}
+            {onReset && (
+              <button
+                type="button"
+                onClick={onReset}
+                className="text-[11px] text-ink-mute hover:text-ink underline-offset-2 hover:underline"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          {SAMPLE_DATASETS.map((s) => (
+            <button
+              key={s.id}
+              data-testid={`sample-pick-${s.id}`}
+              onClick={() => onPickSample(s.id)}
+              className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors flex items-start gap-3 ${
+                activeSampleId === s.id
+                  ? "bg-brand-tint border border-brand-d/20"
+                  : "bg-bg-2/40 hover:bg-bg-2 border border-transparent"
+              }`}
+            >
+              <div className="h-8 w-8 rounded-lg bg-bg-2 text-ink-mute flex items-center justify-center shrink-0 mt-0.5">
+                <Building2 size={13} strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium text-ink truncate">{s.label}</div>
+                <div className="text-[11.5px] text-ink-soft leading-snug mt-0.5 line-clamp-2">{s.description}</div>
+              </div>
+              <ChevronRight size={14} strokeWidth={1.75} className="text-ink-mute mt-1.5 shrink-0" />
+            </button>
+          ))}
+        </div>
+      </div>
+      )}
+      </div>
+
+      {/* The "Every upload is auto-checked" note moved INSIDE the
+          dropzone (2026-07-24). */}
+    </div>
+  );
+}
+
+
+// Hero callout — listafirme.ro as the primary "no document?" CTA.
+// Rendered ABOVE the dropzone on the empty state (UploadAndSamplePanel
+// only mounts when statements is null, i.e. no analysis yet). When the
+// user has data, the dashboard renders the analysis view instead and
+// this hero is unmounted along with the rest of the upload panel.
+// Gated by PUBLIC_RECORDS_ENABLED — preserved on disk so the listafirme
+// positioning can be restored by a one-line flag flip if needed.
+function UploadHeroCallout() {
+  return (
+    <div
+      data-testid="upload-hero-callout"
+      className="rounded-2xl px-6 py-6 sm:px-8 sm:py-7 text-white flex flex-col sm:flex-row items-start gap-4 sm:gap-5"
+      style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}
+    >
+      <div className="text-[36px] sm:text-[42px] leading-none shrink-0" aria-hidden>
+        📊
+      </div>
+      <div className="flex-1 min-w-0">
+        <h2 className="font-serif text-[20px] sm:text-[22px] leading-tight m-0 text-white">
+          No financial document? Get one free in 60 seconds.
+        </h2>
+        <p className="mt-2 text-[13.5px] sm:text-[14px] leading-relaxed text-white/85">
+          Search any Romanian company (SRL or SA) on{" "}
+          <strong className="text-white">listafirme.ro</strong> by name or CUI, open{" "}
+          <strong className="text-white">"Date de bilanț"</strong>, hit{" "}
+          <strong className="text-white">"Print PDF"</strong>, then drop the file below.
+          You'll get a 20-year financial history analyzed in under a minute.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <a
+            href="https://www.listafirme.ro"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="upload-hero-cta"
+            className="inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold transition-colors"
+            style={{ background: "#5CD3C5", color: "#1a1a1a" }}
+          >
+            Open listafirme.ro ↗
+          </a>
+          <span className="text-[11.5px] text-white/70">
+            Free · Instant · No accountant needed
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Document-guide card. One row in the "what can I upload" expandable.
+// `tone` colors the left border: best (green — most data unlocked), ok
+// (neutral), free (blue — free public source, frictionless onboarding).
+function DocGuideCard({ title, format, shows, where, tone }: {
+  title: string;
+  format: string;
+  shows: string;
+  where: Array<{ label: string; href: string | null }>;
+  tone: "best" | "ok" | "free";
+}) {
+  const borderClass =
+    tone === "best" ? "border-l-brand"
+    : tone === "free" ? "border-l-brand"
+    : "border-l-rule-strong";
+  const toneBadge =
+    tone === "best" ? { label: "MOST DATA", cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
+    : tone === "free" ? { label: "FREE / INSTANT", cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
+    : { label: "AGGREGATE", cls: "bg-bg-2 text-ink-soft" };
+  return (
+    <div className={`rounded-lg border border-rule border-l-[3px] ${borderClass} bg-surface p-3 text-left`}>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="text-[12.5px] font-medium text-ink leading-tight">{title}</div>
+        <span className={`shrink-0 text-[9px] uppercase tracking-[0.06em] font-semibold px-1.5 py-0.5 rounded ${toneBadge.cls}`}>
+          {toneBadge.label}
+        </span>
+      </div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">{format}</div>
+      <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2">{shows}</p>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1">Where to get it</div>
+      <ul className="space-y-0.5">
+        {where.map((w, i) => (
+          <li key={i} className="text-[11.5px] text-ink-soft leading-tight">
+            <span className="text-ink-mute mr-1">·</span>
+            {w.href ? (
+              <a href={w.href} target="_blank" rel="noopener noreferrer"
+                 className="text-[#2AA89B] dark:text-[#8FE3D9] hover:underline underline-offset-2">
+                {w.label}
+              </a>
+            ) : (
+              <span>{w.label}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Wrapper around all 6 RatioGroupSections that owns the selected-ratio
+// state and renders the premium explainer drawer. Owning state here
+// keeps the Ratios surface self-contained — no upstream prop drilling,
+// no global store for an interaction that's scoped to this tab.
+function RatiosTabContent({ ratios, statements }: { ratios: RatioBundle; statements: Statements | null }) {
+  const [selected, setSelected] = useState<Ratio | null>(null);
+  return (
+    <>
+      <RatioGroupSection title="Liquidity"                           ratios={ratios.liquidity}     onPick={setSelected} />
+      <div data-guide="ratios-profitability">
+        <RatioGroupSection title="Profitability"                     ratios={ratios.profitability} onPick={setSelected} />
+      </div>
+      <div data-guide="ratios-leverage">
+        <RatioGroupSection title="Leverage"                          ratios={ratios.leverage}      onPick={setSelected} />
+        <div className="mt-8">
+          <RatioGroupSection title="Coverage"                        ratios={ratios.coverage}      onPick={setSelected} />
+        </div>
+      </div>
+      <div data-guide="ratios-efficiency">
+        <RatioGroupSection title="Efficiency · working capital cycle" ratios={ratios.efficiency}    onPick={setSelected} />
+      </div>
+      <div data-guide="ratios-risk">
+        <RatioGroupSection title="Bankruptcy risk"                   ratios={ratios.bankruptcy}    onPick={setSelected} />
+      </div>
+
+      {/* Premium explainer drawer — 8 sections + related-ratio pivot.
+       *  See `src/components/cfo/RatioDetailDrawer.tsx` and the
+       *  knowledge map at `src/lib/ratioKnowledge.ts`. The drawer
+       *  reads the company's live values from the same `ratios`
+       *  bundle this tab already has, so opening it is a free
+       *  client-side action — no fetch, no re-compute. */}
+      <RatioDetailDrawer
+        ratio={selected}
+        bundle={ratios}
+        statements={statements}
+        onClose={() => setSelected(null)}
+        onPickRelated={setSelected}
+      />
+    </>
+  );
+}
+
+function RatioGroupSection({
+  title, ratios, onPick,
+}: {
+  title: string;
+  ratios: Ratio[];
+  /** Click on any ratio tile opens the premium explainer drawer.
+   *  Threaded down from the Ratios TabsContent which owns the
+   *  selected-ratio state and renders the drawer. */
+  onPick?: (r: Ratio) => void;
+}) {
+  return (
+    <div>
+      {/* Eyebrow-style section header matches the new global design
+       *  vocabulary used elsewhere in the app (uppercase + 0.12em
+       *  tracking + brand-tinted small accent). */}
+      <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-3">
+        {title}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {ratios.map((r) => (
+          <RatioTile key={r.key} ratio={r} onPick={onPick} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RatioTile({
+  ratio, onPick,
+}: {
+  ratio: Ratio;
+  onPick?: (r: Ratio) => void;
+}) {
+  const clickable = typeof onPick === "function";
+  // The tile becomes a button when clickable, keeping keyboard focus,
+  // Enter/Space activation, and an aria role for AT users. When the
+  // Ratios tab isn't mounted with a `onPick` (legacy callers) it
+  // gracefully degrades to the static-card look.
+  const Tag = (clickable ? "button" : "div") as "button" | "div";
+  return (
+    <Tag
+      type={clickable ? "button" : undefined}
+      onClick={clickable ? () => onPick!(ratio) : undefined}
+      data-testid="ratio-tile"
+      data-ratio-key={ratio.key}
+      aria-label={clickable ? `Open ${ratio.label} detail` : undefined}
+      className={`
+        group relative w-full text-left
+        rounded-2xl border border-rule bg-surface p-4
+        transition-all duration-150
+        ${clickable
+          ? "hover:border-brand/30 hover:bg-surface/95 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.12)] focus:outline-none focus:ring-2 focus:ring-brand/30 cursor-pointer"
+          : ""}
+      `}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="text-[11px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+          {ratio.label}
+        </div>
+        <span
+          className={`text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border text-ink anim-fill-verdict ${
+            ratio.verdict === "critical"
+              ? "anim-fill-red border-red-500/40"
+              : ratio.verdict === "watch"
+                ? "anim-fill-amber border-amber-500/40"
+                : "anim-fill-green border-brand/40"
+          }`}
+        >
+          {verdictLabel(ratio.verdict)}
+        </span>
+      </div>
+      <div className="text-[24px] font-semibold text-ink leading-tight tabular-nums tracking-[-0.005em]">
+        <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
+          {formatRatio(ratio)}
+        </LearnableNumber>
+      </div>
+      <div className="text-[11px] text-ink-mute mt-1">{ratio.benchmark}</div>
+      <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3">
+        {ratio.commentary}
+      </p>
+      {clickable && (
+        <div className="mt-2 inline-flex items-center gap-1 text-[10.5px] text-ink-mute group-hover:text-brand-d transition-colors">
+          <span>Open explainer</span>
+          <span aria-hidden>→</span>
+        </div>
+      )}
+    </Tag>
+  );
+}
+
+function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: string }) {
+  const tones: Record<string, { pillBg: string; pillText: string }> = {
+    critical: { pillBg: "bg-red-600", pillText: "text-white" },
+    high:     { pillBg: "bg-[#5CD3C5]", pillText: "text-white" },
+    medium:   { pillBg: "bg-[#2AA89B]", pillText: "text-white" },
+    info:     { pillBg: "bg-ink-mute", pillText: "text-white" },
+  };
+  const t = tones[rec.priority];
+
+  // F5.0 Phase 7 — expose the engine's already-computed trigger facts so the
+  // reader can audit WHY the rule fired. Each fact maps to a registered
+  // concept where possible; clicking the label opens the underlying
+  // ratio / metric popover (not the meta-concept). No new logic — these
+  // values come straight from the rule's factsCited payload.
+  const factEntries = rec.factsCited
+    ? Object.entries(rec.factsCited).filter(([, v]) => Number.isFinite(v))
+    : [];
+
+  const fmtFactValue = (key: string, value: number): string => {
+    const k = key.toLowerCase();
+    // Ratios / multiples
+    if (k === "dscr" || k === "current_ratio" || k === "quick_ratio"
+        || k === "cash_ratio" || k === "interest_coverage"
+        || k === "net_debt_ebitda" || k === "debt_to_equity"
+        || k === "debt_to_ebitda_adjusted") {
+      return `${value.toFixed(2)}×`;
+    }
+    // Percent metrics (engine emits as decimal)
+    if (k.endsWith("_margin") || k === "roe" || k === "roa" || k === "roic"
+        || k === "equity_ratio" || k === "current_rate"
+        || k.endsWith("_pct")) {
+      // current_rate is small (0.07 = 7%); roe/margins are also decimals.
+      return `${(value * 100).toFixed(1)}%`;
+    }
+    // Day-count metrics
+    if (k === "dio" || k === "dso" || k === "dpo" || k === "ccc"
+        || k.endsWith("_days")) {
+      return `${Math.round(value)} days`;
+    }
+    // Z-score family
+    if (k.startsWith("altman_z")) {
+      return value.toFixed(2);
+    }
+    // Score family (0-9 or 0-100)
+    if (k === "piotroski_f") {
+      return `${value.toFixed(0)} / 9`;
+    }
+    // Currency-ish (debt / impact / savings / cash / revenue)
+    if (Math.abs(value) >= 1_000) {
+      // Use Money for currency formatting where it's a money number.
+      return ""; // sentinel — rendered via <Money/> in JSX
+    }
+    return value.toFixed(2);
+  };
+
+  const isMoneyFact = (key: string, value: number): boolean => {
+    const k = key.toLowerCase();
+    if (k === "dscr" || k === "current_ratio" || k === "quick_ratio"
+        || k === "cash_ratio" || k === "interest_coverage"
+        || k === "net_debt_ebitda" || k === "debt_to_equity"
+        || k === "debt_to_ebitda_adjusted") return false;
+    if (k.endsWith("_margin") || k === "roe" || k === "roa" || k === "roic"
+        || k === "equity_ratio" || k === "current_rate"
+        || k.endsWith("_pct")) return false;
+    if (k === "dio" || k === "dso" || k === "dpo" || k === "ccc"
+        || k.endsWith("_days")) return false;
+    if (k.startsWith("altman_z") || k === "piotroski_f") return false;
+    return Math.abs(value) >= 1_000;
+  };
+
+  const askPrompt =
+    `Explain why the recommendation "${rec.title}" fired on this dataset. ` +
+    `Walk me through the trigger metric(s), how they compare to the threshold, ` +
+    `and what the proposed action would change in concrete numbers. ` +
+    `Cite the underlying RAS accounts where possible.`;
+
+  return (
+    <div className="rounded-2xl border border-rule bg-surface p-5" data-testid={`rec-card-${rec.id}`}>
+      <div className="flex items-start gap-3 mb-2">
+        <span className={`text-[10.5px] font-semibold uppercase tracking-[0.06em] px-2.5 py-1 rounded ${t.pillBg} ${t.pillText}`}>
+          <LearnableRowLabel conceptKey="alert_severity">{rec.priority}</LearnableRowLabel>
+        </span>
+        <h3 className="font-serif text-[16.5px] text-ink leading-tight">{rec.title}</h3>
+      </div>
+      <p className="text-[13px] text-ink-soft mt-2"><span className="text-ink font-medium">Why:</span> {rec.rationale}</p>
+      <p className="text-[13px] text-ink-soft mt-2"><span className="text-ink font-medium">Action:</span> {rec.action}</p>
+
+      {factEntries.length > 0 && (
+        <div className="mt-3 rounded-lg border border-rule/70 bg-bg-2/40 px-3 py-2">
+          <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-soft mb-1.5">
+            Triggered by
+          </div>
+          <ul className="space-y-1">
+            {factEntries.map(([k, v]) => {
+              const conceptKey = factToConceptKey(k);
+              const label = factLabel(k);
+              const money = isMoneyFact(k, v);
+              return (
+                <li
+                  key={k}
+                  className="flex items-baseline justify-between gap-3 text-[12.5px]"
+                  data-testid={`rec-fact-${rec.id}-${k}`}
+                >
+                  <span className="text-ink-soft">
+                    {conceptKey ? (
+                      <LearnableRowLabel conceptKey={conceptKey}>{label}</LearnableRowLabel>
+                    ) : (
+                      label
+                    )}
+                  </span>
+                  <span className="font-medium tabular-nums text-ink">
+                    {conceptKey ? (
+                      <LearnableNumber conceptKey={conceptKey} value={v}>
+                        {money ? (
+                          <Money value={v} fromCurrency={currency as Currency} compact />
+                        ) : (
+                          fmtFactValue(k, v)
+                        )}
+                      </LearnableNumber>
+                    ) : money ? (
+                      <Money value={v} fromCurrency={currency as Currency} compact />
+                    ) : (
+                      fmtFactValue(k, v)
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center gap-3 flex-wrap">
+        {rec.estimatedImpact && (
+          <div className="inline-flex items-center text-[11.5px] font-medium text-[#2AA89B] bg-[#E6F7F4] px-3 py-1 rounded-md">
+            <LearnableRowLabel conceptKey="recommendation_impact">Estimated impact</LearnableRowLabel>:{" "}
+            <LearnableNumber conceptKey="recommendation_impact" value={rec.estimatedImpact}>
+              <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact />
+            </LearnableNumber>
+            {" "}/ year
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => openAskCfoAi(askPrompt)}
+          className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2/60 border border-rule rounded-md px-2.5 py-1 transition-colors"
+          data-testid={`rec-ask-${rec.id}`}
+        >
+          <Sparkles size={11} strokeWidth={2.25} />
+          Ask CFO AI about this
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BalanceSheetTable({ statements }: { statements: Statements }) {
+  const t = deriveTotals(statements);
+  const bs = statements.balanceSheet;
+  const cur = statements.currency;
+  const row = (label: string, val: number, opts?: { indent?: boolean; subtotal?: boolean; total?: boolean }) => (
+    <tr
+      className={`${opts?.total ? "border-y-2 border-ink/20 font-semibold" : opts?.subtotal ? "bg-bg-2/40 font-semibold" : "border-b border-rule"} text-[13px]`}
+    >
+      <td className={`py-2 px-3 ${opts?.indent ? "pl-8 text-ink-soft" : "text-ink"}`}>{label}</td>
+      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(val, cur)}</td>
+    </tr>
+  );
+  return (
+    <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+      <div className="px-5 py-3 bg-bg-2/40 border-b border-rule">
+        <h2 className="font-serif text-[18px] text-ink">Balance sheet · {statements.periodLabel}</h2>
+      </div>
+      <table className="w-full">
+        <tbody>
+          {row("Current assets", t.totalCurrentAssets, { subtotal: true })}
+          {row("Cash & equivalents", bs.cash, { indent: true })}
+          {row("Accounts receivable", bs.accountsReceivable, { indent: true })}
+          {row("Inventory", bs.inventory, { indent: true })}
+          {row("Other current assets", bs.otherCurrentAssets, { indent: true })}
+          {row("Non-current assets", t.totalNonCurrentAssets, { subtotal: true })}
+          {row("Property, plant & equipment", bs.propertyPlantEquipment, { indent: true })}
+          {row("Intangibles", bs.intangibles, { indent: true })}
+          {row("Other non-current assets", bs.otherNonCurrentAssets, { indent: true })}
+          {row("Total assets", t.totalAssets, { total: true })}
+          {row("Current liabilities", t.totalCurrentLiabilities, { subtotal: true })}
+          {row("Accounts payable", bs.accountsPayable, { indent: true })}
+          {row("Short-term debt", bs.shortTermDebt, { indent: true })}
+          {row("Other current liabilities", bs.otherCurrentLiabilities, { indent: true })}
+          {row("Non-current liabilities", t.totalNonCurrentLiabilities, { subtotal: true })}
+          {row("Long-term debt", bs.longTermDebt, { indent: true })}
+          {row("Other non-current liabilities", bs.otherNonCurrentLiabilities, { indent: true })}
+          {row("Total liabilities", t.totalLiabilities, { subtotal: true })}
+          {row("Share capital", bs.shareCapital, { indent: true })}
+          {row("Retained earnings", bs.retainedEarnings, { indent: true })}
+          {row("Other equity", bs.otherEquity, { indent: true })}
+          {row("Total equity", t.totalEquity, { subtotal: true })}
+          {row("Total liabilities + equity", t.totalLiabilitiesAndEquity, { total: true })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function IncomeStatementTable({ statements }: { statements: Statements }) {
+  const t = deriveTotals(statements);
+  const is = statements.incomeStatement;
+  const cur = statements.currency;
+  const row = (label: string, val: number, opts?: { indent?: boolean; subtotal?: boolean; total?: boolean; negative?: boolean }) => (
+    <tr
+      className={`${opts?.total ? "border-y-2 border-ink/20 font-semibold" : opts?.subtotal ? "bg-bg-2/40 font-semibold" : "border-b border-rule"} text-[13px]`}
+    >
+      <td className={`py-2 px-3 ${opts?.indent ? "pl-8 text-ink-soft" : "text-ink"}`}>{label}</td>
+      <td className="py-2 px-3 text-right tabular-nums text-ink">
+        {opts?.negative ? `(${fmtMoney(val, cur)})` : fmtMoney(val, cur)}
+      </td>
+    </tr>
+  );
+  return (
+    <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+      <div className="px-5 py-3 bg-bg-2/40 border-b border-rule">
+        <h2 className="font-serif text-[18px] text-ink">Profit & loss · {statements.periodLabel}</h2>
+      </div>
+      <table className="w-full">
+        <tbody>
+          {row("Revenue", is.revenue)}
+          {row("Cost of goods sold", is.costOfGoodsSold, { indent: true, negative: true })}
+          {row("Gross profit", t.grossProfit, { subtotal: true })}
+          {row("Operating expenses", is.operatingExpenses, { indent: true, negative: true })}
+          {row("Other income", is.otherIncome, { indent: true })}
+          {row("EBITDA", t.ebitda, { subtotal: true })}
+          {row("Depreciation & amortization", is.depreciationAmortization, { indent: true, negative: true })}
+          {row("EBIT", t.ebit, { subtotal: true })}
+          {row("Interest expense", is.interestExpense, { indent: true, negative: true })}
+          {row("Profit before tax", t.pbt, { subtotal: true })}
+          {row("Tax expense", is.taxExpense, { indent: true, negative: true })}
+          {row("Net income", t.netIncome, { total: true })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Currency-aware money formatter for the DCF / valuation tables.
+ *  Routes the source-currency value through the global currency switcher
+ *  (RON → EUR → USD) so toggling the top-bar updates every KpiTile +
+ *  table cell that consumes the return value. */
+function useFmtMoney() {
+  const display = useDisplayCurrency();
+  const rates = useRates();
+  return (n: number, sourceCurrency: string): string => {
+    if (n === null || n === undefined || !Number.isFinite(n)) return "—";
+    const src = (sourceCurrency || "RON") as Currency;
+    const converted = convertFromTo(n, src, display, rates.rates);
+    const sign = converted < 0 ? "-" : "";
+    const abs = Math.abs(converted);
+    return `${sign}${display} ${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  };
+}
+
+// ─── VALUATION PANEL ──────────────────────────────────────────────────────
+
+function ValuationPanel({
+  statements,
+  valuation,
+}: {
+  statements: Statements;
+  valuation: PeriodValuation | null;
+}) {
+  const wacc = useMemo(() => computeCostOfCapital(statements), [statements]);
+  const dcf = useMemo(() => runDcf(statements), [statements]);
+  const graham = useMemo(() => runGraham(statements), [statements]);
+  const cfClient = useMemo(() => deriveCashFlow(statements), [statements]);
+  const growth = useMemo(() => multiPeriodGrowth(statements), [statements]);
+  const cur = statements.currency;
+  const fmtMoney = useFmtMoney();
+
+  // ── PREFER backend-canonical FCF (real CapEx, statutory NI). The
+  // client-side deriveCashFlow falls back to D&A when capex is missing —
+  // the bug from the screenshots. When the period response carries
+  // `fcf_breakdown`, use it verbatim. ──
+  const fb = valuation?.fcf_breakdown ?? null;
+  const netIncomeView = fb?.net_income ?? cfClient.netIncome;
+  const depView = fb?.depreciation ?? cfClient.depreciationAmortization;
+  const wcView = fb?.net_wc_change ?? cfClient.workingCapitalChange;
+  const cfoView = fb?.cash_from_operating ?? cfClient.cfo;
+  const capexView = fb?.capex_real ?? -cfClient.capex;       // negative = cash out
+  const fcfView = fb?.free_cash_flow ?? cfClient.fcf;
+  const capexAbs = Math.abs(capexView);
+  const fcfNegativeDev = fb?.is_development_phase && fcfView < 0;
+
+  const pct = (x: number, d = 1) => `${(x * 100).toFixed(d)}%`;
+
+  return (
+    <>
+      {/* Cash flow snapshot */}
+      <div>
+        <h2 className="font-serif text-[22px] text-ink mb-3">Free cash flow</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <KpiTile label="Net income" value={<LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub="statutory view" />
+          <KpiTile label="+ D&A" value={<LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>} />
+          <KpiTile label="− ΔWorking capital" value={<LearnableNumber conceptKey="working_capital_changes" value={wcView}>{fmtMoney(wcView, cur)}</LearnableNumber>} />
+          <KpiTile label="= CFO" value={<LearnableNumber conceptKey="operating_cash_flow" value={cfoView}>{fmtMoney(cfoView, cur)}</LearnableNumber>} />
+          <KpiTile
+            label="− CapEx"
+            value={<LearnableNumber conceptKey="capex" value={capexAbs}>{fmtMoney(capexAbs, cur)}</LearnableNumber>}
+            sub={fb ? "CIP additions, real" : "estimated as D&A"}
+          />
+          <KpiTile
+            label="= FCF"
+            value={<LearnableNumber conceptKey="free_cash_flow" value={fcfView}>{fmtMoney(fcfView, cur)}</LearnableNumber>}
+            sub={
+              fcfNegativeDev
+                ? "Development-phase cash drag"
+                : fcfView > 0
+                  ? "Positive cash generation"
+                  : "Cash burning"
+            }
+          />
+        </div>
+      </div>
+
+      {/* WACC */}
+      <div>
+        <h2 className="font-serif text-[22px] text-ink mb-3">Cost of capital (WACC)</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <KpiTile label="WACC" value={<LearnableNumber conceptKey="wacc" value={wacc.wacc}>{pct(wacc.wacc, 2)}</LearnableNumber>} sub={`Cost of equity ${pct(wacc.costOfEquity, 2)}`} />
+          <KpiTile label="Cost of equity" value={<LearnableNumber conceptKey="cost_of_equity" value={wacc.costOfEquity}>{pct(wacc.costOfEquity, 2)}</LearnableNumber>} sub={`Rf ${pct(wacc.riskFreeRate, 1)} + β${wacc.beta.toFixed(2)} × ERP ${pct(wacc.equityRiskPremium, 1)}`} />
+          <KpiTile label="Cost of debt (after tax)" value={<LearnableNumber conceptKey="cost_of_debt" value={wacc.costOfDebtAfterTax}>{pct(wacc.costOfDebtAfterTax, 2)}</LearnableNumber>} sub={`Pre-tax ${pct(wacc.costOfDebtPreTax, 2)} · tax ${pct(wacc.taxRate, 1)}`} />
+          <KpiTile label="Weight equity" value={pct(wacc.weightOfEquity, 1)} />
+          <KpiTile label="Weight debt" value={pct(wacc.weightOfDebt, 1)} />
+        </div>
+      </div>
+
+      {/* DCF */}
+      <div>
+        <h2 className="font-serif text-[22px] text-ink mb-3">DCF intrinsic value</h2>
+        {fb?.is_development_phase && (
+          <div className="mb-3 rounded-xl border border-info/40 bg-info-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed flex items-start gap-2">
+            <Info size={14} strokeWidth={2} className="mt-0.5 shrink-0 text-info" />
+            <span>
+              Development phase detected — one-time CIP capex of{" "}
+              <span className="tabular-nums font-medium">{fmtMoney(capexAbs, cur)}</span>{" "}
+              is excluded from the perpetuity. DCF uses stabilized FCF
+              (net income + ΔWC ≈ {fmtMoney(fb.stabilized_fcf, cur)}) for the terminal value, since
+              the CIP spend is a one-shot development outlay, not recurring.
+            </span>
+          </div>
+        )}
+        <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+          {/* FIT-1 — header row stacks vertically on narrow widths so the
+              long "Equity value RON 450,489,717" headline never collides
+              with the description block on its left. */}
+          <div className="px-5 py-3 bg-bg-2/40 border-b border-rule flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="min-w-0">
+              <div className="font-serif text-[16px] text-ink">5-year explicit forecast + Gordon terminal</div>
+              <div className="text-[12px] text-ink-soft break-words">
+                Base FCF (stabilized run-rate){" "}
+                <span className="text-ink font-medium tabular-nums">{fmtMoney(dcf.baseFcf, cur)}</span>
+                {" · "}Forecast growth {pct(dcf.forecastGrowthRate, 1)} · Terminal growth {pct(dcf.terminalGrowthRate, 1)} · WACC {pct(dcf.wacc, 2)}
+              </div>
+              <div className="text-[11px] text-ink-mute mt-1 leading-snug">
+                Stabilized FCF = CFO − maintenance capex (≈ D&A). Not the one-period FCF —
+                that includes the one-shot CIP outlay and would crush the perpetuity.
+              </div>
+            </div>
+            <div className="md:text-right min-w-0 md:shrink-0">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">Equity value</div>
+              <div className="font-serif num-hero-fluid-lg text-ink leading-tight tabular-nums break-words">
+                <LearnableNumber
+                  conceptKey="equity_value"
+                  value={valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue}
+                >
+                  {fmtMoney(
+                    valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue,
+                    cur,
+                  )}
+                </LearnableNumber>
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+          <table className="w-full text-[13px] min-w-[480px] sm:min-w-0">
+            <thead>
+              <tr className="bg-bg-2/30">
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">Year</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">FCF</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">Discount factor</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">Present value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dcf.yearByYear.map((y) => (
+                <tr key={y.year} className="border-t border-rule">
+                  <td className="py-2 px-4 text-ink">Year {y.year}</td>
+                  <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(y.fcf, cur)}</td>
+                  <td className="py-2 px-4 text-right tabular-nums text-ink-soft">{y.discountFactor.toFixed(4)}</td>
+                  <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(y.presentValue, cur)}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-rule bg-bg-2/30">
+                <td className="py-2 px-4 text-ink font-medium" colSpan={3}>Terminal value (PV)</td>
+                <td className="py-2 px-4 text-right tabular-nums text-ink font-medium">
+                  <LearnableNumber conceptKey="terminal_value" value={dcf.terminalValuePresent}>
+                    {fmtMoney(dcf.terminalValuePresent, cur)}
+                  </LearnableNumber>
+                </td>
+              </tr>
+              <tr className="border-t-2 border-ink/30 bg-bg-2/40">
+                <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>Enterprise value</td>
+                <td className="py-2 px-4 text-right tabular-nums text-ink font-semibold">
+                  <LearnableNumber conceptKey="enterprise_value" value={dcf.enterpriseValue}>
+                    {fmtMoney(dcf.enterpriseValue, cur)}
+                  </LearnableNumber>
+                </td>
+              </tr>
+              <tr className="border-t border-rule">
+                <td className="py-2 px-4 text-ink-soft" colSpan={3}>− Net debt</td>
+                <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(-dcf.netDebt, cur)}</td>
+              </tr>
+              <tr className="border-t-2 border-ink/30 bg-brand-tint">
+                <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>Equity value</td>
+                <td className="py-2 px-4 text-right tabular-nums text-ink font-semibold">
+                  <LearnableNumber conceptKey="equity_value" value={dcf.equityValue}>
+                    {fmtMoney(dcf.equityValue, cur)}
+                  </LearnableNumber>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+
+          {/* ── 3-scenario sensitivity (Romania-corrected WACC) ──
+              The DCF on real estate is highly sensitive to WACC. A ±100 bps
+              shift in WACC moves equity value by RON ~6M. We show three
+              brackets (Optimistic / Central / Conservative) explicitly
+              so readers can locate themselves on the band rather than
+              trusting a single point estimate. */}
+          {dcf.scenarios && dcf.scenarios.length > 0 && (
+            <div className="px-5 py-4 border-t border-rule bg-bg-2/20">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium mb-2">
+                Sensitivity (Romania-corrected WACC) · forecast g {pct(dcf.forecastGrowthRate, 1)} · terminal g {pct(dcf.terminalGrowthRate, 1)}
+              </div>
+              <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="w-full text-[13px] min-w-[560px] sm:min-w-0">
+                <thead>
+                  <tr className="bg-bg-2/40">
+                    <th className="text-left py-2 px-3 font-medium text-ink-mute">Scenario</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">WACC</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">Enterprise value</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">− Net debt</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">Equity value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dcf.scenarios.map((sc) => (
+                    <tr
+                      key={sc.label}
+                      className={`border-t border-rule ${sc.label === "Central" ? "bg-[#E6F7F4]/40 font-semibold" : ""}`}
+                    >
+                      <td className="py-2 px-3 text-ink">{sc.label}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink">{pct(sc.wacc, 2)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(sc.enterpriseValue, cur)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink-soft">{fmtMoney(-sc.netDebt, cur)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(sc.equityValue, cur)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+              {/* 2026-07-25 — inputs quoted from the ACTUAL cost-of-capital
+                  object (not hardcoded prose), and the old real-estate
+                  framing ("levered RE", "cap-rate-implied", "yielding RE
+                  asset") was removed: this branch renders for companies the
+                  router did NOT classify as CRE, so that narrative described
+                  exactly the companies it doesn't apply to. Labeled as
+                  illustrative defaults — no uploaded trial balance carries
+                  market inputs, so Rf/ERP/β are standing RO-market defaults,
+                  not derived from the user's data. */}
+              <p className="text-[11.5px] text-ink-mute mt-2 leading-snug">
+                Inputs: Rf {pct(wacc.riskFreeRate, 2)} (Romanian 10Y sovereign in RON) · ERP{" "}
+                {pct(wacc.equityRiskPremium, 1)} (Romania mature EM, Damodaran) · β {wacc.beta.toFixed(2)} —
+                standing market defaults, not derived from the uploaded trial balance. Treat this DCF
+                as an illustrative cross-check on the band above; the primary valuation comes from the
+                engine&rsquo;s method for this company.
+              </p>
+            </div>
+          )}
+
+          <div className="px-5 py-3 border-t border-rule bg-bg-2/20 grid grid-cols-2 gap-4">
+            <div className="min-w-0">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">EV / EBITDA</div>
+              <div className="font-serif text-[18px] text-ink tabular-nums break-words">{dcf.evToEbitda.toFixed(2)}×</div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">EV / Revenue</div>
+              <div className="font-serif text-[18px] text-ink tabular-nums break-words">{dcf.evToRevenue.toFixed(2)}×</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Graham — FIT-1: tile values use num-hero-fluid-sm so long
+          intrinsic-equity strings (RON 656,047,165) shrink to fit in
+          the 2-col grid at mobile widths. */}
+      <div>
+        <h2 className="font-serif text-[22px] text-ink mb-3">Graham intrinsic value</h2>
+        <div className="rounded-2xl border border-rule bg-surface p-5">
+          <div className="text-[12px] text-ink-soft mb-3 font-mono break-words">
+            {graham.formula} &nbsp;·&nbsp; g = {pct(graham.growthRate, 1)} &nbsp;·&nbsp; Y = {pct(graham.bondYield, 2)}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="min-w-0">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">Net income (TTM)</div>
+              <div className="font-serif num-hero-fluid-sm text-ink tabular-nums break-words">
+                {fmtMoney(graham.eps * (statements.supplementary.sharesOutstanding ?? 1), cur)}
+              </div>
+              <div className="text-[10.5px] text-ink-mute mt-0.5">statutory view</div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">Graham fair equity value</div>
+              <div className="font-serif num-hero-fluid-sm text-ink tabular-nums break-words">{fmtMoney(graham.intrinsicEquityValue, cur)}</div>
+            </div>
+          </div>
+          {/* 2026-07-25 — honesty note: g and Y are standing defaults (no
+              uploaded trial balance carries growth/bond-yield inputs). */}
+          <p className="text-[11.5px] text-ink-mute mt-3 leading-snug">
+            g and Y are standing defaults, not derived from the uploaded trial balance —
+            an illustrative cross-check only.
+          </p>
+        </div>
+      </div>
+
+      {/* Multi-period growth */}
+      {growth.length > 0 && (
+        <div>
+          <h2 className="font-serif text-[22px] text-ink mb-3">Multi-period growth</h2>
+          <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+            <div className="overflow-x-auto">
+            <table className="w-full text-[13px] min-w-[560px] sm:min-w-0">
+              <thead>
+                <tr className="bg-bg-2/30">
+                  <th className="text-left py-2 px-4 font-medium text-ink-mute">Metric</th>
+                  {growth[0].values.map((v) => (
+                    <th key={v.period} className="text-right py-2 px-4 font-medium text-ink-mute">{v.period}</th>
+                  ))}
+                  <th className="text-right py-2 px-4 font-medium text-ink-mute">CAGR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {growth.map((row) => (
+                  <tr key={row.metric} className="border-t border-rule">
+                    <td className="py-2 px-4 text-ink">{row.metric}</td>
+                    {row.values.map((v) => (
+                      <td key={v.period} className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(v.value, cur)}</td>
+                    ))}
+                    <td className={`py-2 px-4 text-right tabular-nums font-medium ${row.cagr >= 0 ? "text-[#2AA89B]" : "text-red-700"}`}>
+                      {row.cagr >= 0 ? "+" : ""}{(row.cagr * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── RISKS & CREDIT PANEL ─────────────────────────────────────────────────
+
+function RisksPanel({
+  statements,
+  creditEnvelope,
+  piotroskiEnvelope,
+  metricsByName,
+}: {
+  statements: Statements;
+  // F2.4 — engine canonical envelopes (assembled_metrics.credit +
+  // assembled_metrics.piotroski). When supplied, computeCreditScore
+  // returns engine canonical (30/20/15/10/10/10/5 weights, engine
+  // letter_grade, engine subscores). Falls back to FE arithmetic only
+  // for sample data without an engine envelope.
+  creditEnvelope?: import("@/lib/financialValuation").CreditEnvelope;
+  piotroskiEnvelope?: import("@/lib/financialValuation").PiotroskiEnvelope;
+  metricsByName?: Record<string, number | null>;
+}) {
+  const credit = useMemo(
+    () => computeCreditScore(statements, creditEnvelope, piotroskiEnvelope, metricsByName),
+    [statements, creditEnvelope, piotroskiEnvelope, metricsByName],
+  );
+  const piotroski = credit.piotroski;
+  const altman = credit.altman;
+
+  const ratingTone = (rating: string): string => {
+    if (rating.startsWith("AAA") || rating.startsWith("AA") || rating === "A") return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
+    if (rating.startsWith("BBB")) return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
+    if (rating.startsWith("BB")) return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
+    if (rating.startsWith("B") || rating === "CCC") return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
+    return "bg-red-50 text-red-700 border-red-300/60";
+  };
+
+  const gradeLabel = credit.grade.replace(/_/g, " ");
+
+  return (
+    <>
+      {/* Composite credit score */}
+      <div>
+        <h2 className="font-serif text-[22px] text-ink mb-3">Composite credit score</h2>
+        <div className="rounded-2xl border-2 border-brand/40 ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.5px] [animation-duration:36s] text-ink p-4 sm:p-6 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-[0.12em] font-medium opacity-80">Credit rating</div>
+            <div className="font-serif text-[clamp(40px,11vw,64px)] leading-none mt-1">{credit.rating}</div>
+            <div className="text-[12px] mt-2 opacity-80">
+              Composite score: {credit.score} / 100 · <span className="capitalize">{gradeLabel}</span>
+            </div>
+          </div>
+          <Shield className="opacity-30 shrink-0 h-12 w-12 sm:h-16 sm:w-16" strokeWidth={1.25} />
+        </div>
+        <div className="mt-3 rounded-2xl border border-rule bg-surface overflow-hidden">
+          <div className="overflow-x-auto">
+          <table className="w-full text-[13px] min-w-[600px] sm:min-w-0">
+            <thead>
+              <tr className="bg-bg-2/30">
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">Component</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">Value</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">Weight</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">Contribution</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">Read</th>
+              </tr>
+            </thead>
+            <tbody>
+              {credit.components.map((c) => (
+                <tr key={c.label} className="border-t border-rule">
+                  <td className="py-2 px-4 text-ink">{c.label}</td>
+                  <td className="py-2 px-4 text-right tabular-nums text-ink">
+                    {Number.isFinite(c.value) ? c.value.toFixed(2) : "—"}
+                  </td>
+                  <td className="py-2 px-4 text-right tabular-nums text-ink-soft">{(c.weight * 100).toFixed(0)}%</td>
+                  <td className="py-2 px-4 text-right tabular-nums text-ink">{c.contribution.toFixed(1)}</td>
+                  <td className="py-2 px-4 text-ink-soft text-[12px]">{c.read}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Piotroski F-Score */}
+      <div>
+        <h2 className="font-serif text-[22px] text-ink mb-3">Piotroski F-Score</h2>
+        <div className="rounded-2xl border border-rule bg-surface p-5 flex items-center justify-between mb-3">
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">9-point quality screen</div>
+            <div className="font-serif text-[clamp(28px,7vw,40px)] text-ink leading-none mt-1">
+              {piotroski.passCount}
+              {piotroski.uncertainCount > 0 ? (
+                <span className="text-[16px] text-ink-soft"> / {9 - piotroski.uncertainCount} confirmed</span>
+              ) : (
+                <span className="text-[16px] text-ink-soft"> / 9</span>
+              )}
+            </div>
+            <div className="text-[12px] text-ink-soft mt-1">
+              {piotroski.band}
+              {piotroski.uncertainCount > 0
+                ? ` · ${piotroski.uncertainCount} check${piotroski.uncertainCount === 1 ? "" : "s"} uncertain (prior-period data missing)`
+                : ""}
+            </div>
+          </div>
+          <TrendingUp size={48} strokeWidth={1.25} className="text-ink-mute opacity-50" />
+        </div>
+        <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+          <div className="overflow-x-auto">
+          <table className="w-full text-[13px] min-w-[480px] sm:min-w-0">
+            <thead>
+              <tr className="bg-bg-2/30">
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">Check</th>
+                <th className="text-center py-2 px-4 font-medium text-ink-mute w-20">Result</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {piotroski.checks.map((c) => {
+                const tone =
+                  c.result === "pass"
+                    ? "text-[#2AA89B]"
+                    : c.result === "fail"
+                      ? "text-red-700"
+                      : "text-ink-mute";
+                const glyph = c.result === "pass" ? "✓" : c.result === "fail" ? "✗" : "?";
+                return (
+                  <tr key={c.key} className="border-t border-rule">
+                    <td className="py-2 px-4 text-ink">{c.label}</td>
+                    <td className={`py-2 px-4 text-center font-semibold ${tone}`}>{glyph}</td>
+                    <td className="py-2 px-4 text-ink-soft text-[12.5px]">{c.detail}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Altman Z (variant-aware) */}
+      <div>
+        <h2 className="font-serif text-[22px] text-ink mb-3">
+          Bankruptcy risk · Altman {altman.variant}
+        </h2>
+        <div className="rounded-2xl border border-rule bg-surface p-5">
+          <div className="flex items-baseline justify-between gap-4 flex-wrap">
+            <div>
+              <div className="font-serif text-[clamp(28px,7vw,40px)] text-ink leading-none">{altman.score.toFixed(2)}</div>
+              <div className="text-[12px] text-ink-soft mt-1">
+                ≥ {altman.thresholds.safe.toFixed(2)} safe · {altman.thresholds.distress.toFixed(2)}–{altman.thresholds.safe.toFixed(2)} grey · &lt; {altman.thresholds.distress.toFixed(2)} distress
+              </div>
+            </div>
+            <span
+              className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full border ${
+                altman.zone === "safe"
+                  ? "ask-ai-anim-fill [animation-duration:10s] border-brand/40 text-ink"
+                  : altman.zone === "grey"
+                    ? "bg-[#E6F7F4] text-[#2AA89B] border-transparent"
+                    : "bg-red-50 text-red-700 border-transparent"
+              }`}
+            >
+              {altman.zone === "safe" ? "Safe zone" : altman.zone === "grey" ? "Grey zone" : "Distress"}
+            </span>
+          </div>
+          <p className="text-[12.5px] text-ink-soft mt-3 leading-snug">{altman.methodologyNote}</p>
+          <div className="mt-4 rounded-xl border border-rule bg-bg-2/30 overflow-hidden">
+            <div className="overflow-x-auto">
+            <table className="w-full text-[12.5px] min-w-[480px] sm:min-w-0">
+              <thead>
+                <tr className="bg-bg-2/40">
+                  <th className="text-left py-2 px-3 font-medium text-ink-mute">Component</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Coefficient</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Value</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Weighted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {altman.weightedComponents.map((c, i) => (
+                  <tr key={i} className="border-t border-rule">
+                    <td className="py-2 px-3 text-ink">{c.label}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-ink">{c.value.toFixed(4)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-ink">{c.weighted.toFixed(3)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-ink/30 bg-bg-2/50">
+                  <td colSpan={3} className="py-2 px-3 text-ink font-semibold">
+                    Altman {altman.variant}-Score
+                  </td>
+                  <td
+                    className={`py-2 px-3 text-right tabular-nums font-semibold ${
+                      altman.zone === "safe"
+                        ? "text-[#2AA89B]"
+                        : altman.zone === "grey"
+                          ? "text-[#2AA89B]"
+                          : "text-red-700"
+                    }`}
+                  >
+                    {altman.score.toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Caveat */}
+      <div className="flex items-start gap-2.5 rounded-lg border-l-[3px] border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
+        <Info size={13} strokeWidth={1.75} className="text-ink-mute mt-0.5 shrink-0" />
+        <div><strong className="text-ink">Caveat:</strong> {credit.caveat}</div>
+      </div>
+    </>
+  );
+}

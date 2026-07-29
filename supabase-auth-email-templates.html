@@ -1,0 +1,79 @@
+<!-- ─────────────────────────────────────────────────────────────────────────
+     CFO AI — Supabase Auth email templates (rebranded 2026-07)
+     Paste into Supabase → Authentication → Email Templates.
+     Replaces the Step 6b snippets in RESEND_SETUP.md (navy #003366 shell).
+     Keep {{ .ConfirmationURL }} — it carries the secure token.
+
+     These are the SAME markup scripts/setup_auth_smtp.py installs via the
+     Management API. Prefer running that script; this file is the manual
+     fallback and the reviewable source of what the script sends.
+     ───────────────────────────────────────────────────────────────────────── -->
+
+<!-- ── RESET PASSWORD ─────────────────────────────────────────────────── -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f4f2;padding:40px 0;font-family:'Inter',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr><td align="center" style="padding:0 16px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #ededea;border-radius:16px;overflow:hidden;">
+      <tr><td style="height:3px;background:#5CD3C5;font-size:0;line-height:0;">&nbsp;</td></tr>
+      <tr><td style="padding:26px 36px 0 36px;">
+        <table cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="font-size:17px;font-weight:500;letter-spacing:-0.005em;color:#1a1a1a;line-height:1;">CFO <span style="color:#2AA89B;">AI</span></td></tr>
+          <tr><td style="padding-top:6px;font-family:Consolas,monospace;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#808080;line-height:1;">Financial Intelligence</td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="padding:26px 36px 0 36px;">
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;">
+          <tr>
+            <td width="8" valign="middle" style="width:8px;font-size:0;line-height:0;"><div style="width:8px;height:8px;background:#5CD3C5;font-size:0;line-height:8px;">&nbsp;</div></td>
+            <td style="padding-left:12px;font-family:Consolas,monospace;font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#454545;">Account security</td>
+          </tr>
+        </table>
+        <h1 style="margin:0 0 14px 0;font-family:'Instrument Serif',Georgia,'Times New Roman',serif;font-size:30px;font-weight:400;line-height:1.15;letter-spacing:-0.01em;color:#1a1a1a;">Reset your password</h1>
+        <p style="margin:0 0 24px 0;font-size:16px;line-height:1.55;color:#454545;">We received a request to reset your CFO AI password. Choose a new one below — the link expires in 60 minutes.</p>
+        <table cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#1a1a1a" style="background:#1a1a1a;border-radius:999px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:15px 30px;font-size:15px;font-weight:500;color:#ffffff;text-decoration:none;border-radius:999px;">Reset password</a>
+        </td></tr></table>
+        <p style="margin:18px 0 0 0;font-size:14px;line-height:1.55;color:#808080;">If you didn't request this, you can safely ignore this email — your password stays unchanged.</p>
+      </td></tr>
+      <tr><td style="padding:32px 36px 30px 36px;">
+        <div style="height:1px;background:#ededea;font-size:0;line-height:0;">&nbsp;</div>
+        <p style="margin:18px 0 0 0;font-size:12px;line-height:1.6;color:#808080;">CFO AI — financial analysis for small and mid-sized companies.</p>
+        <p style="margin:8px 0 0 0;font-size:12px;line-height:1.6;color:#808080;"><a href="https://cfo-ai.io" style="color:#2AA89B;text-decoration:none;">cfo-ai.io</a></p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+
+
+<!-- ── CONFIRM SIGNUP ─────────────────────────────────────────────────── -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f4f2;padding:40px 0;font-family:'Inter',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr><td align="center" style="padding:0 16px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #ededea;border-radius:16px;overflow:hidden;">
+      <tr><td style="height:3px;background:#5CD3C5;font-size:0;line-height:0;">&nbsp;</td></tr>
+      <tr><td style="padding:26px 36px 0 36px;">
+        <table cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="font-size:17px;font-weight:500;letter-spacing:-0.005em;color:#1a1a1a;line-height:1;">CFO <span style="color:#2AA89B;">AI</span></td></tr>
+          <tr><td style="padding-top:6px;font-family:Consolas,monospace;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#808080;line-height:1;">Financial Intelligence</td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="padding:26px 36px 0 36px;">
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;">
+          <tr>
+            <td width="8" valign="middle" style="width:8px;font-size:0;line-height:0;"><div style="width:8px;height:8px;background:#5CD3C5;font-size:0;line-height:8px;">&nbsp;</div></td>
+            <td style="padding-left:12px;font-family:Consolas,monospace;font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#454545;">Welcome</td>
+          </tr>
+        </table>
+        <h1 style="margin:0 0 14px 0;font-family:'Instrument Serif',Georgia,'Times New Roman',serif;font-size:30px;font-weight:400;line-height:1.15;letter-spacing:-0.01em;color:#1a1a1a;">Confirm your email</h1>
+        <p style="margin:0 0 24px 0;font-size:16px;line-height:1.55;color:#454545;">Welcome to CFO AI. Confirm your email address to activate your account and start turning a trial balance into CFO-grade analysis.</p>
+        <table cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#1a1a1a" style="background:#1a1a1a;border-radius:999px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:15px 30px;font-size:15px;font-weight:500;color:#ffffff;text-decoration:none;border-radius:999px;">Confirm email</a>
+        </td></tr></table>
+        <p style="margin:18px 0 0 0;font-size:14px;line-height:1.55;color:#808080;">If you didn't create this account, you can ignore this email.</p>
+      </td></tr>
+      <tr><td style="padding:32px 36px 30px 36px;">
+        <div style="height:1px;background:#ededea;font-size:0;line-height:0;">&nbsp;</div>
+        <p style="margin:18px 0 0 0;font-size:12px;line-height:1.6;color:#808080;">CFO AI — financial analysis for small and mid-sized companies.</p>
+        <p style="margin:8px 0 0 0;font-size:12px;line-height:1.6;color:#808080;"><a href="https://cfo-ai.io" style="color:#2AA89B;text-decoration:none;">cfo-ai.io</a></p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
