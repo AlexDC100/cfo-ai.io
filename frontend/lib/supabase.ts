@@ -78,10 +78,16 @@ export async function currentOrgId(): Promise<string | null> {
   const active = getActiveOrgId(user.id);
   if (active) return active;
 
+  // Cold fallback: oldest membership whose organization is still LIVE.
+  // Memberships survive a workspace archive, so a bare memberships query
+  // could hand back an ARCHIVED org — new uploads would land in a workspace
+  // scheduled for purge and silently vanish with it. The embedded
+  // organizations!inner join lets us filter on archived_at server-side.
   const { data, error } = await client
     .from("memberships")
-    .select("org_id, created_at")
+    .select("org_id, created_at, organizations!inner(archived_at)")
     .eq("user_id", user.id)
+    .is("organizations.archived_at", null)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -695,9 +701,13 @@ export async function uploadDocument(
 
   const orgId = await currentOrgId();
   if (!orgId) {
+    // Near-unreachable since org.ts's ensure-default (a signed-in user always
+    // ends up with a live workspace) — but if it happens, speak to the USER,
+    // not the developer. The old message told them to apply a SQL migration.
     return {
       row: null,
-      error: "No organization found for this user. Apply supabase/schema_phase3.sql so the bootstrap trigger seeds an org + membership on signup.",
+      error:
+        "Your workspace isn't ready yet. Open the Workspaces page to set one up, then try the upload again.",
     };
   }
 

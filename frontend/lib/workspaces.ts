@@ -89,6 +89,11 @@ export interface WorkspacesApi {
   currentId: string | null;
   current: Workspace | null;
   loading: boolean;
+  /** True when the workspace list failed to LOAD (network/RPC) — render a
+   *  retry state, never the create wizard. */
+  loadError: boolean;
+  /** Re-fetch the workspace list (the retry action for loadError). */
+  refresh: () => Promise<void>;
   /** False when this is the user's only workspace — archiving it is refused. */
   canDelete: boolean;
   create: (
@@ -114,6 +119,8 @@ export function useWorkspaces(): WorkspacesApi {
     orgs,
     archived,
     loading,
+    loadError,
+    refresh,
     createWorkspace,
     renameWorkspace,
     setWorkspaceIndustry,
@@ -166,6 +173,8 @@ export function useWorkspaces(): WorkspacesApi {
     currentId: org?.id ?? null,
     current,
     loading,
+    loadError,
+    refresh,
     // Deleting the LAST workspace is allowed (2026-07-25): it drops the user
     // into the same zero-workspace state a brand-new signup starts from (the
     // hub's empty state + Create flow), so there's nothing to protect against.

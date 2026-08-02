@@ -45,7 +45,7 @@ export interface Organization {
 // In-memory cache so non-React callers can read the active org synchronously
 // after the first resolution.
 let cachedOrg: Organization | null = null;
-let cachedOrgListPromise: Promise<Organization[]> | null = null;
+let cachedOrgListPromise: Promise<OrgListResult> | null = null;
 
 // Cross-instance change bus. Every useActiveOrg() instance owns private
 // useState copies of the list, so a mutation in one component must poke the
@@ -85,19 +85,73 @@ export function resetOrgCache(): void {
   }
 }
 
+/** Result of a workspace-list fetch. `error: true` means the RPC (or the
+ *  session read) FAILED — which must never be treated as "the user has zero
+ *  workspaces": that mistake showed the create wizard to users who already
+ *  had a workspace (inviting duplicates) and could trigger a bogus
+ *  auto-create. Empty-with-no-error is the only true zero state. */
+interface OrgListResult {
+  orgs: Organization[];
+  error: boolean;
+}
+
 /** Every workspace the signed-in user belongs to, archived ones included. */
-async function fetchOrgsForUser(): Promise<Organization[]> {
+async function fetchOrgsForUser(): Promise<OrgListResult> {
   const supabase = getSupabase();
-  if (!supabase) return [];
+  if (!supabase) return { orgs: [], error: false };
   const { data: session } = await supabase.auth.getSession();
-  if (!session.session?.user) return [];
+  if (!session.session?.user) return { orgs: [], error: false };
 
   const { data, error } = await supabase.rpc("list_workspaces");
   if (error) {
     console.warn("[org] list_workspaces failed:", error.message);
-    return [];
+    return { orgs: [], error: true };
   }
-  return (data ?? []) as Organization[];
+  return { orgs: (data ?? []) as Organization[], error: false };
+}
+
+/**
+ * Pure decision: auto-create a default workspace ONLY on a true zero — the
+ * list fetch succeeded and returned nothing at all (no live, no archived).
+ * A fetch ERROR is a retry state (the user may have workspaces); archived-
+ * only is a deliberate deletion (AuthGuard routes it to /workspace instead).
+ * Exported for unit tests.
+ */
+export function shouldEnsureDefaultWorkspace(listError: boolean, orgCount: number): boolean {
+  return !listError && orgCount === 0;
+}
+
+/**
+ * Ensure-default: a signed-in user with ZERO workspaces (none live, none
+ * archived — the trigger-failed / pre-phase3 / purged-everything case) gets
+ * one created silently so the app never dead-ends. Named from the signup
+ * company name when available, else "My workspace". Runs at most once per
+ * user per page load (the ref below) and never on a failed list fetch.
+ *
+ * Deliberately NOT invoked when archived workspaces exist: that user chose
+ * deletion, and /workspace offers Restore — auto-creating there would race
+ * their intent. AuthGuard routes that state to /workspace instead.
+ */
+const ensuredDefaultFor = new Set<string>();
+async function ensureDefaultWorkspace(userId: string): Promise<boolean> {
+  if (ensuredDefaultFor.has(userId)) return false;
+  ensuredDefaultFor.add(userId);
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const { data: session } = await supabase.auth.getSession();
+  const meta = (session.session?.user?.user_metadata ?? {}) as Record<string, unknown>;
+  const company =
+    typeof meta.company_name === "string" && meta.company_name.trim()
+      ? meta.company_name.trim()
+      : null;
+  const name = company ? `${company}` : "My workspace";
+  const id = await createWorkspaceOrg(name, null, null);
+  if (id) {
+    console.info("[org] auto-created default workspace:", name);
+    setActiveOrgId(userId, id);
+    void writeRemoteActiveOrgId(userId, id);
+  }
+  return !!id;
 }
 
 /** Live (non-archived) workspaces — what the switcher shows. */
@@ -162,6 +216,7 @@ async function writeRemoteActiveOrgId(userId: string, orgId: string): Promise<vo
 async function resolveActive(
   userId: string,
   orgs: Organization[],
+  opts: { listTrusted?: boolean } = {},
 ): Promise<Organization | null> {
   const live = activeWorkspaces(orgs);
   const local = getActiveOrgId(userId);
@@ -178,6 +233,14 @@ async function resolveActive(
     // Keep the header/sidebar first-paint cache in step with the real name.
     writeWorkspaceName(chosen.name);
     if (chosen.id !== local) void writeRemoteActiveOrgId(userId, chosen.id);
+  } else if (local && opts.listTrusted) {
+    // Nothing live matches the remembered id (it was archived or purged) —
+    // clear it so downstream synchronous readers (currentOrgId, cfoApi's
+    // X-Org-Id) stop targeting a workspace that no longer accepts data.
+    // ONLY when the list actually loaded (listTrusted): a transient RPC
+    // failure also yields an empty list, and wiping the remembered id on a
+    // network blip would lose the user's choice for nothing.
+    clearActiveOrg();
   }
   return chosen;
 }
@@ -194,8 +257,8 @@ export async function refreshActiveOrg(): Promise<Organization | null> {
   const userId = session.session?.user?.id;
   if (!userId) return null;
 
-  const orgs = await fetchOrgsForUser();
-  cachedOrg = await resolveActive(userId, orgs);
+  const { orgs, error } = await fetchOrgsForUser();
+  cachedOrg = await resolveActive(userId, orgs, { listTrusted: !error });
   // Non-hook entry point (/onboarding uses it) — mounted hook instances
   // still need to hear about the change.
   emitOrgChange();
@@ -318,6 +381,10 @@ export interface ActiveOrgState {
   /** Soft-deleted workspaces inside the 30-day window. */
   archived: Organization[];
   loading: boolean;
+  /** True when the workspace list could not be LOADED (RPC/network failure).
+   *  Render "Could not load your workspace. Retry." — never the create
+   *  wizard, which would invite duplicate workspaces. */
+  loadError: boolean;
   /** True when the user is signed in but their active org has no industry_key. */
   needsOnboarding: boolean;
   refresh: () => Promise<void>;
@@ -345,6 +412,10 @@ export function useActiveOrg(): ActiveOrgState {
   const [all, setAll] = useState<Organization[]>([]);
   const [activeId, setActiveId] = useState<string | null>(() => getActiveOrgId(userId));
   const [loading, setLoading] = useState<boolean>(supabaseEnabled && status !== "signed_out");
+  // True when the last list_workspaces fetch FAILED. Consumers must render a
+  // retry state — never the "create your first workspace" wizard, and never
+  // trigger ensure-default — because the user may well have workspaces.
+  const [loadError, setLoadError] = useState(false);
   // Bumped by emitOrgChange() from any other hook instance. Every
   // useActiveOrg() call holds its OWN copy of the list — without this, the
   // instance that creates/renames/archives a workspace refreshes itself while
@@ -368,15 +439,32 @@ export function useActiveOrg(): ActiveOrgState {
     if (!supabaseEnabled || status !== "signed_in" || !userId) {
       setAll([]);
       setLoading(false);
+      setLoadError(false);
       cachedOrg = null;
       resetPrefs();
       return;
     }
     if (firstLoadRef.current) setLoading(true);
     if (!cachedOrgListPromise) cachedOrgListPromise = fetchOrgsForUser();
-    const list = await cachedOrgListPromise;
+    let { orgs: list, error: listError } = await cachedOrgListPromise;
+
+    // Ensure-default: a TRUE zero (no live, no archived, and the fetch
+    // succeeded) means this account has no workspace at all — the signup
+    // trigger failed, a pre-multi-workspace account was never backfilled, or
+    // everything was purged. Create one silently and re-fetch so the user
+    // lands in a working app instead of a dead upload hero. Never runs on a
+    // fetch ERROR (that's a retry state, not a zero state).
+    if (shouldEnsureDefaultWorkspace(listError, list.length)) {
+      const created = await ensureDefaultWorkspace(userId);
+      if (created) {
+        cachedOrgListPromise = fetchOrgsForUser();
+        ({ orgs: list, error: listError } = await cachedOrgListPromise);
+      }
+    }
+
     setAll(list);
-    const chosen = await resolveActive(userId, list);
+    setLoadError(listError);
+    const chosen = await resolveActive(userId, list, { listTrusted: !listError });
     setActiveId(chosen?.id ?? null);
     cachedOrg = chosen;
     firstLoadRef.current = false;
@@ -538,6 +626,7 @@ export function useActiveOrg(): ActiveOrgState {
       orgs,
       archived,
       loading,
+      loadError,
       needsOnboarding,
       refresh,
       switchOrg,
@@ -553,6 +642,7 @@ export function useActiveOrg(): ActiveOrgState {
       orgs,
       archived,
       loading,
+      loadError,
       needsOnboarding,
       refresh,
       switchOrg,

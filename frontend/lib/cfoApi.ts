@@ -250,10 +250,18 @@ async function callUrl<T>(url: string, init: RequestInit = {}): Promise<T> {
       // non-member org — it is a selector, never a grant. Without it the
       // backend falls back to the user's oldest workspace, which is wrong
       // for anyone running more than one company.
+      //
+      // 2026-08-02: resolve through currentOrgId() rather than the bare
+      // localStorage cache. On a cold device the cache is empty, and
+      // requests fired before org.ts finished resolving went out WITHOUT
+      // the header — transiently scoping a multi-workspace user's first
+      // calls to their oldest company. currentOrgId() reads the same cache
+      // first (zero cost when warm) and otherwise resolves + remembers the
+      // oldest LIVE membership, so every request carries a workspace.
       const uid = data.session?.user?.id;
       if (uid && !headers["X-Org-Id"]) {
-        const { getActiveOrgId } = await import("@/lib/activeOrg");
-        const orgId = getActiveOrgId(uid);
+        const { currentOrgId } = await import("@/lib/supabase");
+        const orgId = await currentOrgId();
         if (orgId) headers["X-Org-Id"] = orgId;
       }
     }

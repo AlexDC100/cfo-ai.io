@@ -534,10 +534,13 @@ export function AuthCard({
                 type="password"
                 value={password}
                 onChange={(v) => setPassword(v)}
-                placeholder={mode === "sign_up" ? "At least 6 characters" : ""}
+                placeholder={mode === "sign_up" ? "At least 10 characters" : ""}
                 autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
                 required
-                minLength={6}
+                // 10 matches the advertised checklist; sign-IN stays
+                // unconstrained so existing accounts with shorter passwords
+                // aren't locked out at the browser-validation layer.
+                minLength={mode === "sign_up" ? 10 : undefined}
               />
               {mode === "sign_up" && password && (
                 <div className="mt-2">
@@ -576,7 +579,7 @@ export function AuthCard({
                   placeholder="Re-enter your password"
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={10}
                 />
               </Field>
             )}

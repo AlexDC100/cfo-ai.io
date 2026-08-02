@@ -55,20 +55,34 @@ def user_is_member(user_id: str, org_id: str) -> bool:
 
 
 def default_org_for_user(user_id: str) -> Optional[str]:
-    """The user's oldest membership — the fallback when no org was requested.
+    """The user's oldest LIVE membership — the fallback when no org was requested.
 
     Ordered by created_at so the answer is stable rather than whatever
     Postgres happens to return first; an unordered `limit 1` could hand back a
     different workspace between two requests in the same session.
+
+    Archived organizations are excluded (2026-08-02): memberships survive a
+    workspace archive, so the bare memberships query could scope a request to
+    an org scheduled for purge — data read from (or attributed to) a workspace
+    the user deleted. We fetch a few memberships and check archived_at per
+    org; membership counts are tiny so the extra lookups are negligible.
     """
     with _supabase.admin() as ac:
         rows = ac.select(
             "memberships",
             filters={"user_id": f"eq.{user_id}"},
             order="created_at.asc",
-            limit=1,
+            limit=10,
         )
-    return rows[0]["org_id"] if rows else None
+        for row in rows:
+            org = ac.select(
+                "organizations",
+                filters={"id": f"eq.{row['org_id']}"},
+                limit=1,
+            )
+            if org and org[0].get("archived_at") is None:
+                return row["org_id"]
+    return None
 
 
 def resolve_org(jwt: str, requested_org_id: Optional[str] = None) -> Tuple[str, str]:

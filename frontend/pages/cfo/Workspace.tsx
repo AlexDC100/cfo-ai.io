@@ -256,8 +256,39 @@ export default function Workspace() {
       {/* With zero workspaces (e.g. the user deleted them all) drop straight
           into the create-workspace flow instead of a landing hero. Keep the hub
           while the list is still loading or when workspaces exist, so users who
-          have workspaces never see the create form flash. */}
-      {done && !activeNeedsOnboarding && (ws.loading || ws.workspaces.length > 0) ? (
+          have workspaces never see the create form flash.
+
+          2026-08-02: an industry-less ACTIVE workspace only forces the wizard
+          when it's a genuine first run (one workspace, nothing archived).
+          Multi-workspace users — or anyone with a Recently-deleted shelf —
+          get the hub, where industry is one field in the settings panel;
+          trapping them in the wizard hid the rail (their only path to
+          Restore) and re-ran setup they'd already done elsewhere. */}
+      {ws.loadError ? (
+        /* List FETCH failed — a user with workspaces would otherwise see the
+           create wizard and make a duplicate. Retry re-runs the RPC. */
+        <div
+          className="max-w-[480px] rounded-xl border border-rule bg-surface px-6 py-8 text-center mx-auto"
+          data-testid="workspace-load-error"
+        >
+          <p className="text-[14px] font-medium text-ink mb-1.5">
+            Could not load your workspace.
+          </p>
+          <p className="text-[12.5px] text-ink-soft mb-4">
+            The workspace list didn't come back from the server. Your data is safe — retry in a moment.
+          </p>
+          <button
+            type="button"
+            onClick={() => void ws.refresh()}
+            data-testid="workspace-load-retry"
+            className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : done &&
+      !(activeNeedsOnboarding && ws.workspaces.length <= 1 && ws.archived.length === 0) &&
+      (ws.loading || ws.workspaces.length > 0) ? (
         // Two-column layout (2026-07-26 per operator): the workspace switcher
         // becomes a narrow vertical rail on the left, the selected workspace's
         // settings fill the rest. Stacks under lg, where a 260px rail beside a
@@ -389,6 +420,8 @@ function Onboarding({
   const [name, setName] = useState<string>(readWorkspaceName);
   const [industryKey, setIndustryKey] = useState<string | null>(initialIndustryKey);
   const [busy, setBusy] = useState(false);
+  // For the "Skip for now — open the dashboard" escape (2026-08-02).
+  const navigate = useNavigate();
 
   // What finishOnboarding writes to organizations.industry_key /
   // industry_display_name — the same pair /onboarding saves.
@@ -511,15 +544,33 @@ function Onboarding({
             </button>
           )}
           {step < 2 && (
-            <button
-              type="button"
-              onClick={next}
-              disabled={step === 0 && (name.trim().length === 0 || !industryKey)}
-              data-testid="onboarding-next"
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Continue
-            </button>
+            <>
+              {/* 2026-08-02 — the wizard is optional, not a wall. A fresh
+                  signup already has a working workspace (the signup trigger
+                  created it); this escape finishes with whatever is filled in
+                  and opens the dashboard. Industry can be set later from
+                  Workspace settings or the Benchmark page's picker. */}
+              <button
+                type="button"
+                onClick={() => {
+                  finish();
+                  navigate("/dashboard");
+                }}
+                data-testid="onboarding-skip-early"
+                className="text-[12.5px] text-ink-mute hover:text-ink transition-colors"
+              >
+                Skip for now — open the dashboard
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                disabled={step === 0 && name.trim().length === 0}
+                data-testid="onboarding-next"
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Continue
+              </button>
+            </>
           )}
         </div>
       </div>

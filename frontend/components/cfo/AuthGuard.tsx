@@ -5,9 +5,10 @@
 // "Authenticated" means: signed in via Supabase. Demo mode was removed in
 // the demo-strip pass — there's only one path into the app now (real auth).
 //
-// On top of auth, the guard also enforces *onboarding completion*: a signed-in
-// user whose active org doesn't yet have an industry_key set is bounced to
-// /onboarding. This happens once per signup, then never again.
+// Workspace posture (2026-08-02): the guard no longer walls the app behind
+// onboarding. The signup DB trigger creates a workspace automatically;
+// org.ts auto-creates one for true-zero accounts; the ONLY redirect left is
+// "no live workspace but archived ones exist" → /workspace (Restore/Create).
 
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
@@ -30,7 +31,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // fact stable across renders. Same deliberate pattern as AuthProvider.
   /* eslint-disable react-hooks/rules-of-hooks */
   const { status, isAuthenticated } = useAuth();
-  const { org, loading: orgLoading, needsOnboarding } = useActiveOrg();
+  const { orgs, archived, loading: orgLoading, loadError } = useActiveOrg();
   const location = useLocation();
   /* eslint-enable react-hooks/rules-of-hooks */
 
@@ -46,15 +47,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to={`/login?next=${next}`} replace />;
   }
 
-  // Onboarding lives on /workspace now (the setup wizard there) — the
-  // standalone /onboarding page was removed 2026-07-23. Don't bounce when
-  // already on /workspace, that would loop.
-  //
-  // /chat is exempt too (2026-07-26 per operator: "make Ask CFO AI available
-  // always"). It's the one surface that is fully useful with no workspace
-  // data — open-domain finance/accounting/strategy Q&A — and it runs on a
-  // Supabase Edge Function, so it depends on nothing the onboarding wizard
-  // sets up. Exempting it can't loop: it's a leaf route, not a redirect target.
+  // /workspace hosts the setup wizard + restore shelf; /chat is exempt
+  // (2026-07-26 per operator: "make Ask CFO AI available always") — it's fully
+  // useful with no workspace data and runs on a Supabase Edge Function.
+  // Exempting them can't loop: they're leaf routes, not redirect targets.
   const onWorkspaceRoute =
     location.pathname === "/workspace" || location.pathname === "/chat";
 
@@ -62,7 +58,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (orgLoading) {
       return <AppLoader />;
     }
-    if (needsOnboarding && org) {
+    // 2026-08-02 (workspace-flow fix): the old gate here bounced EVERY route
+    // to /workspace while the active org had no industry_key — which forced
+    // each fresh signup through the full 3-step wizard before ever seeing the
+    // dashboard, even though the signup trigger had already created a working
+    // workspace. Industry only matters for benchmarking, and the Benchmark
+    // page prompts for it in context — so the wall is gone; onboarding is
+    // optional, not a gate.
+    //
+    // The one state that still redirects: NO live workspace but ARCHIVED ones
+    // exist. That user deliberately deleted their last workspace, so
+    // auto-creating a fresh one (org.ts's ensure-default handles the true-zero
+    // case) would race their intent to Restore — send them to /workspace,
+    // where both Restore and Create are one click. A list-fetch ERROR never
+    // redirects (the user may have workspaces; org.ts exposes loadError and
+    // the surfaces render a retry state instead).
+    if (!loadError && orgs.length === 0 && archived.length > 0) {
       return <Navigate to="/workspace" replace />;
     }
   }

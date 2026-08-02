@@ -35,7 +35,6 @@ import { CommandCenter } from "./command";
 // every other route can summon "Ask CFO AI" without losing context.
 // ChatCopilot.tsx was removed in the 2026-07 dead-code cleanup (git history has it).
 import { SearchDialog } from "./SearchDialog";
-import { UploadDialog } from "./UploadDialog";
 import { DocsPanel } from "./DocsPanel";
 import { CouncilSphereHost } from "./CouncilSphereHost";
 import { DatasetsPanel } from "./DatasetsPanel";
@@ -43,7 +42,6 @@ import { getChatShellRef } from "./chat/sharedShellRef";
 import { OPEN_ASK_CFO_AI_EVENT, type OpenAskCfoAiDetail } from "./chat/openAskCfoAi";
 import { useAuth } from "@/lib/auth";
 import { useWorkspaces } from "@/lib/workspaces";
-import { useActiveOrg } from "@/lib/org";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
 import { useToast } from "@/hooks/use-toast";
@@ -79,7 +77,6 @@ export function AppShell({ children }: Props) {
   const contentLoading = activePeriod.isLoading && location.pathname !== "/chat";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Navigate to the full /chat page (the slide-over panel is gone,
@@ -239,8 +236,12 @@ export function AppShell({ children }: Props) {
   // Dimming them makes the rail describe what the guard will actually do.
   // `ALWAYS_ENABLED` in Sidebar keeps Workspaces, Settings, Ask CFO AI and
   // the website clickable throughout.
-  const { needsOnboarding } = useActiveOrg();
-  const noWorkspaces = !wsLoading && (workspaces.length === 0 || needsOnboarding);
+  // 2026-08-02 (workspace-flow fix): dropped `|| needsOnboarding` — a fresh
+  // signup's workspace has no industry_key yet, and dimming the whole rail for
+  // that re-walled the app the AuthGuard change just un-walled. Only a genuine
+  // zero-live-workspace state dims navigation now (industry is optional and
+  // set later from Workspace settings or the Benchmark picker).
+  const noWorkspaces = !wsLoading && workspaces.length === 0;
   const sidebarHandlers = {
     onSettings: () => navigate("/settings"),
     onOpenCommandCenter: () => setDrawerOpen(true),
@@ -375,10 +376,18 @@ export function AppShell({ children }: Props) {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onOpenAi={openAskCfoAi}
-        onOpenUpload={() => setUploadOpen(true)}
+        // 2026-08-02: routes to the Dashboard's upload flow instead of the
+        // legacy UploadDialog. That dialog posted to /api/upload-excel — the
+        // SKU-trading parser — so a trial balance dropped there died with the
+        // cryptic "missing Categ_Pr / Volume(to) / NIV (kRon)" error (the
+        // operator hit exactly this). The dashboard dropzone runs the real
+        // financial pipeline; SKU files have their own uploader on /products.
+        onOpenUpload={() => {
+          const period = params.get("period");
+          navigate(period ? `/dashboard?period=${encodeURIComponent(period)}` : "/dashboard");
+        }}
       />
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
-      <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />
     </div>
   );
 }

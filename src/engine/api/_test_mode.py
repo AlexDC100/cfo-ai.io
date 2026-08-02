@@ -102,17 +102,19 @@ JWT_BYPASS_PLACEHOLDER = "PUBLIC_TEST_MODE_BYPASS"
 def is_bypass_token(jwt: str) -> bool:
     """True iff this token is the in-process bypass sentinel.
 
-    Two acceptance modes:
-    (a) Test mode is currently on AND the token is the placeholder.
-    (b) Any request when test mode is currently on (paranoid bypass —
-        if some site forgot to short-circuit at `_require_jwt`, the
-        downstream `_user_id_from_jwt` still routes to the test user).
-
-    Returning True triggers the test-user-id return path. The condition
-    is intentionally permissive in test mode so a missed call site
-    can't accidentally hit Supabase with a bogus token and 500.
+    GATED ON is_test_mode() UNCONDITIONALLY (2026-08-02 security fix): the
+    previous `is_test_mode() or jwt == PLACEHOLDER` accepted the literal
+    bearer string "PUBLIC_TEST_MODE_BYPASS" as the synthetic test user's
+    identity even with test mode OFF — an unauthenticated identity bypass in
+    production posture (contained: per-user Supabase calls 401 on the
+    placeholder, and admin-keyed paths only touch the synthetic user's rows,
+    but wrong on principle). With test mode ON the check stays permissive so
+    a missed `_require_jwt` short-circuit can't 500 against Supabase.
     """
-    return is_test_mode() or jwt == JWT_BYPASS_PLACEHOLDER
+    # In test mode ANY token routes to the test user (the deliberate paranoid
+    # bypass); with test mode off, NO token does — including the placeholder.
+    del jwt  # signature kept for the call sites; value is irrelevant now
+    return is_test_mode()
 
 
 # ─── Real Supabase JWT for the synthetic test user ──────────────────────

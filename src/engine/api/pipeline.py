@@ -3286,15 +3286,31 @@ def _run_pipeline_sync(document_id: str) -> None:
             return
 
         # Financial branch — existing path.
+        #
+        # Zero-accounts guard (2026-08-02, operator-reported "upload succeeds
+        # but dashboard stays empty"): if extraction produced NO accounts,
+        # this used to mint an empty-but-'analyzed' period and navigate the
+        # user into a blank dashboard (the FE's empty-container detection then
+        # shows the dropzone, so the period was pure noise). Fail loudly
+        # instead — the blanket handler below marks the document 'failed' with
+        # this message, and the scan view shows it with a retry path. Statutory
+        # F30/F10 files synthesize accounts and public-records docs short-
+        # circuit earlier, so zero here always means "not a financial document
+        # we could read".
+        accounts_count = len(parsed.get("accounts") or [])
+        if accounts_count == 0:
+            raise RuntimeError(
+                "No financial data could be extracted — the file doesn't look "
+                "like a trial balance or financial statement. Check that you "
+                "uploaded the right file (or start from the official template) "
+                "and try again."
+            )
+
         _admin_set_status(document_id, "mapping")
         assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
         period_id = stage_persist(doc, parsed, assembled)
 
         _admin_set_status(document_id, "computing")
-        # For non-financial docs (no accounts extracted), skip ratio
-        # computation + the empty-PL alert — they'd just produce noise. The
-        # narrative stage covers what the document actually contains.
-        accounts_count = len(parsed.get("accounts") or [])
         valuation_payload: Optional[Dict[str, Any]] = None
         if accounts_count > 0:
             metrics = stage_compute(doc, assembled, period_id)

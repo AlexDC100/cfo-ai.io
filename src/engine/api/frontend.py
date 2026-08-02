@@ -611,7 +611,37 @@ def create_frontend_router(
                     best = (sn, s)
 
             if best is None:
-                raise HTTPException(400, "Could not find a usable transaction sheet (missing Categ_Pr / Volume(to) / NIV (kRon)).")
+                # Wrong-scope guidance (2026-08-02, operator hit this): the
+                # most common way to land here is uploading a TRIAL BALANCE
+                # into this SKU/trading parser (Command Center upload, or the
+                # Products surface). Detect the trial-balance shape and say
+                # where the file actually belongs instead of listing columns
+                # the user has never heard of.
+                tb_hints = ("cont", "sold", "rulaj", "denumire", "debit", "credit")
+                looks_like_tb = False
+                for sn in xls.sheet_names[:5]:
+                    try:
+                        head = pd.read_excel(tmp_path, sheet_name=sn, nrows=3)
+                    except Exception:
+                        continue
+                    cols_lower = " ".join(str(c).lower() for c in head.columns)
+                    if sum(1 for h in tb_hints if h in cols_lower) >= 2:
+                        looks_like_tb = True
+                        break
+                if looks_like_tb:
+                    raise HTTPException(
+                        400,
+                        "This looks like a trial balance (balanță de verificare), not a "
+                        "sales/SKU file. Upload it on the Dashboard (Tablou de bord) — "
+                        "that's where financial statements are analyzed.",
+                    )
+                raise HTTPException(
+                    400,
+                    "Could not find a usable transaction sheet — this uploader expects a "
+                    "sales/SKU trading workbook with Categ_Pr, Volume(to) and NIV (kRon) "
+                    "columns. For trial balances and financial statements, upload on the "
+                    "Dashboard instead.",
+                )
             df = pd.read_excel(tmp_path, sheet_name=best[0])
             print(f"[upload-excel] selected sheet {best[0]!r} (score={best[1]}) from {len(xls.sheet_names)} sheets")
 
