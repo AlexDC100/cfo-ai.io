@@ -1,0 +1,30 @@
+# Per-Dockerfile ignore for the FRONTEND image (BuildKit picks this over the
+# shared .dockerignore when building with -f Dockerfile.frontend).
+#
+# The shared .dockerignore excludes frontend/ and public/ because the BACKEND
+# image doesn't need them — but Docker applies the shared file to EVERY build
+# from this context, which broke `COPY public/` / `COPY frontend/` in
+# Dockerfile.frontend ("/public": not found). This file keeps the junk
+# exclusions and RETAINS the frontend sources.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+output/
+.DS_Store
+.git/
+.gitignore
+node_modules/
+dist/
+.vite/
+e2e/
+scandi-desk-main/
+src/
+supabase/
+scripts/
+deploy/
+files/
+data/
+*.log
+.env*
