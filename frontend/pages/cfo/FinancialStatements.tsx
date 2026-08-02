@@ -738,6 +738,27 @@ export default function FinancialStatements() {
     }
   }, [hasPeriodLoaded, uploadInFlight?.status, uploadInFlight?.periodId, awaitingView]);
 
+  // Rehydrate auto-open (2026-08-02, operator-reported "Analysis ready →
+  // blank page on every reload"): the persisted upload store re-enters the
+  // scan view after a refresh even when the scan FINISHED long ago — the
+  // user re-lands on the "Scan complete" card (which short viewports
+  // couldn't even reach, see ScanProgressView) instead of their data, on
+  // every visit, forever. Holding the card is only meaningful for a LIVE
+  // completion (the sphere finale the user is watching); on a reload they
+  // already missed that moment, so open the results directly.
+  // `rehydratedAnalyzedRef` is captured on FIRST render: true only when the
+  // page mounted with the upload already analyzed (a reload of a finished
+  // scan), never for scans that complete while the page is up.
+  const rehydratedAnalyzedRef = useRef(_upload?.status === "analyzed");
+  useEffect(() => {
+    if (!rehydratedAnalyzedRef.current) return;
+    if (uploadInFlight?.status !== "analyzed") return;
+    rehydratedAnalyzedRef.current = false;
+    console.info("[scan] rehydrated in analyzed state — auto-opening results");
+    viewResults();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadInFlight?.status]);
+
   // Completion hand-off — the same sequence Products runs (2026-07-26 per
   // operator), with the dashboard's own five trial-balance steps: the sphere
   // pulls its orbs into the core (~1s), the layer fades to a ghost, the

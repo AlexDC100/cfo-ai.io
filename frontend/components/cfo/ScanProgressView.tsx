@@ -223,6 +223,23 @@ export function ScanProgressView({
     };
   }, []);
 
+  // Short-viewport fix (2026-08-02, operator-reported): on small windows the
+  // completion card (icon + copy + "View results") lands BELOW the fold —
+  // and with the scroll lock above still active the user literally cannot
+  // reach the button, so the scan reads as "Analysis ready → nothing".
+  // Once the scan completes the lock has no job left (nothing is animating
+  // under the viewport), so release it and bring the card into view.
+  useEffect(() => {
+    if (!completing) return;
+    document.body.style.overflow = "";
+    const t = setTimeout(() => {
+      document
+        .querySelector('[data-testid="scan-complete-card"]')
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 1300); // just after the card's 1.2s fade-in delay
+    return () => clearTimeout(t);
+  }, [completing]);
+
   // Refresh / tab-close guard while a scan is in flight. Browsers show
   // their own generic "changes you made may not be saved" prompt — the
   // custom string below is ignored by modern browsers but setting

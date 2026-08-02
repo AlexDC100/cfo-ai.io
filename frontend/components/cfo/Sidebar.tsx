@@ -45,7 +45,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Globe,
-  Home,
   // LogOut import dropped — sign-out moved to AccountMenu. Re-add if
   // the sidebar row is ever restored (see comment near the System group).
   Building2,
@@ -183,9 +182,9 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   // an upload affordance (Dashboard empty-state, Replace dropdown,
   // Command Center → Data) so a separate sidebar item was a duplicate.
   { to: "/settings",   labelKey: "sidebar.settings",   icon: SettingsIcon,    testId: "sidebar-settings",   group: "workspace" },
-  // Landing website — back to the public marketing site. `end: true` so the
-  // "/" route doesn't render as active on every other page.
-  { to: "/",           labelKey: "sidebar.website",    icon: Home,            testId: "sidebar-website",    group: "workspace", end: true },
+  // "Site web" (landing link) removed from the System group (2026-08-02 per
+  // operator) — the marketing site isn't a workspace surface; the logo and
+  // sign-out already cover the exit paths.
 ];
 
 /** Apply build-time + registry-time gating. `hidden` / missing registry
