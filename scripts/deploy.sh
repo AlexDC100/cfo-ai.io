@@ -68,8 +68,10 @@ EXCLUDES=(
   --exclude='*.pyc'
   --exclude='.DS_Store'
   --exclude='._*'
-  --exclude='.env'
-  --exclude='.env.local'
+  # ALL host env files — the FE moved to the repo root (2026-07), so the
+  # VPS-local .env.production / .env.bak-testmode now live at the root too;
+  # the old bare '.env' exclude left them exposed to --delete.
+  --exclude='.env*'
   --exclude='.claude'
   --exclude='/files/'
   --exclude='/data/'
@@ -87,8 +89,10 @@ echo "  Excluded paths above will be preserved on the VPS."
 echo
 
 DRY_RUN_OUT=$(rsync -avzn --delete "${EXCLUDES[@]}" ./ "$VPS:$REMOTE/" 2>&1)
-# Filter rsync's stats footer; show only the file list
-echo "$DRY_RUN_OUT" | grep -vE '^(sending|sent|total |building|^$)' | head -40
+# Filter rsync's stats footer; show only the file list. `|| true` guards the
+# SIGPIPE from `head` closing the pipe on long diffs — under `set -o pipefail`
+# that killed the whole script BEFORE the real sync (silent no-op deploy).
+echo "$DRY_RUN_OUT" | grep -vE '^(sending|sent|total |building|^$)' | head -40 || true
 LINES_TO_CHANGE=$(echo "$DRY_RUN_OUT" | grep -cE '^(deleting |[^[:space:]])' || true)
 echo
 echo "  → ${LINES_TO_CHANGE} paths would change."
