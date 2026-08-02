@@ -55,6 +55,18 @@ services:
         # and / to cfo-ai-frontend on the same origin. DO NOT change
         # this without also updating the Caddyfile.
         VITE_API_URL: ""
+        # Vite inlines env at BUILD time and the Dockerfile copies only
+        # explicit sources (no .env.production in the context), so the
+        # public VITE_ config MUST arrive as build args. Interpolated from
+        # /opt/cfo-ai/.env on the host (compose's automatic .env file) —
+        # keep those lines in sync with /opt/cfo-ai/.env.production.
+        # Losing these silently builds an app with auth compiled out
+        # ("Authentication isn't configured on this build").
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_SITE_DOMAIN: ${VITE_SITE_DOMAIN:-}
+        VITE_SITE_URL: ${VITE_SITE_URL:-}
+        VITE_PUBLIC_TEST_MODE: ${VITE_PUBLIC_TEST_MODE:-}
     container_name: cfo-ai-frontend
     restart: unless-stopped
     expose:

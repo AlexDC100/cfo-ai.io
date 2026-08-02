@@ -9,6 +9,18 @@ WORKDIR /app
 # `/health`) which Caddy routes to the backend. Same-origin = no CORS.
 ARG VITE_API_URL=""
 ENV VITE_API_URL=$VITE_API_URL
+# Public VITE_ config — passed as build args from docker-compose (there is no
+# .env.production in the build context; Vite inlines these at build time).
+ARG VITE_SUPABASE_URL=""
+ARG VITE_SUPABASE_ANON_KEY=""
+ARG VITE_SITE_DOMAIN=""
+ARG VITE_SITE_URL=""
+ARG VITE_PUBLIC_TEST_MODE=""
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_SITE_DOMAIN=$VITE_SITE_DOMAIN \
+    VITE_SITE_URL=$VITE_SITE_URL \
+    VITE_PUBLIC_TEST_MODE=$VITE_PUBLIC_TEST_MODE
 
 COPY package.json package-lock.json ./
 # `npm install` (not `npm ci`) — the lockfile in this repo lags some deps
