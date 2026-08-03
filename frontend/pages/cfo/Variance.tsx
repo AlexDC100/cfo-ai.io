@@ -148,11 +148,10 @@ function VarianceInner({
             hero
             eyebrow="Management reporting"
             title={
-              /* Renamed from "Budget vs Actual vs last year" (2026-08-02 per
-                 operator) — last year is a configurable comparison (the
-                 source picker below), not part of the report's name. */
+              /* "Budget vs Actual vs LY" (2026-08-02 per operator) — matches
+                 the sidebar item's label exactly. */
               <>
-                Budget vs <span className="text-grad">Actual</span>.
+                Budget vs Actual vs <span className="text-grad">LY</span>.
               </>
             }
             subtitle={
