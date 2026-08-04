@@ -1565,7 +1565,9 @@
     "leaveBody": "Ai schimbat setările acestui workspace, dar nu le-ai aplicat. Dacă pleci acum, modificările se pierd.",
     "keepEditing": "Continuă editarea",
     "applyAndLeave": "Aplică și pleacă",
-    "discardAndLeave": "Renunță și pleacă"
+    "discardAndLeave": "Renunță și pleacă",
+    "tbRoutedTitle": "Balanță de verificare detectată",
+    "tbRoutedDesc": "{{filename}} este o balanță de verificare — o trimitem către Tabloul de bord, unde rulează analiza financiară."
   },
   "chatX": {
     "disclosure": "CFO AI poate răspunde și la întrebări generale — răspunsurile care nu provin din datele workspace-ului tău pot să nu fie actuale sau verificate. Verifică detaliile fiscale/de reglementare înainte să acționezi.",

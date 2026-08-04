@@ -1553,7 +1553,9 @@
     "leaveBody": "You changed this workspace's settings but haven't applied them. Leaving now discards those changes.",
     "keepEditing": "Keep editing",
     "applyAndLeave": "Apply & leave",
-    "discardAndLeave": "Discard & leave"
+    "discardAndLeave": "Discard & leave",
+    "tbRoutedTitle": "Trial balance detected",
+    "tbRoutedDesc": "{{filename}} is a balanță de verificare — sending it to the Dashboard, where the financial analysis runs."
   },
   "chatX": {
     "disclosure": "CFO AI can answer general questions too — answers not drawn from your workspace data may not be current or verified. Confirm regulatory/tax specifics before acting.",

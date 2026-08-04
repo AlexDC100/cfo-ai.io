@@ -173,6 +173,22 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _sane_period_end(iso: Optional[str]) -> Optional[str]:
+    """Reject implausible period dates. Real workspaces have ended up with
+    periods like 5309-03-31 and 2050-12-31 (Excel serials / account codes
+    misread as dates by filename parsing or LLM extraction) — those labels
+    then leak into every surface ("MAR. 5309" in the header, operator
+    mobile screenshot 2026-08-04). Anything outside 2000..2035 is treated
+    as no-detection so callers fall back to today / current month."""
+    if not iso:
+        return None
+    try:
+        y = int(str(iso)[:4])
+    except ValueError:
+        return None
+    return iso if 2000 <= y <= 2035 else None
+
+
 def _detect_period_end_from_filename(filename: Optional[str]) -> str:
     """Extract the trial-balance date from a Romanian ERP export filename.
 
@@ -197,7 +213,9 @@ def _detect_period_end_from_filename(filename: Optional[str]) -> str:
     if m:
         d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
         try:
-            return date(y, mo, d).isoformat()
+            candidate = date(y, mo, d).isoformat()
+            if _sane_period_end(candidate):
+                return candidate
         except ValueError:
             pass
     # Pattern: YYYY-MM-DD or YYYY_MM_DD
@@ -205,7 +223,9 @@ def _detect_period_end_from_filename(filename: Optional[str]) -> str:
     if m:
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
         try:
-            return date(y, mo, d).isoformat()
+            candidate = date(y, mo, d).isoformat()
+            if _sane_period_end(candidate):
+                return candidate
         except ValueError:
             pass
     # Pattern: month-name + year ("dec 2025", "decembrie 2025")
@@ -224,7 +244,9 @@ def _detect_period_end_from_filename(filename: Optional[str]) -> str:
                 # Default to end of month — that's the trial-balance convention.
                 import calendar
                 last_day = calendar.monthrange(y, mo)[1]
-                return date(y, mo, last_day).isoformat()
+                candidate = date(y, mo, last_day).isoformat()
+                if _sane_period_end(candidate):
+                    return candidate
             except ValueError:
                 pass
     # Year-only pattern — assume end of year.
@@ -827,7 +849,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                     )
                 else:
                     shaped = _sp.accounts_to_assemble_shape(extraction)
-                    period_end = extraction.period_end or _detect_period_end_from_filename(
+                    period_end = _sane_period_end(extraction.period_end) or _detect_period_end_from_filename(
                         doc.get("original_filename")
                     )
                     logger.info(

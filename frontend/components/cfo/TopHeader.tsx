@@ -25,7 +25,6 @@ import { AccountMenu } from "./AccountMenu";
 import { BackendStatusIndicator } from "./BackendStatusIndicator";
 import { NotificationsMenu } from "./NotificationsMenu";
 import { CurrencyMenu } from "./CurrencyMenu";
-import { PeriodBreadcrumb } from "./PeriodBreadcrumb";
 import { useBackendStatus } from "@/lib/useBackendStatus";
 import { useAuth } from "@/lib/auth";
 
@@ -112,9 +111,11 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
           <span className="hidden sm:inline-flex"><Logo size={24} compact /></span>
         </button>
 
-        {/* Period breadcrumb — the ONE piece of context on the left.
-            Signed-out (public shells reusing this header) has no period. */}
-        {signedIn && <PeriodBreadcrumb />}
+        {/* Period breadcrumb REMOVED (2026-08-04 per operator, mobile
+            screenshot with a corrupt "MAR. 5309" period): the header
+            carries no period context at all now. Month navigation lives
+            in the sidebar rail; the PeriodBreadcrumb component stays
+            available for reuse if this is ever reversed. */}
 
         {/* Engine-down indicator only. */}
         {backend === "disconnected" && <BackendStatusIndicator />}

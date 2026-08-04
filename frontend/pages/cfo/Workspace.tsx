@@ -427,6 +427,8 @@ function Onboarding({
   const [busy, setBusy] = useState(false);
   // For the "Skip for now — open the dashboard" escape (2026-08-02).
   const navigate = useNavigate();
+  // For the trial-balance reroute below — quota/extra-doc dialogs included.
+  const uploadEnqueue = useUploadEnqueue();
 
   // What finishOnboarding writes to organizations.industry_key /
   // industry_display_name — the same pair /onboarding saves.
@@ -456,6 +458,42 @@ function Onboarding({
   function finish() {
     writeWorkspaceName(name.trim());
     onDone(industry);
+  }
+
+  // Trial-balance reroute (2026-08-04, operator hit this on mobile): the
+  // wizard's step-3 dropzone feeds the SKU/trading parser, but the single
+  // most common first upload is a balanță de verificare. The old behavior
+  // was a dead-end English error telling the user to go find the Dashboard
+  // themselves. Now: when the backend flags the trial-balance shape, we
+  // finish onboarding and hand the SAME file to the financial pipeline
+  // (uploadDocument → enqueue — exactly the Dashboard's own path), then
+  // land on the Dashboard where the scan progress takes over.
+  async function routeTrialBalanceToDashboard(file: File): Promise<void> {
+    const [{ uploadDocument }, { startUpload, patchUpload, clearUpload }] = await Promise.all([
+      import("@/lib/supabase"),
+      import("@/lib/uploadStore"),
+    ]);
+    startUpload({ docId: "", filename: file.name, status: "queued" });
+    const { row, error } = await uploadDocument(file, { scope: "financial" });
+    if (!row) {
+      clearUpload();
+      throw new Error(error ?? t("dash.unknownError"));
+    }
+    startUpload({ docId: row.id, filename: file.name, status: "queued" });
+    const enq = await uploadEnqueue.enqueue(row.id);
+    if (enq.kind !== "queued") {
+      const reason =
+        enq.kind === "quota_blocked" || enq.kind === "transport_failed"
+          ? enq.message
+          : t("dash.uploadCancelled");
+      patchUpload({ status: "failed", error: reason });
+      throw new Error(reason);
+    }
+    toast.success(t("ws.tbRoutedTitle"), {
+      description: t("ws.tbRoutedDesc", { filename: file.name }),
+    });
+    finish();
+    navigate("/dashboard");
   }
 
   // Same call the upload dialog uses — posts the workbook to the SKU pipeline
@@ -490,10 +528,23 @@ function Onboarding({
       finish();
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("productsX.toast.uploadFailed");
+      // Backend flagged a trial balance ([TRIAL_BALANCE] token on new
+      // backends; phrase-match keeps the reroute working across deploy skew).
+      if (/\[TRIAL_BALANCE\]|looks like a trial balance/i.test(msg)) {
+        try {
+          await routeTrialBalanceToDashboard(file);
+          return;
+        } catch (reErr) {
+          const reMsg = reErr instanceof Error ? reErr.message : t("productsX.toast.uploadFailed");
+          toast.error(t("productsX.toast.uploadFailed"), { description: reMsg });
+          setBusy(false);
+          return;
+        }
+      }
       toast.error(t("productsX.toast.uploadFailed"), {
         description: msg.includes("Failed to fetch")
           ? t("ws.backendNotRunning")
-          : msg,
+          : msg.replace(/^\[TRIAL_BALANCE\]\s*/, ""),
       });
       setBusy(false);
     }
@@ -501,6 +552,8 @@ function Onboarding({
 
   return (
     <div className="space-y-6" data-testid="workspace-onboarding">
+      {/* Extra-doc / quota dialogs for the trial-balance reroute. */}
+      {uploadEnqueue.dialog}
       <Stepper step={step} />
 
       <div>

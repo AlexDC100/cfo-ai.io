@@ -619,21 +619,40 @@ def create_frontend_router(
                 # the user has never heard of.
                 tb_hints = ("cont", "sold", "rulaj", "denumire", "debit", "credit")
                 looks_like_tb = False
+                # Filename is the cheapest signal — "balanta"/"trial balance"
+                # in the name is unambiguous.
+                fname_l = (file.filename or "").lower()
+                if "balant" in fname_l or "trial balance" in fname_l or "balanț" in fname_l:
+                    looks_like_tb = True
+                # Cell-value scan (2026-08-04): header-row matching alone
+                # missed real TBs whose header sits below title rows — read
+                # the first rows headerless and scan every cell.
                 for sn in xls.sheet_names[:5]:
+                    if looks_like_tb:
+                        break
                     try:
-                        head = pd.read_excel(tmp_path, sheet_name=sn, nrows=3)
+                        head = pd.read_excel(tmp_path, sheet_name=sn, nrows=12, header=None)
                     except Exception:
                         continue
-                    cols_lower = " ".join(str(c).lower() for c in head.columns)
-                    if sum(1 for h in tb_hints if h in cols_lower) >= 2:
+                    blob = " ".join(
+                        str(v).lower() for v in head.values.ravel() if v is not None
+                    )
+                    if sum(1 for h in tb_hints if h in blob) >= 2:
                         looks_like_tb = True
                         break
                 if looks_like_tb:
+                    # `[TRIAL_BALANCE]` is a MACHINE token — the workspace
+                    # wizard matches it and reroutes the same file into the
+                    # financial pipeline instead of dead-ending the user
+                    # (2026-08-04, operator hit this on mobile onboarding).
+                    # Keep the token stable; the prose after it is fallback
+                    # copy for callers that don't handle the reroute.
                     raise HTTPException(
                         400,
-                        "This looks like a trial balance (balanță de verificare), not a "
-                        "sales/SKU file. Upload it on the Dashboard (Tablou de bord) — "
-                        "that's where financial statements are analyzed.",
+                        "[TRIAL_BALANCE] This looks like a trial balance "
+                        "(balanță de verificare), not a sales/SKU file. Upload it on "
+                        "the Dashboard (Tablou de bord) — that's where financial "
+                        "statements are analyzed.",
                     )
                 raise HTTPException(
                     400,

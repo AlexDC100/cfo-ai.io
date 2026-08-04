@@ -243,25 +243,36 @@ export function isCurrentMonthPeriod(periodEnd: string | null | undefined): bool
   );
 }
 
-/** "Mar 2026" from a period_end date string; null when unparseable.
- *  UTC-pinned: period_end is a date-only string, so local-time parsing
- *  shifted it a day back (and sometimes a month) west of Greenwich. */
+/** Bad date-detection has produced periods like "5309-03-31" and
+ *  "2050-12-31" in real workspaces (from Excel serials / account codes
+ *  misread as dates). A label formatter must never surface those —
+ *  treat anything outside a sane financial-reporting window as
+ *  unparseable so callers fall back to their placeholder. */
+function saneYear(d: Date): boolean {
+  const y = d.getUTCFullYear();
+  return y >= 2000 && y <= 2035;
+}
+
+/** "Mar 2026" from a period_end date string; null when unparseable or
+ *  implausible. UTC-pinned: period_end is a date-only string, so
+ *  local-time parsing shifted it a day back (and sometimes a month)
+ *  west of Greenwich. */
 export function formatPeriodMonth(
   periodEnd: string | null | undefined,
   locale: string = "en-GB",
 ): string | null {
   if (!periodEnd) return null;
   const d = new Date(periodEnd);
-  if (Number.isNaN(d.getTime())) return null;
+  if (Number.isNaN(d.getTime()) || !saneYear(d)) return null;
   return d.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-/** "2026" from a period_end date string; null when unparseable. The sidebar
- *  rail label shows the year alone (2026-08-04 per operator) — the month
- *  detail stays in the stepper arrow tooltips. */
+/** "2026" from a period_end date string; null when unparseable or
+ *  implausible. The sidebar rail label shows the year alone (2026-08-04
+ *  per operator) — the month detail stays in the stepper arrow tooltips. */
 export function formatPeriodYear(periodEnd: string | null | undefined): string | null {
   if (!periodEnd) return null;
   const d = new Date(periodEnd);
-  if (Number.isNaN(d.getTime())) return null;
+  if (Number.isNaN(d.getTime()) || !saneYear(d)) return null;
   return String(d.getUTCFullYear());
 }
