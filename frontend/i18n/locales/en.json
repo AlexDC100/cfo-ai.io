@@ -2466,5 +2466,144 @@
     "add": "Add a trial balance",
     "manage": "Manage files",
     "dupNote": "A file with this name already exists for this month — scanning will replace it in the analysis."
+  },
+  "wsSet": {
+    "nav": {
+      "general": "General",
+      "periods": "Periods",
+      "rules": "Decision rules",
+      "financing": "Financing",
+      "danger": "Danger zone"
+    },
+    "general": {
+      "editName": "Edit workspace name",
+      "saveName": "Save name",
+      "cancelEdit": "Cancel editing",
+      "nameSaved": "Workspace renamed.",
+      "changeIndustry": "Change industry",
+      "searchIndustry": "Search industries…",
+      "noneFound": "No industry matches your search.",
+      "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this workspace is graded with.",
+      "industryChanged": "Industry updated.",
+      "noIndustry": "No industry set yet — pick one so benchmarks match this company."
+    },
+    "industries": {
+      "real_estate": {
+        "name": "Real estate · commercial property",
+        "desc": "Office, retail, logistics — high leverage is normal, NOI-driven"
+      },
+      "real_estate_residential": {
+        "name": "Real estate · residential rental",
+        "desc": "Apartments, build-to-rent — lower leverage, occupancy-sensitive"
+      },
+      "saas": {
+        "name": "B2B SaaS",
+        "desc": "Recurring revenue, ARR/NRR-focused, rule of 40"
+      },
+      "fmcg": {
+        "name": "FMCG · food & beverage distribution",
+        "desc": "High inventory turn, thin margins, working-capital heavy"
+      },
+      "manufacturing": {
+        "name": "Manufacturing · industrial",
+        "desc": "Capex-intensive, long cycles, fixed-cost leverage"
+      },
+      "retail_ecom": {
+        "name": "Retail · e-commerce",
+        "desc": "Inventory turn, AOV and repeat-rate driven"
+      },
+      "professional_services": {
+        "name": "Professional services",
+        "desc": "Utilization, billable hours, low capex"
+      },
+      "construction": {
+        "name": "Construction",
+        "desc": "Project-based, WIP-heavy, milestone billing"
+      },
+      "healthcare": {
+        "name": "Healthcare · clinics",
+        "desc": "Regulated, payer-mix sensitive, high fixed cost"
+      },
+      "logistics": {
+        "name": "Logistics · transport",
+        "desc": "Fleet capex, fuel-margin sensitive, route economics"
+      },
+      "agriculture": {
+        "name": "Agriculture",
+        "desc": "Seasonal, weather-exposed, subsidy-aware"
+      },
+      "other": {
+        "name": "Other",
+        "desc": "Generic SME thresholds — refine later"
+      }
+    },
+    "periods": {
+      "active": "Active",
+      "duplicate": "Duplicate",
+      "duplicateHint": "{{count}} periods share this month — expand the row to manage them.",
+      "expand": "Show duplicate periods",
+      "collapse": "Hide duplicate periods",
+      "attach": "Attach file",
+      "menuAria": "Period actions",
+      "empty": "No periods yet — add the first month to get started."
+    },
+    "addPeriod": {
+      "range": "Pick a month between Jan 2000 and Dec {{year}}.",
+      "duplicateBlocked": "This workspace already has a period for {{month}}. Manage it from the periods list instead.",
+      "attachTitle": "Attach a file to {{month}}",
+      "attachDesc": "The file is filed under this period, overriding whatever date the file name suggests."
+    },
+    "rules": {
+      "notApplicable": "Product classification rules don't apply to this sector.",
+      "setupTitle": "Set up your product data",
+      "setupBody": "To run every rule, upload a product file that includes: {{columns}}.",
+      "seeFormat": "See the expected format",
+      "applied": "Decision rules applied.",
+      "discarded": "Changes discarded.",
+      "discard": "Discard",
+      "modified": "modified",
+      "unsaved": "Unsaved rule changes"
+    },
+    "columns": {
+      "gm": "Gross margin",
+      "dio": "Days of inventory (DIO)",
+      "volume": "Volume",
+      "revenue": "Revenue per product",
+      "marginPct": "Margin %"
+    },
+    "presets": {
+      "logical_default": {
+        "label": "Logical default",
+        "desc": "Volume × margin matrix with hard cuts for negative margin and excess DIO. Recommended starting point."
+      },
+      "cash_protection": {
+        "label": "Cash protection",
+        "desc": "Aggressive on slow movers and negative-margin products. Use when working capital is tight."
+      },
+      "growth_mode": {
+        "label": "Growth mode",
+        "desc": "Lenient thresholds. Keeps emerging products in Watch instead of Wind down. Use during expansion."
+      },
+      "pure_profitability": {
+        "label": "Pure profitability",
+        "desc": "Volume is ignored. Decisions are based only on margin and financing cost."
+      },
+      "working_capital_lens": {
+        "label": "Working capital lens",
+        "desc": "Optimized for cash-cycle decisions. Heavy weight on DIO and financing cost."
+      }
+    },
+    "financing": {
+      "subtitle": "Used by the Adjusted GM% rule to price the working capital tied up in each product.",
+      "infoAria": "About these rates"
+    },
+    "danger": {
+      "title": "Danger zone",
+      "resetTitle": "Reset decision rules",
+      "resetBody": "Puts thresholds, combination logic and financing assumptions back to the catalog defaults.",
+      "deleteTitle": "Delete this workspace",
+      "deleteNote": "Restorable from “Recently deleted” for 30 days.",
+      "cannotDelete": "This is your only workspace — it can't be deleted."
+    }
   }
 }

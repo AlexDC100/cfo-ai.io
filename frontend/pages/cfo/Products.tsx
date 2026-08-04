@@ -3055,7 +3055,7 @@ function EmptyState({
   // guard; the page-level branch renders the view.
 
   return (
-    <section data-testid="products-empty">
+    <section data-testid="products-empty" className="overflow-x-clip">
       {/* Pricing V3 — extra-doc confirm dialog mount. */}
       {uploadEnqueue.dialog}
 
@@ -3063,15 +3063,17 @@ function EmptyState({
        *  premium dropzone live in a 2-column split that stacks under lg.
        *  The wrapper card adds the gradient + ring so the hero reads as
        *  a single integrated surface rather than two loose blocks. */}
-      <div className="relative">
+      <div className="relative overflow-x-clip">
         {/* Decorative top-right brand glow — purely visual, no real data */}
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
 
         {/* Column split matches the dashboard hero (1.2fr_1fr + gap-6) so
             the "Start from the official template" card is the same width
-            on both surfaces. */}
-        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6 items-start relative">
-          <div>
+            on both surfaces. min-w-0 on the columns: grid items default to
+            min-width auto, so the format-hint table's intrinsic width was
+            blowing the whole page out sideways on phones (sweep-caught). */}
+        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6 items-start relative min-w-0">
+          <div className="min-w-0">
             <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
               <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
               {t("productsX.empty.eyebrow")}

@@ -2491,5 +2491,144 @@
     "add": "Adaugă o balanță de verificare",
     "manage": "Gestionează fișierele",
     "dupNote": "Un fișier cu același nume există deja pentru această lună — scanarea îl va înlocui în analiză."
+  },
+  "wsSet": {
+    "nav": {
+      "general": "General",
+      "periods": "Perioade",
+      "rules": "Reguli de decizie",
+      "financing": "Finanțare",
+      "danger": "Zonă periculoasă"
+    },
+    "general": {
+      "editName": "Editează numele workspace-ului",
+      "saveName": "Salvează numele",
+      "cancelEdit": "Renunță la editare",
+      "nameSaved": "Workspace-ul a fost redenumit.",
+      "changeIndustry": "Schimbă industria",
+      "searchIndustry": "Caută industrii…",
+      "noneFound": "Nicio industrie nu se potrivește căutării.",
+      "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluat acest workspace.",
+      "industryChanged": "Industria a fost actualizată.",
+      "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei."
+    },
+    "industries": {
+      "real_estate": {
+        "name": "Imobiliare · proprietăți comerciale",
+        "desc": "Birouri, retail, logistică — îndatorare ridicată e normală, condusă de NOI"
+      },
+      "real_estate_residential": {
+        "name": "Imobiliare · închirieri rezidențiale",
+        "desc": "Apartamente, build-to-rent — îndatorare mai mică, sensibil la gradul de ocupare"
+      },
+      "saas": {
+        "name": "SaaS B2B",
+        "desc": "Venituri recurente, orientat pe ARR/NRR, regula lui 40"
+      },
+      "fmcg": {
+        "name": "FMCG · distribuție alimente și băuturi",
+        "desc": "Rotație mare a stocurilor, marje subțiri, capital de lucru intensiv"
+      },
+      "manufacturing": {
+        "name": "Producție · industrial",
+        "desc": "Investiții mari în echipamente, cicluri lungi, efect de levier al costurilor fixe"
+      },
+      "retail_ecom": {
+        "name": "Retail · e-commerce",
+        "desc": "Condus de rotația stocurilor, valoarea medie a comenzii și rata de recumpărare"
+      },
+      "professional_services": {
+        "name": "Servicii profesionale",
+        "desc": "Grad de utilizare, ore facturabile, investiții reduse"
+      },
+      "construction": {
+        "name": "Construcții",
+        "desc": "Bazat pe proiecte, producție în curs semnificativă, facturare pe etape"
+      },
+      "healthcare": {
+        "name": "Sănătate · clinici",
+        "desc": "Reglementat, sensibil la mixul de plătitori, costuri fixe ridicate"
+      },
+      "logistics": {
+        "name": "Logistică · transport",
+        "desc": "Investiții în flotă, sensibil la marja de combustibil, economia rutelor"
+      },
+      "agriculture": {
+        "name": "Agricultură",
+        "desc": "Sezonier, expus la vreme, dependent de subvenții"
+      },
+      "other": {
+        "name": "Alt domeniu",
+        "desc": "Praguri generice pentru IMM-uri — le rafinezi mai târziu"
+      }
+    },
+    "periods": {
+      "active": "Activ",
+      "duplicate": "Duplicat",
+      "duplicateHint": "{{count}} perioade au aceeași lună — extinde rândul pentru a le gestiona.",
+      "expand": "Arată perioadele duplicate",
+      "collapse": "Ascunde perioadele duplicate",
+      "attach": "Atașează fișier",
+      "menuAria": "Acțiuni pentru perioadă",
+      "empty": "Nicio perioadă încă — adaugă prima lună pentru a începe."
+    },
+    "addPeriod": {
+      "range": "Alege o lună între ian. 2000 și dec. {{year}}.",
+      "duplicateBlocked": "Acest workspace are deja o perioadă pentru {{month}}. Gestioneaz-o din lista de perioade.",
+      "attachTitle": "Atașează un fișier la {{month}}",
+      "attachDesc": "Fișierul se arhivează sub această perioadă, indiferent de data sugerată de numele fișierului."
+    },
+    "rules": {
+      "notApplicable": "Regulile de clasificare a produselor nu se aplică acestui sector.",
+      "setupTitle": "Configurează datele de produs",
+      "setupBody": "Pentru a rula toate regulile, încarcă un fișier de produse care conține: {{columns}}.",
+      "seeFormat": "Vezi formatul așteptat",
+      "applied": "Regulile de decizie au fost aplicate.",
+      "discarded": "Modificările au fost anulate.",
+      "discard": "Renunță",
+      "modified": "modificat",
+      "unsaved": "Modificări nesalvate la reguli"
+    },
+    "columns": {
+      "gm": "Marjă brută",
+      "dio": "Zile stoc (DIO)",
+      "volume": "Volum",
+      "revenue": "Venituri per produs",
+      "marginPct": "Marjă %"
+    },
+    "presets": {
+      "logical_default": {
+        "label": "Implicit recomandat",
+        "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și DIO excesiv. Punct de plecare recomandat."
+      },
+      "cash_protection": {
+        "label": "Protejarea numerarului",
+        "desc": "Agresiv cu produsele cu rotație lentă și marjă negativă. Folosește-l când capitalul de lucru e limitat."
+      },
+      "growth_mode": {
+        "label": "Mod de creștere",
+        "desc": "Praguri permisive. Păstrează produsele emergente în Monitorizează în loc de Redu expunerea. Pentru perioade de expansiune."
+      },
+      "pure_profitability": {
+        "label": "Profitabilitate pură",
+        "desc": "Volumul este ignorat. Deciziile se bazează doar pe marjă și pe costul finanțării."
+      },
+      "working_capital_lens": {
+        "label": "Perspectiva capitalului de lucru",
+        "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe DIO și pe costul finanțării."
+      }
+    },
+    "financing": {
+      "subtitle": "Folosite de regula GM% ajustat pentru a evalua costul capitalului de lucru blocat în fiecare produs.",
+      "infoAria": "Despre aceste rate"
+    },
+    "danger": {
+      "title": "Zonă periculoasă",
+      "resetTitle": "Resetează regulile de decizie",
+      "resetBody": "Readuce pragurile, logica de combinare și ipotezele de finanțare la valorile implicite.",
+      "deleteTitle": "Șterge acest workspace",
+      "deleteNote": "Recuperabil din „Șterse recent” timp de 30 de zile.",
+      "cannotDelete": "Acesta este singurul tău workspace — nu poate fi șters."
+    }
   }
 }

@@ -1,0 +1,182 @@
+{
+  "en": {
+    "wsSet": {
+      "nav": {
+        "general": "General",
+        "periods": "Periods",
+        "rules": "Decision rules",
+        "financing": "Financing",
+        "danger": "Danger zone"
+      },
+      "general": {
+        "editName": "Edit workspace name",
+        "saveName": "Save name",
+        "cancelEdit": "Cancel editing",
+        "nameSaved": "Workspace renamed.",
+        "changeIndustry": "Change industry",
+        "searchIndustry": "Search industries…",
+        "noneFound": "No industry matches your search.",
+        "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this workspace is graded with.",
+        "industryChanged": "Industry updated.",
+        "noIndustry": "No industry set yet — pick one so benchmarks match this company."
+      },
+      "industries": {
+        "real_estate": { "name": "Real estate · commercial property", "desc": "Office, retail, logistics — high leverage is normal, NOI-driven" },
+        "real_estate_residential": { "name": "Real estate · residential rental", "desc": "Apartments, build-to-rent — lower leverage, occupancy-sensitive" },
+        "saas": { "name": "B2B SaaS", "desc": "Recurring revenue, ARR/NRR-focused, rule of 40" },
+        "fmcg": { "name": "FMCG · food & beverage distribution", "desc": "High inventory turn, thin margins, working-capital heavy" },
+        "manufacturing": { "name": "Manufacturing · industrial", "desc": "Capex-intensive, long cycles, fixed-cost leverage" },
+        "retail_ecom": { "name": "Retail · e-commerce", "desc": "Inventory turn, AOV and repeat-rate driven" },
+        "professional_services": { "name": "Professional services", "desc": "Utilization, billable hours, low capex" },
+        "construction": { "name": "Construction", "desc": "Project-based, WIP-heavy, milestone billing" },
+        "healthcare": { "name": "Healthcare · clinics", "desc": "Regulated, payer-mix sensitive, high fixed cost" },
+        "logistics": { "name": "Logistics · transport", "desc": "Fleet capex, fuel-margin sensitive, route economics" },
+        "agriculture": { "name": "Agriculture", "desc": "Seasonal, weather-exposed, subsidy-aware" },
+        "other": { "name": "Other", "desc": "Generic SME thresholds — refine later" }
+      },
+      "periods": {
+        "active": "Active",
+        "duplicate": "Duplicate",
+        "duplicateHint": "{{count}} periods share this month — expand the row to manage them.",
+        "expand": "Show duplicate periods",
+        "collapse": "Hide duplicate periods",
+        "attach": "Attach file",
+        "menuAria": "Period actions",
+        "empty": "No periods yet — add the first month to get started."
+      },
+      "addPeriod": {
+        "range": "Pick a month between Jan 2000 and Dec {{year}}.",
+        "duplicateBlocked": "This workspace already has a period for {{month}}. Manage it from the periods list instead.",
+        "attachTitle": "Attach a file to {{month}}",
+        "attachDesc": "The file is filed under this period, overriding whatever date the file name suggests."
+      },
+      "rules": {
+        "notApplicable": "Product classification rules don't apply to this sector.",
+        "setupTitle": "Set up your product data",
+        "setupBody": "To run every rule, upload a product file that includes: {{columns}}.",
+        "seeFormat": "See the expected format",
+        "applied": "Decision rules applied.",
+        "discarded": "Changes discarded.",
+        "discard": "Discard",
+        "modified": "modified",
+        "unsaved": "Unsaved rule changes"
+      },
+      "columns": {
+        "gm": "Gross margin",
+        "dio": "Days of inventory (DIO)",
+        "volume": "Volume",
+        "revenue": "Revenue per product",
+        "marginPct": "Margin %"
+      },
+      "presets": {
+        "logical_default": { "label": "Logical default", "desc": "Volume × margin matrix with hard cuts for negative margin and excess DIO. Recommended starting point." },
+        "cash_protection": { "label": "Cash protection", "desc": "Aggressive on slow movers and negative-margin products. Use when working capital is tight." },
+        "growth_mode": { "label": "Growth mode", "desc": "Lenient thresholds. Keeps emerging products in Watch instead of Wind down. Use during expansion." },
+        "pure_profitability": { "label": "Pure profitability", "desc": "Volume is ignored. Decisions are based only on margin and financing cost." },
+        "working_capital_lens": { "label": "Working capital lens", "desc": "Optimized for cash-cycle decisions. Heavy weight on DIO and financing cost." }
+      },
+      "financing": {
+        "subtitle": "Used by the Adjusted GM% rule to price the working capital tied up in each product.",
+        "infoAria": "About these rates"
+      },
+      "danger": {
+        "title": "Danger zone",
+        "resetTitle": "Reset decision rules",
+        "resetBody": "Puts thresholds, combination logic and financing assumptions back to the catalog defaults.",
+        "deleteTitle": "Delete this workspace",
+        "deleteNote": "Restorable from “Recently deleted” for 30 days.",
+        "cannotDelete": "This is your only workspace — it can't be deleted."
+      }
+    }
+  },
+  "ro": {
+    "wsSet": {
+      "nav": {
+        "general": "General",
+        "periods": "Perioade",
+        "rules": "Reguli de decizie",
+        "financing": "Finanțare",
+        "danger": "Zonă periculoasă"
+      },
+      "general": {
+        "editName": "Editează numele workspace-ului",
+        "saveName": "Salvează numele",
+        "cancelEdit": "Renunță la editare",
+        "nameSaved": "Workspace-ul a fost redenumit.",
+        "changeIndustry": "Schimbă industria",
+        "searchIndustry": "Caută industrii…",
+        "noneFound": "Nicio industrie nu se potrivește căutării.",
+        "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluat acest workspace.",
+        "industryChanged": "Industria a fost actualizată.",
+        "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei."
+      },
+      "industries": {
+        "real_estate": { "name": "Imobiliare · proprietăți comerciale", "desc": "Birouri, retail, logistică — îndatorare ridicată e normală, condusă de NOI" },
+        "real_estate_residential": { "name": "Imobiliare · închirieri rezidențiale", "desc": "Apartamente, build-to-rent — îndatorare mai mică, sensibil la gradul de ocupare" },
+        "saas": { "name": "SaaS B2B", "desc": "Venituri recurente, orientat pe ARR/NRR, regula lui 40" },
+        "fmcg": { "name": "FMCG · distribuție alimente și băuturi", "desc": "Rotație mare a stocurilor, marje subțiri, capital de lucru intensiv" },
+        "manufacturing": { "name": "Producție · industrial", "desc": "Investiții mari în echipamente, cicluri lungi, efect de levier al costurilor fixe" },
+        "retail_ecom": { "name": "Retail · e-commerce", "desc": "Condus de rotația stocurilor, valoarea medie a comenzii și rata de recumpărare" },
+        "professional_services": { "name": "Servicii profesionale", "desc": "Grad de utilizare, ore facturabile, investiții reduse" },
+        "construction": { "name": "Construcții", "desc": "Bazat pe proiecte, producție în curs semnificativă, facturare pe etape" },
+        "healthcare": { "name": "Sănătate · clinici", "desc": "Reglementat, sensibil la mixul de plătitori, costuri fixe ridicate" },
+        "logistics": { "name": "Logistică · transport", "desc": "Investiții în flotă, sensibil la marja de combustibil, economia rutelor" },
+        "agriculture": { "name": "Agricultură", "desc": "Sezonier, expus la vreme, dependent de subvenții" },
+        "other": { "name": "Alt domeniu", "desc": "Praguri generice pentru IMM-uri — le rafinezi mai târziu" }
+      },
+      "periods": {
+        "active": "Activ",
+        "duplicate": "Duplicat",
+        "duplicateHint": "{{count}} perioade au aceeași lună — extinde rândul pentru a le gestiona.",
+        "expand": "Arată perioadele duplicate",
+        "collapse": "Ascunde perioadele duplicate",
+        "attach": "Atașează fișier",
+        "menuAria": "Acțiuni pentru perioadă",
+        "empty": "Nicio perioadă încă — adaugă prima lună pentru a începe."
+      },
+      "addPeriod": {
+        "range": "Alege o lună între ian. 2000 și dec. {{year}}.",
+        "duplicateBlocked": "Acest workspace are deja o perioadă pentru {{month}}. Gestioneaz-o din lista de perioade.",
+        "attachTitle": "Atașează un fișier la {{month}}",
+        "attachDesc": "Fișierul se arhivează sub această perioadă, indiferent de data sugerată de numele fișierului."
+      },
+      "rules": {
+        "notApplicable": "Regulile de clasificare a produselor nu se aplică acestui sector.",
+        "setupTitle": "Configurează datele de produs",
+        "setupBody": "Pentru a rula toate regulile, încarcă un fișier de produse care conține: {{columns}}.",
+        "seeFormat": "Vezi formatul așteptat",
+        "applied": "Regulile de decizie au fost aplicate.",
+        "discarded": "Modificările au fost anulate.",
+        "discard": "Renunță",
+        "modified": "modificat",
+        "unsaved": "Modificări nesalvate la reguli"
+      },
+      "columns": {
+        "gm": "Marjă brută",
+        "dio": "Zile stoc (DIO)",
+        "volume": "Volum",
+        "revenue": "Venituri per produs",
+        "marginPct": "Marjă %"
+      },
+      "presets": {
+        "logical_default": { "label": "Implicit recomandat", "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și DIO excesiv. Punct de plecare recomandat." },
+        "cash_protection": { "label": "Protejarea numerarului", "desc": "Agresiv cu produsele cu rotație lentă și marjă negativă. Folosește-l când capitalul de lucru e limitat." },
+        "growth_mode": { "label": "Mod de creștere", "desc": "Praguri permisive. Păstrează produsele emergente în Monitorizează în loc de Redu expunerea. Pentru perioade de expansiune." },
+        "pure_profitability": { "label": "Profitabilitate pură", "desc": "Volumul este ignorat. Deciziile se bazează doar pe marjă și pe costul finanțării." },
+        "working_capital_lens": { "label": "Perspectiva capitalului de lucru", "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe DIO și pe costul finanțării." }
+      },
+      "financing": {
+        "subtitle": "Folosite de regula GM% ajustat pentru a evalua costul capitalului de lucru blocat în fiecare produs.",
+        "infoAria": "Despre aceste rate"
+      },
+      "danger": {
+        "title": "Zonă periculoasă",
+        "resetTitle": "Resetează regulile de decizie",
+        "resetBody": "Readuce pragurile, logica de combinare și ipotezele de finanțare la valorile implicite.",
+        "deleteTitle": "Șterge acest workspace",
+        "deleteNote": "Recuperabil din „Șterse recent” timp de 30 de zile.",
+        "cannotDelete": "Acesta este singurul tău workspace — nu poate fi șters."
+      }
+    }
+  }
+}

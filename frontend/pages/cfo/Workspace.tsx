@@ -54,6 +54,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
+import { WorkspaceSettingsV2 } from "@/components/cfo/workspace/WorkspaceSettingsV2";
 import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { toast } from "@/components/ui/sonner";
 import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
@@ -194,7 +195,7 @@ export default function Workspace() {
             />
           </div>
 
-          <div className="flex-1 min-w-0 space-y-8">
+          <div className="w-full flex-1 min-w-0 space-y-8">
             <PageHeader
               hero
               eyebrow={t("ws.settingsEyebrow")}
@@ -207,7 +208,7 @@ export default function Workspace() {
               }
               subtitle={t("ws.settingsSubtitleEdit")}
             />
-            <WorkspaceSettings
+            <WorkspaceSettingsV2
               workspace={editingWorkspace}
               canDelete={ws.canDelete}
               onBack={() => setEditingId(null)}
@@ -313,7 +314,7 @@ export default function Workspace() {
               directly beneath it. Gated on !ws.loading so it doesn't flash the
               "Manage" section for a stale active id during the initial resolve
               (the active id is only nulled once the workspace list resolves). */}
-          <div className="flex-1 min-w-0">
+          <div className="w-full flex-1 min-w-0">
           {!ws.loading && ws.current && (
             <SelectedWorkspacePanel
               workspace={ws.current}
@@ -1772,11 +1773,11 @@ function SelectedWorkspacePanel({
           loading treatments at once read as a stutter. `aria-busy` stays so
           assistive tech still knows the region is settling. */}
       <div className="space-y-6" aria-busy={loading}>
-        {/* The separate Uploads section was removed 2026-07-26 per operator —
-            every file now appears inside its own period card above, so the
-            list was showing the same filenames a second time. */}
-        <MonthsSection compact orgId={workspace.id} />
-        <WorkspaceSettings
+        {/* Settings redesign 2026-08-04: periods, rules, financing and the
+            danger zone all live inside WorkspaceSettingsV2's sectioned
+            surface (the old inline MonthsSection + staged-apply settings
+            were replaced by it). */}
+        <WorkspaceSettingsV2
           key={workspace.id}
           workspace={workspace}
           canDelete={canDelete}
@@ -2190,356 +2191,9 @@ function PurgeWorkspaceDialog({
 }
 
 // ─── Workspace settings sub-view ─────────────────────────────────────────────
-function WorkspaceSettings({
-  workspace,
-  canDelete,
-  onBack,
-  onRename,
-  onChangeIndustry,
-  onDelete,
-  showBack = true,
-}: {
-  workspace: Workspace;
-  canDelete: boolean;
-  onBack?: () => void;
-  onRename: (name: string) => void;
-  onChangeIndustry: (key: string) => void;
-  onDelete: () => void;
-  /** Hide the "All workspaces" back link when the panel renders inline under
-   *  the hub (the workspace list is already right above it). */
-  showBack?: boolean;
-}) {
-  const { t } = useTranslation();
-  // Field settings are STAGED locally and committed together by the bottom
-  // "Apply changes" button — the per-field Save was removed.
-  const [name, setName] = useState(workspace.name);
-  const [industryKey, setIndustryKey] = useState<string | null>(workspace.industryKey ?? null);
-  const trimmed = name.trim();
-  const nameChanged = trimmed.length > 0 && trimmed !== workspace.name;
-  const industryChanged = (industryKey ?? "") !== (workspace.industryKey ?? "");
-
-  // Decision rules are staged too (2026-07-26 per operator — they used to
-  // commit on every drag). The panel still edits the live store, because its
-  // per-rule SKU counts and the thresholds' effect are the whole point of the
-  // control — reading them off a detached draft would mean duplicating the
-  // bucketing pipeline. What changes is COMMITMENT: we snapshot the state on
-  // entry, and leaving without pressing Apply restores that snapshot, so an
-  // abandoned session leaves the catalog graded exactly as it was found.
-  const rulesBaseline = useRef<DecisionRulesState>(readDecisionRules());
-  const liveRules = useDecisionRules();
-  const rulesChanged = useMemo(
-    () => JSON.stringify(liveRules) !== JSON.stringify(rulesBaseline.current),
-    [liveRules],
-  );
-  // Set once Apply runs, so the unmount revert below knows to stand down.
-  const rulesCommitted = useRef(false);
-
-  const dirty = nameChanged || industryChanged || rulesChanged;
-
-  // Revert on the way out — covers EVERY exit path (route change, workspace
-  // switch, tab close in-app), not just the "All workspaces" link that has its
-  // own confirm dialog.
-  useEffect(() => {
-    return () => {
-      if (rulesCommitted.current) return;
-      const current = readDecisionRules();
-      if (JSON.stringify(current) === JSON.stringify(rulesBaseline.current)) return;
-      writeDecisionRules(rulesBaseline.current);
-    };
-  }, []);
-
-  // Confirmation shown when leaving the tab with unsaved field changes.
-  const [leaveWarnOpen, setLeaveWarnOpen] = useState(false);
-  // "Delete workspace" confirms first (2026-07-26 per operator) — it used to
-  // fire the moment the button was clicked, which is a lot of consequence for
-  // a single stray click on a destructive control. Soft delete, so this is a
-  // plain confirm rather than the type-the-name gate that guards the
-  // irreversible purge in PurgeWorkspaceDialog.
-  const [deleteOpen, setDeleteOpen] = useState(false);
-
-  // The name field is read-only until Edit is pressed. Focus + select must run
-  // AFTER the re-render that clears `readOnly` — calling them in the same tick
-  // would target a still-read-only input, where select() is a no-op in some
-  // browsers. rAF is enough: React has committed by the next frame.
-  const [editingName, setEditingName] = useState(false);
-  const nameInputRef = useRef<HTMLInputElement | null>(null);
-  function startEditingName() {
-    setEditingName(true);
-    requestAnimationFrame(() => {
-      nameInputRef.current?.focus();
-      nameInputRef.current?.select();
-    });
-  }
-
-  function applyChanges() {
-    if (nameChanged) onRename(trimmed);
-    if (industryChanged && industryKey) onChangeIndustry(industryKey);
-    if (rulesChanged) {
-      // Nothing to write — the store already holds the edits. Committing means
-      // adopting them as the new baseline so the unmount revert leaves them
-      // alone.
-      rulesBaseline.current = readDecisionRules();
-    }
-    rulesCommitted.current = true;
-    if (dirty) toast.success(t("ws.settingsApplied"));
-  }
-
-  // Guard the "All workspaces" back link: with unsaved changes, warn first.
-  function handleBack() {
-    if (!onBack) return;
-    if (dirty) { setLeaveWarnOpen(true); return; }
-    onBack();
-  }
-
-  // Register the app-wide guard so a sidebar tab switch warns before the
-  // unmount revert throws the edits away (see lib/unsavedGuard).
-  useEffect(() => {
-    setUnsavedGuard(dirty ? t("ws.unsavedGuard") : null);
-    return () => setUnsavedGuard(null);
-  }, [dirty, t]);
-
-  // Also catch a full page unload / refresh while there are unsaved changes —
-  // the SPA can't intercept a hard reload, so the browser's native prompt is
-  // the only cover there.
-  useEffect(() => {
-    if (!dirty) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
-
-  return (
-    <div className="space-y-6" data-testid="workspace-settings">
-      {showBack && onBack && (
-        <button
-          type="button"
-          onClick={handleBack}
-          data-testid="workspace-settings-back"
-          className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-mute hover:text-ink transition-colors"
-        >
-          <ArrowLeft size={14} strokeWidth={2} />
-          {t("ws.allWorkspaces")}
-        </button>
-      )}
-
-      {/* Name — read-only until Edit is pressed (2026-07-26 per operator), so
-          the field reads as the current name rather than an invitation to
-          type. Renaming is deliberate and rare; an always-live input next to
-          a workspace's identity is easy to change by accident. Still staged —
-          committed by "Apply changes", not on blur. */}
-      <div className="border-t border-rule/60 pt-6">
-        <StepHeading title={t("settings.workspace_name")} body={t("ws.renameBody")} />
-        <div className="flex items-center gap-2">
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={name}
-            readOnly={!editingName}
-            onChange={(e) => setName(e.currentTarget.value)}
-            // Enter commits the edit affordance (not the settings — Apply
-            // changes still owns that) and Escape reverts to the stored name,
-            // matching how an inline rename is expected to behave.
-            onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); setEditingName(false); }
-              if (e.key === "Escape") { setName(workspace.name); setEditingName(false); }
-            }}
-            // Clicking away re-locks the field. The typed value is KEPT (it's
-            // staged for "Apply changes") — only editability is given back, so
-            // blurring can't quietly discard a rename in progress.
-            onBlur={() => setEditingName(false)}
-            data-testid="workspace-settings-name"
-            aria-readonly={!editingName}
-            // Locked: no text-selection highlight (2026-07-26 per operator).
-            // `readOnly` still lets you drag-select the name, which renders the
-            // selection colour and makes the field look editable when it
-            // isn't. `select-none` + a transparent selection removes that tell.
-            className={`w-full h-10 px-3.5 rounded-lg border text-[14px] text-ink placeholder:text-ink-mute transition-colors focus:outline-none ${
-              editingName
-                ? "border-rule bg-surface focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
-                : "border-rule/60 bg-bg-2/40 cursor-default select-none selection:bg-transparent selection:text-ink"
-            }`}
-          />
-          {/* Edit / Done — styled like the public-companies search field
-              (2026-07-26 per operator): rounded-xl on `surface`, with the
-              brand border + ring as its active treatment. The button STATE
-              tracks the field's: locked reads as neutral chrome, unlocked
-              carries the same brand ring the input itself shows, so the pair
-              reads as one control rather than a button beside a box.
-
-              onMouseDown preventDefault keeps focus in the input — without it
-              the input's onBlur re-locks the field a tick before this onClick
-              runs, and the button would toggle editing straight back on. */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              if (editingName) setEditingName(false);
-              else startEditingName();
-            }}
-            data-testid="workspace-settings-name-edit"
-            aria-pressed={editingName}
-            aria-label={editingName ? t("ws.finishEditingName") : t("ws.editWorkspaceName")}
-            title={editingName ? t("ws.finishEditing") : t("ws.editWorkspaceName")}
-            className={`shrink-0 inline-flex items-center gap-1.5 h-10 px-4 rounded-xl border text-[13px] font-medium text-ink transition-all focus:outline-none ask-ai-anim-fill [animation-duration:10s] ${
-              editingName
-                ? "border-brand/60 ring-2 ring-brand/20"
-                : "border-brand/40 hover:border-brand/60"
-            }`}
-          >
-            {editingName ? (
-              <Check size={14} strokeWidth={2} />
-            ) : (
-              <Pencil size={14} strokeWidth={1.75} />
-            )}
-            {editingName ? t("common.done") : t("common.edit")}
-          </button>
-        </div>
-      </div>
-
-      {/* Industry — drives which benchmarks CFO AI compares this workspace
-          against. Sits above Decision rules so the sector is set before the
-          thresholds it contextualizes. Staged; committed by "Apply changes". */}
-      <div className="border-t border-rule/60 pt-6">
-        <StepHeading
-          title={t("onboarding.industry")}
-          body={t("ws.industryBody")}
-        />
-        <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
-      </div>
-
-      {/* Decision rules */}
-      <div className="border-t border-rule/60 pt-6">
-        <StepHeading
-          title={t("decision_rules.title")}
-          body={t("ws.rulesBody")}
-        />
-        <DecisionRulesPanel />
-      </div>
-
-      {/* Actions */}
-      <div className="border-t border-rule/60 pt-6">
-        <StepHeading
-          title={t("ws.setupDataTitle")}
-          body={t("ws.setupDataBody")}
-        />
-        {/* Apply shares this row with Reset + Delete (2026-07-26 per
-            operator). It's the single commit point for everything above —
-            name, industry and the decision rules — and stays disabled until
-            something actually changed. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              resetDecisionRulesToDefaults();
-              toast.success(t("ws.rulesReset"));
-            }}
-            data-testid="workspace-settings-reset"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
-          >
-            <RotateCcw size={14} strokeWidth={1.75} />
-            {t("ws.resetToDefault")}
-          </button>
-          {canDelete && (
-            <button
-              type="button"
-              onClick={() => setDeleteOpen(true)}
-              data-testid="workspace-settings-delete"
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
-            >
-              <Trash2 size={14} strokeWidth={1.75} />
-              {t("ws.deleteWorkspace")}
-            </button>
-          )}
-          {/* Apply sits at the far right of this row (2026-07-26 per
-              operator) — the commit point for everything above, kept clear of
-              the destructive actions on the left. */}
-          {dirty && (
-            <span className="ml-auto text-[12.5px] text-amber-600" data-testid="workspace-settings-dirty">
-              {t("ws.unsavedChanges")}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={applyChanges}
-            disabled={!dirty}
-            data-testid="workspace-settings-apply"
-            className={`${dirty ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
-          >
-            <Check size={14} strokeWidth={2} />
-            {t("ws.applyChanges")}
-          </button>
-        </div>
-      </div>
-
-      {/* Delete confirmation. Soft delete — the workspace is hidden and
-          recoverable from "Recently deleted" for 30 days — so the copy leads
-          with what actually happens rather than an alarm the action doesn't
-          warrant. Permanent erasure is a separate, harder-gated action. */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="sm:max-w-[440px]" data-testid="workspace-settings-delete-dialog">
-          <DialogHeader>
-            <DialogTitle>{t("ws.deleteWorkspaceTitle", { name: workspace.name || t("ws.thisWorkspace") })}</DialogTitle>
-            <DialogDescription>
-              {t("ws.deleteWorkspaceBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <button
-              type="button"
-              onClick={() => setDeleteOpen(false)}
-              data-testid="workspace-settings-delete-cancel"
-              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setDeleteOpen(false); onDelete(); }}
-              data-testid="workspace-settings-delete-confirm"
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
-            >
-              <Trash2 size={14} strokeWidth={1.75} />
-              {t("ws.deleteWorkspace")}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Unsaved-changes guard when leaving via "All workspaces". */}
-      <Dialog open={leaveWarnOpen} onOpenChange={setLeaveWarnOpen}>
-        <DialogContent className="sm:max-w-[420px]" data-testid="workspace-settings-leave-dialog">
-          <DialogHeader>
-            <DialogTitle>{t("confirmations.discardTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("ws.leaveBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <button
-              type="button"
-              onClick={() => setLeaveWarnOpen(false)}
-              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
-            >
-              {t("ws.keepEditing")}
-            </button>
-            <button
-              type="button"
-              onClick={() => { applyChanges(); setLeaveWarnOpen(false); onBack?.(); }}
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-            >
-              {t("ws.applyAndLeave")}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLeaveWarnOpen(false); onBack?.(); }}
-              data-testid="workspace-settings-leave-discard"
-              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
-            >
-              {t("ws.discardAndLeave")}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+// The old staged-apply WorkspaceSettings (name/industry/rules + Apply changes
+// row) was replaced 2026-08-04 by the sectioned redesign in
+// components/cfo/workspace/WorkspaceSettingsV2.tsx (General / Periods /
+// Decision rules / Financing / Danger zone). Every mutation kept its existing
+// path: rename + industry go through useWorkspaces(), rules through
+// decisionRulesStore, delete through ws.remove (soft, 30-day restore).

@@ -22,10 +22,13 @@
 // for the weighted mode ARE wired (visible only when mode === weighted).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { Check, FileSpreadsheet, RotateCcw } from "lucide-react";
+
+import { toast } from "@/components/ui/sonner";
+import { isProductIndustry } from "@/components/cfo/workspace/wsSetI18n";
 
 import {
   Dialog,
@@ -332,10 +335,47 @@ export function DecisionRulesModal({ open, onOpenChange, returnTo = "/products" 
 // The decision-rules body WITHOUT any dialog chrome — preset picker,
 // combination-mode selector, financing assumptions, rule cards, and the
 // combined distribution. Rendered inside `DecisionRulesModal` above AND
-// inline elsewhere (e.g. the Workspace onboarding step 2) so the same
-// controls appear in a plain page section, not a modal.
+// inline elsewhere (e.g. the Workspace onboarding step 2 and the Workspace
+// Settings redesign) so the same controls appear in a plain page section,
+// not a modal.
+//
+// 2026-08-04 (settings redesign):
+//   · `industryKey` — when provided, the panel is CONDITIONAL: product
+//     industries (fmcg, retail_ecom, manufacturing, agriculture, logistics)
+//     get the full panel; everything else gets one compact "not applicable"
+//     card with a change-industry link (`onChangeIndustryRequest`). Callers
+//     that pass nothing (modal, onboarding wizard) keep the full panel.
+//   · Rules whose data columns are missing no longer render per-card error
+//     blocks with internal tokens ("gm_krn") — ONE friendly setup card lists
+//     the human column names and links to the products template.
+//   · `applyBar` — sticky bottom Apply/Discard bar that appears only while
+//     the state differs from the snapshot taken on mount.
+//   · `showFinancing={false}` lets the settings surface host the financing
+//     assumptions in its own section without showing them twice.
 
-export function DecisionRulesPanel() {
+/** Human names for the SKU columns the rules read — internal field tokens
+ *  must NEVER reach the UI. */
+const FIELD_COLUMN_KEYS: Record<string, string> = {
+  gm_krn: "wsSet.columns.gm",
+  niv_krn: "wsSet.columns.revenue",
+  days_inventory_on_hand: "wsSet.columns.dio",
+  volume_tons: "wsSet.columns.volume",
+  gm_pct: "wsSet.columns.marginPct",
+};
+
+export function DecisionRulesPanel({
+  industryKey,
+  onChangeIndustryRequest,
+  showFinancing = true,
+  applyBar = false,
+}: {
+  /** Workspace industry key. Omit (undefined) to always show the full panel. */
+  industryKey?: string | null;
+  /** Invoked by the compact card's "Change industry" link. */
+  onChangeIndustryRequest?: () => void;
+  showFinancing?: boolean;
+  applyBar?: boolean;
+} = {}) {
   const { t } = useTranslation();
   const state = useDecisionRules();
 
@@ -366,6 +406,74 @@ export function DecisionRulesPanel() {
     }
     return total;
   }, [skus, financing]);
+
+  // Availability split — rules with data render as cards; rules whose columns
+  // are missing across the dataset are summarized by ONE setup card instead.
+  const availabilities = useMemo(
+    () => RULES.map((rule) => ({ rule, availability: getRuleAvailability(rule, skus) })),
+    [skus],
+  );
+  const availableRules = availabilities.filter((a) => a.availability.status !== "missing");
+  const missingRules = availabilities.filter((a) => a.availability.status === "missing");
+  const missingColumns = useMemo(() => {
+    const keys = new Set<string>();
+    for (const m of missingRules) {
+      for (const f of m.availability.missingFields) {
+        keys.add(FIELD_COLUMN_KEYS[f as string] ?? "wsSet.columns.revenue");
+      }
+    }
+    return [...keys].map((k) => t(k));
+  }, [missingRules, t]);
+
+  // Safety net (moved up from the per-card effect): a rule that is enabled
+  // but has no data must not silently push every SKU to wind_down under
+  // all_agree — force it off until the data arrives.
+  useEffect(() => {
+    for (const m of missingRules) {
+      if (state.rules[m.rule.id]?.enabled) {
+        updateRuleState(m.rule.id, { enabled: false });
+      }
+    }
+  }, [missingRules, state.rules]);
+
+  // Dirty tracking for the sticky Apply/Discard bar (settings surface only).
+  // Edits still hit the live store instantly — the preview counts ARE the
+  // point — so "Apply" adopts the current state as the new baseline and
+  // "Discard" writes the baseline back through the store's existing API.
+  const [baseline, setBaseline] = useState<{
+    state: ReturnType<typeof readDecisionRules>;
+    presetId: string | null;
+  } | null>(() =>
+    applyBar ? { state: readDecisionRules(), presetId: readActivePresetId() } : null,
+  );
+  const dirty =
+    applyBar && baseline !== null && JSON.stringify(state) !== JSON.stringify(baseline.state);
+
+  // Conditional surface — after all hooks so React's rules hold. Product
+  // industries get the full panel; anything else (real estate, SaaS,
+  // services, no industry yet) has no SKU catalog to classify.
+  if (industryKey !== undefined && !isProductIndustry(industryKey)) {
+    return (
+      <div
+        className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between"
+        data-testid="wsset-rules-na"
+      >
+        <p className="text-[13px] text-ink-soft leading-relaxed">
+          {t("wsSet.rules.notApplicable")}
+        </p>
+        {onChangeIndustryRequest && (
+          <button
+            type="button"
+            onClick={onChangeIndustryRequest}
+            data-testid="wsset-rules-change-industry"
+            className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
+          >
+            {t("wsSet.general.changeIndustry")}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -430,26 +538,95 @@ export function DecisionRulesPanel() {
       </div>
 
       {/* Financing assumptions — applied to the Adjusted GM% rule below.
-          Full-width, under the Preset/Combination grid. */}
-      <FinancingSection
-        financing={financing}
-        totalCost={totalFinancingCost}
-        skuCount={skus.length}
-      />
+          Full-width, under the Preset/Combination grid. Hidden when the host
+          surface (Workspace Settings) shows them in its own section. */}
+      {showFinancing && (
+        <FinancingSection
+          financing={financing}
+          totalCost={totalFinancingCost}
+          skuCount={skus.length}
+        />
+      )}
+
+      {/* ONE friendly setup card for every rule whose data columns are
+          missing — human column names only, never internal field tokens. */}
+      {missingRules.length > 0 && (
+        <section
+          className="rounded-xl border border-rule bg-bg-2/30 px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-3"
+          data-testid="wsset-rules-setup"
+        >
+          <span className="grid place-items-center h-9 w-9 shrink-0 rounded-lg bg-brand/10 text-brand-d">
+            <FileSpreadsheet size={17} strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-medium text-ink">{t("wsSet.rules.setupTitle")}</p>
+            <p className="text-[12px] text-ink-soft leading-snug mt-0.5">
+              {t("wsSet.rules.setupBody", { columns: missingColumns.join(", ") })}
+            </p>
+          </div>
+          <Link
+            to="/products"
+            data-testid="wsset-rules-see-format"
+            className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-brand/40 text-[12.5px] font-medium text-ink hover:border-brand/60 hover:bg-brand/10 transition-colors"
+          >
+            {t("wsSet.rules.seeFormat")}
+          </Link>
+        </section>
+      )}
 
       {/* Rule cards — in a grid so the metric previews sit side by side. */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-        {RULES.map((rule) => (
-          <RuleCard
-            key={rule.id}
-            rule={rule}
-            ruleState={state.rules[rule.id]!}
-            skus={skus}
-            showWeight={isWeighted}
-            ctx={ctx}
-          />
-        ))}
-      </section>
+      {availableRules.length > 0 && (
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+          {availableRules.map(({ rule }) => (
+            <RuleCard
+              key={rule.id}
+              rule={rule}
+              ruleState={state.rules[rule.id]!}
+              skus={skus}
+              showWeight={isWeighted}
+              ctx={ctx}
+            />
+          ))}
+        </section>
+      )}
+
+      {/* Sticky Apply/Discard bar — settings surface only, shown only while
+          dirty. Edits are live; Apply adopts them as the saved baseline,
+          Discard restores the snapshot through the store's existing API. */}
+      {dirty && baseline !== null && (
+        <div
+          className="sticky bottom-3 z-10 flex items-center gap-3 rounded-xl border border-rule bg-surface/95 backdrop-blur-sm px-4 py-3 shadow-[0_12px_40px_-16px_rgba(0,0,0,0.6)]"
+          data-testid="wsset-rules-applybar"
+        >
+          <span className="flex-1 min-w-0 truncate text-[12px] text-amber-500 font-medium">
+            {t("wsSet.rules.unsaved")}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              writeDecisionRules(baseline.state);
+              setActivePresetId(baseline.presetId);
+              toast.success(t("wsSet.rules.discarded"));
+            }}
+            data-testid="wsset-rules-discard"
+            className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+          >
+            {t("wsSet.rules.discard")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setBaseline({ state: readDecisionRules(), presetId: readActivePresetId() });
+              toast.success(t("wsSet.rules.applied"));
+            }}
+            data-testid="wsset-rules-apply"
+            className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-[12.5px] font-medium text-ink hover:border-brand/60 transition-colors"
+          >
+            <Check size={14} strokeWidth={2} />
+            {t("ws.applyChanges")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -479,16 +656,8 @@ function RuleCard({
     [rule, ruleState, skus, ctx],
   );
 
-  // Auto-disable safety: if the rule is currently enabled but its data is
-  // missing across the entire dataset, force the toggle off in the store
-  // so it doesn't silently push every SKU to wind_down under all_agree
-  // mode. Operator can re-enable manually once the data is provided
-  // (e.g., they re-upload with the missing column).
-  useEffect(() => {
-    if (ruleState.enabled && availability.status === "missing") {
-      updateRuleState(rule.id, { enabled: false });
-    }
-  }, [rule.id, ruleState.enabled, availability.status]);
+  // (The missing-data auto-disable safety moved up to DecisionRulesPanel —
+  // rules without data no longer render a card at all.)
 
   const unit = t(rule.unitKey, rule.unitDefault);
   const label = t(rule.labelKey, rule.labelDefault);
@@ -529,6 +698,21 @@ function RuleCard({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Threshold value chips — the two cutoffs at a glance. */}
+          {!off && (
+            <span
+              className="hidden sm:inline-flex items-center gap-1 text-[10.5px] tabular-nums"
+              data-testid={`wsset-rule-chips-${rule.id}`}
+            >
+              <span className="rounded-md border border-rule bg-bg-2/60 px-1.5 py-0.5 text-ink-soft">
+                {formatVal(ruleState.thresholds[0], unit)}
+              </span>
+              <span className="text-ink-mute">–</span>
+              <span className="rounded-md border border-rule bg-bg-2/60 px-1.5 py-0.5 text-ink-soft">
+                {formatVal(ruleState.thresholds[1], unit)}
+              </span>
+            </span>
+          )}
           {off && (
             <span className="text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink-soft">
               {t("decision_rules.rule_off", "Off")}
@@ -543,9 +727,7 @@ function RuleCard({
         </div>
       </div>
 
-      {availability.status === "missing" ? (
-        <MissingDataNotice rule={rule} missing={availability.missingFields} />
-      ) : (
+      {(
         (
           <div
             aria-hidden={off}
@@ -635,35 +817,8 @@ function RuleCard({
   );
 }
 
-function MissingDataNotice({
-  rule,
-  missing,
-}: {
-  rule: RuleDefinition;
-  missing: (keyof SkuLite)[];
-}) {
-  const { t } = useTranslation();
-  return (
-    <div
-      className="px-4 py-3 flex items-start gap-2 text-[12px] text-[#2AA89B] dark:text-[#5CD3C5] bg-[#5CD3C5]/5"
-      data-testid={`rule-missing-${rule.id}`}
-    >
-      <AlertTriangle size={14} strokeWidth={2} className="mt-0.5 shrink-0" />
-      <div className="flex-1 leading-snug">
-        <div className="font-medium text-ink">
-          {t("decision_rules.missing_data", "Data missing")}
-        </div>
-        <div className="mt-0.5 text-ink-soft">
-          {t(
-            "decision_rules.missing_data_body",
-            "Requires columns: {{fields}}. Re-upload with these fields included or map them in the data import step.",
-            { fields: missing.join(", ") },
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// MissingDataNotice removed 2026-08-04 — rules without data are summarized
+// by the panel-level setup card (human column names, no internal tokens).
 
 function ToggleSwitch({
   checked,
@@ -779,9 +934,16 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
     return isStateDrifted(state, activePresetId, skus);
   }, [state, activePresetId, skus]);
 
+  // Localized preset copy — the catalog's English label/description are the
+  // t() fallbacks, so an unknown future preset still renders something.
+  const presetLabel = (id: string) =>
+    t(`wsSet.presets.${id}.label`, getPreset(id)?.label ?? id);
+  const presetDesc = (id: string) =>
+    t(`wsSet.presets.${id}.desc`, getPreset(id)?.description ?? "");
+
   const previewPreset = getPreset(selected);
   const activePresetLabel = activePresetId
-    ? `${getPreset(activePresetId)?.label ?? activePresetId}${drifted ? " · modified" : ""}`
+    ? `${presetLabel(activePresetId)}${drifted ? ` · ${t("wsSet.rules.modified")}` : ""}`
     : null;
 
   // The explicit "Apply preset" button (and its needs-data hint) was
@@ -820,13 +982,13 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
           placeholder={t("decision_rules.preset.title", "Preset")}
           options={PRESETS.map((p) => ({
             value: p.id,
-            label: p.label,
-            description: p.description,
+            label: presetLabel(p.id),
+            description: presetDesc(p.id),
           }))}
         />
         {previewPreset && (
           <p className="text-[11.5px] text-ink-soft leading-snug">
-            {previewPreset.description}
+            {presetDesc(previewPreset.id)}
           </p>
         )}
       </div>
