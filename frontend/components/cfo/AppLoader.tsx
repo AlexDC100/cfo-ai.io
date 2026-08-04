@@ -90,7 +90,7 @@ export function ContentLoader({
       // rail actually occupies space (below that it's a drawer over content).
       // z-30 sits above page content but below the header (z-40) and the
       // slide-over panels, so those stay interactive.
-      className={`fixed top-16 right-0 bottom-0 left-0 z-30 grid place-items-center bg-bg transition-[left] duration-200 ease-out ${
+      className={`fixed top-14 right-0 bottom-0 left-0 z-30 grid place-items-center bg-bg transition-[left] duration-200 ease-out ${
         sidebarCollapsed ? "lg:left-[80px]" : "lg:left-[268px]"
       }`}
       role="status"

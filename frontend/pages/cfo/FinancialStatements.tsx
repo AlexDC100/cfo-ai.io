@@ -27,6 +27,9 @@ import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
+// Module-level i18n handle — for the few strings rendered outside React
+// (the example-workbook preview tab opened by previewExampleInNewTab).
+import i18n from "@/i18n";
 import { Money } from "@/components/ui/Money";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
@@ -203,14 +206,16 @@ import { useToast } from "@/hooks/use-toast";
 // Consolidated tab guides (2026-07-25) — the per-tab "Guide me" buttons were
 // removed; a single button in the tab bar opens the guide for the ACTIVE tab.
 // Keyed by TabId. Tabs without an entry (export) show no guide button.
+// `title` holds the i18n KEY (module scope has no hook); translated at the
+// PageGuideOverlay mount site.
 const TAB_GUIDES: Record<string, { pageId: string; title: string; steps: GuideStep[] }> = {
-  pl:              { pageId: "pnl",           title: "P&L",           steps: PL_GUIDE },
-  balance_sheet:   { pageId: "balance-sheet", title: "Balance Sheet", steps: BALANCE_SHEET_GUIDE },
-  cash_flow:       { pageId: "cash-flow",     title: "Cash Flow",     steps: CF_GUIDE },
-  ratios:          { pageId: "ratios",        title: "Ratios",        steps: RATIOS_GUIDE },
-  valuation:       { pageId: "valuation",     title: "Valuation",     steps: VALUATION_GUIDE },
-  risks:           { pageId: "risk-credit",   title: "Risk & Credit", steps: RISK_GUIDE },
-  recommendations: { pageId: "recommendations", title: "Recommendations", steps: RECOMMENDATIONS_GUIDE },
+  pl:              { pageId: "pnl",           title: "dash.guidePl",           steps: PL_GUIDE },
+  balance_sheet:   { pageId: "balance-sheet", title: "dash.guideBalanceSheet", steps: BALANCE_SHEET_GUIDE },
+  cash_flow:       { pageId: "cash-flow",     title: "dash.guideCashFlow",     steps: CF_GUIDE },
+  ratios:          { pageId: "ratios",        title: "dash.guideRatios",       steps: RATIOS_GUIDE },
+  valuation:       { pageId: "valuation",     title: "dash.guideValuation",    steps: VALUATION_GUIDE },
+  risks:           { pageId: "risk-credit",   title: "dash.guideRisks",        steps: RISK_GUIDE },
+  recommendations: { pageId: "recommendations", title: "dash.guideRecommendations", steps: RECOMMENDATIONS_GUIDE },
 };
 
 /** What the dashboard accepts as a financial document. Shared by the hidden
@@ -518,10 +523,7 @@ export default function FinancialStatements() {
     const looksLikeUuid =
       !!periodParam && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(periodParam);
     if (looksLikeUuid) {
-      const ok = window.confirm(
-        "Clear this period? This permanently removes the analysis (P&L, balance sheet, ratios, briefing) " +
-          "and moves the attached document(s) to Recently deleted (restorable for 30 days). Cannot be undone.",
-      );
+      const ok = window.confirm(t("dash.clearPeriodConfirm"));
       if (!ok) return;
       try {
         const { getSupabase } = await import("@/lib/supabase");
@@ -538,23 +540,23 @@ export default function FinancialStatements() {
           if (!r.ok) {
             const body = await r.json().catch(() => null);
             toast({
-              title: "Couldn't clear period",
+              title: t("dash.clearPeriodFailTitle"),
               description:
                 (body && (body.detail?.message || body.detail)) ||
-                "The server didn't accept the delete. Try again or refresh.",
+                t("dash.clearPeriodFailBody"),
               variant: "destructive",
             });
             return;
           }
           toast({
-            title: "Period cleared",
-            description: "Analysis removed; documents moved to Recently deleted.",
+            title: t("dash.periodClearedTitle"),
+            description: t("dash.periodClearedBody"),
           });
         }
       } catch (err) {
         toast({
-          title: "Couldn't reach the backend",
-          description: err instanceof Error ? err.message : "Network error.",
+          title: t("dash.backendUnreachableTitle"),
+          description: err instanceof Error ? err.message : t("dash.networkError"),
           variant: "destructive",
         });
         return;
@@ -622,7 +624,7 @@ export default function FinancialStatements() {
         documentName:
           remotePeriod.sourceDocumentFilename ??
           remotePeriod.label ??
-          "Uploaded document",
+          t("dash.uploadedDocument"),
         confidence: null,
         warnings: [],
         accountCount: null,
@@ -695,7 +697,7 @@ export default function FinancialStatements() {
     setAwaitingView(null);
     console.info("[scan] viewResults →", periodId ?? "(no period)");
     if (periodId) {
-      toast({ title: "Analysis ready", description: "Loaded into Dashboard." });
+      toast({ title: t("toasts.analysisComplete"), description: t("dash.loadedIntoDashboard") });
       // The scan just created (or replaced) a period — the workspace's month
       // list is now stale. Invalidate it so the top-bar month selector, the
       // month arrows, and the Workspace month pills / Months section all show +
@@ -805,14 +807,14 @@ export default function FinancialStatements() {
         saveBudgetDeck(ds);
         const n = Object.keys(ds.budget).length;
         toast({
-          title: "Budget deck loaded",
-          description: `${n} P&L line${n === 1 ? "" : "s"} from ${file.name} — opening Budget vs Actual.`,
+          title: t("dash.budgetDeckLoadedTitle"),
+          description: t("dash.budgetDeckLoadedBody", { count: n, filename: file.name }),
         });
         navigate("/dashboard/variance");
       } catch (e) {
         toast({
-          title: "Couldn't read that budget deck",
-          description: e instanceof Error ? e.message : "Unknown parse error.",
+          title: t("dash.budgetDeckErrorTitle"),
+          description: e instanceof Error ? e.message : t("dash.unknownParseError"),
           variant: "destructive",
         });
       }
@@ -822,8 +824,8 @@ export default function FinancialStatements() {
     const MAX_BYTES = 25 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
       toast({
-        title: "File too large",
-        description: `${(file.size / 1_000_000).toFixed(1)} MB exceeds the 25 MB limit.`,
+        title: t("dash.fileTooLargeTitle"),
+        description: t("dash.fileTooLargeBody", { size: (file.size / 1_000_000).toFixed(1) }),
         variant: "destructive",
       });
       return;
@@ -860,7 +862,7 @@ export default function FinancialStatements() {
         const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint });
         if (!row) {
           clearUpload();
-          toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
+          toast({ title: t("dash.uploadFailedTitle"), description: error ?? t("dash.unknownError"), variant: "destructive" });
           resolve();
           return;
         }
@@ -870,7 +872,7 @@ export default function FinancialStatements() {
           const reason =
             enq.kind === "quota_blocked" ? enq.message
             : enq.kind === "transport_failed" ? enq.message
-            : "Upload was cancelled.";
+            : t("dash.uploadCancelled");
           patchUpload({ status: "failed", error: reason });
           resolve();
           return;
@@ -923,7 +925,7 @@ export default function FinancialStatements() {
                       headers: token ? { Authorization: `Bearer ${token}` } : {},
                     });
                     if (r.ok) {
-                      toast({ title: "Multi-year history ready", description: `${file.name} parsed — view the trends.` });
+                      toast({ title: t("dash.multiYearReadyTitle"), description: t("dash.multiYearReadyBody", { filename: file.name }) });
                       window.location.href = `/multi-year-history?doc=${row.id}`;
                       return;
                     }
@@ -940,7 +942,7 @@ export default function FinancialStatements() {
                   resolve();
                   return;
                 }
-                toast({ title: "Analysis complete", description: `${file.name} processed but no financial period was created. The document type may not be supported.` });
+                toast({ title: t("dash.analysisCompleteTitle"), description: t("dash.noPeriodCreatedBody", { filename: file.name }) });
               }
               clearUpload();
               resolve();
@@ -948,7 +950,7 @@ export default function FinancialStatements() {
           }
           if (next.status === "failed") {
             unsub();
-            toast({ title: "Analysis failed", description: next.error ?? "Unknown error.", variant: "destructive" });
+            toast({ title: t("dash.analysisFailedTitle"), description: next.error ?? t("dash.unknownError"), variant: "destructive" });
             resolve();
           }
         });
@@ -1136,9 +1138,9 @@ export default function FinancialStatements() {
       <Dialog open={addMonthOpen} onOpenChange={setAddMonthOpen}>
         <DialogContent className="sm:max-w-[640px]" data-testid="add-month-modal">
           <DialogHeader>
-            <DialogTitle>Add another month</DialogTitle>
+            <DialogTitle>{t("dash.addAnotherMonth")}</DialogTitle>
             <DialogDescription>
-              Drop next month's trial balance to add it to this workspace.
+              {t("dash.addMonthDialogDesc")}
             </DialogDescription>
           </DialogHeader>
           <DashboardAddMonthZone
@@ -1162,7 +1164,7 @@ export default function FinancialStatements() {
         <PageGuideOverlay
           open={guideOpen}
           pageId={activeGuide.pageId}
-          title={activeGuide.title}
+          title={t(activeGuide.title)}
           steps={activeGuide.steps}
           onClose={() => setGuideOpen(false)}
         />
@@ -1266,18 +1268,16 @@ export default function FinancialStatements() {
                     rather than the plain-text i18n string. */}
                 <p className="mt-5 text-[15.5px] text-ink-soft max-w-[680px] leading-relaxed">
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
-                  {" "}or{" "}
+                  {" "}{t("common.or")}{" "}
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
-                  , exported from your accounting system —{" "}
+                  , {t("dash.heroBodyExported")} —{" "}
                   {["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"].map((sys, i, arr) => (
                     <span key={sys}>
                       <span className="font-semibold text-brand-d">{sys}</span>
                       {i < arr.length - 1 ? ", " : ""}
                     </span>
                   ))}
-                  . This is the document the full analysis is built for: P&amp;L, Balance Sheet, Cash Flow,
-                  Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every
-                  upload is auto-checked — clean trial balances reconcile within 0.5% of source.
+                  . {t("dash.heroBodyTail")}
                 </p>
                 {/* Ask CFO AI (same secondary style as the Products hero's
                     button). The Import button that used to lead this row was
@@ -1287,9 +1287,7 @@ export default function FinancialStatements() {
                   <button
                     type="button"
                     onClick={() =>
-                      openAskCfoAi(
-                        "What will CFO AI do with my trial balance? Walk me through the analysis I'll get after uploading — P&L, balance sheet, ratios, valuation, risks.",
-                      )
+                      openAskCfoAi(t("dash.askCfoAiPrompt"))
                     }
                     data-testid="dashboard-ask-cfo-ai"
                     className="
@@ -1301,7 +1299,7 @@ export default function FinancialStatements() {
                     "
                   >
                     <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
-                    Ask CFO AI
+                    {t("topbar.ask")}
                   </button>
                 </div>
               </div>
@@ -1353,7 +1351,7 @@ export default function FinancialStatements() {
           const pl = pickPLBuilder(
             {
               lineItems: remotePeriod.lineItems,
-              entity: statements.companyName ?? "Entity",
+              entity: statements.companyName ?? t("dash.entity"),
               period: statements.periodLabel,
               currency: statements.currency,
               canonicalMargins,
@@ -1461,9 +1459,9 @@ export default function FinancialStatements() {
           // they're interchangeable.
           const sourceTooltip =
             remotePeriod.detectedType === "statutory_f30_f10"
-              ? "Source: statutory statement (Formular F30 + F10). Aggregate-only — no per-account drilldown."
+              ? t("dash.sourceStatutoryTooltip")
               : remotePeriod.detectedType === "trial_balance"
-                ? "Source: trial balance. Full account-level granularity."
+                ? t("dash.sourceTbTooltip")
                 : null;
           return (
             <div title={sourceTooltip ?? undefined}>
@@ -1516,7 +1514,7 @@ export default function FinancialStatements() {
                   data-testid="kpi-source-badge"
                   className="text-[10.5px] text-ink-mute mb-3 -mt-1"
                 >
-                  Source: statutory statement (Formular F30 + F10)
+                  {t("dash.sourceStatutoryBadge")}
                 </div>
               )}
             </div>
@@ -1550,14 +1548,14 @@ export default function FinancialStatements() {
                 overflow-x-auto sm:overflow-visible scrollbar-none
               "
             >
-              {tabs.map((t) => {
-                const isEnabled = enabled[t.id];
+              {tabs.map((tab) => {
+                const isEnabled = enabled[tab.id];
                 if (isEnabled) {
                   return (
                     <TabsTrigger
-                      key={t.id}
-                      value={t.id}
-                      data-testid={`tab-${t.id}`}
+                      key={tab.id}
+                      value={tab.id}
+                      data-testid={`tab-${tab.id}`}
                       className="
                         shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
                         text-ink-soft hover:text-ink
@@ -1569,7 +1567,7 @@ export default function FinancialStatements() {
                         transition-all duration-150
                       "
                     >
-                      {t.label}
+                      {t(tab.label)}
                     </TabsTrigger>
                   );
                 }
@@ -1577,23 +1575,23 @@ export default function FinancialStatements() {
                 // disabled trigger, so we render a styled span lookalike
                 // and wrap it in <Tooltip>.
                 return (
-                  <Tooltip key={t.id}>
+                  <Tooltip key={tab.id}>
                     <TooltipTrigger asChild>
                       <span
                         role="tab"
                         aria-disabled="true"
-                        data-testid={`tab-${t.id}`}
+                        data-testid={`tab-${tab.id}`}
                         className="
                           shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
                           rounded-xl whitespace-nowrap
                           opacity-40 cursor-not-allowed select-none text-ink-soft
                         "
                       >
-                        {t.label}
+                        {t(tab.label)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-[280px] text-[12px] leading-snug">
-                      {disabledHint(t.id)}
+                      {disabledHint(tab.id, t)}
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -1704,7 +1702,7 @@ export default function FinancialStatements() {
               statement={pickPLBuilder(
                 {
                   lineItems: remotePeriod.lineItems,
-                  entity: statements.companyName ?? "Entity",
+                  entity: statements.companyName ?? t("dash.entity"),
                   period: statements.periodLabel,
                   currency: statements.currency,
                   // F1.e — Engine-canonical margin pair so the Key Margins
@@ -1734,9 +1732,9 @@ export default function FinancialStatements() {
                 hideGuide
                 statement={buildBSStatement({
                   lineItems: remotePeriod.lineItems,
-                  entity: statements.companyName ?? "Entity",
-                  asOf: statements.periodLabel ?? "Period end",
-                  comparativeDate: "Opening",
+                  entity: statements.companyName ?? t("dash.entity"),
+                  asOf: statements.periodLabel ?? t("dash.periodEndFallback"),
+                  comparativeDate: t("dash.opening"),
                   currency: statements.currency,
                   // F1.n — Anchor "Current year net profit (121)" to the
                   // STATUTORY ct.121 closing balance, not the FE-recomputed
@@ -1783,13 +1781,13 @@ export default function FinancialStatements() {
                 bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,
                 cf: (statements as Statements & { assembled_cf?: Record<string, number> }).assembled_cf,
                 lineItems: remotePeriod.lineItems ?? [],
-                entity: statements.companyName ?? "Entity",
-                period: statements.periodLabel ?? "Period",
+                entity: statements.companyName ?? t("dash.entity"),
+                period: statements.periodLabel ?? t("dash.periodFallback"),
                 currency: statements.currency,
                 yearLabel: (() => {
                   const lbl = statements.periodLabel ?? "";
                   const m = lbl.match(/\b(20\d{2})\b/);
-                  return m ? m[1] : "the period";
+                  return m ? m[1] : t("dash.thePeriod");
                 })(),
               })}
             />
@@ -1897,11 +1895,11 @@ export default function FinancialStatements() {
                   // Build the reason lines — surface WHY NAV is primary
                   // so the routing isn't silent.
                   const reasonLines: string[] = [];
-                  if (explicitCre) reasonLines.push(`Industry classified as real-estate (${indRaw}).`);
-                  if (rentalDominated) reasonLines.push("Revenue is rental-dominated (account 706 ≥ 50% of operating revenue).");
-                  if (engineSaysAssetBased) reasonLines.push("Engine valuation pipeline already routed this period to asset-based primary.");
+                  if (explicitCre) reasonLines.push(t("dash.reasonIndustryCre", { industry: indRaw }));
+                  if (rentalDominated) reasonLines.push(t("dash.reasonRentalDominated"));
+                  if (engineSaysAssetBased) reasonLines.push(t("dash.reasonEngineAssetBased"));
                   if (assetIntensityHeavy && assetIntensity !== null) {
-                    reasonLines.push(`Asset intensity ${(assetIntensity * 100).toFixed(0)}% (PPE + investment property + CIP / total assets) is above the ${(ASSET_INTENSITY_THRESHOLD * 100).toFixed(0)}% threshold for heavy-RE routing.`);
+                    reasonLines.push(t("dash.reasonAssetIntensity", { intensity: (assetIntensity * 100).toFixed(0), threshold: (ASSET_INTENSITY_THRESHOLD * 100).toFixed(0) }));
                   }
 
                   return (
@@ -1910,8 +1908,8 @@ export default function FinancialStatements() {
                       {/* NAV cascade — PRIMARY for CRE */}
                       <NavValuationView
                         cascade={cascade}
-                        entity={statements.companyName ?? "Entity"}
-                        period={statements.periodLabel ?? "Period"}
+                        entity={statements.companyName ?? t("dash.entity")}
+                        period={statements.periodLabel ?? t("dash.periodFallback")}
                         currency={statements.currency}
                       />
                       {/* EBITDA-multiple SECOND — still visible because
@@ -1921,7 +1919,7 @@ export default function FinancialStatements() {
                         <section className="space-y-3">
                           <header>
                             <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-                              Secondary · EBITDA-multiple cross-check
+                              {t("dash.secondaryEbitdaCrossCheck")}
                             </div>
                           </header>
                           <EbitdaMultiplePrimaryCard
@@ -1977,12 +1975,10 @@ export default function FinancialStatements() {
                     <section>
                       <header className="mb-3">
                         <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-                          Persisted assumptions
+                          {t("dash.persistedAssumptions")}
                         </div>
                         <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px]">
-                          Set custom EBITDA, multiple, debt or cash for board reporting. Persists to
-                          this period; the primary card above always reflects the latest canonical
-                          values plus your slider position.
+                          {t("dash.persistedAssumptionsBody")}
                         </p>
                       </header>
                       <ValuationSection
@@ -2038,8 +2034,8 @@ export default function FinancialStatements() {
             ))
           ) : (
             <EmptyTabState
-              title="No recommendations yet"
-              body="Upload a balance sheet, P&L, or trial balance to receive prioritized recommendations."
+              title={t("dash.noRecsTitle")}
+              body={t("dash.noRecsBody")}
               ctaTab="overview"
               onCta={() => onTabChange("overview")}
             />
@@ -2050,8 +2046,8 @@ export default function FinancialStatements() {
         <TabsContent value="export" className="mt-6 space-y-4 min-h-[400px]">
           {!statements ? (
             <EmptyTabState
-              title="Nothing to export yet"
-              body="Load a sample or upload a financial statement to enable HTML and Excel exports."
+              title={t("dash.nothingToExportTitle")}
+              body={t("dash.nothingToExportBody")}
               ctaTab="overview"
               onCta={() => onTabChange("overview")}
             />
@@ -2065,11 +2061,9 @@ export default function FinancialStatements() {
                 <FileText size={230} strokeWidth={1} />
               </div>
               <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">HTML financial analysis report</h3>
+                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("dash.exportHtmlTitle")}</h3>
                 <p className="text-[13.5px] text-ink-soft mt-1">
-                  Single-file HTML — opens in any browser, prints to PDF cleanly.
-                  Includes balance sheet, P&L, all 25+ ratios with verdicts,
-                  bankruptcy assessment, and prioritized recommendations.
+                  {t("dash.exportHtmlBody")}
                 </p>
               </div>
               <div className="relative mt-auto pt-6 flex justify-end">
@@ -2078,7 +2072,7 @@ export default function FinancialStatements() {
                   className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
                 >
                   <ArrowDownToLine size={15} strokeWidth={2} />
-                  Download
+                  {t("common.download")}
                 </button>
               </div>
             </div>
@@ -2092,10 +2086,9 @@ export default function FinancialStatements() {
                 <FileSpreadsheet size={230} strokeWidth={1} />
               </div>
               <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">Excel workbook</h3>
+                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("dash.exportXlsxTitle")}</h3>
                 <p className="text-[13.5px] text-ink-soft mt-1">
-                  8-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow,
-                  valuation (WACC + DCF + Graham), credit & risk, recommendations.
+                  {t("dash.exportXlsxBody")}
                 </p>
               </div>
               <div className="relative mt-auto pt-6 flex justify-end">
@@ -2108,7 +2101,7 @@ export default function FinancialStatements() {
                   className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
                 >
                   <ArrowDownToLine size={15} strokeWidth={2} />
-                  Download
+                  {t("common.download")}
                 </button>
               </div>
             </div>
@@ -2122,16 +2115,15 @@ export default function FinancialStatements() {
                 <Presentation size={230} strokeWidth={1} />
               </div>
               <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">PowerPoint deck</h3>
+                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("dash.exportPptxTitle")}</h3>
                 <p className="text-[13.5px] text-ink-soft mt-1">
-                  Investor-grade pptx export with cover slide, KPIs, ratios, valuation,
-                  and recommendations slides arrives in the next phase.
+                  {t("dash.exportPptxBody")}
                 </p>
               </div>
               <div className="relative mt-auto pt-6 flex justify-end">
                 <span className="inline-flex items-center gap-1.5 text-[11.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
                   <Sparkles size={11} strokeWidth={2} />
-                  Coming next
+                  {t("dash.comingNext")}
                 </span>
               </div>
             </div>
@@ -2219,6 +2211,7 @@ function PeriodConfirmDialog({
   onConfirm: (dates: Record<string, string | null>) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const activeMonth =
     activePeriodEnd && /^\d{4}-\d{2}/.test(activePeriodEnd)
       ? activePeriodEnd.slice(0, 7)
@@ -2336,12 +2329,12 @@ function PeriodConfirmDialog({
           return (
             <DialogHeader>
               <DialogTitle>
-                {conflict ? "The file's date doesn't match the period" : "Confirm the period"}
+                {conflict ? t("dash.periodConflictTitle") : t("dash.periodConfirmTitle")}
               </DialogTitle>
               <DialogDescription>
                 {conflict
-                  ? "“Scan and update period” moves the period to the file's month. “Scan” ignores the file's date and uploads into the period you have selected."
-                  : "This is the period the analysis will be filed under."}
+                  ? t("dash.periodConflictDesc")
+                  : t("dash.periodConfirmDesc")}
               </DialogDescription>
             </DialogHeader>
           );
@@ -2371,44 +2364,44 @@ function PeriodConfirmDialog({
                   type="button"
                   onClick={() => void openStagedFile(f)}
                   data-testid="period-confirm-file-preview"
-                  title="Open a preview in a new window"
+                  title={t("dash.openPreviewTitle")}
                   className="w-full flex items-center gap-2 rounded-lg border border-rule bg-bg-2/30 px-3 py-2.5 text-left hover:border-rule-strong hover:bg-bg-2/60 transition-colors"
                 >
                   <FileSpreadsheet size={16} strokeWidth={1.75} className="text-ink-mute shrink-0" />
                   <span className="text-[12.5px] font-medium text-ink truncate">{f.name}</span>
                   <span className="ml-auto shrink-0 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
-                    Preview
+                    {t("dash.preview")}
                   </span>
                 </button>
 
                 {agree ? (
                   // Both sources name the same month — nothing to decide.
                   <p className="text-[11.5px] text-ink-soft px-0.5">
-                    <span className="font-medium text-ink">{monthLabel(fileYm)}</span> — the file
-                    matches your selected period.
+                    <span className="font-medium text-ink">{monthLabel(fileYm)}</span>{" "}
+                    {t("dash.fileMatchesPeriodTail")}
                   </p>
                 ) : fileYm || activeMonth ? (
                   // Selected vs detected, side by side.
                   <div className="flex items-center gap-2.5" data-testid="period-confirm-vs">
-                    {periodCard("Selected period", activeMonth)}
+                    {periodCard(t("dash.selectedPeriod"), activeMonth)}
                     <span className="shrink-0 text-[10.5px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
-                      vs
+                      {t("dash.vs")}
                     </span>
                     {fileYm ? (
-                      periodCard("Detected period", fileYm)
+                      periodCard(t("dash.detectedPeriod"), fileYm)
                     ) : (
                       <div className="flex-1 min-w-0 rounded-lg border border-dashed border-rule px-3 py-2.5 text-center">
                         <span className="block text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-mute">
-                          Detected period
+                          {t("dash.detectedPeriod")}
                         </span>
                         <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11.5px] text-ink-mute">
                           {reading ? (
                             <>
                               <Loader2 size={11} className="animate-spin" />
-                              Reading…
+                              {t("dash.reading")}
                             </>
                           ) : (
-                            "No date found"
+                            t("dash.noDateFound")
                           )}
                         </span>
                       </div>
@@ -2419,7 +2412,7 @@ function PeriodConfirmDialog({
                   // as the last resort.
                   <div className="flex items-center justify-between gap-3">
                     <label className="text-[11.5px] text-ink-mute">
-                      {reading ? "Reading file…" : "No date found — pick one"}
+                      {reading ? t("dash.readingFile") : t("dash.noDateFoundPick")}
                     </label>
                     <input
                       type="month"
@@ -2464,7 +2457,7 @@ function PeriodConfirmDialog({
                 }
               >
                 {confirming && !conflict && <Loader2 size={14} className="animate-spin" />}
-                Scan
+                {t("dash.scan")}
               </button>
               {conflict && (
                 <button
@@ -2475,7 +2468,7 @@ function PeriodConfirmDialog({
                   className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-50 transition-colors"
                 >
                   {confirming && <Loader2 size={14} className="animate-spin" />}
-                  Scan and update period
+                  {t("dash.scanAndUpdate")}
                 </button>
               )}
             </DialogFooter>
@@ -2558,22 +2551,32 @@ function CFOBriefingCard({
   periodId: string;
   baseBriefing: string;
 }) {
+  const { t, i18n } = useTranslation();
   const display = useDisplayCurrency();
   const [text, setText] = useState<string>(baseBriefing);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Language awareness (2026-08-04): the persisted briefing was generated
+  // in the UI language active AT SCAN TIME. If the user has since switched
+  // EN↔RO, re-narrate in the language they're reading — "no RO body under
+  // EN labels". Detection is cheap and reliable for this language pair:
+  // Romanian business prose always carries diacritics, English never does.
+  const activeLang = (i18n.language || "en").slice(0, 2);
+  const baseLang = /[șțăîâȘȚĂÎÂ]/.test(baseBriefing) ? "ro" : "en";
+  const langMismatch = activeLang !== baseLang && (activeLang === "ro" || activeLang === "en");
+
   // Reset to baseline if user switches periods (different periodId)
-  // OR returns to RON (the canonical persisted briefing).
+  // OR returns to RON (the canonical persisted briefing) in its own language.
   useEffect(() => {
-    if (display === "RON") {
+    if (display === "RON" && !langMismatch) {
       setText(baseBriefing);
       setError(null);
     }
-  }, [baseBriefing, display]);
+  }, [baseBriefing, display, langMismatch]);
 
   useEffect(() => {
-    if (display === "RON") return;
+    if (display === "RON" && !langMismatch) return;
     // Debounce 600ms so rapid RON→EUR→USD toggles don't fire 3 Opus calls.
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -2592,7 +2595,7 @@ function CFOBriefingCard({
         const apiUrl =
           (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
         const res = await fetch(
-          `${apiUrl}/api/period/${periodId}/briefing/regenerate?currency=${display}`,
+          `${apiUrl}/api/period/${periodId}/briefing/regenerate?currency=${display}&language=${activeLang}`,
           { method: "POST", headers: { Authorization: `Bearer ${token}` } },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2610,7 +2613,8 @@ function CFOBriefingCard({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [display, periodId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps — activeLang/langMismatch drive the same debounce
+  }, [display, periodId, activeLang, langMismatch]);
 
   // Chrome-less (2026-07-25): the briefing IS the header's subtitle, so it
   // drops the bordered card and renders as plain prose styled like the
@@ -2621,17 +2625,17 @@ function CFOBriefingCard({
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">
           <Sparkles size={11} strokeWidth={2} />
-          CFO briefing — Opus 4.7
+          {t("dash.cfoBriefingEyebrow")}
           {display !== "RON" && (
             <span className="text-ink-mute normal-case tracking-normal">
-              · displayed in {display}
+              · {t("dash.displayedIn", { currency: display })}
             </span>
           )}
         </div>
         {loading && (
           <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
             <Loader2 size={12} className="animate-spin" />
-            Regenerating in {display}…
+            {t("dash.regeneratingIn", { currency: display })}
           </div>
         )}
       </div>
@@ -2642,19 +2646,18 @@ function CFOBriefingCard({
       </p>
       {error && (
         <p className="mt-2 text-[11px] text-[#2AA89B]">
-          Couldn't regenerate in {display} ({error}). Showing RON version.
+          {t("dash.regenFailed", { currency: display, error })}
         </p>
       )}
       <p className="mt-3 text-[11px] italic text-ink-mute leading-relaxed">
-        Generated from automated trial-balance extraction — accuracy auto-measured
-        per upload (clean uploads reconcile within 0.5%). Cross-check headline numbers
-        against your source on critical decisions.
+        {t("dash.briefingDisclaimer")}
       </p>
     </div>
   );
 }
 
 function InvoiceKpiStrip({ invoices }: { invoices: Invoice[] }) {
+  const { t } = useTranslation();
   const customers = useMemo(() => customerAnalytics(invoices), [invoices]);
   const payments = useMemo(() => paymentsAnalytics(invoices), [invoices]);
   const vat = useMemo(() => vatAnalytics(invoices), [invoices]);
@@ -2662,24 +2665,24 @@ function InvoiceKpiStrip({ invoices }: { invoices: Invoice[] }) {
   return (
     <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
       <KpiTile
-        label="Top customer share"
+        label={t("dash.topCustomerShare")}
         value={`${(customers.top_1_share * 100).toFixed(1)}%`}
         sub={customers.customers[0]?.name?.slice(0, 26) ?? "—"}
       />
       <KpiTile
-        label="DSO"
-        value={`${payments.dso_days.toFixed(0)} days`}
-        sub="Days sales outstanding"
+        label={t("workingCapital.dsoLabel")}
+        value={`${payments.dso_days.toFixed(0)} ${t("common.unit.days")}`}
+        sub={t("dash.dsoSub")}
       />
       <KpiTile
-        label="Paid on time"
+        label={t("dash.paidOnTime")}
         value={`${(payments.paid_on_time_pct * 100).toFixed(0)}%`}
-        sub="Of settled invoices"
+        sub={t("dash.ofSettledInvoices")}
       />
       <KpiTile
-        label="Net VAT"
+        label={t("dash.netVat")}
         value={`${cur} ${(vat.net_vat / 1000).toFixed(0)}K`}
-        sub={vat.net_vat > 0 ? "Payable to ANAF" : "Refund position"}
+        sub={vat.net_vat > 0 ? t("dash.vatPayable") : t("dash.vatRefund")}
       />
     </section>
   );
@@ -2696,6 +2699,7 @@ function EmptyTabState({
   ctaTab: TabId;
   onCta: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-dashed border-rule bg-bg-2/20 p-12 text-center">
       <div className="mx-auto h-12 w-12 rounded-full bg-bg-2 text-ink-mute flex items-center justify-center mb-3">
@@ -2707,7 +2711,7 @@ function EmptyTabState({
         onClick={onCta}
         className="mt-4 inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand text-paper text-[13px] font-medium hover:bg-brand-d transition-colors"
       >
-        Pick a sample or upload
+        {t("dash.pickSampleOrUpload")}
       </button>
     </div>
   );
@@ -2739,6 +2743,7 @@ interface AccuracyBannerProps {
 }
 
 function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps) {
+  const { t } = useTranslation();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     try {
       return localStorage.getItem("accuracy_banner_dismissed") === "true";
@@ -2783,7 +2788,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
         className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink mb-3"
       >
         <CheckCircle2 size={11} strokeWidth={1.75} className="text-[#2AA89B]" />
-        Quality checks passed · About data accuracy
+        {t("dash.qualityPassedLink")}
       </button>
     );
   }
@@ -2831,59 +2836,52 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
         <div>
           {band === "clean" && (
             <>
-              <strong className={tone.headline}>Quality checks passed.</strong>{" "}
-              Extraction reconciles within <strong>{(Math.floor(worstPct * 100) / 100).toFixed(2)}%</strong>{" "}
-              on this document (target: under 0.5%). Balance sheet balances; source debits and credits agree.
-              Headline figures (revenue, EBITDA, net profit, debt, equity) are safe to use —
-              cross-check on board-level / external decisions out of habit.
+              <strong className={tone.headline}>{t("dash.accCleanTitle")}</strong>{" "}
+              {t("dash.accCleanPre")} <strong>{(Math.floor(worstPct * 100) / 100).toFixed(2)}%</strong>{" "}
+              {t("dash.accCleanPost")}
             </>
           )}
           {band === "watch" && (
             <>
-              <strong className={tone.headline}>Verify before external use.</strong>{" "}
+              <strong className={tone.headline}>{t("dash.accWatchTitle")}</strong>{" "}
               {sourceImbalancePct !== null && sourceImbalancePct >= 0.5 ? (
                 <>
-                  Your source trial balance has a{" "}
-                  <strong>{sourceImbalancePct.toFixed(2)}% debit / credit imbalance</strong>{" "}
-                  (small, but not zero).{" "}
+                  {t("dash.accSrcImbalancePre")}{" "}
+                  <strong>{t("dash.accImbalanceBold", { pct: sourceImbalancePct.toFixed(2) })}</strong>{" "}
+                  {t("dash.accWatchSmallNote")}{" "}
                 </>
               ) : null}
               {bsDriftPct !== null && bsDriftPct >= 0.5 ? (
                 <>
-                  Reconstructed balance sheet drifts <strong>{bsDriftPct.toFixed(2)}%</strong> from total assets.{" "}
+                  {t("dash.accBsDriftPre")} <strong>{bsDriftPct.toFixed(2)}%</strong> {t("dash.accBsDriftPost")}{" "}
                 </>
               ) : null}
-              Cross-check headline numbers (revenue, EBITDA, net profit, debt, equity)
-              against your source before board reports or external submissions.
+              {t("dash.accWatchTail")}
             </>
           )}
           {band === "problem" && (
             <>
-              <strong className={tone.headline}>Data quality issue — don't use figures externally without fixing.</strong>{" "}
+              <strong className={tone.headline}>{t("dash.accProblemTitle")}</strong>{" "}
               {sourceImbalancePct !== null && sourceImbalancePct >= 2 ? (
                 <>
-                  Your source trial balance has a{" "}
-                  <strong>{sourceImbalancePct.toFixed(2)}% debit / credit imbalance</strong>{" "}
-                  (debits don't equal credits) — re-export from your accounting system after running its trial-balance reconciliation.{" "}
+                  {t("dash.accSrcImbalancePre")}{" "}
+                  <strong>{t("dash.accImbalanceBold", { pct: sourceImbalancePct.toFixed(2) })}</strong>{" "}
+                  {t("dash.accProblemSrcTail")}{" "}
                 </>
               ) : null}
               {bsDriftPct !== null && bsDriftPct >= 2 ? (
                 <>
-                  The reconstructed balance sheet differs from your assets by{" "}
-                  <strong>{bsDriftPct.toFixed(2)}%</strong> — accounts may be missing or misclassified.{" "}
+                  {t("dash.accProblemBsPre")}{" "}
+                  <strong>{bsDriftPct.toFixed(2)}%</strong> {t("dash.accProblemBsTail")}{" "}
                 </>
               ) : null}
-              Headline numbers below (revenue, EBITDA, net profit, debt, equity) may not match your source.
-              Resolve the source-data issue before any external use.
+              {t("dash.accProblemTail")}
             </>
           )}
           {band === "unknown" && (
             <>
-              <strong className={tone.headline}>About data accuracy.</strong>{" "}
-              Each upload is auto-checked against its source trial balance. Clean uploads pass with under
-              0.5% drift; if anything is off, you'll see a specific warning here naming the issue
-              (source imbalance, account misclassification, etc.). Headline numbers are always safe to
-              cross-check against your source.
+              <strong className={tone.headline}>{t("dash.accUnknownTitle")}</strong>{" "}
+              {t("dash.accUnknownBody")}
             </>
           )}
         </div>
@@ -2902,6 +2900,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
 // that honestly here so the user doesn't think the missing tabs are
 // a bug.
 function StatutoryFormatBanner() {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   return (
     <div
@@ -2911,27 +2910,26 @@ function StatutoryFormatBanner() {
       <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
         <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
         <div className="flex-1">
-          <strong className="text-ink">Statutory format detected (Formular F30 + F10).</strong>{" "}
-          Headline figures (revenue, EBITDA, debt, equity) extracted from your filed
-          financial statements.
+          <strong className="text-ink">{t("dash.statutoryDetected")}</strong>{" "}
+          {t("dash.statutoryBody")}
           <button
             type="button"
             data-testid="statutory-banner-toggle"
             onClick={() => setExpanded((v) => !v)}
             className="ml-1 text-[12px] text-[#2AA89B] hover:text-[#1B7268] underline-offset-2 hover:underline"
           >
-            {expanded ? "Hide details" : "What's not available with this format"}
+            {expanded ? t("upload.template.hideFormat") : t("dash.statutoryWhatsNot")}
           </button>
           {expanded && (
             <>
               <ul className="mt-2 list-disc pl-5 text-[12px] space-y-0.5">
-                <li>Per-account drilldown (only aggregate categories)</li>
-                <li>SKU-level analysis (requires a sales export)</li>
-                <li>Working-capital roll-forward at account level</li>
-                <li>Inventory variation memo (account 711) split-out</li>
+                <li>{t("dash.statutoryLi1")}</li>
+                <li>{t("dash.statutoryLi2")}</li>
+                <li>{t("dash.statutoryLi3")}</li>
+                <li>{t("dash.statutoryLi4")}</li>
               </ul>
               <p className="mt-2 text-[12px]">
-                For deeper analysis, upload your raw trial balance from your accounting software.
+                {t("dash.statutoryDeeper")}
               </p>
             </>
           )}
@@ -2998,10 +2996,11 @@ function CompactPeriodHeader({
   briefing?: string | null;
   briefingPeriodId?: string | null;
 }) {
+  const { t } = useTranslation();
   const companyName =
     statements?.companyName
-    ?? (invoices && invoices.length > 0 ? "Invoice register" : "Loaded period");
-  const rawPeriodLabel = statements?.periodLabel ?? (invoices ? `${invoices.length.toLocaleString()} invoices` : "");
+    ?? (invoices && invoices.length > 0 ? t("dash.invoiceRegister") : t("dash.loadedPeriod"));
+  const rawPeriodLabel = statements?.periodLabel ?? (invoices ? t("dash.invoicesCount", { count: invoices.length }) : "");
   // Show month + year only — drop the day. A full date ("2026-05-26") becomes
   // "May 2026"; non-date labels ("FY 2025", "120 invoices") are left as-is.
   const periodLabel = formatPeriodMonth(rawPeriodLabel) ?? rawPeriodLabel;
@@ -3027,14 +3026,14 @@ function CompactPeriodHeader({
             content (statements, ratios, valuation, risk, briefing). */}
         <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
           <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
-          Financial Analysis
+          {t("dash.financialAnalysisEyebrow")}
         </div>
         <h1 className="mt-3 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px]">
           {companyName}
           {periodLabel && (
             <span className="text-ink-soft font-normal"> · {periodLabel}</span>
           )}{" "}
-          — <span className="text-grad">the full financial picture</span>.
+          — <span className="text-grad">{t("dash.heroSuffix")}</span>.
         </h1>
       </div>
       </div>
@@ -3045,9 +3044,7 @@ function CompactPeriodHeader({
         <CFOBriefingCard periodId={briefingPeriodId} baseBriefing={briefing} />
       ) : (
         <p className="mt-3 text-[14px] text-ink-soft max-w-[620px] leading-relaxed">
-          Every statement rebuilt from your trial balance — P&amp;L, balance
-          sheet and cash flow — with ratios, valuation, a credit-risk score and
-          ranked recommendations. Explore each in the tabs below.
+          {t("dash.heroFallbackSubtitle")}
         </p>
       )}
     </header>
@@ -3557,10 +3554,11 @@ function ExtractionAccuracyBanner({
 // (example trial balances) and the upload panel.
 async function previewExampleInNewTab(file: string): Promise<void> {
   const tab = window.open("", "_blank");
+  const loadingLabel = i18n.t("dash.loadingPreview");
   if (tab) {
     tab.document.write(
-      "<!doctype html><title>Loading preview…</title>" +
-      "<body style=\"font:14px system-ui;padding:24px\">Loading preview…</body>",
+      `<!doctype html><title>${loadingLabel}</title>` +
+      `<body style="font:14px system-ui;padding:24px">${loadingLabel}</body>`,
     );
   }
   try {
@@ -3578,7 +3576,7 @@ async function previewExampleInNewTab(file: string): Promise<void> {
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
       "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
-      `</style></head><body><h1>${file} · sheet "${sheetName}" (example — fictional data)</h1>${tableHtml}</body></html>`;
+      `</style></head><body><h1>${i18n.t("dash.previewSheetCaption", { file, sheet: sheetName })}</h1>${tableHtml}</body></html>`;
     if (tab) {
       tab.document.open();
       tab.document.write(doc);
@@ -3590,8 +3588,8 @@ async function previewExampleInNewTab(file: string): Promise<void> {
       tab.document.open();
       tab.document.write(
         `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
-        `Couldn't load preview: ${msg}. ` +
-        `<a href="/examples/${file}" download>Download instead</a>.</body>`,
+        `${i18n.t("dash.previewLoadFailed", { msg })} ` +
+        `<a href="/examples/${file}" download>${i18n.t("dash.downloadInstead")}</a>.</body>`,
       );
       tab.document.close();
     }
@@ -3628,6 +3626,7 @@ async function previewExampleInNewTab(file: string): Promise<void> {
 // a fresh container for the current month on the next render — the user lands
 // on the dropzone rather than a broken empty screen.
 function DashboardDevTools() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
@@ -3652,7 +3651,7 @@ function DashboardDevTools() {
       const payload = await fetchWorkspacePeriodsDirect(org.id);
       const periods = payload?.periods ?? [];
       if (periods.length === 0) {
-        toast({ title: "Already clean", description: "This workspace has no periods." });
+        toast({ title: t("dash.alreadyCleanTitle"), description: t("dash.alreadyCleanBody") });
         setOpen(false);
         setBusy(false);
         return;
@@ -3674,22 +3673,22 @@ function DashboardDevTools() {
       void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
       if (failed.length > 0) {
         toast({
-          title: `${failed.length} period(s) could not be deleted`,
+          title: t("dash.periodsDeleteFailed", { count: failed.length }),
           description: failed.slice(0, 3).join(" · "),
           variant: "destructive",
         });
       } else {
         toast({
-          title: `Deleted ${deleted} period${deleted === 1 ? "" : "s"}`,
-          description: "Files moved to Recently deleted — restorable for 30 days.",
+          title: t("dash.deletedPeriods", { count: deleted }),
+          description: t("dash.filesMovedRecentlyDeleted"),
         });
       }
       setOpen(false);
       setBusy(false);
     } catch (err) {
       toast({
-        title: "Couldn't wipe this workspace",
-        description: err instanceof Error ? err.message : "Unknown error.",
+        title: t("dash.wipeFailedTitle"),
+        description: err instanceof Error ? err.message : t("dash.unknownError"),
         variant: "destructive",
       });
       setBusy(false);
@@ -3707,40 +3706,32 @@ function DashboardDevTools() {
     >
       <div>
         <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-red-600/90">
-          Danger zone
+          {t("dash.dangerZone")}
         </div>
         <p className="text-[12px] text-ink-mute mt-0.5 max-w-[560px]">
-          Deleting this workspace&rsquo;s months is permanent and cannot be
-          undone. Statements, ratios, valuation, risk scores and
-          recommendations are erased for every month. The source files stay in
-          Recently deleted for 30 days and are then removed for good.
+          {t("dash.dangerZoneBody")}
         </p>
       </div>
       <button
         type="button"
         onClick={() => setOpen(true)}
         data-testid="dashboard-wipe-data"
-        title="Permanently delete every month in this workspace"
+        title={t("dash.wipeButtonTitle")}
         className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-dashed border-red-500/40 bg-red-500/[0.06] text-[11px] font-mono uppercase tracking-[0.08em] text-red-600 hover:bg-red-500/15 transition-colors"
       >
         <Trash2 size={12} strokeWidth={2} />
-        Wipe data
+        {t("dash.wipeData")}
       </button>
 
       <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
         <DialogContent className="sm:max-w-[440px]" data-testid="dashboard-wipe-dialog">
           <DialogHeader>
-            <DialogTitle>Permanently delete every month in this workspace?</DialogTitle>
+            <DialogTitle>{t("dash.wipeDialogTitle")}</DialogTitle>
             <DialogDescription>
-              This cannot be undone. Every month goes, along with everything
-              derived from it — statements, ratios, valuation, risk scores and
-              recommendations.
+              {t("dash.wipeDialogBody1")}
               <br />
               <br />
-              The uploaded files move to Recently deleted, where they can be
-              restored for 30 days — after that they are gone for good. Other
-              workspaces, your Products datasets and your chats are not
-              touched.
+              {t("dash.wipeDialogBody2")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -3750,7 +3741,7 @@ function DashboardDevTools() {
               disabled={busy}
               className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -3760,7 +3751,7 @@ function DashboardDevTools() {
               className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} strokeWidth={1.75} />}
-              {busy ? "Deleting…" : "Delete all periods"}
+              {busy ? t("dash.deleting") : t("dash.deleteAllPeriods")}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -3778,6 +3769,7 @@ function NotesJumpPill({
   alerts: Array<{ severity?: string }>;
   recommendationCount: number;
 }) {
+  const { t } = useTranslation();
   const notesTotal = recommendationCount + alerts.length;
   if (notesTotal === 0) return null;
   const sev = (a: { severity?: string }) => a.severity ?? "";
@@ -3798,7 +3790,7 @@ function NotesJumpPill({
             ?.scrollIntoView({ behavior: "smooth", block: "start" })
         }
         data-testid="notes-jump-pill"
-        title="Jump to Notes & recommendations"
+        title={t("dash.jumpToNotes")}
         className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-semibold tabular-nums transition-colors ${tone}`}
       >
         <AlertTriangle size={17} strokeWidth={2} />
@@ -3823,6 +3815,7 @@ function DashboardSourceFiles({
    *  the slot Products uses for the same row. */
   trailing?: ReactNode;
 }) {
+  const { t } = useTranslation();
   // FINANCIAL scope only (2026-07-26). A SKU workbook uploaded on Products
   // pins to the same month, so an unfiltered list showed it here among the
   // files backing the trial-balance numbers — which it doesn't back at all.
@@ -3852,12 +3845,12 @@ function DashboardSourceFiles({
           filename: d.original_filename,
           uploadedAt: d.created_at,
           onOpen: () =>
-            void openUploadedFilePreview(d.original_filename ?? "document", async () => {
+            void openUploadedFilePreview(d.original_filename ?? t("dash.documentFallback"), async () => {
               const { signedDocumentUrl } = await import("@/lib/supabase");
               return signedDocumentUrl(d);
             }),
         }))}
-        trailingHeading="Replace or add files"
+        trailingHeading={t("dash.replaceOrAdd")}
         trailing={
           // Same strip as Products (2026-07-26 per operator): heading line
           // carries "Replace or add files", an "or" separates the existing
@@ -3867,9 +3860,9 @@ function DashboardSourceFiles({
             accept={DASHBOARD_UPLOAD_ACCEPT}
             onFile={onAddFile}
             variant="wide"
-            label="Drop your trial balance here"
-            hint="PDF · XLSX · CSV · image"
-            title="Add a trial balance to this workspace — click to browse or drop one here"
+            label={t("dash.dropTrialBalanceHere")}
+            hint={t("dash.dropHint")}
+            title={t("dash.addTbTitle")}
           />
         }
       />
@@ -3888,6 +3881,7 @@ function DashboardSourceFiles({
 // buttons as the card's action rows. Mounted in the page hero's right
 // column (beside the title), like /products.
 function DashboardTemplateCard() {
+  const { t } = useTranslation();
   return (
     <TemplateDownloadCard
       variant="prominent"
@@ -3895,12 +3889,12 @@ function DashboardTemplateCard() {
       actions={
         <div className="mt-3.5" data-testid="trial-balance-examples">
           <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-            Example trial balances
+            {t("dash.exampleTrialBalances")}
           </div>
           <div className="space-y-2">
             {[
-              { label: "Multi-column format", file: "example_trial_balance_8col.xlsx", testid: "8col" },
-              { label: "Standard SAGA format", file: "example_trial_balance_6col.xlsx", testid: "6col" },
+              { label: t("dash.exampleMultiCol"), file: "example_trial_balance_8col.xlsx", testid: "8col" },
+              { label: t("dash.exampleSaga"), file: "example_trial_balance_6col.xlsx", testid: "6col" },
             ].map((ex) => (
               <div
                 key={ex.file}
@@ -3911,7 +3905,7 @@ function DashboardTemplateCard() {
                     {ex.label} <span className="text-ink-mute font-normal">(XLSX)</span>
                   </div>
                   <div className="text-[10.5px] text-ink-mute">
-                    Fictional data; demonstrates the required structure.
+                    {t("dash.fictionalData")}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -3922,7 +3916,7 @@ function DashboardTemplateCard() {
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
                   >
                     <ExternalLink size={12} strokeWidth={2} />
-                    View
+                    {t("dash.view")}
                   </button>
                   <a
                     href={`/examples/${ex.file}`}
@@ -3931,7 +3925,7 @@ function DashboardTemplateCard() {
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
                   >
                     <ArrowDownToLine size={12} strokeWidth={2} />
-                    Download
+                    {t("common.download")}
                   </a>
                 </div>
               </div>
@@ -3973,6 +3967,7 @@ function DashboardAddMonthZone({
   /** Hide the "Add another month" eyebrow (the modal supplies its own title). */
   hideHeader?: boolean;
 }) {
+  const { t } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const staged = stagedFiles.length > 0;
   const isLocalhost =
@@ -3983,7 +3978,7 @@ function DashboardAddMonthZone({
       {!hideHeader && (
         <div className="mb-3 inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
           <UploadCloud size={12} strokeWidth={2.25} className="text-brand-d" />
-          Add another month
+          {t("dash.addAnotherMonth")}
         </div>
       )}
       {/* Drop target — full width now that the official-template card moved up
@@ -4019,29 +4014,29 @@ function DashboardAddMonthZone({
               onClick={onSimulate}
               className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
             >
-              Debug: simulate scan
+              {t("dash.debugSimulate")}
             </button>
           )}
 
           {!staged ? (
             <div className="relative flex flex-col items-center text-center py-2">
               <h3 className="text-[15px] font-semibold text-ink">
-                {dragActive ? "Drop your file to upload" : "Drop next month's trial balance"}
+                {dragActive ? t("dash.dropFileToUpload") : t("dash.dropNextMonth")}
               </h3>
-              <p className="text-[12px] text-ink-soft mt-1">XLSX · CSV · PDF · up to 25 MB</p>
+              <p className="text-[12px] text-ink-soft mt-1">{t("dash.formatsLimit")}</p>
               <button
                 type="button"
                 onClick={onTriggerFile}
                 data-testid="dashboard-add-month-import"
                 className="mt-3.5 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
               >
-                Import
+                {t("dash.import")}
               </button>
             </div>
           ) : (
             <div className="relative text-left" data-testid="dashboard-staged-files">
               <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-                Uploaded files
+                {t("dash.uploadedFiles")}
               </div>
               <div className="space-y-2">
                 {/* The row ITSELF opens the preview (2026-07-26 per operator
@@ -4055,8 +4050,8 @@ function DashboardAddMonthZone({
                     <button
                       type="button"
                       onClick={() => onViewStaged(f)}
-                      aria-label={`Preview ${f.name}`}
-                      title="Open a preview in a new window"
+                      aria-label={t("dash.previewFile", { name: f.name })}
+                      title={t("dash.openPreviewTitle")}
                       className="flex flex-1 items-center gap-2 min-w-0 px-3 py-2 text-left"
                     >
                       <FileSpreadsheet size={14} strokeWidth={1.75} className="text-ink-mute shrink-0" />
@@ -4069,7 +4064,7 @@ function DashboardAddMonthZone({
                       type="button"
                       onClick={() => onDiscardStaged(i)}
                       disabled={scanning}
-                      aria-label={`Remove ${f.name}`}
+                      aria-label={t("dash.removeFile", { name: f.name })}
                       className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
                     >
                       <X size={14} strokeWidth={2} />
@@ -4085,7 +4080,7 @@ function DashboardAddMonthZone({
                   className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
                 >
                   <X size={13} strokeWidth={2} />
-                  Dismiss all
+                  {t("dash.dismissAll")}
                 </button>
                 <button
                   type="button"
@@ -4095,7 +4090,7 @@ function DashboardAddMonthZone({
                   className="inline-flex items-center gap-2 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
                 >
                   {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
-                  {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+                  {scanning ? t("dash.scanning") : stagedFiles.length > 1 ? t("dash.startScanN", { count: stagedFiles.length }) : t("dash.startScan")}
                 </button>
               </div>
             </div>
@@ -4151,6 +4146,7 @@ function UploadAndSamplePanel({
    *  complete" card so the user confirms the hand-off into State B. */
   onViewResults: () => void;
 }) {
+  const { t } = useTranslation();
   // Drag-over state — drives the dropzone's "file hovering" styling and the
   // "Drop your file to upload" affordance text.
   const [dragActive, setDragActive] = useState(false);
@@ -4159,23 +4155,23 @@ function UploadAndSamplePanel({
   // upload UI to the in-place progress view (no separate modal/card).
   const scanActive = !!inflight;
   const PIPELINE_STEPS = [
-    "Detect format",
-    "Extract data",
-    "Rebuild statements",
-    "Calculate ratios",
-    "Generate recs",
+    t("dash.stepDetect"),
+    t("dash.stepExtract"),
+    t("dash.stepRebuild"),
+    t("dash.stepRatios"),
+    t("dash.stepRecs"),
   ];
   const STATUS_ORDINAL: Record<string, number> = {
     queued: 0, extracting: 1, mapping: 2, computing: 3, narrating: 4, analyzed: 5, failed: 0,
   };
   const STATUS_LABEL: Record<string, string> = {
-    queued: "Queued for analysis…",
-    extracting: "Reading the document…",
-    mapping: "Mapping accounts…",
-    computing: "Computing ratios…",
-    narrating: "Generating insights…",
-    analyzed: "Analysis ready",
-    failed: "Analysis failed",
+    queued: t("dash.statusQueued"),
+    extracting: t("dash.statusExtracting"),
+    mapping: t("dash.statusMapping"),
+    computing: t("dash.statusComputing"),
+    narrating: t("dash.statusNarrating"),
+    analyzed: t("toasts.analysisComplete"),
+    failed: t("dash.analysisFailedTitle"),
   };
   const currentOrdinal = inflight ? (STATUS_ORDINAL[inflight.status] ?? 0) : 0;
   const statusLabel = inflight ? (STATUS_LABEL[inflight.status] ?? inflight.status) : "";
@@ -4220,24 +4216,24 @@ function UploadAndSamplePanel({
           section, headed by the same "Expected format" section label
           /products uses. */}
       <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
-        Expected format
+        {t("expectedFormat.eyebrow")}
       </h2>
       <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="upload-document-guide">
         <DocGuideCard
-          title="Trial balance (balanță de verificare)"
+          title={t("dash.docTb")}
           format="XLSX · CSV · PDF"
-          shows="Per-account drilldown, full P&L + BS + cash flow reconciliation, 25+ ratios, valuation, credit score, peer benchmarks"
+          shows={t("dash.docTbShows")}
           where={[
-            { label: "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)", href: null },
-            { label: "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)", href: null },
+            { label: t("dash.docTbWhere1"), href: null },
+            { label: t("dash.docTbWhere2"), href: null },
           ]}
           tone="best"
         />
         {PUBLIC_RECORDS_ENABLED && (
           <DocGuideCard
-            title="Public records summary"
-            format="PDF only"
-            shows="Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history."
+            title={t("dash.docPublicRecords")}
+            format={t("dash.pdfOnly")}
+            shows={t("dash.docPublicRecordsShows")}
             where={[
               { label: "listafirme.ro/<company-slug>-<CUI>", href: "https://listafirme.ro" },
               { label: "termene.ro/firma/<CUI>", href: "https://termene.ro" },
@@ -4248,22 +4244,22 @@ function UploadAndSamplePanel({
           />
         )}
         <DocGuideCard
-          title="Statutory ANAF filing"
+          title={t("dash.docStatutory")}
           format="XLSX (Formular F30 + F10)"
-          shows="Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers."
+          shows={t("dash.docStatutoryShows")}
           where={[
-            { label: "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX", href: "https://anaf.ro" },
-            { label: "Your accountant's archive — the annual filing they sent to ANAF", href: null },
+            { label: t("dash.docStatutoryWhere1"), href: "https://anaf.ro" },
+            { label: t("dash.docStatutoryWhere2"), href: null },
           ]}
           tone="ok"
         />
         <DocGuideCard
-          title="Sales / trading analysis"
-          format="XLSX export"
-          shows="SKU-level portfolio classification (anchor / scale / watch / eliminate), DIO + capital trap detection. Renders in /products."
+          title={t("dash.docSales")}
+          format={t("dash.docSalesFormat")}
+          shows={t("dash.docSalesShows")}
           where={[
-            { label: "Your ERP's Trading Analysis report (XLSX)", href: null },
-            { label: "Pivot of monthly sales with: SKU, volume, revenue, GM, DIO, customer category", href: null },
+            { label: t("dash.docSalesWhere1"), href: null },
+            { label: t("dash.docSalesWhere2"), href: null },
           ]}
           tone="ok"
         />
@@ -4330,7 +4326,7 @@ function UploadAndSamplePanel({
             onClick={onSimulate}
             className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
           >
-            Debug: simulate scan
+            {t("dash.debugSimulate")}
           </button>
         )}
 
@@ -4351,10 +4347,10 @@ function UploadAndSamplePanel({
                   card's bottom-left corner as an oversized decorative
                   mark. */}
               <h3 className="text-[16px] font-semibold text-ink">
-                {dragActive ? "Drop your file to upload" : "Drop your trial balance here"}
+                {dragActive ? t("dash.dropFileToUpload") : t("dash.dropTrialBalanceHere")}
               </h3>
               <p className="text-[12.5px] text-ink-soft mt-1">
-                XLSX · CSV · PDF · up to 25 MB
+                {t("dash.formatsLimit")}
               </p>
               {/* Same treatment as the sidebar's ACTIVE tab: animated
                   teal gradient fill + brand border. */}
@@ -4362,11 +4358,11 @@ function UploadAndSamplePanel({
                 onClick={onTriggerFile}
                 className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
               >
-                Import
+                {t("dash.import")}
               </button>
               {uploadName && (
                 <div className="mt-3 text-[11.5px] text-ink-mute">
-                  Received: <span className="text-ink">{uploadName}</span>
+                  {t("dash.received")} <span className="text-ink">{uploadName}</span>
                 </div>
               )}
             </motion.div>
@@ -4388,7 +4384,7 @@ function UploadAndSamplePanel({
             >
               <InlineErrorBoundary
                 tag="CouncilVisualizer"
-                label="The council visualizer hit a snag — analysis is still running; watch the steps below."
+                label={t("dash.councilSnag")}
                 onReset={() => { /* visual-only; nothing to reset */ }}
               >
                 <CouncilVisualizer documentId={inflight.docId} />
@@ -4405,7 +4401,7 @@ function UploadAndSamplePanel({
           layout
           transition={{ type: "spring", stiffness: 260, damping: 30 }}
           className={`relative w-full max-w-[560px] mx-auto flex items-start justify-between gap-2 ${scanActive ? "mt-1" : "mt-6"}`}
-          aria-label="Analysis pipeline"
+          aria-label={t("dash.analysisPipeline")}
           data-testid="upload-pipeline"
         >
           {/* Connector line — drawn behind the dots */}
@@ -4463,7 +4459,7 @@ function UploadAndSamplePanel({
              Each has an X to discard; nothing uploads until Start scan. */
           <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
             <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-              Uploaded files
+              {t("dash.uploadedFiles")}
             </div>
             <div className="space-y-2">
               {/* The row ITSELF opens the preview (2026-07-26 per operator —
@@ -4477,8 +4473,8 @@ function UploadAndSamplePanel({
                   <button
                     type="button"
                     onClick={() => void openStagedFile(f)}
-                    aria-label={`Preview ${f.name}`}
-                    title="Open a preview in a new window"
+                    aria-label={t("dash.previewFile", { name: f.name })}
+                    title={t("dash.openPreviewTitle")}
                     data-testid={`view-staged-${i}`}
                     className="flex flex-1 items-center gap-2 min-w-0 px-3 py-2 text-left"
                   >
@@ -4492,7 +4488,7 @@ function UploadAndSamplePanel({
                     type="button"
                     onClick={() => onDiscardStaged(i)}
                     disabled={scanning}
-                    aria-label={`Remove ${f.name}`}
+                    aria-label={t("dash.removeFile", { name: f.name })}
                     data-testid={`discard-staged-${i}`}
                     className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
                   >
@@ -4510,7 +4506,7 @@ function UploadAndSamplePanel({
                 className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
               >
                 <X size={13} strokeWidth={2} />
-                Dismiss all
+                {t("dash.dismissAll")}
               </button>
               <button
                 type="button"
@@ -4520,7 +4516,7 @@ function UploadAndSamplePanel({
                 className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
               >
                 {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
-                {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+                {scanning ? t("dash.scanning") : stagedFiles.length > 1 ? t("dash.startScanN", { count: stagedFiles.length }) : t("dash.startScan")}
               </button>
             </div>
           </div>
@@ -4536,7 +4532,7 @@ function UploadAndSamplePanel({
       {SAMPLES_ENABLED && (
       <div data-testid="sample-picker-panel" className="rounded-2xl border border-rule bg-surface p-5">
         <div className="flex items-center justify-between mb-3 gap-2">
-          <h3 className="font-serif text-[16px] text-ink">Try a sample</h3>
+          <h3 className="font-serif text-[16px] text-ink">{t("dash.tryASample")}</h3>
           <div className="flex items-center gap-3">
             {statements && (
               <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium truncate max-w-[140px]">
@@ -4549,7 +4545,7 @@ function UploadAndSamplePanel({
                 onClick={onReset}
                 className="text-[11px] text-ink-mute hover:text-ink underline-offset-2 hover:underline"
               >
-                Reset
+                {t("common.reset")}
               </button>
             )}
           </div>
@@ -4596,6 +4592,7 @@ function UploadAndSamplePanel({
 // Gated by PUBLIC_RECORDS_ENABLED — preserved on disk so the listafirme
 // positioning can be restored by a one-line flag flip if needed.
 function UploadHeroCallout() {
+  const { t } = useTranslation();
   return (
     <div
       data-testid="upload-hero-callout"
@@ -4607,14 +4604,13 @@ function UploadHeroCallout() {
       </div>
       <div className="flex-1 min-w-0">
         <h2 className="font-serif text-[20px] sm:text-[22px] leading-tight m-0 text-white">
-          No financial document? Get one free in 60 seconds.
+          {t("dash.calloutTitle")}
         </h2>
         <p className="mt-2 text-[13.5px] sm:text-[14px] leading-relaxed text-white/85">
-          Search any Romanian company (SRL or SA) on{" "}
-          <strong className="text-white">listafirme.ro</strong> by name or CUI, open{" "}
-          <strong className="text-white">"Date de bilanț"</strong>, hit{" "}
-          <strong className="text-white">"Print PDF"</strong>, then drop the file below.
-          You'll get a 20-year financial history analyzed in under a minute.
+          {t("dash.calloutBody1")}{" "}
+          <strong className="text-white">listafirme.ro</strong> {t("dash.calloutBody2")}{" "}
+          <strong className="text-white">"Date de bilanț"</strong>, {t("dash.calloutBody3")}{" "}
+          <strong className="text-white">"Print PDF"</strong>, {t("dash.calloutBody4")}
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <a
@@ -4625,10 +4621,10 @@ function UploadHeroCallout() {
             className="inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold transition-colors"
             style={{ background: "#5CD3C5", color: "#1a1a1a" }}
           >
-            Open listafirme.ro ↗
+            {t("dash.calloutCta")}
           </a>
           <span className="text-[11.5px] text-white/70">
-            Free · Instant · No accountant needed
+            {t("dash.calloutFooter")}
           </span>
         </div>
       </div>
@@ -4646,14 +4642,15 @@ function DocGuideCard({ title, format, shows, where, tone }: {
   where: Array<{ label: string; href: string | null }>;
   tone: "best" | "ok" | "free";
 }) {
+  const { t } = useTranslation();
   const borderClass =
     tone === "best" ? "border-l-brand"
     : tone === "free" ? "border-l-brand"
     : "border-l-rule-strong";
   const toneBadge =
-    tone === "best" ? { label: "MOST DATA", cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
-    : tone === "free" ? { label: "FREE / INSTANT", cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
-    : { label: "AGGREGATE", cls: "bg-bg-2 text-ink-soft" };
+    tone === "best" ? { label: t("dash.badgeMostData"), cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
+    : tone === "free" ? { label: t("dash.badgeFreeInstant"), cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
+    : { label: t("dash.badgeAggregate"), cls: "bg-bg-2 text-ink-soft" };
   return (
     <div className={`rounded-lg border border-rule border-l-[3px] ${borderClass} bg-surface p-3 text-left`}>
       <div className="flex items-start justify-between gap-2 mb-1">
@@ -4664,7 +4661,7 @@ function DocGuideCard({ title, format, shows, where, tone }: {
       </div>
       <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">{format}</div>
       <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2">{shows}</p>
-      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1">Where to get it</div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1">{t("dash.whereToGet")}</div>
       <ul className="space-y-0.5">
         {where.map((w, i) => (
           <li key={i} className="text-[11.5px] text-ink-soft leading-tight">
@@ -4689,24 +4686,25 @@ function DocGuideCard({ title, format, shows, where, tone }: {
 // keeps the Ratios surface self-contained — no upstream prop drilling,
 // no global store for an interaction that's scoped to this tab.
 function RatiosTabContent({ ratios, statements }: { ratios: RatioBundle; statements: Statements | null }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<Ratio | null>(null);
   return (
     <>
-      <RatioGroupSection title="Liquidity"                           ratios={ratios.liquidity}     onPick={setSelected} />
+      <RatioGroupSection title={t("dash.ratioLiquidity")}            ratios={ratios.liquidity}     onPick={setSelected} />
       <div data-guide="ratios-profitability">
-        <RatioGroupSection title="Profitability"                     ratios={ratios.profitability} onPick={setSelected} />
+        <RatioGroupSection title={t("dash.ratioProfitability")}      ratios={ratios.profitability} onPick={setSelected} />
       </div>
       <div data-guide="ratios-leverage">
-        <RatioGroupSection title="Leverage"                          ratios={ratios.leverage}      onPick={setSelected} />
+        <RatioGroupSection title={t("dash.ratioLeverage")}           ratios={ratios.leverage}      onPick={setSelected} />
         <div className="mt-8">
-          <RatioGroupSection title="Coverage"                        ratios={ratios.coverage}      onPick={setSelected} />
+          <RatioGroupSection title={t("dash.ratioCoverage")}         ratios={ratios.coverage}      onPick={setSelected} />
         </div>
       </div>
       <div data-guide="ratios-efficiency">
-        <RatioGroupSection title="Efficiency · working capital cycle" ratios={ratios.efficiency}    onPick={setSelected} />
+        <RatioGroupSection title={t("dash.ratioEfficiency")}          ratios={ratios.efficiency}    onPick={setSelected} />
       </div>
       <div data-guide="ratios-risk">
-        <RatioGroupSection title="Bankruptcy risk"                   ratios={ratios.bankruptcy}    onPick={setSelected} />
+        <RatioGroupSection title={t("dash.ratioBankruptcy")}         ratios={ratios.bankruptcy}    onPick={setSelected} />
       </div>
 
       {/* Premium explainer drawer — 8 sections + related-ratio pivot.
@@ -4759,6 +4757,7 @@ function RatioTile({
   ratio: Ratio;
   onPick?: (r: Ratio) => void;
 }) {
+  const { t } = useTranslation();
   const clickable = typeof onPick === "function";
   // The tile becomes a button when clickable, keeping keyboard focus,
   // Enter/Space activation, and an aria role for AT users. When the
@@ -4771,7 +4770,7 @@ function RatioTile({
       onClick={clickable ? () => onPick!(ratio) : undefined}
       data-testid="ratio-tile"
       data-ratio-key={ratio.key}
-      aria-label={clickable ? `Open ${ratio.label} detail` : undefined}
+      aria-label={clickable ? t("dash.openRatioDetail", { label: ratio.label }) : undefined}
       className={`
         group relative w-full text-left
         rounded-2xl border border-rule bg-surface p-4
@@ -4808,7 +4807,7 @@ function RatioTile({
       </p>
       {clickable && (
         <div className="mt-2 inline-flex items-center gap-1 text-[10.5px] text-ink-mute group-hover:text-brand-d transition-colors">
-          <span>Open explainer</span>
+          <span>{t("dash.openExplainer")}</span>
           <span aria-hidden>→</span>
         </div>
       )}
@@ -4817,13 +4816,21 @@ function RatioTile({
 }
 
 function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: string }) {
+  const { t } = useTranslation();
   const tones: Record<string, { pillBg: string; pillText: string }> = {
     critical: { pillBg: "bg-red-600", pillText: "text-white" },
     high:     { pillBg: "bg-[#5CD3C5]", pillText: "text-white" },
     medium:   { pillBg: "bg-[#2AA89B]", pillText: "text-white" },
     info:     { pillBg: "bg-ink-mute", pillText: "text-white" },
   };
-  const t = tones[rec.priority];
+  const tn = tones[rec.priority];
+  // Severity label shown on the pill — the engine emits the raw enum value.
+  const priorityLabel: Record<string, string> = {
+    critical: t("dash.priorityCritical"),
+    high: t("dash.priorityHigh"),
+    medium: t("dash.priorityMedium"),
+    info: t("dash.priorityInfo"),
+  };
 
   // F5.0 Phase 7 — expose the engine's already-computed trigger facts so the
   // reader can audit WHY the rule fired. Each fact maps to a registered
@@ -4853,7 +4860,7 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
     // Day-count metrics
     if (k === "dio" || k === "dso" || k === "dpo" || k === "ccc"
         || k.endsWith("_days")) {
-      return `${Math.round(value)} days`;
+      return `${Math.round(value)} ${t("common.unit.days")}`;
     }
     // Z-score family
     if (k.startsWith("altman_z")) {
@@ -4886,27 +4893,23 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
     return Math.abs(value) >= 1_000;
   };
 
-  const askPrompt =
-    `Explain why the recommendation "${rec.title}" fired on this dataset. ` +
-    `Walk me through the trigger metric(s), how they compare to the threshold, ` +
-    `and what the proposed action would change in concrete numbers. ` +
-    `Cite the underlying RAS accounts where possible.`;
+  const askPrompt = t("dash.askRecPrompt", { title: rec.title });
 
   return (
     <div className="rounded-2xl border border-rule bg-surface p-5" data-testid={`rec-card-${rec.id}`}>
       <div className="flex items-start gap-3 mb-2">
-        <span className={`text-[10.5px] font-semibold uppercase tracking-[0.06em] px-2.5 py-1 rounded ${t.pillBg} ${t.pillText}`}>
-          <LearnableRowLabel conceptKey="alert_severity">{rec.priority}</LearnableRowLabel>
+        <span className={`text-[10.5px] font-semibold uppercase tracking-[0.06em] px-2.5 py-1 rounded ${tn.pillBg} ${tn.pillText}`}>
+          <LearnableRowLabel conceptKey="alert_severity">{priorityLabel[rec.priority] ?? rec.priority}</LearnableRowLabel>
         </span>
         <h3 className="font-serif text-[16.5px] text-ink leading-tight">{rec.title}</h3>
       </div>
-      <p className="text-[13px] text-ink-soft mt-2"><span className="text-ink font-medium">Why:</span> {rec.rationale}</p>
-      <p className="text-[13px] text-ink-soft mt-2"><span className="text-ink font-medium">Action:</span> {rec.action}</p>
+      <p className="text-[13px] text-ink-soft mt-2"><span className="text-ink font-medium">{t("dash.why")}</span> {rec.rationale}</p>
+      <p className="text-[13px] text-ink-soft mt-2"><span className="text-ink font-medium">{t("dash.action")}</span> {rec.action}</p>
 
       {factEntries.length > 0 && (
         <div className="mt-3 rounded-lg border border-rule/70 bg-bg-2/40 px-3 py-2">
           <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-soft mb-1.5">
-            Triggered by
+            {t("dash.triggeredBy")}
           </div>
           <ul className="space-y-1">
             {factEntries.map(([k, v]) => {
@@ -4951,11 +4954,11 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         {rec.estimatedImpact && (
           <div className="inline-flex items-center text-[11.5px] font-medium text-[#2AA89B] bg-[#E6F7F4] px-3 py-1 rounded-md">
-            <LearnableRowLabel conceptKey="recommendation_impact">Estimated impact</LearnableRowLabel>:{" "}
+            <LearnableRowLabel conceptKey="recommendation_impact">{t("dash.estimatedImpact")}</LearnableRowLabel>:{" "}
             <LearnableNumber conceptKey="recommendation_impact" value={rec.estimatedImpact}>
               <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact />
             </LearnableNumber>
-            {" "}/ year
+            {" "}{t("dash.perYear")}
           </div>
         )}
         <button
@@ -4965,7 +4968,7 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
           data-testid={`rec-ask-${rec.id}`}
         >
           <Sparkles size={11} strokeWidth={2.25} />
-          Ask CFO AI about this
+          {t("dash.askAboutThis")}
         </button>
       </div>
     </div>
@@ -4973,6 +4976,8 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
 }
 
 function BalanceSheetTable({ statements }: { statements: Statements }) {
+  // `t` is taken by deriveTotals here — bind the translator as `tr`.
+  const { t: tr } = useTranslation();
   const t = deriveTotals(statements);
   const bs = statements.balanceSheet;
   const cur = statements.currency;
@@ -4987,33 +4992,33 @@ function BalanceSheetTable({ statements }: { statements: Statements }) {
   return (
     <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
       <div className="px-5 py-3 bg-bg-2/40 border-b border-rule">
-        <h2 className="font-serif text-[18px] text-ink">Balance sheet · {statements.periodLabel}</h2>
+        <h2 className="font-serif text-[18px] text-ink">{tr("dash.balanceSheet")} · {statements.periodLabel}</h2>
       </div>
       <table className="w-full">
         <tbody>
-          {row("Current assets", t.totalCurrentAssets, { subtotal: true })}
-          {row("Cash & equivalents", bs.cash, { indent: true })}
-          {row("Accounts receivable", bs.accountsReceivable, { indent: true })}
-          {row("Inventory", bs.inventory, { indent: true })}
-          {row("Other current assets", bs.otherCurrentAssets, { indent: true })}
-          {row("Non-current assets", t.totalNonCurrentAssets, { subtotal: true })}
-          {row("Property, plant & equipment", bs.propertyPlantEquipment, { indent: true })}
-          {row("Intangibles", bs.intangibles, { indent: true })}
-          {row("Other non-current assets", bs.otherNonCurrentAssets, { indent: true })}
-          {row("Total assets", t.totalAssets, { total: true })}
-          {row("Current liabilities", t.totalCurrentLiabilities, { subtotal: true })}
-          {row("Accounts payable", bs.accountsPayable, { indent: true })}
-          {row("Short-term debt", bs.shortTermDebt, { indent: true })}
-          {row("Other current liabilities", bs.otherCurrentLiabilities, { indent: true })}
-          {row("Non-current liabilities", t.totalNonCurrentLiabilities, { subtotal: true })}
-          {row("Long-term debt", bs.longTermDebt, { indent: true })}
-          {row("Other non-current liabilities", bs.otherNonCurrentLiabilities, { indent: true })}
-          {row("Total liabilities", t.totalLiabilities, { subtotal: true })}
-          {row("Share capital", bs.shareCapital, { indent: true })}
-          {row("Retained earnings", bs.retainedEarnings, { indent: true })}
-          {row("Other equity", bs.otherEquity, { indent: true })}
-          {row("Total equity", t.totalEquity, { subtotal: true })}
-          {row("Total liabilities + equity", t.totalLiabilitiesAndEquity, { total: true })}
+          {row(tr("dash.bsCurrentAssets"), t.totalCurrentAssets, { subtotal: true })}
+          {row(tr("dash.bsCash"), bs.cash, { indent: true })}
+          {row(tr("dash.bsAccountsReceivable"), bs.accountsReceivable, { indent: true })}
+          {row(tr("dash.bsInventory"), bs.inventory, { indent: true })}
+          {row(tr("dash.bsOtherCurrentAssets"), bs.otherCurrentAssets, { indent: true })}
+          {row(tr("dash.bsNonCurrentAssets"), t.totalNonCurrentAssets, { subtotal: true })}
+          {row(tr("dash.bsPpe"), bs.propertyPlantEquipment, { indent: true })}
+          {row(tr("dash.bsIntangibles"), bs.intangibles, { indent: true })}
+          {row(tr("dash.bsOtherNonCurrentAssets"), bs.otherNonCurrentAssets, { indent: true })}
+          {row(tr("dash.bsTotalAssets"), t.totalAssets, { total: true })}
+          {row(tr("dash.bsCurrentLiabilities"), t.totalCurrentLiabilities, { subtotal: true })}
+          {row(tr("dash.bsAccountsPayable"), bs.accountsPayable, { indent: true })}
+          {row(tr("dash.bsShortTermDebt"), bs.shortTermDebt, { indent: true })}
+          {row(tr("dash.bsOtherCurrentLiabilities"), bs.otherCurrentLiabilities, { indent: true })}
+          {row(tr("dash.bsNonCurrentLiabilities"), t.totalNonCurrentLiabilities, { subtotal: true })}
+          {row(tr("dash.bsLongTermDebt"), bs.longTermDebt, { indent: true })}
+          {row(tr("dash.bsOtherNonCurrentLiabilities"), bs.otherNonCurrentLiabilities, { indent: true })}
+          {row(tr("dash.bsTotalLiabilities"), t.totalLiabilities, { subtotal: true })}
+          {row(tr("dash.bsShareCapital"), bs.shareCapital, { indent: true })}
+          {row(tr("dash.bsRetainedEarnings"), bs.retainedEarnings, { indent: true })}
+          {row(tr("dash.bsOtherEquity"), bs.otherEquity, { indent: true })}
+          {row(tr("dash.bsTotalEquity"), t.totalEquity, { subtotal: true })}
+          {row(tr("dash.bsTotalLiabEquity"), t.totalLiabilitiesAndEquity, { total: true })}
         </tbody>
       </table>
     </div>
@@ -5085,6 +5090,7 @@ function ValuationPanel({
   statements: Statements;
   valuation: PeriodValuation | null;
 }) {
+  const { t } = useTranslation();
   const wacc = useMemo(() => computeCostOfCapital(statements), [statements]);
   const dcf = useMemo(() => runDcf(statements), [statements]);
   const graham = useMemo(() => runGraham(statements), [statements]);
@@ -5113,26 +5119,26 @@ function ValuationPanel({
     <>
       {/* Cash flow snapshot */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">Free cash flow</h2>
+        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.freeCashFlow")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KpiTile label="Net income" value={<LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub="statutory view" />
-          <KpiTile label="+ D&A" value={<LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>} />
-          <KpiTile label="− ΔWorking capital" value={<LearnableNumber conceptKey="working_capital_changes" value={wcView}>{fmtMoney(wcView, cur)}</LearnableNumber>} />
-          <KpiTile label="= CFO" value={<LearnableNumber conceptKey="operating_cash_flow" value={cfoView}>{fmtMoney(cfoView, cur)}</LearnableNumber>} />
+          <KpiTile label={t("dash.netIncome")} value={<LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub={t("dash.statutoryView")} />
+          <KpiTile label={t("dash.plusDa")} value={<LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>} />
+          <KpiTile label={t("dash.minusWc")} value={<LearnableNumber conceptKey="working_capital_changes" value={wcView}>{fmtMoney(wcView, cur)}</LearnableNumber>} />
+          <KpiTile label={t("dash.eqCfo")} value={<LearnableNumber conceptKey="operating_cash_flow" value={cfoView}>{fmtMoney(cfoView, cur)}</LearnableNumber>} />
           <KpiTile
-            label="− CapEx"
+            label={t("dash.minusCapex")}
             value={<LearnableNumber conceptKey="capex" value={capexAbs}>{fmtMoney(capexAbs, cur)}</LearnableNumber>}
-            sub={fb ? "CIP additions, real" : "estimated as D&A"}
+            sub={fb ? t("dash.capexReal") : t("dash.capexEstimated")}
           />
           <KpiTile
-            label="= FCF"
+            label={t("dash.eqFcf")}
             value={<LearnableNumber conceptKey="free_cash_flow" value={fcfView}>{fmtMoney(fcfView, cur)}</LearnableNumber>}
             sub={
               fcfNegativeDev
-                ? "Development-phase cash drag"
+                ? t("dash.devPhaseCashDrag")
                 : fcfView > 0
-                  ? "Positive cash generation"
-                  : "Cash burning"
+                  ? t("dash.positiveCashGen")
+                  : t("dash.cashBurning")
             }
           />
         </div>
@@ -5140,28 +5146,26 @@ function ValuationPanel({
 
       {/* WACC */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">Cost of capital (WACC)</h2>
+        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.costOfCapital")}</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KpiTile label="WACC" value={<LearnableNumber conceptKey="wacc" value={wacc.wacc}>{pct(wacc.wacc, 2)}</LearnableNumber>} sub={`Cost of equity ${pct(wacc.costOfEquity, 2)}`} />
-          <KpiTile label="Cost of equity" value={<LearnableNumber conceptKey="cost_of_equity" value={wacc.costOfEquity}>{pct(wacc.costOfEquity, 2)}</LearnableNumber>} sub={`Rf ${pct(wacc.riskFreeRate, 1)} + β${wacc.beta.toFixed(2)} × ERP ${pct(wacc.equityRiskPremium, 1)}`} />
-          <KpiTile label="Cost of debt (after tax)" value={<LearnableNumber conceptKey="cost_of_debt" value={wacc.costOfDebtAfterTax}>{pct(wacc.costOfDebtAfterTax, 2)}</LearnableNumber>} sub={`Pre-tax ${pct(wacc.costOfDebtPreTax, 2)} · tax ${pct(wacc.taxRate, 1)}`} />
-          <KpiTile label="Weight equity" value={pct(wacc.weightOfEquity, 1)} />
-          <KpiTile label="Weight debt" value={pct(wacc.weightOfDebt, 1)} />
+          <KpiTile label="WACC" value={<LearnableNumber conceptKey="wacc" value={wacc.wacc}>{pct(wacc.wacc, 2)}</LearnableNumber>} sub={t("dash.costOfEquitySub", { pct: pct(wacc.costOfEquity, 2) })} />
+          <KpiTile label={t("dash.costOfEquity")} value={<LearnableNumber conceptKey="cost_of_equity" value={wacc.costOfEquity}>{pct(wacc.costOfEquity, 2)}</LearnableNumber>} sub={`Rf ${pct(wacc.riskFreeRate, 1)} + β${wacc.beta.toFixed(2)} × ERP ${pct(wacc.equityRiskPremium, 1)}`} />
+          <KpiTile label={t("dash.costOfDebtAfterTax")} value={<LearnableNumber conceptKey="cost_of_debt" value={wacc.costOfDebtAfterTax}>{pct(wacc.costOfDebtAfterTax, 2)}</LearnableNumber>} sub={t("dash.preTaxSub", { pretax: pct(wacc.costOfDebtPreTax, 2), tax: pct(wacc.taxRate, 1) })} />
+          <KpiTile label={t("dash.weightEquity")} value={pct(wacc.weightOfEquity, 1)} />
+          <KpiTile label={t("dash.weightDebt")} value={pct(wacc.weightOfDebt, 1)} />
         </div>
       </div>
 
       {/* DCF */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">DCF intrinsic value</h2>
+        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.dcfIntrinsic")}</h2>
         {fb?.is_development_phase && (
           <div className="mb-3 rounded-xl border border-info/40 bg-info-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed flex items-start gap-2">
             <Info size={14} strokeWidth={2} className="mt-0.5 shrink-0 text-info" />
             <span>
-              Development phase detected — one-time CIP capex of{" "}
+              {t("dash.devPhasePre")}{" "}
               <span className="tabular-nums font-medium">{fmtMoney(capexAbs, cur)}</span>{" "}
-              is excluded from the perpetuity. DCF uses stabilized FCF
-              (net income + ΔWC ≈ {fmtMoney(fb.stabilized_fcf, cur)}) for the terminal value, since
-              the CIP spend is a one-shot development outlay, not recurring.
+              {t("dash.devPhaseMid")} {fmtMoney(fb.stabilized_fcf, cur)}{t("dash.devPhasePost")}
             </span>
           </div>
         )}
@@ -5171,19 +5175,18 @@ function ValuationPanel({
               with the description block on its left. */}
           <div className="px-5 py-3 bg-bg-2/40 border-b border-rule flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="min-w-0">
-              <div className="font-serif text-[16px] text-ink">5-year explicit forecast + Gordon terminal</div>
+              <div className="font-serif text-[16px] text-ink">{t("dash.dcfForecastTitle")}</div>
               <div className="text-[12px] text-ink-soft break-words">
-                Base FCF (stabilized run-rate){" "}
+                {t("dash.baseFcf")}{" "}
                 <span className="text-ink font-medium tabular-nums">{fmtMoney(dcf.baseFcf, cur)}</span>
-                {" · "}Forecast growth {pct(dcf.forecastGrowthRate, 1)} · Terminal growth {pct(dcf.terminalGrowthRate, 1)} · WACC {pct(dcf.wacc, 2)}
+                {" · "}{t("dash.forecastGrowth")} {pct(dcf.forecastGrowthRate, 1)} · {t("dash.terminalGrowth")} {pct(dcf.terminalGrowthRate, 1)} · WACC {pct(dcf.wacc, 2)}
               </div>
               <div className="text-[11px] text-ink-mute mt-1 leading-snug">
-                Stabilized FCF = CFO − maintenance capex (≈ D&A). Not the one-period FCF —
-                that includes the one-shot CIP outlay and would crush the perpetuity.
+                {t("dash.stabilizedFcfNote")}
               </div>
             </div>
             <div className="md:text-right min-w-0 md:shrink-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">Equity value</div>
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{t("dash.equityValue")}</div>
               <div className="font-serif num-hero-fluid-lg text-ink leading-tight tabular-nums break-words">
                 <LearnableNumber
                   conceptKey="equity_value"
@@ -5201,23 +5204,23 @@ function ValuationPanel({
           <table className="w-full text-[13px] min-w-[480px] sm:min-w-0">
             <thead>
               <tr className="bg-bg-2/30">
-                <th className="text-left py-2 px-4 font-medium text-ink-mute">Year</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.year")}</th>
                 <th className="text-right py-2 px-4 font-medium text-ink-mute">FCF</th>
-                <th className="text-right py-2 px-4 font-medium text-ink-mute">Discount factor</th>
-                <th className="text-right py-2 px-4 font-medium text-ink-mute">Present value</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">{t("dash.discountFactor")}</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">{t("dash.presentValue")}</th>
               </tr>
             </thead>
             <tbody>
               {dcf.yearByYear.map((y) => (
                 <tr key={y.year} className="border-t border-rule">
-                  <td className="py-2 px-4 text-ink">Year {y.year}</td>
+                  <td className="py-2 px-4 text-ink">{t("dash.yearN", { n: y.year })}</td>
                   <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(y.fcf, cur)}</td>
                   <td className="py-2 px-4 text-right tabular-nums text-ink-soft">{y.discountFactor.toFixed(4)}</td>
                   <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(y.presentValue, cur)}</td>
                 </tr>
               ))}
               <tr className="border-t border-rule bg-bg-2/30">
-                <td className="py-2 px-4 text-ink font-medium" colSpan={3}>Terminal value (PV)</td>
+                <td className="py-2 px-4 text-ink font-medium" colSpan={3}>{t("dash.terminalValuePv")}</td>
                 <td className="py-2 px-4 text-right tabular-nums text-ink font-medium">
                   <LearnableNumber conceptKey="terminal_value" value={dcf.terminalValuePresent}>
                     {fmtMoney(dcf.terminalValuePresent, cur)}
@@ -5225,7 +5228,7 @@ function ValuationPanel({
                 </td>
               </tr>
               <tr className="border-t-2 border-ink/30 bg-bg-2/40">
-                <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>Enterprise value</td>
+                <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>{t("dash.enterpriseValue")}</td>
                 <td className="py-2 px-4 text-right tabular-nums text-ink font-semibold">
                   <LearnableNumber conceptKey="enterprise_value" value={dcf.enterpriseValue}>
                     {fmtMoney(dcf.enterpriseValue, cur)}
@@ -5233,11 +5236,11 @@ function ValuationPanel({
                 </td>
               </tr>
               <tr className="border-t border-rule">
-                <td className="py-2 px-4 text-ink-soft" colSpan={3}>− Net debt</td>
+                <td className="py-2 px-4 text-ink-soft" colSpan={3}>{t("dash.minusNetDebt")}</td>
                 <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(-dcf.netDebt, cur)}</td>
               </tr>
               <tr className="border-t-2 border-ink/30 bg-brand-tint">
-                <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>Equity value</td>
+                <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>{t("dash.equityValue")}</td>
                 <td className="py-2 px-4 text-right tabular-nums text-ink font-semibold">
                   <LearnableNumber conceptKey="equity_value" value={dcf.equityValue}>
                     {fmtMoney(dcf.equityValue, cur)}
@@ -5257,17 +5260,17 @@ function ValuationPanel({
           {dcf.scenarios && dcf.scenarios.length > 0 && (
             <div className="px-5 py-4 border-t border-rule bg-bg-2/20">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium mb-2">
-                Sensitivity (Romania-corrected WACC) · forecast g {pct(dcf.forecastGrowthRate, 1)} · terminal g {pct(dcf.terminalGrowthRate, 1)}
+                {t("dash.sensitivityHeading")} · {t("dash.forecastGShort")} {pct(dcf.forecastGrowthRate, 1)} · {t("dash.terminalGShort")} {pct(dcf.terminalGrowthRate, 1)}
               </div>
               <div className="overflow-x-auto -mx-2 sm:mx-0">
               <table className="w-full text-[13px] min-w-[560px] sm:min-w-0">
                 <thead>
                   <tr className="bg-bg-2/40">
-                    <th className="text-left py-2 px-3 font-medium text-ink-mute">Scenario</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-mute">{t("dash.scenario")}</th>
                     <th className="text-right py-2 px-3 font-medium text-ink-mute">WACC</th>
-                    <th className="text-right py-2 px-3 font-medium text-ink-mute">Enterprise value</th>
-                    <th className="text-right py-2 px-3 font-medium text-ink-mute">− Net debt</th>
-                    <th className="text-right py-2 px-3 font-medium text-ink-mute">Equity value</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">{t("dash.enterpriseValue")}</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">{t("dash.minusNetDebt")}</th>
+                    <th className="text-right py-2 px-3 font-medium text-ink-mute">{t("dash.equityValue")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -5296,11 +5299,9 @@ function ValuationPanel({
                   market inputs, so Rf/ERP/β are standing RO-market defaults,
                   not derived from the user's data. */}
               <p className="text-[11.5px] text-ink-mute mt-2 leading-snug">
-                Inputs: Rf {pct(wacc.riskFreeRate, 2)} (Romanian 10Y sovereign in RON) · ERP{" "}
-                {pct(wacc.equityRiskPremium, 1)} (Romania mature EM, Damodaran) · β {wacc.beta.toFixed(2)} —
-                standing market defaults, not derived from the uploaded trial balance. Treat this DCF
-                as an illustrative cross-check on the band above; the primary valuation comes from the
-                engine&rsquo;s method for this company.
+                {t("dash.inputsPrefix")} {pct(wacc.riskFreeRate, 2)} {t("dash.inputsRfSrc")} · ERP{" "}
+                {pct(wacc.equityRiskPremium, 1)} {t("dash.inputsErpSrc")} · β {wacc.beta.toFixed(2)}{" "}
+                {t("dash.inputsTail")}
               </p>
             </div>
           )}
@@ -5322,29 +5323,28 @@ function ValuationPanel({
           intrinsic-equity strings (RON 656,047,165) shrink to fit in
           the 2-col grid at mobile widths. */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">Graham intrinsic value</h2>
+        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.grahamTitle")}</h2>
         <div className="rounded-2xl border border-rule bg-surface p-5">
           <div className="text-[12px] text-ink-soft mb-3 font-mono break-words">
             {graham.formula} &nbsp;·&nbsp; g = {pct(graham.growthRate, 1)} &nbsp;·&nbsp; Y = {pct(graham.bondYield, 2)}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">Net income (TTM)</div>
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">{t("dash.netIncomeTtm")}</div>
               <div className="font-serif num-hero-fluid-sm text-ink tabular-nums break-words">
                 {fmtMoney(graham.eps * (statements.supplementary.sharesOutstanding ?? 1), cur)}
               </div>
-              <div className="text-[10.5px] text-ink-mute mt-0.5">statutory view</div>
+              <div className="text-[10.5px] text-ink-mute mt-0.5">{t("dash.statutoryView")}</div>
             </div>
             <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">Graham fair equity value</div>
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">{t("dash.grahamFairValue")}</div>
               <div className="font-serif num-hero-fluid-sm text-ink tabular-nums break-words">{fmtMoney(graham.intrinsicEquityValue, cur)}</div>
             </div>
           </div>
           {/* 2026-07-25 — honesty note: g and Y are standing defaults (no
               uploaded trial balance carries growth/bond-yield inputs). */}
           <p className="text-[11.5px] text-ink-mute mt-3 leading-snug">
-            g and Y are standing defaults, not derived from the uploaded trial balance —
-            an illustrative cross-check only.
+            {t("dash.grahamNote")}
           </p>
         </div>
       </div>
@@ -5352,13 +5352,13 @@ function ValuationPanel({
       {/* Multi-period growth */}
       {growth.length > 0 && (
         <div>
-          <h2 className="font-serif text-[22px] text-ink mb-3">Multi-period growth</h2>
+          <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.multiPeriodGrowth")}</h2>
           <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full text-[13px] min-w-[560px] sm:min-w-0">
               <thead>
                 <tr className="bg-bg-2/30">
-                  <th className="text-left py-2 px-4 font-medium text-ink-mute">Metric</th>
+                  <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.metric")}</th>
                   {growth[0].values.map((v) => (
                     <th key={v.period} className="text-right py-2 px-4 font-medium text-ink-mute">{v.period}</th>
                   ))}
@@ -5405,6 +5405,7 @@ function RisksPanel({
   piotroskiEnvelope?: import("@/lib/financialValuation").PiotroskiEnvelope;
   metricsByName?: Record<string, number | null>;
 }) {
+  const { t } = useTranslation();
   const credit = useMemo(
     () => computeCreditScore(statements, creditEnvelope, piotroskiEnvelope, metricsByName),
     [statements, creditEnvelope, piotroskiEnvelope, metricsByName],
@@ -5426,13 +5427,13 @@ function RisksPanel({
     <>
       {/* Composite credit score */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">Composite credit score</h2>
+        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.compositeCreditScore")}</h2>
         <div className="rounded-2xl border-2 border-brand/40 ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.5px] [animation-duration:36s] text-ink p-4 sm:p-6 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.12em] font-medium opacity-80">Credit rating</div>
+            <div className="text-[11px] uppercase tracking-[0.12em] font-medium opacity-80">{t("dash.creditRating")}</div>
             <div className="font-serif text-[clamp(40px,11vw,64px)] leading-none mt-1">{credit.rating}</div>
             <div className="text-[12px] mt-2 opacity-80">
-              Composite score: {credit.score} / 100 · <span className="capitalize">{gradeLabel}</span>
+              {t("dash.compositeScoreLabel")}: {credit.score} / 100 · <span className="capitalize">{gradeLabel}</span>
             </div>
           </div>
           <Shield className="opacity-30 shrink-0 h-12 w-12 sm:h-16 sm:w-16" strokeWidth={1.25} />
@@ -5442,11 +5443,11 @@ function RisksPanel({
           <table className="w-full text-[13px] min-w-[600px] sm:min-w-0">
             <thead>
               <tr className="bg-bg-2/30">
-                <th className="text-left py-2 px-4 font-medium text-ink-mute">Component</th>
-                <th className="text-right py-2 px-4 font-medium text-ink-mute">Value</th>
-                <th className="text-right py-2 px-4 font-medium text-ink-mute">Weight</th>
-                <th className="text-right py-2 px-4 font-medium text-ink-mute">Contribution</th>
-                <th className="text-left py-2 px-4 font-medium text-ink-mute">Read</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.component")}</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">{t("dash.value")}</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">{t("decision_rules.weight")}</th>
+                <th className="text-right py-2 px-4 font-medium text-ink-mute">{t("dash.contribution")}</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.read")}</th>
               </tr>
             </thead>
             <tbody>
@@ -5469,14 +5470,14 @@ function RisksPanel({
 
       {/* Piotroski F-Score */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">Piotroski F-Score</h2>
+        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.piotroskiTitle")}</h2>
         <div className="rounded-2xl border border-rule bg-surface p-5 flex items-center justify-between mb-3">
           <div>
-            <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">9-point quality screen</div>
+            <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{t("dash.piotroskiSub")}</div>
             <div className="font-serif text-[clamp(28px,7vw,40px)] text-ink leading-none mt-1">
               {piotroski.passCount}
               {piotroski.uncertainCount > 0 ? (
-                <span className="text-[16px] text-ink-soft"> / {9 - piotroski.uncertainCount} confirmed</span>
+                <span className="text-[16px] text-ink-soft"> / {9 - piotroski.uncertainCount} {t("dash.confirmed")}</span>
               ) : (
                 <span className="text-[16px] text-ink-soft"> / 9</span>
               )}
@@ -5484,7 +5485,7 @@ function RisksPanel({
             <div className="text-[12px] text-ink-soft mt-1">
               {piotroski.band}
               {piotroski.uncertainCount > 0
-                ? ` · ${piotroski.uncertainCount} check${piotroski.uncertainCount === 1 ? "" : "s"} uncertain (prior-period data missing)`
+                ? ` · ${t("dash.checksUncertain", { count: piotroski.uncertainCount })}`
                 : ""}
             </div>
           </div>
@@ -5495,9 +5496,9 @@ function RisksPanel({
           <table className="w-full text-[13px] min-w-[480px] sm:min-w-0">
             <thead>
               <tr className="bg-bg-2/30">
-                <th className="text-left py-2 px-4 font-medium text-ink-mute">Check</th>
-                <th className="text-center py-2 px-4 font-medium text-ink-mute w-20">Result</th>
-                <th className="text-left py-2 px-4 font-medium text-ink-mute">Detail</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.check")}</th>
+                <th className="text-center py-2 px-4 font-medium text-ink-mute w-20">{t("dash.result")}</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.detail")}</th>
               </tr>
             </thead>
             <tbody>
@@ -5526,14 +5527,14 @@ function RisksPanel({
       {/* Altman Z (variant-aware) */}
       <div>
         <h2 className="font-serif text-[22px] text-ink mb-3">
-          Bankruptcy risk · Altman {altman.variant}
+          {t("dash.ratioBankruptcy")} · Altman {altman.variant}
         </h2>
         <div className="rounded-2xl border border-rule bg-surface p-5">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
               <div className="font-serif text-[clamp(28px,7vw,40px)] text-ink leading-none">{altman.score.toFixed(2)}</div>
               <div className="text-[12px] text-ink-soft mt-1">
-                ≥ {altman.thresholds.safe.toFixed(2)} safe · {altman.thresholds.distress.toFixed(2)}–{altman.thresholds.safe.toFixed(2)} grey · &lt; {altman.thresholds.distress.toFixed(2)} distress
+                {t("dash.altmanThresholds", { safe: altman.thresholds.safe.toFixed(2), distress: altman.thresholds.distress.toFixed(2) })}
               </div>
             </div>
             <span
@@ -5545,7 +5546,7 @@ function RisksPanel({
                     : "bg-red-50 text-red-700 border-transparent"
               }`}
             >
-              {altman.zone === "safe" ? "Safe zone" : altman.zone === "grey" ? "Grey zone" : "Distress"}
+              {altman.zone === "safe" ? t("dash.safeZone") : altman.zone === "grey" ? t("dash.greyZone") : t("dash.distress")}
             </span>
           </div>
           <p className="text-[12.5px] text-ink-soft mt-3 leading-snug">{altman.methodologyNote}</p>
@@ -5554,10 +5555,10 @@ function RisksPanel({
             <table className="w-full text-[12.5px] min-w-[480px] sm:min-w-0">
               <thead>
                 <tr className="bg-bg-2/40">
-                  <th className="text-left py-2 px-3 font-medium text-ink-mute">Component</th>
-                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Coefficient</th>
-                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Value</th>
-                  <th className="text-right py-2 px-3 font-medium text-ink-mute">Weighted</th>
+                  <th className="text-left py-2 px-3 font-medium text-ink-mute">{t("dash.component")}</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">{t("dash.coefficient")}</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">{t("dash.value")}</th>
+                  <th className="text-right py-2 px-3 font-medium text-ink-mute">{t("dash.weighted")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -5571,7 +5572,7 @@ function RisksPanel({
                 ))}
                 <tr className="border-t-2 border-ink/30 bg-bg-2/50">
                   <td colSpan={3} className="py-2 px-3 text-ink font-semibold">
-                    Altman {altman.variant}-Score
+                    {t("dash.altmanScoreLabel", { variant: altman.variant })}
                   </td>
                   <td
                     className={`py-2 px-3 text-right tabular-nums font-semibold ${
@@ -5595,7 +5596,7 @@ function RisksPanel({
       {/* Caveat */}
       <div className="flex items-start gap-2.5 rounded-lg border-l-[3px] border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
         <Info size={13} strokeWidth={1.75} className="text-ink-mute mt-0.5 shrink-0" />
-        <div><strong className="text-ink">Caveat:</strong> {credit.caveat}</div>
+        <div><strong className="text-ink">{t("dash.caveat")}</strong> {credit.caveat}</div>
       </div>
     </>
   );

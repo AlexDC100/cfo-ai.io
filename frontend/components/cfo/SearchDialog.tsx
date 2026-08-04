@@ -10,6 +10,7 @@
 // the simple linear filter.
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
@@ -46,12 +47,14 @@ type Result =
   | { kind: "glossary"; label: string; hint: string; icon: LucideIcon }
   | { kind: "concept"; label: string; hint: string; conceptKey: string };
 
-const ROUTES: { label: string; hint: string; to: string; icon: LucideIcon }[] = [
-  { label: "Today",     hint: "Daily briefing",  to: "/dashboard",     icon: Sun },
-  { label: "Balance sheet & P&L", hint: "Financial statements", to: "/dashboard?tab=statements", icon: Coins },
-  { label: "Cash flow", hint: "Indirect method", to: "/dashboard?tab=statements#cash-flow", icon: TrendingUp },
-  { label: "Decisions", hint: "Action queue",    to: "/decisions", icon: ListChecks },
-  { label: "Products",  hint: "SKU explorer",    to: "/products",  icon: Boxes },
+// Route labels/hints resolve through i18n inside the component (they must
+// match the active language so the text search matches what's on screen).
+const ROUTE_DEFS: { key: string; to: string; icon: LucideIcon }[] = [
+  { key: "today",      to: "/dashboard",                          icon: Sun },
+  { key: "statements", to: "/dashboard?tab=statements",           icon: Coins },
+  { key: "cashFlow",   to: "/dashboard?tab=statements#cash-flow", icon: TrendingUp },
+  { key: "decisions",  to: "/decisions",                          icon: ListChecks },
+  { key: "products",   to: "/products",                           icon: Boxes },
 ];
 
 // F5.0: snapshot of the concept catalog. Built once per module load — the
@@ -59,6 +62,7 @@ const ROUTES: { label: string; hint: string; to: string; icon: LucideIcon }[] = 
 const ALL_CONCEPTS: Concept[] = Object.values(CONCEPTS_BY_KEY);
 
 export function SearchDialog({ open, onOpenChange }: Props) {
+  const { t } = useTranslation();
   const nav = useNavigate();
   const run = useDailyRun();
   const popoverStack = usePopoverStack();
@@ -91,9 +95,11 @@ export function SearchDialog({ open, onOpenChange }: Props) {
     const out: Result[] = [];
 
     // Routes always match first when query is empty / matches
-    for (const r of ROUTES) {
-      if (!q || r.label.toLowerCase().includes(q) || r.hint.toLowerCase().includes(q)) {
-        out.push({ kind: "route", ...r });
+    for (const r of ROUTE_DEFS) {
+      const label = t(`panels.search.routes.${r.key}.label`);
+      const hint = t(`panels.search.routes.${r.key}.hint`);
+      if (!q || label.toLowerCase().includes(q) || hint.toLowerCase().includes(q)) {
+        out.push({ kind: "route", label, hint, to: r.to, icon: r.icon });
       }
     }
 
@@ -101,8 +107,8 @@ export function SearchDialog({ open, onOpenChange }: Props) {
     if (!q || "glossary".includes(q) || "metrics".includes(q) || "learn".includes(q)) {
       out.push({
         kind: "glossary",
-        label: "Browse glossary",
-        hint: "Every concept CFO AI knows",
+        label: t("panels.search.browseGlossary"),
+        hint: t("panels.search.browseGlossaryHint"),
         icon: BookOpen,
       });
     }
@@ -114,7 +120,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
           out.push({
             kind: "category",
             label: c.name,
-            hint: "Category",
+            hint: t("panels.search.categoryHint"),
             bucket: c.bucket,
           });
           if (out.length > 80) break;
@@ -144,7 +150,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
           out.push({
             kind: "concept",
             label: c.name.en,
-            hint: c.category ?? "Concept",
+            hint: c.category ?? t("panels.search.conceptHint"),
             conceptKey: c.key,
           });
           if (out.length > 80) break;
@@ -152,7 +158,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
       }
     }
     return out.slice(0, 16);
-  }, [query, skus, categories]);
+  }, [query, skus, categories, t]);
 
   // Reset activeIdx when results change (keeps it in bounds)
   useEffect(() => {
@@ -220,7 +226,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
           sm:w-full sm:max-w-[560px]
         "
       >
-        <DialogTitle className="sr-only">Search</DialogTitle>
+        <DialogTitle className="sr-only">{t("common.search")}</DialogTitle>
 
         <div className="flex items-center gap-3 px-4 py-3 border-b border-rule">
           <Search size={16} strokeWidth={1.75} className="text-ink-mute shrink-0" />
@@ -230,7 +236,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search SKUs, categories, or jump to a page…"
+            placeholder={t("panels.search.placeholder")}
             className="
               flex-1 bg-transparent text-[14px] text-ink
               placeholder:text-ink-mute outline-none
@@ -244,7 +250,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
         <div className="max-h-[420px] overflow-y-auto py-1.5">
           {results.length === 0 ? (
             <div className="px-4 py-8 text-center text-[13px] text-ink-soft">
-              No matches. Try a SKU name, category, or page name.
+              {t("panels.search.noMatches")}
             </div>
           ) : (
             <ul>
@@ -289,7 +295,7 @@ export function SearchDialog({ open, onOpenChange }: Props) {
                     )}
                     {r.kind === "concept" && (
                       <span className="text-[10px] uppercase tracking-[0.12em] text-[hsl(173,57%,55%)]/70 font-medium shrink-0">
-                        Learn
+                        {t("panels.search.learnTag")}
                       </span>
                     )}
                   </button>
@@ -300,8 +306,8 @@ export function SearchDialog({ open, onOpenChange }: Props) {
         </div>
 
         <div className="px-4 py-2 border-t border-rule flex items-center justify-between text-[11px] text-ink-mute">
-          <span>↑↓ navigate · Enter to select</span>
-          <span>{results.length} result{results.length === 1 ? "" : "s"}</span>
+          <span>{t("panels.search.navHint")}</span>
+          <span>{t("panels.search.resultCount", { count: results.length })}</span>
         </div>
       </DialogContent>
     </Dialog>

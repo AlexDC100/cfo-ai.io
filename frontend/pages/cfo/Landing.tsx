@@ -160,8 +160,6 @@ const inlineLink = (act: string, label: string) =>
 function header(
   account: HeaderAccount | null,
   page: Page | null,
-  langOpen: boolean,
-  langCode: string,
   L: LandingStrings,
   // true only for the home page: the header floats over the hero (out of
   // flow) so the ticker board can show through it at the top. Every other
@@ -232,15 +230,7 @@ function header(
       <button class="navbtn" data-act="workspace" style="color:var(--brand)">${L.nav.workspace}</button>
     </nav>
     <div style="flex:1"></div>
-    <div class="desktop-actions" style="align-items:center;gap:24px">
-      <div style="position:relative;display:inline-flex">
-        <button class="navbtn" data-act="lang" title="${L.nav.language}">${esc(langCode.toUpperCase())}</button>
-        ${langOpen ? `
-        <div style="position:absolute;right:0;top:calc(100% + 12px);min-width:170px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:14px;padding:6px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);z-index:60">
-          ${SUPPORTED_LANGUAGES.map((l) => `
-          <button data-act="lang:${l.code}" class="menu-item" style="gap:9px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.badge} ${l.label}${l.code === langCode ? `<span style="margin-left:auto">✓</span>` : ""}</button>`).join("")}
-        </div>` : ""}
-      </div>${authArea}
+    <div class="desktop-actions" style="align-items:center;gap:24px">${authArea}
     </div>
     <button class="burger-btn" data-act="burger" aria-label="Menu">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="2.5" y1="5" x2="17.5" y2="5"></line><line x1="2.5" y1="10" x2="17.5" y2="10"></line><line x1="2.5" y1="15" x2="17.5" y2="15"></line></svg>
@@ -254,10 +244,6 @@ function header(
       ${mobileTab("legal", L.nav.legal)}
       ${mobileTab("contact", L.nav.contact)}
       <button class="menu-item" data-act="workspace" style="color:var(--brand)">${L.nav.workspace}</button>
-    </div>
-    <div style="height:1px;background:var(--rule-soft);margin:10px 4px"></div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 4px">
-      ${SUPPORTED_LANGUAGES.map((l) => `<button data-act="lang:${l.code}" class="menu-item" style="width:auto;flex:0 0 auto;gap:7px${l.code === langCode ? ";color:var(--brand)" : ""}">${l.badge} ${l.label}</button>`).join("")}
     </div>
     <div style="height:1px;background:var(--rule-soft);margin:10px 4px"></div>
     <div style="display:flex;flex-direction:column;gap:8px;padding:0 4px">
@@ -542,7 +528,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
       <div style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
         <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
           <span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span>
-          <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">cfo-ai · today's briefing · 06:14</span>
+          <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.hero.mockTitle}</span>
         </div>
         <div class="mock-grid" style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
           <div class="mock-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
@@ -882,9 +868,16 @@ const legalMain = (L: LandingStrings) => `
   ${TERMS}
 </main>`;
 
-function footer(year: number, L: LandingStrings) {
+function footer(year: number, L: LandingStrings, langCode: string) {
   const flink = (act: string, label: string) =>
     `<button data-act="${act}" style="background:none;border:none;padding:0;text-align:left;color:var(--ink-soft);cursor:pointer;font:inherit">${label}</button>`;
+  // The ONLY language switcher on the logged-out marketing surface — the
+  // header deliberately has none (operator decision, 2026-08-04).
+  const langSwitcher = `
+      <span style="display:inline-flex;align-items:center;gap:12px">
+        <span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em">${L.nav.language}</span>
+        ${SUPPORTED_LANGUAGES.map((l) => `<button data-act="lang:${l.code}" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:5px;color:${l.code === langCode ? "var(--brand)" : "var(--ink-mute)"}">${l.badge} ${l.label}</button>`).join("")}
+      </span>`;
   return `
 <footer style="border-top:1px solid var(--rule-soft);background:var(--bg-2)">
   <div style="max-width:var(--maxw);margin:0 auto;padding:44px 24px 30px">
@@ -924,6 +917,7 @@ function footer(year: number, L: LandingStrings) {
     </div>
     <div style="margin-top:36px;padding-top:22px;border-top:1px solid var(--rule-soft);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-mute)">
       <span>${L.footer.rights.replace("{year}", String(year))}</span>
+      ${langSwitcher}
       <span>${L.footer.madeIn}</span>
     </div>
   </div>
@@ -979,7 +973,6 @@ export default function Landing() {
   // The account chip's open/closed state is NOT React state — see the
   // comment on authArea in header() for why: it's a classList.toggle on
   // the persistent .cred-pill DOM node so the CSS transitions animate.
-  const [langOpen, setLangOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [contactStatus, setContactStatus] = useState<ContactStatus>("idle");
@@ -1123,25 +1116,19 @@ export default function Landing() {
     const actRaw = el?.getAttribute("data-act") || "";
     // Any click that isn't the toggle itself closes an open dropdown.
     if (actRaw !== "account") (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
-    if (langOpen && actRaw !== "lang") setLangOpen(false);
     if (mobileMenuOpen && actRaw !== "burger") setMobileMenuOpen(false);
     if (!el) return;
     const act = actRaw;
     // Mobile burger menu (small screens only — see .burger-btn media query).
     if (act === "burger") { e.preventDefault(); setMobileMenuOpen((v) => !v); return; }
     // Account dropdown + sign-out confirmation.
-    if (act === "account") { e.preventDefault(); setLangOpen(false); el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
+    if (act === "account") { e.preventDefault(); el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
     if (act === "account:settings") { e.preventDefault(); navigate("/account/settings"); return; }
     if (act === "account:signout") { e.preventDefault(); setSignOutOpen(true); return; }
     if (act === "signout:cancel") { e.preventDefault(); setSignOutOpen(false); return; }
     if (act === "signout:confirm") { e.preventDefault(); setSignOutOpen(false); void signOut(); return; }
-    // Language picker — persists locally and (when signed in) to the profile.
-    if (act === "lang") {
-      e.preventDefault();
-      (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
-      setLangOpen((v) => !v);
-      return;
-    }
+    // Footer language switcher — persists locally and (when signed in) to
+    // the profile.
     if (act.startsWith("lang:")) {
       e.preventDefault();
       void pickLanguageWithProfileSync(act.slice(5), user, getSupabase());
@@ -1181,13 +1168,13 @@ export default function Landing() {
     if (act === "consent:acceptAll") { e.preventDefault(); persist(true, true); setAnalytics(true); setMarketing(true); setConsentOpen(false); setConsentExpanded(false); return; }
     if (act === "consent:rejectAll") { e.preventDefault(); persist(false, false); setAnalytics(false); setMarketing(false); setConsentOpen(false); setConsentExpanded(false); return; }
     if (act === "consent:save") { e.preventDefault(); persist(analytics, marketing); setConsentOpen(false); setConsentExpanded(false); return; }
-  }, [navigate, goPage, analytics, marketing, langOpen, mobileMenuOpen, user, signOut, submitContact]);
+  }, [navigate, goPage, analytics, marketing, mobileMenuOpen, user, signOut, submitContact]);
 
   const langCode = (i18n.language || "en").slice(0, 2);
   const L = landingStringsFor(langCode);
 
   // Header and body are rendered as TWO separate innerHTML subtrees rather
-  // than one. Header dropdowns (language, account, mobile burger) toggle
+  // than one. Header dropdowns (account, mobile burger) toggle
   // often — if they lived in the same memo as the hero's markup, every
   // toggle would replace the whole subtree, destroying and recreating the
   // #cfo-ticker-board placeholder and forcing <HeroTicker>'s portal to
@@ -1195,8 +1182,8 @@ export default function Landing() {
   // means a dropdown toggle only touches the header's own small subtree —
   // the body (and the ticker board inside it) is untouched.
   const headerHtml = useMemo(
-    () => header(account, page, langOpen, langCode, L, page === "home", mobileMenuOpen),
-    [account, page, langOpen, langCode, L, mobileMenuOpen],
+    () => header(account, page, L, page === "home", mobileMenuOpen),
+    [account, page, L, mobileMenuOpen],
   );
 
   const bodyHtml = useMemo(() => {
@@ -1207,10 +1194,10 @@ export default function Landing() {
       : page === "pricing" ? pricingMain(L, billingCycle)
       : legalMain(L);
     return main
-      + footer(year, L)
+      + footer(year, L, langCode)
       + (consentOpen ? consentModal(consentExpanded, analytics, marketing, L) : "")
       + (signOutOpen ? signoutModal(L) : "");
-  }, [account, page, L, contactStatus, signOutOpen, consentOpen, consentExpanded, analytics, marketing, billingCycle]);
+  }, [account, page, L, langCode, contactStatus, signOutOpen, consentOpen, consentExpanded, analytics, marketing, billingCycle]);
 
   // The body innerHTML swap above replaces that subtree wholesale, so the
   // placeholder is a fresh node each time `bodyHtml` changes — re-find it
@@ -1311,7 +1298,6 @@ export function MarketingHeader({
   // The account chip's open/closed state is a classList.toggle on the
   // persistent .cred-pill DOM node, not React state — see the comment on
   // authArea in header() for why.
-  const [langOpen, setLangOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
 
@@ -1329,7 +1315,6 @@ export function MarketingHeader({
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
     const act = el?.getAttribute("data-act") || "";
     if (act !== "account") (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
-    if (langOpen && act !== "lang") setLangOpen(false);
     if (mobileMenuOpen && act !== "burger") setMobileMenuOpen(false);
     if (!el) return;
     e.preventDefault();
@@ -1341,18 +1326,12 @@ export function MarketingHeader({
     if (act === "workspace") { navigate("/workspace"); return; }
     if (act === "signin") { navigate("/login?next=/"); return; }
     if (act === "getstarted") { navigate("/login?next=/&mode=sign_up"); return; }
-    if (act === "account") { setLangOpen(false); el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
+    if (act === "account") { el.closest(".cred-pill")?.classList.toggle("is-open"); return; }
     if (act === "account:settings") { navigate("/account/settings"); return; }
     if (act === "account:signout") { setSignOutOpen(true); return; }
     if (act === "signout:cancel") { setSignOutOpen(false); return; }
     if (act === "signout:confirm") { setSignOutOpen(false); void signOut().then(() => navigate("/")); return; }
-    if (act === "lang") {
-      (e.currentTarget as HTMLElement).querySelector(".cred-pill.is-open")?.classList.remove("is-open");
-      setLangOpen((v) => !v);
-      return;
-    }
-    if (act.startsWith("lang:")) { void pickLanguageWithProfileSync(act.slice(5), user, getSupabase()); return; }
-  }, [navigate, langOpen, mobileMenuOpen, user, signOut]);
+  }, [navigate, mobileMenuOpen, signOut]);
 
   // Same "transparent + taller at the very top, fading to the normal
   // frosted bar on scroll" behavior as the landing page's own header — see
@@ -1369,7 +1348,7 @@ export function MarketingHeader({
   const langCode = (i18n.language || "en").slice(0, 2);
   const L = landingStringsFor(langCode);
   const html =
-    header(account, active, langOpen, langCode, L, fixed, mobileMenuOpen) + (signOutOpen ? signoutModal(L) : "");
+    header(account, active, L, fixed, mobileMenuOpen) + (signOutOpen ? signoutModal(L) : "");
 
   return (
     <>

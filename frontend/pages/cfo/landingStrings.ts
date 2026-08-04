@@ -25,6 +25,8 @@ export interface LandingStrings {
     ctaStart: string; ctaSignIn: string;
     checks: string[];
     mockNote: string;
+    /** Title line of the fake browser chrome on the hero mock. */
+    mockTitle: string;
   };
   stats: { drift: string; ratios: string; peers: string; upload: string };
   modules: {
@@ -98,6 +100,7 @@ const en: LandingStrings = {
     ctaStart: "Get started", ctaSignIn: "Sign in",
     checks: ["30-day trial", "RAS / EU filings supported", "Cancel anytime"],
     mockNote: "Illustrative dashboard. AI-assisted analysis — final decisions remain with your management team.",
+    mockTitle: "cfo-ai · today's briefing · 06:14",
   },
   stats: { drift: "Balance-sheet drift", ratios: "Financial ratios", peers: "Public-company peers", upload: "Upload to report" },
   modules: {
@@ -236,6 +239,7 @@ const ro: LandingStrings = {
     ctaStart: "Începe", ctaSignIn: "Autentificare",
     checks: ["Probă de 30 de zile", "Suport RAS / raportări UE", "Anulezi oricând"],
     mockNote: "Dashboard ilustrativ. Analiză asistată de AI — deciziile finale rămân la echipa ta de management.",
+    mockTitle: "cfo-ai · briefingul de azi · 06:14",
   },
   stats: { drift: "Abatere de bilanț", ratios: "Indicatori financiari", peers: "Companii publice comparabile", upload: "De la încărcare la raport" },
   modules: {

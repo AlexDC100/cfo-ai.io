@@ -17,6 +17,7 @@
 
 import { AnimatePresence } from "framer-motion";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Paperclip, ArrowUp, CornerDownLeft, Square } from "lucide-react";
 import { CFOFilePreview } from "./CFOFilePreview";
 import { readDraft, writeDraft } from "./chatDrafts";
@@ -74,7 +75,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     pending,
     onSubmit,
     onStop,
-    placeholder = "Ask CFO AI anything…",
+    placeholder,
     contextLine,
     disclosure,
     compact = false,
@@ -83,6 +84,8 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   },
   ref,
 ) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t("chatX.askAnythingPlaceholder");
   // Hard-disable ONLY when a chat cap has been hit: input, attach, and send
   // are all locked. `pending` is softer — the user can keep typing their next
   // question while the answer generates; only SENDING is blocked (and the
@@ -212,7 +215,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               href={blockedReason.href}
               className="font-medium underline underline-offset-2 hover:opacity-80 shrink-0"
             >
-              See plans
+              {t("chatX.seePlans")}
             </a>
           )}
         </div>
@@ -261,11 +264,11 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               catch { /* older browsers — ignore */ }
             }, 250);
           }}
-          placeholder={blockedReason ? "Chat is paused — see banner above" : placeholder}
+          placeholder={blockedReason ? t("chatX.pausedPlaceholder") : resolvedPlaceholder}
           rows={1}
           disabled={hardDisabled}
           data-testid="chat-input"
-          aria-label="Ask CFO AI"
+          aria-label={t("topbar.askCfoAi")}
           className="
             w-full resize-none bg-transparent
             text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
@@ -282,7 +285,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               onClick={() => fileRef.current?.click()}
               disabled={hardDisabled}
               data-testid="chat-attach"
-              aria-label="Attach a document"
+              aria-label={t("chatX.attachAria")}
               className="
                 inline-flex items-center justify-center h-8 w-8 rounded-lg
                 text-ink-mute hover:text-ink hover:bg-bg-2/70
@@ -301,7 +304,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             />
             <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] text-ink-mute pl-1">
               <CornerDownLeft size={10} strokeWidth={2} />
-              <span>Enter to send · Shift+Enter for newline</span>
+              <span>{t("chatX.enterHint")}</span>
             </span>
           </div>
 
@@ -310,8 +313,8 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               type="button"
               onClick={onStop}
               data-testid="chat-stop"
-              aria-label="Stop generating"
-              title="Stop generating"
+              aria-label={t("chatX.stopGenerating")}
+              title={t("chatX.stopGenerating")}
               className="
                 inline-flex items-center justify-center h-8 w-8 rounded-lg
                 ask-ai-anim-fill [animation-duration:10s]
@@ -326,7 +329,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               onClick={submit}
               disabled={!text.trim() || hardDisabled}
               data-testid="chat-send"
-              aria-label="Send message"
+              aria-label={t("chatX.sendMessage")}
               className="
                 inline-flex items-center justify-center h-8 w-8 rounded-lg
                 ask-ai-anim-fill [animation-duration:10s]

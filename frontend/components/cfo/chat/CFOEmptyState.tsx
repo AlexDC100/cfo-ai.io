@@ -10,12 +10,14 @@
 // They never auto-submit — clicking puts the text in the composer
 // for the user to confirm or edit.
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { Trans, useTranslation } from "react-i18next";
 import { TrendingUp, Calculator, FileText, AlertTriangle, GitCompare, LineChart, ShieldAlert, HelpCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { useActiveOrg } from "@/lib/org";
-import { promptsForIndustry } from "./industryPrompts";
+import { useIndustryPrompts, type SuggestedPrompt } from "./industryPrompts";
 
 interface Props {
   hasPeriod: boolean;
@@ -28,27 +30,57 @@ interface Props {
   hideHeader?: boolean;
 }
 
-export const WORKSPACE_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string }> = [
-  { icon: AlertTriangle, title: "Biggest financial risk", prompt: "What is our biggest financial risk right now? Cite the period and figures you used." },
-  { icon: LineChart,     title: "Cash flow position",      prompt: "Explain our current cash flow position in plain language for the management team." },
-  { icon: FileText,      title: "Summarize latest P&L",    prompt: "Summarize the latest P&L: revenue, EBITDA, net profit, and what changed." },
-  { icon: GitCompare,    title: "Working-capital change",  prompt: "What changed in working capital this period? Walk me through the moving parts." },
-  { icon: Calculator,    title: "Calculate DSCR",          prompt: "Calculate DSCR (rent only and including dividends) and tell me how it compares to a 1.25× covenant." },
-  { icon: TrendingUp,    title: "Year-over-year",          prompt: "Compare this year to last year on the headline metrics. Where did we improve and where did we slip?" },
-  { icon: ShieldAlert,   title: "Leverage position",       prompt: "Explain our leverage position (Debt/EBITDA, net debt, equity ratio) and whether it's sustainable." },
-  { icon: HelpCircle,    title: "Liquidity questions",     prompt: "What questions should I be asking about liquidity for the next board meeting?" },
+// Icon + i18n-key definitions — the visible title/prompt strings resolve
+// through t() in the hooks below so they follow the active language.
+const WORKSPACE_PROMPT_DEFS: Array<{ icon: LucideIcon; key: string }> = [
+  { icon: AlertTriangle, key: "risk" },
+  { icon: LineChart,     key: "cashFlow" },
+  { icon: FileText,      key: "pnl" },
+  { icon: GitCompare,    key: "workingCapital" },
+  { icon: Calculator,    key: "dscr" },
+  { icon: TrendingUp,    key: "yoy" },
+  { icon: ShieldAlert,   key: "leverage" },
+  { icon: HelpCircle,    key: "liquidity" },
 ];
 
-export const GENERAL_PROMPTS: Array<{ icon: LucideIcon; title: string; prompt: string }> = [
-  { icon: FileText,    title: "Read a Romanian RAS trial balance", prompt: "How do I read a Romanian RAS trial balance? Walk me through classes 1–7." },
-  { icon: Calculator,  title: "EV/EBITDA for food manufacturing",   prompt: "What's a typical EV/EBITDA range for food manufacturing in Romania, and what drives the spread?" },
-  { icon: LineChart,   title: "Damodaran ERP for emerging markets", prompt: "Explain Damodaran's approach to estimating equity risk premium for emerging markets." },
-  { icon: GitCompare,  title: "RAS vs IFRS",                        prompt: "What are the key differences between Romanian RAS and IFRS that I should know as a CFO?" },
-  { icon: ShieldAlert, title: "DSCR vs interest coverage",          prompt: "What's the difference between DSCR and interest coverage, and when does each matter to a lender?" },
-  { icon: TrendingUp,  title: "Cash conversion cycle",              prompt: "Walk me through the cash conversion cycle and what each component (DSO, DIO, DPO) actually measures." },
-  { icon: HelpCircle,  title: "3-question lender brief",            prompt: "Help me draft a 3-question lender brief for a real-estate single-asset vehicle." },
-  { icon: AlertTriangle, title: "Distress signals",                 prompt: "What are the early distress signals a CFO should watch for in a working-capital-heavy business?" },
+const GENERAL_PROMPT_DEFS: Array<{ icon: LucideIcon; key: string }> = [
+  { icon: FileText,      key: "ras" },
+  { icon: Calculator,    key: "evEbitda" },
+  { icon: LineChart,     key: "erp" },
+  { icon: GitCompare,    key: "rasIfrs" },
+  { icon: ShieldAlert,   key: "dscrVsIc" },
+  { icon: TrendingUp,    key: "ccc" },
+  { icon: HelpCircle,    key: "lenderBrief" },
+  { icon: AlertTriangle, key: "distress" },
 ];
+
+/** Workspace-grounded starter prompts, resolved in the active language. */
+export function useWorkspacePrompts(): SuggestedPrompt[] {
+  const { t } = useTranslation();
+  return useMemo(
+    () =>
+      WORKSPACE_PROMPT_DEFS.map((d) => ({
+        icon: d.icon,
+        title: t(`chatX.prompts.ws.${d.key}.title`),
+        prompt: t(`chatX.prompts.ws.${d.key}.prompt`),
+      })),
+    [t],
+  );
+}
+
+/** General finance starter prompts, resolved in the active language. */
+export function useGeneralPrompts(): SuggestedPrompt[] {
+  const { t } = useTranslation();
+  return useMemo(
+    () =>
+      GENERAL_PROMPT_DEFS.map((d) => ({
+        icon: d.icon,
+        title: t(`chatX.prompts.gen.${d.key}.title`),
+        prompt: t(`chatX.prompts.gen.${d.key}.prompt`),
+      })),
+    [t],
+  );
+}
 
 export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = false }: Props) {
   // Industry-tailored suggestions (2026-07-25) — when the workspace has
@@ -56,9 +88,12 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
   // set is swapped for prompts in that field's language: cap rates for
   // real estate, ARR for SaaS, WIP for construction. Workspace-grounded
   // prompts (period loaded) stay data-driven and generic.
+  const { t } = useTranslation();
   const { org } = useActiveOrg();
-  const industryPrompts = promptsForIndustry(org?.industry_key);
-  const prompts = hasPeriod ? WORKSPACE_PROMPTS : (industryPrompts ?? GENERAL_PROMPTS);
+  const workspacePrompts = useWorkspacePrompts();
+  const generalPrompts = useGeneralPrompts();
+  const industryPrompts = useIndustryPrompts(org?.industry_key);
+  const prompts = hasPeriod ? workspacePrompts : (industryPrompts ?? generalPrompts);
   const industryLabel = industryPrompts ? (org?.industry_display_name ?? null) : null;
 
   // Cards match the dashboard's DocGuideCard pattern (document-type
@@ -67,10 +102,10 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
   const grid = (
     <div>
     <h2 className="mb-2.5 text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
-      Suggested questions
+      {t("chatX.suggestedQuestions")}
       {industryLabel && (
         <span className="normal-case tracking-normal font-normal text-ink-mute">
-          {" "}· based on your workspace's field ({industryLabel})
+          {" "}{t("chatX.basedOnIndustry", { industry: industryLabel })}
         </span>
       )}
     </h2>
@@ -126,13 +161,19 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
       <div className="flex flex-col items-center text-center">
         <h2 className="font-serif text-[28px] sm:text-[32px] text-ink leading-tight">
           {hasPeriod
-            ? <>Ask anything about <span className="text-ink-soft italic">{companyName || "your company"}</span>.</>
-            : "Ask anything about your company's finances."}
+            ? (
+              <Trans
+                i18nKey="chatX.emptyTitleCompany"
+                values={{ name: companyName || t("chatX.yourCompany") }}
+                components={{ 1: <span className="text-ink-soft italic" /> }}
+              />
+            )
+            : t("chatX.emptyTitleGeneral")}
         </h2>
         <p className="mt-2 text-[14px] text-ink-soft max-w-[560px] leading-relaxed">
           {hasPeriod
-            ? "CFO AI can explain your numbers, compare periods, and help you understand what matters. It also answers general finance, strategy, and accounting questions."
-            : "Load a period to ground answers in your own figures. In the meantime, ask anything — finance, strategy, accounting, or the app itself."}
+            ? t("chatX.emptyBodyGrounded")
+            : t("chatX.emptyBodyGeneral")}
         </p>
       </div>
 

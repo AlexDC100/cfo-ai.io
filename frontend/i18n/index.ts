@@ -79,9 +79,14 @@ void i18n
       en: { translation: en },
       ro: { translation: ro },
     },
-    // FORCE English as the initial render language. <LanguageSync /> may
-    // change it post-hydration based on the priority chain.
-    lng: "en",
+    // NO forced `lng` (2026-08-04 fix): forcing "en" made i18next fire
+    // languageChanged("en") during init, and the detector's
+    // caches:["localStorage"] then WROTE "en" back over the user's stored
+    // choice — every reload silently reset RO users to English (the
+    // "English text remains when Romanian is selected" bug). Detection
+    // (querystring → localStorage) resolves the boot language instead: a
+    // fresh visitor has neither signal and lands on fallbackLng English; a
+    // returning RO user boots straight into Romanian with no EN flash.
     fallbackLng: "en",
     supportedLngs: SUPPORTED_LANGUAGE_CODES as unknown as string[],
     interpolation: { escapeValue: false }, // React already escapes
@@ -92,7 +97,11 @@ void i18n
       order: ["querystring", "localStorage"],
       lookupQuerystring: "lang",
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
-      caches: ["localStorage"],
+      // NEVER let the detector write localStorage — persistence is owned
+      // by setLanguage() alone. With caching on, every programmatic
+      // changeLanguage() (including the init-time resolution) overwrote
+      // the user's explicit pick.
+      caches: [],
     },
     // Dev-only: surface missing translation keys so they don't ship to prod
     // unnoticed. Production builds tree-shake the import.meta.env.DEV branch.
@@ -103,6 +112,21 @@ void i18n
       }
     },
   });
+
+// A `?lang=` in the ENTRY URL is an explicit user signal — persist it once
+// at boot so it survives the app's own URL rewriting (period bootstrap
+// replaces the query string on the dashboard family of routes). This
+// replaces the detector's old `caches: ["localStorage"]`, which persisted
+// EVERY language change — including the init-time fallback — and thereby
+// reset returning users to English (see the init comment above).
+try {
+  const bootLang = new URLSearchParams(window.location.search).get("lang");
+  if (isSupportedLanguage(bootLang)) {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, bootLang);
+  }
+} catch {
+  /* SSR / private mode — best effort */
+}
 
 export default i18n;
 
@@ -122,6 +146,15 @@ export function onLanguageSwitchStart(fn: LanguageSwitchListener): () => void {
   return () => { languageSwitchListeners.delete(fn); };
 }
 
+/** Fired on window after setLanguage() persists — the same-tab
+ *  complement to the cross-tab `storage` event (which browsers do NOT
+ *  fire in the tab that wrote the value). useLanguage()'s localStorage
+ *  sub-resolver listens for it; without this, picking a language in
+ *  Settings only stuck if the Supabase profile mirror succeeded, and
+ *  silently reverted for anyone whose profile write failed (offline,
+ *  test mode, RLS hiccup). */
+export const LANGUAGE_CHANGED_EVENT = "cfo-language-changed";
+
 /** Imperative language change — persists to localStorage. Marketing footer
  *  switcher and Settings → Language both call this. */
 export function setLanguage(code: string): void {
@@ -129,6 +162,11 @@ export function setLanguage(code: string): void {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
   } catch {
     /* private mode — best effort */
+  }
+  try {
+    window.dispatchEvent(new Event(LANGUAGE_CHANGED_EVENT));
+  } catch {
+    /* SSR — best effort */
   }
   // Re-selecting the current language is a no-op — no overlay flash.
   if (code !== i18n.language) {

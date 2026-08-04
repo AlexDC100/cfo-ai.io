@@ -47,6 +47,7 @@ import {
 import { CHAT_STORAGE_KEY, CHAT_CURRENT_KEY, type ChatConversation, type ChatMessage } from "./types";
 import { clearDraft } from "./chatDrafts";
 import { abortChatReply, hasChatReplyInFlight } from "@/lib/chatPendingStore";
+import { activeLocale } from "@/lib/locale";
 
 // ── Storage helpers ────────────────────────────────────────────────
 // The cache is keyed per workspace; the bare legacy key is the pre-workspace
@@ -879,5 +880,5 @@ export function relativeTime(ts: number, now = Date.now()): string {
   if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}m`;
   if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))}h`;
   if (diff < 7 * ONE_DAY_MS) return `${Math.floor(diff / ONE_DAY_MS)}d`;
-  return new Date(ts).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
+  return new Date(ts).toLocaleDateString(activeLocale(), { month: "short", day: "numeric" });
 }

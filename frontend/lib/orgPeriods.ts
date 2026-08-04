@@ -243,10 +243,25 @@ export function isCurrentMonthPeriod(periodEnd: string | null | undefined): bool
   );
 }
 
-/** "Mar 2026" from a period_end date string; null when unparseable. */
-export function formatPeriodMonth(periodEnd: string | null | undefined): string | null {
+/** "Mar 2026" from a period_end date string; null when unparseable.
+ *  UTC-pinned: period_end is a date-only string, so local-time parsing
+ *  shifted it a day back (and sometimes a month) west of Greenwich. */
+export function formatPeriodMonth(
+  periodEnd: string | null | undefined,
+  locale: string = "en-GB",
+): string | null {
   if (!periodEnd) return null;
   const d = new Date(periodEnd);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  return d.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** "2026" from a period_end date string; null when unparseable. The sidebar
+ *  rail label shows the year alone (2026-08-04 per operator) — the month
+ *  detail stays in the stepper arrow tooltips. */
+export function formatPeriodYear(periodEnd: string | null | undefined): string | null {
+  if (!periodEnd) return null;
+  const d = new Date(periodEnd);
+  if (Number.isNaN(d.getTime())) return null;
+  return String(d.getUTCFullYear());
 }

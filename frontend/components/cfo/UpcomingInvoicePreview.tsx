@@ -18,6 +18,7 @@
 
 import { formatEur } from "@/lib/pricingConfig";
 import { useUpcomingInvoice } from "@/lib/stripeBilling";
+import { formatDateOnly } from "@/lib/locale";
 
 export function UpcomingInvoicePreview() {
   const { data } = useUpcomingInvoice();
@@ -34,7 +35,7 @@ export function UpcomingInvoicePreview() {
 
   const { base_amount, extras_count, extras_amount, total_estimated, next_invoice_date } = data;
   const nextDateLabel = next_invoice_date
-    ? new Date(next_invoice_date).toLocaleDateString("en-GB", { dateStyle: "medium" })
+    ? formatDateOnly(next_invoice_date)
     : "—";
 
   return (

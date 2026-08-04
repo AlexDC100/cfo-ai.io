@@ -10,7 +10,7 @@
     "products": "Produse",
     "decisions": "Decizii",
     "alerts": "Alerte",
-    "benchmark": "Benchmark",
+    "benchmark": "Benchmark sectorial",
     "scenarios": "Scenarii",
     "variance": "Buget vs Realizat vs LY",
     "chat": "Întreabă CFO AI",
@@ -21,14 +21,28 @@
     "inventory": "Stocuri",
     "invoices": "Facturi",
     "footer_note": "Recomandări financiare asistate de AI. Deciziile finale rămân la conducere.",
-    "multi_year_history": "Istoric multianual"
+    "multi_year_history": "Istoric multianual",
+    "group_intelligence": "Inteligență",
+    "group_analysis": "Analiză",
+    "group_system": "Sistem",
+    "collapse": "Restrânge bara laterală",
+    "expand": "Extinde bara laterală",
+    "disclaimer": "Precizări legale"
   },
   "topbar": {
     "ask": "Întreabă CFO AI",
     "notifications": "Notificări",
     "open_command_center": "Deschide panoul de comandă",
     "switch_theme_light": "Comută la tema deschisă",
-    "switch_theme_dark": "Comută la tema închisă"
+    "switch_theme_dark": "Comută la tema închisă",
+    "askCfoAi": "Întreabă CFO AI",
+    "prevMonth": "Luna anterioară",
+    "nextMonth": "Luna următoare",
+    "displayCurrency": "Moneda de afișare",
+    "staleRates": "Cursuri valutare din {{date}} (variantă offline)",
+    "openNav": "Deschide navigarea",
+    "goToDashboard": "Mergi la tabloul de bord",
+    "signIn": "Autentificare"
   },
   "upload": {
     "hero_title": "Încarcă balanța de verificare pentru a începe",
@@ -709,5 +723,1577 @@
       "adjusted_gm_pct": "GM % ajustat (după finanțare)",
       "margin_pct": "Marjă %"
     }
+  },
+  "pricing": {
+    "loading": "Se încarcă prețurile…",
+    "badgeStarter": "Ideal pentru antreprenori",
+    "badgePro": "Cel mai popular",
+    "perMonth": "/ lună",
+    "trialThen": "7 zile gratuit, apoi {{price}} / lună",
+    "aboveQuota": "Peste cotă: {{copy}}",
+    "extraDoc": "{{price}} per document suplimentar, afișat și confirmat înainte de procesare",
+    "currentPlan": "Planul curent",
+    "startStarter": "Alege Starter",
+    "startPro": "Alege Pro",
+    "openingCheckout": "Se deschide plata…",
+    "billingNotConnectedTitle": "Facturarea nu este încă activată",
+    "billingNotConnectedDesc": "Prețurile Stripe nu sunt încă configurate pentru acest plan. Vă rugăm să reîncercați în scurt timp.",
+    "checkoutFailedTitle": "Plata nu a putut fi inițiată",
+    "checkoutFailedDesc": "Vă rugăm să reîncercați sau să contactați echipa de suport dacă problema persistă.",
+    "trialTailOr": "Sau",
+    "trialTailLink": "începeți perioada de probă gratuită de 7 zile",
+    "trialTailRest": "— un document, fără card bancar.",
+    "introTitle": "Mai aveți nevoie de o analiză?",
+    "introDesc": "Deblocați un document suplimentar pentru {{days}} zile.",
+    "introNotSubscription": "Nu este un abonament.",
+    "introCadence": "Plată unică · valabil {{days}} zile",
+    "introCta": "Deblocați un document",
+    "planLoading": "Se încarcă planul dvs.…",
+    "perMonthShort": "/ lună",
+    "oneTime": "plată unică",
+    "accessUntil": "Acces până la {{date}}"
+  },
+  "account": {
+    "fallbackName": "Cont",
+    "signedOut": "V-ați deconectat",
+    "signOutFailed": "Deconectarea nu a reușit",
+    "free": "Gratuit",
+    "tokensThisPeriod": "Tokenuri în această perioadă",
+    "tokensUsed": "{{tokens}} folosite",
+    "profile": "Profil",
+    "me": "Contul meu",
+    "learning": "Mod de învățare",
+    "learning_guided": "Ghidat",
+    "learning_subtle": "Discret",
+    "learning_off": "Oprit",
+    "billing": "Facturare",
+    "settings": "Setări",
+    "signOut": "Deconectare"
+  },
+  "authX": {
+    "tagline": "Inteligență financiară",
+    "subtitle_sign_in": "Autentificați-vă pentru a continua. Deciziile și documentele încărcate sunt limitate la spațiul dumneavoastră de lucru.",
+    "subtitle_sign_up": "Creați spațiul de lucru. Plan gratuit — fără card bancar.",
+    "subtitle_sign_in_page": "Autentificați-vă în spațiul de lucru CFO AI.",
+    "subtitle_sign_up_page": "Creați spațiul de lucru CFO AI. Plan gratuit — fără card bancar.",
+    "not_configured": "Autentificarea nu este configurată pentru această versiune.",
+    "selected_plan": "Plan selectat",
+    "change_plan": "Schimbați",
+    "check_email_title": "Verificați-vă emailul",
+    "check_email_body_pre": "Am trimis un link de confirmare la",
+    "check_email_body_post": "Accesați-l pentru a finaliza crearea contului.",
+    "check_email_hint": "Nu l-ați primit? Verificați folderul spam — confirmările ajung uneori acolo la prima trimitere. Livrarea poate dura până la 60 de secunde.",
+    "resend_sent": "Trimis. Verificați căsuța de email (și folderul spam) pentru noul link.",
+    "resend_in": "Retrimitere în {{seconds}}s",
+    "resend_email": "Retrimiteți emailul",
+    "resend_available_in": "Retrimiterea va fi disponibilă în {{seconds}} secunde",
+    "resend_aria": "Retrimiteți emailul de confirmare",
+    "back_to_sign_in": "Înapoi la autentificare",
+    "or_continue_email": "sau continuați cu email",
+    "continue_with_google": "Continuați cu Google",
+    "first_name": "Prenume",
+    "last_name": "Nume",
+    "email_label": "Email",
+    "email_placeholder": "nume@companie.ro",
+    "repeat_password": "Repetați parola",
+    "repeat_password_placeholder": "Introduceți parola din nou",
+    "pw_check_length": "Minimum 10 caractere",
+    "pw_check_case": "Litere mari și mici",
+    "pw_check_number": "Cel puțin o cifră",
+    "pw_check_symbol": "Cel puțin un simbol",
+    "pw_weak": "Slabă",
+    "pw_fair": "Acceptabilă",
+    "pw_good": "Bună",
+    "pw_strong": "Puternică",
+    "terms_agree_pre": "Am citit și sunt de acord cu",
+    "terms_of_service": "Termenii și Condițiile",
+    "newsletter_opt_in": "Abonați-vă la newsletter — noutăți ocazionale despre produs și analize financiare pentru IMM-urile din România. Vă puteți dezabona oricând.",
+    "required": "Obligatoriu",
+    "err_company_required": "Numele companiei este obligatoriu pentru conturile noi.",
+    "err_passwords_mismatch": "Parolele nu coincid.",
+    "err_accept_terms": "Vă rugăm să acceptați Termenii și Condițiile pentru a crea un cont.",
+    "err_signin_failed": "Autentificarea a eșuat",
+    "err_provider_configuring": "Autentificarea prin {{provider}} este în curs de configurare. Vă rugăm să folosiți deocamdată emailul.",
+    "new_here": "Sunteți nou aici?",
+    "create_an_account": "Creați un cont",
+    "already_have_account": "Aveți deja un cont?",
+    "disclaimer": "Recomandări financiare asistate de AI. Deciziile finale rămân în responsabilitatea conducerii."
+  },
+  "notFound": {
+    "title": "404",
+    "body": "Ups! Pagina nu a fost găsită",
+    "back_home": "Înapoi la pagina principală"
+  },
+  "pricingX": {
+    "home_aria": "Acasă",
+    "continue_as": "Continuați ca {{name}}",
+    "back_to_app": "Înapoi la aplicație",
+    "your_plan_billing": "Planul și facturarea dumneavoastră",
+    "plans_billing_eyebrow": "Planuri și facturare",
+    "plans_heading": "Pregătiți pentru analiză continuă? Alegeți un plan lunar.",
+    "plans_sub": "Puteți face upgrade oricând după perioada de probă. Prețul pentru documente suplimentare este afișat de la început — fără facturi surpriză.",
+    "disclaimer": "Recomandări financiare asistate de AI. Deciziile finale de business rămân în responsabilitatea echipei dumneavoastră.",
+    "hero_eyebrow": "Probă gratuită de 7 zile — fără card bancar",
+    "hero_title_pre": "Vedeți",
+    "hero_title_highlight": "prima analiză",
+    "hero_title_post": "în câteva minute.",
+    "hero_sub": "Încărcați o balanță de verificare, un bilanț sau un cont de profit și pierdere. CFO AI construiește modelul financiar complet, indicatorii, evaluarea și recomandările strategice — în câteva minute. Fără card bancar la început.",
+    "hero_cta": "Începeți proba gratuită de 7 zile",
+    "trust_no_card": "Fără card bancar",
+    "trust_full_report": "Raport complet — nu un eșantion",
+    "trust_cancel_anytime": "Anulați oricând",
+    "hero_compliance": "Recomandări financiare asistate de AI. Deciziile finale rămân în responsabilitatea echipei dumneavoastră.",
+    "current_plan": "Planul curent",
+    "status_trial": "Perioadă de probă",
+    "status_one_time_unlock": "Deblocare unică",
+    "status_cancels_at_period_end": "Se anulează la finalul perioadei",
+    "status_active": "Activ",
+    "price_per_month": "{{price}} / lună",
+    "price_one_time": "{{price}} plată unică",
+    "price_free": "Gratuit",
+    "renews_on": "Se reînnoiește la {{date}}",
+    "trial_expires": "Proba expiră la {{date}}",
+    "unlock_expires": "Deblocarea expiră la {{date}}",
+    "expires": "Expiră la {{date}}",
+    "docs_included": "{{count}} document inclus",
+    "docs_extra": "{{count}} document suplimentar",
+    "cancel_subscription": "Anulați abonamentul",
+    "upgrade_anytime": "Puteți face upgrade oricând — alegeți un plan mai jos",
+    "cancel_scheduled_title": "Anulare programată",
+    "cancel_scheduled_body": "Veți păstra accesul până la finalul perioadei curente.",
+    "cancel_failed_title": "Anularea nu a reușit",
+    "cancel_failed_body": "Vă rugăm să încercați din nou sau să contactați echipa de suport."
+  },
+  "files": {
+    "sourceFiles": "Fișiere sursă",
+    "addFile": "Adaugă fișier",
+    "dropOrBrowse": "Trage aici sau răsfoiește",
+    "addFileTitle": "Adaugă un fișier — apasă pentru a răsfoi sau trage unul aici",
+    "dropToUpload": "Eliberează fișierul pentru încărcare",
+    "import": "Importă"
+  },
+  "tmpl": {
+    "view": "Vezi",
+    "officialTemplate": "Șablonul oficial de încărcare",
+    "officialTemplateDesc": "Exact denumirile foilor, antetele coloanelor și pozițiile rândurilor pe care le așteaptă parserul.",
+    "salesExample": "Exemplu de analiză a vânzărilor",
+    "formatMultiCol": "Format multi-coloană",
+    "formatSaga": "Format SAGA standard",
+    "previewSubtitle": "șablon de încărcare",
+    "previewSalesSubtitle": "exemplu de analiză a vânzărilor (date fictive)",
+    "previewLoading": "Se încarcă previzualizarea…",
+    "previewError": "Previzualizarea nu a putut fi încărcată: {{msg}}"
+  },
+  "productsX": {
+    "guideTitle": "Produse",
+    "clearSearch": "Golește căutarea",
+    "heroTitle": "Marja fiecărui SKU, <grad>ierarhizată și evaluată</grad>.",
+    "sourceNeverAltered": "Datele tale sursă nu sunt modificate niciodată.",
+    "xlsxExport": "Export XLSX",
+    "toast": {
+      "fileTooLarge": "Fișier prea mare",
+      "fileTooLargeDesc": "{{size}} MB depășește limita de {{limit}} MB.",
+      "uploadFailed": "Încărcarea a eșuat",
+      "unknownError": "Eroare necunoscută.",
+      "analysisReady": "Analiza este gata",
+      "analysisFailed": "Analiza a eșuat",
+      "retrying": "Se reîncearcă analiza",
+      "retryFailed": "Reîncercarea a eșuat",
+      "retryFailedDesc": "Serverul nu poate fi contactat. Reîncarcă pagina sau încearcă din nou peste câteva momente."
+    },
+    "scan": {
+      "completeBody": "Portofoliul tău de produse a fost reconstruit — marjele, categoriile de decizie și sinteza executivă sunt gata."
+    },
+    "recon": {
+      "tooltip": "NIV sursă: {{expected}} · Suma SKU: {{observed}}",
+      "clean": "<b1>Verificările de calitate au trecut.</b1> Extracția se reconciliază în limita a <b>{{pct}}%</b> pe acest set de date (țintă: potrivire exactă cu sursa). Toate cele <b>{{counted}} din {{total}}</b> SKU-uri au fost numărate; valoarea netă facturată pe SKU însumează totalul din sursă. Cifrele principale (NIV, marjă brută, numerar blocat) pot fi folosite în siguranță — verifică-le totuși cu sursa, din obișnuință, pentru deciziile la nivel de consiliu / uz extern.",
+      "gap": "<b1>Diferență de reconciliere — verifică înainte de uz extern.</b1> Suma la nivel de SKU diferă de totalul NIV din sursă cu <b>{{delta}} ({{pct}}%)</b>, cu {{counted}} din {{total}} SKU-uri numărate — este posibil ca rânduri să fi fost pierdute sau duplicate la extracție. Verifică cifrele principale cu sursa înainte de rapoartele către consiliu sau transmiterile externe."
+    },
+    "wc": {
+      "heading": "DIO · DSO · DPO · CCC la nivel de companie",
+      "desc": "DIO din inventarul și COGS pe SKU din fișierul încărcat, doar rândurile acoperite. DSO / DPO din contextul balanței de verificare a perioadei. CCC este o agregare la nivel de companie, nu pe SKU.",
+      "infoAria": "Ce înseamnă DIO, DSO, DPO și CCC?",
+      "infoTitle": "Ce înseamnă acestea?",
+      "companyDio": "DIO companie",
+      "dioCoverage": "{{pct}}% din NIV · {{covered}} din {{total}} SKU-uri",
+      "dioNoInputs": "Inventar / COGS nefurnizate pentru niciun SKU",
+      "dioFormulaCogs": "sumă(Inventar) ÷ sumă(COGS) × 365, rânduri acoperite",
+      "dioFormulaWeighted": "ponderat după Inventar (DIO pe SKU; COGS nepersistat)",
+      "dioMissingHint": "Adaugă coloanele Inventory value și COGS în fișierul încărcat pentru a calcula DIO.",
+      "fromTrialBalance": "din balanța de verificare",
+      "noTrialBalance": "nicio balanță de verificare în această sesiune",
+      "dsoMissingHint": "Încarcă o perioadă cu balanță de verificare pentru a calcula DSO.",
+      "dpoMissingHint": "Încarcă o perioadă cu balanță de verificare pentru a calcula DPO.",
+      "cccSource": "DIO + DSO − DPO, la nivel de companie",
+      "cccMissing": "lipsește: {{list}}",
+      "cccHint": "CCC se calculează doar când DIO, DSO și DPO sunt toate disponibile.",
+      "loadedPeriod": "încărcată",
+      "modalTitle": "Indicatori de capital de lucru",
+      "modalDesc": "Ce măsoară fiecare indicator și de unde provine valoarea.",
+      "dioTitle": "Durata de rotație a stocurilor",
+      "dioBody": "Câte zile, în medie, stă marfa pe stoc înainte de a se vinde — sumă(Inventar) ÷ sumă(COGS) × 365 pe SKU-urile acoperite. Mai mic înseamnă mai eficient; un DIO ridicat înseamnă numerar blocat în rafturi și depozite.",
+      "dsoTitle": "Durata de încasare a creanțelor",
+      "dsoBody": "Câte zile durează încasarea banilor după o vânzare — creanțe raportate la venituri, citite din balanța de verificare a perioadei încărcate. Mai mic înseamnă că clienții plătesc mai repede.",
+      "dpoTitle": "Durata de plată a furnizorilor",
+      "dpoBody": "Câte zile durează plata furnizorilor — datorii raportate la COGS, din balanța de verificare. Mai mare înseamnă că păstrezi numerarul mai mult timp (atâta timp cât nu tensionează relația cu furnizorii).",
+      "cccTitle": "Ciclul de conversie a numerarului",
+      "cccBody": "Numărul net de zile în care numerarul este blocat în operațiuni — DIO + DSO − DPO, la nivel de companie. Este cifra-cheie: cât durează de la plata stocurilor până la încasarea de la clienți. Mai mic (sau negativ) înseamnă un capital de lucru mai sănătos."
+    },
+    "channels": {
+      "KA": "Conturi-cheie",
+      "DIST": "Distribuție",
+      "EXP": "Export",
+      "OLN": "Online"
+    },
+    "compare": {
+      "vs": "vs",
+      "switchActive": "Setează {{label}} ca activ",
+      "closeAria": "Închide comparația",
+      "skusIn": "SKU-uri · {{label}}",
+      "nivDelta": "Delta NIV",
+      "gmDelta": "Delta GM",
+      "topWinners": "Cei mai mari câștigători (Δ GM ↑)",
+      "topLosers": "Cele mai mari scăderi (Δ GM ↓)",
+      "newIn": "Noi în {{label}} ({{count}})",
+      "noMovers": "Nicio variație în această categorie."
+    },
+    "cols": {
+      "linesCh": "Linii / Can."
+    },
+    "sourceFiles": {
+      "replaceOrAdd": "Înlocuiește sau adaugă fișiere",
+      "hint": "XLSX · CSV · până la {{mb}} MB",
+      "addTitle": "Încarcă un alt set de date — apasă pentru a răsfoi sau trage un fișier aici"
+    },
+    "wipe": {
+      "notSignedIn": "Neautentificat",
+      "engineUnreachable": "Motorul de la {{url}} nu a putut fi contactat. Rulează containerul de backend?",
+      "listFailed": "Listarea seturilor de date a eșuat — {{status}}.",
+      "alreadyClean": "Deja curat",
+      "alreadyCleanDesc": "Serverul nu are fișiere încărcate — cele de pe ecran erau un cache învechit, acum golit.",
+      "directDeleteFailed": "Ștergerea directă a eșuat: {{msg}}",
+      "couldNotDelete_one": "{{count}} fișier nu a putut fi șters",
+      "couldNotDelete_few": "{{count}} fișiere nu au putut fi șterse",
+      "couldNotDelete_other": "{{count}} de fișiere nu au putut fi șterse",
+      "deleted_one": "S-a șters {{count}} fișier încărcat",
+      "deleted_few": "S-au șters {{count}} fișiere încărcate",
+      "deleted_other": "S-au șters {{count}} de fișiere încărcate",
+      "deletedDesc": "Mutate în Șterse recent — pot fi restaurate timp de 30 de zile.",
+      "errorTitle": "Fișierele încărcate nu au putut fi șterse",
+      "button": "Șterge datele",
+      "buttonTitle": "Șterge definitiv toate fișierele încărcate din Produse",
+      "dialogTitle": "Ștergi definitiv datele despre produse?",
+      "dialogBody1": "Acțiunea nu poate fi anulată. Fiecare set de date SKU de pe această pagină este eliminat împreună cu portofoliul clasificat, lăsând pagina Produse goală.",
+      "dialogBody2": "Fișierele încărcate se mută în Șterse recent, de unde pot fi restaurate timp de 30 de zile — după aceea dispar definitiv. Perioadele, analiza din dashboard, celelalte spații de lucru și conversațiile nu sunt afectate.",
+      "deleting": "Se șterge…",
+      "deleteAll": "Șterge toate fișierele încărcate"
+    },
+    "danger": {
+      "title": "Zonă de risc",
+      "body": "Ștergerea datelor despre produse este permanentă și nu poate fi anulată. Fiecare SKU, marjă și clasificare de portofoliu de pe această pagină este ștearsă. Fișierele sursă rămân în Șterse recent timp de 30 de zile, apoi sunt eliminate definitiv."
+    },
+    "export": {
+      "title": "Descarcă CSV",
+      "body": "Fiecare SKU din vizualizarea curentă — volum, NIV, marjă brută și DIO — într-un singur fișier CSV gata de tabel. Respectă filtrele active și moneda de afișare; se deschide în Excel, Sheets sau orice alt instrument."
+    },
+    "inflight": {
+      "stage": {
+        "queued": "În coadă pentru analiză…",
+        "extracting": "Se citește registrul de lucru…",
+        "mapping": "Se mapează coloanele SKU…",
+        "computing": "Se agregă rândurile…",
+        "narrating": "Se clasifică portofoliul…"
+      },
+      "failedTitle": "Analiza nu a putut fi finalizată",
+      "stuckTitle": "Încărcarea pare blocată",
+      "analyzing": "Se analizează datele tale SKU…",
+      "stepOf": "Pasul {{current}} din {{total}}",
+      "step1": "Citirea registrului",
+      "step1Sub": "Alegerea foii potrivite",
+      "step2": "Detectarea coloanelor",
+      "step2Sub": "Potrivirea sinonimelor · RO/EN",
+      "step3": "Maparea SKU-urilor",
+      "step3Sub": "Un rând per linie de produs",
+      "step4": "Calcularea marjelor",
+      "step4Sub": "NIV · GM · DIO când există",
+      "step5": "Clasificarea portofoliului",
+      "step5Sub": "ancoră · creștere · monitorizare · retragere",
+      "step6": "Generarea sintezei",
+      "step6Sub": "Sinteză executivă + acțiuni",
+      "hangBody": "Fișierul a ajuns pe server, dar analiza nu a pornit de mai bine de 60 de secunde. De obicei asta înseamnă că procesul de lucru nu a preluat sarcina (o scurtă întrerupere de backend chiar în momentul încărcării). Apasă mai jos pentru a o repune în coadă.",
+      "dismiss": "Închide",
+      "retrying": "Se reîncearcă…",
+      "retry": "Reîncearcă analiza"
+    },
+    "empty": {
+      "eyebrow": "Inteligență de produs",
+      "heroTitle": "Încarcă datele tale. CFO AI găsește <grad>ce contează</grad>.",
+      "monthNote": "Încă nu există date de produse pe <m>{{month}}</m> — tot ce imporți aici se atașează acelei luni.",
+      "heroBody": "Trage o analiză de trading sau un export de vânzări pe SKU. CFO AI parcurge fiecare rând, le agregă la nivel de SKU, le clasifică în ancoră / creștere / monitorizare / retragere și evidențiază produsele pe pierdere — cu DIO opțional pe SKU atunci când sunt incluse coloanele <c1>Inventory value</c1> și <c2>COGS</c2>.",
+      "askPrompt": "Ajută-mă să înțeleg cum ar trebui să arate fișierul cu date de produse pe care îl încarc și ce va face CFO AI cu el.",
+      "dropFormats": "XLSX · CSV · multi-foaie · până la {{mb}} MB",
+      "pipelineAria": "Fluxul de analiză",
+      "stagedHeading": "Fișiere încărcate",
+      "openFileAria": "Deschide {{name}} într-o fereastră nouă",
+      "removeFileAria": "Elimină {{name}}",
+      "dismissAll": "Elimină tot",
+      "scanning": "Se scanează…",
+      "startScan": "Pornește scanarea"
+    },
+    "chips": {
+      "profitability": {
+        "label": "Analizează profitabilitatea produselor",
+        "prompt": "Explică-mi cum ar trebui să analizez profitabilitatea produselor din portofoliul meu de SKU-uri. Ce indicatori contează cel mai mult și în ce ordine?"
+      },
+      "lossMakers": {
+        "label": "Care SKU-uri sunt pe pierdere?",
+        "prompt": "După ce îmi încarc datele de vânzări, cum decizi care SKU-uri sunt pe pierdere? Explică regulile de clasificare pe care le folosește CFO AI."
+      },
+      "discontinue": {
+        "label": "Ce ar trebui să eliminăm?",
+        "prompt": "Ce cadru ar trebui să folosească un CFO pentru a decide ce produse să elimine? Include atât semnalele financiare, cât și pe cele operaționale de luat în calcul."
+      },
+      "marginLeaks": {
+        "label": "Unde sunt scurgerile de marjă?",
+        "prompt": "Unde se ascund de obicei scurgerile de marjă într-un portofoliu de SKU-uri? Dă-mi principalele cauze și cum le-aș depista într-o analiză de trading."
+      },
+      "summarize": {
+        "label": "Rezumă ultimul set de date de produse",
+        "prompt": "După ce este încărcat un set de date de produse, rezumă-mi-l: cele mai performante produse, cele pe pierdere și cele mai importante acțiuni de preț sau de mix."
+      }
+    },
+    "stats": {
+      "datasetsAnalyzed": "Seturi de date analizate",
+      "importsOnFile_one": "{{count}} import înregistrat",
+      "importsOnFile_few": "{{count}} importuri înregistrate",
+      "importsOnFile_other": "{{count}} de importuri înregistrate",
+      "skusAnalyzed": "SKU-uri analizate",
+      "cumulative": "cumulat pe toate importurile",
+      "lineRows": "Rânduri de date importate",
+      "latestImport": "Ultimul import"
+    },
+    "rel": {
+      "justNow": "chiar acum",
+      "minAgo": "acum {{n}} min",
+      "hourAgo": "acum {{n}} h",
+      "dayAgo": "acum {{n}} zile"
+    },
+    "recent": {
+      "emptyTitle": "Niciun import încă.",
+      "emptyBody": "Fișierele încărcate vor apărea aici."
+    }
+  },
+  "dash": {
+    "financialAnalysisEyebrow": "Analiză financiară",
+    "heroSuffix": "imaginea financiară completă",
+    "heroFallbackSubtitle": "Fiecare situație reconstruită din balanța dvs. de verificare — cont de profit și pierdere, bilanț și flux de numerar — cu indicatori, evaluare, un scor de risc de credit și recomandări ierarhizate. Explorați-le în filele de mai jos.",
+    "heroBodyExported": "exportat din programul dvs. de contabilitate",
+    "heroBodyTail": "Acesta este documentul pe care se bazează întreaga analiză: contul de profit și pierdere, bilanțul, fluxul de numerar, indicatorii, evaluarea, riscul și recomandările sunt toate reconstruite din el. Fiecare încărcare este verificată automat — balanțele de verificare corecte se reconciliază în limita a 0,5% față de sursă.",
+    "askCfoAiPrompt": "Ce va face CFO AI cu balanța mea de verificare? Prezintă-mi analiza pe care o voi primi după încărcare — cont de profit și pierdere, bilanț, indicatori, evaluare, riscuri.",
+    "invoiceRegister": "Registru de facturi",
+    "loadedPeriod": "Perioadă încărcată",
+    "invoicesCount_one": "{{count}} factură",
+    "invoicesCount_few": "{{count}} facturi",
+    "invoicesCount_other": "{{count}} de facturi",
+    "guidePl": "Cont de profit și pierdere",
+    "guideBalanceSheet": "Bilanț",
+    "guideCashFlow": "Flux de numerar",
+    "guideRatios": "Indicatori",
+    "guideValuation": "Evaluare",
+    "guideRisks": "Risc și credit",
+    "guideRecommendations": "Recomandări",
+    "clearPeriodConfirm": "Ștergeți această perioadă? Aceasta elimină definitiv analiza (cont de profit și pierdere, bilanț, indicatori, briefing) și mută documentele atașate în Șterse recent (restaurabile timp de 30 de zile). Nu se poate anula.",
+    "clearPeriodFailTitle": "Perioada nu a putut fi ștearsă",
+    "clearPeriodFailBody": "Serverul nu a acceptat ștergerea. Încercați din nou sau reîncărcați pagina.",
+    "periodClearedTitle": "Perioadă ștearsă",
+    "periodClearedBody": "Analiza a fost eliminată; documentele au fost mutate în Șterse recent.",
+    "backendUnreachableTitle": "Serverul nu a putut fi contactat",
+    "networkError": "Eroare de rețea.",
+    "loadedIntoDashboard": "Încărcat în Dashboard.",
+    "budgetDeckLoadedTitle": "Buget încărcat",
+    "budgetDeckLoadedBody_one": "{{count}} linie de cont de profit și pierdere din {{filename}} — se deschide Buget vs Realizat.",
+    "budgetDeckLoadedBody_few": "{{count}} linii de cont de profit și pierdere din {{filename}} — se deschide Buget vs Realizat.",
+    "budgetDeckLoadedBody_other": "{{count}} de linii de cont de profit și pierdere din {{filename}} — se deschide Buget vs Realizat.",
+    "budgetDeckErrorTitle": "Fișierul de buget nu a putut fi citit",
+    "unknownParseError": "Eroare de citire necunoscută.",
+    "fileTooLargeTitle": "Fișier prea mare",
+    "fileTooLargeBody": "{{size}} MB depășește limita de 25 MB.",
+    "uploadFailedTitle": "Încărcare eșuată",
+    "unknownError": "Eroare necunoscută.",
+    "uploadCancelled": "Încărcarea a fost anulată.",
+    "multiYearReadyTitle": "Istoric multianual pregătit",
+    "multiYearReadyBody": "{{filename}} a fost procesat — vizualizați tendințele.",
+    "analysisCompleteTitle": "Analiză finalizată",
+    "noPeriodCreatedBody": "{{filename}} a fost procesat, dar nu a fost creată nicio perioadă financiară. Este posibil ca tipul de document să nu fie acceptat.",
+    "analysisFailedTitle": "Analiza a eșuat",
+    "addAnotherMonth": "Adăugați o altă lună",
+    "addMonthDialogDesc": "Trageți balanța de verificare a lunii următoare pentru a o adăuga în acest spațiu de lucru.",
+    "sourceStatutoryTooltip": "Sursă: situație statutară (Formular F30 + F10). Doar agregat — fără detaliere pe conturi.",
+    "sourceTbTooltip": "Sursă: balanță de verificare. Granularitate completă la nivel de cont.",
+    "sourceStatutoryBadge": "Sursă: situație statutară (Formular F30 + F10)",
+    "noRecsTitle": "Nicio recomandare încă",
+    "noRecsBody": "Încărcați un bilanț, un cont de profit și pierdere sau o balanță de verificare pentru a primi recomandări prioritizate.",
+    "nothingToExportTitle": "Nimic de exportat încă",
+    "nothingToExportBody": "Încărcați un exemplu sau o situație financiară pentru a activa exporturile HTML și Excel.",
+    "pickSampleOrUpload": "Alegeți un exemplu sau încărcați",
+    "exportHtmlTitle": "Raport de analiză financiară HTML",
+    "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, toți cei peste 25 de indicatori cu verdicte, evaluarea riscului de faliment și recomandări prioritizate.",
+    "exportXlsxTitle": "Registru Excel",
+    "exportXlsxBody": "Model xlsx cu 8 foi: copertă, cont de profit și pierdere, bilanț, indicatori, flux de numerar, evaluare (WACC + DCF + Graham), credit și risc, recomandări.",
+    "exportPptxTitle": "Prezentare PowerPoint",
+    "exportPptxBody": "Exportul pptx pentru investitori, cu slide de copertă, KPI-uri, indicatori, evaluare și recomandări, sosește în faza următoare.",
+    "comingNext": "În curând",
+    "secondaryEbitdaCrossCheck": "Secundar · Verificare încrucișată multiplu EBITDA",
+    "persistedAssumptions": "Ipoteze salvate",
+    "persistedAssumptionsBody": "Setați EBITDA, multiplu, datorie sau numerar personalizate pentru raportarea către consiliu. Se salvează pentru această perioadă; cardul principal de mai sus reflectă întotdeauna cele mai recente valori canonice plus poziția glisorului.",
+    "reasonIndustryCre": "Industrie clasificată drept imobiliară ({{industry}}).",
+    "reasonRentalDominated": "Veniturile sunt dominate de chirii (contul 706 ≥ 50% din veniturile din exploatare).",
+    "reasonEngineAssetBased": "Motorul de evaluare a direcționat deja această perioadă către metoda bazată pe active.",
+    "reasonAssetIntensity": "Intensitatea activelor {{intensity}}% (imobilizări corporale + investiții imobiliare + imobilizări în curs / total active) depășește pragul de {{threshold}}% pentru rutarea către evaluarea imobiliară.",
+    "periodConflictTitle": "Data fișierului nu corespunde perioadei",
+    "periodConfirmTitle": "Confirmați perioada",
+    "periodConflictDesc": "„Scanează și actualizează perioada” mută perioada în luna fișierului. „Scanează” ignoră data fișierului și încarcă în perioada selectată.",
+    "periodConfirmDesc": "Aceasta este perioada sub care va fi înregistrată analiza.",
+    "preview": "Previzualizare",
+    "openPreviewTitle": "Deschide o previzualizare într-o fereastră nouă",
+    "fileMatchesPeriodTail": "— fișierul corespunde perioadei selectate.",
+    "selectedPeriod": "Perioada selectată",
+    "detectedPeriod": "Perioada detectată",
+    "vs": "vs",
+    "reading": "Se citește…",
+    "noDateFound": "Nicio dată găsită",
+    "readingFile": "Se citește fișierul…",
+    "noDateFoundPick": "Nicio dată găsită — alegeți una",
+    "scan": "Scanează",
+    "scanAndUpdate": "Scanează și actualizează perioada",
+    "cfoBriefingEyebrow": "Briefing CFO — Opus 4.7",
+    "displayedIn": "afișat în {{currency}}",
+    "regeneratingIn": "Se regenerează în {{currency}}…",
+    "regenFailed": "Nu s-a putut regenera în {{currency}} ({{error}}). Se afișează versiunea în RON.",
+    "briefingDisclaimer": "Generat prin extragerea automată a balanței de verificare — acuratețea este măsurată automat la fiecare încărcare (încărcările corecte se reconciliază în limita a 0,5%). Verificați cifrele principale față de sursă la deciziile critice.",
+    "topCustomerShare": "Ponderea celui mai mare client",
+    "dsoSub": "Durata medie de încasare",
+    "paidOnTime": "Plătite la timp",
+    "ofSettledInvoices": "Din facturile decontate",
+    "netVat": "TVA net",
+    "vatPayable": "De plată către ANAF",
+    "vatRefund": "Poziție de rambursat",
+    "qualityPassedLink": "Verificări de calitate trecute · Despre acuratețea datelor",
+    "accCleanTitle": "Verificări de calitate trecute.",
+    "accCleanPre": "Extragerea se reconciliază în limita a",
+    "accCleanPost": "pentru acest document (țintă: sub 0,5%). Bilanțul este echilibrat; debitele și creditele din sursă corespund. Cifrele principale (venituri, EBITDA, profit net, datorii, capitaluri proprii) pot fi folosite în siguranță — verificați-le totuși la deciziile de consiliu / externe.",
+    "accWatchTitle": "Verificați înainte de utilizare externă.",
+    "accSrcImbalancePre": "Balanța de verificare sursă are un",
+    "accImbalanceBold": "dezechilibru debit / credit de {{pct}}%",
+    "accWatchSmallNote": "(mic, dar nu zero).",
+    "accBsDriftPre": "Bilanțul reconstruit deviază cu",
+    "accBsDriftPost": "din totalul activelor.",
+    "accWatchTail": "Verificați cifrele principale (venituri, EBITDA, profit net, datorii, capitaluri proprii) față de sursă înainte de rapoartele de consiliu sau depunerile externe.",
+    "accProblemTitle": "Problemă de calitate a datelor — nu folosiți cifrele extern fără remediere.",
+    "accProblemSrcTail": "(debitele nu sunt egale cu creditele) — re-exportați din programul de contabilitate după rularea reconcilierii balanței de verificare.",
+    "accProblemBsPre": "Bilanțul reconstruit diferă de activele dvs. cu",
+    "accProblemBsTail": "— este posibil ca unele conturi să lipsească sau să fie clasificate greșit.",
+    "accProblemTail": "Cifrele principale de mai jos (venituri, EBITDA, profit net, datorii, capitaluri proprii) pot să nu corespundă sursei. Rezolvați problema datelor sursă înainte de orice utilizare externă.",
+    "accUnknownTitle": "Despre acuratețea datelor.",
+    "accUnknownBody": "Fiecare încărcare este verificată automat față de balanța de verificare sursă. Încărcările corecte trec cu o abatere sub 0,5%; dacă ceva nu este în regulă, veți vedea aici un avertisment specific care numește problema (dezechilibru în sursă, clasificare greșită a conturilor etc.). Cifrele principale pot fi oricând verificate față de sursă.",
+    "statutoryDetected": "Format statutar detectat (Formular F30 + F10).",
+    "statutoryBody": "Cifrele principale (venituri, EBITDA, datorii, capitaluri proprii) extrase din situațiile financiare depuse.",
+    "statutoryWhatsNot": "Ce nu este disponibil cu acest format",
+    "statutoryLi1": "Detaliere pe conturi (doar categorii agregate)",
+    "statutoryLi2": "Analiză la nivel de SKU (necesită un export de vânzări)",
+    "statutoryLi3": "Evoluția capitalului de lucru la nivel de cont",
+    "statutoryLi4": "Detalierea variației stocurilor (contul 711)",
+    "statutoryDeeper": "Pentru o analiză mai detaliată, încărcați balanța de verificare brută din programul de contabilitate.",
+    "alreadyCleanTitle": "Deja curat",
+    "alreadyCleanBody": "Acest spațiu de lucru nu are perioade.",
+    "periodsDeleteFailed_one": "{{count}} perioadă nu a putut fi ștearsă",
+    "periodsDeleteFailed_few": "{{count}} perioade nu au putut fi șterse",
+    "periodsDeleteFailed_other": "{{count}} de perioade nu au putut fi șterse",
+    "deletedPeriods_one": "S-a șters {{count}} perioadă",
+    "deletedPeriods_few": "S-au șters {{count}} perioade",
+    "deletedPeriods_other": "S-au șters {{count}} de perioade",
+    "filesMovedRecentlyDeleted": "Fișierele au fost mutate în Șterse recent — restaurabile timp de 30 de zile.",
+    "wipeFailedTitle": "Spațiul de lucru nu a putut fi golit",
+    "dangerZone": "Zonă periculoasă",
+    "dangerZoneBody": "Ștergerea lunilor acestui spațiu de lucru este permanentă și nu poate fi anulată. Situațiile, indicatorii, evaluarea, scorurile de risc și recomandările sunt șterse pentru fiecare lună. Fișierele sursă rămân în Șterse recent timp de 30 de zile, apoi sunt eliminate definitiv.",
+    "wipeButtonTitle": "Șterge definitiv fiecare lună din acest spațiu de lucru",
+    "wipeData": "Șterge datele",
+    "wipeDialogTitle": "Ștergeți definitiv fiecare lună din acest spațiu de lucru?",
+    "wipeDialogBody1": "Nu se poate anula. Fiecare lună dispare, împreună cu tot ce derivă din ea — situații, indicatori, evaluare, scoruri de risc și recomandări.",
+    "wipeDialogBody2": "Fișierele încărcate se mută în Șterse recent, de unde pot fi restaurate timp de 30 de zile — după aceea dispar definitiv. Celelalte spații de lucru, seturile de date din Produse și conversațiile dvs. nu sunt afectate.",
+    "deleting": "Se șterge…",
+    "deleteAllPeriods": "Șterge toate perioadele",
+    "jumpToNotes": "Salt la Note și recomandări",
+    "replaceOrAdd": "Înlocuiți sau adăugați fișiere",
+    "dropTrialBalanceHere": "Trageți balanța de verificare aici",
+    "dropHint": "PDF · XLSX · CSV · imagine",
+    "addTbTitle": "Adăugați o balanță de verificare în acest spațiu de lucru — dați clic pentru a răsfoi sau trageți una aici",
+    "documentFallback": "document",
+    "exampleTrialBalances": "Exemple de balanțe de verificare",
+    "exampleMultiCol": "Format cu mai multe coloane",
+    "exampleSaga": "Format SAGA standard",
+    "fictionalData": "Date fictive; demonstrează structura necesară.",
+    "view": "Vizualizare",
+    "debugSimulate": "Debug: simulează scanarea",
+    "dropFileToUpload": "Eliberați fișierul pentru încărcare",
+    "dropNextMonth": "Trageți balanța de verificare a lunii următoare",
+    "formatsLimit": "XLSX · CSV · PDF · până la 25 MB",
+    "import": "Importă",
+    "uploadedFiles": "Fișiere încărcate",
+    "previewFile": "Previzualizează {{name}}",
+    "removeFile": "Elimină {{name}}",
+    "dismissAll": "Renunță la toate",
+    "scanning": "Se scanează…",
+    "startScan": "Începe scanarea",
+    "startScanN": "Începe scanarea ({{count}})",
+    "received": "Primit:",
+    "analysisPipeline": "Fluxul de analiză",
+    "councilSnag": "Vizualizatorul consiliului a întâmpinat o problemă — analiza rulează în continuare; urmăriți pașii de mai jos.",
+    "tryASample": "Încercați un exemplu",
+    "stepDetect": "Detectare format",
+    "stepExtract": "Extragere date",
+    "stepRebuild": "Reconstruire situații",
+    "stepRatios": "Calcul indicatori",
+    "stepRecs": "Generare recomandări",
+    "statusQueued": "În așteptare pentru analiză…",
+    "statusExtracting": "Se citește documentul…",
+    "statusMapping": "Se mapează conturile…",
+    "statusComputing": "Se calculează indicatorii…",
+    "statusNarrating": "Se generează concluziile…",
+    "docTb": "Balanță de verificare",
+    "docTbShows": "Detaliere pe conturi, reconciliere completă CPP + bilanț + flux de numerar, peste 25 de indicatori, evaluare, scor de credit, comparații sectoriale",
+    "docTbWhere1": "Programul dvs. de contabilitate (SAGA, WinMentor, SmartBill, NEXTUP, CIEL etc.)",
+    "docTbWhere2": "Export → Balanță de verificare → XLSX sau PDF (format SAGA cu 10 coloane)",
+    "docPublicRecords": "Rezumat din registre publice",
+    "docPublicRecordsShows": "Istoric multianual (până la 20 de ani): venituri, profit, datorii, capitaluri proprii, angajați. Determinist, fără LLM. Se afișează în /multi-year-history.",
+    "pdfOnly": "Doar PDF",
+    "docStatutory": "Depunere statutară ANAF",
+    "docStatutoryShows": "Cont de profit și pierdere + bilanț agregate din depunerea anuală. Mai puține detalii decât o balanță de verificare (fără detaliere pe conturi), dar cifrele certificate legal.",
+    "docStatutoryWhere1": "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX",
+    "docStatutoryWhere2": "Arhiva contabilului dvs. — depunerea anuală trimisă la ANAF",
+    "docSales": "Analiză vânzări / trading",
+    "docSalesShows": "Clasificarea portofoliului la nivel de SKU (ancoră / creștere / monitorizare / eliminare), DIO + detectarea capitalului blocat. Se afișează în /products.",
+    "docSalesFormat": "Export XLSX",
+    "docSalesWhere1": "Raportul de analiză comercială din ERP (XLSX)",
+    "docSalesWhere2": "Pivot al vânzărilor lunare cu: SKU, volum, venituri, marjă brută, DIO, categorie de client",
+    "whereToGet": "De unde îl obțineți",
+    "badgeMostData": "Cele mai multe date",
+    "badgeFreeInstant": "Gratuit / instant",
+    "badgeAggregate": "Agregat",
+    "calloutTitle": "Nu aveți un document financiar? Obțineți unul gratuit în 60 de secunde.",
+    "calloutBody1": "Căutați orice companie românească (SRL sau SA) pe",
+    "calloutBody2": "după nume sau CUI, deschideți",
+    "calloutBody3": "apăsați",
+    "calloutBody4": "apoi trageți fișierul mai jos. Veți primi un istoric financiar de 20 de ani analizat în mai puțin de un minut.",
+    "calloutCta": "Deschide listafirme.ro ↗",
+    "calloutFooter": "Gratuit · Instant · Fără contabil",
+    "ratioLiquidity": "Lichiditate",
+    "ratioProfitability": "Profitabilitate",
+    "ratioLeverage": "Îndatorare",
+    "ratioCoverage": "Acoperire",
+    "ratioEfficiency": "Eficiență · ciclul capitalului de lucru",
+    "ratioBankruptcy": "Risc de faliment",
+    "openRatioDetail": "Deschide detaliile pentru {{label}}",
+    "openExplainer": "Deschide explicația",
+    "why": "De ce:",
+    "action": "Acțiune:",
+    "triggeredBy": "Declanșat de",
+    "estimatedImpact": "Impact estimat",
+    "perYear": "/ an",
+    "askAboutThis": "Întreabă CFO AI despre asta",
+    "askRecPrompt": "Explică de ce recomandarea „{{title}}” s-a declanșat pe acest set de date. Prezintă-mi metricile declanșatoare, cum se compară cu pragul și ce ar schimba în cifre concrete acțiunea propusă. Citează conturile RAS de bază acolo unde este posibil.",
+    "priorityCritical": "critic",
+    "priorityHigh": "ridicat",
+    "priorityMedium": "mediu",
+    "priorityInfo": "info",
+    "balanceSheet": "Bilanț",
+    "bsCurrentAssets": "Active circulante",
+    "bsCash": "Numerar și echivalente",
+    "bsAccountsReceivable": "Creanțe",
+    "bsInventory": "Stocuri",
+    "bsOtherCurrentAssets": "Alte active circulante",
+    "bsNonCurrentAssets": "Active imobilizate",
+    "bsPpe": "Imobilizări corporale",
+    "bsIntangibles": "Imobilizări necorporale",
+    "bsOtherNonCurrentAssets": "Alte active imobilizate",
+    "bsTotalAssets": "Total active",
+    "bsCurrentLiabilities": "Datorii curente",
+    "bsAccountsPayable": "Datorii furnizori",
+    "bsShortTermDebt": "Datorii pe termen scurt",
+    "bsOtherCurrentLiabilities": "Alte datorii curente",
+    "bsNonCurrentLiabilities": "Datorii pe termen lung",
+    "bsLongTermDebt": "Împrumuturi pe termen lung",
+    "bsOtherNonCurrentLiabilities": "Alte datorii pe termen lung",
+    "bsTotalLiabilities": "Total datorii",
+    "bsShareCapital": "Capital social",
+    "bsRetainedEarnings": "Rezultat reportat",
+    "bsOtherEquity": "Alte capitaluri proprii",
+    "bsTotalEquity": "Total capitaluri proprii",
+    "bsTotalLiabEquity": "Total datorii + capitaluri proprii",
+    "opening": "Sold inițial",
+    "periodEndFallback": "Sfârșit de perioadă",
+    "entity": "Entitate",
+    "periodFallback": "Perioadă",
+    "thePeriod": "perioada",
+    "uploadedDocument": "Document încărcat",
+    "freeCashFlow": "Flux de numerar liber",
+    "netIncome": "Profit net",
+    "plusDa": "+ Amortizare",
+    "minusWc": "− Δ capital de lucru",
+    "eqCfo": "= Flux operațional",
+    "minusCapex": "− CapEx",
+    "eqFcf": "= FCF",
+    "statutoryView": "vedere statutară",
+    "capexReal": "Adăugiri imobilizări în curs, reale",
+    "capexEstimated": "estimat ca amortizarea",
+    "devPhaseCashDrag": "Consum de numerar în faza de dezvoltare",
+    "positiveCashGen": "Generare pozitivă de numerar",
+    "cashBurning": "Consum de numerar",
+    "costOfCapital": "Costul capitalului (WACC)",
+    "costOfEquity": "Costul capitalului propriu",
+    "costOfEquitySub": "Costul capitalului propriu {{pct}}",
+    "costOfDebtAfterTax": "Costul datoriei (după impozitare)",
+    "preTaxSub": "Înainte de impozitare {{pretax}} · impozit {{tax}}",
+    "weightEquity": "Pondere capital propriu",
+    "weightDebt": "Pondere datorie",
+    "dcfIntrinsic": "Valoare intrinsecă DCF",
+    "devPhasePre": "Fază de dezvoltare detectată — investiție unică în imobilizări în curs de",
+    "devPhaseMid": "este exclusă din perpetuitate. DCF folosește FCF stabilizat (profit net + ΔWC ≈",
+    "devPhasePost": ") pentru valoarea terminală, deoarece cheltuiala cu imobilizările în curs este o investiție unică de dezvoltare, nu recurentă.",
+    "dcfForecastTitle": "Prognoză explicită pe 5 ani + valoare terminală Gordon",
+    "baseFcf": "FCF de bază (ritm stabilizat)",
+    "forecastGrowth": "Creștere prognozată",
+    "terminalGrowth": "Creștere terminală",
+    "stabilizedFcfNote": "FCF stabilizat = flux operațional − capex de întreținere (≈ amortizare). Nu este FCF-ul pe o singură perioadă — acela include investiția unică în imobilizări în curs și ar distorsiona perpetuitatea.",
+    "equityValue": "Valoarea capitalului propriu",
+    "year": "An",
+    "yearN": "Anul {{n}}",
+    "discountFactor": "Factor de actualizare",
+    "presentValue": "Valoare actualizată",
+    "terminalValuePv": "Valoare terminală (VA)",
+    "enterpriseValue": "Valoarea întreprinderii",
+    "minusNetDebt": "− Datorie netă",
+    "sensitivityHeading": "Sensibilitate (WACC ajustat pentru România)",
+    "forecastGShort": "g prognozat",
+    "terminalGShort": "g terminal",
+    "scenario": "Scenariu",
+    "inputsPrefix": "Date de intrare: Rf",
+    "inputsRfSrc": "(obligațiuni suverane românești pe 10 ani, în RON)",
+    "inputsErpSrc": "(România piață emergentă matură, Damodaran)",
+    "inputsTail": "— valori implicite de piață, nederivate din balanța de verificare încărcată. Tratați acest DCF ca o verificare ilustrativă a intervalului de mai sus; evaluarea principală provine din metoda motorului pentru această companie.",
+    "grahamTitle": "Valoare intrinsecă Graham",
+    "netIncomeTtm": "Profit net (ultimele 12 luni)",
+    "grahamFairValue": "Valoarea justă Graham a capitalului propriu",
+    "grahamNote": "g și Y sunt valori implicite, nederivate din balanța de verificare încărcată — doar o verificare ilustrativă.",
+    "multiPeriodGrowth": "Creștere multi-perioadă",
+    "metric": "Indicator",
+    "compositeCreditScore": "Scor de credit compozit",
+    "creditRating": "Rating de credit",
+    "compositeScoreLabel": "Scor compozit",
+    "component": "Componentă",
+    "value": "Valoare",
+    "contribution": "Contribuție",
+    "read": "Interpretare",
+    "piotroskiTitle": "Scor F Piotroski",
+    "piotroskiSub": "Filtru de calitate în 9 puncte",
+    "confirmed": "confirmate",
+    "checksUncertain_one": "{{count}} verificare incertă (lipsesc datele perioadei anterioare)",
+    "checksUncertain_few": "{{count}} verificări incerte (lipsesc datele perioadei anterioare)",
+    "checksUncertain_other": "{{count}} de verificări incerte (lipsesc datele perioadei anterioare)",
+    "check": "Verificare",
+    "result": "Rezultat",
+    "detail": "Detaliu",
+    "altmanThresholds": "≥ {{safe}} sigur · {{distress}}–{{safe}} gri · < {{distress}} dificultate",
+    "safeZone": "Zonă sigură",
+    "greyZone": "Zonă gri",
+    "distress": "Dificultate",
+    "coefficient": "Coeficient",
+    "weighted": "Ponderat",
+    "altmanScoreLabel": "Scor Altman {{variant}}",
+    "caveat": "Atenție:",
+    "loadingPreview": "Se încarcă previzualizarea…",
+    "previewSheetCaption": "{{file}} · foaia „{{sheet}}” (exemplu — date fictive)",
+    "previewLoadFailed": "Previzualizarea nu a putut fi încărcată: {{msg}}.",
+    "downloadInstead": "Descărcați în schimb"
+  },
+  "tabs": {
+    "pl": "Cont de profit și pierdere",
+    "balance_sheet": "Bilanț",
+    "cash_flow": "Flux de numerar",
+    "ratios": "Indicatori",
+    "valuation": "Evaluare",
+    "risks": "Riscuri și credit",
+    "export": "Export",
+    "hint_pl": "Necesită un cont de profit și pierdere, o balanță de verificare sau un raport anual — ",
+    "hint_balance_sheet": "Necesită un bilanț, o balanță de verificare sau un raport anual — ",
+    "hint_cash_flow": "Necesită un bilanț + cont de profit și pierdere (sau balanță de verificare) — ",
+    "hint_ratios": "Necesită un bilanț, un cont de profit și pierdere sau o balanță de verificare — ",
+    "hint_valuation": "Necesită un bilanț ȘI un cont de profit și pierdere — ",
+    "hint_risks": "Necesită un bilanț, un cont de profit și pierdere sau o balanță de verificare — ",
+    "hint_recommendations": "Necesită un bilanț, un cont de profit și pierdere sau o balanță de verificare — ",
+    "hint_suffix": "încarcă o situație financiară sau un exemplu pentru a activa această vizualizare."
+  },
+  "ws": {
+    "settingsEyebrow": "Setările workspace-ului",
+    "manageTitle": "Gestionează <grad>{{name}}</grad>.",
+    "thisWorkspace": "acest workspace",
+    "settingsSubtitleEdit": "Redenumește acest workspace, ajustează regulile de decizie care îi clasifică produsele, reia configurarea ghidată sau șterge-l. Modificările se aplică doar acestui workspace.",
+    "settingsSubtitle": "Redenumește acest workspace, ajustează regulile de decizie care îi clasifică produsele sau șterge-l. Modificările se aplică doar acestui workspace.",
+    "deletedRestorable": "„{{name}}” a fost șters — poate fi recuperat timp de 30 de zile.",
+    "cantDeleteWorkspace": "Nu am putut șterge acel workspace.",
+    "workspaceFallback": "Workspace",
+    "loadErrorTitle": "Nu am putut încărca workspace-ul.",
+    "loadErrorBody": "Lista de workspace-uri nu a venit de la server. Datele tale sunt în siguranță — încearcă din nou peste puțin timp.",
+    "setupTitle": "Configurează-ți <grad>workspace-ul</grad>.",
+    "setupSubtitle": "Denumește-ți workspace-ul, ajustează regulile de decizie care îți clasifică produsele și încarcă-ți datele — trei pași rapizi și CFO AI e gata de analiză.",
+    "stepName": "Nume",
+    "stepRules": "Reguli de decizie",
+    "stepUpload": "Încărcare",
+    "workbookImported": "Fișier importat",
+    "workbookImportedDesc_one": "{{count}} SKU clasificat. Workspace-ul tău este gata.",
+    "workbookImportedDesc_few": "{{count}} SKU-uri clasificate. Workspace-ul tău este gata.",
+    "workbookImportedDesc_other": "{{count}} de SKU-uri clasificate. Workspace-ul tău este gata.",
+    "backendNotRunning": "Backend-ul nu rulează. Pornește API-ul motorului și încearcă din nou.",
+    "uploadLater": "Încarc mai târziu",
+    "skipForNow": "Sari peste — deschide dashboard-ul",
+    "stepNameTitle": "Denumește-ți workspace-ul",
+    "stepNameBody": "Dă-i acestui workspace un nume ușor de recunoscut — de obicei firma sau entitatea pe care o analizezi.",
+    "namePlaceholder": "ex. Scandia Food SRL",
+    "industryHint": "Alege cea mai apropiată variantă — CFO AI aplică benchmark-uri specifice industriei. Un Datorii/EBITDA de 4× e normal în imobiliare și alarmant în B2B SaaS.",
+    "stepRulesTitle": "Setează regulile de decizie",
+    "stepRulesBody": "Aceste reguli clasifică fiecare produs în Protejează / Monitorizează / Restrânge. Alege un preset sau ajustează pragurile — le poți schimba oricând din Produse.",
+    "stepUploadTitle": "Încarcă-ți datele",
+    "stepUploadBody": "Trage un Excel sau CSV cu vânzări, marjă și stoc pe SKU. CFO AI clasifică fiecare produs după regulile pe care tocmai le-ai setat.",
+    "unsupportedFile": "Fișier neacceptat",
+    "unsupportedFileDesc": "Trage un fișier .xlsx sau .csv.",
+    "importing": "Îți importăm fișierul…",
+    "dropWorkbook": "Trage fișierul aici",
+    "uploadFormats": "XLSX · CSV · până la 25 MB",
+    "notSignedIn": "Nu ești autentificat.",
+    "cantDeleteFile": "Nu am putut șterge „{{name}}”.",
+    "currentMonthUndeletable": "{{label}} este luna curentă — nu poate fi ștearsă.",
+    "keepOnePeriod": "Un workspace păstrează cel puțin o perioadă — adaugă alta mai întâi.",
+    "periodDeleted": "„{{label}}” a fost șters.",
+    "filesMovedToDeleted_one": "{{count}} fișier mutat în Șterse recent — recuperabil timp de 30 de zile.",
+    "filesMovedToDeleted_few": "{{count}} fișiere mutate în Șterse recent — recuperabile timp de 30 de zile.",
+    "filesMovedToDeleted_other": "{{count}} de fișiere mutate în Șterse recent — recuperabile timp de 30 de zile.",
+    "cantDeletePeriod": "Nu am putut șterge acea perioadă.",
+    "addPeriod": "Adaugă perioadă",
+    "periodsTitle": "Perioade",
+    "periodsBodyCreate": "Fiecare perioadă este o lună a acestui workspace. Creează una și atașează-i balanța de verificare când ești pregătit.",
+    "periodsBodyCompact": "Fiecare perioadă este o lună a acestui workspace; atașează-i balanța de verificare când ești pregătit. Schimbă perioada analizată din săgețile de lângă lună, în bara laterală.",
+    "periodsBody": "Fiecare perioadă este o lună a acestui workspace; atașează-i balanța de verificare când ești pregătit.",
+    "noFilesAttached": "Niciun fișier atașat",
+    "fileCount_one": "{{count}} fișier",
+    "fileCount_few": "{{count}} fișiere",
+    "fileCount_other": "{{count}} de fișiere",
+    "noPeriodSelected": "Nicio perioadă selectată",
+    "currentMonthKept": "Luna curentă se păstrează întotdeauna — acolo ajunge încărcarea de azi",
+    "keepOnePeriodTitle": "Un workspace păstrează cel puțin o perioadă — adaugă alta înainte să o ștergi pe aceasta",
+    "deletePeriodTitle": "Șterge această perioadă",
+    "deletePeriod": "Șterge perioada",
+    "trialBalance": "Balanță de verificare",
+    "untitledFile": "Fișier fără nume",
+    "statusFailed": "eșuat",
+    "statusAnalyzing": "se analizează…",
+    "documentFallback": "document",
+    "thisFile": "acest fișier",
+    "fileFallback": "fișier",
+    "deleteThisFile": "Șterge acest fișier",
+    "deleteFileTitle": "Ștergi acest fișier?",
+    "deleteFileBody": "„{{name}}” este eliminat din această perioadă împreună cu analiza derivată din el. Fișierul se mută în Șterse recent și poate fi recuperat timp de 30 de zile.",
+    "deleteFile": "Șterge fișierul",
+    "deletePeriodDialogTitle": "Ștergi {{label}}?",
+    "thisPeriod": "această perioadă",
+    "deletePeriodEmptyBody": "Această perioadă nu are fișiere — ștergerea ei elimină doar containerul gol.",
+    "deletePeriodBody": "Aceasta elimină perioada și tot ce derivă din ea — situații financiare, indicatori, evaluare, briefing și alerte. Fișierele încărcate se mută în Șterse recent și rămân recuperabile 30 de zile, dar analiza nu poate fi recuperată; o reîncărcare o reconstruiește.",
+    "addPeriodDialogTitle": "Adaugă o perioadă",
+    "addPeriodDialogDesc": "Alege luna. Atașarea balanței de verificare acum este opțională — perioada există oricum, iar luna aleasă e cea sub care se arhivează orice analiză, indiferent ce spune numele fișierului.",
+    "periodLabel": "Perioadă",
+    "duplicateWithFile": "Acest workspace are deja {{month}} — acest fișier înlocuiește analiza acelei perioade.",
+    "duplicateNoFile": "Acest workspace are deja {{month}}. Alege altă lună sau atașează un fișier pentru a înlocui analiza acelei perioade.",
+    "chooseDifferentFile": "Apasă pentru a alege alt fișier",
+    "dropTrialBalance": "Trage balanța de verificare sau apasă pentru a răsfoi",
+    "attachLater": "Opțional — o poți atașa mai târziu de pe cardul perioadei",
+    "mismatchText": "Fișierul pare să fie din <1>{{fileMonth}}</1>, dar perioada este setată pe <2>{{month}}</2>.",
+    "useFileDate": "Folosește data fișierului ({{month}})",
+    "keepMonth": "Păstrează {{month}}",
+    "creating": "Se creează…",
+    "periodAddedAnalyzing": "{{label}} adăugată — se analizează {{file}}…",
+    "periodReady": "{{label}} este gata.",
+    "cantAnalyzeFile": "Nu am putut analiza acel fișier.",
+    "periodAdded": "{{label}} adăugată.",
+    "noFileYet": "Niciun fișier încă — atașează-i balanța de verificare oricând, de pe cardul perioadei.",
+    "cantAddPeriod": "Nu am putut adăuga acea perioadă.",
+    "noPeriods": "Nicio perioadă",
+    "noneSelected": "Niciun workspace nu este selectat. Alege unul mai jos pentru a-i încărca datele peste tot.",
+    "workspaceRestored": "„{{name}}” a fost restaurat.",
+    "cantRestoreWorkspace": "Nu am putut restaura acel workspace.",
+    "creatingWorkspace": "Se creează un workspace",
+    "createWorkspace": "Creează workspace",
+    "selectWorkspaceAria": "Selectează {{name}}",
+    "activeWorkspace": "Workspace activ",
+    "untitledWorkspace": "Workspace fără nume",
+    "noIndustrySet": "Industrie nesetată",
+    "deletesInDays_one": "Se șterge într-o zi",
+    "deletesInDays_few": "Se șterge în {{count}} zile",
+    "deletesInDays_other": "Se șterge în {{count}} de zile",
+    "deletingSoon": "Se șterge în curând",
+    "workspacePurged": "„{{name}}” a fost șters definitiv.",
+    "purgeTitle": "Ștergi definitiv „{{name}}”?",
+    "purgeBody": "Aceasta șterge workspace-ul și tot ce conține — documente încărcate, perioade financiare, analize, alerte și istoricul conversațiilor. Nu există fereastra de recuperare de 30 de zile pentru această acțiune. Nu poate fi anulată.",
+    "typeToConfirm": "Scrie <1>{{name}}</1> pentru a confirma",
+    "purgeConfirm": "Șterge definitiv",
+    "allWorkspaces": "Toate workspace-urile",
+    "renameBody": "Redenumește acest workspace — de obicei firma sau entitatea pe care o analizezi.",
+    "finishEditingName": "Termină editarea numelui workspace-ului",
+    "editWorkspaceName": "Editează numele workspace-ului",
+    "finishEditing": "Termină editarea",
+    "industryBody": "Setează benchmark-urile sectoriale după care CFO AI evaluează acest workspace. Schimb-o dacă industria firmei a fost setată greșit — un Datorii/EBITDA de 4× e normal în imobiliare și alarmant în SaaS.",
+    "rulesBody": "Aceste reguli clasifică fiecare produs în Protejează / Monitorizează / Restrânge. Ajustează pragurile, apoi apasă Aplică modificările — dacă pleci fără să aplici, se pierd.",
+    "setupDataTitle": "Configurare și date",
+    "setupDataBody": "Ștergerea ascunde acest workspace și tot ce conține. Îl poți restaura timp de 30 de zile, după care documentele, perioadele și analizele lui sunt șterse definitiv. Dacă e ultimul tău workspace, revii la o pagină goală pentru a crea unul nou.",
+    "resetToDefault": "Resetează la valorile implicite",
+    "deleteWorkspace": "Șterge workspace-ul",
+    "unsavedChanges": "Ai modificări nesalvate.",
+    "applyChanges": "Aplică modificările",
+    "settingsApplied": "Setările workspace-ului au fost aplicate.",
+    "rulesReset": "Regulile de decizie au fost resetate la valorile implicite.",
+    "unsavedGuard": "Ai modificări neaplicate la setările acestui workspace. Dacă pleci acum, se pierd.\n\nPleci fără să le aplici?",
+    "deleteWorkspaceTitle": "Ștergi „{{name}}”?",
+    "deleteWorkspaceBody": "Aceasta ascunde workspace-ul și tot ce conține — documente, perioade, analize și conversații. Îl poți restaura din „Șterse recent” timp de 30 de zile, după care este șters definitiv.",
+    "leaveBody": "Ai schimbat setările acestui workspace, dar nu le-ai aplicat. Dacă pleci acum, modificările se pierd.",
+    "keepEditing": "Continuă editarea",
+    "applyAndLeave": "Aplică și pleacă",
+    "discardAndLeave": "Renunță și pleacă"
+  },
+  "chatX": {
+    "disclosure": "CFO AI poate răspunde și la întrebări generale — răspunsurile care nu provin din datele workspace-ului tău pot să nu fie actuale sau verificate. Verifică detaliile fiscale/de reglementare înainte să acționezi.",
+    "groundedIn": "Ancorat în",
+    "yourWorkspace": "workspace-ul tău",
+    "yourCompany": "compania ta",
+    "noWorkspaceMode": "Niciun workspace încărcat — mod general",
+    "pageTitle": "Întreabă orice despre <grad>compania, documentele sau finanțele tale</grad>.",
+    "pageSubtitle": "CFO AI răspunde din workspace-ul încărcat — Cont de profit și pierdere, Bilanț, Flux de numerar, indicatori, evaluare, riscuri și recomandări — citând perioada și cifrele folosite. Fără un workspace încărcat, răspunde în continuare la întrebări generale de finanțe, contabilitate și strategie. Alege un exemplu de mai jos sau scrie propria întrebare.",
+    "askAboutPlaceholder": "Întreabă despre {{name}}…",
+    "askAnythingPlaceholder": "Întreabă CFO AI orice…",
+    "new": "Nouă",
+    "openPage": "Deschide pagina →",
+    "noWorkspacePill": "Niciun workspace selectat — afectează răspunsurile",
+    "noWorkspacePillTitle": "Niciun workspace nu este selectat, așa că răspunsurile nu pot fi ancorate în datele companiei tale.",
+    "suggestedQuestions": "Întrebări sugerate",
+    "basedOnIndustry": "· pe baza domeniului workspace-ului tău ({{industry}})",
+    "emptyTitleCompany": "Întreabă orice despre <1>{{name}}</1>.",
+    "emptyTitleGeneral": "Întreabă orice despre finanțele companiei tale.",
+    "emptyBodyGrounded": "CFO AI îți poate explica cifrele, compara perioadele și te ajută să înțelegi ce contează. Răspunde și la întrebări generale de finanțe, strategie și contabilitate.",
+    "emptyBodyGeneral": "Încarcă o perioadă pentru a ancora răspunsurile în propriile tale cifre. Între timp, întreabă orice — finanțe, strategie, contabilitate sau despre aplicație.",
+    "pausedPlaceholder": "Conversația este în pauză — vezi bannerul de mai sus",
+    "seePlans": "Vezi planurile",
+    "attachAria": "Atașează un document",
+    "enterHint": "Enter pentru trimitere · Shift+Enter pentru rând nou",
+    "stopGenerating": "Oprește generarea",
+    "sendMessage": "Trimite mesajul",
+    "historyAria": "Istoricul conversațiilor",
+    "searchChats": "Caută în conversații",
+    "newChat": "Conversație nouă",
+    "deleteConversation": "Șterge conversația",
+    "noConversations": "Nicio conversație încă",
+    "noConversationsHint": "Începe prin a întreba CFO AI despre cifrele tale.",
+    "noMatches": "Niciun rezultat pentru „{{query}}”.",
+    "msgCount": "{{count}} msj",
+    "interrupted": "Întrerupt",
+    "prompts": {
+      "ws": {
+        "risk": {
+          "title": "Cel mai mare risc financiar",
+          "prompt": "Care este cel mai mare risc financiar al nostru acum? Citează perioada și cifrele folosite."
+        },
+        "cashFlow": {
+          "title": "Poziția fluxului de numerar",
+          "prompt": "Explică poziția noastră actuală de flux de numerar, pe înțelesul echipei de management."
+        },
+        "pnl": {
+          "title": "Rezumă ultimul P&L",
+          "prompt": "Rezumă ultimul cont de profit și pierdere: venituri, EBITDA, profit net și ce s-a schimbat."
+        },
+        "workingCapital": {
+          "title": "Variația capitalului de lucru",
+          "prompt": "Ce s-a schimbat în capitalul de lucru în această perioadă? Explică-mi componentele."
+        },
+        "dscr": {
+          "title": "Calculează DSCR",
+          "prompt": "Calculează DSCR (doar chirie și inclusiv dividende) și spune-mi cum se compară cu un covenant de 1,25×."
+        },
+        "yoy": {
+          "title": "An peste an",
+          "prompt": "Compară anul acesta cu anul trecut pe indicatorii principali. Unde am progresat și unde am pierdut teren?"
+        },
+        "leverage": {
+          "title": "Poziția de îndatorare",
+          "prompt": "Explică poziția noastră de îndatorare (Datorii/EBITDA, datorie netă, rata capitalurilor proprii) și dacă este sustenabilă."
+        },
+        "liquidity": {
+          "title": "Întrebări despre lichiditate",
+          "prompt": "Ce întrebări ar trebui să pun despre lichiditate pentru următoarea ședință de consiliu?"
+        }
+      },
+      "gen": {
+        "ras": {
+          "title": "Cum citești o balanță RAS",
+          "prompt": "Cum citesc o balanță de verificare românească (RAS)? Explică-mi clasele 1–7."
+        },
+        "evEbitda": {
+          "title": "EV/EBITDA în industria alimentară",
+          "prompt": "Care e un interval tipic EV/EBITDA pentru producția alimentară din România și ce determină diferențele?"
+        },
+        "erp": {
+          "title": "ERP Damodaran pentru piețe emergente",
+          "prompt": "Explică abordarea lui Damodaran pentru estimarea primei de risc de capital pe piețele emergente."
+        },
+        "rasIfrs": {
+          "title": "RAS vs IFRS",
+          "prompt": "Care sunt diferențele-cheie dintre RAS și IFRS pe care ar trebui să le știu ca CFO?"
+        },
+        "dscrVsIc": {
+          "title": "DSCR vs acoperirea dobânzii",
+          "prompt": "Care e diferența dintre DSCR și acoperirea dobânzii și când contează fiecare pentru un creditor?"
+        },
+        "ccc": {
+          "title": "Ciclul de conversie a numerarului",
+          "prompt": "Explică-mi ciclul de conversie a numerarului și ce măsoară fiecare componentă (DSO, DIO, DPO)."
+        },
+        "lenderBrief": {
+          "title": "Brief de 3 întrebări pentru bancă",
+          "prompt": "Ajută-mă să redactez un brief de 3 întrebări pentru creditor, pentru un vehicul imobiliar cu un singur activ."
+        },
+        "distress": {
+          "title": "Semnale de dificultate",
+          "prompt": "Care sunt semnalele timpurii de dificultate financiară pe care un CFO ar trebui să le urmărească într-o afacere intensivă în capital de lucru?"
+        }
+      },
+      "ind": {
+        "real_estate": {
+          "capRates": {
+            "title": "Cap rate vs DCF",
+            "prompt": "Când evaluez un vehicul imobiliar comercial, când ar trebui să mă bazez pe evaluarea prin cap rate și când pe un DCF complet, și cum se reconciliază cele două?"
+          },
+          "dscr": {
+            "title": "DSCR pentru un credit imobiliar",
+            "prompt": "Explică-mi cum calculează un creditor DSCR și ICR pentru un credit imobiliar comercial și ce niveluri de covenant sunt uzuale."
+          },
+          "navCascade": {
+            "title": "Cascada NAV, explicată",
+            "prompt": "Explică-mi cascada NAV pentru o companie imobiliară cu un singur activ: NAV contabil, NAV ajustat, EPRA NNNAV și NAV de lichidare."
+          },
+          "vacancy": {
+            "title": "Sensibilitatea la neocupare",
+            "prompt": "Cum testez la stres NOI-ul și serviciul datoriei în scenarii de neocupare și de indexare a chiriilor pentru un activ de birouri/retail?"
+          },
+          "refi": {
+            "title": "Zidul refinanțării",
+            "prompt": "Creditul meu imobiliar ajunge la scadență în 2 ani. Ce ar trebui să pregătesc de acum pentru a reduce riscul refinanțării și ce vor analiza creditorii?"
+          },
+          "wault": {
+            "title": "WAULT și calitatea contractelor",
+            "prompt": "Ce este WAULT și cum influențează durata contractelor de închiriere, opțiunile de reziliere și soliditatea chiriașilor valoarea unei proprietăți?"
+          },
+          "rateHedging": {
+            "title": "Acoperirea riscului de dobândă",
+            "prompt": "Ar trebui ca un vehicul imobiliar îndatorat să-și acopere datoria cu dobândă variabilă? Compară cap-uri, swap-uri și varianta fără hedging."
+          }
+        },
+        "real_estate_residential": {
+          "occupancy": {
+            "title": "Economia gradului de ocupare",
+            "prompt": "Cum se reflectă gradul de ocupare, rotația chiriașilor și perioadele de reînchiriere în NOI-ul unui portofoliu rezidențial de închiriere?"
+          },
+          "rentRoll": {
+            "title": "Cum citești un rent roll",
+            "prompt": "La ce ar trebui să se uite un CFO când auditează un rent roll rezidențial — semnale de alarmă, concentrare, tipare de restanțe?"
+          },
+          "yieldOnCost": {
+            "title": "Yield on cost vs yield de piață",
+            "prompt": "Explică-mi diferența dintre yield-on-cost și yield-ul de piață pentru un proiect build-to-rent și când o dezvoltare nu mai are sens."
+          },
+          "debtSizing": {
+            "title": "Dimensionarea datoriei pentru BTR",
+            "prompt": "Cum dimensionează creditorii datoria pentru active rezidențiale de închiriere și de ce gradul de îndatorare e de obicei mai mic decât la comercial?"
+          },
+          "opexRatios": {
+            "title": "Ponderea cheltuielilor operaționale",
+            "prompt": "Ce pondere a cheltuielilor operaționale e normală pentru închirieri rezidențiale și ce linii de cost ascund de obicei ineficiențe?"
+          },
+          "exitCap": {
+            "title": "Ipoteze de exit cap rate",
+            "prompt": "Cât de sensibilă e valoarea de exit la cap rate-ul presupus la ieșire și cum aleg unul ușor de apărat?"
+          },
+          "regRisk": {
+            "title": "Risc de reglementare",
+            "prompt": "Ce riscuri de reglementare și de plafonare a chiriilor ar trebui să monitorizeze un proprietar rezidențial și cum afectează ele evaluarea?"
+          },
+          "portfolioVsSingle": {
+            "title": "Portofoliu vs activ unic",
+            "prompt": "Când are sens să ții unitățile rezidențiale într-un singur vehicul și când să le împarți în SPV-uri separate?"
+          }
+        },
+        "saas": {
+          "arr": {
+            "title": "ARR, NRR și GRR",
+            "prompt": "Definește precis ARR, NRR și GRR și spune-mi pe care pun investitorii cel mai mare accent și de ce."
+          },
+          "ruleOf40": {
+            "title": "Regula lui 40",
+            "prompt": "Explică-mi Regula lui 40 pentru SaaS, cum o calculez din P&L-ul meu și ce semnalează de fapt o ratare."
+          },
+          "cacPayback": {
+            "title": "Recuperarea CAC",
+            "prompt": "Explică-mi CAC payback și LTV/CAC — de ce date am nevoie și ce praguri sunt sănătoase pentru un SaaS B2B?"
+          },
+          "burnMultiple": {
+            "title": "Burn multiple",
+            "prompt": "Ce este burn multiple, cum îl calculez și cum arată un nivel bun la stadiul meu?"
+          },
+          "grossMargin": {
+            "title": "Marja brută în SaaS",
+            "prompt": "Ce intră în costul veniturilor la un SaaS și ce interval de marjă brută așteaptă cumpărătorii la scară?"
+          },
+          "churnCohorts": {
+            "title": "Cohorte de churn",
+            "prompt": "Cum ar trebui să construiesc o analiză de retenție pe cohorte și ce tipare de churn afectează cel mai mult evaluarea?"
+          },
+          "deferredRevenue": {
+            "title": "Venituri în avans",
+            "prompt": "Explică-mi veniturile în avans și diferența dintre facturare și venit la contractele SaaS cu plată anuală anticipată — ce trebuie să facă bine un CFO?"
+          },
+          "multiples": {
+            "title": "Multipli de evaluare SaaS",
+            "prompt": "Cum se evaluează azi companiile SaaS B2B — multipli de venit vs EBITDA, și ce determină diferențele?"
+          }
+        },
+        "fmcg": {
+          "ccc": {
+            "title": "Ciclul de conversie a numerarului",
+            "prompt": "Explică-mi ciclul de conversie a numerarului pentru un distribuitor FMCG și ce măsoară de fapt fiecare componentă (DSO, DIO, DPO)."
+          },
+          "inventoryTurns": {
+            "title": "Rotația stocurilor",
+            "prompt": "Ce rotație a stocurilor e sănătoasă în distribuția de alimente și băuturi și cum depistez din timp stocurile cu mișcare lentă?"
+          },
+          "tradeDiscounts": {
+            "title": "Discounturi comerciale și promoții",
+            "prompt": "Cum ar trebui contabilizate discounturile comerciale, promoțiile și bonusurile către retaileri și cum distorsionează ele marja brută?"
+          },
+          "marginVsPeers": {
+            "title": "Structura marjei vs competitori",
+            "prompt": "Descompune un P&L tipic de distribuție FMCG ca procent din venituri și spune-mi unde ar putea devia al meu față de competitori."
+          },
+          "retailerTerms": {
+            "title": "Termenele de plată ale retailerilor",
+            "prompt": "Marile lanțuri de retail mă plătesc la 60–90 de zile. Ce opțiuni de finanțare există pentru acest decalaj de creanțe și cât costă?"
+          },
+          "privateLabel": {
+            "title": "Presiunea mărcilor proprii",
+            "prompt": "Cum amenință creșterea mărcilor proprii un portofoliu FMCG de brand și ce pârghii protejează marja?"
+          },
+          "fxImports": {
+            "title": "Riscul valutar la importuri",
+            "prompt": "O parte din costul mărfurilor mele sunt importuri în EUR. Cum ar trebui să abordez hedgingul valutar ca afacere cu venituri în RON?"
+          }
+        },
+        "manufacturing": {
+          "fixedCostLeverage": {
+            "title": "Levierul costurilor fixe",
+            "prompt": "Explică-mi levierul operațional la un producător: cum se reflectă variațiile gradului de utilizare în EBITDA și cum îmi găsesc volumul de break-even."
+          },
+          "capexVsDepreciation": {
+            "title": "Capex vs amortizare",
+            "prompt": "Amortizarea mea cumulată e mare raportată la imobilizările brute. Cum dimensionez un plan de capex de modernizare și cum îl finanțez?"
+          },
+          "energyHedging": {
+            "title": "Acoperirea costurilor cu energia",
+            "prompt": "Energia e o linie majoră de cost. Ce strategii de hedging și de contractare ar trebui să ia în calcul un producător de talie medie?"
+          },
+          "evEbitda": {
+            "title": "EV/EBITDA pentru industriale",
+            "prompt": "Ce interval EV/EBITDA se aplică producătorilor industriali din România și ce împinge o companie spre partea lui de sus?"
+          },
+          "workingCapital": {
+            "title": "Capitalul de lucru în producție",
+            "prompt": "Cum blochează numerar materiile prime, producția în curs și produsele finite, și unde supra-investesc de obicei producătorii?"
+          },
+          "makeVsBuy": {
+            "title": "Produci sau cumperi",
+            "prompt": "Dă-mi un cadru de CFO pentru deciziile produci-sau-cumperi, inclusiv dimensiunile de cost fix și calitate pe care lumea le ratează."
+          },
+          "ras": {
+            "title": "Cum citești o balanță RAS",
+            "prompt": "Cum citesc o balanță de verificare românească (RAS)? Explică-mi clasele 1–7."
+          },
+          "customerConcentration": {
+            "title": "Concentrarea clienților",
+            "prompt": "Câțiva clienți B2B îmi domină veniturile. Cum cuantific riscul de concentrare și ce măsuri de atenuare contează pentru creditori?"
+          }
+        },
+        "retail_ecom": {
+          "inventoryMarkdowns": {
+            "title": "Rotația stocurilor și reducerile",
+            "prompt": "Cum influențează rotația stocurilor și disciplina reducerilor profitabilitatea în retail și ce indicatori ar trebui să urmăresc săptămânal?"
+          },
+          "contributionPerOrder": {
+            "title": "Contribuția pe comandă",
+            "prompt": "Construiește-mi un model de marjă de contribuție pe comandă pentru e-commerce: ce intră în el și care e o țintă sănătoasă?"
+          },
+          "repeatCohorts": {
+            "title": "Rata de recumpărare și cohorte",
+            "prompt": "Cum schimbă rata de recumpărare și LTV-ul pe cohorte cât îmi permit să cheltuiesc pe achiziția de clienți?"
+          },
+          "seasonalWc": {
+            "title": "Capital de lucru sezonier",
+            "prompt": "Cum ar trebui să-și planifice un retailer sezonier finanțarea capitalului de lucru în jurul acumulării de stocuri dinaintea sezonului de vârf?"
+          },
+          "returns": {
+            "title": "Contabilitatea retururilor",
+            "prompt": "Cum ar trebui contabilizate retururile de produse și la ce rată de retur o categorie nu mai e viabilă?"
+          },
+          "storeVsOnline": {
+            "title": "P&L magazin vs online",
+            "prompt": "Cum împart un P&L între magazinele fizice și online astfel încât profitabilitatea pe canal să fie corectă — inclusiv costurile comune?"
+          },
+          "cashConversion": {
+            "title": "Conversia numerarului",
+            "prompt": "Explică-mi ciclul de conversie a numerarului în retail și cum poate capitalul de lucru negativ să finanțeze creșterea."
+          },
+          "distress": {
+            "title": "Semnale de dificultate",
+            "prompt": "Care sunt semnalele timpurii de dificultate financiară pe care un CFO ar trebui să le urmărească într-o afacere de retail?"
+          }
+        },
+        "professional_services": {
+          "utilization": {
+            "title": "Utilizare și realizare",
+            "prompt": "Definește ratele de utilizare și realizare pentru o firmă de servicii și arată-mi cum scăderi mici se cumulează în erodarea marjei."
+          },
+          "leverageModel": {
+            "title": "Modelul de levier al echipei",
+            "prompt": "Explică-mi modelul de levier (raporturile partener : senior : junior) și cum determină el profitabilitatea în serviciile profesionale."
+          },
+          "wip": {
+            "title": "WIP și creanțe nefacturate",
+            "prompt": "Cum ar trebui să gestionez și să contabilizez producția în curs (WIP) și creanțele nefacturate, și când devin ele un semnal de alarmă?"
+          },
+          "pricingModels": {
+            "title": "Modele de tarifare",
+            "prompt": "Compară facturarea pe oră, onorariul fix și tarifarea pe valoare din perspectiva unui CFO asupra riscului de marjă."
+          },
+          "revenuePerFte": {
+            "title": "Venit per angajat (FTE)",
+            "prompt": "Ce benchmarkuri de venit per FTE și profit per partener se aplică firmelor de servicii profesionale și cum le îmbunătățesc pe ale mele?"
+          },
+          "projectProfitability": {
+            "title": "Profitabilitatea proiectelor",
+            "prompt": "Proiectează-mi un raport simplu de profitabilitate pe proiect care prinde din timp extinderea scopului și sub-recuperarea."
+          },
+          "valuation": {
+            "title": "Evaluarea unei firme de servicii",
+            "prompt": "Cum se evaluează firmele de servicii profesionale și de ce afacerile dependente de oameni se tranzacționează cu discount?"
+          },
+          "partnerComp": {
+            "title": "Remunerarea partenerilor vs EBITDA",
+            "prompt": "Cum ar trebui normalizată remunerarea partenerilor când prezinți EBITDA unui cumpărător sau creditor?"
+          }
+        },
+        "construction": {
+          "poc": {
+            "title": "Metoda procentului de finalizare",
+            "prompt": "Explică-mi recunoașterea veniturilor prin metoda procentului de finalizare la contractele de construcții și unde merge de obicei prost."
+          },
+          "wipSchedule": {
+            "title": "Situația lucrărilor în curs",
+            "prompt": "Explică-mi cum citesc o situație a lucrărilor în curs (WIP): supra/sub-facturare, costuri estimate până la finalizare și analiza erodării marjei."
+          },
+          "retention": {
+            "title": "Garanții și facturare pe etape",
+            "prompt": "Cum modelează facturarea pe etape și clauzele de garanție de bună execuție fluxul de numerar în construcții și cum finanțez decalajele?"
+          },
+          "marginErosion": {
+            "title": "Erodarea marjei pe proiect",
+            "prompt": "Ce indicatori timpurii arată că marja unui proiect se erodează și ce ar trebui să declanșeze o reprognozare?"
+          },
+          "bonding": {
+            "title": "Garanții de execuție",
+            "prompt": "Explică-mi garanțiile de bună execuție și scrisorile de garanție bancară: cum se dimensionează, cât costă și cum limitează capacitatea."
+          },
+          "claims": {
+            "title": "Revendicări și lucrări suplimentare",
+            "prompt": "Cum ar trebui evaluate și recunoscute lucrările suplimentare și revendicările — și când devine venitul revendicat prea agresiv?"
+          },
+          "backlog": {
+            "title": "Calitatea portofoliului de comenzi",
+            "prompt": "Cum evaluez calitatea portofoliului de comenzi — contracte semnate vs acorduri-cadru vs pipeline — când prognozez veniturile de anul viitor?"
+          },
+          "subcontractorRisk": {
+            "title": "Riscul subcontractorilor",
+            "prompt": "Ce verificări de sănătate financiară a subcontractorilor ar trebui să facă un antreprenor general și ce se întâmplă când unul cedează în mijlocul proiectului?"
+          }
+        },
+        "healthcare": {
+          "payerMix": {
+            "title": "Mixul de plătitori",
+            "prompt": "Explică-mi mixul de plătitori pentru o clinică (CNAS vs privat vs plată directă) și cum determină el marja și riscul de creanțe."
+          },
+          "unitEconomics": {
+            "title": "Economia pe vizită",
+            "prompt": "Construiește-mi economia unitară pe vizită pentru o clinică: venit, cost direct, contribuție și capacitatea medicilor."
+          },
+          "equipmentCapex": {
+            "title": "Capex pentru echipamente",
+            "prompt": "Cum ar trebui să evaluez o achiziție majoră de echipamente medicale — praguri de utilizare, opțiuni de finanțare, perioada de recuperare?"
+          },
+          "staffCostRatio": {
+            "title": "Ponderea costurilor de personal",
+            "prompt": "Ce raport cost de personal / venituri e sustenabil în serviciile medicale și cum compar productivitatea clinicienilor cu piața?"
+          },
+          "insurerReceivables": {
+            "title": "Creanțe de la asigurători",
+            "prompt": "Creanțele de la asigurători și CNAS se încasează lent. Cum gestionez și finanțez această povară pe capitalul de lucru?"
+          },
+          "expansion": {
+            "title": "Calculul extinderii clinicii",
+            "prompt": "Dă-mi un cadru de decizie pentru deschiderea unei a doua locații: salturi de costuri fixe, curbe de creștere, canibalizare."
+          },
+          "regulatory": {
+            "title": "Expunerea la reglementare",
+            "prompt": "Ce riscuri de reglementare și de modificare a decontărilor ar trebui să testeze la stres în plan un CFO din sănătate?"
+          },
+          "fixedCostLeverage": {
+            "title": "Levierul costurilor fixe",
+            "prompt": "Sănătatea are costuri fixe mari. Cum se reflectă variațiile de volum în EBITDA și care e volumul meu de pacienți de break-even?"
+          }
+        },
+        "logistics": {
+          "routeEconomics": {
+            "title": "Economia pe rută",
+            "prompt": "Descompune economia pe rută pentru o companie de transport: ce intră în marja de contribuție pe kilometru?"
+          },
+          "fleetCapex": {
+            "title": "Capex de flotă și valori reziduale",
+            "prompt": "Cum ar trebui să planific reînnoirea flotei — leasing vs achiziție, riscul valorii reziduale și costul de a ține camioanele prea mult în uz?"
+          },
+          "fuelSurcharge": {
+            "title": "Suprataxa de carburant",
+            "prompt": "Explică-mi clauzele de suprataxă de carburant și cum îmi protejez marja când prețul motorinei sare brusc."
+          },
+          "loadFactor": {
+            "title": "Gradul de încărcare",
+            "prompt": "Cum influențează gradul de încărcare și ponderea kilometrilor pe gol profitabilitatea, și ce ținte sunt realiste?"
+          },
+          "driverCosts": {
+            "title": "Creșterea costurilor cu șoferii",
+            "prompt": "Salariile șoferilor cresc continuu. Cum includ asta în prețuri și când o rută nu mai e viabilă?"
+          },
+          "contractVsSpot": {
+            "title": "Mixul contracte vs spot",
+            "prompt": "Care e echilibrul corect între volumele contractate și transporturile pe piața spot, din perspectiva risc-randament?"
+          },
+          "valuation": {
+            "title": "Evaluarea unei firme de transport",
+            "prompt": "Ce multipli EV/EBITDA se aplică companiilor de logistică și transport și cum influențează vârsta flotei prețul?"
+          },
+          "workingCapital": {
+            "title": "Capitalul de lucru în transport",
+            "prompt": "Clienții plătesc târziu, șoferii și carburantul se plătesc acum. Cum dimensionez și finanțez acest decalaj de capital de lucru?"
+          }
+        },
+        "agriculture": {
+          "seasonality": {
+            "title": "Sezonalitate și flux de numerar",
+            "prompt": "Schițează-mi curba tipică a fluxului de numerar pe un an agricol și spune-mi cum dimensionez corect linia de credit sezonieră."
+          },
+          "subsidies": {
+            "title": "Subvenții APIA",
+            "prompt": "Cum ar trebui contabilizate și prognozate subvențiile APIA și fondurile UE, și cât de mult ar trebui să depindă planul de ele?"
+          },
+          "cropInventory": {
+            "title": "Evaluarea stocurilor de recoltă",
+            "prompt": "Cum se evaluează stocul de recoltă sub RAS și când ar trebui să vând vs să depozitez — care e calculul costului de stocare?"
+          },
+          "grainHedging": {
+            "title": "Acoperirea prețului cerealelor",
+            "prompt": "Ce instrumente de hedging există pentru prețul cerealelor și cum le-ar folosi concret o fermă de talie medie?"
+          },
+          "landLeaseVsOwn": {
+            "title": "Teren: arendă vs proprietate",
+            "prompt": "Compară arendarea cu achiziția de teren agricol din perspectiva randamentelor și a bilanțului."
+          },
+          "weatherRisk": {
+            "title": "Riscul meteo și de producție",
+            "prompt": "Cum cuantific riscul meteo și de producție în planul financiar și ce asigurări merită cumpărate?"
+          },
+          "euFunds": {
+            "title": "Fonduri UE pentru agricultură",
+            "prompt": "Ce programe de finanțare UE pot acoperi echipamente agricole și spații de depozitare, și cum îmi afectează cofinanțarea gradul de îndatorare?"
+          },
+          "storage": {
+            "title": "Economia depozitării",
+            "prompt": "Merită investiția în capacitate proprie de depozitare? Explică-mi decizia capex vs cost de stocare."
+          }
+        }
+      }
+    },
+    "cap": {
+      "dailyHeadline": "Ai atins limita zilnică Ask CFO AI",
+      "monthlyHeadline": "Ai atins limita lunară Ask CFO AI",
+      "body": "Ai atins plafonul de conversații al planului tău. Se resetează automat — sau treci la un plan superior pentru mai mult spațiu."
+    },
+    "errUnreachable": "Nu am putut contacta asistentul.",
+    "errTryAgain": "Încearcă din nou în câteva momente.",
+    "search": {
+      "noMatches": "Nicio potrivire",
+      "matchCount": "{{current}} din {{total}}",
+      "prevMatch": "Potrivirea anterioară",
+      "nextMatch": "Potrivirea următoare"
+    }
+  },
+  "panels": {
+    "docsToggleTitle": "Documente · ⌘D",
+    "docsLabel": "Documente",
+    "documents": "Documente",
+    "allYourUploads": "Toate încărcările tale",
+    "closeDocsAria": "Închide panoul de documente",
+    "loadingDocuments": "Se încarcă documentele…",
+    "activePeriod": "Perioada activă",
+    "otherPeriods": "Alte perioade",
+    "deletedPeriodToast": "{{label}} a fost șters",
+    "periodFallback": "perioada",
+    "docsMovedToDeleted_one": "{{count}} document mutat în Șterse recent.",
+    "docsMovedToDeleted_few": "{{count}} documente mutate în Șterse recent.",
+    "docsMovedToDeleted_other": "{{count}} de documente mutate în Șterse recent.",
+    "undoDelete": "Anulează ștergerea",
+    "undo": "Anulează",
+    "hideOlderPeriods_one": "Ascunde {{count}} perioadă mai veche",
+    "hideOlderPeriods_few": "Ascunde {{count}} perioade mai vechi",
+    "hideOlderPeriods_other": "Ascunde {{count}} de perioade mai vechi",
+    "showOlderPeriods_one": "Arată {{count}} perioadă mai veche",
+    "showOlderPeriods_few": "Arată {{count}} perioade mai vechi",
+    "showOlderPeriods_other": "Arată {{count}} de perioade mai vechi",
+    "recentlyDeletedHeading": "Șterse recent ({{count}}) · ștergere automată în 28 de zile",
+    "clearAll": "Golește tot",
+    "deletedOn": "Șters {{date}}",
+    "restore": "Restaurează",
+    "restoreAria": "Restaurează {{name}}",
+    "deletePermanentlyAria": "Șterge {{name}} definitiv",
+    "deletePermanentlyTitle": "Ștergere definitivă — nu poate fi anulată",
+    "deleteForever": "Șterge definitiv",
+    "deleteAllForever": "Șterge tot definitiv",
+    "deleteFilePermanentlyTitle": "Ștergi definitiv acest fișier?",
+    "deleteAllPermanentlyTitle_one": "Ștergi definitiv {{count}} fișier?",
+    "deleteAllPermanentlyTitle_few": "Ștergi definitiv toate cele {{count}} fișiere?",
+    "deleteAllPermanentlyTitle_other": "Ștergi definitiv toate cele {{count}} de fișiere?",
+    "deletePermanentlyFallbackTitle": "Ștergi definitiv?",
+    "deleteFilePermanentlyBody": "va fi șters definitiv. Această acțiune nu poate fi anulată.",
+    "deleteAllPermanentlyBody_one": "{{count}} fișier din Șterse recent va fi eliminat definitiv din stocare. Această acțiune nu poate fi anulată.",
+    "deleteAllPermanentlyBody_few": "Toate cele {{count}} fișiere din Șterse recent vor fi eliminate definitiv din stocare. Această acțiune nu poate fi anulată.",
+    "deleteAllPermanentlyBody_other": "Toate cele {{count}} de fișiere din Șterse recent vor fi eliminate definitiv din stocare. Această acțiune nu poate fi anulată.",
+    "noDocumentsYet": "Niciun document încă.",
+    "noDocumentsHint": "Încarcă din dashboard pentru a popula această listă.",
+    "docRestored": "Document restaurat",
+    "cantRestore": "Nu am putut restaura",
+    "permanentlyDeleted": "Șters definitiv",
+    "cantDeletePermanently": "Nu am putut șterge definitiv",
+    "recentlyDeletedCleared": "Șterse recent a fost golit",
+    "cantClear": "Nu am putut goli",
+    "viewing": "Afișat",
+    "noDocuments": "Fără documente",
+    "switch": "Comută",
+    "switchArrow": "Comută →",
+    "deleteLabelAria": "Șterge {{label}}",
+    "renamed": "Redenumit",
+    "cantRename": "Nu am putut redenumi",
+    "cantGenerateLink": "Nu am putut genera linkul de descărcare",
+    "rerunningAnalysis": "Se reia analiza",
+    "cantStartRerun": "Nu am putut porni reanalizarea",
+    "markedInactive": "Marcat inactiv",
+    "markedActive": "Marcat activ",
+    "cantUpdate": "Nu am putut actualiza",
+    "restorableFor30Days": "{{name}} — recuperabil timp de 30 de zile.",
+    "cantDelete": "Nu am putut șterge",
+    "viewAria": "Vezi {{name}}",
+    "viewFile": "Vezi fișierul",
+    "docActionsAria": "Acțiuni pentru document",
+    "rename": "Redenumește",
+    "preparing": "Se pregătește…",
+    "downloadOriginal": "Descarcă originalul",
+    "rerunAnalysis": "Reia analiza",
+    "markInactive": "Marchează inactiv",
+    "markActive": "Marchează activ",
+    "deleteDocTitle": "Ștergi {{name}}?",
+    "deleteDocBody": "Documentul este mutat în Șterse recent și poate fi restaurat în 30 de zile. După aceea este eliminat definitiv din stocare.",
+    "rel": {
+      "justNow": "chiar acum",
+      "minAgo": "acum {{count}} min",
+      "hourAgo": "acum {{count}} h",
+      "dayAgo_one": "acum o zi",
+      "dayAgo_few": "acum {{count}} zile",
+      "dayAgo_other": "acum {{count}} de zile",
+      "weekAgo_one": "acum o săptămână",
+      "weekAgo_few": "acum {{count}} săptămâni",
+      "weekAgo_other": "acum {{count}} de săptămâni",
+      "monthAgo_one": "acum o lună",
+      "monthAgo_few": "acum {{count}} luni",
+      "monthAgo_other": "acum {{count}} de luni",
+      "yearAgo_one": "acum un an",
+      "yearAgo_few": "acum {{count}} ani",
+      "yearAgo_other": "acum {{count}} de ani"
+    },
+    "datasetsToggleTitle": "Seturi de date · ⌘⇧D",
+    "datasetsLabel": "Seturi de date",
+    "salesAnalyses": "Analize de vânzări",
+    "closeDatasetsAria": "Închide panoul cu seturi de date",
+    "loadingDataset": "Se încarcă setul de date…",
+    "loadingDatasetDesc": "Se comută pe analiza selectată.",
+    "datasetRestored": "Set de date restaurat",
+    "otherDatasets": "Alte seturi de date ({{count}})",
+    "recentlyDeletedCount": "Șterse recent ({{count}})",
+    "reclassified_one": "{{count}} SKU reclasificat",
+    "reclassified_few": "{{count}} SKU-uri reclasificate",
+    "reclassified_other": "{{count}} de SKU-uri reclasificate",
+    "rerunFailed": "Reanalizarea a eșuat",
+    "datasetMovedToDeleted": "Setul de date a fost mutat în Șterse recent",
+    "comparingWith": "Se compară cu {{label}}",
+    "noDatasetsYet": "Niciun set de date de vânzări încă.",
+    "noDatasetsHint": "Trage o analiză de vânzări în zona de încărcare pentru a începe.",
+    "uploadSalesDataset": "Încarcă set de date de vânzări",
+    "datasetActionsAria": "Acțiuni pentru setul de date",
+    "skusFmt": "{{value}} SKU-uri",
+    "linesFmt": "{{value}} rânduri",
+    "switchToDataset": "Comută pe acest set de date",
+    "compareWithActive": "Compară cu cel activ",
+    "deleteDatasetBody": "Setul de date se mută în Șterse recent și poate fi restaurat în 30 de zile. Rândurile SKU se păstrează până la ștergerea definitivă; nimic nu este distrus imediat.",
+    "notificationsAttentionAria": "Notificări — {{count}} necesită atenție",
+    "notificationsDesc": "Alertele deschise pentru acest workspace, cele mai noi primele.",
+    "notificationsEmpty": "Ești la zi.",
+    "notificationsEmptyHint": "Alertele apar aici după ce o perioadă a fost analizată.",
+    "navigation": "Navigare",
+    "usage": {
+      "seeInvoice": "Vezi factura următoare",
+      "upgradePro": "Treci la Pro",
+      "docsAll": "Ai folosit toate cele {{cap}} documente din această lună.",
+      "docsSome": "Ai folosit {{used}} din {{cap}} documente în această lună.",
+      "chatDay": "Ai folosit {{used}} din {{cap}} mesaje Ask CFO AI astăzi.",
+      "chatMonth": "Ai folosit {{used}} din {{cap}} mesaje Ask CFO AI în această lună."
+    },
+    "search": {
+      "routes": {
+        "today": {
+          "label": "Astăzi",
+          "hint": "Briefing zilnic"
+        },
+        "statements": {
+          "label": "Bilanț & P&L",
+          "hint": "Situații financiare"
+        },
+        "cashFlow": {
+          "label": "Flux de numerar",
+          "hint": "Metoda indirectă"
+        },
+        "decisions": {
+          "label": "Decizii",
+          "hint": "Coadă de acțiuni"
+        },
+        "products": {
+          "label": "Produse",
+          "hint": "Explorator SKU"
+        }
+      },
+      "browseGlossary": "Răsfoiește glosarul",
+      "browseGlossaryHint": "Toate conceptele pe care le știe CFO AI",
+      "categoryHint": "Categorie",
+      "conceptHint": "Concept",
+      "placeholder": "Caută SKU-uri, categorii sau sari la o pagină…",
+      "noMatches": "Niciun rezultat. Încearcă un nume de SKU, o categorie sau o pagină.",
+      "learnTag": "Învață",
+      "navHint": "↑↓ navighezi · Enter selectezi",
+      "resultCount_one": "{{count}} rezultat",
+      "resultCount_few": "{{count}} rezultate",
+      "resultCount_other": "{{count}} de rezultate"
+    }
+  },
+  "scan": {
+    "switchingWorkspace": "Se schimbă workspace-ul",
+    "switchingMonth": "Se schimbă luna",
+    "loadingWhat": "Se încarcă {{what}}…",
+    "selectedWorkspace": "workspace-ul selectat",
+    "selectedMonth": "luna selectată",
+    "completeTitle": "Scanare finalizată",
+    "completeBody": "Analiza ta este gata — situațiile financiare, indicatorii, evaluarea și recomandările au fost reconstruite.",
+    "viewResults": "Vezi rezultatele",
+    "leaveWarning": "O analiză rulează încă — dacă pleci acum, progresul se pierde.",
+    "cancelPrompt": "Anulezi această analiză?",
+    "keepAnalyzing": "Continuă analiza",
+    "yesCancel": "Da, anulează",
+    "steps": {
+      "detectFormat": "Detectare format",
+      "extractData": "Extragere date",
+      "rebuildStatements": "Reconstruire situații",
+      "calculateRatios": "Calcul indicatori",
+      "generateRecs": "Generare recomandări",
+      "extractRows": "Extragere rânduri",
+      "rollUpSkus": "Agregare SKU-uri",
+      "generateBriefing": "Generare briefing"
+    },
+    "msg": {
+      "readingDocument": "Se citește documentul…",
+      "detectingTbLayout": "Se detectează structura balanței de verificare…",
+      "extractingBalances": "Se extrag soldurile conturilor…",
+      "checkingDebits": "Se verifică debitele cu creditele…",
+      "mappingAccounts": "Se mapează conturile pe situații…",
+      "rebuildingStatements": "Se reconstruiesc P&L-ul și bilanțul…",
+      "computingRatios": "Se calculează indicatorii…",
+      "scoringLiquidity": "Se evaluează lichiditatea și îndatorarea…",
+      "runningCreditModel": "Rulează modelul de credit…",
+      "generatingInsights": "Se generează concluziile…",
+      "writingBriefing": "Se scrie briefingul…",
+      "draftingRecs": "Se redactează recomandările…",
+      "readingSalesFile": "Se citește fișierul de vânzări…",
+      "detectingColumns": "Se detectează structura coloanelor…",
+      "identifyingSkus": "Se identifică descriptorii SKU…",
+      "parsingColumns": "Se citesc coloanele de venit, volum și marjă…",
+      "extractingSkuRows": "Se extrag rândurile SKU…",
+      "rollingUpBrands": "Se agregă brandurile și categoriile…",
+      "classifyingPortfolio": "Se clasifică portofoliul…",
+      "analyzingPerformance": "Se analizează performanța portofoliului…",
+      "writingExecBriefing": "Se scrie briefingul executiv…"
+    }
+  },
+  "budgetX": {
+    "stepRead": "Citește fișierul",
+    "stepMatch": "Potrivește liniile P&L",
+    "stepCompute": "Calculează variațiile",
+    "stepBoard": "Vedere pentru board",
+    "loadedTitle": "Buget încărcat",
+    "loadedDesc_one": "{{count}} linie de buget citită din {{file}}.",
+    "loadedDesc_few": "{{count}} linii de buget citite din {{file}}.",
+    "loadedDesc_other": "{{count}} de linii de buget citite din {{file}}.",
+    "loadedDescLy_one": "{{count}} linie de buget + {{ly}} an precedent citite din {{file}}.",
+    "loadedDescLy_few": "{{count}} linii de buget + {{ly}} an precedent citite din {{file}}.",
+    "loadedDescLy_other": "{{count}} de linii de buget + {{ly}} an precedent citite din {{file}}.",
+    "readFailedTitle": "Fișierul nu a putut fi citit",
+    "readFailedDesc": "Eroare de interpretare necunoscută.",
+    "reading": "Se citește bugetul…",
+    "budgetFile": "fișier de buget",
+    "removeUploaded": "Elimină bugetul încărcat",
+    "replaceBudget": "Înlocuiește bugetul",
+    "dropBudget": "Trage aici fișierul de buget",
+    "formats": "CSV · XLSX · PPTX (prezentare de buget)",
+    "pipelineAria": "Fluxul de variație",
+    "templateBlurb": "Scapă de ghicit — șablonul are exact coloanele pe care parser-ul le așteaptă: un rând pentru fiecare linie P&L, o coloană Budget și, opțional, o coloană Last year. Descarcă, completează cifrele, reîncarcă mai sus.",
+    "templateName": "Șablon de buget",
+    "templateRow": "Un rând per linie P&L, o coloană Budget și, opțional, o coloană Last-year.",
+    "columnsHeading": "Coloanele din șablon",
+    "colLine": "Eticheta liniei P&L — trebuie să corespundă rândurilor din raport.",
+    "required": "Obligatoriu",
+    "colBudget": "— cifra planificată pentru fiecare linie.",
+    "optional": "Opțional",
+    "colLastYear": "— valoarea reală de anul trecut pentru aceeași linie, adaugă coloana vs. LY."
   }
 }

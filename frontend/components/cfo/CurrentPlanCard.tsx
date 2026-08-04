@@ -24,6 +24,7 @@
 // user never sees a plan or price that doesn't exist in Stripe.
 
 import { Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { usePlanState } from "@/lib/planState";
 import {
@@ -34,11 +35,13 @@ import {
 } from "@/lib/pricingConfig";
 // Shared with /pricing's grid — see lib/planFeatures.ts for why the lists
 // live outside both components.
-import { PLAN_FEATURES } from "@/lib/planFeatures";
+import { planFeaturesFor } from "@/lib/planFeatures";
+import { formatDateOnly } from "@/lib/locale";
 
 export function CurrentPlanCard() {
   const { state, loading: planLoading } = usePlanState();
   const { config, loading: configLoading } = usePricingConfig();
+  const { i18n } = useTranslation();
 
   if (planLoading || configLoading) {
     return (
@@ -71,7 +74,7 @@ export function CurrentPlanCard() {
       ? "one-time"
       : "";
 
-  const features = PLAN_FEATURES[key] ?? [];
+  const features = planFeaturesFor(key, i18n.language);
 
   return (
     <article
@@ -111,11 +114,12 @@ export function CurrentPlanCard() {
 
           {state?.window_expires_at && !plan.recurring && (
             <div className="mt-1.5 text-[12.5px] text-ink-mute">
-              Access until{" "}
-              {new Date(state.window_expires_at).toLocaleDateString(undefined, {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
+              {t("pricing.accessUntil", {
+                date: formatDateOnly(state.window_expires_at, {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                }),
               })}
             </div>
           )}

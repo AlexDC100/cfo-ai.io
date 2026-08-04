@@ -1026,6 +1026,80 @@ today's movers**, all beneath `CompanySearchPanel`.
 
 ---
 
+## 19. i18n overhaul + header redesign + global-perf pass (2026-08-04)
+
+One large FE pass (per operator, verified end-to-end with Playwright sweeps):
+
+**i18n — the root-cause fix.** `frontend/i18n/index.ts` forced `lng: "en"` at
+init while the LanguageDetector had `caches: ["localStorage"]` — every boot
+fired `languageChanged("en")` and the detector WROTE `en` back over the
+user's stored choice. That is why "RO selected" kept reverting to English.
+Fixed: no forced `lng` (detection resolves querystring → localStorage →
+fallback en), `caches: []` (persistence is owned solely by `setLanguage()`),
+an explicit one-time boot persist of `?lang=` (the dashboard family rewrites
+the URL and would otherwise drop it), and a same-tab
+`LANGUAGE_CHANGED_EVENT` so `useLanguage()`'s localStorage resolver reacts
+without depending on the async Supabase profile mirror.
+
+**Translation coverage.** ~533 → ~1,560 keys per language. Converted:
+FinancialStatements (~300 sites incl. hero, upload zone, template card,
+briefing card, valuation/ratios/recommendations), Products + SourceFilesRow +
+TemplateDownloadCard (~150), Workspace + chat shell + Docs/Datasets panels +
+ScanProgressView + SearchDialog + notifications (~250), auth (Login/Signup/
+AuthCard), Pricing + PricingTableV2 + IntroUnlockCallout + CurrentPlanCard,
+NotFound, sidebar group labels/footer, AccountMenu, tab labels
+(`lib/financialStatementTabs.ts` labels are now i18n KEYS resolved with
+`t(tab.label)`; `disabledHint(tab, t)` takes the translator). RO register is
+informal tu-form to match the pre-existing ro.json. The AI briefing follows
+the ACTIVE UI language: `enqueuePipeline` already sent `output_language`; the
+`/briefing/regenerate` endpoint now also accepts `&language=` and
+`CFOBriefingCard` re-narrates when it detects the persisted briefing's
+language (diacritics probe) differs from the UI.
+
+**Language switcher — single location.** Header LanguageToggle deleted,
+sidebar Globe (dead code) deleted, landing header control removed; landing
+FOOTER carries the only logged-out switcher; Settings → Language is the only
+in-app switcher. `vitest` setup now imports `@/i18n` so component tests
+render EN strings.
+
+**Header redesign (56px).** `TopHeader` rebuilt: left = hamburger (mobile) +
+logo (icon-only < sm) + `PeriodBreadcrumb` (month stepper, locale-aware,
+shared `lib/usePeriodStepper.ts` state with the sidebar so they can't
+disagree); right = solid-brand Ask CFO AI + `CurrencyMenu` (active code only)
++ bell + avatar. Frosted → near-solid on scroll (150 ms). "Learn · mode"
+moved INTO AccountMenu (learning radio row); avatar opens the dropdown again
+(not Command Center). Sidebar rail label shows the YEAR only (per operator);
+offsets updated app-wide (pt-16→pt-14, top-[76px]→[68px]).
+
+**Global perf.** Fonts fully self-hosted via @fontsource (Google Fonts link
+removed from index.html; + jetbrains-mono 400/500; Space Grotesk / IBM Plex
+Mono dropped). `manualChunks`: "heic2any" and "vendor-charts" and
+"vendor-i18n" groups REMOVED — each broke prod boot via the Rollup
+manualChunks + circular-imports hazard (heic2any modulepreloaded 1.35 MB on
+first paint; charts/i18n chunks threw TDZ/"createContext of undefined" at
+init — always boot-test `dist/` after touching manualChunks). Vite now
+pre-compresses (.gz) and nginx gained `gzip on` + `gzip_static on` (it
+served everything raw without Caddy). Deleted unreferenced `public/logo*.png`
+(1.65 MB); BVB logos >60 KB converted to WebP @256px (6.3 → 2.4 MB);
+`public/og/homepage.png` created (was 404 in every social share). Date-only
+strings render via `lib/locale.ts` (`formatDateOnly` pins `timeZone:"UTC"`,
+locale follows the UI language — Dec 31 no longer shows as Dec 30 in
+UTC-negative timezones; unit-tested under Dubai/New York/Bucharest).
+`formatRon` + scattered `toLocaleString("en-US"/"en-GB")` now use
+`activeLocale()`. Minimal shimmer skeletons restored in RouteFallback /
+ContentFallback (abstract bars, not page-shaped). Meta description /
+og:description / og:locale follow the UI language (`useHtmlLangSync`).
+
+**Verification.** `e2e/i18n-mobile-sweep.spec.ts` walks public + authed
+pages × 375/390/768/1280 × EN/RO asserting zero wrong-language words, zero
+horizontal overflow, zero raw i18n keys — all green. Local authed
+verification runs via PUBLIC_TEST_MODE (engine) + VITE_PUBLIC_TEST_MODE
+(.env.local, never committed); dev Vite now proxies `/api` → :8000 so
+TestModeSessionBoot works locally. Throttled Lighthouse: prod FCP/LCP
+7.5/7.6 s → local build 4.7/4.7 s.
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*

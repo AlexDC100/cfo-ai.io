@@ -12,6 +12,8 @@
 // is substitution, not navigation. The user's back button stays clean.
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -56,6 +58,7 @@ import {
   signedDocumentUrl,
 } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateOnly, formatDateTime } from "@/lib/locale";
 
 interface DocRow {
   id: string;
@@ -151,25 +154,27 @@ async function patchDoc(id: string, body: { display_name?: string; is_active?: b
   return await callDocEndpoint(`/api/documents/${id}`, "PATCH", body);
 }
 
-/** Human-readable "5 days ago" without pulling in date-fns just for this. */
+/** Human-readable "5 days ago" without pulling in date-fns just for this.
+ *  Uses the global i18n instance directly — callers are components that
+ *  re-render on language change (they all hold useTranslation). */
 function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return "—";
   const diffMs = Date.now() - then;
   const sec = Math.round(diffMs / 1000);
-  if (sec < 60) return "just now";
+  if (sec < 60) return i18n.t("panels.rel.justNow");
   const min = Math.round(sec / 60);
-  if (min < 60) return `${min} min ago`;
+  if (min < 60) return i18n.t("panels.rel.minAgo", { count: min });
   const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr} hr ago`;
+  if (hr < 24) return i18n.t("panels.rel.hourAgo", { count: hr });
   const day = Math.round(hr / 24);
-  if (day < 14) return `${day} ${day === 1 ? "day" : "days"} ago`;
+  if (day < 14) return i18n.t("panels.rel.dayAgo", { count: day });
   const wk = Math.round(day / 7);
-  if (wk < 8) return `${wk} ${wk === 1 ? "week" : "weeks"} ago`;
+  if (wk < 8) return i18n.t("panels.rel.weekAgo", { count: wk });
   const mo = Math.round(day / 30);
-  if (mo < 12) return `${mo} ${mo === 1 ? "month" : "months"} ago`;
+  if (mo < 12) return i18n.t("panels.rel.monthAgo", { count: mo });
   const yr = Math.round(day / 365);
-  return `${yr} ${yr === 1 ? "year" : "years"} ago`;
+  return i18n.t("panels.rel.yearAgo", { count: yr });
 }
 
 /** Soft-delete every live document on a period. Returns the deleted-doc ids
@@ -206,6 +211,7 @@ async function callDocEndpoint(path: string, method: "POST" | "DELETE" | "PATCH"
 // ─── The toggle pill (lives in the header) ──────────────────────────────────
 
 export function DocsToggle({ count }: { count: number | null }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useDocsPanelOpen();
   return (
     <button
@@ -214,7 +220,7 @@ export function DocsToggle({ count }: { count: number | null }) {
       aria-expanded={open}
       aria-controls="docs-panel"
       onClick={() => setOpen(!open)}
-      title="Documents · ⌘D"
+      title={t("panels.docsToggleTitle")}
       className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border text-[12.5px] font-medium transition-colors ${
         open
           ? "bg-ink text-paper border-ink"
@@ -222,7 +228,7 @@ export function DocsToggle({ count }: { count: number | null }) {
       }`}
     >
       <FileText size={13} strokeWidth={1.75} />
-      Docs{count !== null && count > 0 ? ` (${count})` : ""}
+      {t("panels.docsLabel")}{count !== null && count > 0 ? ` (${count})` : ""}
       <ChevronRight
         size={12}
         strokeWidth={2}
@@ -262,6 +268,7 @@ function writeBoolFlag(key: string, value: boolean): void {
 }
 
 export function DocsPanel() {
+  const { t } = useTranslation();
   const [open, setOpen] = useDocsPanelOpen();
   const navigate = useNavigate();
   const [params, setSearchParams] = useSearchParams();
@@ -324,30 +331,30 @@ export function DocsPanel() {
   async function handleRestore(id: string) {
     const ok = await restoreDoc(id);
     if (ok) {
-      toast({ title: "Document restored" });
+      toast({ title: t("panels.docRestored") });
       void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
     } else {
-      toast({ title: "Couldn't restore", variant: "destructive" });
+      toast({ title: t("panels.cantRestore"), variant: "destructive" });
     }
   }
 
   async function handlePermanentDelete(id: string) {
     const ok = await permanentDeleteDoc(id);
     if (ok) {
-      toast({ title: "Permanently deleted" });
+      toast({ title: t("panels.permanentlyDeleted") });
       void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
     } else {
-      toast({ title: "Couldn't delete permanently", variant: "destructive" });
+      toast({ title: t("panels.cantDeletePermanently"), variant: "destructive" });
     }
   }
 
   async function handleClearAllDeleted() {
     const ok = await clearAllRecentlyDeletedDocs();
     if (ok) {
-      toast({ title: "Recently deleted cleared" });
+      toast({ title: t("panels.recentlyDeletedCleared") });
       void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
     } else {
-      toast({ title: "Couldn't clear", variant: "destructive" });
+      toast({ title: t("panels.cantClear"), variant: "destructive" });
     }
   }
 
@@ -378,13 +385,13 @@ export function DocsPanel() {
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-rule">
           <div>
-            <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">Documents</div>
-            <h2 className="font-serif text-[17px] text-ink leading-tight mt-0.5">All your uploads</h2>
+            <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">{t("panels.documents")}</div>
+            <h2 className="font-serif text-[17px] text-ink leading-tight mt-0.5">{t("panels.allYourUploads")}</h2>
           </div>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label="Close documents panel"
+            aria-label={t("panels.closeDocsAria")}
             className="text-ink-mute hover:text-ink p-1 rounded-md hover:bg-bg-2 transition-colors"
           >
             <X size={16} strokeWidth={1.75} />
@@ -395,7 +402,7 @@ export function DocsPanel() {
           {isLoading && (
             <div className="text-center py-8 text-[12px] text-ink-mute">
               <Loader2 size={14} className="inline animate-spin mr-1" />
-              Loading documents…
+              {t("panels.loadingDocuments")}
             </div>
           )}
 
@@ -404,7 +411,7 @@ export function DocsPanel() {
               (Step 5 defense — empty periods should never reach the UI). */}
           {activePeriod && activePeriod.documents.length > 0 && (
             <section data-testid="docs-panel-section-active" className="sticky top-0 z-10 -mx-3 px-3 pb-3 bg-surface/85 backdrop-blur-xl">
-              <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">Active period</div>
+              <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">{t("panels.activePeriod")}</div>
               <PeriodCard
                 period={activePeriod}
                 isActive
@@ -417,7 +424,7 @@ export function DocsPanel() {
           {otherPeriods.filter((p) => p.documents.length > 0).length > 0 && (
             <section data-testid="docs-panel-section-others">
               <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">
-                Other periods
+                {t("panels.otherPeriods")}
               </div>
               <div className="space-y-2">
                 {otherPeriods
@@ -434,20 +441,22 @@ export function DocsPanel() {
                         if (ids.length === 0) return;
                         void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
                         toast({
-                          title: `Deleted ${p.period_end ? new Date(p.period_end).toLocaleDateString("en-GB", { dateStyle: "medium" }) : "period"}`,
-                          description: `${ids.length} ${ids.length === 1 ? "document" : "documents"} moved to Recently deleted.`,
+                          title: t("panels.deletedPeriodToast", {
+                            label: p.period_end ? formatDateOnly(p.period_end) : t("panels.periodFallback"),
+                          }),
+                          description: t("panels.docsMovedToDeleted", { count: ids.length }),
                           duration: 6_000,
                           action: (
                             <ToastAction
-                              altText="Undo delete"
+                              altText={t("panels.undoDelete")}
                               data-testid="undo-toast-action"
                               onClick={async () => {
                                 await restoreMany(ids);
                                 void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
-                                toast({ title: "Restored" });
+                                toast({ title: t("toasts.restored") });
                               }}
                             >
-                              Undo
+                              {t("panels.undo")}
                             </ToastAction>
                           ),
                         });
@@ -472,8 +481,8 @@ export function DocsPanel() {
                     className={`transition-transform ${showOlder ? "rotate-90" : ""}`}
                   />
                   {showOlder
-                    ? `Hide ${otherPeriods.filter((p) => p.documents.length > 0).length - OTHER_PERIODS_VISIBLE_DEFAULT} older periods`
-                    : `Show ${otherPeriods.filter((p) => p.documents.length > 0).length - OTHER_PERIODS_VISIBLE_DEFAULT} older periods`}
+                    ? t("panels.hideOlderPeriods", { count: otherPeriods.filter((p) => p.documents.length > 0).length - OTHER_PERIODS_VISIBLE_DEFAULT })
+                    : t("panels.showOlderPeriods", { count: otherPeriods.filter((p) => p.documents.length > 0).length - OTHER_PERIODS_VISIBLE_DEFAULT })}
                 </button>
               )}
             </section>
@@ -493,7 +502,7 @@ export function DocsPanel() {
                   }}
                   className="flex-1 flex items-center justify-between text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium hover:text-ink"
                 >
-                  <span>Recently deleted ({recentlyDeleted.length}) · auto-delete in 28 days</span>
+                  <span>{t("panels.recentlyDeletedHeading", { count: recentlyDeleted.length })}</span>
                   <ChevronRight
                     size={11}
                     strokeWidth={2}
@@ -507,7 +516,7 @@ export function DocsPanel() {
                     onClick={() => setConfirmPermanent({ mode: "all", count: recentlyDeleted.length })}
                     className="text-[10.5px] font-medium text-[hsl(var(--alert))] hover:text-[hsl(var(--alert-d,var(--alert)))] hover:bg-alert-tint px-2 py-1 rounded transition-colors"
                   >
-                    Clear all
+                    {t("panels.clearAll")}
                   </button>
                 )}
               </div>
@@ -521,24 +530,24 @@ export function DocsPanel() {
                       <div className="min-w-0">
                         <div className="text-[12.5px] text-ink truncate">{d.display_name}</div>
                         <div className="text-[10.5px] text-ink-mute">
-                          Deleted {new Date(d.deleted_at).toLocaleDateString("en-GB", { dateStyle: "medium" })}
+                          {t("panels.deletedOn", { date: formatDateTime(d.deleted_at, { dateStyle: "medium" }) })}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          aria-label={`Restore ${d.display_name}`}
-                          title="Restore"
+                          aria-label={t("panels.restoreAria", { name: d.display_name })}
+                          title={t("panels.restore")}
                           onClick={() => void handleRestore(d.id)}
                           className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-d hover:text-brand hover:bg-bg-2 px-2 py-1 rounded transition-colors"
                         >
                           <RotateCcw size={12} strokeWidth={1.75} />
-                          <span>Restore</span>
+                          <span>{t("panels.restore")}</span>
                         </button>
                         <button
                           type="button"
-                          aria-label={`Delete ${d.display_name} permanently`}
-                          title="Delete permanently — cannot be undone"
+                          aria-label={t("panels.deletePermanentlyAria", { name: d.display_name })}
+                          title={t("panels.deletePermanentlyTitle")}
                           data-testid={`recently-deleted-permanent-${d.id}`}
                           onClick={() =>
                             setConfirmPermanent({ mode: "single", id: d.id, name: d.display_name })
@@ -546,7 +555,7 @@ export function DocsPanel() {
                           className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[hsl(var(--alert))] hover:text-[hsl(var(--alert-d,var(--alert)))] hover:bg-alert-tint px-2 py-1 rounded transition-colors"
                         >
                           <Trash2 size={12} strokeWidth={1.75} />
-                          <span>Delete forever</span>
+                          <span>{t("panels.deleteForever")}</span>
                         </button>
                       </div>
                     </li>
@@ -567,25 +576,25 @@ export function DocsPanel() {
               <AlertDialogHeader>
                 <AlertDialogTitle>
                   {confirmPermanent?.mode === "single"
-                    ? "Delete this file permanently?"
+                    ? t("panels.deleteFilePermanentlyTitle")
                     : confirmPermanent?.mode === "all"
-                      ? `Permanently delete all ${confirmPermanent.count} file${confirmPermanent.count === 1 ? "" : "s"}?`
-                      : "Delete permanently?"}
+                      ? t("panels.deleteAllPermanentlyTitle", { count: confirmPermanent.count })
+                      : t("panels.deletePermanentlyFallbackTitle")}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   {confirmPermanent?.mode === "single" ? (
                     <>
-                      "<span className="font-medium text-ink">{confirmPermanent.name}</span>" will be permanently deleted. This cannot be undone.
+                      "<span className="font-medium text-ink">{confirmPermanent.name}</span>" {t("panels.deleteFilePermanentlyBody")}
                     </>
                   ) : confirmPermanent?.mode === "all" ? (
                     <>
-                      All {confirmPermanent.count} file{confirmPermanent.count === 1 ? "" : "s"} in Recently Deleted will be permanently removed from storage. This cannot be undone.
+                      {t("panels.deleteAllPermanentlyBody", { count: confirmPermanent.count })}
                     </>
                   ) : null}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setConfirmPermanent(null)}>Cancel</AlertDialogCancel>
+                <AlertDialogCancel onClick={() => setConfirmPermanent(null)}>{t("common.cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   data-testid="permanent-delete-confirm"
                   onClick={async () => {
@@ -600,7 +609,7 @@ export function DocsPanel() {
                   }}
                   className="bg-red-500 hover:bg-red-600 text-white"
                 >
-                  {confirmPermanent?.mode === "single" ? "Delete forever" : "Delete all forever"}
+                  {confirmPermanent?.mode === "single" ? t("panels.deleteForever") : t("panels.deleteAllForever")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -611,9 +620,9 @@ export function DocsPanel() {
             otherPeriods.filter((p) => p.documents.length > 0).length === 0 && (
               <div className="text-center py-12">
                 <FileText size={28} className="mx-auto text-ink-mute mb-2" strokeWidth={1.5} />
-                <p className="text-[13px] text-ink-soft">No documents yet.</p>
+                <p className="text-[13px] text-ink-soft">{t("panels.noDocumentsYet")}</p>
                 <p className="text-[11.5px] text-ink-mute mt-1">
-                  Upload from the dashboard to populate this list.
+                  {t("panels.noDocumentsHint")}
                 </p>
               </div>
             )}
@@ -636,8 +645,9 @@ function PeriodCard({
   isCurrent: boolean;
   onSwitch?: () => void;
 }) {
+  const { t } = useTranslation();
   const label = period.period_end
-    ? new Date(period.period_end).toLocaleDateString("en-GB", { dateStyle: "medium" })
+    ? formatDateOnly(period.period_end)
     : period.period_label;
   const ring = isCurrent
     ? "border-brand bg-brand/[0.06]"
@@ -654,24 +664,24 @@ function PeriodCard({
             <span className="font-serif text-[14px] text-ink leading-tight">{label}</span>
             {isCurrent && (
               <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.06em] font-semibold text-brand-d px-1.5 py-0.5 rounded-full bg-brand-tint">
-                <span className="h-1.5 w-1.5 rounded-full bg-brand" /> Viewing
+                <span className="h-1.5 w-1.5 rounded-full bg-brand" /> {t("panels.viewing")}
               </span>
             )}
             {isActive && !isCurrent && (
               <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.06em] font-semibold text-[hsl(var(--success))] px-1.5 py-0.5 rounded-full bg-success-tint">
-                Active
+                {t("datasets.status.active")}
               </span>
             )}
           </div>
           <ul className="mt-1.5 space-y-0.5">
             {period.documents.length === 0 && (
-              <li className="text-[11.5px] text-ink-mute">No documents</li>
+              <li className="text-[11.5px] text-ink-mute">{t("panels.noDocuments")}</li>
             )}
             {period.documents.slice(0, 3).map((d) => (
               <DocRowItem key={d.id} doc={d} />
             ))}
             {period.documents.length > 3 && (
-              <li className="text-[10.5px] text-ink-mute">+ {period.documents.length - 3} more</li>
+              <li className="text-[10.5px] text-ink-mute">+ {t("datasets.more", { count: period.documents.length - 3 })}</li>
             )}
           </ul>
         </div>
@@ -683,7 +693,7 @@ function PeriodCard({
           className="mt-2 w-full inline-flex items-center justify-center gap-1 h-7 rounded-md text-[11.5px] font-medium text-ink hover:bg-bg-2 border border-rule transition-colors"
         >
           <RefreshCcw size={10} strokeWidth={1.75} />
-          Switch
+          {t("panels.switch")}
         </button>
       )}
     </article>
@@ -703,8 +713,9 @@ function OtherPeriodRow({
   onSwitch: () => void;
   onQuickDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const label = period.period_end
-    ? new Date(period.period_end).toLocaleDateString("en-GB", { dateStyle: "medium" })
+    ? formatDateOnly(period.period_end)
     : period.period_label;
   const topDoc = period.documents.find((d) => d.is_active) ?? period.documents[0];
   const ring = isCurrent
@@ -721,7 +732,7 @@ function OtherPeriodRow({
       <button
         type="button"
         data-testid="quick-delete"
-        aria-label={`Delete ${label}`}
+        aria-label={t("panels.deleteLabelAria", { label })}
         onClick={(e) => {
           e.stopPropagation();
           onQuickDelete();
@@ -751,7 +762,7 @@ function OtherPeriodRow({
             )}
           </div>
           <span className="shrink-0 text-[11px] text-ink-soft group-hover:text-ink transition-colors">
-            Switch →
+            {t("panels.switchArrow")}
           </span>
         </div>
       </button>
@@ -762,6 +773,7 @@ function OtherPeriodRow({
 // ─── DocRowItem — single document line with rename + menu ─────────────────
 
 function DocRowItem({ doc }: { doc: DocRow }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [renaming, setRenaming] = useState(false);
@@ -787,10 +799,10 @@ function DocRowItem({ doc }: { doc: DocRow }) {
     }
     const ok = await patchDoc(doc.id, { display_name: next });
     if (ok) {
-      toast({ title: "Renamed" });
+      toast({ title: t("panels.renamed") });
       invalidate();
     } else {
-      toast({ title: "Couldn't rename", variant: "destructive" });
+      toast({ title: t("panels.cantRename"), variant: "destructive" });
       setDraftName(doc.display_name);
     }
     setRenaming(false);
@@ -806,7 +818,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
     } as never);
     setDownloading(false);
     if (!url) {
-      toast({ title: "Couldn't generate download link", variant: "destructive" });
+      toast({ title: t("panels.cantGenerateLink"), variant: "destructive" });
       return;
     }
     window.open(url, "_blank", "noopener");
@@ -815,20 +827,20 @@ function DocRowItem({ doc }: { doc: DocRow }) {
   async function handleRerun() {
     const ok = await retryPipeline(doc.id);
     if (ok) {
-      toast({ title: "Re-running analysis", description: doc.display_name });
+      toast({ title: t("panels.rerunningAnalysis"), description: doc.display_name });
       invalidate();
     } else {
-      toast({ title: "Couldn't start re-run", variant: "destructive" });
+      toast({ title: t("panels.cantStartRerun"), variant: "destructive" });
     }
   }
 
   async function handleToggleActive() {
     const ok = await patchDoc(doc.id, { is_active: !doc.is_active });
     if (ok) {
-      toast({ title: doc.is_active ? "Marked inactive" : "Marked active" });
+      toast({ title: doc.is_active ? t("panels.markedInactive") : t("panels.markedActive") });
       invalidate();
     } else {
-      toast({ title: "Couldn't update", variant: "destructive" });
+      toast({ title: t("panels.cantUpdate"), variant: "destructive" });
     }
   }
 
@@ -836,10 +848,10 @@ function DocRowItem({ doc }: { doc: DocRow }) {
     setConfirmDelete(false);
     const ok = await softDeleteDoc(doc.id);
     if (ok) {
-      toast({ title: "Deleted", description: `${doc.display_name} — restorable for 30 days.` });
+      toast({ title: t("toasts.deleted"), description: t("panels.restorableFor30Days", { name: doc.display_name }) });
       invalidate();
     } else {
-      toast({ title: "Couldn't delete", variant: "destructive" });
+      toast({ title: t("panels.cantDelete"), variant: "destructive" });
     }
   }
 
@@ -876,8 +888,8 @@ function DocRowItem({ doc }: { doc: DocRow }) {
           type="button"
           onClick={() => void handleDownload()}
           disabled={downloading}
-          aria-label={`View ${doc.display_name}`}
-          title="View file"
+          aria-label={t("panels.viewAria", { name: doc.display_name })}
+          title={t("panels.viewFile")}
           data-testid="doc-view"
           className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity h-5 w-5 inline-flex items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-40"
         >
@@ -889,7 +901,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
           <DropdownMenuTrigger asChild>
             <button
               data-testid="doc-menu"
-              aria-label="Document actions"
+              aria-label={t("panels.docActionsAria")}
               className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity h-5 w-5 inline-flex items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-bg-2"
             >
               <MoreHorizontal size={11} strokeWidth={1.75} />
@@ -897,7 +909,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onSelect={() => setRenaming(true)} className="text-[12px] cursor-pointer">
-              <Pencil size={11} strokeWidth={1.75} className="mr-2" /> Rename
+              <Pencil size={11} strokeWidth={1.75} className="mr-2" /> {t("panels.rename")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => void handleDownload()}
@@ -905,25 +917,25 @@ function DocRowItem({ doc }: { doc: DocRow }) {
               className="text-[12px] cursor-pointer"
             >
               <Download size={11} strokeWidth={1.75} className="mr-2" />
-              {downloading ? "Preparing…" : "Download original"}
+              {downloading ? t("panels.preparing") : t("panels.downloadOriginal")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => void handleRerun()}
               disabled={isInflight}
               className="text-[12px] cursor-pointer"
             >
-              <RefreshCcw size={11} strokeWidth={1.75} className="mr-2" /> Re-run analysis
+              <RefreshCcw size={11} strokeWidth={1.75} className="mr-2" /> {t("panels.rerunAnalysis")}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void handleToggleActive()} className="text-[12px] cursor-pointer">
               <Power size={11} strokeWidth={1.75} className="mr-2" />
-              {doc.is_active ? "Mark inactive" : "Mark active"}
+              {doc.is_active ? t("panels.markInactive") : t("panels.markActive")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => setConfirmDelete(true)}
               className="text-[12px] cursor-pointer text-red-700 focus:text-red-700"
             >
-              <Trash2 size={11} strokeWidth={1.75} className="mr-2" /> Delete
+              <Trash2 size={11} strokeWidth={1.75} className="mr-2" /> {t("common.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -932,20 +944,19 @@ function DocRowItem({ doc }: { doc: DocRow }) {
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {doc.display_name}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("panels.deleteDocTitle", { name: doc.display_name })}</AlertDialogTitle>
             <AlertDialogDescription>
-              The document is moved to Recently deleted and can be restored
-              within 30 days. After that it's removed from storage permanently.
+              {t("panels.deleteDocBody")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               data-testid="confirm-delete-doc"
               onClick={() => void handleDelete()}
               className="bg-red-600 text-white hover:bg-red-700"
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

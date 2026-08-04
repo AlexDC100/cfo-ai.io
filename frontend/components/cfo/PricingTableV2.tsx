@@ -35,6 +35,7 @@
 import { useState } from "react";
 import { Check, Sparkles, Zap } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { IntroUnlockCallout } from "./pricing/IntroUnlockCallout";
 import {
@@ -46,7 +47,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { getSupabase } from "@/lib/supabase";
-import { STARTER_FEATURES, PRO_FEATURES } from "@/lib/planFeatures";
+import { planFeaturesFor } from "@/lib/planFeatures";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -113,6 +114,7 @@ export function PricingTableV2({
   const { status } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t, i18n } = useTranslation();
   const [submitting, setSubmitting] = useState<PlanKey | null>(null);
 
   /** Single click pathway for ALL plan CTAs (Starter, Pro, Intro Unlock).
@@ -137,17 +139,16 @@ export function PricingTableV2({
 
     if (result === "BILLING_NOT_CONNECTED") {
       toast({
-        title: "Billing not connected yet",
-        description:
-          "Stripe price IDs aren't wired for this tier yet. Please try again shortly.",
+        title: t("pricing.billingNotConnectedTitle"),
+        description: t("pricing.billingNotConnectedDesc"),
         variant: "destructive",
       });
       return;
     }
     if (!result) {
       toast({
-        title: "Couldn't start checkout",
-        description: "Please try again, or contact support if this persists.",
+        title: t("pricing.checkoutFailedTitle"),
+        description: t("pricing.checkoutFailedDesc"),
         variant: "destructive",
       });
       return;
@@ -158,7 +159,7 @@ export function PricingTableV2({
   if (loading || !config) {
     return (
       <section className="max-w-[1080px] mx-auto px-5 sm:px-8 py-12 text-center text-[13px] text-ink-mute">
-        Loading pricing…
+        {t("pricing.loading")}
       </section>
     );
   }
@@ -177,12 +178,12 @@ export function PricingTableV2({
         {starter && (
           <PlanCard
             plan={starter}
-            badge="Best for owners"
+            badge={t("pricing.badgeStarter")}
             highlight={false}
             current={currentPlanKey === "starter"}
-            features={STARTER_FEATURES}
-            ctaLabel="Start Starter"
-            extraDocCopy={`€${(starter.extra_doc_eur ?? 0).toFixed(2)} per extra document, shown and confirmed before processing`}
+            features={planFeaturesFor("starter", i18n.language)}
+            ctaLabel={t("pricing.startStarter")}
+            extraDocCopy={t("pricing.extraDoc", { price: formatEur(starter.extra_doc_eur ?? 0) })}
             onPick={() => handlePick("starter")}
             submitting={submitting === "starter"}
           />
@@ -190,12 +191,12 @@ export function PricingTableV2({
         {pro && (
           <PlanCard
             plan={pro}
-            badge="Most popular"
+            badge={t("pricing.badgePro")}
             highlight
             current={currentPlanKey === "pro"}
-            features={PRO_FEATURES}
-            ctaLabel="Start Pro"
-            extraDocCopy={`€${(pro.extra_doc_eur ?? 0).toFixed(2)} per extra document, shown and confirmed before processing`}
+            features={planFeaturesFor("pro", i18n.language)}
+            ctaLabel={t("pricing.startPro")}
+            extraDocCopy={t("pricing.extraDoc", { price: formatEur(pro.extra_doc_eur ?? 0) })}
             onPick={() => handlePick("pro")}
             submitting={submitting === "pro"}
           />
@@ -219,15 +220,15 @@ export function PricingTableV2({
           A small link beneath the cards is the lightest-weight surface. */}
       {showAcquisitionCtas && (
         <p className="mt-6 text-center text-[12.5px] text-ink-soft">
-          Or{" "}
+          {t("pricing.trialTailOr")}{" "}
           <Link
             to="/signup"
             className="font-medium text-brand-d hover:text-brand underline-offset-2 hover:underline"
             data-testid="pricing-trial-link"
           >
-            start a 7-day free trial
+            {t("pricing.trialTailLink")}
           </Link>{" "}
-          — one document, no card required.
+          {t("pricing.trialTailRest")}
         </p>
       )}
     </section>

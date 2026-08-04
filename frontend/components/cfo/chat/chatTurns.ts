@@ -16,6 +16,7 @@
 //     cap survives tab switches instead of resetting with the shell.
 
 import { useSyncExternalStore } from "react";
+import i18n from "@/i18n";
 import { CfoApiError, cfoApi } from "@/lib/cfoApi";
 import {
   beginChatReply,
@@ -193,17 +194,19 @@ export function startChatTurn(ctx: ChatTurnContext): void {
           upgrade_url?: string;
         };
         if (detail.code === "chat_cap_reached") {
-          const headline =
+          // Strings resolve at runtime (the 429 lands mid-session), so the
+          // module-level i18n instance already carries the active language.
+          const headline = i18n.t(
             detail.kind === "daily_cap_reached"
-              ? "Daily Ask CFO AI limit reached"
-              : "Monthly Ask CFO AI limit reached";
-          const body = detail.message ??
-            "You've hit your plan's chat cap. It resets automatically — or upgrade for more headroom.";
+              ? "chatX.cap.dailyHeadline"
+              : "chatX.cap.monthlyHeadline",
+          );
+          const body = detail.message ?? i18n.t("chatX.cap.body");
           const link = detail.upgrade_url ?? "/pricing";
           chatCompleteAssistantTurn(ctx.orgId, {
             conversationId,
             assistantId,
-            content: `**${headline}**\n\n${body}\n\n[See plans →](${link})`,
+            content: `**${headline}**\n\n${body}\n\n[${i18n.t("chatX.seePlans")} →](${link})`,
             error: false,
           });
           // Lock the composer for the rest of the session (spec §14
@@ -214,11 +217,12 @@ export function startChatTurn(ctx: ChatTurnContext): void {
           return;
         }
       }
-      const msg = err instanceof Error ? err.message : "Couldn't reach the assistant.";
+      const unreachable = i18n.t("chatX.errUnreachable");
+      const msg = err instanceof Error ? err.message : unreachable;
       chatCompleteAssistantTurn(ctx.orgId, {
         conversationId,
         assistantId,
-        content: `**Couldn't reach the assistant.** ${msg}\n\nTry again in a moment.`,
+        content: `**${unreachable}** ${msg}\n\n${i18n.t("chatX.errTryAgain")}`,
         error: true,
       });
     } finally {

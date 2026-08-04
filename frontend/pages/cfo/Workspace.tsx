@@ -18,6 +18,7 @@
 // setup" link re-runs the flow.
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -98,6 +99,7 @@ function writeDone(v: boolean) {
 }
 
 export default function Workspace() {
+  const { t } = useTranslation();
   const [done, setDone] = useState<boolean>(readDone);
   // Tracks whether the current onboarding run is creating a NEW workspace
   // (→ add a fresh entry on finish) vs. restarting the current one
@@ -191,13 +193,15 @@ export default function Workspace() {
           <div className="flex-1 min-w-0 space-y-8">
             <PageHeader
               hero
-              eyebrow="Workspace settings"
+              eyebrow={t("ws.settingsEyebrow")}
               title={
-                <>
-                  Manage <span className="text-grad">{editingWorkspace.name || "this workspace"}</span>.
-                </>
+                <Trans
+                  i18nKey="ws.manageTitle"
+                  values={{ name: editingWorkspace.name || t("ws.thisWorkspace") }}
+                  components={{ grad: <span className="text-grad" /> }}
+                />
               }
-              subtitle="Rename this workspace, tune the decision rules that classify its products, re-run the guided setup, or remove it. Changes apply to this workspace only."
+              subtitle={t("ws.settingsSubtitleEdit")}
             />
             <WorkspaceSettings
               workspace={editingWorkspace}
@@ -211,8 +215,8 @@ export default function Workspace() {
                 void ws.remove(editingWorkspace.id).then((ok) => {
                   toast[ok ? "success" : "error"](
                     ok
-                      ? `“${name || "Workspace"}” deleted — restorable for 30 days.`
-                      : "Couldn't delete that workspace.",
+                      ? t("ws.deletedRestorable", { name: name || t("ws.workspaceFallback") })
+                      : t("ws.cantDeleteWorkspace"),
                   );
                 });
               }}
@@ -272,10 +276,10 @@ export default function Workspace() {
           data-testid="workspace-load-error"
         >
           <p className="text-[14px] font-medium text-ink mb-1.5">
-            Could not load your workspace.
+            {t("ws.loadErrorTitle")}
           </p>
           <p className="text-[12.5px] text-ink-soft mb-4">
-            The workspace list didn't come back from the server. Your data is safe — retry in a moment.
+            {t("ws.loadErrorBody")}
           </p>
           <button
             type="button"
@@ -283,7 +287,7 @@ export default function Workspace() {
             data-testid="workspace-load-retry"
             className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
           >
-            Retry
+            {t("common.retry")}
           </button>
         </div>
       ) : done &&
@@ -318,8 +322,8 @@ export default function Workspace() {
                 void ws.remove(cur.id).then((ok) => {
                   toast[ok ? "success" : "error"](
                     ok
-                      ? `“${cur.name || "Workspace"}” deleted — restorable for 30 days.`
-                      : "Couldn't delete that workspace.",
+                      ? t("ws.deletedRestorable", { name: cur.name || t("ws.workspaceFallback") })
+                      : t("ws.cantDeleteWorkspace"),
                   );
                 });
               }}
@@ -367,9 +371,9 @@ export default function Workspace() {
           <div className="flex-1 min-w-0 space-y-8">
             <PageHeader
               hero
-              eyebrow="Workspace"
-              title={<>Set up your <span className="text-grad">workspace</span>.</>}
-              subtitle="Name your workspace, tune the decision rules that classify your products, and upload your data — three quick steps and CFO AI is ready to analyze."
+              eyebrow={t("sidebar.workspace")}
+              title={<Trans i18nKey="ws.setupTitle" components={{ grad: <span className="text-grad" /> }} />}
+              subtitle={t("ws.setupSubtitle")}
             />
             <Onboarding
               onDone={finishOnboarding}
@@ -394,7 +398,7 @@ export default function Workspace() {
 
 // ─── Onboarding wizard ───────────────────────────────────────────────────────
 
-const STEP_LABELS = ["Name", "Decision rules", "Upload"] as const;
+const STEP_KEYS = ["ws.stepName", "ws.stepRules", "ws.stepUpload"] as const;
 
 export interface OnboardingIndustry {
   key: string;
@@ -416,6 +420,7 @@ function Onboarding({
   /** Prefill when restarting setup on a workspace that already has one. */
   initialIndustryKey?: string | null;
 }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [name, setName] = useState<string>(readWorkspaceName);
   const [industryKey, setIndustryKey] = useState<string | null>(initialIndustryKey);
@@ -479,15 +484,15 @@ function Onboarding({
       setAnalysis({ ...result.analysis, generatedAt: new Date().toISOString() });
       setUploadAlerts(result.alerts ?? null);
       const skuCount = result.skus?.sku_count ?? 0;
-      toast.success("Workbook imported", {
-        description: `${skuCount} SKUs classified. Your workspace is ready.`,
+      toast.success(t("ws.workbookImported"), {
+        description: t("ws.workbookImportedDesc", { count: skuCount }),
       });
       finish();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      toast.error("Upload failed", {
+      const msg = err instanceof Error ? err.message : t("productsX.toast.uploadFailed");
+      toast.error(t("productsX.toast.uploadFailed"), {
         description: msg.includes("Failed to fetch")
-          ? "Backend not running. Start the engine API and try again."
+          ? t("ws.backendNotRunning")
           : msg,
       });
       setBusy(false);
@@ -526,7 +531,7 @@ function Onboarding({
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
           >
             <ArrowLeft size={14} strokeWidth={2} />
-            Back
+            {t("common.back")}
           </button>
         ) : (
           <span />
@@ -540,7 +545,7 @@ function Onboarding({
               data-testid="onboarding-skip"
               className="text-[12.5px] text-ink-mute hover:text-ink transition-colors"
             >
-              I'll upload later
+              {t("ws.uploadLater")}
             </button>
           )}
           {step < 2 && (
@@ -559,7 +564,7 @@ function Onboarding({
                 data-testid="onboarding-skip-early"
                 className="text-[12.5px] text-ink-mute hover:text-ink transition-colors"
               >
-                Skip for now — open the dashboard
+                {t("ws.skipForNow")}
               </button>
               <button
                 type="button"
@@ -568,7 +573,7 @@ function Onboarding({
                 data-testid="onboarding-next"
                 className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Continue
+                {t("common.continue")}
               </button>
             </>
           )}
@@ -579,13 +584,15 @@ function Onboarding({
 }
 
 function Stepper({ step }: { step: number }) {
+  const { t } = useTranslation();
   return (
     <ol className="flex items-center gap-2" data-testid="onboarding-stepper">
-      {STEP_LABELS.map((label, i) => {
+      {STEP_KEYS.map((key, i) => {
+        const label = t(key);
         const isDone = i < step;
         const isActive = i === step;
         return (
-          <li key={label} className="flex items-center gap-2 flex-1 last:flex-none">
+          <li key={key} className="flex items-center gap-2 flex-1 last:flex-none">
             <span
               className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums transition-all ${
                 isDone
@@ -600,7 +607,7 @@ function Stepper({ step }: { step: number }) {
             <span className={`text-[12.5px] font-medium ${isActive ? "text-ink" : "text-ink-mute"}`}>
               {label}
             </span>
-            {i < STEP_LABELS.length - 1 && (
+            {i < STEP_KEYS.length - 1 && (
               <span className="hidden sm:block flex-1 h-px bg-rule mx-1" />
             )}
           </li>
@@ -630,21 +637,22 @@ function StepName({
   industryKey: string | null;
   setIndustryKey: (k: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div>
       <StepHeading
-        title="Name your workspace"
-        body="Give this workspace a name so you can recognize it — usually the company or entity you're analyzing."
+        title={t("ws.stepNameTitle")}
+        body={t("ws.stepNameBody")}
       />
       <label className="block">
         <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
-          Workspace name
+          {t("settings.workspace_name")}
         </span>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="e.g. Scandia Food SRL"
+          placeholder={t("ws.namePlaceholder")}
           autoFocus
           data-testid="onboarding-name-input"
           className="w-full h-11 px-3.5 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
@@ -655,12 +663,11 @@ function StepName({
           workspace's organization row and drives its benchmarks. */}
       <div className="mt-5">
         <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
-          Industry
+          {t("onboarding.industry")}
         </span>
         <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
         <p className="mt-2 text-[11.5px] text-ink-mute leading-snug">
-          Pick the closest match — CFO AI applies industry-appropriate benchmarks. A 4×
-          Debt/EBITDA is normal in real estate and alarming in B2B SaaS.
+          {t("ws.industryHint")}
         </p>
       </div>
     </div>
@@ -668,11 +675,12 @@ function StepName({
 }
 
 function StepRules() {
+  const { t } = useTranslation();
   return (
     <div>
       <StepHeading
-        title="Set your decision rules"
-        body="These rules classify every product into Protect / Watch / Wind down. Pick a preset or tune the thresholds — you can always change them later from Products."
+        title={t("ws.stepRulesTitle")}
+        body={t("ws.stepRulesBody")}
       />
       {/* The DecisionRules controls, rendered inline (no modal). */}
       <DecisionRulesPanel />
@@ -681,6 +689,7 @@ function StepRules() {
 }
 
 function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => void }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -689,7 +698,7 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
     const f = files[0];
     const ok = f.name.toLowerCase().endsWith(".xlsx") || f.name.toLowerCase().endsWith(".csv");
     if (!ok) {
-      toast.error("Unsupported file", { description: "Drop a .xlsx or .csv workbook." });
+      toast.error(t("ws.unsupportedFile"), { description: t("ws.unsupportedFileDesc") });
       return;
     }
     onUpload(f);
@@ -698,8 +707,8 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
   return (
     <div>
       <StepHeading
-        title="Upload your data"
-        body="Drop an Excel or CSV with SKU sales, margin, and inventory. CFO AI classifies every product using the rules you just set."
+        title={t("ws.stepUploadTitle")}
+        body={t("ws.stepUploadBody")}
       />
       <input
         ref={inputRef}
@@ -734,21 +743,21 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
         {busy ? (
           <div className="relative flex items-center justify-center gap-3 text-ink-soft">
             <Loader2 size={18} strokeWidth={2} className="animate-spin text-brand-d" />
-            <span className="text-[13.5px]">Importing your workbook…</span>
+            <span className="text-[13.5px]">{t("ws.importing")}</span>
           </div>
         ) : (
           <div className="relative flex flex-col items-center">
             <h3 className="text-[16px] font-semibold text-ink">
-              {dragOver ? "Drop your file to upload" : "Drop your workbook here"}
+              {dragOver ? t("files.dropToUpload") : t("ws.dropWorkbook")}
             </h3>
-            <p className="text-[12.5px] text-ink-soft mt-1">XLSX · CSV · up to 25 MB</p>
+            <p className="text-[12.5px] text-ink-soft mt-1">{t("ws.uploadFormats")}</p>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
               data-testid="onboarding-choose-file"
               className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
             >
-              Import
+              {t("files.import")}
             </button>
           </div>
         )}
@@ -778,6 +787,7 @@ function MonthsSection({
   compact?: boolean;
   orgId: string;
 }) {
+  const { t } = useTranslation();
   const scoped = useQuery({
     queryKey: ["org-periods", orgId],
     queryFn: () => fetchWorkspacePeriodsDirect(orgId),
@@ -808,18 +818,18 @@ function MonthsSection({
     if (!target) return;
     setFileDeleteTarget(null);
     const sb = getSupabase();
-    if (!sb) { toast.error("Not signed in."); return; }
+    if (!sb) { toast.error(t("ws.notSignedIn")); return; }
     // Soft-delete, matching every other delete path in the app: the row stays
     // for 30 days in Recently deleted rather than being destroyed.
     const { error } = await sb
       .from("documents")
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", target.id);
-    if (error) { toast.error(`Couldn't delete "${target.name}".`); return; }
+    if (error) { toast.error(t("ws.cantDeleteFile", { name: target.name })); return; }
     void qc.invalidateQueries({ queryKey: ["org-periods", orgId] });
     void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
     qc.removeQueries({ queryKey: ["period-documents"] });
-    toast.success(`“${target.name}” deleted — restorable for 30 days.`);
+    toast.success(t("ws.deletedRestorable", { name: target.name }));
   }
 
   async function confirmDelete() {
@@ -836,12 +846,12 @@ function MonthsSection({
     //   2. A workspace keeps at least one period.
     if (isCurrentMonthPeriod(target.period_end)) {
       setDeleteTarget(null);
-      toast.info(`${label} is the current month — it can't be deleted.`);
+      toast.info(t("ws.currentMonthUndeletable", { label }));
       return;
     }
     if (periods.length <= 1) {
       setDeleteTarget(null);
-      toast.info("A workspace keeps at least one period — add another first.");
+      toast.info(t("ws.keepOnePeriod"));
       return;
     }
 
@@ -894,13 +904,13 @@ function MonthsSection({
         // works with the engine stopped.
         const errMsg = await deleteEmptyPeriod(target.period_id);
         if (errMsg) throw new Error(errMsg);
-        toast.success(`“${label}” deleted.`);
+        toast.success(t("ws.periodDeleted", { label }));
       } else {
         const { cfoApi } = await import("@/lib/cfoApi");
         const res = await cfoApi.deletePeriod(target.period_id);
-        toast.success(`“${label}” deleted.`, {
+        toast.success(t("ws.periodDeleted", { label }), {
           description: res.documents_soft_deleted
-            ? `${res.documents_soft_deleted} file(s) moved to Recently deleted — restorable for 30 days.`
+            ? t("ws.filesMovedToDeleted", { count: res.documents_soft_deleted })
             : undefined,
         });
       }
@@ -913,7 +923,7 @@ function MonthsSection({
       // Put the card back — the period still exists on the server.
       if (prevScoped !== undefined) qc.setQueryData(scopedKey, prevScoped);
       if (prevActive !== undefined) qc.setQueryData(activeKey, prevActive);
-      toast.error("Couldn't delete that period.", {
+      toast.error(t("ws.cantDeletePeriod"), {
         description: err instanceof Error ? err.message : undefined,
       });
     }
@@ -945,7 +955,7 @@ function MonthsSection({
       <span className="grid place-items-center h-8 w-8 rounded-full border border-rule group-hover:border-rule-strong transition-colors">
         <Plus size={18} strokeWidth={2.25} />
       </span>
-      <span className="text-[12.5px] font-medium leading-tight">Add period</span>
+      <span className="text-[12.5px] font-medium leading-tight">{t("ws.addPeriod")}</span>
     </button>
   );
 
@@ -963,8 +973,8 @@ function MonthsSection({
     return compact ? (
       <div className="border-t border-rule/60 pt-6" data-testid="workspace-months">
         <StepHeading
-          title="Periods"
-          body="Each period is a month of this workspace. Create one and attach its trial balance whenever you're ready."
+          title={t("ws.periodsTitle")}
+          body={t("ws.periodsBodyCreate")}
         />
         {addMonthBtn}
         {addDialog}
@@ -1026,7 +1036,7 @@ function MonthsSection({
               )}
               <div className="text-[13px] font-medium tabular-nums text-ink pr-5">{label}</div>
               <div className="mt-0.5 text-[11px] text-ink-mute">
-                {count === 0 ? "No files attached" : `${count} file${count === 1 ? "" : "s"}`}
+                {count === 0 ? t("ws.noFilesAttached") : t("ws.fileCount", { count })}
               </div>
             </div>
           );
@@ -1042,10 +1052,10 @@ function MonthsSection({
             <div className="text-[15px] font-medium tabular-nums text-ink leading-tight">
               {selected
                 ? formatPeriodMonth(selected.period_end) ?? selected.period_label
-                : "No period selected"}
+                : t("ws.noPeriodSelected")}
             </div>
             <div className="text-[10px] uppercase tracking-[0.14em] font-semibold text-ink-mute mt-0.5">
-              Uploaded files
+              {t("productsX.empty.stagedHeading")}
             </div>
           </div>
           {/* Delete the SELECTED period — moved off the list rows into this
@@ -1058,18 +1068,18 @@ function MonthsSection({
               onClick={() => setDeleteTarget(selected)}
               disabled={periods.length <= 1 || isCurrentMonthPeriod(selected.period_end)}
               data-testid={`workspace-month-delete-${selected.period_id}`}
-              aria-label={`Delete ${formatPeriodMonth(selected.period_end) ?? selected.period_label}`}
+              aria-label={t("panels.deleteLabelAria", { label: formatPeriodMonth(selected.period_end) ?? selected.period_label })}
               title={
                 isCurrentMonthPeriod(selected.period_end)
-                  ? "The current month is always kept — it's where today's upload lands"
+                  ? t("ws.currentMonthKept")
                   : periods.length <= 1
-                    ? "A workspace keeps at least one period — add another before deleting this one"
-                    : "Delete this period"
+                    ? t("ws.keepOnePeriodTitle")
+                    : t("ws.deletePeriodTitle")
               }
               className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-red-500/30 bg-red-500/[0.06] text-[11.5px] font-medium text-red-600 hover:bg-red-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Trash2 size={12} strokeWidth={1.75} />
-              Delete period
+              {t("ws.deletePeriod")}
             </button>
           )}
         </div>
@@ -1079,7 +1089,7 @@ function MonthsSection({
             className="flex flex-col items-center justify-center text-center gap-1.5 py-10 text-[11.5px] text-ink-mute/80"
           >
             <FileSpreadsheet size={30} strokeWidth={1.5} className="shrink-0 opacity-50" />
-            <span>No files attached</span>
+            <span>{t("ws.noFilesAttached")}</span>
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-rule/60">
@@ -1091,7 +1101,7 @@ function MonthsSection({
                   data-testid={`workspace-file-${d.id}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    void openUploadedFilePreview(d.filename ?? "document", async () => {
+                    void openUploadedFilePreview(d.filename ?? t("ws.documentFallback"), async () => {
                       const sb = getSupabase();
                       if (!sb) return null;
                       const { signedDocumentUrl } = await import("@/lib/supabase");
@@ -1113,24 +1123,24 @@ function MonthsSection({
                       data-testid={`workspace-file-scope-${d.id}`}
                       className="block text-[9.5px] uppercase tracking-[0.1em] font-semibold text-ink-mute/80"
                     >
-                      {d.scope === "sku" ? "Products" : "Trial balance"}
+                      {d.scope === "sku" ? t("sidebar.products") : t("ws.trialBalance")}
                     </span>
                     <span className="block text-[11.5px] font-medium text-ink break-words leading-snug">
-                      {d.filename ?? "Untitled file"}
+                      {d.filename ?? t("ws.untitledFile")}
                     </span>
                   </span>
                   {d.status && d.status !== "analyzed" && (
                     <span className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-ink-mute/80">
-                      {d.status === "failed" ? "failed" : "analyzing…"}
+                      {d.status === "failed" ? t("ws.statusFailed") : t("ws.statusAnalyzing")}
                     </span>
                   )}
                 </button>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setFileDeleteTarget({ id: d.id, name: d.filename ?? "this file" }); }}
+                  onClick={(e) => { e.stopPropagation(); setFileDeleteTarget({ id: d.id, name: d.filename ?? t("ws.thisFile") }); }}
                   data-testid={`workspace-file-delete-${d.id}`}
-                  aria-label={`Delete ${d.filename ?? "file"}`}
-                  title="Delete this file"
+                  aria-label={t("panels.deleteLabelAria", { label: d.filename ?? t("ws.fileFallback") })}
+                  title={t("ws.deleteThisFile")}
                   className="absolute top-1/2 -translate-y-1/2 right-2 grid place-items-center h-9 w-9 rounded-lg text-ink-mute opacity-0 transition-opacity hover:text-red-600 hover:bg-red-500/10 focus-visible:opacity-100 group-hover:opacity-100"
                 >
                   <Trash2 size={17} strokeWidth={1.75} />
@@ -1149,11 +1159,9 @@ function MonthsSection({
     <Dialog open={!!fileDeleteTarget} onOpenChange={(o) => { if (!o) setFileDeleteTarget(null); }}>
       <DialogContent className="sm:max-w-[420px]" data-testid="workspace-file-delete-dialog">
         <DialogHeader>
-          <DialogTitle>Delete this file?</DialogTitle>
+          <DialogTitle>{t("ws.deleteFileTitle")}</DialogTitle>
           <DialogDescription>
-            “{fileDeleteTarget?.name}” is removed from this period along with
-            the analysis derived from it. The file moves to Recently deleted
-            and can be restored for 30 days.
+            {t("ws.deleteFileBody", { name: fileDeleteTarget?.name })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
@@ -1162,7 +1170,7 @@ function MonthsSection({
             onClick={() => setFileDeleteTarget(null)}
             className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -1171,7 +1179,7 @@ function MonthsSection({
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
           >
             <Trash2 size={14} strokeWidth={1.75} />
-            Delete file
+            {t("ws.deleteFile")}
           </button>
         </DialogFooter>
       </DialogContent>
@@ -1181,16 +1189,16 @@ function MonthsSection({
       <DialogContent className="sm:max-w-[440px]" data-testid="workspace-period-delete-dialog">
         <DialogHeader>
           <DialogTitle>
-            Delete{" "}
-            {deleteTarget
-              ? formatPeriodMonth(deleteTarget.period_end) ?? deleteTarget.period_label
-              : "this period"}
-            ?
+            {t("ws.deletePeriodDialogTitle", {
+              label: deleteTarget
+                ? formatPeriodMonth(deleteTarget.period_end) ?? deleteTarget.period_label
+                : t("ws.thisPeriod"),
+            })}
           </DialogTitle>
           <DialogDescription>
             {(deleteTarget?.documents?.length ?? 0) === 0
-              ? "This period has no files — deleting it just removes the empty container."
-              : "This removes the period and everything derived from it — statements, ratios, valuation, briefing and alerts. Its uploaded file(s) move to Recently deleted and stay restorable for 30 days, but the analysis is not recoverable; re-uploading rebuilds it."}
+              ? t("ws.deletePeriodEmptyBody")
+              : t("ws.deletePeriodBody")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
@@ -1199,7 +1207,7 @@ function MonthsSection({
             onClick={() => setDeleteTarget(null)}
             className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           {/* No pending/spinner state: the dialog closes and the card
               disappears on click, so the request settles behind an interface
@@ -1211,7 +1219,7 @@ function MonthsSection({
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
           >
             <Trash2 size={14} strokeWidth={1.75} />
-            Delete period
+            {t("ws.deletePeriod")}
           </button>
         </DialogFooter>
       </DialogContent>
@@ -1228,8 +1236,8 @@ function MonthsSection({
     return (
       <div className="border-t border-rule/60 pt-6" data-testid="workspace-months">
         <StepHeading
-          title="Periods"
-          body="Each period is a month of this workspace; attach its trial balance whenever you're ready. Switch the period you're analyzing from the arrows beside the month in the sidebar."
+          title={t("ws.periodsTitle")}
+          body={t("ws.periodsBodyCompact")}
         />
         {pills}
         {deleteDialog}
@@ -1241,8 +1249,8 @@ function MonthsSection({
   return (
     <section className="border-t border-rule/60 pt-6" data-testid="workspace-months">
       <StepHeading
-        title="Periods"
-        body="Each period is a month of this workspace; attach its trial balance whenever you're ready."
+        title={t("ws.periodsTitle")}
+        body={t("ws.periodsBody")}
       />
       {pills}
       {deleteDialog}
@@ -1287,6 +1295,7 @@ function AddPeriodDialog({
   takenMonths: string[];
   orgId: string;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const uploadEnqueue = useUploadEnqueue();
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -1379,7 +1388,7 @@ function AddPeriodDialog({
           scope: "financial",
           periodEndHint: periodEnd,
         });
-        if (!row) throw new Error(error ?? "Upload failed.");
+        if (!row) throw new Error(error ?? t("errors.uploadFailed"));
         const enq = await uploadEnqueue.enqueue(row.id);
         if (enq.kind !== "queued") {
           // The hook already surfaced the reason (quota / transport /
@@ -1389,7 +1398,7 @@ function AddPeriodDialog({
           setBusy(false);
           return;
         }
-        toast.success(`${label} added — analyzing ${file.name}…`);
+        toast.success(t("ws.periodAddedAnalyzing", { label, file: file.name }));
         const unsub = subscribeToDocumentStatus(row.id, (next) => {
           if (next.status === "analyzed") {
             unsub();
@@ -1403,22 +1412,22 @@ function AddPeriodDialog({
             if (next.period_id) {
               void qc.resetQueries({ queryKey: periodQueryKey(next.period_id) });
             }
-            toast.success(`${label} is ready.`);
+            toast.success(t("ws.periodReady", { label }));
           } else if (next.status === "failed") {
             unsub();
             refreshPeriodLists();
-            toast.error("Couldn't analyze that file.", { description: next.error ?? undefined });
+            toast.error(t("ws.cantAnalyzeFile"), { description: next.error ?? undefined });
           }
         });
       } else {
-        toast.success(`${label} added.`, {
-          description: "No file yet — attach its trial balance from the period card anytime.",
+        toast.success(t("ws.periodAdded", { label }), {
+          description: t("ws.noFileYet"),
         });
       }
       onOpenChange(false);
       setBusy(false);
     } catch (err) {
-      toast.error("Couldn't add that period.", {
+      toast.error(t("ws.cantAddPeriod"), {
         description: err instanceof Error ? err.message : undefined,
       });
       setBusy(false);
@@ -1431,11 +1440,9 @@ function AddPeriodDialog({
       <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o); }}>
         <DialogContent className="sm:max-w-[480px]" data-testid="workspace-add-period-dialog">
           <DialogHeader>
-            <DialogTitle>Add a period</DialogTitle>
+            <DialogTitle>{t("ws.addPeriodDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Pick the month. Attaching its trial balance now is optional — the period exists
-              either way, and the month you pick is what any analysis gets filed under,
-              overriding whatever the file name says.
+              {t("ws.addPeriodDialogDesc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -1445,7 +1452,7 @@ function AddPeriodDialog({
                 htmlFor="add-period-month"
                 className="block text-[11px] uppercase tracking-[0.12em] font-semibold text-ink-mute mb-1.5"
               >
-                Period
+                {t("ws.periodLabel")}
               </label>
               <input
                 id="add-period-month"
@@ -1458,8 +1465,8 @@ function AddPeriodDialog({
               {duplicate && (
                 <p className="mt-1.5 text-[11.5px] text-amber-600" data-testid="workspace-add-period-duplicate">
                   {file
-                    ? <>This workspace already has {formatPeriodMonth(`${month}-01`) ?? month} — this file replaces that period's analysis.</>
-                    : <>This workspace already has {formatPeriodMonth(`${month}-01`) ?? month}. Pick another month, or attach a file to replace that period's analysis.</>}
+                    ? t("ws.duplicateWithFile", { month: formatPeriodMonth(`${month}-01`) ?? month })
+                    : t("ws.duplicateNoFile", { month: formatPeriodMonth(`${month}-01`) ?? month })}
                 </p>
               )}
             </div>
@@ -1500,16 +1507,16 @@ function AddPeriodDialog({
                   <span className="text-[12.5px] font-medium text-ink max-w-full truncate">
                     {file.name}
                   </span>
-                  <span className="text-[11px] text-ink-mute">Click to choose a different file</span>
+                  <span className="text-[11px] text-ink-mute">{t("ws.chooseDifferentFile")}</span>
                 </>
               ) : (
                 <>
                   <UploadCloud size={22} strokeWidth={1.5} className="text-ink-mute" />
                   <span className="text-[12.5px] font-medium text-ink">
-                    Drop the trial balance, or click to browse
+                    {t("ws.dropTrialBalance")}
                   </span>
                   <span className="text-[11px] text-ink-mute">
-                    Optional — you can attach it later from the period card
+                    {t("ws.attachLater")}
                   </span>
                 </>
               )}
@@ -1524,12 +1531,14 @@ function AddPeriodDialog({
                 className="rounded-lg border border-amber-500/40 bg-amber-500/[0.07] px-3 py-2.5"
               >
                 <p className="text-[11.5px] text-ink">
-                  This file looks like{" "}
-                  <span className="font-semibold">
-                    {formatPeriodMonth(`${detectedMonth}-15`) ?? detectedMonth}
-                  </span>
-                  , but the period is set to{" "}
-                  <span className="font-semibold">{formatPeriodMonth(`${month}-15`) ?? month}</span>.
+                  <Trans
+                    i18nKey="ws.mismatchText"
+                    values={{
+                      fileMonth: formatPeriodMonth(`${detectedMonth}-15`) ?? detectedMonth,
+                      month: formatPeriodMonth(`${month}-15`) ?? month,
+                    }}
+                    components={{ 1: <span className="font-semibold" />, 2: <span className="font-semibold" /> }}
+                  />
                 </p>
                 <div className="mt-2 flex items-center gap-2">
                   <button
@@ -1538,7 +1547,7 @@ function AddPeriodDialog({
                     data-testid="workspace-add-period-use-file-date"
                     className="inline-flex items-center h-7 px-2.5 rounded-md border border-brand/40 bg-brand/10 text-[11.5px] font-medium text-ink hover:bg-brand/20 transition-colors"
                   >
-                    Use file date ({formatPeriodMonth(`${detectedMonth}-15`) ?? detectedMonth})
+                    {t("ws.useFileDate", { month: formatPeriodMonth(`${detectedMonth}-15`) ?? detectedMonth })}
                   </button>
                   <button
                     type="button"
@@ -1546,7 +1555,7 @@ function AddPeriodDialog({
                     data-testid="workspace-add-period-keep-date"
                     className="inline-flex items-center h-7 px-2.5 rounded-md border border-rule text-[11.5px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2/60 transition-colors"
                   >
-                    Keep {formatPeriodMonth(`${month}-15`) ?? month}
+                    {t("ws.keepMonth", { month: formatPeriodMonth(`${month}-15`) ?? month })}
                   </button>
                 </div>
               </div>
@@ -1560,7 +1569,7 @@ function AddPeriodDialog({
               disabled={busy}
               className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -1570,7 +1579,7 @@ function AddPeriodDialog({
               className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
-              {busy ? (file ? "Uploading…" : "Creating…") : "Add period"}
+              {busy ? (file ? t("upload.uploading") : t("ws.creating")) : t("ws.addPeriod")}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -1603,6 +1612,7 @@ function SelectedWorkspacePanel({
   onChangeIndustry: (key: string) => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const period = useActivePeriod();
   const monthsQ = useQuery({
     queryKey: ["org-periods", workspace.id],
@@ -1617,13 +1627,15 @@ function SelectedWorkspacePanel({
     <div className="space-y-6" data-testid="selected-workspace-panel">
       <PageHeader
         hero
-        eyebrow="Workspace settings"
+        eyebrow={t("ws.settingsEyebrow")}
         title={
-          <>
-            Manage <span className="text-grad">{workspace.name || "this workspace"}</span>.
-          </>
+          <Trans
+            i18nKey="ws.manageTitle"
+            values={{ name: workspace.name || t("ws.thisWorkspace") }}
+            components={{ grad: <span className="text-grad" /> }}
+          />
         }
-        subtitle="Rename this workspace, tune the decision rules that classify its products, or remove it. Changes apply to this workspace only."
+        subtitle={t("ws.settingsSubtitle")}
       />
       {/* The blur-the-content-and-overlay-a-spinner treatment was removed
           2026-07-26 per operator: switching workspace now shows the app-wide
@@ -1654,6 +1666,7 @@ function SelectedWorkspacePanel({
 // newest first. Read-only chips (the card's click still selects the workspace);
 // fetched per org and cached so a grid of cards costs one request each.
 function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
+  const { t } = useTranslation();
   const { data } = useQuery({
     queryKey: ["org-periods", orgId],
     queryFn: () => fetchWorkspacePeriodsDirect(orgId),
@@ -1668,7 +1681,7 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
     <div className="mt-2 flex flex-wrap gap-1.5" data-testid="workspace-card-months">
       {periods.length === 0 ? (
         <span className="inline-flex items-center h-6 px-2 rounded-full border border-dashed border-rule text-[11px] font-medium text-ink-mute">
-          No periods
+          {t("ws.noPeriods")}
         </span>
       ) : (
         periods.map((p) => (
@@ -1709,6 +1722,7 @@ function WorkspaceHub({
    *  nothing selected while you were plainly in the middle of creating one. */
   createActive?: boolean;
 }) {
+  const { t } = useTranslation();
   const period = useActivePeriod();
   const navigate = useNavigate();
   const { workspaces, archived, currentId, select, setPeriod, restore, purge } = useWorkspaces();
@@ -1744,7 +1758,9 @@ function WorkspaceHub({
   async function restoreWorkspace(id: string, name: string) {
     const ok = await restore(id);
     toast[ok ? "success" : "error"](
-      ok ? `“${name || "Workspace"}” restored.` : "Couldn't restore that workspace.",
+      ok
+        ? t("ws.workspaceRestored", { name: name || t("ws.workspaceFallback") })
+        : t("ws.cantRestoreWorkspace"),
     );
   }
 
@@ -1773,7 +1789,7 @@ function WorkspaceHub({
           data-testid="workspace-none-selected"
           className="rounded-2xl border border-dashed border-rule bg-bg-2/30 px-5 py-4 text-[13px] text-ink-soft"
         >
-          No workspace is selected. Pick one below to load its data everywhere.
+          {t("ws.noneSelected")}
         </div>
       ) : null}
 
@@ -1810,9 +1826,9 @@ function WorkspaceHub({
             {createActive && (
               <span
                 className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
-                title="Creating a workspace"
+                title={t("ws.creatingWorkspace")}
               >
-                <span className="sr-only">Creating a workspace</span>
+                <span className="sr-only">{t("ws.creatingWorkspace")}</span>
               </span>
             )}
             <span
@@ -1822,7 +1838,7 @@ function WorkspaceHub({
             >
               <Plus size={16} strokeWidth={2.25} />
             </span>
-            <span className="text-[12.5px] font-medium leading-tight">Create workspace</span>
+            <span className="text-[12.5px] font-medium leading-tight">{t("ws.createWorkspace")}</span>
           </button>
         </li>
         {orderedWorkspaces.map((w) => {
@@ -1842,7 +1858,7 @@ function WorkspaceHub({
                   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void switchTo(w.id); }
                 }}
                 aria-pressed={isActive}
-                aria-label={`Select ${w.name || "workspace"}`}
+                aria-label={t("ws.selectWorkspaceAria", { name: w.name || t("ws.workspaceFallback") })}
                 // Selected card carries the animated teal gradient
                 // (2026-07-26 per operator) — the same `.ask-ai-anim-fill`
                 // treatment as the selected industry card and the Ask CFO AI
@@ -1860,20 +1876,20 @@ function WorkspaceHub({
                 {isActive && (
                   <span
                     className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
-                    title="Active workspace"
+                    title={t("ws.activeWorkspace")}
                   >
-                    <span className="sr-only">Active workspace</span>
+                    <span className="sr-only">{t("ws.activeWorkspace")}</span>
                   </span>
                 )}
 
                 <div className="pr-8">
                   <span className="block font-serif text-[16px] text-ink leading-tight truncate">
-                    {w.name || "Untitled workspace"}
+                    {w.name || t("ws.untitledWorkspace")}
                   </span>
                   {/* Firm / industry — shown on every card (fallback when the
                       setup wizard hasn't set one yet). */}
                   <div className="mt-0.5 text-[12px] text-ink-mute">
-                    {w.industryKey ? orgIndustryLabel(w.industryKey) : "No industry set"}
+                    {w.industryKey ? orgIndustryLabel(w.industryKey) : t("ws.noIndustrySet")}
                   </div>
                   {/* Month pills — the periods this workspace holds (carry the
                       "no months" state too, so the old "No data loaded yet"
@@ -1899,13 +1915,13 @@ function WorkspaceHub({
               className="relative flex h-full flex-col rounded-2xl border border-dashed border-rule bg-bg-2/30 px-4 py-2.5"
             >
               <div className="font-serif text-[15px] text-ink-soft leading-tight truncate pr-2">
-                {w.name || "Untitled workspace"}
+                {w.name || t("ws.untitledWorkspace")}
               </div>
               <div className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-rule bg-surface/60 px-2 py-0.5 text-[11px] font-medium text-ink-mute tabular-nums">
                 <Clock size={11} strokeWidth={2} />
                 {w.daysLeft && w.daysLeft > 0
-                  ? `Deletes in ${w.daysLeft} ${w.daysLeft === 1 ? "day" : "days"}`
-                  : "Deleting soon"}
+                  ? t("ws.deletesInDays", { count: w.daysLeft })
+                  : t("ws.deletingSoon")}
               </div>
               {/* Actions — one in each bottom corner. */}
               <div className="mt-auto pt-2 flex items-center justify-between">
@@ -1913,21 +1929,21 @@ function WorkspaceHub({
                   type="button"
                   onClick={() => void restoreWorkspace(w.id, w.name)}
                   data-testid="workspace-restore"
-                  title="Restore"
+                  title={t("panels.restore")}
                   className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-rule text-[11.5px] font-medium text-ink hover:bg-bg-2/70 transition-colors"
                 >
                   <RotateCcw size={12} strokeWidth={1.75} />
-                  Restore
+                  {t("panels.restore")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setPurgeTarget(w)}
                   data-testid="workspace-purge"
-                  title="Delete forever"
+                  title={t("panels.deleteForever")}
                   className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-red-500/30 bg-red-500/10 text-[11.5px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
                 >
                   <Trash2 size={12} strokeWidth={1.75} />
-                  Delete
+                  {t("common.delete")}
                 </button>
               </div>
             </div>
@@ -1944,8 +1960,8 @@ function WorkspaceHub({
           setPurgeTarget(null);
           toast[ok ? "success" : "error"](
             ok
-              ? `“${w.name || "Workspace"}” permanently deleted.`
-              : "Couldn't delete that workspace.",
+              ? t("ws.workspacePurged", { name: w.name || t("ws.workspaceFallback") })
+              : t("ws.cantDeleteWorkspace"),
           );
         }}
       />
@@ -1966,6 +1982,7 @@ function PurgeWorkspaceDialog({
   onClose: () => void;
   onConfirm: (w: Workspace) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const name = workspace?.name?.trim() ?? "";
@@ -1992,17 +2009,19 @@ function PurgeWorkspaceDialog({
     <Dialog open={!!workspace} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
       <DialogContent className="sm:max-w-[440px]" data-testid="workspace-purge-dialog">
         <DialogHeader>
-          <DialogTitle>Permanently delete “{name || "this workspace"}”?</DialogTitle>
+          <DialogTitle>{t("ws.purgeTitle", { name: name || t("ws.thisWorkspace") })}</DialogTitle>
           <DialogDescription>
-            This erases the workspace and everything in it — uploaded documents,
-            financial periods, analyses, alerts and chat history. There is no
-            30-day recovery for this action. It cannot be undone.
+            {t("ws.purgeBody")}
           </DialogDescription>
         </DialogHeader>
 
         <label className="block">
           <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
-            Type <span className="font-mono normal-case tracking-normal text-ink">{name}</span> to confirm
+            <Trans
+              i18nKey="ws.typeToConfirm"
+              values={{ name }}
+              components={{ 1: <span className="font-mono normal-case tracking-normal text-ink" /> }}
+            />
           </span>
           <input
             type="text"
@@ -2024,7 +2043,7 @@ function PurgeWorkspaceDialog({
             disabled={busy}
             className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 disabled:opacity-40 transition-colors"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -2034,7 +2053,7 @@ function PurgeWorkspaceDialog({
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 text-white text-[13px] font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Trash2 size={14} strokeWidth={1.75} />
-            {busy ? "Deleting…" : "Permanently delete"}
+            {busy ? t("productsX.wipe.deleting") : t("ws.purgeConfirm")}
           </button>
         </DialogFooter>
       </DialogContent>
@@ -2062,6 +2081,7 @@ function WorkspaceSettings({
    *  the hub (the workspace list is already right above it). */
   showBack?: boolean;
 }) {
+  const { t } = useTranslation();
   // Field settings are STAGED locally and committed together by the bottom
   // "Apply changes" button — the per-field Save was removed.
   const [name, setName] = useState(workspace.name);
@@ -2133,7 +2153,7 @@ function WorkspaceSettings({
       rulesBaseline.current = readDecisionRules();
     }
     rulesCommitted.current = true;
-    if (dirty) toast.success("Workspace settings applied.");
+    if (dirty) toast.success(t("ws.settingsApplied"));
   }
 
   // Guard the "All workspaces" back link: with unsaved changes, warn first.
@@ -2146,13 +2166,9 @@ function WorkspaceSettings({
   // Register the app-wide guard so a sidebar tab switch warns before the
   // unmount revert throws the edits away (see lib/unsavedGuard).
   useEffect(() => {
-    setUnsavedGuard(
-      dirty
-        ? "You have unapplied changes to this workspace's settings. Leaving now discards them.\n\nLeave without applying?"
-        : null,
-    );
+    setUnsavedGuard(dirty ? t("ws.unsavedGuard") : null);
     return () => setUnsavedGuard(null);
-  }, [dirty]);
+  }, [dirty, t]);
 
   // Also catch a full page unload / refresh while there are unsaved changes —
   // the SPA can't intercept a hard reload, so the browser's native prompt is
@@ -2174,7 +2190,7 @@ function WorkspaceSettings({
           className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-mute hover:text-ink transition-colors"
         >
           <ArrowLeft size={14} strokeWidth={2} />
-          All workspaces
+          {t("ws.allWorkspaces")}
         </button>
       )}
 
@@ -2184,7 +2200,7 @@ function WorkspaceSettings({
           a workspace's identity is easy to change by accident. Still staged —
           committed by "Apply changes", not on blur. */}
       <div className="border-t border-rule/60 pt-6">
-        <StepHeading title="Workspace name" body="Rename this workspace — usually the company or entity you're analyzing." />
+        <StepHeading title={t("settings.workspace_name")} body={t("ws.renameBody")} />
         <div className="flex items-center gap-2">
           <input
             ref={nameInputRef}
@@ -2234,8 +2250,8 @@ function WorkspaceSettings({
             }}
             data-testid="workspace-settings-name-edit"
             aria-pressed={editingName}
-            aria-label={editingName ? "Finish editing workspace name" : "Edit workspace name"}
-            title={editingName ? "Finish editing" : "Edit workspace name"}
+            aria-label={editingName ? t("ws.finishEditingName") : t("ws.editWorkspaceName")}
+            title={editingName ? t("ws.finishEditing") : t("ws.editWorkspaceName")}
             className={`shrink-0 inline-flex items-center gap-1.5 h-10 px-4 rounded-xl border text-[13px] font-medium text-ink transition-all focus:outline-none ask-ai-anim-fill [animation-duration:10s] ${
               editingName
                 ? "border-brand/60 ring-2 ring-brand/20"
@@ -2247,7 +2263,7 @@ function WorkspaceSettings({
             ) : (
               <Pencil size={14} strokeWidth={1.75} />
             )}
-            {editingName ? "Done" : "Edit"}
+            {editingName ? t("common.done") : t("common.edit")}
           </button>
         </div>
       </div>
@@ -2257,8 +2273,8 @@ function WorkspaceSettings({
           thresholds it contextualizes. Staged; committed by "Apply changes". */}
       <div className="border-t border-rule/60 pt-6">
         <StepHeading
-          title="Industry"
-          body="Sets the sector benchmarks CFO AI grades this workspace against. Change it if the company's industry was set wrong — a 4× Debt/EBITDA is normal in real estate and alarming in SaaS."
+          title={t("onboarding.industry")}
+          body={t("ws.industryBody")}
         />
         <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
       </div>
@@ -2266,8 +2282,8 @@ function WorkspaceSettings({
       {/* Decision rules */}
       <div className="border-t border-rule/60 pt-6">
         <StepHeading
-          title="Decision rules"
-          body="These rules classify every product into Protect / Watch / Wind down. Tune the thresholds, then press Apply changes — leaving without applying discards them."
+          title={t("decision_rules.title")}
+          body={t("ws.rulesBody")}
         />
         <DecisionRulesPanel />
       </div>
@@ -2275,8 +2291,8 @@ function WorkspaceSettings({
       {/* Actions */}
       <div className="border-t border-rule/60 pt-6">
         <StepHeading
-          title="Setup & data"
-          body="Deleting hides this workspace and everything in it. You can restore it for 30 days, after which its documents, periods and analyses are erased permanently. If it's your last workspace, you'll return to a clean slate to create a new one."
+          title={t("ws.setupDataTitle")}
+          body={t("ws.setupDataBody")}
         />
         {/* Apply shares this row with Reset + Delete (2026-07-26 per
             operator). It's the single commit point for everything above —
@@ -2287,13 +2303,13 @@ function WorkspaceSettings({
             type="button"
             onClick={() => {
               resetDecisionRulesToDefaults();
-              toast.success("Decision rules reset to defaults.");
+              toast.success(t("ws.rulesReset"));
             }}
             data-testid="workspace-settings-reset"
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
           >
             <RotateCcw size={14} strokeWidth={1.75} />
-            Reset to default
+            {t("ws.resetToDefault")}
           </button>
           {canDelete && (
             <button
@@ -2303,7 +2319,7 @@ function WorkspaceSettings({
               className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
             >
               <Trash2 size={14} strokeWidth={1.75} />
-              Delete workspace
+              {t("ws.deleteWorkspace")}
             </button>
           )}
           {/* Apply sits at the far right of this row (2026-07-26 per
@@ -2311,7 +2327,7 @@ function WorkspaceSettings({
               the destructive actions on the left. */}
           {dirty && (
             <span className="ml-auto text-[12.5px] text-amber-600" data-testid="workspace-settings-dirty">
-              You have unsaved changes.
+              {t("ws.unsavedChanges")}
             </span>
           )}
           <button
@@ -2322,7 +2338,7 @@ function WorkspaceSettings({
             className={`${dirty ? "" : "ml-auto "}inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
           >
             <Check size={14} strokeWidth={2} />
-            Apply changes
+            {t("ws.applyChanges")}
           </button>
         </div>
       </div>
@@ -2334,11 +2350,9 @@ function WorkspaceSettings({
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-[440px]" data-testid="workspace-settings-delete-dialog">
           <DialogHeader>
-            <DialogTitle>Delete “{workspace.name || "this workspace"}”?</DialogTitle>
+            <DialogTitle>{t("ws.deleteWorkspaceTitle", { name: workspace.name || t("ws.thisWorkspace") })}</DialogTitle>
             <DialogDescription>
-              This hides the workspace and everything in it — documents, periods,
-              analyses and chat. You can restore it from “Recently deleted” for 30
-              days, after which it's erased permanently.
+              {t("ws.deleteWorkspaceBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -2348,7 +2362,7 @@ function WorkspaceSettings({
               data-testid="workspace-settings-delete-cancel"
               className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -2357,7 +2371,7 @@ function WorkspaceSettings({
               className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
             >
               <Trash2 size={14} strokeWidth={1.75} />
-              Delete workspace
+              {t("ws.deleteWorkspace")}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -2367,9 +2381,9 @@ function WorkspaceSettings({
       <Dialog open={leaveWarnOpen} onOpenChange={setLeaveWarnOpen}>
         <DialogContent className="sm:max-w-[420px]" data-testid="workspace-settings-leave-dialog">
           <DialogHeader>
-            <DialogTitle>Discard unsaved changes?</DialogTitle>
+            <DialogTitle>{t("confirmations.discardTitle")}</DialogTitle>
             <DialogDescription>
-              You changed this workspace's settings but haven't applied them. Leaving now discards those changes.
+              {t("ws.leaveBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -2378,14 +2392,14 @@ function WorkspaceSettings({
               onClick={() => setLeaveWarnOpen(false)}
               className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
             >
-              Keep editing
+              {t("ws.keepEditing")}
             </button>
             <button
               type="button"
               onClick={() => { applyChanges(); setLeaveWarnOpen(false); onBack?.(); }}
               className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
             >
-              Apply &amp; leave
+              {t("ws.applyAndLeave")}
             </button>
             <button
               type="button"
@@ -2393,7 +2407,7 @@ function WorkspaceSettings({
               data-testid="workspace-settings-leave-discard"
               className="inline-flex items-center h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
             >
-              Discard &amp; leave
+              {t("ws.discardAndLeave")}
             </button>
           </DialogFooter>
         </DialogContent>

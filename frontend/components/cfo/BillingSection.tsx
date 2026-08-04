@@ -70,6 +70,7 @@ import { SITE } from "@/config/site";
 import { UpcomingInvoicePreview } from "./UpcomingInvoicePreview";
 import { CurrentPlanCard } from "./CurrentPlanCard";
 import { UsageThisMonth } from "./pricing/UsageThisMonth";
+import { formatDateOnly } from "@/lib/locale";
 
 export function BillingSection() {
   // Stripe sub state — used to route "Manage subscription" to the
@@ -317,7 +318,7 @@ function SaveReason({ label, suggestion }: { label: string; suggestion: string }
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-GB", { dateStyle: "medium" });
+    return formatDateOnly(iso);
   } catch {
     return iso.slice(0, 10);
   }

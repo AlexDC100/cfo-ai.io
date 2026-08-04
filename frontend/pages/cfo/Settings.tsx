@@ -557,7 +557,7 @@ function LanguageCard() {
     // Visible feedback so the user knows the switch happened even if their
     // current page's labels happen to be hardcoded strings.
     const langName = SUPPORTED_LANGUAGES.find((l) => l.code === code)?.label ?? code;
-    toast({ title: `Language: ${langName}` });
+    toast({ title: `${t("settings.language")}: ${langName}` });
   }
 
   return (

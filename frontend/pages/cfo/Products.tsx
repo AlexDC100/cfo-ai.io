@@ -89,7 +89,7 @@ import {
   startUpload,
   useUploadStore,
 } from "@/lib/uploadStore";
-import { ScanProgressView, SKU_DATASET_STEPS, SKU_STATUS_ORDINAL, SKU_STATUS_MESSAGES } from "@/components/cfo/ScanProgressView";
+import { ScanProgressView, SCAN_TEXT_KEYS, SKU_DATASET_STEPS, SKU_STATUS_ORDINAL, SKU_STATUS_MESSAGES } from "@/components/cfo/ScanProgressView";
 import { isScanSpherePaused } from "@/components/cfo/CouncilSphereHost";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { AddFileTile, SourceFilesRow } from "@/components/cfo/SourceFilesRow";
@@ -386,8 +386,11 @@ export default function Products() {
   const handlePageUploadFile = useCallback(async (file: File) => {
     if (file.size > PRODUCTS_UPLOAD_MAX_BYTES) {
       toast({
-        title: "File too large",
-        description: `${(file.size / 1_000_000).toFixed(1)} MB exceeds the ${PRODUCTS_UPLOAD_MAX_MB} MB limit.`,
+        title: t("productsX.toast.fileTooLarge"),
+        description: t("productsX.toast.fileTooLargeDesc", {
+          size: (file.size / 1_000_000).toFixed(1),
+          limit: PRODUCTS_UPLOAD_MAX_MB,
+        }),
         variant: "destructive",
       });
       return;
@@ -401,7 +404,7 @@ export default function Products() {
     const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
     if (!row) {
       clearUpload();
-      toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
+      toast({ title: t("productsX.toast.uploadFailed"), description: error ?? t("productsX.toast.unknownError"), variant: "destructive" });
       return;
     }
     startUpload({ docId: row.id, filename: file.name, status: "queued", surface: "products" });
@@ -425,19 +428,19 @@ export default function Products() {
       patchUpload({ status: next.status, error: next.error });
       if (next.status === "analyzed") {
         unsub();
-        toast({ title: "Analysis ready", description: file.name });
+        toast({ title: t("productsX.toast.analysisReady"), description: file.name });
         void qc.invalidateQueries({ queryKey: ["sales-datasets"] });
       }
       if (next.status === "failed") {
         unsub();
         toast({
-          title: "Analysis failed",
-          description: next.error ?? "Unknown error.",
+          title: t("productsX.toast.analysisFailed"),
+          description: next.error ?? t("productsX.toast.unknownError"),
           variant: "destructive",
         });
       }
     });
-  }, [toast, uploadEnqueue, qc, uid, uploadPeriodId]);
+  }, [toast, uploadEnqueue, qc, uid, uploadPeriodId, t]);
 
   // (Search debounce removed — replaced by useDeferredValue above. No
   // setTimeout/clearTimeout needed; React schedules the deferred work
@@ -842,8 +845,8 @@ export default function Products() {
             dismissInflight(scanDoc.id);
           }}
           onViewResults={revealResults}
-          completeTitle="Analysis ready"
-          completeBody="Your product portfolio has been rebuilt — margins, buckets and the executive briefing are ready."
+          completeTitle={t("productsX.toast.analysisReady")}
+          completeBody={t("productsX.scan.completeBody")}
         />
       </section>
     );
@@ -854,7 +857,7 @@ export default function Products() {
       <>
         <div className="max-w-[680px] mx-auto py-16 text-center">
           <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
-          <p className="text-[13px] text-ink-soft">Loading datasets…</p>
+          <p className="text-[13px] text-ink-soft">{t("products.loading.datasets")}</p>
         </div>
       </>
     );
@@ -886,7 +889,7 @@ export default function Products() {
       <>
         <div className="max-w-[680px] mx-auto py-16 text-center">
           <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
-          <p className="text-[13px] text-ink-soft">Loading SKUs…</p>
+          <p className="text-[13px] text-ink-soft">{t("products.loading.skus")}</p>
         </div>
       </>
     );
@@ -936,9 +939,10 @@ export default function Products() {
           testid="portfolio-header"
           eyebrow={t("products.title")}
           title={
-            <>
-              Every SKU&apos;s margin, <span className="text-grad">ranked and graded</span>.
-            </>
+            <Trans
+              i18nKey="productsX.heroTitle"
+              components={{ grad: <span className="text-grad" /> }}
+            />
           }
           subtitle={
             <>
@@ -952,8 +956,8 @@ export default function Products() {
               />
               {" — "}
               {dataset.label} · <SourceText lang="ro">{dataset.source_filename}</SourceText> ·{" "}
-              {new Date(dataset.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.
-              Your source data is never altered.
+              {new Date(dataset.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.{" "}
+              {t("productsX.sourceNeverAltered")}
             </>
           }
         />
@@ -972,7 +976,7 @@ export default function Products() {
             <div className="min-w-0 max-w-[840px]">
               <ReconciliationChip dsPayload={dsPayload} currency={sourceCurrency} />
             </div>
-            <GuideMeButton pageId="products" title="Products" steps={PRODUCTS_GUIDE} />
+            <GuideMeButton pageId="products" title={t("productsX.guideTitle")} steps={PRODUCTS_GUIDE} />
           </div>
           {/* 4-tile KPI grid: SKUs total + the three threshold-reactive
               buckets. `counts3` recomputes via useMemo on every threshold
@@ -1045,7 +1049,7 @@ export default function Products() {
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  aria-label="Clear search"
+                  aria-label={t("productsX.clearSearch")}
                   className="shrink-0 text-ink-mute hover:text-ink transition-colors"
                 >
                   <X size={14} strokeWidth={2} />
@@ -1113,7 +1117,7 @@ export default function Products() {
                 // in the list (2026-07-26 per operator).
                 options={[
                   { value: "", label: t("products.filters.allChannels") },
-                  ...(["KA", "DIST", "EXP", "OLN"] as const).map((c) => ({ value: c, label: CHANNEL_NAMES[c] })),
+                  ...(["KA", "DIST", "EXP", "OLN"] as const).map((c) => ({ value: c, label: t(`productsX.channels.${c}`) })),
                 ]}
               />
               <FilterDropdown
@@ -1239,12 +1243,9 @@ export default function Products() {
                 <FileSpreadsheet size={230} strokeWidth={1} />
               </div>
               <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">Download CSV</h3>
+                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("productsX.export.title")}</h3>
                 <p className="text-[13.5px] text-ink-soft mt-1">
-                  Every SKU in the current view — volume, NIV, gross margin and
-                  DIO — as a single spreadsheet-ready CSV. Respects your active
-                  filters and display currency; opens in Excel, Sheets or any
-                  tool.
+                  {t("productsX.export.body")}
                 </p>
               </div>
               <div className="relative mt-auto pt-6 flex justify-end">
@@ -1260,7 +1261,7 @@ export default function Products() {
                   className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
                 >
                   <ArrowDownToLine size={15} strokeWidth={2} />
-                  Download
+                  {t("common.download")}
                 </button>
               </div>
             </div>
@@ -1277,13 +1278,10 @@ export default function Products() {
           >
             <div>
               <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-red-600/90">
-                Danger zone
+                {t("productsX.danger.title")}
               </div>
               <p className="text-[12px] text-ink-mute mt-0.5 max-w-[560px]">
-                Deleting your product data is permanent and cannot be undone.
-                Every SKU, margin and portfolio classification on this page is
-                erased. The source files stay in Recently deleted for 30 days
-                and are then removed for good.
+                {t("productsX.danger.body")}
               </p>
             </div>
             <DevWipeDataButton />
@@ -1342,6 +1340,7 @@ function ReconciliationChip({
   // source currency (kRON / kEUR / kUSD) so the gap math runs in "k" units;
   // we hand the result to `fmtKron` which scales ×1000 to base before FX.
   const fmtKron = useKronFormatter(currency);
+  const { t } = useTranslation();
 
   const recon = useMemo(() => {
     if (!dsPayload) return null;
@@ -1369,7 +1368,10 @@ function ReconciliationChip({
           ? "border-[#8FE3D9]/40 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
           : "border-alert/50 bg-alert/[0.06] dark:bg-alert/[0.08]"
       }`}
-      title={`Source NIV: ${fmtKron(recon.expectedKrn)} · SKU sum: ${fmtKron(recon.observedKrn)}`}
+      title={t("productsX.recon.tooltip", {
+        expected: fmtKron(recon.expectedKrn),
+        observed: fmtKron(recon.observedKrn),
+      })}
     >
       {recon.isClean ? (
         <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
@@ -1378,24 +1380,32 @@ function ReconciliationChip({
       )}
       <div>
         {recon.isClean ? (
-          <>
-            <strong className="text-[#2AA89B] dark:text-[#5CD3C5]">Quality checks passed.</strong>{" "}
-            Extraction reconciles within <strong>{(Math.floor(recon.gapPct * 100) / 100).toFixed(2)}%</strong>{" "}
-            on this dataset (target: exact match to source). All <strong>{counted} of {total}</strong> SKUs
-            counted; per-SKU net invoiced value sums to the source total. Headline figures (NIV, gross
-            margin, cash trapped) are safe to use — cross-check on board-level / external decisions out of habit.
-          </>
+          <Trans
+            i18nKey="productsX.recon.clean"
+            values={{
+              pct: (Math.floor(recon.gapPct * 100) / 100).toFixed(2),
+              counted,
+              total,
+            }}
+            components={{
+              b1: <strong className="text-[#2AA89B] dark:text-[#5CD3C5]" />,
+              b: <strong />,
+            }}
+          />
         ) : (
-          <>
-            <strong className="text-alert">Reconciliation gap — verify before external use.</strong>{" "}
-            The SKU-level sum differs from the source NIV total by{" "}
-            <strong>
-              {recon.deltaKrn >= 0 ? "+" : "−"}{fmtKron(recon.absDelta)} ({recon.gapPct.toFixed(2)}%)
-            </strong>{" "}
-            with {counted} of {total} SKUs counted — rows may have been dropped or duplicated during
-            extraction. Cross-check headline figures against your source before board reports or
-            external submissions.
-          </>
+          <Trans
+            i18nKey="productsX.recon.gap"
+            values={{
+              delta: `${recon.deltaKrn >= 0 ? "+" : "−"}${fmtKron(recon.absDelta)}`,
+              pct: recon.gapPct.toFixed(2),
+              counted,
+              total,
+            }}
+            components={{
+              b1: <strong className="text-alert" />,
+              b: <strong />,
+            }}
+          />
         )}
       </div>
     </div>
@@ -1562,6 +1572,7 @@ function DatasetSourceFiles({
   /** Right-aligned content on the row above the tiles (the Guide me CTA). */
   trailing?: ReactNode;
 }) {
+  const { t } = useTranslation();
   // Newest-first, matching the dashboard month order, scoped to this month.
   const ordered = datasetsForMonth(datasets, activePeriodId).sort(
     (a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime(),
@@ -1583,15 +1594,15 @@ function DatasetSourceFiles({
           isActive: d.id === activeDatasetId,
           onOpen: () => void openDatasetFile(d),
         }))}
-        trailingHeading="Replace or add files"
+        trailingHeading={t("productsX.sourceFiles.replaceOrAdd")}
         trailing={
           <AddFileTile
             accept={PRODUCTS_UPLOAD_ACCEPT}
             onFile={onUpload}
             variant="wide"
-            label="Drop your dataset here"
-            hint={`XLSX · CSV · up to ${PRODUCTS_UPLOAD_MAX_MB} MB`}
-            title="Upload another dataset — click to browse or drop a file here"
+            label={t("products.empty.dropHere")}
+            hint={t("productsX.sourceFiles.hint", { mb: PRODUCTS_UPLOAD_MAX_MB })}
+            title={t("productsX.sourceFiles.addTitle")}
           />
         }
       />
@@ -1625,6 +1636,7 @@ function DevWipeDataButton() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
+  const { t } = useTranslation();
   const qc = useQueryClient();
 
 
@@ -1633,7 +1645,7 @@ function DevWipeDataButton() {
     try {
       const h = await authHeader();
       if (!h) {
-        toast({ title: "Not signed in", variant: "destructive" });
+        toast({ title: t("productsX.wipe.notSignedIn"), variant: "destructive" });
         setBusy(false);
         return;
       }
@@ -1646,12 +1658,10 @@ function DevWipeDataButton() {
         try {
           res = await fetch(`${apiBase()}/api/sales-datasets`, { headers: h, cache: "no-store" });
         } catch {
-          throw new Error(
-            `Couldn't reach the engine at ${apiBase()}. Is the backend container running?`,
-          );
+          throw new Error(t("productsX.wipe.engineUnreachable", { url: apiBase() }));
         }
         if (!res.ok) {
-          throw new Error(`Listing datasets failed — ${res.status} ${res.statusText}.`);
+          throw new Error(t("productsX.wipe.listFailed", { status: `${res.status} ${res.statusText}` }));
         }
         return ((await res.json()) as DatasetsListPayload).datasets ?? [];
       };
@@ -1688,9 +1698,8 @@ function DevWipeDataButton() {
       if (before.length === 0) {
         reconcile([]);
         toast({
-          title: "Already clean",
-          description:
-            "The server has no uploaded files — the ones on screen were a stale cache, now cleared.",
+          title: t("productsX.wipe.alreadyClean"),
+          description: t("productsX.wipe.alreadyCleanDesc"),
         });
         setOpen(false);
         setBusy(false);
@@ -1728,7 +1737,7 @@ function DevWipeDataButton() {
               .from("documents")
               .update({ deleted_at: new Date().toISOString() })
               .in("id", docIds);
-            if (error) throw new Error(`Direct delete failed: ${error.message}`);
+            if (error) throw new Error(t("productsX.wipe.directDeleteFailed", { msg: error.message }));
           }
           // A dataset with no document_id can't be soft-deleted this way —
           // there's nothing to stamp. Say so rather than looping.
@@ -1749,7 +1758,7 @@ function DevWipeDataButton() {
       const gone = before.length - remaining.length;
       if (remaining.length > 0) {
         toast({
-          title: `${remaining.length} file(s) could not be deleted`,
+          title: t("productsX.wipe.couldNotDelete", { count: remaining.length }),
           description: remaining
             .map((d) => d.source_filename ?? d.label)
             .slice(0, 3)
@@ -1758,16 +1767,16 @@ function DevWipeDataButton() {
         });
       } else {
         toast({
-          title: `Deleted ${gone} uploaded file${gone === 1 ? "" : "s"}`,
-          description: "Moved to Recently deleted — restorable for 30 days.",
+          title: t("productsX.wipe.deleted", { count: gone }),
+          description: t("productsX.wipe.deletedDesc"),
         });
       }
       setOpen(false);
       setBusy(false);
     } catch (err) {
       toast({
-        title: "Couldn't delete the uploads",
-        description: err instanceof Error ? err.message : "Unknown error.",
+        title: t("productsX.wipe.errorTitle"),
+        description: err instanceof Error ? err.message : t("productsX.toast.unknownError"),
         variant: "destructive",
       });
       setBusy(false);
@@ -1780,26 +1789,22 @@ function DevWipeDataButton() {
         type="button"
         onClick={() => setOpen(true)}
         data-testid="dev-wipe-data"
-        title="Permanently delete every uploaded file on Products"
+        title={t("productsX.wipe.buttonTitle")}
         className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-dashed border-red-500/40 bg-red-500/[0.06] text-[11px] font-mono uppercase tracking-[0.08em] text-red-600 hover:bg-red-500/15 transition-colors"
       >
         <Trash2 size={12} strokeWidth={2} />
-        Wipe data
+        {t("productsX.wipe.button")}
       </button>
 
       <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
         <DialogContent className="sm:max-w-[440px]" data-testid="dev-wipe-dialog">
           <DialogHeader>
-            <DialogTitle>Permanently delete your product data?</DialogTitle>
+            <DialogTitle>{t("productsX.wipe.dialogTitle")}</DialogTitle>
             <DialogDescription>
-              This cannot be undone. Every SKU dataset on this page is removed
-              along with its classified portfolio, leaving Products empty.
+              {t("productsX.wipe.dialogBody1")}
               <br />
               <br />
-              The uploaded files move to Recently deleted, where they can be
-              restored for 30 days — after that they are gone for good. Your
-              periods, dashboard analysis, other workspaces and chats are not
-              touched.
+              {t("productsX.wipe.dialogBody2")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -1809,7 +1814,7 @@ function DevWipeDataButton() {
               disabled={busy}
               className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -1819,7 +1824,7 @@ function DevWipeDataButton() {
               className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} strokeWidth={1.75} />}
-              {busy ? "Deleting…" : "Delete all uploads"}
+              {busy ? t("productsX.wipe.deleting") : t("productsX.wipe.deleteAll")}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -1850,6 +1855,7 @@ function DevWipeDataButton() {
 
 function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
   const period = useActivePeriod();
+  const { t } = useTranslation();
   // "i" info modal explaining the four working-capital metrics.
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -1879,7 +1885,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
       const sumInv = covered.reduce((a, s) => a + (s.inventory_value_krn ?? 0), 0);
       const sumCogs = covered.reduce((a, s) => a + (s.cogs_krn ?? 0), 0);
       companyDio = sumCogs > 0 ? (sumInv / sumCogs) * 365 : null;
-      companyDioFormulaNote = "sum(Inventory) ÷ sum(COGS) × 365, covered rows";
+      companyDioFormulaNote = t("productsX.wc.dioFormulaCogs");
     } else {
       const sumInv = covered.reduce((a, s) => a + (s.inventory_value_krn ?? 0), 0);
       const wsum = covered.reduce(
@@ -1887,7 +1893,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
         0,
       );
       companyDio = sumInv > 0 ? wsum / sumInv : null;
-      companyDioFormulaNote = "weighted by Inventory (per-SKU DIO; COGS not persisted)";
+      companyDioFormulaNote = t("productsX.wc.dioFormulaWeighted");
     }
   }
 
@@ -1911,7 +1917,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
       const dpoRatio = r.efficiency.find((x) => x.key === "dpo");
       dso = dsoRatio && Number.isFinite(dsoRatio.value) ? dsoRatio.value : null;
       dpo = dpoRatio && Number.isFinite(dpoRatio.value) ? dpoRatio.value : null;
-      periodContextNote = `${period.label ?? period.id ?? "loaded"}`;
+      periodContextNote = `${period.label ?? period.id ?? t("productsX.wc.loadedPeriod")}`;
     } catch {
       // Sample periods may not have a full balance sheet; leave nulls
       // and the panel will mark these "not available" honestly.
@@ -1941,19 +1947,17 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           section's -mt-3. */}
       <div className="flex items-baseline gap-3 mb-1.5 min-w-0">
         <h4 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold shrink-0">
-          Company DIO · DSO · DPO · CCC
+          {t("productsX.wc.heading")}
         </h4>
         <p className="text-[12px] text-ink-soft min-w-0 truncate">
-          DIO from uploaded SKU inventory &amp; COGS, covered rows only.
-          DSO / DPO from the period&rsquo;s trial-balance context. CCC is a
-          company roll-up, not per-SKU.
+          {t("productsX.wc.desc")}
         </p>
         <button
           type="button"
           onClick={() => setInfoOpen(true)}
           data-testid="wc-info-btn"
-          aria-label="What do DIO, DSO, DPO and CCC mean?"
-          title="What do these mean?"
+          aria-label={t("productsX.wc.infoAria")}
+          title={t("productsX.wc.infoTitle")}
           className="ml-auto shrink-0 self-center grid place-items-center h-6 w-6 rounded-full border border-rule text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/60 transition-colors"
         >
           <Info size={13} strokeWidth={2} />
@@ -1964,49 +1968,53 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <WcCard
-          label="Company DIO"
+          label={t("productsX.wc.companyDio")}
           value={companyDio}
-          unit="days"
+          unit={t("common.unit.days")}
           source={
             covered.length > 0
-              ? `${(coverageNivPct * 100).toFixed(0)}% of NIV · ${covered.length} of ${skus.length} SKUs`
-              : "Inventory / COGS not provided on any SKU"
+              ? t("productsX.wc.dioCoverage", {
+                  pct: (coverageNivPct * 100).toFixed(0),
+                  covered: covered.length,
+                  total: skus.length,
+                })
+              : t("productsX.wc.dioNoInputs")
           }
           formula={companyDioFormulaNote}
-          missingHint="Add Inventory value and COGS columns to the upload to compute DIO."
+          missingHint={t("productsX.wc.dioMissingHint")}
           tone="teal"
           testid="wc-dio"
         />
         <WcCard
           label="DSO"
           value={dso}
-          unit="days"
-          source={dso != null ? `from trial balance${periodContextNote ? ` · ${periodContextNote}` : ""}` : "no trial balance in this session"}
-          missingHint="Load a period with a trial balance to compute DSO."
+          unit={t("common.unit.days")}
+          source={dso != null ? `${t("productsX.wc.fromTrialBalance")}${periodContextNote ? ` · ${periodContextNote}` : ""}` : t("productsX.wc.noTrialBalance")}
+          missingHint={t("productsX.wc.dsoMissingHint")}
           tone="blue"
           testid="wc-dso"
         />
         <WcCard
           label="DPO"
           value={dpo}
-          unit="days"
-          source={dpo != null ? `from trial balance${periodContextNote ? ` · ${periodContextNote}` : ""}` : "no trial balance in this session"}
-          missingHint="Load a period with a trial balance to compute DPO."
+          unit={t("common.unit.days")}
+          source={dpo != null ? `${t("productsX.wc.fromTrialBalance")}${periodContextNote ? ` · ${periodContextNote}` : ""}` : t("productsX.wc.noTrialBalance")}
+          missingHint={t("productsX.wc.dpoMissingHint")}
           tone="violet"
           testid="wc-dpo"
         />
         <WcCard
           label="CCC"
           value={ccc}
-          unit="days"
+          unit={t("common.unit.days")}
           source={
             ccc != null
-              ? "DIO + DSO − DPO, company-level"
-              : `missing: ${missingForCcc.join(", ")}`
+              ? t("productsX.wc.cccSource")
+              : t("productsX.wc.cccMissing", { list: missingForCcc.join(", ") })
           }
           missingHint={
             ccc == null
-              ? "CCC is computed only when DIO, DSO and DPO are all available."
+              ? t("productsX.wc.cccHint")
               : undefined
           }
           tone="amber"
@@ -2027,39 +2035,40 @@ function WcInfoModal({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const items: { label: string; tone: string; title: string; body: string }[] = [
     {
       label: "DIO",
       tone: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]",
-      title: "Days Inventory Outstanding",
-      body: "How many days, on average, stock sits before it sells — sum(Inventory) ÷ sum(COGS) × 365 across covered SKUs. Lower is leaner; a high DIO means cash is tied up in shelves and warehouses.",
+      title: t("productsX.wc.dioTitle"),
+      body: t("productsX.wc.dioBody"),
     },
     {
       label: "DSO",
       tone: "bg-blue-100 text-blue-800 dark:bg-blue-500/[0.18] dark:text-blue-200",
-      title: "Days Sales Outstanding",
-      body: "How many days it takes to collect cash after a sale — receivables relative to revenue, read from the loaded period's trial balance. Lower means customers pay faster.",
+      title: t("productsX.wc.dsoTitle"),
+      body: t("productsX.wc.dsoBody"),
     },
     {
       label: "DPO",
       tone: "bg-violet-100 text-violet-800 dark:bg-violet-500/[0.18] dark:text-violet-200",
-      title: "Days Payable Outstanding",
-      body: "How many days you take to pay suppliers — payables relative to COGS, from the trial balance. Higher means you hold onto cash longer (as long as it doesn't strain supplier terms).",
+      title: t("productsX.wc.dpoTitle"),
+      body: t("productsX.wc.dpoBody"),
     },
     {
       label: "CCC",
       tone: "bg-amber-100 text-amber-800 dark:bg-amber-500/[0.18] dark:text-amber-200",
-      title: "Cash Conversion Cycle",
-      body: "The net days your cash is locked in operations — DIO + DSO − DPO, at the company level. It's the headline: how long from paying for inventory to collecting from customers. Lower (or negative) is stronger working-capital health.",
+      title: t("productsX.wc.cccTitle"),
+      body: t("productsX.wc.cccBody"),
     },
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Working-capital metrics</DialogTitle>
+          <DialogTitle>{t("productsX.wc.modalTitle")}</DialogTitle>
           <DialogDescription>
-            What each pill measures and where the number comes from.
+            {t("productsX.wc.modalDesc")}
           </DialogDescription>
         </DialogHeader>
         <div className="mt-2 space-y-3">
@@ -2092,6 +2101,7 @@ function WcCard({
   tone?: "teal" | "blue" | "violet" | "amber";
   testid?: string;
 }) {
+  const { t } = useTranslation();
   const available = value != null && Number.isFinite(value);
   // Styled like the Products KPI / Benchmark preview cards (2026-07-26 per
   // operator): colored left rail, big value + small unit on the left, uppercase
@@ -2133,7 +2143,7 @@ function WcCard({
               <span className="text-[12.5px] text-ink-soft shrink-0">{unit}</span>
             </>
           ) : (
-            <span className="text-[15px] text-ink-mute italic">not available</span>
+            <span className="text-[15px] text-ink-mute italic">{t("common.notAvailable")}</span>
           )}
         </div>
         <span className={`-mt-1 -mr-1 shrink-0 whitespace-nowrap text-[10px] uppercase tracking-[0.06em] font-semibold px-2 py-0.5 rounded ${badgeCls}`}>
@@ -2215,6 +2225,7 @@ function ComparisonSection({
   onSwitchActive: () => void;
 }) {
   const { active, compared, totals, winners, losers, new_in_active } = payload;
+  const { t } = useTranslation();
   const nivDelta = totals.niv_a - totals.niv_b;
   const gmDelta = totals.gm_a - totals.gm_b;
   const fmtKron = useKronFormatter(currency);
@@ -2226,10 +2237,10 @@ function ComparisonSection({
     >
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">Comparison</div>
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">{t("products.comparison")}</div>
           <h3 className="mt-1 font-serif text-[20px] text-ink leading-tight">
             <span>{active.label}</span>
-            <span className="text-ink-soft font-normal mx-2">vs</span>
+            <span className="text-ink-soft font-normal mx-2">{t("productsX.compare.vs")}</span>
             <span>{compared.label}</span>
           </h3>
         </div>
@@ -2239,13 +2250,13 @@ function ComparisonSection({
             onClick={onSwitchActive}
             className="h-8 px-3 rounded-md border border-rule bg-surface text-[12px] font-medium text-ink hover:bg-bg-2 transition-colors"
           >
-            Switch active to {compared.label}
+            {t("productsX.compare.switchActive", { label: compared.label })}
           </button>
           <button
             type="button"
             onClick={onClose}
             data-testid="comparison-close"
-            aria-label="Close comparison"
+            aria-label={t("productsX.compare.closeAria")}
             className="h-8 w-8 inline-flex items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2"
           >
             ✕
@@ -2255,34 +2266,34 @@ function ComparisonSection({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat
-          label={`SKUs · ${active.label}`}
+          label={t("productsX.compare.skusIn", { label: active.label })}
           value={totals.sku_count_a.toLocaleString("en-GB")}
         />
         <Stat
-          label={`SKUs · ${compared.label}`}
+          label={t("productsX.compare.skusIn", { label: compared.label })}
           value={totals.sku_count_b.toLocaleString("en-GB")}
         />
         <Stat
-          label="NIV delta"
+          label={t("productsX.compare.nivDelta")}
           value={fmtKron(nivDelta)}
           tone={nivDelta < 0 ? "alert" : undefined}
         />
         <Stat
-          label="GM delta"
+          label={t("productsX.compare.gmDelta")}
           value={fmtKron(gmDelta)}
           tone={gmDelta < 0 ? "alert" : undefined}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <MoversList title="Top winners (Δ GM ↑)" rows={winners} dir="up" currency={currency} />
-        <MoversList title="Top losers (Δ GM ↓)" rows={losers} dir="down" currency={currency} />
+        <MoversList title={t("productsX.compare.topWinners")} rows={winners} dir="up" currency={currency} />
+        <MoversList title={t("productsX.compare.topLosers")} rows={losers} dir="down" currency={currency} />
       </div>
 
       {new_in_active.length > 0 && (
         <div>
           <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
-            New in {active.label} ({totals.new_in_active})
+            {t("productsX.compare.newIn", { label: active.label, count: totals.new_in_active })}
           </div>
           <ul className="text-[12px] text-ink-soft space-y-0.5 max-h-32 overflow-y-auto">
             {new_in_active.slice(0, 12).map((r) => (
@@ -2309,12 +2320,13 @@ function MoversList({
   currency: Currency;
 }) {
   const fmtKron = useKronFormatter(currency);
+  const { t } = useTranslation();
   return (
     <div>
       <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">{title}</div>
       <ul className="rounded-lg border border-rule bg-surface divide-y divide-rule/60 max-h-64 overflow-y-auto">
         {rows.length === 0 && (
-          <li className="px-3 py-2 text-[12px] text-ink-mute">No movers in this bucket.</li>
+          <li className="px-3 py-2 text-[12px] text-ink-mute">{t("productsX.compare.noMovers")}</li>
         )}
         {rows.map((r) => (
           <li key={r.product_name} className="px-3 py-2 grid grid-cols-[1fr_auto] gap-2 items-center">
@@ -2471,18 +2483,18 @@ function SkuTable({
                       data-bucket={bucket3}
                     >
                       <span className={`h-1.5 w-1.5 rounded-full ${bucketMeta.dot} shrink-0`} />
-                      <span>{bucketMeta.label}</span>
+                      <span>{t(bucket3 === "wind_down" ? "products.buckets.windDown" : `products.buckets.${bucket3}`)}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-[11.5px]">
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">Volume</div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("totals.volume")}</div>
                       <div className="text-ink tabular-nums">
                         {s.volume_tons !== null ? `${s.volume_tons.toLocaleString("en-GB", { maximumFractionDigits: 1 })}t` : "—"}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">NIV</div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("totals.niv")}</div>
                       <div className="text-ink tabular-nums">
                         {s.niv_krn !== null
                           ? <Money value={s.niv_krn * 1000} fromCurrency={currency} compact />
@@ -2490,13 +2502,13 @@ function SkuTable({
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">GM%</div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("products.columns.gmPct")}</div>
                       <div className={`tabular-nums ${(s.gm_pct ?? 0) < 0 ? "text-red-700" : "text-ink"}`}>
                         {s.gm_pct !== null ? `${(s.gm_pct * 100).toFixed(1)}%` : "—"}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">GM</div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("totals.gm")}</div>
                       <div className={`tabular-nums font-medium ${gm < 0 ? "text-red-700" : "text-ink"}`}>
                         <Money value={gm * 1000} fromCurrency={currency} compact signed />
                       </div>
@@ -2507,7 +2519,7 @@ function SkuTable({
                         className="tabular-nums"
                         title={
                           s.days_inventory_on_hand == null
-                            ? "DIO not available — inventory value and/or COGS not provided for this SKU"
+                            ? t("products.table.dioMissingTooltip")
                             : undefined
                         }
                         data-testid="sku-dio-cell"
@@ -2519,7 +2531,7 @@ function SkuTable({
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">Lines / Ch</div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("productsX.cols.linesCh")}</div>
                       <div className="text-ink-soft tabular-nums">
                         {(s.line_row_count ?? "—")} / {s.channels_present?.length || 0}
                       </div>
@@ -2563,7 +2575,7 @@ function SkuTable({
                     className="text-right tabular-nums"
                     title={
                       s.days_inventory_on_hand == null
-                        ? "DIO not available — inventory value and/or COGS not provided for this SKU"
+                        ? t("products.table.dioMissingTooltip")
                         : undefined
                     }
                     data-testid="sku-dio-cell"
@@ -2571,7 +2583,7 @@ function SkuTable({
                   >
                     {s.days_inventory_on_hand != null
                       ? <span className="text-ink">{Math.round(s.days_inventory_on_hand).toLocaleString("en-GB")}</span>
-                      : <span className="text-ink-mute/70 italic">—<span className="ml-1 text-[10px]">n/a</span></span>}
+                      : <span className="text-ink-mute/70 italic">—<span className="ml-1 text-[10px]">{t("products.dioUnavailableHint")}</span></span>}
                   </div>
                   <div className="text-center text-[11.5px] text-ink-mute tabular-nums">{s.line_row_count ?? "—"}</div>
                   <div className="text-center text-[11.5px] text-ink-mute">
@@ -2634,14 +2646,15 @@ function InflightCard({
    *  the operator deletes it; the UI just stops showing it). */
   onDismiss?: () => void;
 }) {
+  const { t } = useTranslation();
   const STAGES: Record<DocumentStatus, { label: string; ordinal: number }> = {
-    queued:     { label: "Queued for analysis…",   ordinal: 0 },
-    extracting: { label: "Reading the workbook…",  ordinal: 1 },
-    mapping:    { label: "Mapping SKU columns…",   ordinal: 2 },
-    computing:  { label: "Aggregating rows…",      ordinal: 3 },
-    narrating:  { label: "Classifying portfolio…", ordinal: 4 },
-    analyzed:   { label: "Analysis ready",         ordinal: 6 },
-    failed:     { label: "Analysis failed",        ordinal: 0 },
+    queued:     { label: t("productsX.inflight.stage.queued"),     ordinal: 0 },
+    extracting: { label: t("productsX.inflight.stage.extracting"), ordinal: 1 },
+    mapping:    { label: t("productsX.inflight.stage.mapping"),    ordinal: 2 },
+    computing:  { label: t("productsX.inflight.stage.computing"),  ordinal: 3 },
+    narrating:  { label: t("productsX.inflight.stage.narrating"),  ordinal: 4 },
+    analyzed:   { label: t("productsX.toast.analysisReady"),       ordinal: 6 },
+    failed:     { label: t("productsX.toast.analysisFailed"),      ordinal: 0 },
   };
   const stage = STAGES[inflight.status];
   const failed = inflight.status === "failed";
@@ -2674,13 +2687,13 @@ function InflightCard({
     if (!ok) ok = await retryPipeline(inflight.id);
     setRetrying(false);
     if (ok) {
-      toast({ title: "Retrying analysis", description: inflight.filename });
+      toast({ title: t("productsX.toast.retrying"), description: inflight.filename });
       setHangSuspected(false);
       void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
     } else {
       toast({
-        title: "Retry failed",
-        description: "Backend is unreachable. Refresh the page or try again in a moment.",
+        title: t("productsX.toast.retryFailed"),
+        description: t("productsX.toast.retryFailedDesc"),
         variant: "destructive",
       });
     }
@@ -2691,12 +2704,12 @@ function InflightCard({
   // Each step shows pending / running / done so a 6-step pipeline reads
   // as a real workflow instead of a generic spinner.
   const STEPS: Array<{ ordinal: number; label: string; sub: string }> = [
-    { ordinal: 1, label: "Reading workbook",   sub: "Picking the right sheet" },
-    { ordinal: 2, label: "Detecting columns",  sub: "Matching synonyms · RO/EN" },
-    { ordinal: 3, label: "Mapping SKUs",       sub: "One row per product line" },
-    { ordinal: 4, label: "Calculating margins", sub: "NIV · GM · DIO when present" },
-    { ordinal: 5, label: "Classifying portfolio", sub: "anchor · scale · watch · wind-down" },
-    { ordinal: 6, label: "Generating briefing", sub: "Executive summary + actions" },
+    { ordinal: 1, label: t("productsX.inflight.step1"), sub: t("productsX.inflight.step1Sub") },
+    { ordinal: 2, label: t("productsX.inflight.step2"), sub: t("productsX.inflight.step2Sub") },
+    { ordinal: 3, label: t("productsX.inflight.step3"), sub: t("productsX.inflight.step3Sub") },
+    { ordinal: 4, label: t("productsX.inflight.step4"), sub: t("productsX.inflight.step4Sub") },
+    { ordinal: 5, label: t("productsX.inflight.step5"), sub: t("productsX.inflight.step5Sub") },
+    { ordinal: 6, label: t("productsX.inflight.step6"), sub: t("productsX.inflight.step6Sub") },
   ];
 
   return (
@@ -2727,15 +2740,15 @@ function InflightCard({
             </span>
             <span className="text-[14.5px] font-semibold text-ink truncate">
               {failed
-                ? "Couldn't finish analysis"
+                ? t("productsX.inflight.failedTitle")
                 : hangSuspected
-                ? "Upload appears stuck"
-                : "Analyzing your SKU data…"}
+                ? t("productsX.inflight.stuckTitle")
+                : t("productsX.inflight.analyzing")}
             </span>
           </div>
           {!failed && !hangSuspected && (
             <span className="text-[11px] text-ink-mute tabular-nums uppercase tracking-[0.08em]">
-              Step {Math.max(1, stage.ordinal)} of {STEPS.length}
+              {t("productsX.inflight.stepOf", { current: Math.max(1, stage.ordinal), total: STEPS.length })}
             </span>
           )}
         </div>
@@ -2815,7 +2828,7 @@ function InflightCard({
                 data-testid="products-inflight-dismiss"
                 className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-surface px-3 py-1.5 text-[12px] font-medium text-ink-soft hover:bg-bg-2 transition-colors"
               >
-                Dismiss
+                {t("productsX.inflight.dismiss")}
               </button>
               <button
                 type="button"
@@ -2825,7 +2838,7 @@ function InflightCard({
                 className="inline-flex items-center gap-1.5 rounded-md border border-alert/40 bg-surface px-3 py-1.5 text-[12px] font-medium text-alert hover:bg-alert/10 transition-colors disabled:opacity-50"
               >
                 {retrying ? <Loader2 size={12} className="animate-spin" /> : null}
-                {retrying ? "Retrying…" : "Retry analysis"}
+                {retrying ? t("productsX.inflight.retrying") : t("productsX.inflight.retry")}
               </button>
             </div>
           </div>
@@ -2836,9 +2849,7 @@ function InflightCard({
             className="mt-2 rounded-md border border-alert/30 bg-alert/5 px-3 py-2.5 text-[12.5px] text-alert space-y-2"
           >
             <p>
-              The upload reached the server but analysis hasn't started for more than 60 seconds.
-              This usually means the worker thread never picked up the job (a brief backend hiccup
-              right at upload moment). Click below to re-queue it.
+              {t("productsX.inflight.hangBody")}
             </p>
             <button
               type="button"
@@ -2848,7 +2859,7 @@ function InflightCard({
               className="inline-flex items-center gap-1.5 rounded-md border border-alert/40 bg-surface px-3 py-1.5 text-[12px] font-medium text-alert hover:bg-alert/10 transition-colors disabled:opacity-50"
             >
               {retrying ? <Loader2 size={12} className="animate-spin" /> : null}
-              {retrying ? "Retrying…" : "Retry analysis"}
+              {retrying ? t("productsX.inflight.retrying") : t("productsX.inflight.retry")}
             </button>
           </div>
         )}
@@ -2886,6 +2897,7 @@ function EmptyState({
   datasets: DatasetSummary[];
 }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   // Pricing V3 — wraps enqueuePipeline so the 402 extra-doc dialog +
   // 429 quota-blocked toast fire automatically.
   const uploadEnqueue = useUploadEnqueue();
@@ -2913,7 +2925,14 @@ function EmptyState({
 
   function stageFile(file: File) {
     if (file.size > PRODUCTS_UPLOAD_MAX_BYTES) {
-      toast({ title: "File too large", description: `${(file.size/1_000_000).toFixed(1)} MB exceeds the ${PRODUCTS_UPLOAD_MAX_MB} MB limit.`, variant: "destructive" });
+      toast({
+        title: t("productsX.toast.fileTooLarge"),
+        description: t("productsX.toast.fileTooLargeDesc", {
+          size: (file.size / 1_000_000).toFixed(1),
+          limit: PRODUCTS_UPLOAD_MAX_MB,
+        }),
+        variant: "destructive",
+      });
       return;
     }
     // ONE file at a time (2026-07-26 per operator) — a new pick REPLACES the
@@ -2934,7 +2953,7 @@ function EmptyState({
         const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
         if (!row) {
           clearUpload();
-          toast({ title: "Upload failed", description: error ?? "Unknown error.", variant: "destructive" });
+          toast({ title: t("productsX.toast.uploadFailed"), description: error ?? t("productsX.toast.unknownError"), variant: "destructive" });
           resolve();
           return;
         }
@@ -2954,7 +2973,7 @@ function EmptyState({
           patchUpload({ status: next.status, error: next.error });
           if (next.status === "analyzed") {
             unsub();
-            toast({ title: "Analysis ready", description: file.name });
+            toast({ title: t("productsX.toast.analysisReady"), description: file.name });
             // NOT clearUpload() — the page-level handoff keeps `analyzed`
             // on screen long enough for the sphere to converge and fade,
             // then swaps in the populated page. Clearing here would snap
@@ -2964,7 +2983,7 @@ function EmptyState({
           }
           if (next.status === "failed") {
             unsub();
-            toast({ title: "Analysis failed", description: next.error ?? "Unknown error.", variant: "destructive" });
+            toast({ title: t("productsX.toast.analysisFailed"), description: next.error ?? t("productsX.toast.unknownError"), variant: "destructive" });
             clearUpload();
             resolve();
           }
@@ -3055,11 +3074,13 @@ function EmptyState({
           <div>
             <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
               <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
-              Product intelligence
+              {t("productsX.empty.eyebrow")}
             </div>
             <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink font-serif">
-              Upload your data. CFO AI finds{" "}
-              <span className="text-grad">what matters</span>.
+              <Trans
+                i18nKey="productsX.empty.heroTitle"
+                components={{ grad: <span className="text-grad" /> }}
+              />
             </h1>
             <p className="mt-4 text-[15.5px] text-ink-soft leading-relaxed max-w-[520px]">
               {/* Files are pinned to the month that's active when they're
@@ -3068,15 +3089,20 @@ function EmptyState({
                   read as "you have nothing at all", which may be false. */}
               {monthLabel && datasets.length > 0 && (
                 <>
-                  No product data on <span className="text-ink">{monthLabel}</span> yet — anything you
-                  import here lands on that month.{" "}
+                  <Trans
+                    i18nKey="productsX.empty.monthNote"
+                    values={{ month: monthLabel }}
+                    components={{ m: <span className="text-ink" /> }}
+                  />{" "}
                 </>
               )}
-              Drop a trading analysis or sales-by-SKU export. CFO AI streams every row, rolls them
-              up to the SKU, classifies into anchor / scale / watch / wind-down, and surfaces
-              loss-makers — with optional per-SKU DIO when{" "}
-              <span className="text-ink">Inventory value</span> and{" "}
-              <span className="text-ink">COGS</span> columns are included.
+              <Trans
+                i18nKey="productsX.empty.heroBody"
+                components={{
+                  c1: <span className="text-ink" />,
+                  c2: <span className="text-ink" />,
+                }}
+              />
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -3085,7 +3111,7 @@ function EmptyState({
                   import path. */}
               <button
                 type="button"
-                onClick={() => openAskCfoAi("Help me understand what my product dataset upload should look like, and what CFO AI will do with it.")}
+                onClick={() => openAskCfoAi(t("productsX.empty.askPrompt"))}
                 className="
                   inline-flex items-center gap-2 h-10 px-4 rounded-lg
                   border border-rule bg-surface/70 backdrop-blur
@@ -3096,7 +3122,7 @@ function EmptyState({
                 data-testid="products-ask-cfo-ai"
               >
                 <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
-                Ask CFO AI
+                {t("topbar.ask")}
               </button>
             </div>
           </div>
@@ -3178,10 +3204,10 @@ function EmptyState({
 
             <div className="relative flex flex-col items-center">
               <h3 className="text-[16px] font-semibold text-ink">
-                {drag ? "Drop your file to upload" : "Drop your dataset here"}
+                {drag ? t("files.dropToUpload") : t("products.empty.dropHere")}
               </h3>
               <p className="text-[12.5px] text-ink-soft mt-1">
-                XLSX · CSV · multi-sheet · up to {PRODUCTS_UPLOAD_MAX_MB} MB
+                {t("productsX.empty.dropFormats", { mb: PRODUCTS_UPLOAD_MAX_MB })}
               </p>
               {/* Same treatment as the dashboard dropzone's Import button:
                   animated teal gradient fill + brand border. Opens the OS
@@ -3192,7 +3218,7 @@ function EmptyState({
                 data-testid="products-upload-choose"
                 className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
               >
-                Import
+                {t("files.import")}
               </button>
               {/* Single-file only (2026-07-26 per operator). */}
               <input
@@ -3213,7 +3239,7 @@ function EmptyState({
                 ScanProgressView (above) takes over and lights these up. */}
             <ol
               className="relative w-full max-w-[560px] mx-auto flex items-start justify-between gap-2 mt-6"
-              aria-label="Analysis pipeline"
+              aria-label={t("productsX.empty.pipelineAria")}
               data-testid="products-upload-pipeline"
             >
               <span aria-hidden className="absolute top-4 left-3 right-3 h-px bg-gradient-to-r from-transparent via-rule to-transparent" />
@@ -3228,7 +3254,9 @@ function EmptyState({
                     {`0${i + 1}`}
                   </span>
                   <span className="mt-2 text-[11.5px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[100px] text-ink-mute">
-                    {label}
+                    {/* Same i18n bridge ScanProgressView uses — the step
+                        constants stay English literals; translate at render. */}
+                    {SCAN_TEXT_KEYS[label] ? t(SCAN_TEXT_KEYS[label]) : label}
                   </span>
                 </li>
               ))}
@@ -3239,7 +3267,7 @@ function EmptyState({
                  until Start scan. Same block as the dashboard dropzone. */
               <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
                 <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
-                  Uploaded files
+                  {t("productsX.empty.stagedHeading")}
                 </div>
                 {/* Grid of staged-file cards — icon above name, everything
                     centered; clicking the card opens the file in a new window;
@@ -3250,7 +3278,7 @@ function EmptyState({
                       <button
                         type="button"
                         onClick={() => void openStagedFile(f)}
-                        aria-label={`Open ${f.name} in a new window`}
+                        aria-label={t("productsX.empty.openFileAria", { name: f.name })}
                         data-testid={`view-staged-${i}`}
                         className="w-full flex flex-col items-center justify-center text-center gap-1.5 rounded-lg border border-rule bg-bg-2/40 px-3 py-4 hover:bg-bg-2/70 hover:border-rule-strong transition-colors"
                       >
@@ -3265,7 +3293,7 @@ function EmptyState({
                           setStagedFiles((prev) => prev.filter((_, idx) => idx !== i));
                         }}
                         disabled={scanning}
-                        aria-label={`Remove ${f.name}`}
+                        aria-label={t("productsX.empty.removeFileAria", { name: f.name })}
                         data-testid={`discard-staged-${i}`}
                         className="absolute top-1.5 right-1.5 inline-flex items-center justify-center h-6 w-6 rounded-md text-ink-mute bg-surface/80 backdrop-blur hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none"
                       >
@@ -3283,7 +3311,7 @@ function EmptyState({
                     className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
                   >
                     <X size={13} strokeWidth={2} />
-                    Dismiss all
+                    {t("productsX.empty.dismissAll")}
                   </button>
                   <button
                     type="button"
@@ -3293,7 +3321,7 @@ function EmptyState({
                     className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors disabled:opacity-60"
                   >
                     {scanning && <Loader2 size={13} strokeWidth={2} className="animate-spin" />}
-                    {scanning ? "Scanning…" : `Start scan${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
+                    {scanning ? t("productsX.empty.scanning") : `${t("productsX.empty.startScan")}${stagedFiles.length > 1 ? ` (${stagedFiles.length})` : ""}`}
                   </button>
                 </div>
               </div>
@@ -3338,29 +3366,30 @@ function EmptyState({
 // queued (any other route — including this Products page). The
 // prompts are real CFO-finance questions, NOT fabricated insights.
 
-const PRODUCTS_PROMPT_CHIPS: Array<{ label: string; prompt: string }> = [
-  { label: "Analyze product profitability",   prompt: "Walk me through how I should analyze product profitability across my SKU portfolio. What metrics matter most and in what order?" },
-  { label: "Which SKUs are loss-makers?",      prompt: "Once I upload my sales dataset, how do you decide which SKUs are loss-makers? Explain the classification rules CFO AI uses." },
-  { label: "What should we discontinue?",      prompt: "What framework should a CFO use to decide which products to discontinue? Include the financial AND operational signals to weigh." },
-  { label: "Where are margin leaks?",          prompt: "Where do margin leaks typically hide in a SKU portfolio? Give me the top causes and how I'd spot them in a trading analysis." },
-  { label: "Summarize latest product dataset", prompt: "Once a Products dataset is loaded, summarize it for me: top performers, loss-makers, and the most important pricing or mix actions." },
+const PRODUCTS_PROMPT_CHIPS: Array<{ key: string }> = [
+  { key: "profitability" },
+  { key: "lossMakers" },
+  { key: "discontinue" },
+  { key: "marginLeaks" },
+  { key: "summarize" },
 ];
 
 function ProductsPromptChips() {
+  const { t } = useTranslation();
   return (
     <section className="mt-8" data-testid="products-prompt-chips">
       <div className="flex items-center gap-2 mb-2.5">
         <Sparkles size={11} strokeWidth={2.25} className="text-brand-d" />
         <span className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-          Ask CFO AI
+          {t("topbar.ask")}
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
         {PRODUCTS_PROMPT_CHIPS.map((c) => (
           <button
-            key={c.label}
+            key={c.key}
             type="button"
-            onClick={() => openAskCfoAi(c.prompt)}
+            onClick={() => openAskCfoAi(t(`productsX.chips.${c.key}.prompt`))}
             className="
               group inline-flex items-center gap-2
               h-9 px-3.5 rounded-full
@@ -3372,7 +3401,7 @@ function ProductsPromptChips() {
             data-testid="products-prompt-chip"
           >
             <Sparkles size={11} strokeWidth={2} className="text-ink-mute group-hover:text-brand-d transition-colors" />
-            {c.label}
+            {t(`productsX.chips.${c.key}.label`)}
           </button>
         ))}
       </div>
@@ -3417,6 +3446,7 @@ function buildHonestStats(datasets: DatasetSummary[]): HonestStats {
 }
 
 function ProductsStatsStrip({ stats, hasData }: { stats: HonestStats; hasData: boolean }) {
+  const { t } = useTranslation();
   // No data → render nothing (2026-07-24; the "Insights appear once
   // data is in" placeholder card was removed — a pre-upload page
   // shouldn't carry it).
@@ -3425,28 +3455,28 @@ function ProductsStatsStrip({ stats, hasData }: { stats: HonestStats; hasData: b
   return (
     <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="products-stats-strip">
       <StatCard
-        label="Datasets analyzed"
+        label={t("productsX.stats.datasetsAnalyzed")}
         value={stats.datasetCount.toLocaleString("en-GB")}
-        sub={stats.datasetCount === 1 ? "1 import on file" : `${stats.datasetCount} imports on file`}
+        sub={t("productsX.stats.importsOnFile", { count: stats.datasetCount })}
       />
       {stats.totalSkus !== null && (
         <StatCard
-          label="SKUs analyzed"
+          label={t("productsX.stats.skusAnalyzed")}
           value={stats.totalSkus.toLocaleString("en-GB")}
-          sub="cumulative across imports"
+          sub={t("productsX.stats.cumulative")}
         />
       )}
       {stats.totalLineRows !== null && (
         <StatCard
-          label="Line rows ingested"
+          label={t("productsX.stats.lineRows")}
           value={stats.totalLineRows.toLocaleString("en-GB")}
-          sub="cumulative across imports"
+          sub={t("productsX.stats.cumulative")}
         />
       )}
       {stats.latestUploadAt && (
         <StatCard
-          label="Latest import"
-          value={shortRelative(stats.latestUploadAt)}
+          label={t("productsX.stats.latestImport")}
+          value={shortRelative(stats.latestUploadAt, t)}
           sub={new Date(stats.latestUploadAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
         />
       )}
@@ -3464,14 +3494,14 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function shortRelative(iso: string): string {
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return "—";
-  const diff = Date.now() - t;
-  if (diff < 60_000) return "just now";
-  if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))}h ago`;
-  if (diff < 7 * 24 * 60 * 60_000) return `${Math.floor(diff / (24 * 60 * 60_000))}d ago`;
+function shortRelative(iso: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return "—";
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return t("productsX.rel.justNow");
+  if (diff < 60 * 60_000) return t("productsX.rel.minAgo", { n: Math.floor(diff / 60_000) });
+  if (diff < 24 * 60 * 60_000) return t("productsX.rel.hourAgo", { n: Math.floor(diff / (60 * 60_000)) });
+  if (diff < 7 * 24 * 60 * 60_000) return t("productsX.rel.dayAgo", { n: Math.floor(diff / (24 * 60 * 60_000)) });
   return new Date(iso).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
 }
 
@@ -3490,7 +3520,8 @@ function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
           <Boxes size={15} strokeWidth={1.75} />
         </div>
         <p className="text-[13px] text-ink-soft">
-          <span className="text-ink font-medium">No imports yet.</span> Your uploads will appear here.
+          <span className="text-ink font-medium">{t("productsX.recent.emptyTitle")}</span>{" "}
+          {t("productsX.recent.emptyBody")}
         </p>
       </section>
     );
@@ -3500,10 +3531,10 @@ function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
     <section className="mt-10" data-testid="products-recent-imports">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
-          Recent imports
+          {t("datasets.title")}
         </h2>
         {datasets.length > rows.length && (
-          <span className="text-[11px] text-ink-mute">{datasets.length - rows.length} more</span>
+          <span className="text-[11px] text-ink-mute">{t("datasets.more", { count: datasets.length - rows.length })}</span>
         )}
       </div>
       <div className="rounded-xl border border-rule bg-surface overflow-hidden">
@@ -3541,13 +3572,14 @@ function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
 }
 
 function DocumentStatusPill({ status, active }: { status: DocumentStatus | null; active: boolean }) {
+  const { t } = useTranslation();
   // Real status from the backend; never a placeholder.
   const s = (status ?? "").toLowerCase();
-  let label = status ?? "unknown";
+  let label = status ?? t("datasets.status.unknown");
   let cls = "border-rule text-ink-soft bg-bg-2/40";
-  if (s === "analyzed") { label = active ? "Active" : "Analyzed"; cls = "border-[#8FE3D9]/60 text-[#2AA89B] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
-  else if (s === "queued" || s === "extracting" || s === "ingesting") { label = "Processing"; cls = "border-[#8FE3D9]/60 text-[#1B7268] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
-  else if (s === "failed") { label = "Failed"; cls = "border-red-300/60 text-red-700 bg-red-50 dark:bg-red-500/10"; }
+  if (s === "analyzed") { label = active ? t("datasets.status.active") : t("datasets.status.analyzed"); cls = "border-[#8FE3D9]/60 text-[#2AA89B] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
+  else if (s === "queued" || s === "extracting" || s === "ingesting") { label = t("datasets.status.processing"); cls = "border-[#8FE3D9]/60 text-[#1B7268] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
+  else if (s === "failed") { label = t("datasets.status.failed"); cls = "border-red-300/60 text-red-700 bg-red-50 dark:bg-red-500/10"; }
   return (
     <span className={`inline-flex items-center h-5 px-2 rounded-full border text-[10.5px] font-medium uppercase tracking-[0.04em] ${cls}`}>
       {label}
@@ -3605,7 +3637,7 @@ function SalesAnalysisFormatHint() {
         {t("expectedFormat.title")}
       </div>
       <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">
-        XLSX export
+        {t("productsX.xlsxExport")}
       </div>
       <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2 max-w-[640px]">
         {t("expectedFormat.intro")}{" "}

@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { compression } from "vite-plugin-compression2";
 import path from "path";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -44,9 +45,19 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         rewrite: (p: string) => p.replace(/^\/yahoo/, ""),
       },
+      // Dev parity with the prod Caddy proxy: relative `/api/*` calls
+      // (TestModeSessionBoot is the main one) reach the local engine
+      // instead of falling through to index.html.
+      "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
     },
   },
-  plugins: [react()],
+  // Pre-compress build output (.gz next to each asset ≥1 KB). nginx's
+  // `gzip_static on` serves these directly — max compression at zero
+  // request-time CPU, and no dependency on Caddy sitting in front.
+  plugins: [react(), compression({ threshold: 1024 })],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./frontend"),
@@ -87,35 +98,22 @@ export default defineConfig(({ mode }) => ({
         // caching benefit (any tiny change in one of the libs
         // invalidates the whole chunk).
         // ──────────────────────────────────────────────────────────
+        // manualChunks TRIMMED (2026-08-04). Two groups were removed
+        // after they broke the production boot with chunk-level import
+        // cycles (the documented Rollup manualChunks + circular-imports
+        // hazard):
+        //   · "heic2any" — naming it promoted the 1.35 MB lazy decoder
+        //     into the entry's static graph (modulepreload on first paint).
+        //   · "vendor-charts" (recharts/d3/victory-vendor) — grouping the
+        //     d3 micro-packages broke chunk init order ("Cannot access 'E'
+        //     before initialization" at boot).
+        // Both libraries are only ever `await import()`-ed, so Rollup's
+        // default dynamic-boundary chunking already keeps them lazy.
+        // The remaining groups are framework code with a clean one-way
+        // dependency direction, kept for long-term cache stability.
         manualChunks: (id: string) => {
-          // CRITICAL: return undefined for libs we don't explicitly name.
-          // A catch-all `return "vendor"` would force EVERY node_modules
-          // import into one chunk — including `heic2any` (1.3 MB) which
-          // is `await import()`-ed at runtime and should stay separate.
-          // Rollup's default smart chunking handles the long tail.
           if (!id.includes("node_modules")) return undefined;
-
-          // ── Per-page heavy dynamic imports: keep them as their own
-          // chunk so they only load when actually used. ────────────────
-
-          // heic2any: HEIC→JPEG conversion. Lazy-loaded by supabase.ts:618
-          // (`await import("heic2any")`) only when a user uploads an
-          // iPhone photo. Without an explicit split, my catch-all would
-          // glue it into the main vendor chunk and force every visitor
-          // to download 1.3 MB they don't need.
-          if (id.includes("heic2any")) return "heic2any";
-
-          // xlsx: SpreadsheetML parser used by financialExports.ts to
-          // build .xlsx report exports. Dynamic-imported everywhere
-          // (export button click, upload parsers), so it only downloads
-          // when actually used; this keeps it a stable cache key.
           if (id.includes("/xlsx/") || id.startsWith("xlsx/")) return "xlsx";
-
-          // ── App-wide framework/runtime chunks (stable across deploys
-          // → maximum browser-cache hits). ──────────────────────────────
-
-          // React core — bedrock. Almost never changes between releases;
-          // gets cached aggressively. Keep VERY small.
           if (
             id.includes("/react/") ||
             id.includes("/react-dom/") ||
@@ -123,55 +121,19 @@ export default defineConfig(({ mode }) => ({
           ) {
             return "vendor-react";
           }
-
-          // React Router — every page uses it; load once.
-          if (id.includes("react-router")) {
-            return "vendor-router";
-          }
-
-          // React Query (TanStack) — every authenticated page uses it.
+          if (id.includes("react-router")) return "vendor-router";
           if (id.includes("@tanstack/react-query") || id.includes("@tanstack/query-core")) {
             return "vendor-query";
           }
-
-          // Recharts (and its d3 deps) — Dashboard + Markets only. ~150 KB
-          // gzipped. Keep separate so /products doesn't pay for it.
-          if (
-            id.includes("recharts") ||
-            id.includes("/d3-") ||
-            id.includes("victory-vendor")
-          ) {
-            return "vendor-charts";
-          }
-
-          // Framer Motion — used across the app but most heavily on
-          // animated landing/marketing surfaces. Splitting keeps Dashboard
-          // bundle leaner for power users who skip the marketing pages.
           if (id.includes("framer-motion") || id.includes("motion-dom") || id.includes("motion-utils")) {
             return "vendor-motion";
           }
-
-          // Radix UI primitives — used across every page (dialogs,
-          // toasts, popovers). Group them so the cache key is stable.
-          if (id.includes("@radix-ui")) {
-            return "vendor-radix";
-          }
-
-          // Supabase — only authenticated pages use it. Split out so the
-          // landing page doesn't ship the auth SDK.
-          if (id.includes("@supabase")) {
-            return "vendor-supabase";
-          }
-
-          // i18next + locale loader — used app-wide.
-          if (id.includes("i18next") || id.includes("react-i18next")) {
-            return "vendor-i18n";
-          }
-
-          // Everything else from node_modules → fall through to Rollup's
-          // default chunking strategy. Returning undefined lets Rollup
-          // create per-package chunks where appropriate AND honor each
-          // package's `await import()` boundaries.
+          if (id.includes("@radix-ui")) return "vendor-radix";
+          if (id.includes("@supabase")) return "vendor-supabase";
+          // NOTE: no "vendor-i18n" group — grouping i18next+react-i18next
+          // put react-i18next's init ahead of vendor-react's
+          // ("createContext of undefined" at boot). Default chunking
+          // keeps them ordered correctly.
           return undefined;
         },
       },

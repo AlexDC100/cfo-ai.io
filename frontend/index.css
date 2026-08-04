@@ -4,6 +4,12 @@
    italic 400 is intentionally NOT loaded so we can't accidentally render it. */
 @import "@fontsource-variable/inter";
 @import "@fontsource/instrument-serif/400.css";
+/* JetBrains Mono — self-hosted (perf pass 2026-08-04). Was Google Fonts;
+   the render-blocking fonts.googleapis.com stylesheet is gone from
+   index.html, so every family the app uses must be bundled here. 400 +
+   500 are the only weights `font-mono` uses. */
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
 
 /* Marketing surface tokens — `--m-*` namespace; scoped via `.marketing-surface`. */
 @import "./styles/marketing-tokens.css";

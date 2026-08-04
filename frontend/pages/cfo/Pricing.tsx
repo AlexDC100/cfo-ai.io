@@ -32,6 +32,7 @@
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
 
 import { Logo } from "@/components/cfo/Logo";
@@ -49,6 +50,7 @@ import { formatEur, usePricingConfig } from "@/lib/pricingConfig";
 import { usePlanState } from "@/lib/planState";
 import { useStripeSubscription, cancelAtPeriodEnd } from "@/lib/stripeBilling";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateOnly } from "@/lib/locale";
 
 export default function Pricing() {
   const { status, displayName } = useAuth();
@@ -56,15 +58,16 @@ export default function Pricing() {
   const navigate = useNavigate();
   const { config } = usePricingConfig();
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const { t } = useTranslation();
 
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
       {/* ── Top bar ─────────────────────────────────────────────── */}
       <header className="px-5 sm:px-8 py-5 flex items-center justify-between gap-3">
-        <Link to="/" className="flex items-center gap-3" aria-label="Home">
+        <Link to="/" className="flex items-center gap-3" aria-label={t("pricingX.home_aria")}>
           <Logo size={26} compact />
           <span className="hidden sm:inline-flex text-[10.5px] uppercase tracking-[0.18em] text-ink-soft pl-3 border-l border-rule">
-            Financial Intelligence
+            {t("authX.tagline")}
           </span>
         </Link>
         <div className="flex items-center gap-2">
@@ -74,14 +77,14 @@ export default function Pricing() {
               className="text-[13px] text-ink-soft hover:text-ink transition-colors"
               data-testid="pricing-back-to-app"
             >
-              {displayName ? `Continue as ${displayName}` : "Back to app"}
+              {displayName ? t("pricingX.continue_as", { name: displayName }) : t("pricingX.back_to_app")}
             </button>
           ) : (
             <Link
               to="/"
               className="text-[13px] text-ink-soft hover:text-ink transition-colors"
             >
-              Back to home
+              {t("auth.back_to_home")}
             </Link>
           )}
           {/* Sign-out intentionally NOT here — it lives in the account
@@ -109,7 +112,7 @@ export default function Pricing() {
         {isAuthed && (
           <section className="max-w-[860px] mx-auto px-5 sm:px-8 pt-6 pb-4 text-center">
             <h1 className="font-serif text-[28px] sm:text-[34px] leading-[1.05] tracking-[-0.02em] text-ink">
-              Your plan &amp; billing
+              {t("pricingX.your_plan_billing")}
             </h1>
           </section>
         )}
@@ -119,14 +122,13 @@ export default function Pricing() {
           <section className="max-w-[860px] mx-auto px-5 sm:px-8 pt-16 sm:pt-24 pb-2 text-center">
             <div className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
               <span aria-hidden className="inline-block h-[7px] w-[7px] bg-[hsl(var(--brand))]" />
-              Plans &amp; billing
+              {t("pricingX.plans_billing_eyebrow")}
             </div>
             <h2 className="mt-3 font-serif text-[28px] sm:text-[36px] leading-[1.04] tracking-[-0.02em] text-ink">
-              Ready for ongoing analysis? Pick a monthly plan.
+              {t("pricingX.plans_heading")}
             </h2>
             <p className="mt-3 text-[14px] text-ink-soft leading-relaxed max-w-[560px] mx-auto">
-              Upgrade any time after your trial. The extra-document price
-              is shown upfront — no surprise bills.
+              {t("pricingX.plans_sub")}
             </p>
           </section>
         )}
@@ -151,8 +153,7 @@ export default function Pricing() {
 
         {/* ── Footer disclaimer (spec §18) ───────────────────────── */}
         <footer className="max-w-[860px] mx-auto px-5 sm:px-8 pb-12 pt-6 text-center text-[11.5px] text-ink-mute leading-relaxed">
-          AI-assisted financial recommendations only. Final business
-          decisions remain with your team.
+          {t("pricingX.disclaimer")}
         </footer>
       </main>
     </div>
@@ -179,6 +180,7 @@ export default function Pricing() {
 // ─────────────────────────────────────────────────────────────────────
 
 function ZeroFrictionHero() {
+  const { t } = useTranslation();
   return (
     <section
       data-testid="pricing-zero-friction-hero"
@@ -195,21 +197,19 @@ function ZeroFrictionHero() {
             2026-05-24 rev2: copy aligned to free-trial-only hero. */}
         <div className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
           <span aria-hidden className="inline-block h-[7px] w-[7px] bg-[hsl(var(--brand))]" />
-          Free 7-day trial — no credit card
+          {t("pricingX.hero_eyebrow")}
         </div>
 
         {/* Hero headline — value, not price */}
         <h1 className="mt-5 font-serif text-[44px] sm:text-[60px] lg:text-[72px] leading-[1.02] tracking-[-0.025em] text-ink">
-          See your{" "}
-          <span className="text-gradient-cfo">first analysis</span>{" "}
-          in minutes.
+          {t("pricingX.hero_title_pre")}{" "}
+          <span className="text-gradient-cfo">{t("pricingX.hero_title_highlight")}</span>{" "}
+          {t("pricingX.hero_title_post")}
         </h1>
 
         {/* Sub-copy — concrete value, no friction */}
         <p className="mt-5 text-[15.5px] sm:text-[16.5px] text-ink-soft leading-relaxed max-w-[600px] mx-auto">
-          Upload one trial balance, balance sheet, or P&amp;L. CFO AI builds
-          the full financial model, ratios, valuation, and strategic
-          recommendations — in minutes. No card required to start.
+          {t("pricingX.hero_sub")}
         </p>
 
         {/* Primary CTA — free trial (single big button, no secondary).
@@ -229,7 +229,7 @@ function ZeroFrictionHero() {
               transition-all hover:-translate-y-0.5
             "
           >
-            Start your 7-day free trial
+            {t("pricingX.hero_cta")}
             <ArrowRight size={16} strokeWidth={2.25} />
           </Link>
         </div>
@@ -238,15 +238,15 @@ function ZeroFrictionHero() {
         <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12.5px] text-ink-soft">
           <li className="inline-flex items-center gap-1.5">
             <CheckCircle2 size={13} strokeWidth={2} className="text-brand" />
-            No credit card required
+            {t("pricingX.trust_no_card")}
           </li>
           <li className="inline-flex items-center gap-1.5">
             <CheckCircle2 size={13} strokeWidth={2} className="text-brand" />
-            Full report — not a sample
+            {t("pricingX.trust_full_report")}
           </li>
           <li className="inline-flex items-center gap-1.5">
             <CheckCircle2 size={13} strokeWidth={2} className="text-brand" />
-            Cancel anytime
+            {t("pricingX.trust_cancel_anytime")}
           </li>
         </ul>
 
@@ -254,7 +254,7 @@ function ZeroFrictionHero() {
             compete for attention with the primary action */}
         <p className="mt-7 inline-flex items-center gap-2 text-[11.5px] text-ink-soft/80">
           <ShieldCheck size={12} strokeWidth={1.75} className="text-brand/70" />
-          AI-assisted financial recommendations. Final decisions remain with your team.
+          {t("pricingX.hero_compliance")}
         </p>
       </div>
     </section>
@@ -271,6 +271,7 @@ function CurrentPlanStrip() {
   const { state } = usePlanState();
   const { data: sub } = useStripeSubscription();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   if (!state) return null;
 
@@ -278,17 +279,17 @@ function CurrentPlanStrip() {
   const isTrial = state.plan_key === "trial";
   const isIntro = state.plan_key === "intro";
   const renews = sub?.current_period_end
-    ? new Date(sub.current_period_end).toLocaleDateString("en-GB", { dateStyle: "medium" })
+    ? formatDateOnly(sub.current_period_end)
     : null;
   const cancelling = sub?.cancel_at_period_end;
 
   async function handleCancel() {
     const ok = await cancelAtPeriodEnd();
     toast({
-      title: ok ? "Cancellation scheduled" : "Couldn't cancel",
+      title: ok ? t("pricingX.cancel_scheduled_title") : t("pricingX.cancel_failed_title"),
       description: ok
-        ? "You'll keep access until the end of the current period."
-        : "Please try again or contact support.",
+        ? t("pricingX.cancel_scheduled_body")
+        : t("pricingX.cancel_failed_body"),
       variant: ok ? undefined : "destructive",
     });
   }
@@ -300,32 +301,29 @@ function CurrentPlanStrip() {
   // sitting above the tier cards so the user immediately sees what
   // they're on before comparing tiers.
   const statusLabel = isTrial
-    ? "Trial"
+    ? t("pricingX.status_trial")
     : isIntro
-    ? "One-time unlock"
+    ? t("pricingX.status_one_time_unlock")
     : cancelling
-    ? "Cancels at period end"
-    : "Active";
+    ? t("pricingX.status_cancels_at_period_end")
+    : t("pricingX.status_active");
   const priceLine = isPaid
-    ? `${formatEur(state.plan_price_eur)} / month`
+    ? t("pricingX.price_per_month", { price: formatEur(state.plan_price_eur) })
     : isIntro
-    ? `${formatEur(state.plan_price_eur)} one-time`
-    : "Free";
+    ? t("pricingX.price_one_time", { price: formatEur(state.plan_price_eur) })
+    : t("pricingX.price_free");
   const secondaryLine = (() => {
-    if (isPaid && renews) return `Renews ${renews}`;
+    if (isPaid && renews) return t("pricingX.renews_on", { date: renews });
     if (state.window_expires_at) {
-      const expiry = new Date(state.window_expires_at).toLocaleDateString(
-        "en-GB",
-        { dateStyle: "medium" },
-      );
+      const expiry = formatDateOnly(state.window_expires_at);
       return isTrial
-        ? `Trial expires ${expiry}`
+        ? t("pricingX.trial_expires", { date: expiry })
         : isIntro
-        ? `Unlock expires ${expiry}`
-        : `Expires ${expiry}`;
+        ? t("pricingX.unlock_expires", { date: expiry })
+        : t("pricingX.expires", { date: expiry });
     }
-    if (isTrial) return `${state.included_docs} document included`;
-    if (isIntro) return `${state.included_docs} extra document`;
+    if (isTrial) return t("pricingX.docs_included", { count: state.included_docs });
+    if (isIntro) return t("pricingX.docs_extra", { count: state.included_docs });
     return null;
   })();
 
@@ -340,7 +338,7 @@ function CurrentPlanStrip() {
           <div className="min-w-0">
             <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
               <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-brand" />
-              Current plan
+              {t("pricingX.current_plan")}
             </div>
             <div className="mt-1.5 flex items-baseline gap-2">
               <span
@@ -385,12 +383,12 @@ function CurrentPlanStrip() {
                 transition-colors
               "
             >
-              Cancel subscription
+              {t("pricingX.cancel_subscription")}
             </button>
           )}
           {(isTrial || isIntro) && (
             <span className="shrink-0 text-[12px] text-ink-soft">
-              Upgrade anytime — pick a plan below
+              {t("pricingX.upgrade_anytime")}
             </span>
           )}
         </div>

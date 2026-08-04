@@ -25,7 +25,9 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
+  Check,
   CircleUser,
   CreditCard,
   LogOut,
@@ -48,6 +50,7 @@ import { useAuth } from "@/lib/auth";
 import { formatEur } from "@/lib/pricingConfig";
 import { usePlanState, type PlanState } from "@/lib/planState";
 import { formatTokens, tokenUsage } from "@/lib/tokenUsage";
+import { useLearningMode, type LearningMode } from "@/stores/learningMode";
 
 // ─────────────────────────────────────────────────────────────────────
 // Public component — wires hooks + DropdownMenu, used in TopHeader.
@@ -58,6 +61,10 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
   const { state, refresh: refreshPlan } = usePlanState();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
+  // Learning mode lives here since the 2026-08-04 header redesign — the
+  // "Learn · <mode>" pill left the bar; the avatar menu is its home now.
+  const { mode: learningMode, setMode: setLearningMode } = useLearningMode();
   const [open, setOpen] = useState(false);
 
   if (!user) return null;
@@ -93,7 +100,7 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
     setOpen(false);
     const { error } = await signOut();
     toast({
-      title: error ? "Couldn't sign out" : "Signed out",
+      title: error ? t("account.signOutFailed") : t("account.signedOut"),
       description: error?.message,
       variant: error ? "destructive" : undefined,
     });
@@ -151,9 +158,11 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
         "
       >
         <AccountMenuContent
-          name={displayName ?? "Account"}
+          name={displayName ?? t("account.fallbackName")}
           email={user.email ?? null}
           plan={state}
+          learningMode={learningMode}
+          onSetLearningMode={setLearningMode}
           onNavigateSettings={() => {
             setOpen(false);
             navigate("/settings");
@@ -177,6 +186,11 @@ export interface AccountMenuContentProps {
   name: string;
   email: string | null;
   plan: PlanState | null;
+  /** Learning-mode picker (2026-08-04 — moved here from the header's
+   *  "Learn · <mode>" pill). Optional so existing tests that render the
+   *  panel without learning props keep passing. */
+  learningMode?: LearningMode;
+  onSetLearningMode?: (mode: LearningMode) => void;
   onNavigateSettings: () => void;
   onNavigateBilling: () => void;
   onSignOut: () => void;
@@ -186,10 +200,13 @@ export function AccountMenuContent({
   name,
   email,
   plan,
+  learningMode,
+  onSetLearningMode,
   onNavigateSettings,
   onNavigateBilling,
   onSignOut,
 }: AccountMenuContentProps) {
+  const { t } = useTranslation();
   return (
     <div data-testid="account-menu" className="w-full">
       {/* ── Header: name + email ─────────────────────────────── */}
@@ -234,10 +251,10 @@ export function AccountMenuContent({
               className="text-[12.5px] text-ink-soft tabular-nums shrink-0"
             >
               {plan.plan_recurring
-                ? `${formatEur(plan.plan_price_eur)} / mo`
+                ? `${formatEur(plan.plan_price_eur)} ${t("pricing.perMonthShort")}`
                 : plan.plan_price_eur > 0
-                ? `${formatEur(plan.plan_price_eur)} one-time`
-                : "Free"}
+                ? `${formatEur(plan.plan_price_eur)} ${t("pricing.oneTime")}`
+                : t("account.free")}
             </div>
           </div>
 
@@ -251,14 +268,14 @@ export function AccountMenuContent({
               <div className="mt-3" data-testid="account-menu-usage">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-[11.5px] text-ink-soft">
-                    Tokens this period
+                    {t("account.tokensThisPeriod")}
                   </span>
                   <span
                     data-testid="account-menu-usage-count"
                     className="text-[11.5px] font-medium text-ink tabular-nums"
                   >
                     {tokens.allowance == null
-                      ? `${formatTokens(tokens.spent)} used`
+                      ? t("account.tokensUsed", { tokens: formatTokens(tokens.spent) })
                       : `${formatTokens(tokens.spent)} / ${formatTokens(tokens.allowance)}`}
                   </span>
                 </div>
@@ -272,7 +289,7 @@ export function AccountMenuContent({
                       role="progressbar"
                       aria-valuenow={tokens.spent}
                       aria-valuemax={tokens.allowance}
-                      aria-label="Tokens this period"
+                      aria-label={t("account.tokensThisPeriod")}
                     />
                   </div>
                 )}
@@ -286,15 +303,51 @@ export function AccountMenuContent({
       {/* "Add workspace (Coming soon)" row removed per operator
           directive — see comment block below the menu. */}
       <section className="px-2 py-2 border-t border-rule/60">
-        <SectionHeader label="Profile" />
+        <SectionHeader label={t("account.profile")} />
         <Row
           icon={CircleUser}
-          label="Me"
+          label={t("account.me")}
           sublabel={name}
           onClick={onNavigateSettings}
           testId="account-menu-me"
         />
       </section>
+
+      {/* ── Learning mode (2026-08-04 — from the header's Learn pill) ── */}
+      {learningMode && onSetLearningMode && (
+        <section
+          className="px-2 py-2 border-t border-rule/60"
+          data-testid="account-menu-learning"
+        >
+          <SectionHeader label={t("account.learning")} />
+          <div role="radiogroup" aria-label={t("account.learning")} className="flex gap-1 px-1">
+            {(["guided", "subtle", "off"] as const).map((m) => {
+              const active = learningMode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => onSetLearningMode(m)}
+                  data-testid={`account-menu-learning-${m}`}
+                  className={`
+                    flex-1 inline-flex items-center justify-center gap-1.5
+                    h-9 rounded-lg text-[12px] font-medium
+                    transition-colors duration-150
+                    ${active
+                      ? "bg-brand/[0.1] text-brand-d border border-brand/30"
+                      : "text-ink-soft hover:text-ink hover:bg-bg-2/70 border border-transparent"}
+                  `}
+                >
+                  {active && <Check size={12} strokeWidth={2.5} />}
+                  {t(`account.learning_${m}`)}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── Main actions ─────────────────────────────────────── */}
       {/* "Privacy (Coming soon)" row removed per operator directive —
@@ -302,13 +355,13 @@ export function AccountMenuContent({
       <section className="px-2 py-2 border-t border-rule/60">
         <Row
           icon={CreditCard}
-          label="Billing"
+          label={t("account.billing")}
           onClick={onNavigateBilling}
           testId="account-menu-billing"
         />
         <Row
           icon={SettingsIcon}
-          label="Settings"
+          label={t("account.settings")}
           onClick={onNavigateSettings}
           testId="account-menu-settings"
         />
@@ -320,7 +373,7 @@ export function AccountMenuContent({
       <section className="px-2 py-2 border-t border-rule/60">
         <Row
           icon={LogOut}
-          label="Sign out"
+          label={t("account.signOut")}
           onClick={onSignOut}
           testId="account-menu-sign-out"
           destructive

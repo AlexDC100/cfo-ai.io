@@ -12,6 +12,7 @@
 // panel mount it (the panel uses the same store).
 
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Search, Trash2, X } from "lucide-react";
 import { relativeTime, type ChatStore } from "./useChatStore";
 import type { ChatConversation } from "./types";
@@ -33,6 +34,7 @@ interface Props {
 export function CFOHistorySidebar({
   store, onAfterPick, compact = false, query: queryProp, onQueryChange,
 }: Props) {
+  const { t } = useTranslation();
   // Uncontrolled fallback keeps the slide-over panel working unchanged.
   const [ownQuery, setOwnQuery] = useState("");
   const query = queryProp ?? ownQuery;
@@ -58,7 +60,7 @@ export function CFOHistorySidebar({
         ${compact ? "w-[280px]" : "w-[280px]"}
       `}
       data-testid="chat-history-sidebar"
-      aria-label="Conversation history"
+      aria-label={t("chatX.historyAria")}
     >
       {/* Header: search + icon-only New chat button (flush to the section
           edges — no left/right gutter). */}
@@ -73,7 +75,7 @@ export function CFOHistorySidebar({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search chats"
+            placeholder={t("chatX.searchChats")}
             data-testid="chat-history-search"
             className="
               w-full h-8 pl-7 pr-7 rounded-md
@@ -87,7 +89,7 @@ export function CFOHistorySidebar({
             <button
               type="button"
               onClick={() => setQuery("")}
-              aria-label="Clear search"
+              aria-label={t("productsX.clearSearch")}
               className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded text-ink-mute hover:text-ink"
             >
               <X size={11} />
@@ -100,8 +102,8 @@ export function CFOHistorySidebar({
         <button
           type="button"
           onClick={() => { store.createNew(); onAfterPick?.(); }}
-          aria-label="New chat"
-          title="New chat"
+          aria-label={t("chatX.newChat")}
+          title={t("chatX.newChat")}
           className="
             shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md
             ask-ai-anim-fill [animation-duration:10s]
@@ -149,6 +151,7 @@ function ConversationRow({
   onPick: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <li
       className={`
@@ -169,7 +172,7 @@ function ConversationRow({
             {conv.title}
           </span>
           <span className="block text-[10.5px] text-ink-mute mt-px">
-            {relativeTime(conv.updatedAt)} · {conv.messages.filter((m) => m.role === "user").length || 0} msg
+            {relativeTime(conv.updatedAt)} · {t("chatX.msgCount", { count: conv.messages.filter((m) => m.role === "user").length || 0 })}
           </span>
         </span>
       </button>
@@ -179,7 +182,7 @@ function ConversationRow({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        aria-label="Delete conversation"
+        aria-label={t("chatX.deleteConversation")}
         className={`
           absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded
           text-ink-mute hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10
@@ -196,20 +199,22 @@ function ConversationRow({
 
 // ─── Empty + no-match ──────────────────────────────────────────────
 function EmptyHistory() {
+  const { t } = useTranslation();
   return (
     <div className="px-3 py-6 text-center" data-testid="chat-history-empty">
-      <p className="text-[12.5px] text-ink-soft">No conversations yet</p>
+      <p className="text-[12.5px] text-ink-soft">{t("chatX.noConversations")}</p>
       <p className="text-[11px] text-ink-mute mt-1 leading-snug">
-        Start by asking CFO AI about your numbers.
+        {t("chatX.noConversationsHint")}
       </p>
     </div>
   );
 }
 
 function NoMatch({ query }: { query: string }) {
+  const { t } = useTranslation();
   return (
     <div className="px-3 py-6 text-center">
-      <p className="text-[12.5px] text-ink-soft">No matches for &ldquo;{query}&rdquo;.</p>
+      <p className="text-[12.5px] text-ink-soft">{t("chatX.noMatches", { query })}</p>
     </div>
   );
 }

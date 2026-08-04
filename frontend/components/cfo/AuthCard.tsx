@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { supabaseEnabled } from "@/lib/supabase";
 import { markNewsletterOptInPending } from "@/lib/newsletterOptIn";
@@ -31,26 +32,28 @@ type Mode = "sign_in" | "sign_up";
 // the two never disagree (e.g. "Strong" while a checkbox is still unmet).
 interface PasswordCheck { label: string; met: boolean }
 
-function getPasswordChecks(pw: string): PasswordCheck[] {
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+function getPasswordChecks(pw: string, t: Translate): PasswordCheck[] {
   return [
-    { label: "At least 10 characters", met: pw.length >= 10 },
-    { label: "Upper & lowercase letters", met: /[a-z]/.test(pw) && /[A-Z]/.test(pw) },
-    { label: "At least one number", met: /\d/.test(pw) },
-    { label: "At least one symbol", met: /[^A-Za-z0-9]/.test(pw) },
+    { label: t("authX.pw_check_length"), met: pw.length >= 10 },
+    { label: t("authX.pw_check_case"), met: /[a-z]/.test(pw) && /[A-Z]/.test(pw) },
+    { label: t("authX.pw_check_number"), met: /\d/.test(pw) },
+    { label: t("authX.pw_check_symbol"), met: /[^A-Za-z0-9]/.test(pw) },
   ];
 }
 
-function getPasswordStrength(pw: string): { level: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
+function getPasswordStrength(pw: string, t: Translate): { level: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
   if (!pw) return { level: 0, label: "", color: "" };
   // Met-count above, plus one point just for clearing Supabase's own
   // 6-char floor, so a 6-9 char password with every other box checked
   // doesn't max out the bar before it's actually hit 10 characters.
-  const metCount = getPasswordChecks(pw).filter((c) => c.met).length;
+  const metCount = getPasswordChecks(pw, t).filter((c) => c.met).length;
   const score = metCount + (pw.length >= 6 ? 1 : 0);
-  if (score <= 1) return { level: 1, label: "Weak", color: "bg-alert" };
-  if (score === 2) return { level: 2, label: "Fair", color: "bg-amber-500" };
-  if (score === 3) return { level: 3, label: "Good", color: "bg-brand/70" };
-  return { level: 4, label: "Strong", color: "bg-brand" };
+  if (score <= 1) return { level: 1, label: t("authX.pw_weak"), color: "bg-alert" };
+  if (score === 2) return { level: 2, label: t("authX.pw_fair"), color: "bg-amber-500" };
+  if (score === 3) return { level: 3, label: t("authX.pw_good"), color: "bg-brand/70" };
+  return { level: 4, label: t("authX.pw_strong"), color: "bg-brand" };
 }
 
 interface Props {
@@ -78,6 +81,7 @@ export function AuthCard({
   const { signIn, signUp, signInWithOAuth, status } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
 
   // useSubscription internally calls useLocalSubscription via
   // useSyncExternalStore. We previously called useLocalSubscription twice
@@ -115,8 +119,8 @@ export function AuthCard({
     () => `${firstName.trim()} ${lastName.trim()}`.trim(),
     [firstName, lastName],
   );
-  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
-  const passwordChecks = useMemo(() => getPasswordChecks(password), [password]);
+  const passwordStrength = useMemo(() => getPasswordStrength(password, t), [password, t]);
+  const passwordChecks = useMemo(() => getPasswordChecks(password, t), [password, t]);
   const selectedPlan = useMemo(
     () => (subscription ? getPlan(subscription.planId) : null),
     [subscription],
@@ -235,7 +239,7 @@ export function AuthCard({
           msg.includes("validation_failed");
         setError(
           isProviderUnavailable
-            ? `${provider === "google" ? "Google" : "Apple"} sign-in is being configured. Please use email for now.`
+            ? t("authX.err_provider_configuring", { provider: provider === "google" ? "Google" : "Apple" })
             : error.message,
         );
         setBusy(false);
@@ -243,7 +247,7 @@ export function AuthCard({
       // No success branch: signInWithOAuth navigates the browser away.
       // setBusy stays true so the button shows a spinner during redirect.
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Sign-in failed");
+      setError(e instanceof Error ? e.message : t("authX.err_signin_failed"));
       setBusy(false);
     }
   }
@@ -252,15 +256,15 @@ export function AuthCard({
     e.preventDefault();
     setError(null);
     if (mode === "sign_up" && !companyName.trim()) {
-      setError("Company name is required for new accounts.");
+      setError(t("authX.err_company_required"));
       return;
     }
     if (mode === "sign_up" && password !== confirmPassword) {
-      setError("Passwords don't match.");
+      setError(t("authX.err_passwords_mismatch"));
       return;
     }
     if (mode === "sign_up" && !acceptedTerms) {
-      setError("Please accept the Terms of Service to create an account.");
+      setError(t("authX.err_accept_terms"));
       return;
     }
     setBusy(true);
@@ -309,13 +313,13 @@ export function AuthCard({
     >
       <div className="flex flex-col gap-1.5 mb-6">
         <h2 className="font-serif text-[26px] sm:text-[28px] leading-[1.1] tracking-[-0.01em]">
-          Welcome to CFO AI
+          {t("auth.welcome")}
         </h2>
         <p className="text-[13px] text-ink-soft leading-snug">
           {subtitle ??
             (mode === "sign_in"
-              ? "Sign in to continue. Your decisions and uploads are scoped to your workspace."
-              : "Create your workspace. Free tier — no credit card.")}
+              ? t("authX.subtitle_sign_in")
+              : t("authX.subtitle_sign_up"))}
         </p>
       </div>
 
@@ -329,7 +333,7 @@ export function AuthCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand/80 font-medium">
-              Selected plan
+              {t("authX.selected_plan")}
             </div>
             <div className="text-[13px] text-ink truncate">
               {selectedPlan.name}
@@ -348,14 +352,14 @@ export function AuthCard({
             to="/#pricing"
             className="text-[11px] text-ink-soft hover:text-ink underline-offset-2 hover:underline"
           >
-            Change
+            {t("authX.change_plan")}
           </Link>
         </div>
       )}
 
       {!supabaseEnabled && (
         <div className="mb-4 rounded-xl border border-accent2/30 bg-accent2/10 px-3.5 py-3 text-[12px] text-accent2">
-          Authentication isn't configured on this build.
+          {t("authX.not_configured")}
         </div>
       )}
 
@@ -365,15 +369,14 @@ export function AuthCard({
             <div className="mx-auto h-12 w-12 rounded-full bg-brand/10 text-brand flex items-center justify-center mb-3">
               <Mail size={20} strokeWidth={1.75} />
             </div>
-            <h3 className="font-serif text-[18px] text-ink leading-tight">Check your email</h3>
+            <h3 className="font-serif text-[18px] text-ink leading-tight">{t("authX.check_email_title")}</h3>
             <p className="text-[13px] text-ink-soft mt-2 leading-relaxed">
-              We sent a confirmation link to{" "}
-              <span className="text-ink font-medium">{confirmEmail}</span>.
-              Click it to finish creating your account.
+              {t("authX.check_email_body_pre")}{" "}
+              <span className="text-ink font-medium">{confirmEmail}</span>.{" "}
+              {t("authX.check_email_body_post")}
             </p>
             <p className="text-[11.5px] text-ink-mute mt-3">
-              Didn't see it? Check spam — Supabase confirmations sometimes land
-              there on the first send. Allow up to 60 seconds for delivery.
+              {t("authX.check_email_hint")}
             </p>
           </div>
           {/* Successful-resend confirmation chip. Distinct from `error` so the
@@ -404,9 +407,7 @@ export function AuthCard({
                 if (error && !isAlreadyRegistered) {
                   setError(error.message);
                 } else {
-                  setResendInfo(
-                    "Sent. Check your inbox (and spam) for the new link.",
-                  );
+                  setResendInfo(t("authX.resend_sent"));
                 }
                 // Start cooldown regardless of outcome — keeps the user from
                 // mashing the button and racing through Supabase's server-side
@@ -417,16 +418,16 @@ export function AuthCard({
               className="h-10 rounded-lg border border-rule text-[13px] text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label={
                 resendCooldownSec > 0
-                  ? `Resend available in ${resendCooldownSec} seconds`
-                  : "Resend confirmation email"
+                  ? t("authX.resend_available_in", { seconds: resendCooldownSec })
+                  : t("authX.resend_aria")
               }
             >
               {busy ? (
                 <Loader2 size={14} className="inline animate-spin" />
               ) : resendCooldownSec > 0 ? (
-                `Resend in ${resendCooldownSec}s`
+                t("authX.resend_in", { seconds: resendCooldownSec })
               ) : (
-                "Resend email"
+                t("authX.resend_email")
               )}
             </button>
             <button
@@ -439,7 +440,7 @@ export function AuthCard({
               }}
               className="h-10 rounded-lg bg-ink text-paper text-[13px] font-medium hover:bg-ink/90 transition-colors"
             >
-              Back to sign in
+              {t("authX.back_to_sign_in")}
             </button>
           </div>
           {error && (
@@ -457,8 +458,8 @@ export function AuthCard({
                 className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-brand/15 border border-brand/40 shadow-[0_2px_10px_-2px_rgba(92,211,197,0.35)] transition-transform duration-200 ease-out"
                 style={{ transform: mode === "sign_up" ? "translateX(calc(100% + 4px))" : "translateX(0)" }}
               />
-              <Tab active={mode === "sign_in"} onClick={() => { setMode("sign_in"); setError(null); }}>Sign in</Tab>
-              <Tab active={mode === "sign_up"} onClick={() => { setMode("sign_up"); setError(null); }}>Create account</Tab>
+              <Tab active={mode === "sign_in"} onClick={() => { setMode("sign_in"); setError(null); }}>{t("auth.sign_in")}</Tab>
+              <Tab active={mode === "sign_up"} onClick={() => { setMode("sign_up"); setError(null); }}>{t("auth.sign_up")}</Tab>
             </div>
           )}
 
@@ -478,7 +479,7 @@ export function AuthCard({
               <div className="flex items-center gap-3 mb-3" aria-hidden>
                 <div className="flex-1 h-px bg-rule" />
                 <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft/70">
-                  or continue with email
+                  {t("authX.or_continue_email")}
                 </span>
                 <div className="flex-1 h-px bg-rule" />
               </div>
@@ -489,7 +490,7 @@ export function AuthCard({
             {mode === "sign_up" && (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="First name">
+                  <Field label={t("authX.first_name")}>
                     <Input
                       value={firstName}
                       onChange={(v) => setFirstName(v)}
@@ -497,7 +498,7 @@ export function AuthCard({
                       autoComplete="given-name"
                     />
                   </Field>
-                  <Field label="Last name">
+                  <Field label={t("authX.last_name")}>
                     <Input
                       value={lastName}
                       onChange={(v) => setLastName(v)}
@@ -506,7 +507,7 @@ export function AuthCard({
                     />
                   </Field>
                 </div>
-                <Field label="Company name" required>
+                <Field label={t("auth.company")} required>
                   <Input
                     value={companyName}
                     onChange={(v) => setCompanyName(v)}
@@ -518,23 +519,23 @@ export function AuthCard({
               </>
             )}
 
-            <Field label="Email" required>
+            <Field label={t("authX.email_label")} required>
               <Input
                 type="email"
                 value={email}
                 onChange={(v) => setEmail(v)}
-                placeholder="you@company.com"
+                placeholder={t("authX.email_placeholder")}
                 autoComplete="email"
                 required
               />
             </Field>
 
-            <Field label="Password" required>
+            <Field label={t("auth.password")} required>
               <Input
                 type="password"
                 value={password}
                 onChange={(v) => setPassword(v)}
-                placeholder={mode === "sign_up" ? "At least 10 characters" : ""}
+                placeholder={mode === "sign_up" ? t("authX.pw_check_length") : ""}
                 autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
                 required
                 // 10 matches the advertised checklist; sign-IN stays
@@ -571,12 +572,12 @@ export function AuthCard({
             </Field>
 
             {mode === "sign_up" && (
-              <Field label="Repeat password" required>
+              <Field label={t("authX.repeat_password")} required>
                 <Input
                   type="password"
                   value={confirmPassword}
                   onChange={(v) => setConfirmPassword(v)}
-                  placeholder="Re-enter your password"
+                  placeholder={t("authX.repeat_password_placeholder")}
                   autoComplete="new-password"
                   required
                   minLength={10}
@@ -599,7 +600,7 @@ export function AuthCard({
                     className="mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer"
                   />
                   <span className="text-[11.5px] leading-snug text-ink-soft">
-                    I have read and agree to the{" "}
+                    {t("authX.terms_agree_pre")}{" "}
                     <button
                       type="button"
                       // stopPropagation: without it the click bubbles to the
@@ -612,7 +613,7 @@ export function AuthCard({
                       // `hover:text-brand-l` compiles to nothing at all.
                       className="text-brand font-medium underline underline-offset-2 hover:text-brand-light"
                     >
-                      Terms of Service
+                      {t("authX.terms_of_service")}
                     </button>
                     <span className="text-brand"> *</span>
                   </span>
@@ -627,15 +628,14 @@ export function AuthCard({
                     className="mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer"
                   />
                   <span className="text-[11.5px] leading-snug text-ink-soft">
-                    Subscribe to the newsletter — occasional product updates and
-                    Romanian SME finance insights. Unsubscribe any time.
+                    {t("authX.newsletter_opt_in")}
                   </span>
                 </label>
               </div>
             )}
 
             <p className="text-[10.5px] text-ink-mute">
-              <span className="text-brand">*</span> Required
+              <span className="text-brand">*</span> {t("authX.required")}
             </p>
 
             {error && (
@@ -660,15 +660,15 @@ export function AuthCard({
               "
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
-              {mode === "sign_in" ? "Sign in" : "Create account"}
+              {mode === "sign_in" ? t("auth.sign_in") : t("auth.sign_up")}
             </button>
           </form>
 
           <p className="mt-5 text-[11px] text-ink-soft text-center leading-relaxed">
             {mode === "sign_in" ? (
-              <>New here? <Link to="/signup" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_up")}>Create an account</Link></>
+              <>{t("authX.new_here")} <Link to="/signup" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_up")}>{t("authX.create_an_account")}</Link></>
             ) : (
-              <>Already have one? <Link to="/login" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_in")}>Sign in</Link></>
+              <>{t("authX.already_have_account")} <Link to="/login" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_in")}>{t("auth.sign_in")}</Link></>
             )}
           </p>
         </>
@@ -703,13 +703,14 @@ function OAuthButton({
   busy: boolean;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={busy}
       data-testid={`oauth-${provider}`}
-      aria-label="Continue with Google"
+      aria-label={t("authX.continue_with_google")}
       className="
         inline-flex items-center justify-center gap-2
         h-11 rounded-xl

@@ -4,12 +4,14 @@
 // page's own tab bar (MarketingHeader), centered AuthCard.
 
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AuthCard } from "@/components/cfo/AuthCard";
 import { MarketingHeader } from "./Landing";
 
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   // Optional return path (e.g. the landing page sends ?next=/ so the user
   // comes back to it after signing in). Internal paths only — a value not
   // starting with a single "/" is ignored to rule out open redirects.
@@ -33,7 +35,7 @@ export default function Login() {
           <AuthCard
             initialMode={initialMode}
             tabsHidden={false}
-            subtitle={initialMode === "sign_up" ? "Create your workspace. Free tier — no credit card." : "Sign in to your CFO AI workspace."}
+            subtitle={initialMode === "sign_up" ? t("authX.subtitle_sign_up") : t("authX.subtitle_sign_in_page")}
             onAuthenticated={() => navigate(next)}
           />
         </div>

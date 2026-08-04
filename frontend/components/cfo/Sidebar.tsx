@@ -57,19 +57,17 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import {
   currentMonthEnd,
-  fetchWorkspacePeriodsDirect,
   formatPeriodMonth,
-  useOrgPeriods,
-  type OrgPeriod,
+  formatPeriodYear,
 } from "@/lib/orgPeriods";
+import { usePeriodStepper } from "@/lib/usePeriodStepper";
+import { useActiveLocale } from "@/lib/locale";
 import { useActiveOrg } from "@/lib/org";
 import { startPeriodSwitch } from "@/lib/periodSwitch";
 import { blockedByScan } from "@/lib/scanGuard";
 import { confirmLeaveUnsaved } from "@/lib/unsavedGuard";
-import { SUPPORTED_LANGUAGES, pickLanguageWithProfileSync } from "@/i18n";
-import { useAuth } from "@/lib/auth";
-import { getSupabase } from "@/lib/supabase";
-import { IconButton } from "@/components/ui/IconButton";
+// Language imports removed 2026-08-04 — the sidebar's LanguageIconButton
+// (already dead code) was deleted; language changes live in Settings only.
 import {
   type FeatureKey,
   type FeatureStatus,
@@ -208,10 +206,12 @@ function filterByRegistry(items: WorkflowItem[], status: (k: FeatureKey) => Feat
   });
 }
 
+// Group labels are translation KEYS (i18n pass 2026-08-04) — resolved with
+// t() at render time so the rail follows the active UI language.
 const GROUP_LABELS: Record<WorkflowItem["group"], string> = {
-  intelligence: "Intelligence",
-  analysis: "Analysis",
-  workspace: "System",
+  intelligence: "sidebar.group_intelligence",
+  analysis: "sidebar.group_analysis",
+  workspace: "sidebar.group_system",
 };
 
 const GROUP_ORDER: WorkflowItem["group"][] = ["intelligence", "analysis", "workspace"];
@@ -283,14 +283,14 @@ export function Sidebar({
   // Group the visible nav items.
   const groups = GROUP_ORDER.map((g) => ({
     key: g,
-    label: GROUP_LABELS[g],
+    label: t(GROUP_LABELS[g]),
     items: workflow.filter((w) => w.group === g),
   })).filter((g) => g.items.length > 0);
 
   return (
     <aside
       className={`
-        ${inDrawer ? "" : "hidden lg:flex fixed left-3 top-[76px] bottom-3 z-30 rounded-2xl border border-rule shadow-2"}
+        ${inDrawer ? "" : "hidden lg:flex fixed left-3 top-[68px] bottom-3 z-30 rounded-2xl border border-rule shadow-2"}
         ${inDrawer ? "w-full border-r border-rule" : widthClass}
         bg-bg-2/40 backdrop-blur-md
         flex flex-col
@@ -411,7 +411,7 @@ export function Sidebar({
         {!inDrawer && (
           <SidebarAction
             icon={collapsed ? PanelLeftOpen : PanelLeftClose}
-            label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
             testId="sidebar-collapse-toggle"
             onClick={() => setCollapsed((v) => !v)}
             collapsed={effectivelyCollapsed}
@@ -419,7 +419,7 @@ export function Sidebar({
         )}
         <SidebarAction
           icon={Info}
-          label="Disclaimer"
+          label={t("sidebar.disclaimer")}
           title={t("sidebar.footer_note")}
           testId="sidebar-footer-note"
           onClick={() => setDisclaimerOpen(true)}
@@ -433,7 +433,7 @@ export function Sidebar({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[15px]">
               <Info size={15} strokeWidth={1.75} className="text-brand-d" />
-              Disclaimer
+              {t("sidebar.disclaimer")}
             </DialogTitle>
             <DialogDescription className="pt-1 text-[13px] leading-relaxed text-ink-soft">
               {t("sidebar.footer_note")}
@@ -679,83 +679,22 @@ function SidebarAction({
 }
 
 /**
- * Month stepper for the sidebar rail — prev/next arrows around the active
- * month, cycling this workspace's uploaded periods (newest-first).
- * `?period=<id>` is the app-wide active-period key, so stepping it re-scopes
- * every tab at once; startPeriodSwitch() covers the app while that happens.
- *
- * Relocated from TopHeader — same behavior, including the looping ends
- * (stepping back from the oldest month lands on the newest and vice versa).
- * With no period loaded it shows a "No period" placeholder in the same slot
- * (2026-07-26 per operator) — an empty gap read as a layout bug, and the
- * placeholder tells a fresh workspace what's missing.
+ * Year label + month stepper for the sidebar rail. The visible label is the
+ * YEAR alone (2026-08-04 per operator); prev/next arrows still step through
+ * this workspace's uploaded MONTHS (newest-first, looping ends), with the
+ * month detail in the arrow tooltips. All period-resolution logic lives in
+ * the shared usePeriodStepper() hook — the TopHeader's PeriodBreadcrumb
+ * reads the same state, so the two surfaces can never disagree.
  */
 function SidebarMonthStepper() {
-  const period = useActivePeriod();
-  const [params, setParams] = useSearchParams();
-  const { data: periodsData } = useOrgPeriods();
-  // Empty periods too (2026-07-26 per operator) — the engine feed above only
-  // knows analyzed periods, so a container created in the Workspace tab with
-  // no file yet would be invisible here. Merge in the direct Supabase feed
-  // (same ["org-periods", orgId] cache the Workspace tab populates, so a
-  // just-created period appears without an extra request).
-  const { org } = useActiveOrg();
-  const { data: directData } = useQuery({
-    queryKey: ["org-periods", org?.id],
-    queryFn: () => fetchWorkspacePeriodsDirect(org!.id),
-    enabled: !!org?.id,
-    staleTime: 60_000,
-  });
-  const periods = useMemo<OrgPeriod[]>(() => {
-    const engine = periodsData?.periods ?? [];
-    const seen = new Set(engine.map((p) => p.period_id));
-    const extras = (directData?.periods ?? []).filter((p) => !seen.has(p.period_id));
-    return [...engine, ...extras].sort((a, b) =>
-      (b.period_end ?? "").localeCompare(a.period_end ?? ""),
-    );
-  }, [periodsData, directData]);
+  const { t } = useTranslation();
+  const locale = useActiveLocale();
+  const { selectedEnd, selectedYear, prevTarget, nextTarget, showStepper, goToPeriod } =
+    usePeriodStepper();
 
-  // `?period=<id>` is the app-wide SELECTION key, so it wins here (2026-07-26
-  // per operator: the sidebar showed a different month than the selected
-  // period). It used to be the other way around — the resolved analysis period
-  // took precedence — which is wrong whenever the two disagree: selecting a
-  // month with no analysis yet (an empty container, or one still processing)
-  // leaves `useActivePeriod` pointing at the last month that DID resolve, so
-  // the rail confidently displayed a month the user hadn't selected.
-  // `useActivePeriod` stays as the fallback for a bare URL.
-  const selectedId = params.get("period") ?? period.id ?? null;
-  const listMatch = selectedId
-    ? periods.find((p) => p.period_id === selectedId) ?? null
-    : null;
-  const selectedMonth = listMatch
-    ? formatPeriodMonth(listMatch.period_end)
-    // Not in the list (a sample/demo id, or the list hasn't loaded yet) — the
-    // resolved period can still name it, but only when it IS the selected one.
-    : selectedId && period.id === selectedId
-      ? formatPeriodMonth(period.periodEnd)
-      // A selected id we can't resolve names no month: better the
-      // current-month fallback below than another period's date.
-      : selectedId
-        ? null
-        : periods[0]
-          ? formatPeriodMonth(periods[0].period_end)
-          : null;
-  const periodIdx = selectedId
-    ? periods.findIndex((p) => p.period_id === selectedId)
-    : -1;
-  // Newest-first ordering: the OLDER month is further down the list.
-  const olderPeriod = periodIdx >= 0 && periodIdx < periods.length - 1 ? periods[periodIdx + 1] : null;
-  const newerPeriod = periodIdx > 0 ? periods[periodIdx - 1] : null;
-  const prevTarget = olderPeriod ?? periods[0] ?? null;
-  const nextTarget = newerPeriod ?? periods[periods.length - 1] ?? null;
-  const showStepper = periods.length >= 2;
-
-  // Nothing loaded yet — show the CURRENT month rather than "No period"
-  // (2026-07-26 per operator). Every workspace keeps a permanent current-month
-  // period, so this is the month the app is about to land on anyway; naming it
-  // is both accurate and a better answer than a placeholder. Muted a step
-  // further than a real selection so it still reads as "nothing loaded".
-  if (!selectedMonth) {
+  // Nothing loaded yet — show the CURRENT year rather than "No period"
+  // (2026-07-26 per operator, adapted to the year-only label).
+  if (!selectedEnd) {
     return (
       <div data-testid="sidebar-month-stepper" className="px-0.5">
         <div className="flex items-center gap-1">
@@ -763,23 +702,11 @@ function SidebarMonthStepper() {
             data-testid="sidebar-month-current-fallback"
             className="min-w-0 flex-1 text-center font-mono text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-mute/70"
           >
-            {formatPeriodMonth(currentMonthEnd())}
+            {formatPeriodYear(currentMonthEnd())}
           </span>
         </div>
       </div>
     );
-  }
-
-  function goToPeriod(periodId: string) {
-    // Not while an analysis is running — see lib/scanGuard.
-    if (blockedByScan("period")) return;
-    const target = periods.find((p) => p.period_id === periodId);
-    startPeriodSwitch(formatPeriodMonth(target?.period_end) ?? undefined);
-    const sp = new URLSearchParams(params);
-    sp.set("period", periodId);
-    // Replace, not push — month stepping is substitution; Back should leave
-    // the page rather than replay every month stepped through.
-    setParams(sp, { replace: true });
   }
 
   return (
@@ -789,8 +716,8 @@ function SidebarMonthStepper() {
           <button
             type="button"
             onClick={() => prevTarget && goToPeriod(prevTarget.period_id)}
-            aria-label="Previous month"
-            title={`Previous month (${formatPeriodMonth(prevTarget?.period_end) ?? ""})`}
+            aria-label={t("topbar.prevMonth")}
+            title={`${t("topbar.prevMonth")} (${formatPeriodMonth(prevTarget?.period_end, locale) ?? ""})`}
             data-testid="sidebar-prev-month"
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
           >
@@ -798,14 +725,14 @@ function SidebarMonthStepper() {
           </button>
         )}
         <span className="min-w-0 flex-1 text-center font-mono text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-soft truncate">
-          {selectedMonth}
+          {selectedYear}
         </span>
         {showStepper && (
           <button
             type="button"
             onClick={() => nextTarget && goToPeriod(nextTarget.period_id)}
-            aria-label="Next month"
-            title={`Next month (${formatPeriodMonth(nextTarget?.period_end) ?? ""})`}
+            aria-label={t("topbar.nextMonth")}
+            title={`${t("topbar.nextMonth")} (${formatPeriodMonth(nextTarget?.period_end, locale) ?? ""})`}
             data-testid="sidebar-next-month"
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
           >
@@ -855,116 +782,3 @@ function Section({
   );
 }
 
-/**
- * FE-FIX-4 — Sidebar language selector.
- *
- * The i18n machinery already exists (react-i18next + LanguageDetector +
- * useLanguage() priority chain + Settings → Language page), but the user
- * had no globally-visible language switcher. This sits next to the theme
- * toggle in the sidebar footer, opens a small popover, persists via
- * setLanguage() → localStorage → i18n.changeLanguage(). Active language
- * gets a check mark; popover dismisses on outside click.
- *
- * The popover also sets <html lang=...> so screen readers + the browser
- * surface the language correctly. Done inside `setLanguage()` already?
- * It is — i18next's languageChanged event fires LanguageSync, which
- * persists. The <html lang> attribute is set in main.tsx on language
- * changes. So this button is just a UI surface — all the state plumbing
- * already exists.
- */
-function LanguageIconButton() {
-  const { t, i18n } = useTranslation();
-  const { user } = useAuth();
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  // Close on outside click.
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
-
-  const active = i18n.language?.split("-")[0] ?? "en";
-  const label = t("sidebar.language_label", "Change language");
-
-  function handlePick(code: string) {
-    // Fix 3 — perf: close the popover SYNCHRONOUSLY before kicking off
-    // the network-bound profile sync. Awaiting two Supabase round-trips
-    // before closing left the popover open for ~400-800ms on prod, which
-    // read as button lag. The local i18next change inside
-    // pickLanguageWithProfileSync is itself synchronous; only the
-    // Supabase profile + auth.updateUser calls are async. We fire-and-
-    // forget those — the priority chain in useLanguage.ts already gets
-    // the right answer from the in-flight i18next change + localStorage
-    // write, so the UI re-renders immediately. The profile mirror
-    // happens in the background to make the choice survive a cache
-    // clear / new-device sign-in.
-    //
-    // Mirrors Settings → Language card semantics (profile + auth metadata)
-    // so useLanguage()'s priority chain treats this as the canonical
-    // preference. Without the profile sync the click would silently
-    // revert: LanguageSync re-reads profileLang on every render and
-    // pushes it back into i18next, overriding the localStorage write.
-    setOpen(false);
-    const sb = getSupabase();
-    void pickLanguageWithProfileSync(code, user ?? null, sb);
-  }
-
-  return (
-    // `<span>` (inline-block in the flex parent) rather than `<div>` so
-    // the popover anchor doesn't introduce a baseline shift relative to
-    // the sibling icon buttons. The button itself goes through the same
-    // `IconButton` primitive as the other two footer icons.
-    <span ref={containerRef} className="relative inline-flex">
-      <IconButton
-        size="sm"
-        icon={<Globe strokeWidth={1.75} />}
-        label={label}
-        active={open}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-testid="sidebar-language-button"
-        onClick={() => setOpen((v) => !v)}
-      />
-      {open && (
-        <div
-          role="menu"
-          data-testid="sidebar-language-popover"
-          className="
-            absolute bottom-full left-0 mb-2 min-w-[160px] z-50
-            rounded-lg border border-rule bg-surface shadow-lg
-            py-1
-          "
-        >
-          {SUPPORTED_LANGUAGES.map((lng) => {
-            const isActive = lng.code === active;
-            return (
-              <button
-                key={lng.code}
-                type="button"
-                role="menuitemradio"
-                aria-checked={isActive}
-                onClick={() => handlePick(lng.code)}
-                className={`
-                  w-full text-left px-3 py-1.5 text-[12.5px]
-                  hover:bg-bg-2 transition-colors
-                  flex items-center gap-2
-                  ${isActive ? "text-ink font-medium" : "text-ink-soft"}
-                `}
-              >
-                <span className="font-mono text-[10.5px] tracking-[0.08em] text-ink-mute leading-none w-[18px]">{lng.badge}</span>
-                <span className="flex-1">{lng.label}</span>
-                {isActive && <span aria-hidden className="text-brand">✓</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </span>
-  );
-}

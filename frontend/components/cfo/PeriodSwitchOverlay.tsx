@@ -24,6 +24,7 @@
 // behavior: brief, deliberate, never a fake wait.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useIsFetching } from "@tanstack/react-query";
 import { PERIOD_SWITCH_EVENT, type PeriodSwitchDetail } from "@/lib/periodSwitch";
@@ -35,6 +36,7 @@ const FADE_MS = 200;
 type Phase = "hidden" | "entering" | "visible" | "exiting";
 
 export function PeriodSwitchOverlay() {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>("hidden");
   const [label, setLabel] = useState<string | null>(null);
   const [kind, setKind] = useState<PeriodSwitchDetail["kind"]>("period");
@@ -98,7 +100,7 @@ export function PeriodSwitchOverlay() {
     <div
       role="status"
       aria-live="polite"
-      aria-label={kind === "workspace" ? "Switching workspace" : "Switching month"}
+      aria-label={kind === "workspace" ? t("scan.switchingWorkspace") : t("scan.switchingMonth")}
       data-testid="period-switch-overlay"
       className="fixed inset-0 z-[10000] flex flex-col items-center justify-center gap-4 bg-black/80 backdrop-blur-xl transition-opacity"
       style={{ opacity: phase === "visible" ? 1 : 0, transitionDuration: `${FADE_MS}ms` }}
@@ -110,7 +112,7 @@ export function PeriodSwitchOverlay() {
         </span>
       )}
       <span className="sr-only">
-        Loading {label ?? (kind === "workspace" ? "the selected workspace" : "the selected month")}…
+        {t("scan.loadingWhat", { what: label ?? (kind === "workspace" ? t("scan.selectedWorkspace") : t("scan.selectedMonth")) })}
       </span>
     </div>,
     document.body,

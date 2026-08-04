@@ -44,17 +44,19 @@ export interface TabSpec {
 // TabId and the routing default (resolveActiveTab) still resolves to it, so its
 // TabsContent (valuation hero + the State A upload surface) remains the landing
 // view beneath the always-visible KPI grid — there's just no chip for it.
+// `label` values are i18n KEYS since the 2026-08-04 i18n pass — resolve
+// with t(tab.label) at render time (see FinancialStatements' tab bar).
 export const TAB_SPECS: TabSpec[] = [
-  { id: "pl",              label: "P&L",             order: 2 },
-  { id: "balance_sheet",   label: "Balance Sheet",   order: 3 },
-  { id: "cash_flow",       label: "Cash Flow",       order: 4 },
-  { id: "ratios",          label: "Ratios",          order: 5 },
-  { id: "valuation",       label: "Valuation",       order: 6 },
-  { id: "risks",           label: "Risks & credit",  order: 7 },
+  { id: "pl",              label: "tabs.pl",            order: 2 },
+  { id: "balance_sheet",   label: "tabs.balance_sheet", order: 3 },
+  { id: "cash_flow",       label: "tabs.cash_flow",     order: 4 },
+  { id: "ratios",          label: "tabs.ratios",        order: 5 },
+  { id: "valuation",       label: "tabs.valuation",     order: 6 },
+  { id: "risks",           label: "tabs.risks",         order: 7 },
   // "recommendations" trigger removed 2026-07-25 (its notes surface inside the
   // statement tabs' "Notes & recommendations" sections). The TabsContent + the
   // TabId stay valid so nothing that references them breaks.
-  { id: "export",          label: "Export",          order: 9 },
+  { id: "export",          label: "tabs.export",        order: 9 },
 ];
 
 /**
@@ -161,17 +163,21 @@ export function resolveActiveTab(
  * Human-readable hint for the disabled-tab tooltip. Every tab gets the same
  * generic CTA at the end; the per-tab prefix tells the user *what* is missing.
  */
-export function disabledHint(tab: TabId): string {
-  const prefix: Record<TabId, string> = {
-    overview:        "",
-    pl:              "Needs a P&L, trial balance, or annual report — ",
-    balance_sheet:   "Needs a balance sheet, trial balance, or annual report — ",
-    cash_flow:       "Needs a balance sheet + P&L (or trial balance) — ",
-    ratios:          "Needs a balance sheet, P&L, or trial balance — ",
-    valuation:       "Needs a balance sheet AND P&L — ",
-    risks:           "Needs a balance sheet, P&L, or trial balance — ",
-    recommendations: "Needs a balance sheet, P&L, or trial balance — ",
-    export:          "",
+export function disabledHint(
+  tab: TabId,
+  t: (key: string) => string,
+): string {
+  const prefixKey: Record<TabId, string | null> = {
+    overview:        null,
+    pl:              "tabs.hint_pl",
+    balance_sheet:   "tabs.hint_balance_sheet",
+    cash_flow:       "tabs.hint_cash_flow",
+    ratios:          "tabs.hint_ratios",
+    valuation:       "tabs.hint_valuation",
+    risks:           "tabs.hint_risks",
+    recommendations: "tabs.hint_recommendations",
+    export:          null,
   };
-  return `${prefix[tab]}upload a financial statement or load a sample to enable this view.`;
+  const key = prefixKey[tab];
+  return `${key ? t(key) : ""}${t("tabs.hint_suffix")}`;
 }

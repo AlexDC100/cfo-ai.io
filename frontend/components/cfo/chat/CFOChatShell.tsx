@@ -18,10 +18,11 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Trans, useTranslation } from "react-i18next";
 import { CFOComposer, type CFOComposerHandle } from "./CFOComposer";
 import { CFOMessageList } from "./CFOMessageList";
-import { CFOEmptyState, WORKSPACE_PROMPTS, GENERAL_PROMPTS } from "./CFOEmptyState";
-import { promptsForIndustry } from "./industryPrompts";
+import { CFOEmptyState, useWorkspacePrompts, useGeneralPrompts } from "./CFOEmptyState";
+import { useIndustryPrompts } from "./industryPrompts";
 import { useActiveOrg } from "@/lib/org";
 import { CFOHistorySidebar } from "./CFOHistorySidebar";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
@@ -87,6 +88,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   },
   ref,
 ) {
+  const { t } = useTranslation();
   const store = useChatStore();
   const composerRef = useRef<CFOComposerHandle | null>(null);
   // See the sidebar-entrance rule below (page variant) — true once this
@@ -230,9 +232,12 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       try { localStorage.setItem(wsPresentKey, present ? "1" : "0"); } catch { /* ignore */ }
     }
   }, [org, orgLoading, wsPresentKey]);
+  const workspacePrompts = useWorkspacePrompts();
+  const generalPrompts = useGeneralPrompts();
+  const industryPrompts = useIndustryPrompts(org?.industry_key);
   const promptPills = expectGrounded
-    ? WORKSPACE_PROMPTS
-    : (promptsForIndustry(org?.industry_key) ?? GENERAL_PROMPTS);
+    ? workspacePrompts
+    : (industryPrompts ?? generalPrompts);
   // Pyramid arrangement — two rows tall, fewer pills up top and more on the
   // bottom (e.g. 8 pills → 3 on top / 5 on the bottom). Left-aligned.
   const pyramidRows = ((items: typeof promptPills) => {
@@ -295,16 +300,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   }
 
   // ── Disclosure + context line ───────────────────────────────────
-  const disclosure = (
-    <>
-      CFO AI can answer general questions too — answers not drawn from your workspace data
-      may not be current or verified. Confirm regulatory/tax specifics before acting.
-    </>
-  );
+  const disclosure = <>{t("chatX.disclosure")}</>;
 
   const contextLine = hasPeriod ? (
     <>
-      Grounded in <span className="text-ink-soft">{companyName || "your workspace"}</span>
+      {t("chatX.groundedIn")} <span className="text-ink-soft">{companyName || t("chatX.yourWorkspace")}</span>
       {/* The active period's label falls back to the company name, so without
           this check the pill read "X · X" (2026-07-26 per operator). */}
       {periodLabel && periodLabel !== companyName ? (
@@ -312,7 +312,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       ) : null}
     </>
   ) : (
-    <>No workspace loaded — open-domain mode</>
+    <>{t("chatX.noWorkspaceMode")}</>
   );
 
   // ── Layout ──────────────────────────────────────────────────────
@@ -429,7 +429,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             animate={{ width: 280, opacity: 1, marginRight: 0 }}
             exit={{ width: 0, opacity: 0, marginRight: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-20 hidden lg:block shrink-0 self-start sticky top-[76px] -mt-3 sm:-mt-7 lg:-mt-9 h-[calc(100dvh-76px)] overflow-hidden"
+            className="relative z-20 hidden lg:block shrink-0 self-start sticky top-[68px] -mt-3 sm:-mt-7 lg:-mt-9 h-[calc(100dvh-68px)] overflow-hidden"
           >
             <div className="w-[280px] h-full">
               <CFOHistorySidebar
@@ -458,9 +458,9 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           >
             <PageHeader
               hero
-              eyebrow="Ask CFO AI"
-              title={<>Ask anything about your <span className="text-grad">company, documents, or finance</span>.</>}
-              subtitle="CFO AI answers from your loaded workspace — P&L, Balance Sheet, Cash Flow, ratios, valuation, risk and recommendations — citing the period and the figures it used. With no workspace loaded it still answers open-domain finance, accounting and strategy questions. Pick a starter below or type your own."
+              eyebrow={t("topbar.askCfoAi")}
+              title={<Trans i18nKey="chatX.pageTitle" components={{ grad: <span className="text-grad" /> }} />}
+              subtitle={t("chatX.pageSubtitle")}
               testid="chat-empty-header"
             />
             <CFOEmptyState hasPeriod={expectGrounded} companyName={companyName} onPick={pickPrompt} hideHeader />
@@ -516,7 +516,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               pending={pending}
               onSubmit={send}
               onStop={stopCurrent}
-              placeholder={expectGrounded ? `Ask about ${companyName || "your company"}…` : "Ask CFO AI anything…"}
+              placeholder={expectGrounded ? t("chatX.askAboutPlaceholder", { name: companyName || t("chatX.yourCompany") }) : t("chatX.askAnythingPlaceholder")}
               blockedReason={capBlocked}
             />
           </div>
@@ -536,11 +536,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             {noWorkspace && (
               <span
                 data-testid="chat-no-workspace-pill"
-                title="No workspace is selected, so answers can't be grounded in your company's data."
+                title={t("chatX.noWorkspacePillTitle")}
                 className="ml-auto shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-amber-500/10 border border-amber-500/30 text-[11.5px] font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-                No workspace selected — affects answers
+                {t("chatX.noWorkspacePill")}
               </span>
             )}
           </div>
@@ -558,11 +558,12 @@ function PanelHeader({
   onNewChat: () => void;
   onExpandToPage?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-rule bg-surface/60">
       <div className="min-w-0 flex-1">
         <h2 className="text-[13.5px] font-medium text-ink truncate">
-          {conversationTitle === "New conversation" ? "Ask CFO AI" : conversationTitle}
+          {conversationTitle === "New conversation" ? t("topbar.askCfoAi") : conversationTitle}
         </h2>
       </div>
       <div className="flex items-center gap-1">
@@ -571,7 +572,7 @@ function PanelHeader({
           onClick={onNewChat}
           className="inline-flex items-center h-7 px-2 rounded text-[11.5px] text-ink-soft hover:text-ink hover:bg-bg-2/60 transition-colors"
         >
-          New
+          {t("chatX.new")}
         </button>
         {onExpandToPage && (
           <button
@@ -579,7 +580,7 @@ function PanelHeader({
             onClick={onExpandToPage}
             className="inline-flex items-center h-7 px-2 rounded text-[11.5px] text-ink-soft hover:text-ink hover:bg-bg-2/60 transition-colors"
           >
-            Open page →
+            {t("chatX.openPage")}
           </button>
         )}
       </div>

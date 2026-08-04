@@ -31,6 +31,10 @@ import { Download, FileSpreadsheet, ExternalLink, Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 
+// Module-level i18n instance — previewWorkbookInNewTab runs outside the React
+// tree (it writes into a raw window.open tab), so it can't use the hook.
+import i18n from "@/i18n";
+
 type Variant = "compact" | "prominent";
 
 /** Which surface hosts the card — flips the sheet summary's emphasis.
@@ -68,11 +72,12 @@ async function previewWorkbookInNewTab(
   filename: string,
   subtitle: string,
 ): Promise<void> {
+  const loadingText = i18n.t("tmpl.previewLoading");
   const tab = window.open("", "_blank");
   if (tab) {
     tab.document.write(
-      "<!doctype html><title>Loading preview…</title>" +
-      "<body style=\"font:14px system-ui;padding:24px\">Loading preview…</body>",
+      `<!doctype html><title>${loadingText}</title>` +
+      `<body style="font:14px system-ui;padding:24px">${loadingText}</body>`,
     );
   }
   try {
@@ -103,7 +108,7 @@ async function previewWorkbookInNewTab(
     if (tab) {
       tab.document.open();
       tab.document.write(
-        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">Couldn't load preview: ${msg}</body>`,
+        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">${i18n.t("tmpl.previewError", { msg })}</body>`,
       );
       tab.document.close();
     }
@@ -111,7 +116,7 @@ async function previewWorkbookInNewTab(
 }
 
 function previewTemplateInNewTab(): Promise<void> {
-  return previewWorkbookInNewTab(TEMPLATE_HREF, TEMPLATE_FILENAME, "upload template");
+  return previewWorkbookInNewTab(TEMPLATE_HREF, TEMPLATE_FILENAME, i18n.t("tmpl.previewSubtitle"));
 }
 
 export function TemplateDownloadCard({
@@ -173,12 +178,11 @@ export function TemplateDownloadCard({
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2">
                   <div className="min-w-0">
                     <div className="text-[12.5px] font-medium text-ink truncate">
-                      Official upload template{" "}
+                      {t("tmpl.officialTemplate")}{" "}
                       <span className="text-ink-mute font-normal">(XLSX)</span>
                     </div>
                     <div className="text-[10.5px] text-ink-mute">
-                      Exact sheet names, column headers, and row offsets the
-                      parser expects.
+                      {t("tmpl.officialTemplateDesc")}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -189,7 +193,7 @@ export function TemplateDownloadCard({
                       className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
                     >
                       <ExternalLink size={12} strokeWidth={2} />
-                      View
+                      {t("tmpl.view")}
                     </button>
                     <a
                       href={TEMPLATE_HREF}
@@ -199,7 +203,7 @@ export function TemplateDownloadCard({
                       className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
                     >
                       <Download size={12} strokeWidth={2} />
-                      Download
+                      {t("common.download")}
                     </a>
                   </div>
                 </div>
@@ -208,11 +212,11 @@ export function TemplateDownloadCard({
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2">
                   <div className="min-w-0">
                     <div className="text-[12.5px] font-medium text-ink truncate">
-                      Sales analysis example{" "}
+                      {t("tmpl.salesExample")}{" "}
                       <span className="text-ink-mute font-normal">(XLSX)</span>
                     </div>
                     <div className="text-[10.5px] text-ink-mute">
-                      Anonymized example — match these columns; fictional data.
+                      {t("expectedFormat.exampleCaption")}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -222,14 +226,14 @@ export function TemplateDownloadCard({
                         void previewWorkbookInNewTab(
                           "/examples/example_products_trading.xlsx",
                           "example_products_trading.xlsx",
-                          "sales analysis example (fictional data)",
+                          t("tmpl.previewSalesSubtitle"),
                         )
                       }
                       data-testid="view-sales-template"
                       className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
                     >
                       <ExternalLink size={12} strokeWidth={2} />
-                      View
+                      {t("tmpl.view")}
                     </button>
                     <a
                       href="/examples/example_products_trading.xlsx"
@@ -238,7 +242,7 @@ export function TemplateDownloadCard({
                       className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
                     >
                       <Download size={12} strokeWidth={2} />
-                      Download
+                      {t("common.download")}
                     </a>
                   </div>
                 </div>
@@ -356,14 +360,14 @@ function FormatSummary({
     context === "dashboard"
       ? [
           {
-            name: "Multi-column format",
+            name: t("tmpl.formatMultiCol"),
             required: null,
             key: "exampleMultiCol",
             fallback:
               "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
           },
           {
-            name: "Standard SAGA format",
+            name: t("tmpl.formatSaga"),
             required: null,
             key: "exampleSaga",
             fallback:

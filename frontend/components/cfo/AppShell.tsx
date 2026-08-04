@@ -13,6 +13,7 @@
 // pill sits bottom-right on every viewport.
 
 import { ReactNode, useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Sheet,
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function AppShell({ children }: Props) {
+  const { t } = useTranslation();
   // A workspace always has at least one period — if the active one has none,
   // this creates an empty container for the current month. Lives here (one
   // mount, app-wide) so two surfaces can't race to create the same month.
@@ -249,13 +251,13 @@ export function AppShell({ children }: Props) {
       const { error } = await signOut();
       if (error) {
         toast({
-          title: "Sign-out failed",
+          title: t("account.signOutFailed"),
           description: error.message,
           variant: "destructive",
         });
         return;
       }
-      toast({ title: "Signed out" });
+      toast({ title: t("account.signedOut") });
       navigate("/login", { replace: true });
     },
   };
@@ -270,7 +272,10 @@ export function AppShell({ children }: Props) {
       <TopHeader
         onOpenAi={openAskCfoAi}
         onOpenSidebar={() => setSidebarOpen(true)}
-        onOpenAccount={() => setDrawerOpen(true)}
+        // onOpenAccount removed 2026-08-04 (header redesign): the avatar
+        // opens the AccountMenu dropdown again — it now hosts the
+        // Learning-mode picker, Billing, Settings and sign-out. The
+        // Command Center drawer stays reachable via its other triggers.
       />
 
       {/* Persistent sidebar (lg+). With no workspace yet, it stays visible but
@@ -296,8 +301,8 @@ export function AppShell({ children }: Props) {
             paddingLeft: "env(safe-area-inset-left)",
           }}
         >
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <div className="h-16 border-b border-rule" />
+          <SheetTitle className="sr-only">{t("panels.navigation")}</SheetTitle>
+          <div className="h-14 border-b border-rule" />
           <Sidebar
             {...sidebarHandlers}
             inDrawer
@@ -326,7 +331,7 @@ export function AppShell({ children }: Props) {
       {/* Main content — offset for the fixed header + sidebar. When any
           slide-out is open on wide screens (≥1280px) the content shifts
           left by the panel's width so nothing is hidden. */}
-      <main className={`pt-16 ${sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
+      <main className={`pt-14 ${sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
         {/* WS1 — sticky usage warning when caller is at 80%+ of any
             cap. Renders null when under threshold, off, dismissed, or
             no plan state. Stays at top of the main scroll region so it

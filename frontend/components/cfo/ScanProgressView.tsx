@@ -8,6 +8,7 @@
 // the same statuses either way; only the wording differs per surface).
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, CheckCircle2 } from "lucide-react";
 
@@ -106,6 +107,51 @@ export const SKU_STATUS_MESSAGES: Record<string, string[]> = {
   failed: ["Analysis failed"],
 };
 
+// i18n bridge — the step/message constants above are exported and consumed
+// by pages this file doesn't own (FinancialStatements / Products pass them
+// back in as props), so their SHAPE stays "English literal strings". The
+// view translates each known literal to its locale string at render time;
+// unknown strings fall through untouched. Exported so those same pages can
+// translate the step labels wherever they render them directly (e.g. the
+// idle pipeline preview on /products).
+export const SCAN_TEXT_KEYS: Record<string, string> = {
+  // Step labels
+  "Detect format": "scan.steps.detectFormat",
+  "Extract data": "scan.steps.extractData",
+  "Rebuild statements": "scan.steps.rebuildStatements",
+  "Calculate ratios": "scan.steps.calculateRatios",
+  "Generate recs": "scan.steps.generateRecs",
+  "Extract rows": "scan.steps.extractRows",
+  "Roll up SKUs": "scan.steps.rollUpSkus",
+  "Generate briefing": "scan.steps.generateBriefing",
+  // Status lines — trial balance
+  "Queued for analysis…": "productsX.inflight.stage.queued",
+  "Reading the document…": "scan.msg.readingDocument",
+  "Detecting the trial-balance layout…": "scan.msg.detectingTbLayout",
+  "Extracting account balances…": "scan.msg.extractingBalances",
+  "Checking debits against credits…": "scan.msg.checkingDebits",
+  "Mapping accounts to statements…": "scan.msg.mappingAccounts",
+  "Rebuilding your P&L and balance sheet…": "scan.msg.rebuildingStatements",
+  "Computing ratios…": "scan.msg.computingRatios",
+  "Scoring liquidity and leverage…": "scan.msg.scoringLiquidity",
+  "Running the credit model…": "scan.msg.runningCreditModel",
+  "Generating insights…": "scan.msg.generatingInsights",
+  "Writing your briefing…": "scan.msg.writingBriefing",
+  "Drafting recommendations…": "scan.msg.draftingRecs",
+  "Analysis ready": "toasts.analysisComplete",
+  "Analysis failed": "productsX.toast.analysisFailed",
+  // Status lines — SKU dataset
+  "Reading your sales file…": "scan.msg.readingSalesFile",
+  "Detecting the column layout…": "scan.msg.detectingColumns",
+  "Identifying SKU descriptors…": "scan.msg.identifyingSkus",
+  "Parsing revenue, volume and margin columns…": "scan.msg.parsingColumns",
+  "Extracting SKU rows…": "scan.msg.extractingSkuRows",
+  "Rolling up brands and categories…": "scan.msg.rollingUpBrands",
+  "Classifying the portfolio…": "scan.msg.classifyingPortfolio",
+  "Analyzing portfolio performance…": "scan.msg.analyzingPerformance",
+  "Writing your executive briefing…": "scan.msg.writingExecBriefing",
+};
+
 export function ScanProgressView({
   status,
   steps = TRIAL_BALANCE_STEPS as unknown as string[],
@@ -113,9 +159,9 @@ export function ScanProgressView({
   statusMessages = TB_STATUS_MESSAGES,
   onCancel,
   onViewResults,
-  completeTitle = "Scan complete",
-  completeBody = "Your analysis is ready — statements, ratios, valuation and recommendations have been rebuilt.",
-  completeCta = "View results",
+  completeTitle,
+  completeBody,
+  completeCta,
 }: {
   status: DocumentStatus;
   steps?: readonly string[];
@@ -142,6 +188,13 @@ export function ScanProgressView({
   completeBody?: string;
   completeCta?: string;
 }) {
+  const { t } = useTranslation();
+  // Translate a known English literal (step label / status line) to the
+  // active language; unknown strings pass through unchanged.
+  const trText = (s: string) => (SCAN_TEXT_KEYS[s] ? t(SCAN_TEXT_KEYS[s]) : s);
+  const resolvedCompleteTitle = completeTitle ?? t("scan.completeTitle");
+  const resolvedCompleteBody = completeBody ?? t("scan.completeBody");
+  const resolvedCompleteCta = completeCta ?? t("scan.viewResults");
   // Cancel is two-step: the first press pauses + desaturates the sphere
   // (via the host's pause signal) and swaps the button for an inline
   // confirmation; only confirming actually dismisses the scan view.
@@ -168,7 +221,7 @@ export function ScanProgressView({
     const id = setInterval(() => setMsgIdx((i) => (i + 1) % count), 4000);
     return () => clearInterval(id);
   }, [shownStatus, statusMessages]);
-  const statusLabel = messages[Math.min(msgIdx, messages.length - 1)];
+  const statusLabel = trText(messages[Math.min(msgIdx, messages.length - 1)]);
   const sphereHeight = sphereViewportHeight();
   const isComplete = shownStatus === "analyzed";
   // The completion hand-off (fade sphere → "Scan complete" card) is only
@@ -247,11 +300,11 @@ export function ScanProgressView({
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "An analysis is still running — leaving now will lose its progress.";
+      e.returnValue = t("scan.leaveWarning");
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, []);
+  }, [t]);
   return (
     // animate-fade-in — the steps panel (and, visually, the sphere the
     // fixed host paints over the spacer) eases in when the scan view
@@ -264,7 +317,7 @@ export function ScanProgressView({
           status line colliding with the sphere. */}
       <ol
         className="relative w-full max-w-[720px] mx-auto flex items-start justify-between gap-2 pt-8"
-        aria-label="Analysis pipeline"
+        aria-label={t("productsX.empty.pipelineAria")}
         data-testid="upload-pipeline"
       >
         {/* Progress connector — rendered as ONE SEGMENT PER GAP between
@@ -326,7 +379,7 @@ export function ScanProgressView({
                 {done ? <Check size={18} strokeWidth={2.5} className="relative z-10" /> : `0${i + 1}`}
               </span>
               <span className={`mt-2 text-[11.5px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[100px] ${active ? "text-ink" : "text-ink-mute"}`}>
-                {label}
+                {trText(label)}
               </span>
             </li>
           );
@@ -378,9 +431,9 @@ export function ScanProgressView({
           <span className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-brand/15 text-brand-d">
             <CheckCircle2 size={30} strokeWidth={1.75} />
           </span>
-          <h3 className="text-[19px] font-semibold text-ink">{completeTitle}</h3>
+          <h3 className="text-[19px] font-semibold text-ink">{resolvedCompleteTitle}</h3>
           <p className="text-[13px] text-ink-soft max-w-[340px] leading-relaxed">
-            {completeBody}
+            {resolvedCompleteBody}
           </p>
           <button
             type="button"
@@ -388,7 +441,7 @@ export function ScanProgressView({
             data-testid="scan-view-results"
             className="mt-1 inline-flex items-center justify-center h-10 px-5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
           >
-            {completeCta}
+            {resolvedCompleteCta}
           </button>
         </motion.div>
       )}
@@ -417,7 +470,7 @@ export function ScanProgressView({
                 className="flex flex-col items-center gap-2.5"
               >
                 <p className="text-[13px] font-medium text-ink" aria-live="polite">
-                  Cancel this analysis?
+                  {t("scan.cancelPrompt")}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
@@ -430,7 +483,7 @@ export function ScanProgressView({
                       hover:bg-bg-2/60 hover:border-rule-strong transition-colors
                     "
                   >
-                    Keep analyzing
+                    {t("scan.keepAnalyzing")}
                   </button>
                   <button
                     type="button"
@@ -442,7 +495,7 @@ export function ScanProgressView({
                       hover:bg-red-500/10 transition-colors
                     "
                   >
-                    Yes, cancel
+                    {t("scan.yesCancel")}
                   </button>
                 </div>
               </motion.div>
@@ -464,7 +517,7 @@ export function ScanProgressView({
                     hover:bg-red-500/10 transition-colors
                   "
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               </motion.div>
             )}

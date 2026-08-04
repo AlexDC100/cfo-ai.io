@@ -6182,6 +6182,7 @@ def build_router() -> APIRouter:
     def regenerate_briefing(
         period_id: str,
         currency: Optional[str] = None,
+        language: Optional[str] = None,
         authorization: Optional[str] = Header(None),
     ) -> Dict[str, Any]:
         """F2.8 — Regenerate the LLM CFO Briefing for an existing period
@@ -6257,6 +6258,13 @@ def build_router() -> APIRouter:
                 "org_id": period["org_id"],
                 "language": "en",
             }
+            # `language` (optional query param, 2026-08-04): the FE passes
+            # the ACTIVE UI language so a user who switched EN↔RO can pull
+            # the briefing into the language they're reading the app in —
+            # stage_narrate reads doc["detected_language"], so override it
+            # here rather than threading a new parameter through.
+            if language and language.lower()[:2] in ("en", "ro", "de", "fr", "es", "it", "pt", "nl", "pl"):
+                doc = {**doc, "detected_language": language.lower()[:2]}
             # F2.8 fix: stage_narrate reads from `assembled["statements"]
             # .assembled_pl` etc., not the bucket-only shape that
             # `_rebuild_assembled` returns. Use the canonical-shaped

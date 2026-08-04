@@ -1,7 +1,9 @@
 // Reference-format number formatters for the P&L / BS renderer.
 //
 // Three rules:
-//   1. Always 2 decimal places, comma thousands (en-US locale).
+//   1. Always 2 decimal places, thousands separators in the ACTIVE UI
+//      locale (ro-RO → "1.234.567,89", en → "1,234,567.89"). Was
+//      hardcoded en-US, which showed US separators to Romanian users.
 //   2. Zero / missing → em-dash "—".
 //   3. Financial-items lines render with EXPLICIT sign — "+" for positives,
 //      Unicode minus "−" (U+2212) for negatives. NEVER hyphen "-" (U+002D).
@@ -17,12 +19,14 @@
  *   formatRON(undefined)  → "—"
  *   formatRON(-355607)    → "−355,607.00"   (Unicode minus, not hyphen)
  */
+import { activeLocale } from "@/lib/locale";
+
 export function formatRON(value: number | undefined | null): string {
   if (value === null || value === undefined) return "—";
   if (!Number.isFinite(value)) return "—";
   if (Math.abs(value) < 0.005) return "—";
 
-  const absStr = Math.abs(value).toLocaleString("en-US", {
+  const absStr = Math.abs(value).toLocaleString(activeLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -39,7 +43,7 @@ export function formatRON(value: number | undefined | null): string {
  */
 export function formatRONSigned(value: number, sign: "positive" | "negative"): string {
   if (!Number.isFinite(value) || Math.abs(value) < 0.005) return "—";
-  const formatted = Math.abs(value).toLocaleString("en-US", {
+  const formatted = Math.abs(value).toLocaleString(activeLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -71,7 +75,7 @@ export function formatPercent(value: number): string {
 export function formatRONParen(value: number | undefined | null): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   if (Math.abs(value) < 0.005) return "—";
-  const abs = Math.abs(value).toLocaleString("en-US", {
+  const abs = Math.abs(value).toLocaleString(activeLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

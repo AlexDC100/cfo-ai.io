@@ -24,6 +24,7 @@
 import { useRef, useState, type ReactNode } from "react";
 
 import { ArrowUp, Cloud, FileSpreadsheet, Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export interface SourceFileItem {
   /** Stable key. */
@@ -41,14 +42,14 @@ export interface SourceFileItem {
 
 export function SourceFilesRow({
   files,
-  heading = "Source files",
+  heading,
   testid = "source-files",
   trailing,
   trailingHeading,
 }: {
   files: SourceFileItem[];
   /** `null` renders no heading — for callers that supply their own section
-   *  header above the tiles. */
+   *  header above the tiles. Omitted → the translated "Source files". */
   heading?: string | null;
   testid?: string;
   /** Sits to the RIGHT of the tiles, on the same wrapping row — Products puts
@@ -59,6 +60,9 @@ export function SourceFilesRow({
    *  "Replace or add files" over Products' dropzone. */
   trailingHeading?: string;
 }) {
+  const { t, i18n } = useTranslation();
+  const resolvedHeading = heading === undefined ? t("files.sourceFiles") : heading;
+  const dateLocale = i18n.language?.startsWith("ro") ? "ro-RO" : "en-GB";
   // Nothing uploaded for this scope → render nothing at all. An empty heading
   // reads as a broken section; the surface's own upload affordance is the
   // thing that should be drawing the eye when there are no files. A `trailing`
@@ -69,10 +73,10 @@ export function SourceFilesRow({
     <div data-testid={testid}>
       {/* Heading only — the "· <month>" suffix was dropped (2026-07-26 per
           operator); the surface already says which month is open. */}
-      {(heading !== null || trailingHeading) && (
+      {(resolvedHeading !== null || trailingHeading) && (
         <div className="flex items-baseline justify-between gap-3 mb-2">
           <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute">
-            {heading}
+            {resolvedHeading}
           </div>
           {trailingHeading && (
             <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute">
@@ -102,7 +106,7 @@ export function SourceFilesRow({
             </div>
             {f.uploadedAt && (
               <div className="w-full text-[10.5px] text-ink-mute truncate">
-                {new Date(f.uploadedAt).toLocaleDateString("en-GB", { dateStyle: "medium" })}
+                {new Date(f.uploadedAt).toLocaleDateString(dateLocale, { dateStyle: "medium", timeZone: "UTC" })}
               </div>
             )}
           </button>
@@ -111,7 +115,7 @@ export function SourceFilesRow({
             alternatives, not a sequence (2026-07-26 per operator). */}
         {trailing && files.length > 0 && (
           <span className="self-center shrink-0 px-1 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-mute">
-            or
+            {t("common.or")}
           </span>
         )}
         {trailing}
@@ -129,9 +133,9 @@ export function SourceFilesRow({
 export function AddFileTile({
   accept,
   onFile,
-  label = "Add file",
-  hint = "Drop or browse",
-  title = "Add a file — click to browse or drop one here",
+  label,
+  hint,
+  title,
   testid = "source-files-add",
   variant = "tile",
 }: {
@@ -148,6 +152,10 @@ export function AddFileTile({
    *  row's remaining width as a proper dropzone (Products, 2026-07-26). */
   variant?: "tile" | "wide";
 }) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t("files.addFile");
+  const resolvedHint = hint ?? t("files.dropOrBrowse");
+  const resolvedTitle = title ?? t("files.addFileTitle");
   const inputRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   return (
@@ -177,7 +185,7 @@ export function AddFileTile({
           if (f) onFile(f);
         }}
         data-testid={testid}
-        title={title}
+        title={resolvedTitle}
         className={
           variant === "wide"
             ? `
@@ -220,14 +228,14 @@ export function AddFileTile({
             <div className="relative flex items-center justify-center gap-4">
               <div className="text-left">
                 <h3 className="text-[13.5px] font-semibold text-ink">
-                  {drag ? "Drop your file to upload" : label}
+                  {drag ? t("files.dropToUpload") : resolvedLabel}
                 </h3>
-                <p className="text-[11.5px] text-ink-soft mt-0.5">{hint}</p>
+                <p className="text-[11.5px] text-ink-soft mt-0.5">{resolvedHint}</p>
               </div>
               {/* Import reads as the explicit action next to the drop copy —
                   it's a <span> because the whole zone is already a button. */}
               <span className="shrink-0 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium group-hover:border-brand/60 transition-colors">
-                Import
+                {t("files.import")}
               </span>
             </div>
           </>
@@ -238,8 +246,8 @@ export function AddFileTile({
             }`}>
               <Plus size={15} strokeWidth={2.5} />
             </span>
-            <div className="w-full text-[11.5px] font-medium text-ink">{label}</div>
-            <div className="w-full text-[10.5px] text-ink-mute truncate">{hint}</div>
+            <div className="w-full text-[11.5px] font-medium text-ink">{resolvedLabel}</div>
+            <div className="w-full text-[10.5px] text-ink-mute truncate">{resolvedHint}</div>
           </>
         )}
       </button>

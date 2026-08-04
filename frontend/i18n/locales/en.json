@@ -21,14 +21,28 @@
     "inventory": "Inventory",
     "invoices": "Invoices",
     "footer_note": "AI-assisted financial recommendations only. Final decisions remain with management.",
-    "multi_year_history": "Multi-Year History"
+    "multi_year_history": "Multi-Year History",
+    "group_intelligence": "Intelligence",
+    "group_analysis": "Analysis",
+    "group_system": "System",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "disclaimer": "Disclaimer"
   },
   "topbar": {
     "ask": "Ask CFO AI",
     "notifications": "Notifications",
     "open_command_center": "Open command center",
     "switch_theme_light": "Switch to light theme",
-    "switch_theme_dark": "Switch to dark theme"
+    "switch_theme_dark": "Switch to dark theme",
+    "askCfoAi": "Ask CFO AI",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "displayCurrency": "Display currency",
+    "staleRates": "Exchange rates from {{date}} (offline fallback)",
+    "openNav": "Open navigation",
+    "goToDashboard": "Go to dashboard",
+    "signIn": "Sign in"
   },
   "upload": {
     "hero_title": "Upload your trial balance to begin",
@@ -709,5 +723,1552 @@
       "adjusted_gm_pct": "Adjusted GM % (after financing)",
       "margin_pct": "Margin %"
     }
+  },
+  "pricing": {
+    "loading": "Loading pricing…",
+    "badgeStarter": "Best for owners",
+    "badgePro": "Most popular",
+    "perMonth": "/ month",
+    "trialThen": "7-day free trial, then {{price}} / month",
+    "aboveQuota": "Above quota: {{copy}}",
+    "extraDoc": "{{price}} per extra document, shown and confirmed before processing",
+    "currentPlan": "Current plan",
+    "startStarter": "Start Starter",
+    "startPro": "Start Pro",
+    "openingCheckout": "Opening checkout…",
+    "billingNotConnectedTitle": "Billing not connected yet",
+    "billingNotConnectedDesc": "Stripe price IDs aren't wired for this tier yet. Please try again shortly.",
+    "checkoutFailedTitle": "Couldn't start checkout",
+    "checkoutFailedDesc": "Please try again, or contact support if this persists.",
+    "trialTailOr": "Or",
+    "trialTailLink": "start a 7-day free trial",
+    "trialTailRest": "— one document, no card required.",
+    "introTitle": "Need one more analysis?",
+    "introDesc": "Unlock one extra document for {{days}} days.",
+    "introNotSubscription": "Not a subscription.",
+    "introCadence": "One-time · {{days}}-day window",
+    "introCta": "Unlock one document",
+    "planLoading": "Loading your plan…",
+    "perMonthShort": "/ mo",
+    "oneTime": "one-time",
+    "accessUntil": "Access until {{date}}"
+  },
+  "account": {
+    "fallbackName": "Account",
+    "signedOut": "Signed out",
+    "signOutFailed": "Couldn't sign out",
+    "free": "Free",
+    "tokensThisPeriod": "Tokens this period",
+    "tokensUsed": "{{tokens}} used",
+    "profile": "Profile",
+    "me": "Me",
+    "learning": "Learning mode",
+    "learning_guided": "Guided",
+    "learning_subtle": "Subtle",
+    "learning_off": "Off",
+    "billing": "Billing",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "authX": {
+    "tagline": "Financial Intelligence",
+    "subtitle_sign_in": "Sign in to continue. Your decisions and uploads are scoped to your workspace.",
+    "subtitle_sign_up": "Create your workspace. Free tier — no credit card.",
+    "subtitle_sign_in_page": "Sign in to your CFO AI workspace.",
+    "subtitle_sign_up_page": "Create your CFO AI workspace. Free tier — no credit card.",
+    "not_configured": "Authentication isn't configured on this build.",
+    "selected_plan": "Selected plan",
+    "change_plan": "Change",
+    "check_email_title": "Check your email",
+    "check_email_body_pre": "We sent a confirmation link to",
+    "check_email_body_post": "Click it to finish creating your account.",
+    "check_email_hint": "Didn't see it? Check spam — confirmations sometimes land there on the first send. Allow up to 60 seconds for delivery.",
+    "resend_sent": "Sent. Check your inbox (and spam) for the new link.",
+    "resend_in": "Resend in {{seconds}}s",
+    "resend_email": "Resend email",
+    "resend_available_in": "Resend available in {{seconds}} seconds",
+    "resend_aria": "Resend confirmation email",
+    "back_to_sign_in": "Back to sign in",
+    "or_continue_email": "or continue with email",
+    "continue_with_google": "Continue with Google",
+    "first_name": "First name",
+    "last_name": "Last name",
+    "email_label": "Email",
+    "email_placeholder": "you@company.com",
+    "repeat_password": "Repeat password",
+    "repeat_password_placeholder": "Re-enter your password",
+    "pw_check_length": "At least 10 characters",
+    "pw_check_case": "Upper & lowercase letters",
+    "pw_check_number": "At least one number",
+    "pw_check_symbol": "At least one symbol",
+    "pw_weak": "Weak",
+    "pw_fair": "Fair",
+    "pw_good": "Good",
+    "pw_strong": "Strong",
+    "terms_agree_pre": "I have read and agree to the",
+    "terms_of_service": "Terms of Service",
+    "newsletter_opt_in": "Subscribe to the newsletter — occasional product updates and Romanian SME finance insights. Unsubscribe any time.",
+    "required": "Required",
+    "err_company_required": "Company name is required for new accounts.",
+    "err_passwords_mismatch": "Passwords don't match.",
+    "err_accept_terms": "Please accept the Terms of Service to create an account.",
+    "err_signin_failed": "Sign-in failed",
+    "err_provider_configuring": "{{provider}} sign-in is being configured. Please use email for now.",
+    "new_here": "New here?",
+    "create_an_account": "Create an account",
+    "already_have_account": "Already have one?",
+    "disclaimer": "AI-assisted financial recommendations only. Final decisions remain with management."
+  },
+  "notFound": {
+    "title": "404",
+    "body": "Oops! Page not found",
+    "back_home": "Return to Home"
+  },
+  "pricingX": {
+    "home_aria": "Home",
+    "continue_as": "Continue as {{name}}",
+    "back_to_app": "Back to app",
+    "your_plan_billing": "Your plan & billing",
+    "plans_billing_eyebrow": "Plans & billing",
+    "plans_heading": "Ready for ongoing analysis? Pick a monthly plan.",
+    "plans_sub": "Upgrade any time after your trial. The extra-document price is shown upfront — no surprise bills.",
+    "disclaimer": "AI-assisted financial recommendations only. Final business decisions remain with your team.",
+    "hero_eyebrow": "Free 7-day trial — no credit card",
+    "hero_title_pre": "See your",
+    "hero_title_highlight": "first analysis",
+    "hero_title_post": "in minutes.",
+    "hero_sub": "Upload one trial balance, balance sheet, or P&L. CFO AI builds the full financial model, ratios, valuation, and strategic recommendations — in minutes. No card required to start.",
+    "hero_cta": "Start your 7-day free trial",
+    "trust_no_card": "No credit card required",
+    "trust_full_report": "Full report — not a sample",
+    "trust_cancel_anytime": "Cancel anytime",
+    "hero_compliance": "AI-assisted financial recommendations. Final decisions remain with your team.",
+    "current_plan": "Current plan",
+    "status_trial": "Trial",
+    "status_one_time_unlock": "One-time unlock",
+    "status_cancels_at_period_end": "Cancels at period end",
+    "status_active": "Active",
+    "price_per_month": "{{price}} / month",
+    "price_one_time": "{{price}} one-time",
+    "price_free": "Free",
+    "renews_on": "Renews {{date}}",
+    "trial_expires": "Trial expires {{date}}",
+    "unlock_expires": "Unlock expires {{date}}",
+    "expires": "Expires {{date}}",
+    "docs_included": "{{count}} document included",
+    "docs_extra": "{{count}} extra document",
+    "cancel_subscription": "Cancel subscription",
+    "upgrade_anytime": "Upgrade anytime — pick a plan below",
+    "cancel_scheduled_title": "Cancellation scheduled",
+    "cancel_scheduled_body": "You'll keep access until the end of the current period.",
+    "cancel_failed_title": "Couldn't cancel",
+    "cancel_failed_body": "Please try again or contact support."
+  },
+  "files": {
+    "sourceFiles": "Source files",
+    "addFile": "Add file",
+    "dropOrBrowse": "Drop or browse",
+    "addFileTitle": "Add a file — click to browse or drop one here",
+    "dropToUpload": "Drop your file to upload",
+    "import": "Import"
+  },
+  "tmpl": {
+    "view": "View",
+    "officialTemplate": "Official upload template",
+    "officialTemplateDesc": "Exact sheet names, column headers, and row offsets the parser expects.",
+    "salesExample": "Sales analysis example",
+    "formatMultiCol": "Multi-column format",
+    "formatSaga": "Standard SAGA format",
+    "previewSubtitle": "upload template",
+    "previewSalesSubtitle": "sales analysis example (fictional data)",
+    "previewLoading": "Loading preview…",
+    "previewError": "Couldn't load preview: {{msg}}"
+  },
+  "productsX": {
+    "guideTitle": "Products",
+    "clearSearch": "Clear search",
+    "heroTitle": "Every SKU's margin, <grad>ranked and graded</grad>.",
+    "sourceNeverAltered": "Your source data is never altered.",
+    "xlsxExport": "XLSX export",
+    "toast": {
+      "fileTooLarge": "File too large",
+      "fileTooLargeDesc": "{{size}} MB exceeds the {{limit}} MB limit.",
+      "uploadFailed": "Upload failed",
+      "unknownError": "Unknown error.",
+      "analysisReady": "Analysis ready",
+      "analysisFailed": "Analysis failed",
+      "retrying": "Retrying analysis",
+      "retryFailed": "Retry failed",
+      "retryFailedDesc": "Backend is unreachable. Refresh the page or try again in a moment."
+    },
+    "scan": {
+      "completeBody": "Your product portfolio has been rebuilt — margins, buckets and the executive briefing are ready."
+    },
+    "recon": {
+      "tooltip": "Source NIV: {{expected}} · SKU sum: {{observed}}",
+      "clean": "<b1>Quality checks passed.</b1> Extraction reconciles within <b>{{pct}}%</b> on this dataset (target: exact match to source). All <b>{{counted}} of {{total}}</b> SKUs counted; per-SKU net invoiced value sums to the source total. Headline figures (NIV, gross margin, cash trapped) are safe to use — cross-check on board-level / external decisions out of habit.",
+      "gap": "<b1>Reconciliation gap — verify before external use.</b1> The SKU-level sum differs from the source NIV total by <b>{{delta}} ({{pct}}%)</b> with {{counted}} of {{total}} SKUs counted — rows may have been dropped or duplicated during extraction. Cross-check headline figures against your source before board reports or external submissions."
+    },
+    "wc": {
+      "heading": "Company DIO · DSO · DPO · CCC",
+      "desc": "DIO from uploaded SKU inventory & COGS, covered rows only. DSO / DPO from the period's trial-balance context. CCC is a company roll-up, not per-SKU.",
+      "infoAria": "What do DIO, DSO, DPO and CCC mean?",
+      "infoTitle": "What do these mean?",
+      "companyDio": "Company DIO",
+      "dioCoverage": "{{pct}}% of NIV · {{covered}} of {{total}} SKUs",
+      "dioNoInputs": "Inventory / COGS not provided on any SKU",
+      "dioFormulaCogs": "sum(Inventory) ÷ sum(COGS) × 365, covered rows",
+      "dioFormulaWeighted": "weighted by Inventory (per-SKU DIO; COGS not persisted)",
+      "dioMissingHint": "Add Inventory value and COGS columns to the upload to compute DIO.",
+      "fromTrialBalance": "from trial balance",
+      "noTrialBalance": "no trial balance in this session",
+      "dsoMissingHint": "Load a period with a trial balance to compute DSO.",
+      "dpoMissingHint": "Load a period with a trial balance to compute DPO.",
+      "cccSource": "DIO + DSO − DPO, company-level",
+      "cccMissing": "missing: {{list}}",
+      "cccHint": "CCC is computed only when DIO, DSO and DPO are all available.",
+      "loadedPeriod": "loaded",
+      "modalTitle": "Working-capital metrics",
+      "modalDesc": "What each pill measures and where the number comes from.",
+      "dioTitle": "Days Inventory Outstanding",
+      "dioBody": "How many days, on average, stock sits before it sells — sum(Inventory) ÷ sum(COGS) × 365 across covered SKUs. Lower is leaner; a high DIO means cash is tied up in shelves and warehouses.",
+      "dsoTitle": "Days Sales Outstanding",
+      "dsoBody": "How many days it takes to collect cash after a sale — receivables relative to revenue, read from the loaded period's trial balance. Lower means customers pay faster.",
+      "dpoTitle": "Days Payable Outstanding",
+      "dpoBody": "How many days you take to pay suppliers — payables relative to COGS, from the trial balance. Higher means you hold onto cash longer (as long as it doesn't strain supplier terms).",
+      "cccTitle": "Cash Conversion Cycle",
+      "cccBody": "The net days your cash is locked in operations — DIO + DSO − DPO, at the company level. It's the headline: how long from paying for inventory to collecting from customers. Lower (or negative) is stronger working-capital health."
+    },
+    "channels": {
+      "KA": "Key accounts",
+      "DIST": "Distribution",
+      "EXP": "Export",
+      "OLN": "Online"
+    },
+    "compare": {
+      "vs": "vs",
+      "switchActive": "Switch active to {{label}}",
+      "closeAria": "Close comparison",
+      "skusIn": "SKUs · {{label}}",
+      "nivDelta": "NIV delta",
+      "gmDelta": "GM delta",
+      "topWinners": "Top winners (Δ GM ↑)",
+      "topLosers": "Top losers (Δ GM ↓)",
+      "newIn": "New in {{label}} ({{count}})",
+      "noMovers": "No movers in this bucket."
+    },
+    "cols": {
+      "linesCh": "Lines / Ch"
+    },
+    "sourceFiles": {
+      "replaceOrAdd": "Replace or add files",
+      "hint": "XLSX · CSV · up to {{mb}} MB",
+      "addTitle": "Upload another dataset — click to browse or drop a file here"
+    },
+    "wipe": {
+      "notSignedIn": "Not signed in",
+      "engineUnreachable": "Couldn't reach the engine at {{url}}. Is the backend container running?",
+      "listFailed": "Listing datasets failed — {{status}}.",
+      "alreadyClean": "Already clean",
+      "alreadyCleanDesc": "The server has no uploaded files — the ones on screen were a stale cache, now cleared.",
+      "directDeleteFailed": "Direct delete failed: {{msg}}",
+      "couldNotDelete_one": "{{count}} file could not be deleted",
+      "couldNotDelete_other": "{{count}} files could not be deleted",
+      "deleted_one": "Deleted {{count}} uploaded file",
+      "deleted_other": "Deleted {{count}} uploaded files",
+      "deletedDesc": "Moved to Recently deleted — restorable for 30 days.",
+      "errorTitle": "Couldn't delete the uploads",
+      "button": "Wipe data",
+      "buttonTitle": "Permanently delete every uploaded file on Products",
+      "dialogTitle": "Permanently delete your product data?",
+      "dialogBody1": "This cannot be undone. Every SKU dataset on this page is removed along with its classified portfolio, leaving Products empty.",
+      "dialogBody2": "The uploaded files move to Recently deleted, where they can be restored for 30 days — after that they are gone for good. Your periods, dashboard analysis, other workspaces and chats are not touched.",
+      "deleting": "Deleting…",
+      "deleteAll": "Delete all uploads"
+    },
+    "danger": {
+      "title": "Danger zone",
+      "body": "Deleting your product data is permanent and cannot be undone. Every SKU, margin and portfolio classification on this page is erased. The source files stay in Recently deleted for 30 days and are then removed for good."
+    },
+    "export": {
+      "title": "Download CSV",
+      "body": "Every SKU in the current view — volume, NIV, gross margin and DIO — as a single spreadsheet-ready CSV. Respects your active filters and display currency; opens in Excel, Sheets or any tool."
+    },
+    "inflight": {
+      "stage": {
+        "queued": "Queued for analysis…",
+        "extracting": "Reading the workbook…",
+        "mapping": "Mapping SKU columns…",
+        "computing": "Aggregating rows…",
+        "narrating": "Classifying portfolio…"
+      },
+      "failedTitle": "Couldn't finish analysis",
+      "stuckTitle": "Upload appears stuck",
+      "analyzing": "Analyzing your SKU data…",
+      "stepOf": "Step {{current}} of {{total}}",
+      "step1": "Reading workbook",
+      "step1Sub": "Picking the right sheet",
+      "step2": "Detecting columns",
+      "step2Sub": "Matching synonyms · RO/EN",
+      "step3": "Mapping SKUs",
+      "step3Sub": "One row per product line",
+      "step4": "Calculating margins",
+      "step4Sub": "NIV · GM · DIO when present",
+      "step5": "Classifying portfolio",
+      "step5Sub": "anchor · scale · watch · wind-down",
+      "step6": "Generating briefing",
+      "step6Sub": "Executive summary + actions",
+      "hangBody": "The upload reached the server but analysis hasn't started for more than 60 seconds. This usually means the worker thread never picked up the job (a brief backend hiccup right at upload moment). Click below to re-queue it.",
+      "dismiss": "Dismiss",
+      "retrying": "Retrying…",
+      "retry": "Retry analysis"
+    },
+    "empty": {
+      "eyebrow": "Product intelligence",
+      "heroTitle": "Upload your data. CFO AI finds <grad>what matters</grad>.",
+      "monthNote": "No product data on <m>{{month}}</m> yet — anything you import here lands on that month.",
+      "heroBody": "Drop a trading analysis or sales-by-SKU export. CFO AI streams every row, rolls them up to the SKU, classifies into anchor / scale / watch / wind-down, and surfaces loss-makers — with optional per-SKU DIO when <c1>Inventory value</c1> and <c2>COGS</c2> columns are included.",
+      "askPrompt": "Help me understand what my product dataset upload should look like, and what CFO AI will do with it.",
+      "dropFormats": "XLSX · CSV · multi-sheet · up to {{mb}} MB",
+      "pipelineAria": "Analysis pipeline",
+      "stagedHeading": "Uploaded files",
+      "openFileAria": "Open {{name}} in a new window",
+      "removeFileAria": "Remove {{name}}",
+      "dismissAll": "Dismiss all",
+      "scanning": "Scanning…",
+      "startScan": "Start scan"
+    },
+    "chips": {
+      "profitability": {
+        "label": "Analyze product profitability",
+        "prompt": "Walk me through how I should analyze product profitability across my SKU portfolio. What metrics matter most and in what order?"
+      },
+      "lossMakers": {
+        "label": "Which SKUs are loss-makers?",
+        "prompt": "Once I upload my sales dataset, how do you decide which SKUs are loss-makers? Explain the classification rules CFO AI uses."
+      },
+      "discontinue": {
+        "label": "What should we discontinue?",
+        "prompt": "What framework should a CFO use to decide which products to discontinue? Include the financial AND operational signals to weigh."
+      },
+      "marginLeaks": {
+        "label": "Where are margin leaks?",
+        "prompt": "Where do margin leaks typically hide in a SKU portfolio? Give me the top causes and how I'd spot them in a trading analysis."
+      },
+      "summarize": {
+        "label": "Summarize latest product dataset",
+        "prompt": "Once a Products dataset is loaded, summarize it for me: top performers, loss-makers, and the most important pricing or mix actions."
+      }
+    },
+    "stats": {
+      "datasetsAnalyzed": "Datasets analyzed",
+      "importsOnFile_one": "{{count}} import on file",
+      "importsOnFile_other": "{{count}} imports on file",
+      "skusAnalyzed": "SKUs analyzed",
+      "cumulative": "cumulative across imports",
+      "lineRows": "Line rows ingested",
+      "latestImport": "Latest import"
+    },
+    "rel": {
+      "justNow": "just now",
+      "minAgo": "{{n}}m ago",
+      "hourAgo": "{{n}}h ago",
+      "dayAgo": "{{n}}d ago"
+    },
+    "recent": {
+      "emptyTitle": "No imports yet.",
+      "emptyBody": "Your uploads will appear here."
+    }
+  },
+  "dash": {
+    "financialAnalysisEyebrow": "Financial Analysis",
+    "heroSuffix": "the full financial picture",
+    "heroFallbackSubtitle": "Every statement rebuilt from your trial balance — P&L, balance sheet and cash flow — with ratios, valuation, a credit-risk score and ranked recommendations. Explore each in the tabs below.",
+    "heroBodyExported": "exported from your accounting system",
+    "heroBodyTail": "This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is auto-checked — clean trial balances reconcile within 0.5% of source.",
+    "askCfoAiPrompt": "What will CFO AI do with my trial balance? Walk me through the analysis I'll get after uploading — P&L, balance sheet, ratios, valuation, risks.",
+    "invoiceRegister": "Invoice register",
+    "loadedPeriod": "Loaded period",
+    "invoicesCount_one": "{{count}} invoice",
+    "invoicesCount_other": "{{count}} invoices",
+    "guidePl": "P&L",
+    "guideBalanceSheet": "Balance Sheet",
+    "guideCashFlow": "Cash Flow",
+    "guideRatios": "Ratios",
+    "guideValuation": "Valuation",
+    "guideRisks": "Risk & Credit",
+    "guideRecommendations": "Recommendations",
+    "clearPeriodConfirm": "Clear this period? This permanently removes the analysis (P&L, balance sheet, ratios, briefing) and moves the attached document(s) to Recently deleted (restorable for 30 days). Cannot be undone.",
+    "clearPeriodFailTitle": "Couldn't clear period",
+    "clearPeriodFailBody": "The server didn't accept the delete. Try again or refresh.",
+    "periodClearedTitle": "Period cleared",
+    "periodClearedBody": "Analysis removed; documents moved to Recently deleted.",
+    "backendUnreachableTitle": "Couldn't reach the backend",
+    "networkError": "Network error.",
+    "loadedIntoDashboard": "Loaded into Dashboard.",
+    "budgetDeckLoadedTitle": "Budget deck loaded",
+    "budgetDeckLoadedBody_one": "{{count}} P&L line from {{filename}} — opening Budget vs Actual.",
+    "budgetDeckLoadedBody_other": "{{count}} P&L lines from {{filename}} — opening Budget vs Actual.",
+    "budgetDeckErrorTitle": "Couldn't read that budget deck",
+    "unknownParseError": "Unknown parse error.",
+    "fileTooLargeTitle": "File too large",
+    "fileTooLargeBody": "{{size}} MB exceeds the 25 MB limit.",
+    "uploadFailedTitle": "Upload failed",
+    "unknownError": "Unknown error.",
+    "uploadCancelled": "Upload was cancelled.",
+    "multiYearReadyTitle": "Multi-year history ready",
+    "multiYearReadyBody": "{{filename}} parsed — view the trends.",
+    "analysisCompleteTitle": "Analysis complete",
+    "noPeriodCreatedBody": "{{filename}} processed but no financial period was created. The document type may not be supported.",
+    "analysisFailedTitle": "Analysis failed",
+    "addAnotherMonth": "Add another month",
+    "addMonthDialogDesc": "Drop next month's trial balance to add it to this workspace.",
+    "sourceStatutoryTooltip": "Source: statutory statement (Formular F30 + F10). Aggregate-only — no per-account drilldown.",
+    "sourceTbTooltip": "Source: trial balance. Full account-level granularity.",
+    "sourceStatutoryBadge": "Source: statutory statement (Formular F30 + F10)",
+    "noRecsTitle": "No recommendations yet",
+    "noRecsBody": "Upload a balance sheet, P&L, or trial balance to receive prioritized recommendations.",
+    "nothingToExportTitle": "Nothing to export yet",
+    "nothingToExportBody": "Load a sample or upload a financial statement to enable HTML and Excel exports.",
+    "pickSampleOrUpload": "Pick a sample or upload",
+    "exportHtmlTitle": "HTML financial analysis report",
+    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 25+ ratios with verdicts, bankruptcy assessment, and prioritized recommendations.",
+    "exportXlsxTitle": "Excel workbook",
+    "exportXlsxBody": "8-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow, valuation (WACC + DCF + Graham), credit & risk, recommendations.",
+    "exportPptxTitle": "PowerPoint deck",
+    "exportPptxBody": "Investor-grade pptx export with cover slide, KPIs, ratios, valuation, and recommendations slides arrives in the next phase.",
+    "comingNext": "Coming next",
+    "secondaryEbitdaCrossCheck": "Secondary · EBITDA-multiple cross-check",
+    "persistedAssumptions": "Persisted assumptions",
+    "persistedAssumptionsBody": "Set custom EBITDA, multiple, debt or cash for board reporting. Persists to this period; the primary card above always reflects the latest canonical values plus your slider position.",
+    "reasonIndustryCre": "Industry classified as real-estate ({{industry}}).",
+    "reasonRentalDominated": "Revenue is rental-dominated (account 706 ≥ 50% of operating revenue).",
+    "reasonEngineAssetBased": "Engine valuation pipeline already routed this period to asset-based primary.",
+    "reasonAssetIntensity": "Asset intensity {{intensity}}% (PPE + investment property + CIP / total assets) is above the {{threshold}}% threshold for heavy-RE routing.",
+    "periodConflictTitle": "The file's date doesn't match the period",
+    "periodConfirmTitle": "Confirm the period",
+    "periodConflictDesc": "“Scan and update period” moves the period to the file's month. “Scan” ignores the file's date and uploads into the period you have selected.",
+    "periodConfirmDesc": "This is the period the analysis will be filed under.",
+    "preview": "Preview",
+    "openPreviewTitle": "Open a preview in a new window",
+    "fileMatchesPeriodTail": "— the file matches your selected period.",
+    "selectedPeriod": "Selected period",
+    "detectedPeriod": "Detected period",
+    "vs": "vs",
+    "reading": "Reading…",
+    "noDateFound": "No date found",
+    "readingFile": "Reading file…",
+    "noDateFoundPick": "No date found — pick one",
+    "scan": "Scan",
+    "scanAndUpdate": "Scan and update period",
+    "cfoBriefingEyebrow": "CFO briefing — Opus 4.7",
+    "displayedIn": "displayed in {{currency}}",
+    "regeneratingIn": "Regenerating in {{currency}}…",
+    "regenFailed": "Couldn't regenerate in {{currency}} ({{error}}). Showing RON version.",
+    "briefingDisclaimer": "Generated from automated trial-balance extraction — accuracy auto-measured per upload (clean uploads reconcile within 0.5%). Cross-check headline numbers against your source on critical decisions.",
+    "topCustomerShare": "Top customer share",
+    "dsoSub": "Days sales outstanding",
+    "paidOnTime": "Paid on time",
+    "ofSettledInvoices": "Of settled invoices",
+    "netVat": "Net VAT",
+    "vatPayable": "Payable to ANAF",
+    "vatRefund": "Refund position",
+    "qualityPassedLink": "Quality checks passed · About data accuracy",
+    "accCleanTitle": "Quality checks passed.",
+    "accCleanPre": "Extraction reconciles within",
+    "accCleanPost": "on this document (target: under 0.5%). Balance sheet balances; source debits and credits agree. Headline figures (revenue, EBITDA, net profit, debt, equity) are safe to use — cross-check on board-level / external decisions out of habit.",
+    "accWatchTitle": "Verify before external use.",
+    "accSrcImbalancePre": "Your source trial balance has a",
+    "accImbalanceBold": "{{pct}}% debit / credit imbalance",
+    "accWatchSmallNote": "(small, but not zero).",
+    "accBsDriftPre": "Reconstructed balance sheet drifts",
+    "accBsDriftPost": "from total assets.",
+    "accWatchTail": "Cross-check headline numbers (revenue, EBITDA, net profit, debt, equity) against your source before board reports or external submissions.",
+    "accProblemTitle": "Data quality issue — don't use figures externally without fixing.",
+    "accProblemSrcTail": "(debits don't equal credits) — re-export from your accounting system after running its trial-balance reconciliation.",
+    "accProblemBsPre": "The reconstructed balance sheet differs from your assets by",
+    "accProblemBsTail": "— accounts may be missing or misclassified.",
+    "accProblemTail": "Headline numbers below (revenue, EBITDA, net profit, debt, equity) may not match your source. Resolve the source-data issue before any external use.",
+    "accUnknownTitle": "About data accuracy.",
+    "accUnknownBody": "Each upload is auto-checked against its source trial balance. Clean uploads pass with under 0.5% drift; if anything is off, you'll see a specific warning here naming the issue (source imbalance, account misclassification, etc.). Headline numbers are always safe to cross-check against your source.",
+    "statutoryDetected": "Statutory format detected (Formular F30 + F10).",
+    "statutoryBody": "Headline figures (revenue, EBITDA, debt, equity) extracted from your filed financial statements.",
+    "statutoryWhatsNot": "What's not available with this format",
+    "statutoryLi1": "Per-account drilldown (only aggregate categories)",
+    "statutoryLi2": "SKU-level analysis (requires a sales export)",
+    "statutoryLi3": "Working-capital roll-forward at account level",
+    "statutoryLi4": "Inventory variation memo (account 711) split-out",
+    "statutoryDeeper": "For deeper analysis, upload your raw trial balance from your accounting software.",
+    "alreadyCleanTitle": "Already clean",
+    "alreadyCleanBody": "This workspace has no periods.",
+    "periodsDeleteFailed_one": "{{count}} period could not be deleted",
+    "periodsDeleteFailed_other": "{{count}} periods could not be deleted",
+    "deletedPeriods_one": "Deleted {{count}} period",
+    "deletedPeriods_other": "Deleted {{count}} periods",
+    "filesMovedRecentlyDeleted": "Files moved to Recently deleted — restorable for 30 days.",
+    "wipeFailedTitle": "Couldn't wipe this workspace",
+    "dangerZone": "Danger zone",
+    "dangerZoneBody": "Deleting this workspace's months is permanent and cannot be undone. Statements, ratios, valuation, risk scores and recommendations are erased for every month. The source files stay in Recently deleted for 30 days and are then removed for good.",
+    "wipeButtonTitle": "Permanently delete every month in this workspace",
+    "wipeData": "Wipe data",
+    "wipeDialogTitle": "Permanently delete every month in this workspace?",
+    "wipeDialogBody1": "This cannot be undone. Every month goes, along with everything derived from it — statements, ratios, valuation, risk scores and recommendations.",
+    "wipeDialogBody2": "The uploaded files move to Recently deleted, where they can be restored for 30 days — after that they are gone for good. Other workspaces, your Products datasets and your chats are not touched.",
+    "deleting": "Deleting…",
+    "deleteAllPeriods": "Delete all periods",
+    "jumpToNotes": "Jump to Notes & recommendations",
+    "replaceOrAdd": "Replace or add files",
+    "dropTrialBalanceHere": "Drop your trial balance here",
+    "dropHint": "PDF · XLSX · CSV · image",
+    "addTbTitle": "Add a trial balance to this workspace — click to browse or drop one here",
+    "documentFallback": "document",
+    "exampleTrialBalances": "Example trial balances",
+    "exampleMultiCol": "Multi-column format",
+    "exampleSaga": "Standard SAGA format",
+    "fictionalData": "Fictional data; demonstrates the required structure.",
+    "view": "View",
+    "debugSimulate": "Debug: simulate scan",
+    "dropFileToUpload": "Drop your file to upload",
+    "dropNextMonth": "Drop next month's trial balance",
+    "formatsLimit": "XLSX · CSV · PDF · up to 25 MB",
+    "import": "Import",
+    "uploadedFiles": "Uploaded files",
+    "previewFile": "Preview {{name}}",
+    "removeFile": "Remove {{name}}",
+    "dismissAll": "Dismiss all",
+    "scanning": "Scanning…",
+    "startScan": "Start scan",
+    "startScanN": "Start scan ({{count}})",
+    "received": "Received:",
+    "analysisPipeline": "Analysis pipeline",
+    "councilSnag": "The council visualizer hit a snag — analysis is still running; watch the steps below.",
+    "tryASample": "Try a sample",
+    "stepDetect": "Detect format",
+    "stepExtract": "Extract data",
+    "stepRebuild": "Rebuild statements",
+    "stepRatios": "Calculate ratios",
+    "stepRecs": "Generate recs",
+    "statusQueued": "Queued for analysis…",
+    "statusExtracting": "Reading the document…",
+    "statusMapping": "Mapping accounts…",
+    "statusComputing": "Computing ratios…",
+    "statusNarrating": "Generating insights…",
+    "docTb": "Trial balance (balanță de verificare)",
+    "docTbShows": "Per-account drilldown, full P&L + BS + cash flow reconciliation, 25+ ratios, valuation, credit score, peer benchmarks",
+    "docTbWhere1": "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)",
+    "docTbWhere2": "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)",
+    "docPublicRecords": "Public records summary",
+    "docPublicRecordsShows": "Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history.",
+    "pdfOnly": "PDF only",
+    "docStatutory": "Statutory ANAF filing",
+    "docStatutoryShows": "Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers.",
+    "docStatutoryWhere1": "Spațiul privat virtual (ANAF) → Bilanț contabil → download XLSX",
+    "docStatutoryWhere2": "Your accountant's archive — the annual filing they sent to ANAF",
+    "docSales": "Sales / trading analysis",
+    "docSalesShows": "SKU-level portfolio classification (anchor / scale / watch / eliminate), DIO + capital trap detection. Renders in /products.",
+    "docSalesFormat": "XLSX export",
+    "docSalesWhere1": "Your ERP's Trading Analysis report (XLSX)",
+    "docSalesWhere2": "Pivot of monthly sales with: SKU, volume, revenue, GM, DIO, customer category",
+    "whereToGet": "Where to get it",
+    "badgeMostData": "Most data",
+    "badgeFreeInstant": "Free / instant",
+    "badgeAggregate": "Aggregate",
+    "calloutTitle": "No financial document? Get one free in 60 seconds.",
+    "calloutBody1": "Search any Romanian company (SRL or SA) on",
+    "calloutBody2": "by name or CUI, open",
+    "calloutBody3": "hit",
+    "calloutBody4": "then drop the file below. You'll get a 20-year financial history analyzed in under a minute.",
+    "calloutCta": "Open listafirme.ro ↗",
+    "calloutFooter": "Free · Instant · No accountant needed",
+    "ratioLiquidity": "Liquidity",
+    "ratioProfitability": "Profitability",
+    "ratioLeverage": "Leverage",
+    "ratioCoverage": "Coverage",
+    "ratioEfficiency": "Efficiency · working capital cycle",
+    "ratioBankruptcy": "Bankruptcy risk",
+    "openRatioDetail": "Open {{label}} detail",
+    "openExplainer": "Open explainer",
+    "why": "Why:",
+    "action": "Action:",
+    "triggeredBy": "Triggered by",
+    "estimatedImpact": "Estimated impact",
+    "perYear": "/ year",
+    "askAboutThis": "Ask CFO AI about this",
+    "askRecPrompt": "Explain why the recommendation \"{{title}}\" fired on this dataset. Walk me through the trigger metric(s), how they compare to the threshold, and what the proposed action would change in concrete numbers. Cite the underlying RAS accounts where possible.",
+    "priorityCritical": "critical",
+    "priorityHigh": "high",
+    "priorityMedium": "medium",
+    "priorityInfo": "info",
+    "balanceSheet": "Balance sheet",
+    "bsCurrentAssets": "Current assets",
+    "bsCash": "Cash & equivalents",
+    "bsAccountsReceivable": "Accounts receivable",
+    "bsInventory": "Inventory",
+    "bsOtherCurrentAssets": "Other current assets",
+    "bsNonCurrentAssets": "Non-current assets",
+    "bsPpe": "Property, plant & equipment",
+    "bsIntangibles": "Intangibles",
+    "bsOtherNonCurrentAssets": "Other non-current assets",
+    "bsTotalAssets": "Total assets",
+    "bsCurrentLiabilities": "Current liabilities",
+    "bsAccountsPayable": "Accounts payable",
+    "bsShortTermDebt": "Short-term debt",
+    "bsOtherCurrentLiabilities": "Other current liabilities",
+    "bsNonCurrentLiabilities": "Non-current liabilities",
+    "bsLongTermDebt": "Long-term debt",
+    "bsOtherNonCurrentLiabilities": "Other non-current liabilities",
+    "bsTotalLiabilities": "Total liabilities",
+    "bsShareCapital": "Share capital",
+    "bsRetainedEarnings": "Retained earnings",
+    "bsOtherEquity": "Other equity",
+    "bsTotalEquity": "Total equity",
+    "bsTotalLiabEquity": "Total liabilities + equity",
+    "opening": "Opening",
+    "periodEndFallback": "Period end",
+    "entity": "Entity",
+    "periodFallback": "Period",
+    "thePeriod": "the period",
+    "uploadedDocument": "Uploaded document",
+    "freeCashFlow": "Free cash flow",
+    "netIncome": "Net income",
+    "plusDa": "+ D&A",
+    "minusWc": "− ΔWorking capital",
+    "eqCfo": "= CFO",
+    "minusCapex": "− CapEx",
+    "eqFcf": "= FCF",
+    "statutoryView": "statutory view",
+    "capexReal": "CIP additions, real",
+    "capexEstimated": "estimated as D&A",
+    "devPhaseCashDrag": "Development-phase cash drag",
+    "positiveCashGen": "Positive cash generation",
+    "cashBurning": "Cash burning",
+    "costOfCapital": "Cost of capital (WACC)",
+    "costOfEquity": "Cost of equity",
+    "costOfEquitySub": "Cost of equity {{pct}}",
+    "costOfDebtAfterTax": "Cost of debt (after tax)",
+    "preTaxSub": "Pre-tax {{pretax}} · tax {{tax}}",
+    "weightEquity": "Weight equity",
+    "weightDebt": "Weight debt",
+    "dcfIntrinsic": "DCF intrinsic value",
+    "devPhasePre": "Development phase detected — one-time CIP capex of",
+    "devPhaseMid": "is excluded from the perpetuity. DCF uses stabilized FCF (net income + ΔWC ≈",
+    "devPhasePost": ") for the terminal value, since the CIP spend is a one-shot development outlay, not recurring.",
+    "dcfForecastTitle": "5-year explicit forecast + Gordon terminal",
+    "baseFcf": "Base FCF (stabilized run-rate)",
+    "forecastGrowth": "Forecast growth",
+    "terminalGrowth": "Terminal growth",
+    "stabilizedFcfNote": "Stabilized FCF = CFO − maintenance capex (≈ D&A). Not the one-period FCF — that includes the one-shot CIP outlay and would crush the perpetuity.",
+    "equityValue": "Equity value",
+    "year": "Year",
+    "yearN": "Year {{n}}",
+    "discountFactor": "Discount factor",
+    "presentValue": "Present value",
+    "terminalValuePv": "Terminal value (PV)",
+    "enterpriseValue": "Enterprise value",
+    "minusNetDebt": "− Net debt",
+    "sensitivityHeading": "Sensitivity (Romania-corrected WACC)",
+    "forecastGShort": "forecast g",
+    "terminalGShort": "terminal g",
+    "scenario": "Scenario",
+    "inputsPrefix": "Inputs: Rf",
+    "inputsRfSrc": "(Romanian 10Y sovereign in RON)",
+    "inputsErpSrc": "(Romania mature EM, Damodaran)",
+    "inputsTail": "— standing market defaults, not derived from the uploaded trial balance. Treat this DCF as an illustrative cross-check on the band above; the primary valuation comes from the engine's method for this company.",
+    "grahamTitle": "Graham intrinsic value",
+    "netIncomeTtm": "Net income (TTM)",
+    "grahamFairValue": "Graham fair equity value",
+    "grahamNote": "g and Y are standing defaults, not derived from the uploaded trial balance — an illustrative cross-check only.",
+    "multiPeriodGrowth": "Multi-period growth",
+    "metric": "Metric",
+    "compositeCreditScore": "Composite credit score",
+    "creditRating": "Credit rating",
+    "compositeScoreLabel": "Composite score",
+    "component": "Component",
+    "value": "Value",
+    "contribution": "Contribution",
+    "read": "Read",
+    "piotroskiTitle": "Piotroski F-Score",
+    "piotroskiSub": "9-point quality screen",
+    "confirmed": "confirmed",
+    "checksUncertain_one": "{{count}} check uncertain (prior-period data missing)",
+    "checksUncertain_other": "{{count}} checks uncertain (prior-period data missing)",
+    "check": "Check",
+    "result": "Result",
+    "detail": "Detail",
+    "altmanThresholds": "≥ {{safe}} safe · {{distress}}–{{safe}} grey · < {{distress}} distress",
+    "safeZone": "Safe zone",
+    "greyZone": "Grey zone",
+    "distress": "Distress",
+    "coefficient": "Coefficient",
+    "weighted": "Weighted",
+    "altmanScoreLabel": "Altman {{variant}}-Score",
+    "caveat": "Caveat:",
+    "loadingPreview": "Loading preview…",
+    "previewSheetCaption": "{{file}} · sheet \"{{sheet}}\" (example — fictional data)",
+    "previewLoadFailed": "Couldn't load preview: {{msg}}.",
+    "downloadInstead": "Download instead"
+  },
+  "tabs": {
+    "pl": "P&L",
+    "balance_sheet": "Balance Sheet",
+    "cash_flow": "Cash Flow",
+    "ratios": "Ratios",
+    "valuation": "Valuation",
+    "risks": "Risks & credit",
+    "export": "Export",
+    "hint_pl": "Needs a P&L, trial balance, or annual report — ",
+    "hint_balance_sheet": "Needs a balance sheet, trial balance, or annual report — ",
+    "hint_cash_flow": "Needs a balance sheet + P&L (or trial balance) — ",
+    "hint_ratios": "Needs a balance sheet, P&L, or trial balance — ",
+    "hint_valuation": "Needs a balance sheet AND P&L — ",
+    "hint_risks": "Needs a balance sheet, P&L, or trial balance — ",
+    "hint_recommendations": "Needs a balance sheet, P&L, or trial balance — ",
+    "hint_suffix": "upload a financial statement or load a sample to enable this view."
+  },
+  "ws": {
+    "settingsEyebrow": "Workspace settings",
+    "manageTitle": "Manage <grad>{{name}}</grad>.",
+    "thisWorkspace": "this workspace",
+    "settingsSubtitleEdit": "Rename this workspace, tune the decision rules that classify its products, re-run the guided setup, or remove it. Changes apply to this workspace only.",
+    "settingsSubtitle": "Rename this workspace, tune the decision rules that classify its products, or remove it. Changes apply to this workspace only.",
+    "deletedRestorable": "“{{name}}” deleted — restorable for 30 days.",
+    "cantDeleteWorkspace": "Couldn't delete that workspace.",
+    "workspaceFallback": "Workspace",
+    "loadErrorTitle": "Could not load your workspace.",
+    "loadErrorBody": "The workspace list didn't come back from the server. Your data is safe — retry in a moment.",
+    "setupTitle": "Set up your <grad>workspace</grad>.",
+    "setupSubtitle": "Name your workspace, tune the decision rules that classify your products, and upload your data — three quick steps and CFO AI is ready to analyze.",
+    "stepName": "Name",
+    "stepRules": "Decision rules",
+    "stepUpload": "Upload",
+    "workbookImported": "Workbook imported",
+    "workbookImportedDesc_one": "{{count}} SKU classified. Your workspace is ready.",
+    "workbookImportedDesc_other": "{{count}} SKUs classified. Your workspace is ready.",
+    "backendNotRunning": "Backend not running. Start the engine API and try again.",
+    "uploadLater": "I'll upload later",
+    "skipForNow": "Skip for now — open the dashboard",
+    "stepNameTitle": "Name your workspace",
+    "stepNameBody": "Give this workspace a name so you can recognize it — usually the company or entity you're analyzing.",
+    "namePlaceholder": "e.g. Scandia Food SRL",
+    "industryHint": "Pick the closest match — CFO AI applies industry-appropriate benchmarks. A 4× Debt/EBITDA is normal in real estate and alarming in B2B SaaS.",
+    "stepRulesTitle": "Set your decision rules",
+    "stepRulesBody": "These rules classify every product into Protect / Watch / Wind down. Pick a preset or tune the thresholds — you can always change them later from Products.",
+    "stepUploadTitle": "Upload your data",
+    "stepUploadBody": "Drop an Excel or CSV with SKU sales, margin, and inventory. CFO AI classifies every product using the rules you just set.",
+    "unsupportedFile": "Unsupported file",
+    "unsupportedFileDesc": "Drop a .xlsx or .csv workbook.",
+    "importing": "Importing your workbook…",
+    "dropWorkbook": "Drop your workbook here",
+    "uploadFormats": "XLSX · CSV · up to 25 MB",
+    "notSignedIn": "Not signed in.",
+    "cantDeleteFile": "Couldn't delete \"{{name}}\".",
+    "currentMonthUndeletable": "{{label}} is the current month — it can't be deleted.",
+    "keepOnePeriod": "A workspace keeps at least one period — add another first.",
+    "periodDeleted": "“{{label}}” deleted.",
+    "filesMovedToDeleted_one": "{{count}} file moved to Recently deleted — restorable for 30 days.",
+    "filesMovedToDeleted_other": "{{count}} files moved to Recently deleted — restorable for 30 days.",
+    "cantDeletePeriod": "Couldn't delete that period.",
+    "addPeriod": "Add period",
+    "periodsTitle": "Periods",
+    "periodsBodyCreate": "Each period is a month of this workspace. Create one and attach its trial balance whenever you're ready.",
+    "periodsBodyCompact": "Each period is a month of this workspace; attach its trial balance whenever you're ready. Switch the period you're analyzing from the arrows beside the month in the sidebar.",
+    "periodsBody": "Each period is a month of this workspace; attach its trial balance whenever you're ready.",
+    "noFilesAttached": "No files attached",
+    "fileCount_one": "{{count}} file",
+    "fileCount_other": "{{count}} files",
+    "noPeriodSelected": "No period selected",
+    "currentMonthKept": "The current month is always kept — it's where today's upload lands",
+    "keepOnePeriodTitle": "A workspace keeps at least one period — add another before deleting this one",
+    "deletePeriodTitle": "Delete this period",
+    "deletePeriod": "Delete period",
+    "trialBalance": "Trial balance",
+    "untitledFile": "Untitled file",
+    "statusFailed": "failed",
+    "statusAnalyzing": "analyzing…",
+    "documentFallback": "document",
+    "thisFile": "this file",
+    "fileFallback": "file",
+    "deleteThisFile": "Delete this file",
+    "deleteFileTitle": "Delete this file?",
+    "deleteFileBody": "“{{name}}” is removed from this period along with the analysis derived from it. The file moves to Recently deleted and can be restored for 30 days.",
+    "deleteFile": "Delete file",
+    "deletePeriodDialogTitle": "Delete {{label}}?",
+    "thisPeriod": "this period",
+    "deletePeriodEmptyBody": "This period has no files — deleting it just removes the empty container.",
+    "deletePeriodBody": "This removes the period and everything derived from it — statements, ratios, valuation, briefing and alerts. Its uploaded file(s) move to Recently deleted and stay restorable for 30 days, but the analysis is not recoverable; re-uploading rebuilds it.",
+    "addPeriodDialogTitle": "Add a period",
+    "addPeriodDialogDesc": "Pick the month. Attaching its trial balance now is optional — the period exists either way, and the month you pick is what any analysis gets filed under, overriding whatever the file name says.",
+    "periodLabel": "Period",
+    "duplicateWithFile": "This workspace already has {{month}} — this file replaces that period's analysis.",
+    "duplicateNoFile": "This workspace already has {{month}}. Pick another month, or attach a file to replace that period's analysis.",
+    "chooseDifferentFile": "Click to choose a different file",
+    "dropTrialBalance": "Drop the trial balance, or click to browse",
+    "attachLater": "Optional — you can attach it later from the period card",
+    "mismatchText": "This file looks like <1>{{fileMonth}}</1>, but the period is set to <2>{{month}}</2>.",
+    "useFileDate": "Use file date ({{month}})",
+    "keepMonth": "Keep {{month}}",
+    "creating": "Creating…",
+    "periodAddedAnalyzing": "{{label}} added — analyzing {{file}}…",
+    "periodReady": "{{label}} is ready.",
+    "cantAnalyzeFile": "Couldn't analyze that file.",
+    "periodAdded": "{{label}} added.",
+    "noFileYet": "No file yet — attach its trial balance from the period card anytime.",
+    "cantAddPeriod": "Couldn't add that period.",
+    "noPeriods": "No periods",
+    "noneSelected": "No workspace is selected. Pick one below to load its data everywhere.",
+    "workspaceRestored": "“{{name}}” restored.",
+    "cantRestoreWorkspace": "Couldn't restore that workspace.",
+    "creatingWorkspace": "Creating a workspace",
+    "createWorkspace": "Create workspace",
+    "selectWorkspaceAria": "Select {{name}}",
+    "activeWorkspace": "Active workspace",
+    "untitledWorkspace": "Untitled workspace",
+    "noIndustrySet": "No industry set",
+    "deletesInDays_one": "Deletes in {{count}} day",
+    "deletesInDays_other": "Deletes in {{count}} days",
+    "deletingSoon": "Deleting soon",
+    "workspacePurged": "“{{name}}” permanently deleted.",
+    "purgeTitle": "Permanently delete “{{name}}”?",
+    "purgeBody": "This erases the workspace and everything in it — uploaded documents, financial periods, analyses, alerts and chat history. There is no 30-day recovery for this action. It cannot be undone.",
+    "typeToConfirm": "Type <1>{{name}}</1> to confirm",
+    "purgeConfirm": "Permanently delete",
+    "allWorkspaces": "All workspaces",
+    "renameBody": "Rename this workspace — usually the company or entity you're analyzing.",
+    "finishEditingName": "Finish editing workspace name",
+    "editWorkspaceName": "Edit workspace name",
+    "finishEditing": "Finish editing",
+    "industryBody": "Sets the sector benchmarks CFO AI grades this workspace against. Change it if the company's industry was set wrong — a 4× Debt/EBITDA is normal in real estate and alarming in SaaS.",
+    "rulesBody": "These rules classify every product into Protect / Watch / Wind down. Tune the thresholds, then press Apply changes — leaving without applying discards them.",
+    "setupDataTitle": "Setup & data",
+    "setupDataBody": "Deleting hides this workspace and everything in it. You can restore it for 30 days, after which its documents, periods and analyses are erased permanently. If it's your last workspace, you'll return to a clean slate to create a new one.",
+    "resetToDefault": "Reset to default",
+    "deleteWorkspace": "Delete workspace",
+    "unsavedChanges": "You have unsaved changes.",
+    "applyChanges": "Apply changes",
+    "settingsApplied": "Workspace settings applied.",
+    "rulesReset": "Decision rules reset to defaults.",
+    "unsavedGuard": "You have unapplied changes to this workspace's settings. Leaving now discards them.\n\nLeave without applying?",
+    "deleteWorkspaceTitle": "Delete “{{name}}”?",
+    "deleteWorkspaceBody": "This hides the workspace and everything in it — documents, periods, analyses and chat. You can restore it from “Recently deleted” for 30 days, after which it's erased permanently.",
+    "leaveBody": "You changed this workspace's settings but haven't applied them. Leaving now discards those changes.",
+    "keepEditing": "Keep editing",
+    "applyAndLeave": "Apply & leave",
+    "discardAndLeave": "Discard & leave"
+  },
+  "chatX": {
+    "disclosure": "CFO AI can answer general questions too — answers not drawn from your workspace data may not be current or verified. Confirm regulatory/tax specifics before acting.",
+    "groundedIn": "Grounded in",
+    "yourWorkspace": "your workspace",
+    "yourCompany": "your company",
+    "noWorkspaceMode": "No workspace loaded — open-domain mode",
+    "pageTitle": "Ask anything about your <grad>company, documents, or finance</grad>.",
+    "pageSubtitle": "CFO AI answers from your loaded workspace — P&L, Balance Sheet, Cash Flow, ratios, valuation, risk and recommendations — citing the period and the figures it used. With no workspace loaded it still answers open-domain finance, accounting and strategy questions. Pick a starter below or type your own.",
+    "askAboutPlaceholder": "Ask about {{name}}…",
+    "askAnythingPlaceholder": "Ask CFO AI anything…",
+    "new": "New",
+    "openPage": "Open page →",
+    "noWorkspacePill": "No workspace selected — affects answers",
+    "noWorkspacePillTitle": "No workspace is selected, so answers can't be grounded in your company's data.",
+    "suggestedQuestions": "Suggested questions",
+    "basedOnIndustry": "· based on your workspace's field ({{industry}})",
+    "emptyTitleCompany": "Ask anything about <1>{{name}}</1>.",
+    "emptyTitleGeneral": "Ask anything about your company's finances.",
+    "emptyBodyGrounded": "CFO AI can explain your numbers, compare periods, and help you understand what matters. It also answers general finance, strategy, and accounting questions.",
+    "emptyBodyGeneral": "Load a period to ground answers in your own figures. In the meantime, ask anything — finance, strategy, accounting, or the app itself.",
+    "pausedPlaceholder": "Chat is paused — see banner above",
+    "seePlans": "See plans",
+    "attachAria": "Attach a document",
+    "enterHint": "Enter to send · Shift+Enter for newline",
+    "stopGenerating": "Stop generating",
+    "sendMessage": "Send message",
+    "historyAria": "Conversation history",
+    "searchChats": "Search chats",
+    "newChat": "New chat",
+    "deleteConversation": "Delete conversation",
+    "noConversations": "No conversations yet",
+    "noConversationsHint": "Start by asking CFO AI about your numbers.",
+    "noMatches": "No matches for “{{query}}”.",
+    "msgCount": "{{count}} msg",
+    "interrupted": "Interrupted",
+    "prompts": {
+      "ws": {
+        "risk": {
+          "title": "Biggest financial risk",
+          "prompt": "What is our biggest financial risk right now? Cite the period and figures you used."
+        },
+        "cashFlow": {
+          "title": "Cash flow position",
+          "prompt": "Explain our current cash flow position in plain language for the management team."
+        },
+        "pnl": {
+          "title": "Summarize latest P&L",
+          "prompt": "Summarize the latest P&L: revenue, EBITDA, net profit, and what changed."
+        },
+        "workingCapital": {
+          "title": "Working-capital change",
+          "prompt": "What changed in working capital this period? Walk me through the moving parts."
+        },
+        "dscr": {
+          "title": "Calculate DSCR",
+          "prompt": "Calculate DSCR (rent only and including dividends) and tell me how it compares to a 1.25× covenant."
+        },
+        "yoy": {
+          "title": "Year-over-year",
+          "prompt": "Compare this year to last year on the headline metrics. Where did we improve and where did we slip?"
+        },
+        "leverage": {
+          "title": "Leverage position",
+          "prompt": "Explain our leverage position (Debt/EBITDA, net debt, equity ratio) and whether it's sustainable."
+        },
+        "liquidity": {
+          "title": "Liquidity questions",
+          "prompt": "What questions should I be asking about liquidity for the next board meeting?"
+        }
+      },
+      "gen": {
+        "ras": {
+          "title": "Read a Romanian RAS trial balance",
+          "prompt": "How do I read a Romanian RAS trial balance? Walk me through classes 1–7."
+        },
+        "evEbitda": {
+          "title": "EV/EBITDA for food manufacturing",
+          "prompt": "What's a typical EV/EBITDA range for food manufacturing in Romania, and what drives the spread?"
+        },
+        "erp": {
+          "title": "Damodaran ERP for emerging markets",
+          "prompt": "Explain Damodaran's approach to estimating equity risk premium for emerging markets."
+        },
+        "rasIfrs": {
+          "title": "RAS vs IFRS",
+          "prompt": "What are the key differences between Romanian RAS and IFRS that I should know as a CFO?"
+        },
+        "dscrVsIc": {
+          "title": "DSCR vs interest coverage",
+          "prompt": "What's the difference between DSCR and interest coverage, and when does each matter to a lender?"
+        },
+        "ccc": {
+          "title": "Cash conversion cycle",
+          "prompt": "Walk me through the cash conversion cycle and what each component (DSO, DIO, DPO) actually measures."
+        },
+        "lenderBrief": {
+          "title": "3-question lender brief",
+          "prompt": "Help me draft a 3-question lender brief for a real-estate single-asset vehicle."
+        },
+        "distress": {
+          "title": "Distress signals",
+          "prompt": "What are the early distress signals a CFO should watch for in a working-capital-heavy business?"
+        }
+      },
+      "ind": {
+        "real_estate": {
+          "capRates": {
+            "title": "Cap rates vs DCF",
+            "prompt": "When valuing a commercial property vehicle, when should I lean on cap-rate valuation vs a full DCF, and how do the two reconcile?"
+          },
+          "dscr": {
+            "title": "DSCR for a property loan",
+            "prompt": "Walk me through how a lender computes DSCR and ICR for a commercial real-estate loan, and what covenant levels are typical."
+          },
+          "navCascade": {
+            "title": "NAV cascade explained",
+            "prompt": "Explain the NAV cascade for a single-asset property company: book NAV, adjusted NAV, EPRA NNNAV, and liquidation NAV."
+          },
+          "vacancy": {
+            "title": "Vacancy sensitivity",
+            "prompt": "How do I stress-test NOI and debt service against vacancy and rent-indexation scenarios for an office/retail asset?"
+          },
+          "refi": {
+            "title": "Refinancing wall",
+            "prompt": "My property loan matures in 2 years. What should I prepare now to de-risk the refinancing, and what will lenders scrutinise?"
+          },
+          "wault": {
+            "title": "WAULT and lease quality",
+            "prompt": "What is WAULT and how do lease length, break options, and tenant covenant strength drive a property's value?"
+          },
+          "rateHedging": {
+            "title": "Interest-rate hedging",
+            "prompt": "Should a leveraged property vehicle hedge floating-rate debt? Compare caps, swaps, and staying unhedged."
+          }
+        },
+        "real_estate_residential": {
+          "occupancy": {
+            "title": "Occupancy economics",
+            "prompt": "How do occupancy, tenant churn, and re-letting downtime flow through to NOI in a residential rental portfolio?"
+          },
+          "rentRoll": {
+            "title": "Reading a rent roll",
+            "prompt": "What should a CFO look for when auditing a residential rent roll — red flags, concentration, arrears patterns?"
+          },
+          "yieldOnCost": {
+            "title": "Yield on cost vs market yield",
+            "prompt": "Explain yield-on-cost vs market yield for a build-to-rent project, and when a development stops making sense."
+          },
+          "debtSizing": {
+            "title": "Debt sizing for BTR",
+            "prompt": "How do lenders size debt for residential rental assets, and why is leverage typically lower than commercial?"
+          },
+          "opexRatios": {
+            "title": "Opex ratios",
+            "prompt": "What operating-expense ratio is normal for residential rental, and which cost lines usually hide inefficiency?"
+          },
+          "exitCap": {
+            "title": "Exit cap assumptions",
+            "prompt": "How sensitive is my exit value to the assumed exit cap rate, and how should I pick a defensible one?"
+          },
+          "regRisk": {
+            "title": "Regulatory risk",
+            "prompt": "What regulatory and rent-control risks should a residential landlord monitor, and how do they affect valuation?"
+          },
+          "portfolioVsSingle": {
+            "title": "Portfolio vs single asset",
+            "prompt": "When does it make sense to hold residential units in one vehicle vs splitting into separate SPVs?"
+          }
+        },
+        "saas": {
+          "arr": {
+            "title": "ARR, NRR, and GRR",
+            "prompt": "Define ARR, NRR, and GRR precisely, and tell me which one investors weight most and why."
+          },
+          "ruleOf40": {
+            "title": "Rule of 40",
+            "prompt": "Explain the Rule of 40 for SaaS, how to compute it from my P&L, and what a miss actually signals."
+          },
+          "cacPayback": {
+            "title": "CAC payback",
+            "prompt": "Walk me through CAC payback and LTV/CAC — what inputs do I need and what thresholds are healthy for B2B SaaS?"
+          },
+          "burnMultiple": {
+            "title": "Burn multiple",
+            "prompt": "What is the burn multiple, how do I compute it, and what does 'good' look like at my stage?"
+          },
+          "grossMargin": {
+            "title": "SaaS gross margin",
+            "prompt": "What belongs in SaaS cost of revenue, and what gross-margin range do buyers expect at scale?"
+          },
+          "churnCohorts": {
+            "title": "Churn cohorts",
+            "prompt": "How should I build a cohort retention analysis, and what churn patterns most damage valuation?"
+          },
+          "deferredRevenue": {
+            "title": "Deferred revenue",
+            "prompt": "Explain deferred revenue and billings vs revenue for annual-prepay SaaS contracts — what does a CFO need to get right?"
+          },
+          "multiples": {
+            "title": "SaaS valuation multiples",
+            "prompt": "How are B2B SaaS companies valued today — revenue multiples vs EBITDA, and what drives the spread?"
+          }
+        },
+        "fmcg": {
+          "ccc": {
+            "title": "Cash conversion cycle",
+            "prompt": "Walk me through the cash conversion cycle for an FMCG distributor and what each component (DSO, DIO, DPO) actually measures."
+          },
+          "inventoryTurns": {
+            "title": "Inventory turns",
+            "prompt": "What inventory turnover is healthy in food & beverage distribution, and how do I spot slow-moving stock early?"
+          },
+          "tradeDiscounts": {
+            "title": "Trade discounts & promos",
+            "prompt": "How should trade discounts, promotions, and retailer bonuses be accounted for, and how do they distort gross margin?"
+          },
+          "marginVsPeers": {
+            "title": "Margin structure vs peers",
+            "prompt": "Break down a typical FMCG distribution P&L as % of revenue and tell me where mine could deviate from peers."
+          },
+          "retailerTerms": {
+            "title": "Retailer payment terms",
+            "prompt": "Large retail chains pay me in 60–90 days. What financing options exist for this receivables gap and what do they cost?"
+          },
+          "privateLabel": {
+            "title": "Private-label pressure",
+            "prompt": "How does private-label growth threaten a branded FMCG portfolio, and what levers protect margin?"
+          },
+          "fxImports": {
+            "title": "FX on imports",
+            "prompt": "A chunk of my COGS is EUR-denominated imports. How should I think about FX hedging as a RON-revenue business?"
+          }
+        },
+        "manufacturing": {
+          "fixedCostLeverage": {
+            "title": "Fixed-cost leverage",
+            "prompt": "Explain operating leverage in a manufacturer: how utilization swings flow through to EBITDA, and how I find my break-even volume."
+          },
+          "capexVsDepreciation": {
+            "title": "Capex vs depreciation",
+            "prompt": "My accumulated depreciation is high relative to gross PP&E. How do I size a modernization capex plan and fund it?"
+          },
+          "energyHedging": {
+            "title": "Energy cost hedging",
+            "prompt": "Energy is a major cost line. What hedging and contracting strategies should a mid-size manufacturer consider?"
+          },
+          "evEbitda": {
+            "title": "EV/EBITDA for industrials",
+            "prompt": "What EV/EBITDA range applies to industrial manufacturers in Romania, and what pushes a company to the top of it?"
+          },
+          "workingCapital": {
+            "title": "Working capital in production",
+            "prompt": "How do raw materials, WIP, and finished goods each tie up cash, and where do manufacturers usually over-invest?"
+          },
+          "makeVsBuy": {
+            "title": "Make vs buy",
+            "prompt": "Give me a CFO framework for make-vs-buy decisions, including the fixed-cost and quality dimensions people miss."
+          },
+          "ras": {
+            "title": "Read a RAS trial balance",
+            "prompt": "How do I read a Romanian RAS trial balance? Walk me through classes 1–7."
+          },
+          "customerConcentration": {
+            "title": "Customer concentration",
+            "prompt": "A few B2B customers dominate my revenue. How do I quantify concentration risk and what mitigations matter to lenders?"
+          }
+        },
+        "retail_ecom": {
+          "inventoryMarkdowns": {
+            "title": "Inventory turn & markdowns",
+            "prompt": "How do inventory turnover and markdown discipline drive retail profitability, and what metrics should I track weekly?"
+          },
+          "contributionPerOrder": {
+            "title": "Contribution per order",
+            "prompt": "Build me a contribution-margin-per-order model for e-commerce: what belongs in it and what's a healthy target?"
+          },
+          "repeatCohorts": {
+            "title": "Repeat rate & cohorts",
+            "prompt": "How do repeat-purchase rate and cohort LTV change what I can afford to spend on acquisition?"
+          },
+          "seasonalWc": {
+            "title": "Seasonal working capital",
+            "prompt": "How should a seasonal retailer plan working-capital financing around inventory build-up before peak season?"
+          },
+          "returns": {
+            "title": "Returns accounting",
+            "prompt": "How should product returns be accounted for, and at what return rate does a category stop being viable?"
+          },
+          "storeVsOnline": {
+            "title": "Store vs online P&L",
+            "prompt": "How do I split a P&L between physical stores and online so channel profitability is honest — including shared costs?"
+          },
+          "cashConversion": {
+            "title": "Cash conversion",
+            "prompt": "Walk me through the cash conversion cycle for retail and how negative working capital can fund growth."
+          },
+          "distress": {
+            "title": "Distress signals",
+            "prompt": "What are the early distress signals a CFO should watch for in a retail business?"
+          }
+        },
+        "professional_services": {
+          "utilization": {
+            "title": "Utilization & realization",
+            "prompt": "Define utilization and realization rates for a services firm and show how small drops compound into margin erosion."
+          },
+          "leverageModel": {
+            "title": "Billable leverage model",
+            "prompt": "Explain the leverage model (partner : senior : junior ratios) and how it drives profitability in professional services."
+          },
+          "wip": {
+            "title": "WIP and unbilled AR",
+            "prompt": "How should I manage and account for work-in-progress and unbilled receivables, and when do they become a red flag?"
+          },
+          "pricingModels": {
+            "title": "Pricing models",
+            "prompt": "Compare hourly billing, fixed fee, and value pricing from a CFO's margin-risk perspective."
+          },
+          "revenuePerFte": {
+            "title": "Revenue per FTE",
+            "prompt": "What revenue-per-FTE and profit-per-partner benchmarks apply to professional-services firms, and how do I improve mine?"
+          },
+          "projectProfitability": {
+            "title": "Project profitability",
+            "prompt": "Design a simple project-profitability report that catches scope creep and under-recovery early."
+          },
+          "valuation": {
+            "title": "Valuing a services firm",
+            "prompt": "How are professional-services firms valued, and why do people-dependent businesses trade at a discount?"
+          },
+          "partnerComp": {
+            "title": "Partner comp vs EBITDA",
+            "prompt": "How should partner compensation be normalized when presenting EBITDA to a buyer or lender?"
+          }
+        },
+        "construction": {
+          "poc": {
+            "title": "Percentage of completion",
+            "prompt": "Explain percentage-of-completion revenue recognition for construction contracts and where it typically goes wrong."
+          },
+          "wipSchedule": {
+            "title": "WIP schedule",
+            "prompt": "Walk me through reading a WIP schedule: over/under-billings, estimated costs to complete, and fade analysis."
+          },
+          "retention": {
+            "title": "Retention & milestones",
+            "prompt": "How do milestone billing and retention clauses shape construction cash flow, and how do I finance the gaps?"
+          },
+          "marginErosion": {
+            "title": "Project margin erosion",
+            "prompt": "What early indicators show a project's margin is eroding, and what should trigger a re-forecast?"
+          },
+          "bonding": {
+            "title": "Bonding & guarantees",
+            "prompt": "Explain performance bonds and bank guarantees: how they're sized, what they cost, and how they constrain capacity."
+          },
+          "claims": {
+            "title": "Claims & variations",
+            "prompt": "How should variations and claims be valued and recognized — and when is claimed revenue too aggressive?"
+          },
+          "backlog": {
+            "title": "Backlog quality",
+            "prompt": "How do I assess backlog quality — signed vs framework vs pipeline — when forecasting next year's revenue?"
+          },
+          "subcontractorRisk": {
+            "title": "Subcontractor risk",
+            "prompt": "What subcontractor financial-health checks should a main contractor run, and what happens when one fails mid-project?"
+          }
+        },
+        "healthcare": {
+          "payerMix": {
+            "title": "Payer mix",
+            "prompt": "Explain payer mix for a clinic (CNAS vs private vs out-of-pocket) and how it drives margin and receivables risk."
+          },
+          "unitEconomics": {
+            "title": "Per-visit unit economics",
+            "prompt": "Build per-visit unit economics for a clinic: revenue, direct cost, contribution, and physician capacity."
+          },
+          "equipmentCapex": {
+            "title": "Equipment capex",
+            "prompt": "How should I evaluate a major medical-equipment purchase — utilization thresholds, financing options, payback?"
+          },
+          "staffCostRatio": {
+            "title": "Staff cost ratio",
+            "prompt": "What staff-cost-to-revenue ratio is sustainable in healthcare services, and how do I benchmark clinician productivity?"
+          },
+          "insurerReceivables": {
+            "title": "Insurer receivables",
+            "prompt": "Receivables from insurers and CNAS settle slowly. How do I manage and finance this working-capital drag?"
+          },
+          "expansion": {
+            "title": "Clinic expansion math",
+            "prompt": "Give me a framework for deciding whether to open a second location: fixed-cost step-ups, ramp curves, cannibalization."
+          },
+          "regulatory": {
+            "title": "Regulatory exposure",
+            "prompt": "What regulatory and reimbursement-change risks should a healthcare CFO stress-test in the plan?"
+          },
+          "fixedCostLeverage": {
+            "title": "Fixed-cost leverage",
+            "prompt": "Healthcare has high fixed costs. How do volume swings flow through to EBITDA and what's my break-even patient volume?"
+          }
+        },
+        "logistics": {
+          "routeEconomics": {
+            "title": "Route economics",
+            "prompt": "Break down per-route economics for a transport company: what belongs in the contribution margin per kilometre?"
+          },
+          "fleetCapex": {
+            "title": "Fleet capex & residuals",
+            "prompt": "How should I plan fleet renewal — lease vs buy, residual-value risk, and the cost of running trucks too long?"
+          },
+          "fuelSurcharge": {
+            "title": "Fuel surcharge mechanisms",
+            "prompt": "Explain fuel surcharge clauses and how to protect margin when diesel prices spike."
+          },
+          "loadFactor": {
+            "title": "Load factor",
+            "prompt": "How do load factor and empty-kilometre share drive profitability, and what's realistic to target?"
+          },
+          "driverCosts": {
+            "title": "Driver cost inflation",
+            "prompt": "Driver wages keep rising. How do I model this into pricing and when does a route stop being viable?"
+          },
+          "contractVsSpot": {
+            "title": "Contract vs spot mix",
+            "prompt": "What's the right balance between contracted volumes and spot-market freight from a risk-return perspective?"
+          },
+          "valuation": {
+            "title": "Valuing a transport firm",
+            "prompt": "What EV/EBITDA multiples apply to logistics and transport companies, and how does fleet age affect the price?"
+          },
+          "workingCapital": {
+            "title": "Working capital in freight",
+            "prompt": "Shippers pay late, drivers and fuel are paid now. How do I size and finance this working-capital gap?"
+          }
+        },
+        "agriculture": {
+          "seasonality": {
+            "title": "Seasonality & cash flow",
+            "prompt": "Map a typical crop-year cash-flow curve and tell me how to size the seasonal credit line correctly."
+          },
+          "subsidies": {
+            "title": "APIA subsidies",
+            "prompt": "How should APIA and EU subsidies be accounted for and forecast, and how much should the plan depend on them?"
+          },
+          "cropInventory": {
+            "title": "Crop inventory valuation",
+            "prompt": "How is harvested crop inventory valued under RAS, and when should I sell vs store — what's the carry math?"
+          },
+          "grainHedging": {
+            "title": "Grain price hedging",
+            "prompt": "What hedging instruments exist for grain prices, and how would a mid-size farm actually use them?"
+          },
+          "landLeaseVsOwn": {
+            "title": "Land: lease vs own",
+            "prompt": "Compare leasing vs buying farmland from a returns and balance-sheet perspective."
+          },
+          "weatherRisk": {
+            "title": "Weather & yield risk",
+            "prompt": "How do I quantify weather and yield risk in the financial plan, and what insurance is worth buying?"
+          },
+          "euFunds": {
+            "title": "EU funds for agriculture",
+            "prompt": "What EU funding programs can finance farm equipment and storage, and how does co-financing affect my leverage?"
+          },
+          "storage": {
+            "title": "Storage economics",
+            "prompt": "Does investing in my own storage capacity pay off? Walk me through the capex-vs-carry decision."
+          }
+        }
+      }
+    },
+    "cap": {
+      "dailyHeadline": "Daily Ask CFO AI limit reached",
+      "monthlyHeadline": "Monthly Ask CFO AI limit reached",
+      "body": "You've hit your plan's chat cap. It resets automatically — or upgrade for more headroom."
+    },
+    "errUnreachable": "Couldn't reach the assistant.",
+    "errTryAgain": "Try again in a moment.",
+    "search": {
+      "noMatches": "No matches",
+      "matchCount": "{{current}} of {{total}}",
+      "prevMatch": "Previous match",
+      "nextMatch": "Next match"
+    }
+  },
+  "panels": {
+    "docsToggleTitle": "Documents · ⌘D",
+    "docsLabel": "Docs",
+    "documents": "Documents",
+    "allYourUploads": "All your uploads",
+    "closeDocsAria": "Close documents panel",
+    "loadingDocuments": "Loading documents…",
+    "activePeriod": "Active period",
+    "otherPeriods": "Other periods",
+    "deletedPeriodToast": "Deleted {{label}}",
+    "periodFallback": "period",
+    "docsMovedToDeleted_one": "{{count}} document moved to Recently deleted.",
+    "docsMovedToDeleted_other": "{{count}} documents moved to Recently deleted.",
+    "undoDelete": "Undo delete",
+    "undo": "Undo",
+    "hideOlderPeriods_one": "Hide {{count}} older period",
+    "hideOlderPeriods_other": "Hide {{count}} older periods",
+    "showOlderPeriods_one": "Show {{count}} older period",
+    "showOlderPeriods_other": "Show {{count}} older periods",
+    "recentlyDeletedHeading": "Recently deleted ({{count}}) · auto-delete in 28 days",
+    "clearAll": "Clear all",
+    "deletedOn": "Deleted {{date}}",
+    "restore": "Restore",
+    "restoreAria": "Restore {{name}}",
+    "deletePermanentlyAria": "Delete {{name}} permanently",
+    "deletePermanentlyTitle": "Delete permanently — cannot be undone",
+    "deleteForever": "Delete forever",
+    "deleteAllForever": "Delete all forever",
+    "deleteFilePermanentlyTitle": "Delete this file permanently?",
+    "deleteAllPermanentlyTitle_one": "Permanently delete all {{count}} file?",
+    "deleteAllPermanentlyTitle_other": "Permanently delete all {{count}} files?",
+    "deletePermanentlyFallbackTitle": "Delete permanently?",
+    "deleteFilePermanentlyBody": "will be permanently deleted. This cannot be undone.",
+    "deleteAllPermanentlyBody_one": "All {{count}} file in Recently Deleted will be permanently removed from storage. This cannot be undone.",
+    "deleteAllPermanentlyBody_other": "All {{count}} files in Recently Deleted will be permanently removed from storage. This cannot be undone.",
+    "noDocumentsYet": "No documents yet.",
+    "noDocumentsHint": "Upload from the dashboard to populate this list.",
+    "docRestored": "Document restored",
+    "cantRestore": "Couldn't restore",
+    "permanentlyDeleted": "Permanently deleted",
+    "cantDeletePermanently": "Couldn't delete permanently",
+    "recentlyDeletedCleared": "Recently deleted cleared",
+    "cantClear": "Couldn't clear",
+    "viewing": "Viewing",
+    "noDocuments": "No documents",
+    "switch": "Switch",
+    "switchArrow": "Switch →",
+    "deleteLabelAria": "Delete {{label}}",
+    "renamed": "Renamed",
+    "cantRename": "Couldn't rename",
+    "cantGenerateLink": "Couldn't generate download link",
+    "rerunningAnalysis": "Re-running analysis",
+    "cantStartRerun": "Couldn't start re-run",
+    "markedInactive": "Marked inactive",
+    "markedActive": "Marked active",
+    "cantUpdate": "Couldn't update",
+    "restorableFor30Days": "{{name}} — restorable for 30 days.",
+    "cantDelete": "Couldn't delete",
+    "viewAria": "View {{name}}",
+    "viewFile": "View file",
+    "docActionsAria": "Document actions",
+    "rename": "Rename",
+    "preparing": "Preparing…",
+    "downloadOriginal": "Download original",
+    "rerunAnalysis": "Re-run analysis",
+    "markInactive": "Mark inactive",
+    "markActive": "Mark active",
+    "deleteDocTitle": "Delete {{name}}?",
+    "deleteDocBody": "The document is moved to Recently deleted and can be restored within 30 days. After that it's removed from storage permanently.",
+    "rel": {
+      "justNow": "just now",
+      "minAgo": "{{count}} min ago",
+      "hourAgo": "{{count}} hr ago",
+      "dayAgo_one": "{{count}} day ago",
+      "dayAgo_other": "{{count}} days ago",
+      "weekAgo_one": "{{count}} week ago",
+      "weekAgo_other": "{{count}} weeks ago",
+      "monthAgo_one": "{{count}} month ago",
+      "monthAgo_other": "{{count}} months ago",
+      "yearAgo_one": "{{count}} year ago",
+      "yearAgo_other": "{{count}} years ago"
+    },
+    "datasetsToggleTitle": "Datasets · ⌘⇧D",
+    "datasetsLabel": "Datasets",
+    "salesAnalyses": "Sales analyses",
+    "closeDatasetsAria": "Close datasets panel",
+    "loadingDataset": "Loading dataset…",
+    "loadingDatasetDesc": "Switching to the selected analysis.",
+    "datasetRestored": "Dataset restored",
+    "otherDatasets": "Other datasets ({{count}})",
+    "recentlyDeletedCount": "Recently deleted ({{count}})",
+    "reclassified_one": "Re-classified {{count}} SKU",
+    "reclassified_other": "Re-classified {{count}} SKUs",
+    "rerunFailed": "Re-run failed",
+    "datasetMovedToDeleted": "Dataset moved to Recently deleted",
+    "comparingWith": "Comparing with {{label}}",
+    "noDatasetsYet": "No sales datasets yet.",
+    "noDatasetsHint": "Drop a trading analysis on the dropzone to begin.",
+    "uploadSalesDataset": "Upload sales dataset",
+    "datasetActionsAria": "Dataset actions",
+    "skusFmt": "{{value}} SKUs",
+    "linesFmt": "{{value}} lines",
+    "switchToDataset": "Switch to this dataset",
+    "compareWithActive": "Compare with active",
+    "deleteDatasetBody": "The dataset moves to Recently deleted and can be restored within 30 days. SKU rows are preserved until hard-delete; nothing is destroyed immediately.",
+    "notificationsAttentionAria": "Notifications — {{count}} needing attention",
+    "notificationsDesc": "Open alerts for this workspace, newest first.",
+    "notificationsEmpty": "You're all caught up.",
+    "notificationsEmptyHint": "Alerts appear here once a period has been analysed.",
+    "navigation": "Navigation",
+    "usage": {
+      "seeInvoice": "See upcoming invoice",
+      "upgradePro": "Upgrade to Pro",
+      "docsAll": "You've used all {{cap}} documents this month.",
+      "docsSome": "You've used {{used}} of {{cap}} documents this month.",
+      "chatDay": "You've used {{used}} of {{cap}} Ask CFO AI messages today.",
+      "chatMonth": "You've used {{used}} of {{cap}} Ask CFO AI messages this month."
+    },
+    "search": {
+      "routes": {
+        "today": {
+          "label": "Today",
+          "hint": "Daily briefing"
+        },
+        "statements": {
+          "label": "Balance sheet & P&L",
+          "hint": "Financial statements"
+        },
+        "cashFlow": {
+          "label": "Cash flow",
+          "hint": "Indirect method"
+        },
+        "decisions": {
+          "label": "Decisions",
+          "hint": "Action queue"
+        },
+        "products": {
+          "label": "Products",
+          "hint": "SKU explorer"
+        }
+      },
+      "browseGlossary": "Browse glossary",
+      "browseGlossaryHint": "Every concept CFO AI knows",
+      "categoryHint": "Category",
+      "conceptHint": "Concept",
+      "placeholder": "Search SKUs, categories, or jump to a page…",
+      "noMatches": "No matches. Try a SKU name, category, or page name.",
+      "learnTag": "Learn",
+      "navHint": "↑↓ navigate · Enter to select",
+      "resultCount_one": "{{count}} result",
+      "resultCount_other": "{{count}} results"
+    }
+  },
+  "scan": {
+    "switchingWorkspace": "Switching workspace",
+    "switchingMonth": "Switching month",
+    "loadingWhat": "Loading {{what}}…",
+    "selectedWorkspace": "the selected workspace",
+    "selectedMonth": "the selected month",
+    "completeTitle": "Scan complete",
+    "completeBody": "Your analysis is ready — statements, ratios, valuation and recommendations have been rebuilt.",
+    "viewResults": "View results",
+    "leaveWarning": "An analysis is still running — leaving now will lose its progress.",
+    "cancelPrompt": "Cancel this analysis?",
+    "keepAnalyzing": "Keep analyzing",
+    "yesCancel": "Yes, cancel",
+    "steps": {
+      "detectFormat": "Detect format",
+      "extractData": "Extract data",
+      "rebuildStatements": "Rebuild statements",
+      "calculateRatios": "Calculate ratios",
+      "generateRecs": "Generate recs",
+      "extractRows": "Extract rows",
+      "rollUpSkus": "Roll up SKUs",
+      "generateBriefing": "Generate briefing"
+    },
+    "msg": {
+      "readingDocument": "Reading the document…",
+      "detectingTbLayout": "Detecting the trial-balance layout…",
+      "extractingBalances": "Extracting account balances…",
+      "checkingDebits": "Checking debits against credits…",
+      "mappingAccounts": "Mapping accounts to statements…",
+      "rebuildingStatements": "Rebuilding your P&L and balance sheet…",
+      "computingRatios": "Computing ratios…",
+      "scoringLiquidity": "Scoring liquidity and leverage…",
+      "runningCreditModel": "Running the credit model…",
+      "generatingInsights": "Generating insights…",
+      "writingBriefing": "Writing your briefing…",
+      "draftingRecs": "Drafting recommendations…",
+      "readingSalesFile": "Reading your sales file…",
+      "detectingColumns": "Detecting the column layout…",
+      "identifyingSkus": "Identifying SKU descriptors…",
+      "parsingColumns": "Parsing revenue, volume and margin columns…",
+      "extractingSkuRows": "Extracting SKU rows…",
+      "rollingUpBrands": "Rolling up brands and categories…",
+      "classifyingPortfolio": "Classifying the portfolio…",
+      "analyzingPerformance": "Analyzing portfolio performance…",
+      "writingExecBriefing": "Writing your executive briefing…"
+    }
+  },
+  "budgetX": {
+    "stepRead": "Read file",
+    "stepMatch": "Match P&L lines",
+    "stepCompute": "Compute variances",
+    "stepBoard": "Board-pack view",
+    "loadedTitle": "Budget loaded",
+    "loadedDesc_one": "{{count}} budget line parsed from {{file}}.",
+    "loadedDesc_other": "{{count}} budget lines parsed from {{file}}.",
+    "loadedDescLy_one": "{{count}} budget line + {{ly}} last-year parsed from {{file}}.",
+    "loadedDescLy_other": "{{count}} budget lines + {{ly}} last-year parsed from {{file}}.",
+    "readFailedTitle": "Couldn't read that file",
+    "readFailedDesc": "Unknown parse error.",
+    "reading": "Reading your budget…",
+    "budgetFile": "budget file",
+    "removeUploaded": "Remove uploaded budget",
+    "replaceBudget": "Replace budget",
+    "dropBudget": "Drop your budget file",
+    "formats": "CSV · XLSX · PPTX budget deck",
+    "pipelineAria": "Variance pipeline",
+    "templateBlurb": "Skip the guesswork — the template has the exact columns the parser expects: one row per P&L line, a Budget column, and an optional Last year column. Download, fill in your figures, re-upload above.",
+    "templateName": "Budget template",
+    "templateRow": "One row per P&L line, a Budget column, and an optional Last-year column.",
+    "columnsHeading": "Columns in the template",
+    "colLine": "The P&L line label — must match the report's rows.",
+    "required": "Required",
+    "colBudget": "— your planned figure for each line.",
+    "optional": "Optional",
+    "colLastYear": "— same line's prior-year actual to add a vs-LY column."
   }
 }

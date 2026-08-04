@@ -4,6 +4,7 @@
 // for the trailing pending assistant turn.
 
 import { useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 
 import { useChatSearchHighlight } from "./useChatSearchHighlight";
@@ -43,6 +44,7 @@ export function CFOMessageList({
   messages, groundedLabel, bottomInset = false, topInset = false, wideContent = false,
   documentScroll = false, searchQuery = "", onClearSearch,
 }: Props) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
   // Root for find-in-conversation. In document-scroll mode `ref` isn't
   // attached to anything, so the highlighter gets its own container ref.
@@ -172,14 +174,14 @@ export function CFOMessageList({
       <div className="pointer-events-auto inline-flex items-center gap-1 h-8 pl-3 pr-1.5 rounded-full border border-rule bg-surface/95 backdrop-blur shadow-[0_8px_24px_-16px_rgba(0,0,0,0.5)]">
         <span className="text-[11.5px] tabular-nums text-ink-soft">
           {search.count === 0
-            ? "No matches"
-            : `${search.index + 1} of ${search.count}`}
+            ? t("chatX.search.noMatches")
+            : t("chatX.search.matchCount", { current: search.index + 1, total: search.count })}
         </span>
         <button
           type="button"
           onClick={search.prev}
           disabled={search.count === 0}
-          aria-label="Previous match"
+          aria-label={t("chatX.search.prevMatch")}
           data-testid="chat-search-prev"
           className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
@@ -189,7 +191,7 @@ export function CFOMessageList({
           type="button"
           onClick={search.next}
           disabled={search.count === 0}
-          aria-label="Next match"
+          aria-label={t("chatX.search.nextMatch")}
           data-testid="chat-search-next"
           className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
@@ -199,7 +201,7 @@ export function CFOMessageList({
           <button
             type="button"
             onClick={onClearSearch}
-            aria-label="Clear search"
+            aria-label={t("productsX.clearSearch")}
             data-testid="chat-search-clear"
             className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 transition-colors"
           >

@@ -445,7 +445,15 @@ function AppLayout() {
  * pulsing dashboard silhouette that collapses into it.
  */
 function ContentFallback(_props: { pathname?: string }) {
-  return <div aria-hidden className="min-h-[30vh]" />;
+  return (
+    <div aria-hidden className="min-h-[30vh] px-6 sm:px-10 pt-10 space-y-4">
+      {/* Minimal shimmer (2026-08-04 perf pass) — abstract bars, not a
+          page-shaped silhouette; only visible on slow connections. */}
+      <div className="h-6 w-1/3 rounded-lg bg-bg-2/80 animate-pulse" />
+      <div className="h-4 w-2/3 rounded bg-bg-2/60 animate-pulse [animation-delay:120ms]" />
+      <div className="h-4 w-1/2 rounded bg-bg-2/60 animate-pulse [animation-delay:240ms]" />
+    </div>
+  );
 }
 
 /**

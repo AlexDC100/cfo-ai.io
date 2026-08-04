@@ -20,6 +20,8 @@
 // a "see your upcoming invoice" anchor to /settings instead.
 
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { usePlanState } from "@/lib/planState";
@@ -70,7 +72,7 @@ function pickTrigger(state: ReturnType<typeof usePlanState>["state"]): Trigger |
   return triggers[0] ?? null;
 }
 
-function bannerCopy(t: Trigger, planKey: string | null | undefined): {
+function bannerCopy(t: Trigger, planKey: string | null | undefined, tr: TFunction): {
   message: string;
   ctaLabel: string;
 } {
@@ -78,30 +80,30 @@ function bannerCopy(t: Trigger, planKey: string | null | undefined): {
   // invoice" reminds them they'll be charged for overages (no upsell —
   // they're already on the top self-serve tier).
   const upgradeCta = planKey === "pro"
-    ? { label: "See upcoming invoice", path: "/settings" }
-    : { label: "Upgrade to Pro",       path: "/pricing" };
+    ? { label: tr("panels.usage.seeInvoice"), path: "/settings" }
+    : { label: tr("panels.usage.upgradePro"), path: "/pricing" };
 
   if (t.kind === "docs") {
     const remaining = t.cap - t.used;
     if (remaining <= 0) {
       return {
-        message: `You've used all ${t.cap} documents this month.`,
+        message: tr("panels.usage.docsAll", { cap: t.cap }),
         ctaLabel: upgradeCta.label,
       };
     }
     return {
-      message: `You've used ${t.used} of ${t.cap} documents this month.`,
+      message: tr("panels.usage.docsSome", { used: t.used, cap: t.cap }),
       ctaLabel: upgradeCta.label,
     };
   }
   if (t.kind === "chat_day") {
     return {
-      message: `You've used ${t.used} of ${t.cap} Ask CFO AI messages today.`,
+      message: tr("panels.usage.chatDay", { used: t.used, cap: t.cap }),
       ctaLabel: upgradeCta.label,
     };
   }
   return {
-    message: `You've used ${t.used} of ${t.cap} Ask CFO AI messages this month.`,
+    message: tr("panels.usage.chatMonth", { used: t.used, cap: t.cap }),
     ctaLabel: upgradeCta.label,
   };
 }
@@ -111,6 +113,7 @@ function ctaPath(planKey: string | null | undefined): string {
 }
 
 export function UsageWarningBanner() {
+  const { t: tr } = useTranslation();
   const { state, loading } = usePlanState();
   const navigate = useNavigate();
   const [dismissed, setDismissed] = useState<boolean>(() => {
@@ -126,7 +129,7 @@ export function UsageWarningBanner() {
 
   if (!trigger || dismissed) return null;
 
-  const { message, ctaLabel } = bannerCopy(trigger, state?.plan_key ?? null);
+  const { message, ctaLabel } = bannerCopy(trigger, state?.plan_key ?? null, tr);
   const path = ctaPath(state?.plan_key ?? null);
 
   const handleDismiss = () => {
@@ -140,7 +143,7 @@ export function UsageWarningBanner() {
       data-testid="usage-warning-banner"
       data-trigger={trigger.kind}
       className="
-        sticky top-16 z-30
+        sticky top-14 z-30
         mx-4 sm:mx-8 lg:mx-10 mb-4
         rounded-xl border border-[#8FE3D9]/70 bg-[#E6F7F4] dark:bg-[#1B7268]/30 dark:border-[#1B7268]/50
         px-4 py-2.5
@@ -172,7 +175,7 @@ export function UsageWarningBanner() {
       <button
         type="button"
         onClick={handleDismiss}
-        aria-label="Dismiss"
+        aria-label={tr("productsX.inflight.dismiss")}
         data-testid="usage-warning-banner-dismiss"
         className="text-[#2AA89B]/70 hover:text-[#1B7268] dark:text-[#8FE3D9]/70 dark:hover:text-[#E6F7F4] shrink-0"
       >

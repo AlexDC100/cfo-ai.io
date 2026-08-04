@@ -17,6 +17,7 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChatMessage } from "./types";
 
 interface Props {
@@ -41,10 +42,11 @@ export function CFOMessageBubble({ message, animate = false, onType }: Props) {
 
 // ─── Interrupted marker ──────────────────────────────────────────
 function InterruptedMarker() {
+  const { t } = useTranslation();
   return (
     <motion.div className="mb-6 max-w-[1000px]" data-role="assistant" data-testid="chat-interrupted">
       <div className="text-[13.5px] leading-[1.65] italic text-ink-mute select-none">
-        Interrupted
+        {t("chatX.interrupted")}
       </div>
     </motion.div>
   );

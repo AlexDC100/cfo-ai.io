@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import {
   AUTO_DETECT_FLAG_KEY,
+  LANGUAGE_CHANGED_EVENT,
   LANGUAGE_STORAGE_KEY,
   SUPPORTED_LANGUAGE_CODES,
   isSupportedLanguage,
@@ -41,8 +42,18 @@ function useLocalStorageLang(): SupportedLanguageCode | null {
     function onStorage(e: StorageEvent) {
       if (e.key === LANGUAGE_STORAGE_KEY) setValue(readStored());
     }
+    // Same-tab writes don't fire `storage` — setLanguage() dispatches this
+    // custom event so the picker's own tab re-resolves immediately instead
+    // of depending on the (async, failable) profile mirror.
+    function onLocalChange() {
+      setValue(readStored());
+    }
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener(LANGUAGE_CHANGED_EVENT, onLocalChange);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(LANGUAGE_CHANGED_EVENT, onLocalChange);
+    };
   }, []);
 
   return value;

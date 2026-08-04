@@ -39,3 +39,4 @@ test-results*/
 test-results/
 test-results*/
 .DS_Store
+e2e/artifacts/

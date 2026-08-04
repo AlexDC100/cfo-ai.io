@@ -11,6 +11,7 @@
 // work on every route, so it reads the persisted org-scoped rows instead.
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Bell, Loader2 } from "lucide-react";
 
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { fetchAlerts, type AlertRow, type AlertSeverity } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { activeLocale } from "@/lib/locale";
 
 /** Chip colours per severity — mirrors the ladder used elsewhere in the
  *  app (critical/high read as alert, medium as caution, low/info muted). */
@@ -41,10 +43,11 @@ const BADGED: AlertSeverity[] = ["critical", "high", "medium"];
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return d.toLocaleString(activeLocale(), { dateStyle: "medium", timeStyle: "short" });
 }
 
 export function NotificationsMenu() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,8 +76,8 @@ export function NotificationsMenu() {
         data-testid="notifications-button"
         aria-label={
           badgeCount > 0
-            ? `Notifications — ${badgeCount} needing attention`
-            : "Notifications"
+            ? t("panels.notificationsAttentionAria", { count: badgeCount })
+            : t("topbar.notifications")
         }
         className="relative inline-flex items-center justify-center h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors"
       >
@@ -92,9 +95,9 @@ export function NotificationsMenu() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[560px]" data-testid="notifications-dialog">
           <DialogHeader>
-            <DialogTitle>Notifications</DialogTitle>
+            <DialogTitle>{t("topbar.notifications")}</DialogTitle>
             <DialogDescription>
-              Open alerts for this workspace, newest first.
+              {t("panels.notificationsDesc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -104,13 +107,13 @@ export function NotificationsMenu() {
             {loading ? (
               <div className="py-10 flex items-center justify-center gap-2 text-[13px] text-ink-soft">
                 <Loader2 size={14} className="animate-spin" />
-                Loading…
+                {t("common.loading")}
               </div>
             ) : alerts.length === 0 ? (
               <div className="py-10 text-center">
-                <p className="text-[13px] text-ink">You're all caught up.</p>
+                <p className="text-[13px] text-ink">{t("panels.notificationsEmpty")}</p>
                 <p className="mt-1 text-[12px] text-ink-mute">
-                  Alerts appear here once a period has been analysed.
+                  {t("panels.notificationsEmptyHint")}
                 </p>
               </div>
             ) : (
