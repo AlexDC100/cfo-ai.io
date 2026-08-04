@@ -1006,7 +1006,7 @@ export default function FinancialStatements() {
 
   // Stage one file (budget decks route straight to Variance; oversize is
   // rejected). Does NOT upload — that happens on Start scan via scanOneFile.
-  async function onFileChosen(file: File) {
+  async function onFileChosen(file: File): Promise<boolean> {
     // F6.0.1c — Budget-deck interception. A PowerPoint / budget workbook is
     // NOT a trial balance and must not go to the engine extraction pipeline.
     // Parse it client-side into the Budget vs Actual store and route there.
@@ -1028,7 +1028,7 @@ export default function FinancialStatements() {
           variant: "destructive",
         });
       }
-      return;
+      return false;
     }
 
     const MAX_BYTES = 25 * 1024 * 1024;
@@ -1038,7 +1038,7 @@ export default function FinancialStatements() {
         description: t("dash.fileTooLargeBody", { size: (file.size / 1_000_000).toFixed(1) }),
         variant: "destructive",
       });
-      return;
+      return false;
     }
     // Stage the file — do NOT upload yet. The scan starts only when the user
     // clicks "Start scan".
@@ -1049,6 +1049,7 @@ export default function FinancialStatements() {
     // it) so this is a single-element invariant, not a refactor of every
     // consumer.
     setStagedFiles([file]);
+    return true;
   }
 
   function discardStagedFile(index: number) {
@@ -1171,9 +1172,10 @@ export default function FinancialStatements() {
   // Start scan → first confirm each file's period-end date (auto-detected from
   // the filename, editable) via the dialog, THEN run the batch with the chosen
   // dates. periodConfirm holds the files awaiting confirmation.
-  function startScan() {
-    if (scanning || stagedFiles.length === 0) return;
-    setPeriodConfirm([...stagedFiles]);
+  function startScan(filesOverride?: File[]) {
+    const batch = filesOverride ?? stagedFiles;
+    if (scanning || batch.length === 0) return;
+    setPeriodConfirm([...batch]);
   }
 
   // Scan every staged file sequentially; the last one navigates into its
@@ -1415,11 +1417,15 @@ export default function FinancialStatements() {
             <DashboardSourceFiles
               periodId={remotePeriod.id ?? searchParams.get("period")}
               onAddFile={(f) => {
-                // Stage it, then open the add-month flow so the file is
-                // visible with Start scan (and the period-confirm step still
-                // runs). This is what the removed "Add month" pill opened.
-                void onFileChosen(f);
-                setAddMonthOpen(true);
+                // REPLACE semantics (2026-08-04 fix): stage and open the
+                // period-confirm immediately for THIS month — one dialog,
+                // one decision. The old wiring opened the "Add another
+                // month" dialog, which read as being dumped on an upload
+                // page instead of replacing the file.
+                void (async () => {
+                  const staged = await onFileChosen(f);
+                  if (staged) startScan([f]);
+                })();
               }}
             />
             {/* Loaded-month header — compact (2026 redesign). The official-
