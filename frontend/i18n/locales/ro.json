@@ -1569,7 +1569,9 @@
     "tbRoutedTitle": "Balanță de verificare detectată",
     "tbRoutedDesc": "{{filename}} este o balanță de verificare — o trimitem către Tabloul de bord, unde rulează analiza financiară.",
     "badDate": "Verifică data",
-    "activeFile": "Activ"
+    "activeFile": "Activ",
+    "openInDashboard": "Deschide în Tabloul de bord",
+    "previewFile": "Previzualizează fișierul"
   },
   "chatX": {
     "disclosure": "CFO AI poate răspunde și la întrebări generale — răspunsurile care nu provin din datele workspace-ului tău pot să nu fie actuale sau verificate. Verifică detaliile fiscale/de reglementare înainte să acționezi.",

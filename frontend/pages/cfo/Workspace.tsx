@@ -36,6 +36,7 @@ import {
   Sparkles,
   Trash2,
   UploadCloud,
+  Eye,
 } from "lucide-react";
 import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
 import { getSupabase } from "@/lib/supabase";
@@ -862,7 +863,15 @@ function MonthsSection({
   const [fileDeleteTarget, setFileDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   // Which period the right-hand panel is showing. Local to this section —
   // it is NOT the app's active period.
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+  // Seed from `?period=` so the Dashboard's "Gestionează fișierele" link
+  // lands with the right month already open (2026-08-04 source-line fix).
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("period");
+    } catch {
+      return null;
+    }
+  });
   // `?period=` is the app-wide selection, which the sidebar's month label
   // reads. Deleting the period it points at has to move it (2026-07-26 per
   // operator) — otherwise the URL keeps naming a period that no longer
@@ -1175,6 +1184,19 @@ function MonthsSection({
                   data-testid={`workspace-file-${d.id}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    // Analyzed statements doc → open the DASHBOARD on this
+                    // month (2026-08-04 per operator: clicking a file used to
+                    // open a raw spreadsheet preview, which read as being sent
+                    // to the balanță instead of the analysis). SKU docs go to
+                    // Products; not-yet-analyzed docs keep the preview.
+                    if (d.status === "analyzed" && selected?.period_id) {
+                      navigate(
+                        d.scope === "sku"
+                          ? `/products?period=${encodeURIComponent(selected.period_id)}`
+                          : `/dashboard?period=${encodeURIComponent(selected.period_id)}`,
+                      );
+                      return;
+                    }
                     void openUploadedFilePreview(d.filename ?? t("ws.documentFallback"), async () => {
                       const sb = getSupabase();
                       if (!sb) return null;
@@ -1187,7 +1209,8 @@ function MonthsSection({
                       return data ? signedDocumentUrl(data as never) : null;
                     });
                   }}
-                  className="w-full flex items-center gap-2.5 text-left rounded-lg border border-transparent bg-transparent pl-2.5 pr-12 py-2 transition-colors group-hover:border-rule-strong group-hover:bg-bg-2/70"
+                  title={d.status === "analyzed" ? t("ws.openInDashboard") : undefined}
+                  className="w-full flex items-center gap-2.5 text-left rounded-lg border border-transparent bg-transparent pl-2.5 pr-20 py-2 transition-colors group-hover:border-rule-strong group-hover:bg-bg-2/70"
                 >
                   <FileSpreadsheet size={20} strokeWidth={1.5} className="shrink-0 text-ink-mute" />
                   <span className="min-w-0 flex-1">
@@ -1216,6 +1239,29 @@ function MonthsSection({
                       {d.status === "failed" ? t("ws.statusFailed") : t("ws.statusAnalyzing")}
                     </span>
                   )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void openUploadedFilePreview(d.filename ?? t("ws.documentFallback"), async () => {
+                      const sb = getSupabase();
+                      if (!sb) return null;
+                      const { signedDocumentUrl } = await import("@/lib/supabase");
+                      const { data } = await sb
+                        .from("documents")
+                        .select("*")
+                        .eq("id", d.id)
+                        .single();
+                      return data ? signedDocumentUrl(data as never) : null;
+                    });
+                  }}
+                  data-testid={`workspace-file-preview-${d.id}`}
+                  aria-label={t("ws.previewFile")}
+                  title={t("ws.previewFile")}
+                  className="absolute top-1/2 -translate-y-1/2 right-12 grid place-items-center h-9 w-9 rounded-lg text-ink-mute opacity-0 transition-opacity hover:text-ink hover:bg-bg-2 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <Eye size={16} strokeWidth={1.75} />
                 </button>
                 <button
                   type="button"
