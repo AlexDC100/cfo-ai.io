@@ -20,9 +20,9 @@
 //   • Excel workbook (downloadExcelReport) — 8-sheet xlsx model
 
 import { useMemo, useState, useRef, useCallback, useEffect, type ReactNode } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AddFileTile, SourceFilesRow } from "@/components/cfo/SourceFilesRow";
+// SourceFilesRow/AddFileTile no longer used here (2026-08-04 source-line fix) — Products still uses them.
 import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
@@ -30,6 +30,8 @@ import { useTranslation } from "react-i18next";
 // Module-level i18n handle — for the few strings rendered outside React
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
+import { formatDateTime } from "@/lib/locale";
+import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { Money } from "@/components/ui/Money";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
@@ -2338,6 +2340,23 @@ function PeriodConfirmDialog({
       ? activePeriodEnd.slice(0, 7)
       : null;
 
+  // Duplicate-name guard (2026-08-04 source-line fix): staging a file whose
+  // name matches a document already in this period gets an inline note that
+  // scanning will REPLACE it in the analysis. Same cache entry as the
+  // source-credit line — no extra fetch when it's already warm.
+  const { data: existingDocs } = useQuery({
+    queryKey: ["period-documents", activePeriodId ?? null, "financial"],
+    queryFn: async () => {
+      if (!activePeriodId) return [];
+      const { listDocumentsForPeriod } = await import("@/lib/supabase");
+      return listDocumentsForPeriod(activePeriodId, 50, "financial");
+    },
+    enabled: !!activePeriodId,
+  });
+  const hasDuplicateName = files.some((f) =>
+    (existingDocs ?? []).some((d) => d.original_filename === f.name),
+  );
+
   // What the FILE says, per file ("YYYY-MM"). Seeded synchronously from the
   // filename so the dialog opens with a value; upgraded from file CONTENT
   // once the async read resolves.
@@ -2460,6 +2479,15 @@ function PeriodConfirmDialog({
             </DialogHeader>
           );
         })()}
+
+        {hasDuplicateName && (
+          <p
+            data-testid="period-confirm-duplicate-note"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2 text-[12px] leading-snug text-amber-600 dark:text-amber-300"
+          >
+            {t("srcline.dupNote")}
+          </p>
+        )}
 
         <div className="space-y-3 max-h-[46vh] overflow-y-auto">
           {files.map((f) => {
@@ -3507,21 +3535,17 @@ function DashboardSourceFiles({
   trailing,
 }: {
   periodId: string | null;
-  /** Chosen/dropped trial balance. Unlike Products (which uploads on the
-   *  spot) the dashboard stages it and opens the add-month flow, so the
+  /** Chosen trial balance. Unlike Products (which uploads on the spot) the
+   *  dashboard stages it and opens the add-month flow, so the
    *  period-confirmation step still runs. */
   onAddFile: (file: File) => void;
-  /** Right-aligned content above the tiles. Empty today — the Guide me pill
-   *  that briefly lived here was removed (2026-07-26 per operator) — kept as
-   *  the slot Products uses for the same row. */
+  /** Right-aligned content above the line — kept for API compatibility. */
   trailing?: ReactNode;
 }) {
   const { t } = useTranslation();
-  // FINANCIAL scope only (2026-07-26). A SKU workbook uploaded on Products
-  // pins to the same month, so an unfiltered list showed it here among the
-  // files backing the trial-balance numbers — which it doesn't back at all.
-  // The scope is part of the query key: the two lists must not share a cache
-  // entry.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // FINANCIAL scope only (2026-07-26) — a SKU workbook pinned to the same
+  // month does not back these numbers. Scope is part of the query key.
   const { data: docs } = useQuery({
     queryKey: ["period-documents", periodId, "financial"],
     queryFn: async () => {
@@ -3532,42 +3556,78 @@ function DashboardSourceFiles({
     enabled: !!periodId,
   });
 
+  // ONE honest source line (2026-08-04 per operator): the old multi-tile
+  // strip duplicated the Workspace hub's file management and implied a
+  // choice it couldn't make (clicking a tile only previewed it). The
+  // dashboard now credits exactly the document that BACKS the current
+  // analysis — the most recently analyzed financial doc of this period —
+  // with Replace + a link to the Workspace for real file management.
+  const activeDoc = useMemo(() => pickActiveSourceDoc(docs), [docs]);
+
   return (
-    <div className="mb-5 space-y-3">
+    <div className="mb-5 space-y-2" data-testid="dashboard-source-files">
       {trailing && (
         <div className="flex items-center justify-end" data-testid="dashboard-row-actions">
           {trailing}
         </div>
       )}
-      <SourceFilesRow
-        testid="dashboard-source-files"
-        files={(docs ?? []).map((d) => ({
-          id: d.id,
-          filename: d.original_filename,
-          uploadedAt: d.created_at,
-          onOpen: () =>
-            void openUploadedFilePreview(d.original_filename ?? t("dash.documentFallback"), async () => {
-              const { signedDocumentUrl } = await import("@/lib/supabase");
-              return signedDocumentUrl(d);
-            }),
-        }))}
-        trailingHeading={t("dash.replaceOrAdd")}
-        trailing={
-          // 2026 redesign — the add-file affordance is now the SUBTLE dashed
-          // tile (same footprint as a file card, highlights only on
-          // drag-over) instead of the dominant wide dropzone hero. Same
-          // component, same behavior, same testids (source-files-add +
-          // source-files-add-input); only `variant` changed.
-          <AddFileTile
-            accept={DASHBOARD_UPLOAD_ACCEPT}
-            onFile={onAddFile}
-            variant="tile"
-            label={t("dashV2.addFileTileLabel")}
-            hint={t("dash.dropHint")}
-            title={t("dash.addTbTitle")}
-          />
-        }
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={DASHBOARD_UPLOAD_ACCEPT}
+        className="hidden"
+        data-testid="source-files-add-input"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onAddFile(f);
+          e.target.value = "";
+        }}
       />
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] text-ink-mute">
+        <span className="font-mono text-[10.5px] uppercase tracking-[0.12em]">{t("srcline.source")}</span>
+        {activeDoc ? (
+          <button
+            type="button"
+            data-testid="source-file"
+            title={activeDoc.original_filename}
+            onClick={() =>
+              void openUploadedFilePreview(activeDoc.original_filename ?? t("dash.documentFallback"), async () => {
+                const { signedDocumentUrl } = await import("@/lib/supabase");
+                return signedDocumentUrl(activeDoc);
+              })
+            }
+            className="inline-flex items-center gap-1.5 max-w-[260px] sm:max-w-[380px] text-ink-soft hover:text-ink transition-colors duration-150"
+          >
+            <FileSpreadsheet size={13} strokeWidth={1.75} className="shrink-0 text-ink-mute" />
+            <span className="truncate font-medium">{activeDoc.original_filename}</span>
+          </button>
+        ) : (
+          <span className="text-ink-mute">{t("srcline.none")}</span>
+        )}
+        {activeDoc && (
+          <span className="tabular-nums">
+            · {t("srcline.uploaded", { date: formatDateTime(activeDoc.created_at, { dateStyle: "medium" }) })}
+          </span>
+        )}
+        <span aria-hidden className="hidden sm:inline">·</span>
+        <button
+          type="button"
+          data-testid="source-files-add"
+          onClick={() => fileInputRef.current?.click()}
+          className="inline-flex items-center min-h-[44px] sm:min-h-0 text-brand-d hover:text-brand font-medium transition-colors duration-150"
+        >
+          {activeDoc ? t("srcline.replace") : t("srcline.add")}
+        </button>
+        <span aria-hidden className="hidden sm:inline">·</span>
+        <Link
+          to={periodId ? `/workspace?period=${encodeURIComponent(periodId)}` : "/workspace"}
+          data-testid="source-files-manage"
+          className="inline-flex items-center min-h-[44px] sm:min-h-0 gap-1 text-ink-soft hover:text-ink font-medium transition-colors duration-150"
+        >
+          {t("srcline.manage")}
+          <ChevronRight size={12} strokeWidth={2} />
+        </Link>
+      </div>
     </div>
   );
 }

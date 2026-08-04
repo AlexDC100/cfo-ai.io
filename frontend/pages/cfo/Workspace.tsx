@@ -70,6 +70,7 @@ import {
 import { forgetPeriodVerdictFor } from "@/lib/dataPresence";
 import { uploadExcelToBackend } from "@/lib/api";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { setActiveRun, setAnalysis, setUploadAlerts } from "@/lib/runStore";
 import {
   readDecisionRules,
@@ -1053,6 +1054,13 @@ function MonthsSection({
   // re-scope the dashboard.
   const selected = periods.find((p) => p.period_id === selectedPeriodId) ?? periods[0] ?? null;
   const selectedDocs = selected?.documents ?? [];
+  // The document BACKING the dashboard's analysis for this month — the most
+  // recently analyzed non-SKU doc. Badged "Activ" below so duplicates with
+  // identical filenames are finally distinguishable (2026-08-04 source-line
+  // fix; mirrors the Dashboard's source-credit logic).
+  const activeDocPick = pickActiveSourceDoc(selectedDocs);
+  // Badge only a genuinely ANALYZED doc — a pending upload backs nothing yet.
+  const activeDocId = activeDocPick?.status === "analyzed" ? activeDocPick.id : null;
 
   const pills = (
     <div className="flex flex-col lg:flex-row gap-4 items-start">
@@ -1193,6 +1201,14 @@ function MonthsSection({
                     </span>
                     <span className="block text-[11.5px] font-medium text-ink break-words leading-snug">
                       {d.filename ?? t("ws.untitledFile")}
+                      {d.id === activeDocId && (
+                        <span
+                          data-testid={`workspace-file-active-${d.id}`}
+                          className="ml-1.5 inline-flex items-center rounded-full bg-brand/15 text-brand-d px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.08em] align-middle"
+                        >
+                          {t("ws.activeFile")}
+                        </span>
+                      )}
                     </span>
                   </span>
                   {d.status && d.status !== "analyzed" && (

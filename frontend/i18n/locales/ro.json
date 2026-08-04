@@ -1568,7 +1568,8 @@
     "discardAndLeave": "Renunță și pleacă",
     "tbRoutedTitle": "Balanță de verificare detectată",
     "tbRoutedDesc": "{{filename}} este o balanță de verificare — o trimitem către Tabloul de bord, unde rulează analiza financiară.",
-    "badDate": "Verifică data"
+    "badDate": "Verifică data",
+    "activeFile": "Activ"
   },
   "chatX": {
     "disclosure": "CFO AI poate răspunde și la întrebări generale — răspunsurile care nu provin din datele workspace-ului tău pot să nu fie actuale sau verificate. Verifică detaliile fiscale/de reglementare înainte să acționezi.",
@@ -2479,5 +2480,14 @@
       "dupTitle": "Declanșată de {{count}}× în această perioadă. Id-urile rândurilor sursă: {{ids}}",
       "dupAria": "Această alertă a fost emisă de {{count}} ori în această perioadă — comprimată."
     }
+  },
+  "srcline": {
+    "source": "Sursă",
+    "none": "Niciun fișier sursă încă",
+    "uploaded": "încărcat {{date}}",
+    "replace": "Înlocuiește",
+    "add": "Adaugă o balanță de verificare",
+    "manage": "Gestionează fișierele",
+    "dupNote": "Un fișier cu același nume există deja pentru această lună — scanarea îl va înlocui în analiză."
   }
 }

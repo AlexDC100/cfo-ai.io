@@ -1556,7 +1556,8 @@
     "discardAndLeave": "Discard & leave",
     "tbRoutedTitle": "Trial balance detected",
     "tbRoutedDesc": "{{filename}} is a balanță de verificare — sending it to the Dashboard, where the financial analysis runs.",
-    "badDate": "Check date"
+    "badDate": "Check date",
+    "activeFile": "Active"
   },
   "chatX": {
     "disclosure": "CFO AI can answer general questions too — answers not drawn from your workspace data may not be current or verified. Confirm regulatory/tax specifics before acting.",
@@ -2454,5 +2455,14 @@
       "dupTitle": "Fired {{count}}× this period. Source row ids: {{ids}}",
       "dupAria": "This alert was emitted {{count}} times in this period — collapsed."
     }
+  },
+  "srcline": {
+    "source": "Source",
+    "none": "No source file yet",
+    "uploaded": "uploaded {{date}}",
+    "replace": "Replace",
+    "add": "Add a trial balance",
+    "manage": "Manage files",
+    "dupNote": "A file with this name already exists for this month — scanning will replace it in the analysis."
   }
 }
