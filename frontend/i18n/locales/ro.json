@@ -1414,7 +1414,8 @@
     "loadingPreview": "Se încarcă previzualizarea…",
     "previewSheetCaption": "{{file}} · foaia „{{sheet}}” (exemplu — date fictive)",
     "previewLoadFailed": "Previzualizarea nu a putut fi încărcată: {{msg}}.",
-    "downloadInstead": "Descărcați în schimb"
+    "downloadInstead": "Descărcați în schimb",
+    "narrativeUnavailable": "Briefingul AI este momentan indisponibil — cifrele analizei de mai jos nu sunt afectate. Se va regenera automat la următoarea scanare sau schimbare de monedă/limbă."
   },
   "tabs": {
     "pl": "Cont de profit și pierdere",

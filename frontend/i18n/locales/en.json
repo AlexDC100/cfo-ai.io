@@ -1406,7 +1406,8 @@
     "loadingPreview": "Loading preview…",
     "previewSheetCaption": "{{file}} · sheet \"{{sheet}}\" (example — fictional data)",
     "previewLoadFailed": "Couldn't load preview: {{msg}}.",
-    "downloadInstead": "Download instead"
+    "downloadInstead": "Download instead",
+    "narrativeUnavailable": "The AI briefing is temporarily unavailable — the analysis numbers below are unaffected. It will regenerate automatically on the next scan or currency/language switch."
   },
   "tabs": {
     "pl": "P&L",

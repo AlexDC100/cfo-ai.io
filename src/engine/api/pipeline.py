@@ -2567,7 +2567,17 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         )
     except Exception as e:  # noqa: BLE001
         logger.warning("Opus narrate failed: %s", e)
-        return {"briefing": f"Narrative unavailable: {e}", "recommendations": [], "alerts": []}
+        # NEVER surface the raw provider error as the briefing body — an
+        # Anthropic billing refusal ended up rendered verbatim on the
+        # operator's dashboard (2026-08-04). A sentinel the FE recognizes
+        # (and a neutral fallback for API consumers) replaces it; the raw
+        # error stays in the logs above.
+        return {
+            "briefing": "[NARRATIVE_UNAVAILABLE]",
+            "recommendations": [],
+            "alerts": [],
+            "narrate_error": str(e)[:200],
+        }
 
     text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
     if text.startswith("```"):

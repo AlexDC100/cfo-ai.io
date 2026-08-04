@@ -2644,6 +2644,15 @@ function PeriodConfirmDialog({
 // toggle changes. Server FX-converts briefing_facts before the LLM call,
 // LLM re-narrates in the new currency. Loading state shows the cached RON
 // briefing greyed out + a spinner so the user knows fresh prose is incoming.
+// A briefing body that is actually an ERROR (the engine's old behavior
+// persisted raw provider failures verbatim — "Narrative unavailable:
+// Error code: 400 … credit balance is too low…"). Never render these as
+// prose; show the localized fallback instead.
+function isUnusableNarrative(s: string | null | undefined): boolean {
+  if (!s) return true;
+  return /\[NARRATIVE_UNAVAILABLE\]|Narrative unavailable|invalid_request_error|credit balance|Error code: \d/i.test(s);
+}
+
 function CFOBriefingCard({
   periodId,
   baseBriefing,
@@ -2661,7 +2670,8 @@ function CFOBriefingCard({
 }) {
   const { t, i18n } = useTranslation();
   const display = useDisplayCurrency();
-  const [text, setText] = useState<string>(baseBriefing);
+  const baseUsable = !isUnusableNarrative(baseBriefing);
+  const [text, setText] = useState<string>(baseUsable ? baseBriefing : "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2678,10 +2688,10 @@ function CFOBriefingCard({
   // OR returns to RON (the canonical persisted briefing) in its own language.
   useEffect(() => {
     if (display === "RON" && !langMismatch) {
-      setText(baseBriefing);
+      setText(baseUsable ? baseBriefing : "");
       setError(null);
     }
-  }, [baseBriefing, display, langMismatch]);
+  }, [baseBriefing, baseUsable, display, langMismatch]);
 
   useEffect(() => {
     if (display === "RON" && !langMismatch) return;
@@ -2708,8 +2718,17 @@ function CFOBriefingCard({
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (!cancelled && typeof data.briefing === "string" && data.briefing.length > 0) {
+        if (
+          !cancelled &&
+          typeof data.briefing === "string" &&
+          data.briefing.length > 0 &&
+          !isUnusableNarrative(data.briefing)
+        ) {
           setText(data.briefing);
+        } else if (!cancelled && isUnusableNarrative(data.briefing)) {
+          // Regeneration failed upstream (e.g. provider billing). Keep
+          // whatever prose we already have; surface a friendly note.
+          setError(t("dash.narrativeUnavailable"));
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed");
