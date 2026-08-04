@@ -21,18 +21,54 @@
         "noIndustry": "No industry set yet — pick one so benchmarks match this company."
       },
       "industries": {
-        "real_estate": { "name": "Real estate · commercial property", "desc": "Office, retail, logistics — high leverage is normal, NOI-driven" },
-        "real_estate_residential": { "name": "Real estate · residential rental", "desc": "Apartments, build-to-rent — lower leverage, occupancy-sensitive" },
-        "saas": { "name": "B2B SaaS", "desc": "Recurring revenue, ARR/NRR-focused, rule of 40" },
-        "fmcg": { "name": "FMCG · food & beverage distribution", "desc": "High inventory turn, thin margins, working-capital heavy" },
-        "manufacturing": { "name": "Manufacturing · industrial", "desc": "Capex-intensive, long cycles, fixed-cost leverage" },
-        "retail_ecom": { "name": "Retail · e-commerce", "desc": "Inventory turn, AOV and repeat-rate driven" },
-        "professional_services": { "name": "Professional services", "desc": "Utilization, billable hours, low capex" },
-        "construction": { "name": "Construction", "desc": "Project-based, WIP-heavy, milestone billing" },
-        "healthcare": { "name": "Healthcare · clinics", "desc": "Regulated, payer-mix sensitive, high fixed cost" },
-        "logistics": { "name": "Logistics · transport", "desc": "Fleet capex, fuel-margin sensitive, route economics" },
-        "agriculture": { "name": "Agriculture", "desc": "Seasonal, weather-exposed, subsidy-aware" },
-        "other": { "name": "Other", "desc": "Generic SME thresholds — refine later" }
+        "real_estate": {
+          "name": "Real estate · commercial property",
+          "desc": "Office, retail, logistics — high leverage is normal, NOI-driven"
+        },
+        "real_estate_residential": {
+          "name": "Real estate · residential rental",
+          "desc": "Apartments, build-to-rent — lower leverage, occupancy-sensitive"
+        },
+        "saas": {
+          "name": "B2B SaaS",
+          "desc": "Recurring revenue, ARR/NRR-focused, rule of 40"
+        },
+        "fmcg": {
+          "name": "FMCG · food & beverage distribution",
+          "desc": "High inventory turn, thin margins, working-capital heavy"
+        },
+        "manufacturing": {
+          "name": "Manufacturing · industrial",
+          "desc": "Capex-intensive, long cycles, fixed-cost leverage"
+        },
+        "retail_ecom": {
+          "name": "Retail · e-commerce",
+          "desc": "Inventory turn, AOV and repeat-rate driven"
+        },
+        "professional_services": {
+          "name": "Professional services",
+          "desc": "Utilization, billable hours, low capex"
+        },
+        "construction": {
+          "name": "Construction",
+          "desc": "Project-based, WIP-heavy, milestone billing"
+        },
+        "healthcare": {
+          "name": "Healthcare · clinics",
+          "desc": "Regulated, payer-mix sensitive, high fixed cost"
+        },
+        "logistics": {
+          "name": "Logistics · transport",
+          "desc": "Fleet capex, fuel-margin sensitive, route economics"
+        },
+        "agriculture": {
+          "name": "Agriculture",
+          "desc": "Seasonal, weather-exposed, subsidy-aware"
+        },
+        "other": {
+          "name": "Other",
+          "desc": "Generic SME thresholds — refine later"
+        }
       },
       "periods": {
         "active": "Active",
@@ -42,7 +78,31 @@
         "collapse": "Hide duplicate periods",
         "attach": "Attach file",
         "menuAria": "Period actions",
-        "empty": "No periods yet — add the first month to get started."
+        "empty": "No periods yet — add the first month to get started.",
+        "help": "Each period is one month of this workspace. Open a month to see its analysis; attach its trial balance whenever you're ready.",
+        "needsAttention": "Needs attention",
+        "needsAttentionHint": "The date on these was misread during import — delete them or re-upload the file.",
+        "dupTitle": "{{month}} — {{count}} periods share this month",
+        "dupGuidance": "Keep the active one and delete the rest.",
+        "moreFiles": "+{{count}}",
+        "openAria": "Open the {{month}} analysis",
+        "noFile": "No file",
+        "noFiles": "No files",
+        "undo": "Undo",
+        "restored": "{{label}} is back.",
+        "setActive": "Set active",
+        "setActiveAria": "Set {{month}} as the active period",
+        "rename": "Change month",
+        "renameTitle": "Move {{month}} to another month",
+        "renameDesc": "Pick the month this period should live under. Its files and analysis move with it.",
+        "renamed": "Period moved to {{month}}.",
+        "cantRename": "Couldn't move the period.",
+        "mergeTitle": "{{month}} already exists",
+        "mergeBody": "This workspace already has {{month}}. Move this period's files into it and delete this leftover one?",
+        "mergeConfirm": "Merge into {{month}}",
+        "merged": "Files moved to {{month}}. The duplicate period was deleted.",
+        "emptyCta": "Add the first period",
+        "dropToAttach": "Drop to attach"
       },
       "addPeriod": {
         "range": "Pick a month between Jan 2000 and Dec {{year}}.",
@@ -69,11 +129,26 @@
         "marginPct": "Margin %"
       },
       "presets": {
-        "logical_default": { "label": "Logical default", "desc": "Volume × margin matrix with hard cuts for negative margin and excess DIO. Recommended starting point." },
-        "cash_protection": { "label": "Cash protection", "desc": "Aggressive on slow movers and negative-margin products. Use when working capital is tight." },
-        "growth_mode": { "label": "Growth mode", "desc": "Lenient thresholds. Keeps emerging products in Watch instead of Wind down. Use during expansion." },
-        "pure_profitability": { "label": "Pure profitability", "desc": "Volume is ignored. Decisions are based only on margin and financing cost." },
-        "working_capital_lens": { "label": "Working capital lens", "desc": "Optimized for cash-cycle decisions. Heavy weight on DIO and financing cost." }
+        "logical_default": {
+          "label": "Logical default",
+          "desc": "Volume × margin matrix with hard cuts for negative margin and excess DIO. Recommended starting point."
+        },
+        "cash_protection": {
+          "label": "Cash protection",
+          "desc": "Aggressive on slow movers and negative-margin products. Use when working capital is tight."
+        },
+        "growth_mode": {
+          "label": "Growth mode",
+          "desc": "Lenient thresholds. Keeps emerging products in Watch instead of Wind down. Use during expansion."
+        },
+        "pure_profitability": {
+          "label": "Pure profitability",
+          "desc": "Volume is ignored. Decisions are based only on margin and financing cost."
+        },
+        "working_capital_lens": {
+          "label": "Working capital lens",
+          "desc": "Optimized for cash-cycle decisions. Heavy weight on DIO and financing cost."
+        }
       },
       "financing": {
         "subtitle": "Used by the Adjusted GM% rule to price the working capital tied up in each product.",
@@ -111,18 +186,54 @@
         "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei."
       },
       "industries": {
-        "real_estate": { "name": "Imobiliare · proprietăți comerciale", "desc": "Birouri, retail, logistică — îndatorare ridicată e normală, condusă de NOI" },
-        "real_estate_residential": { "name": "Imobiliare · închirieri rezidențiale", "desc": "Apartamente, build-to-rent — îndatorare mai mică, sensibil la gradul de ocupare" },
-        "saas": { "name": "SaaS B2B", "desc": "Venituri recurente, orientat pe ARR/NRR, regula lui 40" },
-        "fmcg": { "name": "FMCG · distribuție alimente și băuturi", "desc": "Rotație mare a stocurilor, marje subțiri, capital de lucru intensiv" },
-        "manufacturing": { "name": "Producție · industrial", "desc": "Investiții mari în echipamente, cicluri lungi, efect de levier al costurilor fixe" },
-        "retail_ecom": { "name": "Retail · e-commerce", "desc": "Condus de rotația stocurilor, valoarea medie a comenzii și rata de recumpărare" },
-        "professional_services": { "name": "Servicii profesionale", "desc": "Grad de utilizare, ore facturabile, investiții reduse" },
-        "construction": { "name": "Construcții", "desc": "Bazat pe proiecte, producție în curs semnificativă, facturare pe etape" },
-        "healthcare": { "name": "Sănătate · clinici", "desc": "Reglementat, sensibil la mixul de plătitori, costuri fixe ridicate" },
-        "logistics": { "name": "Logistică · transport", "desc": "Investiții în flotă, sensibil la marja de combustibil, economia rutelor" },
-        "agriculture": { "name": "Agricultură", "desc": "Sezonier, expus la vreme, dependent de subvenții" },
-        "other": { "name": "Alt domeniu", "desc": "Praguri generice pentru IMM-uri — le rafinezi mai târziu" }
+        "real_estate": {
+          "name": "Imobiliare · proprietăți comerciale",
+          "desc": "Birouri, retail, logistică — îndatorare ridicată e normală, condusă de NOI"
+        },
+        "real_estate_residential": {
+          "name": "Imobiliare · închirieri rezidențiale",
+          "desc": "Apartamente, build-to-rent — îndatorare mai mică, sensibil la gradul de ocupare"
+        },
+        "saas": {
+          "name": "SaaS B2B",
+          "desc": "Venituri recurente, orientat pe ARR/NRR, regula lui 40"
+        },
+        "fmcg": {
+          "name": "FMCG · distribuție alimente și băuturi",
+          "desc": "Rotație mare a stocurilor, marje subțiri, capital de lucru intensiv"
+        },
+        "manufacturing": {
+          "name": "Producție · industrial",
+          "desc": "Investiții mari în echipamente, cicluri lungi, efect de levier al costurilor fixe"
+        },
+        "retail_ecom": {
+          "name": "Retail · e-commerce",
+          "desc": "Condus de rotația stocurilor, valoarea medie a comenzii și rata de recumpărare"
+        },
+        "professional_services": {
+          "name": "Servicii profesionale",
+          "desc": "Grad de utilizare, ore facturabile, investiții reduse"
+        },
+        "construction": {
+          "name": "Construcții",
+          "desc": "Bazat pe proiecte, producție în curs semnificativă, facturare pe etape"
+        },
+        "healthcare": {
+          "name": "Sănătate · clinici",
+          "desc": "Reglementat, sensibil la mixul de plătitori, costuri fixe ridicate"
+        },
+        "logistics": {
+          "name": "Logistică · transport",
+          "desc": "Investiții în flotă, sensibil la marja de combustibil, economia rutelor"
+        },
+        "agriculture": {
+          "name": "Agricultură",
+          "desc": "Sezonier, expus la vreme, dependent de subvenții"
+        },
+        "other": {
+          "name": "Alt domeniu",
+          "desc": "Praguri generice pentru IMM-uri — le rafinezi mai târziu"
+        }
       },
       "periods": {
         "active": "Activ",
@@ -132,7 +243,31 @@
         "collapse": "Ascunde perioadele duplicate",
         "attach": "Atașează fișier",
         "menuAria": "Acțiuni pentru perioadă",
-        "empty": "Nicio perioadă încă — adaugă prima lună pentru a începe."
+        "empty": "Nicio perioadă încă — adaugă prima lună pentru a începe.",
+        "help": "Fiecare perioadă este o lună a acestui spațiu de lucru. Deschide o lună pentru a-i vedea analiza; atașează balanța de verificare când ești gata.",
+        "needsAttention": "De verificat",
+        "needsAttentionHint": "Data acestora a fost citită greșit la import — șterge-le sau reîncarcă fișierul.",
+        "dupTitle": "{{month}} — {{count}} perioade au aceeași lună",
+        "dupGuidance": "Păstrează perioada activă și șterge-le pe celelalte.",
+        "moreFiles": "+{{count}}",
+        "openAria": "Deschide analiza pentru {{month}}",
+        "noFile": "Fără fișier",
+        "noFiles": "Fără fișiere",
+        "undo": "Anulează",
+        "restored": "{{label}} a revenit.",
+        "setActive": "Setează activ",
+        "setActiveAria": "Setează {{month}} ca perioadă activă",
+        "rename": "Schimbă luna",
+        "renameTitle": "Mută {{month}} în altă lună",
+        "renameDesc": "Alege luna sub care să stea această perioadă. Fișierele și analiza se mută odată cu ea.",
+        "renamed": "Perioada a fost mutată în {{month}}.",
+        "cantRename": "Nu am putut muta perioada.",
+        "mergeTitle": "{{month}} există deja",
+        "mergeBody": "Acest spațiu de lucru are deja {{month}}. Mutăm fișierele acestei perioade acolo și o ștergem pe aceasta?",
+        "mergeConfirm": "Unifică în {{month}}",
+        "merged": "Fișierele au fost mutate în {{month}}. Perioada duplicat a fost ștearsă.",
+        "emptyCta": "Adaugă prima perioadă",
+        "dropToAttach": "Lasă fișierul aici pentru a-l atașa"
       },
       "addPeriod": {
         "range": "Alege o lună între ian. 2000 și dec. {{year}}.",
@@ -159,11 +294,26 @@
         "marginPct": "Marjă %"
       },
       "presets": {
-        "logical_default": { "label": "Implicit recomandat", "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și DIO excesiv. Punct de plecare recomandat." },
-        "cash_protection": { "label": "Protejarea numerarului", "desc": "Agresiv cu produsele cu rotație lentă și marjă negativă. Folosește-l când capitalul de lucru e limitat." },
-        "growth_mode": { "label": "Mod de creștere", "desc": "Praguri permisive. Păstrează produsele emergente în Monitorizează în loc de Redu expunerea. Pentru perioade de expansiune." },
-        "pure_profitability": { "label": "Profitabilitate pură", "desc": "Volumul este ignorat. Deciziile se bazează doar pe marjă și pe costul finanțării." },
-        "working_capital_lens": { "label": "Perspectiva capitalului de lucru", "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe DIO și pe costul finanțării." }
+        "logical_default": {
+          "label": "Implicit recomandat",
+          "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și DIO excesiv. Punct de plecare recomandat."
+        },
+        "cash_protection": {
+          "label": "Protejarea numerarului",
+          "desc": "Agresiv cu produsele cu rotație lentă și marjă negativă. Folosește-l când capitalul de lucru e limitat."
+        },
+        "growth_mode": {
+          "label": "Mod de creștere",
+          "desc": "Praguri permisive. Păstrează produsele emergente în Monitorizează în loc de Redu expunerea. Pentru perioade de expansiune."
+        },
+        "pure_profitability": {
+          "label": "Profitabilitate pură",
+          "desc": "Volumul este ignorat. Deciziile se bazează doar pe marjă și pe costul finanțării."
+        },
+        "working_capital_lens": {
+          "label": "Perspectiva capitalului de lucru",
+          "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe DIO și pe costul finanțării."
+        }
       },
       "financing": {
         "subtitle": "Folosite de regula GM% ajustat pentru a evalua costul capitalului de lucru blocat în fiecare produs.",
