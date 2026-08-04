@@ -11,6 +11,10 @@
 // per-period CAEN benchmark classification. This one is the coarse
 // org-profile bucket chosen by the user at setup.
 
+import { useTranslation } from "react-i18next";
+
+import i18n from "@/i18n";
+
 export interface OrgIndustry {
   key: string;
   label: string;
@@ -32,9 +36,26 @@ export const ORG_INDUSTRIES: OrgIndustry[] = [
   { key: "other", label: "Other", description: "Generic SME thresholds — refine later" },
 ];
 
-/** Display label for a stored industry_key; falls back to the raw key. */
+/**
+ * CANONICAL (English) label for a stored industry_key; falls back to the raw
+ * key. This is what gets PERSISTED as `organizations.industry_display_name` —
+ * keep it language-independent so the stored value doesn't flip with whoever
+ * happened to be looking at the screen. For anything rendered to the user,
+ * use `orgIndustryDisplayLabel` instead.
+ */
 export function orgIndustryLabel(key: string): string {
   return ORG_INDUSTRIES.find((i) => i.key === key)?.label ?? key;
+}
+
+/**
+ * Localized label for DISPLAY, following the active UI language. Reuses the
+ * `wsSet.industries.*` catalog (merged into both locale files), which covers
+ * the same 12 keys — falling back to the canonical English label.
+ */
+export function orgIndustryDisplayLabel(key: string): string {
+  return i18n.t(`wsSet.industries.${key}.name`, {
+    defaultValue: orgIndustryLabel(key),
+  });
 }
 
 export function OrgIndustryPills({
@@ -44,8 +65,9 @@ export function OrgIndustryPills({
   value: string | null;
   onChange: (key: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <div className="grid sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Industry">
+    <div className="grid sm:grid-cols-2 gap-2" role="radiogroup" aria-label={t("onboarding.industry", { defaultValue: "Industry" })}>
       {ORG_INDUSTRIES.map((i) => {
         const active = value === i.key;
         return (
@@ -86,9 +108,11 @@ export function OrgIndustryPills({
                 className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
               />
             )}
-            <div className="text-[13px] font-medium pr-6">{i.label}</div>
+            <div className="text-[13px] font-medium pr-6">
+              {t(`wsSet.industries.${i.key}.name`, { defaultValue: i.label })}
+            </div>
             <div className="text-[11.5px] text-ink-soft mt-0.5 leading-snug">
-              {i.description}
+              {t(`wsSet.industries.${i.key}.desc`, { defaultValue: i.description })}
             </div>
           </button>
         );

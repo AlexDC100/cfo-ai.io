@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/dialog";
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
 import { WorkspaceSettingsV2 } from "@/components/cfo/workspace/WorkspaceSettingsV2";
-import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
+import { OrgIndustryPills, orgIndustryDisplayLabel, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { toast } from "@/components/ui/sonner";
 import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
 import {
@@ -1160,7 +1160,7 @@ function WorkspaceHub({
                   {/* Firm / industry — shown on every card (fallback when the
                       setup wizard hasn't set one yet). */}
                   <div className="mt-0.5 text-[12px] text-ink-mute">
-                    {w.industryKey ? orgIndustryLabel(w.industryKey) : t("ws.noIndustrySet")}
+                    {w.industryKey ? orgIndustryDisplayLabel(w.industryKey) : t("ws.noIndustrySet")}
                   </div>
                   {/* Month pills — the periods this workspace holds (carry the
                       "no months" state too, so the old "No data loaded yet"
