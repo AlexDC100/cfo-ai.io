@@ -1808,20 +1808,53 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
     .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
   return (
     <div className="mt-2 flex flex-wrap gap-1.5" data-testid="workspace-card-months">
-      {periods.length === 0 ? (
-        <span className="inline-flex items-center h-6 px-2 rounded-full border border-dashed border-rule text-[11px] font-medium text-ink-mute">
-          {t("ws.noPeriods")}
-        </span>
-      ) : (
-        periods.map((p) => (
-          <span
-            key={p.period_id}
-            className="inline-flex items-center h-6 px-2 rounded-full border border-rule bg-surface/60 text-[11px] font-medium text-ink-soft tabular-nums"
-          >
-            {formatPeriodMonth(p.period_end) ?? formatPeriodMonthLoose(p.period_end) ?? p.period_label}
-          </span>
-        ))
-      )}
+      {(() => {
+        // A card is a GLANCE, not an inventory (2026-08-04 per operator —
+        // their card read "Mar 5309, Dec 2050, Aug 2026, …, Dec 2025 ×3,
+        // Dec 2021"): show the newest months only, one chip per month,
+        // corrupt dates excluded, capped at three + a "+N" tail. The full,
+        // honest list (with duplicate/bad-date chips) lives in Settings →
+        // Perioade.
+        const seen = new Set<string>();
+        const clean = periods
+          .filter((p) => !isImplausiblePeriod(p.period_end))
+          .map((p) => ({ p, label: formatPeriodMonth(p.period_end) ?? p.period_label }))
+          .filter(({ label }) => {
+            if (!label || seen.has(label)) return false;
+            seen.add(label);
+            return true;
+          })
+          .sort((a, b) => (b.p.period_end ?? "").localeCompare(a.p.period_end ?? ""));
+        const hiddenCount = periods.length - clean.slice(0, 3).length;
+        if (clean.length === 0) {
+          return (
+            <span className="inline-flex items-center h-6 px-2 rounded-full border border-dashed border-rule text-[11px] font-medium text-ink-mute">
+              {t("ws.noPeriods")}
+            </span>
+          );
+        }
+        return (
+          <>
+            {clean.slice(0, 3).map(({ p, label }) => (
+              <span
+                key={p.period_id}
+                className="inline-flex items-center h-6 px-2 rounded-full border border-rule bg-surface/60 text-[11px] font-medium text-ink-soft tabular-nums"
+              >
+                {label}
+              </span>
+            ))}
+            {hiddenCount > 0 && (
+              <span
+                data-testid="workspace-card-months-more"
+                title={t("ws.morePeriodsTitle")}
+                className="inline-flex items-center h-6 px-2 rounded-full border border-rule/60 text-[11px] font-medium text-ink-mute tabular-nums"
+              >
+                +{hiddenCount}
+              </span>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }

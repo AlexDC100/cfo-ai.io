@@ -1571,7 +1571,8 @@
     "badDate": "Verifică data",
     "activeFile": "Activ",
     "openInDashboard": "Deschide în Tabloul de bord",
-    "previewFile": "Previzualizează fișierul"
+    "previewFile": "Previzualizează fișierul",
+    "morePeriodsTitle": "Toate lunile sunt în Setări → Perioade"
   },
   "chatX": {
     "disclosure": "CFO AI poate răspunde și la întrebări generale — răspunsurile care nu provin din datele workspace-ului tău pot să nu fie actuale sau verificate. Verifică detaliile fiscale/de reglementare înainte să acționezi.",

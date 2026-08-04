@@ -1559,7 +1559,8 @@
     "badDate": "Check date",
     "activeFile": "Active",
     "openInDashboard": "Open in Dashboard",
-    "previewFile": "Preview file"
+    "previewFile": "Preview file",
+    "morePeriodsTitle": "All months are in Settings → Periods"
   },
   "chatX": {
     "disclosure": "CFO AI can answer general questions too — answers not drawn from your workspace data may not be current or verified. Confirm regulatory/tax specifics before acting.",
