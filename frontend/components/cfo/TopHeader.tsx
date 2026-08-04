@@ -122,7 +122,9 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
 
         <div className="flex-1" />
 
-        {/* THE primary action — solid brand fill (was an outline pill). */}
+        {/* THE primary action — desktop only since the native-mobile pass:
+            the phone header is hamburger · logo · currency · avatar, nothing
+            else. Ask CFO AI stays one tap away in the nav sheet + sidebar. */}
         {signedIn && (
           <button
             type="button"
@@ -130,25 +132,31 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
             data-testid="topheader-ask-cfo-ai"
             aria-label={t("topbar.askCfoAi")}
             className="
-              inline-flex items-center justify-center gap-1.5
-              h-11 sm:h-9 min-w-[44px] sm:min-w-0 px-3 sm:px-4 rounded-full
+              hidden sm:inline-flex items-center justify-center gap-1.5
+              h-9 px-4 rounded-full
               bg-brand text-paper text-[12.5px] font-semibold
-              hover:bg-brand-d
+              hover:bg-brand-d active:scale-[0.98]
               shadow-[0_6px_16px_-8px_rgba(92,211,197,0.7)]
-              transition-colors duration-150
+              transition-[background-color,transform] duration-150
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
             "
           >
             <Sparkles size={14} strokeWidth={2} />
-            <span className="hidden sm:inline">{t("topbar.askCfoAi")}</span>
+            <span>{t("topbar.askCfoAi")}</span>
           </button>
         )}
 
         {/* Compact currency dropdown — active code only. */}
         {signedIn && <CurrencyMenu />}
 
-        {/* Notifications bell. */}
-        {signedIn && <NotificationsMenu />}
+        {/* Notifications bell — desktop only (native-mobile pass: on
+            phones the bell lives inside the nav sheet; the header keeps
+            just currency + avatar on the right). */}
+        {signedIn && (
+          <div className="hidden sm:inline-flex">
+            <NotificationsMenu />
+          </div>
+        )}
 
         {/* Avatar — the account menu now also hosts the Learning-mode
             picker (moved out of the bar 2026-08-04). */}

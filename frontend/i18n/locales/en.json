@@ -2242,7 +2242,8 @@
       "classifyingPortfolio": "Classifying the portfolio…",
       "analyzingPerformance": "Analyzing portfolio performance…",
       "writingExecBriefing": "Writing your executive briefing…"
-    }
+    },
+    "stepOf": "Step {{current}} of {{total}}"
   },
   "budgetX": {
     "stepRead": "Read file",

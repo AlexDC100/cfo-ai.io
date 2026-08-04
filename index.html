@@ -48,6 +48,15 @@
     <!-- Theme — sets the browser chrome color when shared on mobile. -->
     <meta name="theme-color" content="#05070A" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#FAFAF7" media="(prefers-color-scheme: light)" />
+
+    <!-- PWA (native-mobile pass 2026-08-04) — saved-to-homescreen opens
+         fullscreen with the dark chrome and the real app icon. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CFO AI" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
   </head>
 
   <body>

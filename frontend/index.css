@@ -987,3 +987,82 @@
 @media (prefers-reduced-motion: reduce) {
   .app-loader-sweep { animation-duration: 2.4s; }
 }
+
+/* ── Scan-complete draw-in checkmark (native-mobile pass 2026-08-04) ──
+   Circle sweeps in first, then the check strokes through — transform/
+   opacity/stroke only, GPU-friendly. Dash lengths match the SVG paths in
+   ScanProgressView (r=23 circle ≈ 145; check path ≈ 34). */
+.scan-check-circle {
+  stroke: hsl(var(--brand));
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 145;
+  stroke-dashoffset: 145;
+  animation: scan-check-draw 0.5s ease-out 1.35s forwards;
+}
+.scan-check-mark {
+  stroke: hsl(var(--brand));
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 34;
+  stroke-dashoffset: 34;
+  animation: scan-check-draw 0.35s ease-out 1.8s forwards;
+}
+@keyframes scan-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-check-circle, .scan-check-mark { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ── Native-mobile pass (2026-08-04) ────────────────────────────────── */
+
+/* Nav sheet items stagger in — replays on every open because the Sheet
+   unmounts its content when closed. Transform/opacity only. */
+.drawer-stagger > * {
+  opacity: 0;
+  animation: drawer-item-in 0.28s ease-out forwards;
+}
+.drawer-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.drawer-stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.drawer-stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.drawer-stagger > *:nth-child(4) { animation-delay: 0.16s; }
+.drawer-stagger > *:nth-child(5) { animation-delay: 0.20s; }
+.drawer-stagger > *:nth-child(n+6) { animation-delay: 0.24s; }
+@keyframes drawer-item-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Route-content enter — a subtle 200ms fade/rise on every page mount so
+   navigation feels like a native screen push, not a repaint. Applied by
+   AppLayout around the <Outlet/> keyed by pathname. */
+.page-enter {
+  animation: page-enter 0.2s ease-out;
+}
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-stagger > *, .page-enter { animation: none; opacity: 1; }
+}
+
+/* iOS: 16px minimum input font kills the focus auto-zoom; momentum
+   scrolling on every scroll container. Mobile only — desktop keeps the
+   design-system sizes. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+* { -webkit-overflow-scrolling: touch; }
+
+/* Pressed feedback for every tappable element on touch devices — hover
+   states don't exist on phones; this is the universal active cue. */
+@media (hover: none) {
+  button:active, a:active, [role="button"]:active {
+    opacity: 0.82;
+    transition: opacity 80ms ease-out;
+  }
+}

@@ -331,7 +331,11 @@ export function AppShell({ children }: Props) {
       {/* Main content — offset for the fixed header + sidebar. When any
           slide-out is open on wide screens (≥1280px) the content shifts
           left by the panel's width so nothing is hidden. */}
-      <main className={`pt-14 ${sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}>
+      <main
+        className={`pt-14 ${sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}
+        // Notch devices: keep content clear of the home indicator.
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         {/* WS1 — sticky usage warning when caller is at 80%+ of any
             cap. Renders null when under threshold, off, dismissed, or
             no plan state. Stays at top of the main scroll region so it

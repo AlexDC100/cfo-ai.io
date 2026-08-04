@@ -2265,7 +2265,8 @@
       "classifyingPortfolio": "Se clasifică portofoliul…",
       "analyzingPerformance": "Se analizează performanța portofoliului…",
       "writingExecBriefing": "Se scrie briefingul executiv…"
-    }
+    },
+    "stepOf": "Pasul {{current}} din {{total}}"
   },
   "budgetX": {
     "stepRead": "Citește fișierul",

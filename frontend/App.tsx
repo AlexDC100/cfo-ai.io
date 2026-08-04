@@ -428,7 +428,11 @@ function AppLayout() {
       <AppShell>
         <RouteErrorBoundary key={pathname}>
           <Suspense fallback={<ContentFallback pathname={pathname} />}>
-            <Outlet />
+            {/* Keyed enter animation (native-mobile pass): each page rises
+                in over 200ms — transform/opacity only, 60fps-safe. */}
+            <div key={pathname} className="page-enter">
+              <Outlet />
+            </div>
           </Suspense>
         </RouteErrorBoundary>
       </AppShell>

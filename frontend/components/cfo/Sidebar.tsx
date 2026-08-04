@@ -61,6 +61,7 @@ import {
   formatPeriodYear,
 } from "@/lib/orgPeriods";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
+import { NotificationsMenu } from "./NotificationsMenu";
 import { useActiveLocale } from "@/lib/locale";
 import { useActiveOrg } from "@/lib/org";
 import { startPeriodSwitch } from "@/lib/periodSwitch";
@@ -307,7 +308,7 @@ export function Sidebar({
           collapsed rail (they fade, clipped by the aside), the nav's
           overflow-y-auto would otherwise compute overflow-x to auto and
           grow a horizontal scrollbar in the 55px rail. */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 space-y-3">
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 space-y-3 ${inDrawer ? "drawer-stagger" : ""}`}>
         {/* Month stepper — moved here from TopHeader (2026-07-26 per
             operator). Sits ABOVE the Intelligence divider so the active
             month reads as the context every nav item below is scoped to.
@@ -407,7 +408,14 @@ export function Sidebar({
           28px center line. Theme/Language buttons removed earlier the
           same day — theme lives in the account menu / Command Center,
           language in Settings. */}
-      <div className="px-2.5 pt-2 pb-3 border-t border-rule space-y-2">
+      <div
+        className="px-2.5 pt-2 pb-3 border-t border-rule space-y-2"
+        style={inDrawer ? { paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" } : undefined}
+      >
+        {/* Drawer-only: notifications moved here from the phone header
+            (native-mobile pass 2026-08-04) — the bell has no header slot
+            on mobile. */}
+        {inDrawer && <NotificationsMenu variant="row" />}
         {!inDrawer && (
           <SidebarAction
             icon={collapsed ? PanelLeftOpen : PanelLeftClose}

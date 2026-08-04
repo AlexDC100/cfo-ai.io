@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, CheckCircle2 } from "lucide-react";
+import { Check } from "lucide-react";
 
 import type { DocumentStatus } from "@/lib/supabase";
 
@@ -315,8 +315,56 @@ export function ScanProgressView({
           the sphere is a fixed overlay at SPHERE_TOP_OFFSET and the steps must
           stay above it, so this drops them as far as possible without the
           status line colliding with the sphere. */}
+      {/* MOBILE stepper (2026-08-04 native-mobile pass) — five full text
+          labels in a 375px row collided; phones get slim progress segments
+          with ONLY the current step named beneath ("Pasul 3 din 5 —
+          Reconstruire situații"), crossfading 200ms between steps. The
+          desktop circle-row below is untouched (hidden sm:flex). */}
+      <div
+        className={`sm:hidden pt-6 px-1 transition-opacity duration-300 ${completing ? "opacity-0 pointer-events-none" : ""}`}
+        data-testid="upload-pipeline-mobile"
+      >
+        <div className="flex items-center gap-1.5" role="progressbar"
+          aria-valuemin={1} aria-valuemax={steps.length}
+          aria-valuenow={Math.min(currentOrdinal + 1, steps.length)}
+          aria-label={t("productsX.empty.pipelineAria")}
+        >
+          {steps.map((label, i) => (
+            <span
+              key={label}
+              className={`h-1.5 flex-1 rounded-full transition-colors duration-200 ease-out ${
+                i < currentOrdinal
+                  ? "ask-ai-anim-fill [animation-duration:10s]"
+                  : i === currentOrdinal
+                  ? "bg-brand/45"
+                  : "bg-rule/50"
+              }`}
+            />
+          ))}
+        </div>
+        <div className="relative h-[38px] mt-3 text-center" aria-live="polite">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={Math.min(currentOrdinal, steps.length - 1)}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="text-[13px] font-medium text-ink"
+            >
+              <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-ink-mute block mb-0.5">
+                {t("scan.stepOf", {
+                  current: Math.min(currentOrdinal + 1, steps.length),
+                  total: steps.length,
+                })}
+              </span>
+              {trText(steps[Math.min(currentOrdinal, steps.length - 1)])}
+            </motion.p>
+          </AnimatePresence>
+        </div>
+      </div>
       <ol
-        className="relative w-full max-w-[720px] mx-auto flex items-start justify-between gap-2 pt-8"
+        className="relative w-full max-w-[720px] mx-auto hidden sm:flex items-start justify-between gap-2 pt-8"
         aria-label={t("productsX.empty.pipelineAria")}
         data-testid="upload-pipeline"
       >
@@ -388,7 +436,7 @@ export function ScanProgressView({
       {/* Live status line — crossfades between the rotating detail lines so
           each change registers as movement. Fixed height so the layout below
           (sphere spacer) never shifts as lines swap. */}
-      <div aria-live="polite" className="relative h-[20px] text-center">
+      <div aria-live="polite" className={`relative h-[20px] text-center ${completing ? "max-sm:opacity-0" : ""} transition-opacity duration-300`}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={statusLabel}
@@ -424,22 +472,41 @@ export function ScanProgressView({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 1.2, ease: "easeOut" }}
-          className="absolute inset-x-0 z-40 flex flex-col items-center gap-3 text-center px-4"
-          style={{ top: "calc(50% - 56px)" }}
+          className="absolute inset-x-0 z-40 flex flex-col items-center gap-3 text-center px-5"
+          style={{ top: "calc(50% - 96px)" }}
           data-testid="scan-complete-card"
         >
-          <span className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-brand/15 text-brand-d">
-            <CheckCircle2 size={30} strokeWidth={1.75} />
+          {/* Draw-in checkmark (native-mobile pass): the circle sweeps and
+              the check strokes in — the finish should feel like a reward,
+              not a static icon. Pure SVG stroke animation (see
+              .scan-check-* in index.css), starts with the card's fade. */}
+          <span className="relative inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand/12">
+            <svg viewBox="0 0 52 52" className="h-12 w-12" aria-hidden>
+              <circle
+                cx="26" cy="26" r="23" fill="none"
+                className="scan-check-circle"
+              />
+              <path
+                d="M15 27l7.5 7.5L37.5 19" fill="none"
+                className="scan-check-mark"
+              />
+            </svg>
           </span>
-          <h3 className="text-[19px] font-semibold text-ink">{resolvedCompleteTitle}</h3>
-          <p className="text-[13px] text-ink-soft max-w-[340px] leading-relaxed">
+          <h3 className="text-[20px] font-semibold text-ink">{resolvedCompleteTitle}</h3>
+          <p className="text-[13.5px] text-ink-soft max-w-[340px] leading-relaxed">
             {resolvedCompleteBody}
           </p>
           <button
             type="button"
             onClick={onViewResults}
             data-testid="scan-view-results"
-            className="mt-1 inline-flex items-center justify-center h-10 px-5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+            className="
+              mt-2 inline-flex items-center justify-center
+              w-full max-w-[360px] min-h-[52px] sm:w-auto sm:min-h-0 sm:h-10 px-6
+              rounded-xl ask-ai-anim-fill [animation-duration:10s]
+              border border-brand/40 text-ink text-[14px] sm:text-[13px] font-semibold
+              hover:border-brand/60 active:scale-[0.98] transition-[transform,border-color] duration-150
+            "
           >
             {resolvedCompleteCta}
           </button>
