@@ -19,6 +19,7 @@ import { bucketToConcept } from "@/lib/learning/bucketToConcept";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { BalanceSheetMap } from "@/components/learning/BalanceSheetMap";
 import { BALANCE_SHEET_GUIDE } from "@/components/learning/balanceSheetGuide";
+import { AccountChip, splitAccountParen, StatementCurrencyChip } from "./AccountChip";
 import "./bsStatementView.css";
 
 interface Props {
@@ -42,7 +43,10 @@ export function BSStatementView({ statement, hideGuide = false }: Props) {
     <div className={statement.note ? "lg:grid lg:grid-cols-[minmax(0,820px)_minmax(340px,440px)] lg:gap-5 lg:items-start lg:justify-center" : ""}>
       <div className="bs-statement" data-testid="bs-statement">
       <div className="bs-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <span>{t("statements.bs.title")} — {statement.entity} ({display})</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span>{t("statements.bs.title")} — {statement.entity} ({display})</span>
+          <StatementCurrencyChip currency={statement.currency} />
+        </span>
         {!hideGuide && (
           <GuideMeButton
             pageId="balance-sheet"
@@ -275,6 +279,14 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
     );
   }
 
+  // Account code renders AFTER the label as a muted chip. Labels that carry
+  // a pure code list baked in by the builder are split; prose parens stay.
+  // Chip suppressed when it would just repeat the label verbatim.
+  const split = line.accountCode ? null : splitAccountParen(line.label);
+  const labelText = split?.code ? split.text : line.label;
+  const rawChip = line.accountCode ?? split?.code;
+  const chipCode = rawChip && rawChip !== labelText.trim() ? rawChip : undefined;
+
   // Contra-asset rows (accumulated depreciation, etc.) render in parens.
   // Use the formatter's `paren` opt for negatives; for absolute values
   // wrap manually since the source data may carry the negative pre-applied.
@@ -299,12 +311,12 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
             value={line.closing ?? 0}
             data-testid={`bs-row-label-${conceptKey}`}
           >
-            {line.label}
+            {labelText}
           </LearnableRowLabel>
         ) : (
-          line.label
-        )}{" "}
-        {line.accountCode && <span className="bs-code">({line.accountCode})</span>}
+          labelText
+        )}
+        <AccountChip code={chipCode} />
       </span>
       {conceptKey ? (
         <>

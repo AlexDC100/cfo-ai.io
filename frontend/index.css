@@ -1066,3 +1066,43 @@
     transition: opacity 80ms ease-out;
   }
 }
+
+/* ── 2026 design-overhaul utilities (shared by the dashboard redesign) ── */
+
+/* Editorial card — the one card chrome for the overhaul: soft large-blur
+   shadow, hairline border, calm hover lift. Use INSTEAD of ad-hoc
+   borders/shadows on new dashboard cards. */
+.card-2026 {
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--rule) / 0.7);
+  background: hsl(var(--surface) / 0.85);
+  box-shadow: 0 18px 50px -24px rgba(0, 0, 0, 0.55);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-2026:hover {
+  border-color: hsl(var(--rule-strong, var(--rule)));
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.65);
+}
+
+/* Staggered card reveal on load — transform/opacity only, 8 slots then
+   simultaneous. Apply to a grid/list container. */
+.cards-stagger > * {
+  opacity: 0;
+  animation: card-reveal 0.35s ease forwards;
+}
+.cards-stagger > *:nth-child(1) { animation-delay: 0.03s; }
+.cards-stagger > *:nth-child(2) { animation-delay: 0.07s; }
+.cards-stagger > *:nth-child(3) { animation-delay: 0.11s; }
+.cards-stagger > *:nth-child(4) { animation-delay: 0.15s; }
+.cards-stagger > *:nth-child(5) { animation-delay: 0.19s; }
+.cards-stagger > *:nth-child(6) { animation-delay: 0.23s; }
+.cards-stagger > *:nth-child(7) { animation-delay: 0.27s; }
+.cards-stagger > *:nth-child(n+8) { animation-delay: 0.31s; }
+@keyframes card-reveal {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cards-stagger > * { animation: none; opacity: 1; }
+  .card-2026 { transition: none; }
+}

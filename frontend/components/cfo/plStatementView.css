@@ -56,31 +56,35 @@
 
 .pl-section { margin: 22px 0 18px; }
 
+/* Section headers: muted small-caps, sticky while their section scrolls
+ * under the fixed 64px app header. Surface background masks passing rows. */
 .pl-section-header {
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: hsl(var(--ink-soft));
+  color: hsl(var(--ink-mute));
   margin: 0 0 10px 0;
+  position: sticky;
+  top: 64px;
+  z-index: 2;
+  background: hsl(var(--surface));
+  padding: 4px 0;
 }
 
+/* 2-col grid: label (+ account chip) | amount. The old 64px code column
+ * is gone — codes now render as muted chips after the label. */
 .pl-row {
   display: grid;
-  grid-template-columns: 64px 1fr 180px;
+  grid-template-columns: 1fr 180px;
   align-items: baseline;
   gap: 14px;
   padding: 3px 0;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
-.pl-code {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 500;
-  color: hsl(var(--ink-mute));
-  text-align: left;
-  letter-spacing: 0.02em;
-}
+/* Child rows indent one 16px step under their section header. */
+.pl-row-item .pl-label { padding-left: 16px; }
 
 .pl-label {
   text-align: left;
@@ -102,14 +106,14 @@
 
 .pl-subtotal-rule {
   display: grid;
-  grid-template-columns: 64px 1fr 180px;
+  grid-template-columns: 1fr 180px;
   gap: 14px;
   border-top: none;
   margin: 2px 0 2px 0;
 }
 .pl-subtotal-rule::after {
   content: "";
-  grid-column: 3;
+  grid-column: 2;
   border-top: 1px solid hsl(var(--rule-strong));
   display: block;
 }
@@ -269,7 +273,7 @@
 
 .pl-recon-total {
   display: grid;
-  grid-template-columns: 64px 1fr 180px;
+  grid-template-columns: 1fr 180px;
   align-items: baseline;
   gap: 14px;
   padding: 6px 0;
@@ -314,19 +318,16 @@
    "1.234.567,89" to "1,2 mil." and the right-aligned sub-row never
    overflows. */
 @media (max-width: 639px) {
+  .pl-statement { padding: 28px 18px; }
   .pl-row,
-  .pl-subtotal-rule {
-    grid-template-columns: auto 1fr;
+  .pl-subtotal-rule,
+  .pl-recon-total {
+    grid-template-columns: 1fr;
     grid-template-areas:
-      "code label"
-      ".    amount";
-    gap: 4px 8px;
+      "label"
+      "amount";
+    gap: 2px 8px;
     padding: 6px 0;
-  }
-  .pl-code {
-    grid-area: code;
-    font-size: 10.5px;
-    align-self: start;
   }
   .pl-label {
     grid-area: label;
@@ -335,6 +336,7 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
+  .pl-row-item .pl-label { padding-left: 12px; }
   .pl-amount {
     grid-area: amount;
     text-align: right;
@@ -349,6 +351,11 @@
     /* Subtotal hairline now spans the full row, not the (gone) amount col. */
     grid-column: 1 / -1;
   }
+}
+
+/* Respect reduced-motion: tables carry only color transitions, drop them. */
+@media (prefers-reduced-motion: reduce) {
+  .pl-row { transition: none; }
 }
 
 /* ── Print ──────────────────────────────────────────────────────────── */

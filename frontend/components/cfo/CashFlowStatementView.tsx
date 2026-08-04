@@ -18,6 +18,7 @@ import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { CF_GUIDE } from "@/components/learning/pageGuides";
+import { AccountChip, StatementCurrencyChip } from "./AccountChip";
 import "./cashFlowStatementView.css";
 
 interface Props {
@@ -40,9 +41,12 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
       <div className="cf-statement" data-testid="cf-statement">
       <div className="cf-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <h2>
-            {t("statements.cf.title")} — {statement.entity} — {statement.period} ({display})
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h2>
+              {t("statements.cf.title")} — {statement.entity} — {statement.period} ({display})
+            </h2>
+            <StatementCurrencyChip currency={statement.currency} />
+          </div>
           <p className="cf-method">{t("statements.cf.indirectMethod")}</p>
         </div>
         {!hideGuide && <GuideMeButton pageId="cash-flow" title="Cash Flow" steps={CF_GUIDE} />}
@@ -54,14 +58,12 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
           <div className="cf-section-header">{t("statements.cf.operating.header")}</div>
 
           <div className="cf-row cf-row-item">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.operating.netProfit")}</span>
             <LearnableNumber conceptKey="net_profit" value={operating.netProfit} className="cf-amount" block>
               {fmt(operating.netProfit)}
             </LearnableNumber>
           </div>
           <div className="cf-row cf-row-item">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.operating.depreciation")}</span>
             <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
               {fmt(operating.depreciation)}
@@ -70,7 +72,6 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
 
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-subtotal">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.operating.cfBeforeWc")}</span>
             <LearnableNumber conceptKey="operating_cash_flow_before_wc" value={operating.cfBeforeWcChanges} className="cf-amount" block>
               {fmt(operating.cfBeforeWcChanges)}
@@ -86,11 +87,10 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
                   className={`cf-row cf-row-wc ${wc.isPlug ? "cf-row-plug" : ""}`}
                   data-testid={wc.isPlug ? "cf-row-plug" : "cf-row-wc"}
                 >
-                  <span className="cf-code" />
-                  <span className="cf-label">
+                        <span className="cf-label">
                     {wc.label}
                     {wc.accounts && wc.accounts !== "residual" && (
-                      <span className="cf-account-ref"> ({wc.accounts})</span>
+                      <AccountChip code={wc.accounts} />
                     )}
                   </span>
                   <LearnableNumber conceptKey="working_capital_changes" value={wc.delta} className="cf-amount" block>
@@ -105,7 +105,6 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
 
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-from-operating">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.operating.cashFromOperating")}</span>
             <LearnableNumber conceptKey="operating_cash_flow" value={operating.cashFromOperating} className="cf-amount" block>
               {fmt(operating.cashFromOperating)}
@@ -118,10 +117,9 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
           <div className="cf-section-header">{t("statements.cf.investing.header")}</div>
           {investing.items.map((item, i) => (
             <div key={`${item.label}-${i}`} className="cf-row cf-row-item">
-              <span className="cf-code" />
-              <span className="cf-label">
+                <span className="cf-label">
                 {item.label}
-                <span className="cf-account-ref"> ({item.accounts})</span>
+                <AccountChip code={item.accounts} />
               </span>
               <LearnableNumber conceptKey="capex" value={item.amount} className="cf-amount" block>
                 {fmt(item.amount, { paren: true })}
@@ -130,7 +128,6 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
           ))}
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-used-investing">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.investing.cashUsed")}</span>
             <LearnableNumber conceptKey="investing_cash_flow" value={investing.cashUsedInInvesting} className="cf-amount" block>
               {fmt(investing.cashUsedInInvesting, { paren: true })}
@@ -142,10 +139,10 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
         <section className="cf-section" data-testid="cf-section-financing" data-guide="cf-financing">
           <div className="cf-section-header">{t("statements.cf.financing.header")}</div>
           <div className="cf-row cf-row-item">
-            <span className="cf-code" />
             <span className="cf-label">
               {t("statements.cf.financing.ltDraws")}
-              <span className="cf-account-ref"> (1621 YTD credit)</span>
+              <AccountChip code="1621" />
+              <span className="cf-account-ref">{t("tablesV2.cf.ytdCredit", "YTD credit")}</span>
             </span>
             <LearnableNumber conceptKey="lt_debt_drawdowns" value={financing.bankLoanDrawdowns} className="cf-amount" block>
               {financing.bankLoanDrawdowns > 0
@@ -154,10 +151,10 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
             </LearnableNumber>
           </div>
           <div className="cf-row cf-row-item">
-            <span className="cf-code" />
             <span className="cf-label">
               {t("statements.cf.financing.ltRepays")}
-              <span className="cf-account-ref"> (1621 YTD debit)</span>
+              <AccountChip code="1621" />
+              <span className="cf-account-ref">{t("tablesV2.cf.ytdDebit", "YTD debit")}</span>
             </span>
             <LearnableNumber conceptKey="lt_debt_repayments" value={financing.bankLoanRepayments} className="cf-amount" block>
               {financing.bankLoanRepayments < 0
@@ -166,7 +163,6 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
             </LearnableNumber>
           </div>
           <div className="cf-row cf-row-item">
-            <span className="cf-code" />
             <span className="cf-label">
               {t("statements.cf.financing.dividendsPaid")}
               {financing.dividendsPaid === 0 && (
@@ -179,7 +175,6 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
           </div>
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-from-financing">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.financing.cashFromFinancing")}</span>
             <LearnableNumber conceptKey="financing_cash_flow" value={financing.cashFromFinancing} className="cf-amount" block>
               {financing.cashFromFinancing >= 0
@@ -193,7 +188,6 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
         <section className="cf-reconciliation" data-testid="cf-reconciliation">
           <div className="cf-double-rule" />
           <div className="cf-row cf-recon-row">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.recon.netChange")}</span>
             <LearnableNumber conceptKey="net_change_in_cash" value={reconciliation.netChangeInCash} className="cf-amount" block>
               {reconciliation.netChangeInCash >= 0
@@ -202,14 +196,12 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
             </LearnableNumber>
           </div>
           <div className="cf-row cf-recon-row">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.recon.opening")}</span>
             <LearnableNumber conceptKey="opening_cash" value={reconciliation.openingCash} className="cf-amount" block>
               {fmt(reconciliation.openingCash)}
             </LearnableNumber>
           </div>
           <div className="cf-row cf-recon-row cf-closing" data-testid="cf-closing-cash">
-            <span className="cf-code" />
             <span className="cf-label">{t("statements.cf.recon.closing")}</span>
             <LearnableNumber conceptKey="closing_cash" value={reconciliation.closingCashComputed} className="cf-amount" block>
               {fmt(reconciliation.closingCashComputed)}

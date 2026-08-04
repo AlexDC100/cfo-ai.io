@@ -18,6 +18,7 @@ import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { bucketToConcept } from "@/lib/learning/bucketToConcept";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { PL_GUIDE } from "@/components/learning/pageGuides";
+import { AccountChip, splitAccountParen, StatementCurrencyChip } from "./AccountChip";
 import "./plStatementView.css";
 
 interface Props {
@@ -41,9 +42,12 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
   return (
     <div className="pl-statement" data-testid="pl-statement">
       <div className="pl-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h2>
-          {t("statements.pl.title")} — {statement.entity} — {statement.period} ({display})
-        </h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2>
+            {t("statements.pl.title")} — {statement.entity} — {statement.period} ({display})
+          </h2>
+          <StatementCurrencyChip currency={statement.currency} />
+        </div>
         {!hideGuide && <GuideMeButton pageId="pnl" title="P&L" steps={PL_GUIDE} />}
       </div>
 
@@ -63,7 +67,6 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
           {...{ [TRACEABLE_TARGET_ATTR]: "ebitda" }}
         >
           <div className="pl-row pl-total">
-            <span className="pl-code" />
             <span className="pl-label">{t("statements.pl.ebitda")}</span>
             <LearnableNumber conceptKey="ebitda" value={statement.ebitda} className="pl-amount" block>
               {fmt(statement.ebitda)}
@@ -137,7 +140,6 @@ function PLSectionView({ section, currency }: { section: PLSection; currency: st
         <>
           <div className="pl-subtotal-rule" />
           <div className="pl-row pl-subtotal" {...subtotalAttrs}>
-            <span className="pl-code" />
             <span className="pl-label">{section.subtotalLabel}</span>
             {subtotalConceptKey ? (
               <LearnableNumber
@@ -166,7 +168,6 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
   if (line.style === "subtotal" && !line.accountCode) {
     return (
       <div className="pl-row pl-subtotal" {...lineAttrs}>
-        <span className="pl-code" />
         <span className="pl-label">{line.label}</span>
         {conceptKey ? (
           <LearnableNumber
@@ -188,10 +189,22 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
   const amountClass =
     line.sign === "negative" ? "pl-neg" : line.sign === "positive" ? "pl-pos" : "";
 
+  // Account code renders AFTER the label as a muted chip. When the builder
+  // baked a pure code list into the label text ("… (601/602/607)"), peel it
+  // into the chip; prose parentheses stay in the label. When the label IS
+  // the bare code (unlabeled accounts in synthetic files), skip the chip —
+  // "607 [607]" reads as a bug.
+  const split = line.accountCode ? null : splitAccountParen(line.label);
+  const labelText = split?.code ? split.text : line.label;
+  const rawChip = line.accountCode ?? split?.code;
+  const chipCode = rawChip && rawChip !== labelText.trim() ? rawChip : undefined;
+
   return (
     <div className={`pl-row pl-row-item ${line.style}`} {...lineAttrs}>
-      <span className="pl-code">{line.accountCode ?? ""}</span>
-      <span className="pl-label">{line.label}</span>
+      <span className="pl-label">
+        {labelText}
+        <AccountChip code={chipCode} />
+      </span>
       {conceptKey ? (
         <LearnableNumber
           conceptKey={conceptKey}
@@ -244,23 +257,25 @@ function PLReconciliationBridge({
         {t("statements.pl.recon.heading")}
       </div>
       <div className="pl-row pl-row-item pl-recon-line">
-        <span className="pl-code">722</span>
-        <span className="pl-label">{t("statements.pl.recon.capitalizedOwnWork")}</span>
+        <span className="pl-label">
+          {t("statements.pl.recon.capitalizedOwnWork")}
+          <AccountChip code="722" />
+        </span>
         <span className="pl-amount">{fmt(capitalizedOwnWork)}</span>
       </div>
       <div className="pl-row pl-recon-total">
-        <span className="pl-code" />
         <span className="pl-label">{t("statements.pl.recon.statutoryTotal")}</span>
         <LearnableNumber conceptKey="net_profit" value={statutory} className="pl-amount" block>
           {fmt(statutory)}
         </LearnableNumber>
       </div>
       <div className="pl-recon-note">
-        Operational net profit ({fmt(operational)} {display}) is the headline figure across this report.
-        Account 722 is a non-cash credit that capitalizes internally-incurred costs into CIP (account 231);
-        the offsetting cost sits inside account 628 (third-party services). Net P&amp;L effect of the 722/628
-        wash is ~zero; statutory ct&nbsp;121 is shown above as the reconciled total — not as a competing
-        headline.
+        {t("tablesV2.pl.reconNote", {
+          defaultValue:
+            "Operational net profit ({{amount}} {{currency}}) is the headline figure across this report. Account 722 is a non-cash credit that capitalizes internally-incurred costs into CIP (account 231); the offsetting cost sits inside account 628 (third-party services). Net P&L effect of the 722/628 wash is ~zero; statutory ct 121 is shown above as the reconciled total — not as a competing headline.",
+          amount: fmt(operational),
+          currency: display,
+        })}
       </div>
     </div>
   );
@@ -271,6 +286,7 @@ function PLReconciliationBridge({
 // ────────────────────────────────────────────────────────────────────────
 
 function PLFootnote({ statement }: { statement: PLStatement }) {
+  const { t } = useTranslation();
   const fmt = useAmountFormatter(statement.currency);
   const display = useDisplayCurrency();
   const ownWork = statement.capitalizedOwnWorkMemo ?? 0;
@@ -295,31 +311,40 @@ function PLFootnote({ statement }: { statement: PLStatement }) {
       <p>
         <strong>
           {rentalDominated
-            ? "Two things worth flagging given the structure:"
-            : "Worth flagging given the structure:"}
+            ? t("statements.pl.footnote.flag", "Two things worth flagging given the structure:")
+            : t("tablesV2.pl.footnote.flagOne", "Worth flagging given the structure:")}
         </strong>
       </p>
       <ol>
         <li>
           <strong>
-            Account 722 (Capitalized own work) — {fmt(ownWork)} {display} is not external
-            revenue.
+            {t("tablesV2.pl.footnote.ownWorkTitle", {
+              defaultValue:
+                "Account 722 (Capitalized own work) — {{amount}} {{currency}} is not external revenue.",
+              amount: fmt(ownWork),
+              currency: display,
+            })}
           </strong>{" "}
-          It is the credit-side offset that capitalizes internally-incurred construction costs
-          into CIP (account 231 — YTD movement matches 722 exactly). The corresponding cost is
-          sitting inside <strong>628 Other third-party services ({fmt(ext628)})</strong>.
-          Net P&amp;L effect: ~zero. For a "clean" operating view, strip both: revenue drops to
-          ~{fmt(revenueExOwnWork)}, opex drops to ~{fmt(opexExcl628)}, clean EBITDA ≈{" "}
-          {fmt(revenueExOwnWork - opexExcl628)}.
+          {t("tablesV2.pl.footnote.ownWorkBody", {
+            defaultValue:
+              "It is the credit-side offset that capitalizes internally-incurred construction costs into CIP (account 231 — YTD movement matches 722 exactly). The corresponding cost is sitting inside 628 Other third-party services ({{ext}}). Net P&L effect: ~zero. For a \"clean\" operating view, strip both: revenue drops to ~{{revenue}}, opex drops to ~{{opex}}, clean EBITDA ≈ {{ebitda}}.",
+            ext: fmt(ext628),
+            revenue: fmt(revenueExOwnWork),
+            opex: fmt(opexExcl628),
+            ebitda: fmt(revenueExOwnWork - opexExcl628),
+          })}
         </li>
         {rentalDominated && (
           <li>
             <strong>
-              Real cash-generative operating revenue is essentially just rental income (706):{" "}
-              {fmt(rentalOnly)} {display}.
+              {t("tablesV2.pl.footnote.rentalTitle", {
+                defaultValue:
+                  "Real cash-generative operating revenue is essentially just rental income (706): {{amount}} {{currency}}.",
+                amount: fmt(rentalOnly),
+                currency: display,
+              })}
             </strong>{" "}
-            Against that base, the underlying property-management EBITDA is the more meaningful
-            number.
+            {t("tablesV2.pl.footnote.rentalBody", "Against that base, the underlying property-management EBITDA is the more meaningful number.")}
           </li>
         )}
       </ol>

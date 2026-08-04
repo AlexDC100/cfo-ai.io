@@ -54,13 +54,20 @@
 /* ── Sections ───────────────────────────────────────────────────────── */
 .cf-section { margin: 22px 0 18px; }
 
+/* Section headers: muted small-caps, sticky under the fixed 64px app
+ * header while their section scrolls. Surface bg masks passing rows. */
 .cf-section-header {
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: hsl(var(--ink-soft));
+  color: hsl(var(--ink-mute));
   margin: 0 0 10px 0;
+  position: sticky;
+  top: 64px;
+  z-index: 2;
+  background: hsl(var(--surface));
+  padding: 4px 0;
 }
 
 .cf-subsection-header {
@@ -71,32 +78,28 @@
   letter-spacing: 0.01em;
 }
 
-/* ── 3-column grid: 64px code | 1fr label | 180px amount ────────────── */
+/* ── 2-column grid: label (+ account chip) | 180px amount ───────────── */
+/* The old 64px code column is gone — codes render as chips after labels. */
 .cf-row {
   display: grid;
-  grid-template-columns: 64px 1fr 180px;
+  grid-template-columns: 1fr 180px;
   align-items: baseline;
   gap: 14px;
   padding: 3px 0;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
+/* Child rows indent in 16px steps: items one step, WC sub-items two. */
+.cf-row-item .cf-label { padding-left: 16px; }
+
 .cf-row-wc {
-  padding-left: 24px;
   font-size: 12.5px;
 }
+.cf-row-wc .cf-label { padding-left: 32px; }
 
 .cf-row-plug {
   font-style: italic;
   color: hsl(var(--ink-mute));
-}
-
-.cf-code {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 500;
-  color: hsl(var(--ink-mute));
-  text-align: left;
-  letter-spacing: 0.02em;
 }
 
 .cf-label {
@@ -123,14 +126,14 @@
 /* ── Subtotals ──────────────────────────────────────────────────────── */
 .cf-subtotal-rule {
   display: grid;
-  grid-template-columns: 64px 1fr 180px;
+  grid-template-columns: 1fr 180px;
   gap: 14px;
   border-top: none;
   margin: 4px 0;
 }
 .cf-subtotal-rule::after {
   content: "";
-  grid-column: 3;
+  grid-column: 2;
   border-top: 1px solid hsl(var(--rule-strong));
   display: block;
 }
@@ -235,22 +238,21 @@
    Paired with useAmountFormatter's auto-compact so "−379.080,94" → "−379k".
    2026-06-02 mobile-overflow fix. */
 @media (max-width: 639px) {
+  .cf-statement { padding: 28px 18px; }
+  .cf-section-header { position: static; }
   .cf-row,
   .cf-row-wc,
   .cf-row-plug,
   .cf-subtotal-rule {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr;
     grid-template-areas:
-      "code label"
-      ".    amount";
-    gap: 4px 8px;
+      "label"
+      "amount";
+    gap: 2px 8px;
     padding: 6px 0;
   }
-  .cf-code {
-    grid-area: code;
-    font-size: 10.5px;
-    align-self: start;
-  }
+  .cf-row-item .cf-label { padding-left: 12px; }
+  .cf-row-wc .cf-label { padding-left: 24px; }
   .cf-label {
     grid-area: label;
     font-size: 12.5px;
@@ -269,6 +271,11 @@
   .cf-subtotal-rule::after {
     grid-column: 1 / -1;
   }
+}
+
+/* Respect reduced-motion: rows carry only color transitions, drop them. */
+@media (prefers-reduced-motion: reduce) {
+  .cf-row { transition: none; }
 }
 
 /* ── Print ──────────────────────────────────────────────────────────── */

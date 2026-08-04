@@ -276,3 +276,26 @@ export function formatPeriodYear(periodEnd: string | null | undefined): string |
   if (Number.isNaN(d.getTime()) || !saneYear(d)) return null;
   return String(d.getUTCFullYear());
 }
+
+/** LOOSE month formatter — formats any parseable date, implausible years
+ *  included. For LIST surfaces (Workspace months, Docs panel, delete
+ *  dialogs) where a corrupt row must still be readable so the user can
+ *  find and delete it: "Dec 2050" beats a raw "2050-12-31". Ambient
+ *  labels (sidebar year, header) keep the strict formatter above. */
+export function formatPeriodMonthLoose(
+  periodEnd: string | null | undefined,
+  locale: string = "en-GB",
+): string | null {
+  if (!periodEnd) return null;
+  const d = new Date(periodEnd);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** True when the period's date parses but sits outside the plausible
+ *  reporting window — list surfaces show a "check date" warning chip. */
+export function isImplausiblePeriod(periodEnd: string | null | undefined): boolean {
+  if (!periodEnd) return false;
+  const d = new Date(periodEnd);
+  return !Number.isNaN(d.getTime()) && !saneYear(d);
+}

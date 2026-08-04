@@ -1,20 +1,31 @@
 // F6.0.4 (2026-06-20) — Configurable dashboard metric card.
+// Redesigned 2026-08-04 (metrics v2): uniform card system on the shared
+// `.card-2026` chrome, a plain-language ⓘ tooltip on every tile
+// (MetricInfoTip — hover tooltip on desktop, tap popover on touch), and a
+// per-card ⋯ overflow menu (Rearrange / Size / Remove) replacing the old
+// header-level Customize entry point. All user-visible strings via t().
 //
 // Renders ONE card: concept name + live value (resolved from the active
-// period ReportingMetrics) + optional period-comparison delta. The value
-// is wrapped in LearnableNumber so the F5.0 popover still opens on tap.
+// period ReportingMetrics) + optional trend badge (Trend view only, when
+// the multi-year series exists). Rendered numbers are untouched by the
+// redesign — same resolver, same formatting, same overrides.
 //
-// In edit mode the card grows a drag handle (dnd-kit) + a "..." menu with
-// Remove and Resize. The grid footprint follows card.size.
-//
-// Visual language matches the legacy KpiTile (rounded-xl, border-rule,
-// bg-surface, num-hero-fluid value) so the configurable grid reads as a
-// natural evolution of the fixed tiles, not a different component.
+// In edit mode ("Rearrange") the card grows a drag handle (dnd-kit) +
+// remove button, and tapping the body cycles its size. Drag stays armed
+// only in edit mode (distance/long-press sensors live in the parent).
 
 import { useMemo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, X, TrendingUp, TrendingDown } from "lucide-react";
+import {
+  GripVertical,
+  X,
+  TrendingUp,
+  TrendingDown,
+  MoreHorizontal,
+  Check,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { lookupConcept } from "@/lib/learning/concepts";
 import { useReportingMetrics } from "@/components/learning/ReportingContextProvider";
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
@@ -24,6 +35,16 @@ import {
   resolveConceptValue,
   formatCardValue,
 } from "@/lib/dashboard/resolveConceptValue";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MetricInfoTip } from "./MetricInfoTip";
+import "./metricsV2I18n";
 import { Sparkline } from "./Sparkline";
 import {
   seriesForConcept,
@@ -46,6 +67,9 @@ interface Props {
   series?: MultiYearSeries;
   /** F6.1 — snapshot (single value) vs trend (sparkline + CAGR). */
   view?: DashboardView;
+  /** Metrics v2 — the ⋯ menu's "Rearrange" entry flips the grid into edit
+   *  mode (the old header "Customize" button is gone). */
+  onRearrange?: () => void;
 }
 
 interface TrendBadge {
@@ -70,23 +94,47 @@ function compactDelta(d: number): string {
   return `${sign}${Math.round(a)}`;
 }
 
+/** Responsive grid footprint per card size. The grid is
+ *  grid-cols-1 sm:grid-cols-2 xl:grid-cols-4, so a 2-col span must
+ *  collapse to 1 col on phones or it would overflow the 1-col grid. */
 const SIZE_GRID: Record<CardSize, string> = {
   sm: "col-span-1 row-span-1",
-  md: "col-span-2 row-span-1",
-  lg: "col-span-2 row-span-2",
+  md: "col-span-1 sm:col-span-2 row-span-1",
+  lg: "col-span-1 sm:col-span-2 row-span-2",
 };
 
-/** Resize cycles sm → md → lg → sm. */
+/** Resize cycles sm → md → lg → sm (edit-mode tap). */
 const NEXT_SIZE: Record<CardSize, CardSize> = {
   sm: "md",
   md: "lg",
   lg: "sm",
 };
 
-export function MetricCard({ card, editMode, overrides, series, view = "snapshot" }: Props) {
+/** Default English titles baked into DEFAULT_DASHBOARD for the count cards
+ *  (no concept-registry entry). When the stored customTitle is still the
+ *  default, render the translated label instead of the baked literal. */
+const DEFAULT_COUNT_TITLES: Record<string, string> = {
+  open_risks: "Risks",
+  open_opportunities: "Opportunities",
+};
+
+export function MetricCard({
+  card,
+  editMode,
+  overrides,
+  series,
+  view = "snapshot",
+  onRearrange,
+}: Props) {
+  const { t, i18n } = useTranslation();
   const { removeCard, resizeCard } = useDashboard();
-  const { metrics, currency, locale } = useReportingMetrics();
+  const { metrics, currency } = useReportingMetrics();
   const { push } = usePopoverStack();
+
+  // Display locale follows the UI language (metrics v2 i18n pass). The
+  // ReportingContextProvider's `locale` is hardcoded "en" at the page level,
+  // so concept names/definitions would stay English in the RO UI without this.
+  const locale: "en" | "ro" = i18n.language?.startsWith("ro") ? "ro" : "en";
 
   const {
     attributes,
@@ -98,11 +146,22 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
   } = useSortable({ id: card.id, disabled: !editMode });
 
   const concept = lookupConcept(card.conceptKey);
+  const defaultCountTitle = DEFAULT_COUNT_TITLES[card.conceptKey];
   const title =
-    card.customTitle ??
-    concept?.name?.[locale] ??
-    concept?.name?.en ??
-    card.conceptKey;
+    defaultCountTitle && (!card.customTitle || card.customTitle === defaultCountTitle)
+      ? t(`metricsV2.count.${card.conceptKey}`, { defaultValue: defaultCountTitle })
+      : card.customTitle ??
+        concept?.name?.[locale] ??
+        concept?.name?.en ??
+        card.conceptKey;
+
+  // Plain-language one-liner for the ⓘ tip. metricsV2.concepts.* covers every
+  // addable concept + the count cards; the concept registry's translated
+  // shortDefinition is the fallback for anything outside that set.
+  const tipText = t(`metricsV2.concepts.${card.conceptKey}`, {
+    defaultValue:
+      concept?.shortDefinition?.[locale] ?? concept?.shortDefinition?.en ?? "",
+  });
 
   const resolved = resolveConceptValue(card.conceptKey, metrics, overrides);
   const display = formatCardValue(resolved.value, resolved.format);
@@ -156,12 +215,11 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
     zIndex: isDragging ? 10 : undefined,
   };
 
-  // The WHOLE card is the learn trigger now (2026-07-25) — pressing anywhere
-  // opens the same concept popover the number used to. The value itself no
-  // longer carries the learnable-number underline/hover. Disabled in edit
+  // The WHOLE card is the learn trigger (2026-07-25) — pressing anywhere
+  // opens the same concept popover the number used to. Disabled in edit
   // mode (that's for drag/resize) and when there's no value to explain.
-  // Count cards (risks / opportunities tallies) have no concept-registry entry,
-  // so there's nothing to explain — don't open the popover for them.
+  // Count cards (risks / opportunities tallies) have no concept-registry
+  // entry, so there's nothing to explain — don't open the popover for them.
   const canExplain = !editMode && resolved.value !== null && resolved.format !== "count";
   const openConcept = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!canExplain) return;
@@ -174,11 +232,9 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
     });
   };
 
-  // Tap-to-grow (2026-07-25): the dedicated resize (fullscreen) button was
-  // removed — in EDIT mode tapping anywhere on the card cycles its size
-  // sm → md → lg → sm. In view mode the tap still opens the concept
-  // explanation. The drag handle + remove button stopPropagation so they
-  // don't also grow the card.
+  // Tap-to-grow (2026-07-25): in EDIT mode tapping anywhere on the card
+  // cycles its size sm → md → lg → sm. In view mode the tap opens the
+  // concept explanation. Corner controls stopPropagation.
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (editMode) {
       resizeCard(card.id, NEXT_SIZE[card.size]);
@@ -187,6 +243,12 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
     if (canExplain) openConcept(e);
   };
 
+  const sizeItems: Array<{ size: CardSize; label: string }> = [
+    { size: "sm", label: t("metricsV2.menu.sizeSm") },
+    { size: "md", label: t("metricsV2.menu.sizeMd") },
+    { size: "lg", label: t("metricsV2.menu.sizeLg") },
+  ];
+
   return (
     <div
       ref={setNodeRef}
@@ -194,7 +256,7 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
       onClick={editMode || canExplain ? handleCardClick : undefined}
       role={editMode || canExplain ? "button" : undefined}
       tabIndex={canExplain ? 0 : undefined}
-      title={editMode ? `Size: ${card.size.toUpperCase()} — tap to grow` : undefined}
+      title={editMode ? t("metricsV2.tapToResize") : undefined}
       onKeyDown={
         canExplain
           ? (e) => {
@@ -210,70 +272,128 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
             }
           : undefined
       }
-      aria-label={canExplain ? `Explain ${title}` : undefined}
+      aria-label={canExplain ? title : undefined}
       data-testid={`metric-card-${card.conceptKey}`}
-      // Chrome matches the benchmark "dimension" cards (2026-07-25): rounded-lg
-      // with a 3px brand left rail. In view mode the bg fades out on hover —
-      // the exact hover copied from the Ask CFO AI suggestion cards. Edit mode
-      // swaps that for a teal ring (and no hover) so reordering stays clean.
+      // Metrics v2 chrome: the shared `.card-2026` editorial card (hairline
+      // border, soft large-blur shadow, calm hover lift) — one chrome for
+      // every tile. Edit mode adds a teal ring so "rearrange" reads clearly.
       className={cn(
-        "relative rounded-lg border border-rule border-l-[3px] border-l-brand bg-surface px-4 py-2 min-w-0 overflow-hidden",
+        "card-2026 relative px-4 py-3 min-w-0",
         SIZE_GRID[card.size],
         editMode
-          ? "ring-1 ring-[hsl(173,57%,55%)]/20 cursor-pointer"
-          : "hover:bg-transparent transition-colors duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30",
+          ? "ring-1 ring-[hsl(173,57%,55%)]/25 cursor-pointer"
+          : "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30",
         canExplain && "cursor-pointer",
       )}
     >
-      {/* Edit-mode controls — drag handle (left) + remove/resize (right).
-          Review #4 (2026-06-20): each control gets a 44×44 hit area
-          (min-w/min-h-[44px] + grid place-items-center) so the icons stay
-          visually small but the tap zone meets WCAG 2.5.5 on mobile. */}
+      {/* Edit-mode controls — drag handle (left) + remove (right). Each
+          control keeps a 44×44 hit area (WCAG 2.5.5). */}
       {editMode && (
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-0.5">
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-0.5 z-10">
           <button
             type="button"
             {...attributes}
             {...listeners}
             onClick={(e) => e.stopPropagation()}
-            aria-label="Drag to reorder"
+            aria-label={t("metricsV2.dragToReorder")}
             data-testid={`card-drag-${card.conceptKey}`}
             className="touch-none cursor-grab active:cursor-grabbing text-ink-mute hover:text-ink min-w-[44px] min-h-[44px] grid place-items-center rounded"
           >
             <GripVertical className="w-4 h-4" />
           </button>
-          <div className="flex items-center">
-            {/* Resize (fullscreen) button removed 2026-07-25 — tapping the card
-                body grows it (see handleCardClick). */}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); removeCard(card.id); }}
-              aria-label="Remove card"
-              data-testid={`card-remove-${card.conceptKey}`}
-              className="text-ink-mute hover:text-[hsl(0,75%,55%)] min-w-[44px] min-h-[44px] grid place-items-center rounded hover:bg-bg-2"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); removeCard(card.id); }}
+            aria-label={t("metricsV2.removeCard")}
+            data-testid={`card-remove-${card.conceptKey}`}
+            className="text-ink-mute hover:text-[hsl(0,75%,55%)] min-w-[44px] min-h-[44px] grid place-items-center rounded hover:bg-bg-2"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* Label — nudged down in edit mode so it clears the control row. */}
+      {/* View-mode ⋯ overflow menu — the per-card home for Rearrange /
+          Size / Remove now that the header Customize button is gone.
+          44×44 hit area in the top-right corner. */}
+      {!editMode && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("metricsV2.menu.open")}
+              data-testid={`card-menu-${card.conceptKey}`}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="absolute top-0 right-0 z-10 h-11 w-11 grid place-items-center rounded-2xl text-ink-mute/60 hover:text-ink transition-colors duration-150"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            onClick={(e) => e.stopPropagation()}
+            className="min-w-[170px]"
+          >
+            {onRearrange && (
+              <DropdownMenuItem
+                onClick={onRearrange}
+                data-testid={`card-menu-rearrange-${card.conceptKey}`}
+                className="min-h-[44px] gap-2"
+              >
+                <GripVertical className="w-4 h-4 text-ink-mute" />
+                {t("metricsV2.menu.rearrange")}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute">
+              {t("metricsV2.menu.size")}
+            </DropdownMenuLabel>
+            {sizeItems.map((item) => (
+              <DropdownMenuItem
+                key={item.size}
+                onClick={() => resizeCard(card.id, item.size)}
+                className="min-h-[44px] gap-2"
+              >
+                <span className="grid place-items-center w-4">
+                  {card.size === item.size && <Check className="w-3.5 h-3.5" />}
+                </span>
+                {item.label}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => removeCard(card.id)}
+              data-testid={`card-menu-remove-${card.conceptKey}`}
+              className="min-h-[44px] gap-2 text-[hsl(0,70%,52%)] focus:text-[hsl(0,70%,52%)]"
+            >
+              <X className="w-4 h-4" />
+              {t("metricsV2.menu.remove")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      {/* Label row — name + ⓘ plain-language tip. pr clears the ⋯ corner
+          control; nudged down in edit mode to clear the control row. */}
       <div
         className={cn(
-          "text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate",
+          "flex items-center gap-1.5 pr-8 min-w-0",
           editMode && "mt-11",
         )}
       >
-        {title}
+        <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">
+          {title}
+        </span>
+        {!editMode && tipText && (
+          <MetricInfoTip text={tipText} conceptKey={card.conceptKey} />
+        )}
       </div>
 
-      {/* Value — learnable. Currency renders <Money>; others render the
-          formatted string. Both wrapped in LearnableNumber so the F5.0
-          popover still opens. */}
-      {/* Plain value — the card owns the learn interaction now, so the
-          number no longer wraps in LearnableNumber (no underline/hover). */}
-      <div className="mt-1 num-hero num-hero-fluid text-ink leading-none">
+      {/* Value — currency renders <Money>; others render the formatted
+          string. Same resolver + formatting as before the redesign. */}
+      <div className="mt-1 num-hero num-hero-fluid text-ink leading-none tabular-nums">
         {resolved.value === null ? (
           <span className="text-ink-mute">—</span>
         ) : resolved.format === "currency" ? (
@@ -289,9 +409,7 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
 
       {/* F6.1 — Trend view: sparkline + range caption + CAGR/Δ badge replaces
           the definition line. Snapshot view keeps the definition (md/lg only).
-          The headline value above stays identical in both views (engine-
-          canonical override-aware), so toggling never changes the number —
-          it just adds the multi-year context underneath. */}
+          The headline value above stays identical in both views. */}
       {showTrend && trendSeries ? (
         <div className="mt-2" data-testid={`metric-trend-${card.conceptKey}`}>
           <Sparkline
@@ -324,9 +442,9 @@ export function MetricCard({ card, editMode, overrides, series, view = "snapshot
         </div>
       ) : (
         card.size !== "sm" &&
-        concept?.shortDefinition && (
+        tipText && (
           <div className="mt-1 text-[11px] text-ink-soft leading-snug line-clamp-2">
-            {concept.shortDefinition[locale] ?? concept.shortDefinition.en}
+            {tipText}
           </div>
         )
       )}

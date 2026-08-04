@@ -24,6 +24,7 @@
 // This file is a layout swap only — the data layer is intact.
 
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Info, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { PeriodRecommendation, PeriodAlertItem } from "@/lib/activePeriod";
 import {
@@ -62,6 +63,7 @@ const SEVERITY_RANK: Record<string, number> = {
 };
 
 export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<SeverityFilter>("all");
 
   const { relevantAlerts, otherAlerts, relevantRecs, otherRecs, counts } = useMemo(() => {
@@ -141,11 +143,11 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
           id={`notes-heading-${relevantTo}`}
           className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2"
         >
-          Notes & recommendations
+          {t("tablesV2.notes.heading", "Notes & recommendations")}
         </h3>
         <div className="rounded-lg border border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink-soft flex items-center gap-2">
           <Info size={14} className="text-ink-mute flex-shrink-0" />
-          <span>No notes generated for this period.</span>
+          <span>{t("tablesV2.notes.empty", "No notes generated for this period.")}</span>
         </div>
       </section>
     );
@@ -172,27 +174,27 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
           id={`notes-heading-${relevantTo}`}
           className="text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold"
         >
-          Notes & recommendations
+          {t("tablesV2.notes.heading", "Notes & recommendations")}
         </h3>
         <span className="text-[11.5px] text-ink-mute">
-          {totalCount} unique
+          {t("tablesV2.notes.unique", { defaultValue: "{{count}} unique", count: totalCount })}
         </span>
       </div>
 
       {/* Severity filter pills ─────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
-        <FilterPill label="All"             count={counts.all}             active={filter === "all"}             onClick={() => { setFilter("all"); }} />
-        <FilterPill label="Critical"        count={counts.critical}        active={filter === "critical"}        onClick={() => { setFilter("critical"); }} tone="critical" />
-        <FilterPill label="Watch"           count={counts.watch}           active={filter === "watch"}           onClick={() => { setFilter("watch"); }} tone="watch" />
-        <FilterPill label="Info"            count={counts.info}            active={filter === "info"}            onClick={() => { setFilter("info"); }} tone="info" />
-        <FilterPill label="Recommendations" count={counts.recommendations} active={filter === "recommendations"} onClick={() => { setFilter("recommendations"); }} tone="rec" />
+        <FilterPill label={t("tablesV2.notes.filterAll", "All")}                         count={counts.all}             active={filter === "all"}             onClick={() => { setFilter("all"); }} />
+        <FilterPill label={t("tablesV2.notes.filterCritical", "Critical")}               count={counts.critical}        active={filter === "critical"}        onClick={() => { setFilter("critical"); }} tone="critical" />
+        <FilterPill label={t("tablesV2.notes.filterWatch", "Watch")}                     count={counts.watch}           active={filter === "watch"}           onClick={() => { setFilter("watch"); }} tone="watch" />
+        <FilterPill label={t("tablesV2.notes.filterInfo", "Info")}                       count={counts.info}            active={filter === "info"}            onClick={() => { setFilter("info"); }} tone="info" />
+        <FilterPill label={t("tablesV2.notes.filterRecommendations", "Recommendations")} count={counts.recommendations} active={filter === "recommendations"} onClick={() => { setFilter("recommendations"); }} tone="rec" />
       </div>
 
       {/* Card list ────────────────────────────────────────────── */}
       <ul className="space-y-2">
         {shown.length === 0 && (
           <li className="rounded-lg border border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink-soft">
-            No items in this filter.
+            {t("tablesV2.notes.emptyFilter", "No items in this filter.")}
           </li>
         )}
         {shown.map((entry) =>
@@ -297,6 +299,7 @@ function AlertCard({ deduped }: { deduped: DedupedAlert }) {
 
 // ─── Recommendation card ────────────────────────────────────────
 function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
+  const { t } = useTranslation();
   const rec = deduped.rec;
   const isDone = (rec.status ?? "").toLowerCase() === "done";
   const Icon = isDone ? CheckCircle2 : Info;
@@ -317,7 +320,7 @@ function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span className="text-[10px] uppercase tracking-[0.1em] text-[#2AA89B] dark:text-[#5CD3C5] font-semibold">
-              Recommendation
+              {t("tablesV2.notes.recommendation", "Recommendation")}
             </span>
             <span className="text-[13px] text-ink font-medium leading-snug">
               {rec.title}
@@ -337,12 +340,14 @@ function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
 
 // ─── Duplicate count pill (carried over from D-quick) ──────────
 function DuplicateCountPill({ count, sourceIds }: { count: number; sourceIds: string[] }) {
+  const { t } = useTranslation();
   if (count <= 1) return null;
+  const ids = `${sourceIds.slice(0, 8).join(", ")}${sourceIds.length > 8 ? `, +${sourceIds.length - 8}` : ""}`;
   return (
     <span
       className="inline-flex items-center rounded-full bg-ink-mute/15 px-1.5 py-px text-[10px] font-medium text-ink-mute tabular-nums"
-      title={`Fired ${count}× this period. Source row ids: ${sourceIds.slice(0, 8).join(", ")}${sourceIds.length > 8 ? `, +${sourceIds.length - 8} more` : ""}`}
-      aria-label={`This alert was emitted ${count} times in this period — collapsed.`}
+      title={t("tablesV2.notes.dupTitle", { defaultValue: "Fired {{count}}× this period. Source row ids: {{ids}}", count, ids })}
+      aria-label={t("tablesV2.notes.dupAria", { defaultValue: "This alert was emitted {{count}} times in this period — collapsed.", count })}
     >
       ×{count}
     </span>

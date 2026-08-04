@@ -1,4 +1,8 @@
 // F6.0.4 (2026-06-20) — Concept picker (Add metric).
+// Metrics v2 pass (2026-08-04): fully localized — concept names +
+// one-liner descriptions render in the active language (RO/EN), category
+// headers go through t() (metricsV2.category.*), and every UI string
+// (title, search placeholder, empty states) is a translation key.
 //
 // A right-side Sheet listing every F5.0 concept the dashboard can render
 // as a card, grouped by category, searchable, with already-added concepts
@@ -13,6 +17,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   Sheet,
   SheetContent,
@@ -21,6 +26,7 @@ import {
 import { CONCEPTS_BY_KEY } from "@/lib/learning/concepts";
 import { SUPPORTED_CONCEPT_KEYS } from "@/lib/dashboard/resolveConceptValue";
 import type { Concept } from "@/lib/learning/concepts/_schema";
+import { conceptCategoryKey } from "./metricsV2I18n";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -32,9 +38,13 @@ interface Props {
 }
 
 export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
+  const { t, i18n } = useTranslation();
   const [search, setSearch] = useState("");
 
-  // Addable concepts = supported by resolver ∩ in registry ∩ not already added.
+  const locale: "en" | "ro" = i18n.language?.startsWith("ro") ? "ro" : "en";
+
+  // Addable concepts = supported by resolver ∩ in registry ∩ not already
+  // added. Sorted by the LOCALIZED name so the RO list isn't in EN order.
   const addable = useMemo<Concept[]>(() => {
     const excluded = new Set(excludeKeys);
     return Object.values(CONCEPTS_BY_KEY)
@@ -42,8 +52,13 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
         (c) =>
           SUPPORTED_CONCEPT_KEYS.has(c.key) && !excluded.has(c.key),
       )
-      .sort((a, b) => a.name.en.localeCompare(b.name.en));
-  }, [excludeKeys]);
+      .sort((a, b) =>
+        (a.name[locale] ?? a.name.en).localeCompare(
+          b.name[locale] ?? b.name.en,
+          locale,
+        ),
+      );
+  }, [excludeKeys, locale]);
 
   const filtered = useMemo<Concept[]>(() => {
     const q = search.trim().toLowerCase();
@@ -53,7 +68,8 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
         c.name.en.toLowerCase().includes(q) ||
         c.name.ro.toLowerCase().includes(q) ||
         c.key.toLowerCase().includes(q) ||
-        (c.shortDefinition?.en ?? "").toLowerCase().includes(q),
+        (c.shortDefinition?.en ?? "").toLowerCase().includes(q) ||
+        (c.shortDefinition?.ro ?? "").toLowerCase().includes(q),
     );
   }, [addable, search]);
 
@@ -77,7 +93,7 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
       >
         <div className="px-5 pt-5 pb-3 border-b border-rule">
           <SheetTitle className="text-[18px] font-medium text-ink mb-3">
-            Add a metric
+            {t("metricsV2.pickerTitle")}
           </SheetTitle>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-mute" />
@@ -85,7 +101,7 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search metrics…"
+              placeholder={t("metricsV2.searchPlaceholder")}
               data-testid="concept-picker-search"
               autoFocus
               className="
@@ -102,7 +118,7 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
           {grouped.map(([category, items]) => (
             <div key={category} className="mb-3">
               <div className="text-[10px] uppercase tracking-[0.14em] text-ink-mute px-2.5 mb-1 font-medium">
-                {category}
+                {t(conceptCategoryKey(category), { defaultValue: category })}
               </div>
               {items.map((concept) => (
                 <button
@@ -120,13 +136,16 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
                   )}
                 >
                   <div className="text-[13.5px] font-medium text-ink">
-                    {concept.name.en}
+                    {concept.name[locale] ?? concept.name.en}
                   </div>
-                  {concept.shortDefinition && (
-                    <div className="text-[11.5px] text-ink-soft mt-0.5 line-clamp-1">
-                      {concept.shortDefinition.en}
-                    </div>
-                  )}
+                  <div className="text-[11.5px] text-ink-soft mt-0.5 line-clamp-1">
+                    {t(`metricsV2.concepts.${concept.key}`, {
+                      defaultValue:
+                        concept.shortDefinition?.[locale] ??
+                        concept.shortDefinition?.en ??
+                        "",
+                    })}
+                  </div>
                 </button>
               ))}
             </div>
@@ -135,8 +154,8 @@ export function ConceptPicker({ open, onClose, onSelect, excludeKeys }: Props) {
           {filtered.length === 0 && (
             <div className="text-center py-10 text-[13px] text-ink-soft">
               {search
-                ? `No metrics match "${search}"`
-                : "Every available metric is already on your dashboard."}
+                ? t("metricsV2.noMatch", { query: search })
+                : t("metricsV2.allAdded")}
             </div>
           )}
         </div>

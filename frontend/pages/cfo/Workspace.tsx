@@ -61,6 +61,8 @@ import {
   deleteEmptyPeriod,
   fetchWorkspacePeriodsDirect,
   formatPeriodMonth,
+  formatPeriodMonthLoose,
+  isImplausiblePeriod,
   isCurrentMonthPeriod,
   type OrgPeriod,
   type OrgPeriodsPayload,
@@ -888,7 +890,7 @@ function MonthsSection({
   async function confirmDelete() {
     if (!deleteTarget) return;
     const target = deleteTarget;
-    const label = formatPeriodMonth(target.period_end) ?? target.period_label;
+    const label = formatPeriodMonth(target.period_end) ?? formatPeriodMonthLoose(target.period_end) ?? target.period_label;
 
     // Backstop for the disabled delete button. Guarding here too means a stale
     // render (or a dialog opened just before the list changed) can't slip
@@ -1058,7 +1060,7 @@ function MonthsSection({
       <div className="w-full lg:w-[240px] lg:shrink-0 flex flex-col gap-2">
         {addMonthBtn}
         {periods.map((p) => {
-          const label = formatPeriodMonth(p.period_end) ?? p.period_label;
+          const label = formatPeriodMonth(p.period_end) ?? formatPeriodMonthLoose(p.period_end) ?? p.period_label;
           const count = (p.documents ?? []).length;
           const isSelected = selected?.period_id === p.period_id;
           return (
@@ -1087,7 +1089,18 @@ function MonthsSection({
                   className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
                 />
               )}
-              <div className="text-[13px] font-medium tabular-nums text-ink pr-5">{label}</div>
+              <div className="text-[13px] font-medium tabular-nums text-ink pr-5 flex items-center gap-1.5">
+                {label}
+                {/* Corrupt-date flag (2026-08-04): a period whose detected
+                    year is implausible (e.g. 2050/5309, from misread Excel
+                    serials) is still listed so the user can delete it —
+                    the chip says why it looks wrong. */}
+                {isImplausiblePeriod(p.period_end) && (
+                  <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-500 px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.06em]">
+                    {t("ws.badDate")}
+                  </span>
+                )}
+              </div>
               <div className="mt-0.5 text-[11px] text-ink-mute">
                 {count === 0 ? t("ws.noFilesAttached") : t("ws.fileCount", { count })}
               </div>
@@ -1104,7 +1117,7 @@ function MonthsSection({
           <div className="min-w-0">
             <div className="text-[15px] font-medium tabular-nums text-ink leading-tight">
               {selected
-                ? formatPeriodMonth(selected.period_end) ?? selected.period_label
+                ? formatPeriodMonth(selected.period_end) ?? formatPeriodMonthLoose(selected.period_end) ?? selected.period_label
                 : t("ws.noPeriodSelected")}
             </div>
             <div className="text-[10px] uppercase tracking-[0.14em] font-semibold text-ink-mute mt-0.5">
@@ -1121,7 +1134,7 @@ function MonthsSection({
               onClick={() => setDeleteTarget(selected)}
               disabled={periods.length <= 1 || isCurrentMonthPeriod(selected.period_end)}
               data-testid={`workspace-month-delete-${selected.period_id}`}
-              aria-label={t("panels.deleteLabelAria", { label: formatPeriodMonth(selected.period_end) ?? selected.period_label })}
+              aria-label={t("panels.deleteLabelAria", { label: formatPeriodMonth(selected.period_end) ?? formatPeriodMonthLoose(selected.period_end) ?? selected.period_label })}
               title={
                 isCurrentMonthPeriod(selected.period_end)
                   ? t("ws.currentMonthKept")
@@ -1244,7 +1257,7 @@ function MonthsSection({
           <DialogTitle>
             {t("ws.deletePeriodDialogTitle", {
               label: deleteTarget
-                ? formatPeriodMonth(deleteTarget.period_end) ?? deleteTarget.period_label
+                ? formatPeriodMonth(deleteTarget.period_end) ?? formatPeriodMonthLoose(deleteTarget.period_end) ?? deleteTarget.period_label
                 : t("ws.thisPeriod"),
             })}
           </DialogTitle>
@@ -1742,7 +1755,7 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
             key={p.period_id}
             className="inline-flex items-center h-6 px-2 rounded-full border border-rule bg-surface/60 text-[11px] font-medium text-ink-soft tabular-nums"
           >
-            {formatPeriodMonth(p.period_end) ?? p.period_label}
+            {formatPeriodMonth(p.period_end) ?? formatPeriodMonthLoose(p.period_end) ?? p.period_label}
           </span>
         ))
       )}
