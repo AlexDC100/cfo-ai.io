@@ -48,21 +48,12 @@ import {
   // LogOut import dropped — sign-out moved to AccountMenu. Re-add if
   // the sidebar row is ever restored (see comment near the System group).
   Building2,
-  ChevronLeft,
-  ChevronRight,
   Info,
   Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  currentMonthEnd,
-  formatPeriodMonth,
-  formatPeriodYear,
-} from "@/lib/orgPeriods";
-import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { NotificationsMenu } from "./NotificationsMenu";
-import { useActiveLocale } from "@/lib/locale";
 import { useActiveOrg } from "@/lib/org";
 import { startPeriodSwitch } from "@/lib/periodSwitch";
 import { blockedByScan } from "@/lib/scanGuard";
@@ -314,7 +305,10 @@ export function Sidebar({
             month reads as the context every nav item below is scoped to.
             Hidden in the collapsed rail: a month label has no icon-only
             form, and squeezing arrows into 56px would misread as nav. */}
-        {!effectivelyCollapsed && <SidebarMonthStepper />}
+        {/* SidebarMonthStepper removed 2026-08-04 per operator ("year at
+            the top with left/right arrows has no real use"). Months are
+            managed in Settings → Perioade and loaded via the app's own
+            navigation; the rail is nav-only again. */}
         {groups.filter((g) => g.key !== "workspace").map((g) => (
           <Section
             key={g.key}
@@ -683,72 +677,6 @@ function SidebarAction({
         {label}
       </span>
     </button>
-  );
-}
-
-/**
- * Year label + month stepper for the sidebar rail. The visible label is the
- * YEAR alone (2026-08-04 per operator); prev/next arrows still step through
- * this workspace's uploaded MONTHS (newest-first, looping ends), with the
- * month detail in the arrow tooltips. All period-resolution logic lives in
- * the shared usePeriodStepper() hook — the TopHeader's PeriodBreadcrumb
- * reads the same state, so the two surfaces can never disagree.
- */
-function SidebarMonthStepper() {
-  const { t } = useTranslation();
-  const locale = useActiveLocale();
-  const { selectedEnd, selectedYear, prevTarget, nextTarget, showStepper, goToPeriod } =
-    usePeriodStepper();
-
-  // Nothing loaded yet — show the CURRENT year rather than "No period"
-  // (2026-07-26 per operator, adapted to the year-only label).
-  if (!selectedEnd) {
-    return (
-      <div data-testid="sidebar-month-stepper" className="px-0.5">
-        <div className="flex items-center gap-1">
-          <span
-            data-testid="sidebar-month-current-fallback"
-            className="min-w-0 flex-1 text-center font-mono text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-mute/70"
-          >
-            {formatPeriodYear(currentMonthEnd())}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div data-testid="sidebar-month-stepper" className="px-0.5">
-      <div className="flex items-center gap-1">
-        {showStepper && (
-          <button
-            type="button"
-            onClick={() => prevTarget && goToPeriod(prevTarget.period_id)}
-            aria-label={t("topbar.prevMonth")}
-            title={`${t("topbar.prevMonth")} (${formatPeriodMonth(prevTarget?.period_end, locale) ?? ""})`}
-            data-testid="sidebar-prev-month"
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
-          >
-            <ChevronLeft size={14} strokeWidth={2} />
-          </button>
-        )}
-        <span className="min-w-0 flex-1 text-center font-mono text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-soft truncate">
-          {selectedYear}
-        </span>
-        {showStepper && (
-          <button
-            type="button"
-            onClick={() => nextTarget && goToPeriod(nextTarget.period_id)}
-            aria-label={t("topbar.nextMonth")}
-            title={`${t("topbar.nextMonth")} (${formatPeriodMonth(nextTarget?.period_end, locale) ?? ""})`}
-            data-testid="sidebar-next-month"
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/70 transition-colors"
-          >
-            <ChevronRight size={14} strokeWidth={2} />
-          </button>
-        )}
-      </div>
-    </div>
   );
 }
 
