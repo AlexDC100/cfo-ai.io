@@ -19,7 +19,9 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Search, X, CheckCircle2 } from "lucide-react";
+import "./pciI18n";
 import type { PublicCompanyHit } from "@/lib/publicCompanyApi";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
 import { removePeer, useBenchmarkPeers } from "@/lib/benchmarkPeersStore";
@@ -93,6 +95,7 @@ export function CompanySearchPanel({
   query: queryProp,
   onQueryChange,
 }: Props) {
+  const { t } = useTranslation();
   const [internalQuery, setInternalQuery] = useState("");
   const query = queryProp ?? internalQuery;
   const setQuery = onQueryChange ?? setInternalQuery;
@@ -149,7 +152,7 @@ export function CompanySearchPanel({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search Romanian companies"
+            placeholder={t("pci.search.placeholder")}
             spellCheck={false}
             autoCapitalize="characters"
             data-testid="public-companies-search-input"
@@ -162,7 +165,7 @@ export function CompanySearchPanel({
           {query && (
             <button
               onClick={() => setQuery("")}
-              aria-label="Clear search"
+              aria-label={t("pci.search.clear")}
               className="shrink-0 text-ink-mute hover:text-ink transition-colors"
             >
               <X size={14} strokeWidth={2} />
@@ -188,7 +191,7 @@ export function CompanySearchPanel({
             text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-mute mr-1
           ">
             <CheckCircle2 size={10} strokeWidth={2.25} className="text-brand-d" />
-            Your peers
+            {t("pci.search.yourPeers")}
           </span>
           {peers.map((p) => (
             <span
@@ -210,7 +213,7 @@ export function CompanySearchPanel({
               </button>
               <button
                 onClick={(e) => { e.preventDefault(); removePeer(p.ticker); }}
-                aria-label={`Remove ${p.ticker} from peers`}
+                aria-label={t("pci.search.removePeer", { ticker: p.ticker })}
                 className="
                   px-1.5 py-1 text-brand-d/60 hover:text-[#2AA89B] hover:bg-[#5CD3C5]/10
                   transition-colors
@@ -230,8 +233,7 @@ export function CompanySearchPanel({
       {/* No-match note */}
       {noMatches && (
         <div className="mt-4 rounded-xl border border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink">
-          No BVB-listed company matches “{query.trim()}”. Try the ticker
-          (e.g. TLV, SNP, H2O) or part of the company name.
+          {t("pci.search.noMatch", { query: query.trim() })}
         </div>
       )}
     </section>

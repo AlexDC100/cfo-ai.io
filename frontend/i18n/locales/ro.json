@@ -2656,5 +2656,135 @@
       "deleteNote": "Recuperabil din „Șterse recent” timp de 30 de zile.",
       "cannotDelete": "Acesta este singurul tău workspace — nu poate fi șters."
     }
+  },
+  "pci": {
+    "header": {
+      "eyebrow": "Inteligență companii listate",
+      "titlePre": "Caută companii listate și adaugă-le ca ",
+      "titleGrad": "peers de benchmark",
+      "subtitle": "Cifre statutare pentru fiecare companie listată la Bursa de Valori București — venituri, marje, capitaluri și evaluare, din raportările emitenților și din bilanțurile oficiale ANAF, cu prețuri BVB în timp real. Adaugă orice companie ca peer de benchmark și apare lângă cifrele tale private în aceleași analize de indicatori, evaluare și risc.",
+      "tabOverview": "Prezentare",
+      "tabRisk": "Radar de risc",
+      "tabMap": "Hartă geografică",
+      "tabUnavailable": "{{label}} nu este disponibil momentan",
+      "tabsAria": "Secțiunile paginii de companii listate"
+    },
+    "rail": {
+      "title": "Peers pentru compania ta",
+      "subtitle": "Companii listate la BVB din același sector ca {{name}} — un click și apar lângă cifrele tale.",
+      "add": "Adaugă ca peer",
+      "inPeers": "Peer",
+      "added": "{{ticker}} a fost adăugat ca peer de benchmark.",
+      "removed": "{{ticker}} a fost scos din peers."
+    },
+    "pulse": {
+      "market": "Piața BVB azi: mediană {{value}}",
+      "n": "n={{n}}",
+      "topMover": "Mișcarea zilei",
+      "insight": "{{sector}} conduce azi: {{ticker}} {{change}}"
+    },
+    "search": {
+      "placeholder": "Caută companii românești",
+      "clear": "Șterge căutarea",
+      "yourPeers": "Peers aleși",
+      "removePeer": "Scoate {{ticker}} din peers",
+      "noMatch": "Nicio companie listată la BVB nu se potrivește cu „{{query}}”. Încearcă simbolul (ex. TLV, SNP, H2O) sau o parte din numele companiei."
+    },
+    "filters": {
+      "title": "Filtrează universul",
+      "searchPillDesc": "Companiile care se potrivesc căutării — apasă pentru a o șterge",
+      "gainers": "Creșterile zilei",
+      "gainersWhy": "Cele mai mari creșteri de preț de la o zi la alta, dintre companiile cotate live",
+      "losers": "Scăderile zilei",
+      "losersWhy": "Cele mai mari scăderi de preț de la o zi la alta, dintre companiile cotate live",
+      "value": "Evaluări atractive",
+      "valueWhy": "P/E sub 15 și profitabile — ieftine raportat la câștiguri",
+      "distressed": "În dificultate",
+      "distressedWhy": "Marjă EBITDA negativă — pierderi operaționale, presiune de refinanțare",
+      "quality": "Calitate",
+      "qualityWhy": "Marjă EBITDA peste 25%, marjă netă peste 12%, ROE peste 20%"
+    },
+    "card": {
+      "pending": "În curs de procesare",
+      "pendingNote": "Cifrele statutare se încarcă",
+      "mktCap": "Cap. piață",
+      "select": "Selectează {{ticker}} pentru comparație",
+      "rank": "#{{rank}} din {{n}} în grup",
+      "metric": {
+        "ebitdaMargin": "Marjă EBITDA",
+        "netMargin": "Marjă netă",
+        "dividendYield": "Randament dividend",
+        "roe": "ROE",
+        "evToEbitda": "EV/EBITDA",
+        "peRatio": "P/E"
+      },
+      "why": {
+        "ebitdaMargin": "Profitabilitate operațională înainte de amortizare — putere de preț și control al costurilor.",
+        "netMargin": "Cât din fiecare leu de venit ajunge la rezultatul net.",
+        "dividendYield": "Numerar întors acționarilor, raportat la prețul acțiunii.",
+        "roe": "Cât de eficient lucrează capitalul propriu al acționarilor.",
+        "evToEbitda": "Cel mai ieftin multiplu al profitului operațional din grup.",
+        "peRatio": "Prețul plătit pe un leu de profit net — mai mic înseamnă mai ieftin."
+      }
+    },
+    "grid": {
+      "range": "{{from}}–{{to}} din {{total}}",
+      "prev": "Companiile anterioare",
+      "next": "Companiile următoare"
+    },
+    "bench": {
+      "title": "Benchmarking",
+      "subtitle": "Mediană și percentilele 25/75 calculate pe fiecare grup — companiile BVB nu se amestecă niciodată cu cele globale. Apasă pe un card pentru detalierea pe companii.",
+      "groupBvb": "Peers BVB",
+      "groupGlobal": "Global",
+      "n": "n={{n}}",
+      "median": "Mediană",
+      "leader": "Lider",
+      "laggard": "Codaș",
+      "drillTitle": "{{metric}} — {{group}}",
+      "you": "Compania ta",
+      "noOverlay": "Perioada încărcată nu are această valoare, așa că nu se afișează suprapunerea.",
+      "close": "Închide detalierea",
+      "metric": {
+        "growth": "Creștere venituri",
+        "growthShort": "Creștere",
+        "ebitda": "Marjă EBITDA",
+        "ebitdaShort": "EBITDA",
+        "leverage": "Îndatorare (Datorie/EBITDA)",
+        "leverageShort": "Îndatorare",
+        "fcf": "Randament FCF",
+        "fcfShort": "FCF",
+        "evEbitda": "Multiplu de evaluare",
+        "evEbitdaShort": "EV/EBITDA",
+        "dividend": "Randament dividend",
+        "dividendShort": "Dividend"
+      }
+    },
+    "compare": {
+      "selected": "{{n}} selectate pentru comparație",
+      "cta": "Compară",
+      "clear": "Golește",
+      "title": "Comparație față în față",
+      "subtitle": "Cifrele așa cum sunt încărcate pe această pagină — valori statutare anuale plus prețuri live.",
+      "includeYou": "Include compania ta",
+      "limit": "Poți compara cel mult 3 companii.",
+      "row": {
+        "revenue": "Venituri",
+        "mktCap": "Capitalizare",
+        "price": "Preț · azi",
+        "ebitdaMargin": "Marjă EBITDA",
+        "netMargin": "Marjă netă",
+        "leverage": "Datorie netă / EBITDA",
+        "debtToEquity": "Datorii / Capitaluri",
+        "pe": "P/E",
+        "evEbitda": "EV/EBITDA",
+        "dividend": "Randament dividend"
+      }
+    },
+    "footer": {
+      "loading": "Se încarcă sursele…",
+      "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci toate cifrele de pe pagină sunt ilustrative.",
+      "sources": "Surse: date de referință Bursa de Valori București plus raportările emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Fundamentele sunt la închiderea zilei; prețurile se actualizează la 5 minute."
+    }
   }
 }

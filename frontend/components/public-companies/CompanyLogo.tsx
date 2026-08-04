@@ -23,6 +23,14 @@ interface Props {
    *  background" tiles. Parent must be `position: relative` and sized
    *  (e.g. `aspect-square`); this component adds no size of its own. */
   fill?: boolean;
+  /** PCI redesign (2026-08-04): "monogram" NEVER fetches an image — it
+   *  renders the deterministic ticker monogram on a curated 8-tone
+   *  palette (hash → tone), uniform radius. The public-companies page
+   *  uses this everywhere for a uniform look (image favicons were a mix
+   *  of real marks, generic globes and blanks); "image" keeps the old
+   *  bundled-logo/favicon behavior for surfaces that still want it
+   *  (landing PrivateBusinessDemo). */
+  variant?: "image" | "monogram";
   /** Optional className appended (e.g. for margins). */
   className?: string;
 }
@@ -46,6 +54,30 @@ function tickerToneIndex(ticker: string): number {
     sum = (sum + ticker.charCodeAt(i)) % 1000;
   }
   return sum % AVATAR_BG_TONES.length;
+}
+
+// ── Monogram palette (PCI redesign, 2026-08-04) ─────────────────────────
+// Curated 8-tone palette for the `variant="monogram"` avatar: calm tinted
+// backgrounds with legible ink, styled for both light and dark. The tone
+// is deterministic — same char-code hash as above, so a ticker keeps one
+// identity across every surface and session.
+const MONOGRAM_TONES = [
+  "bg-[#5CD3C5]/15 text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",       // teal (brand)
+  "bg-indigo-500/12 text-indigo-700 dark:bg-indigo-400/20 dark:text-indigo-200",
+  "bg-amber-500/15 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200",
+  "bg-rose-500/12 text-rose-700 dark:bg-rose-400/20 dark:text-rose-200",
+  "bg-slate-500/15 text-slate-700 dark:bg-slate-400/20 dark:text-slate-200",
+  "bg-emerald-500/12 text-emerald-700 dark:bg-emerald-400/20 dark:text-emerald-200",
+  "bg-violet-500/12 text-violet-700 dark:bg-violet-400/20 dark:text-violet-200",
+  "bg-cyan-500/12 text-cyan-700 dark:bg-cyan-400/20 dark:text-cyan-200",
+] as const;
+
+function monogramTone(ticker: string): string {
+  let sum = 0;
+  for (let i = 0; i < ticker.length; i += 1) {
+    sum = (sum + ticker.charCodeAt(i)) % 1000;
+  }
+  return MONOGRAM_TONES[sum % MONOGRAM_TONES.length];
 }
 
 // Full ticker (not just its first letter) is the fallback label — BVB
@@ -78,11 +110,20 @@ const FILL_FONT_CLASS_BY_LENGTH: Record<number, string> = {
 };
 const FILL_FONT_CLASS_FALLBACK = "text-xs"; // 7+ chars
 
-export function CompanyLogo({ ticker, size = 32, fill = false, className }: Props) {
+export function CompanyLogo({
+  ticker,
+  size = 32,
+  fill = false,
+  variant = "image",
+  className,
+}: Props) {
   const [imgFailed, setImgFailed] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
-  const url = tickerLogoUrl(ticker);
-  const tone = AVATAR_BG_TONES[tickerToneIndex(ticker)];
+  const monogram = variant === "monogram";
+  const url = monogram ? null : tickerLogoUrl(ticker);
+  const tone = monogram
+    ? monogramTone(ticker.toUpperCase())
+    : AVATAR_BG_TONES[tickerToneIndex(ticker)];
   const showImg = url && !imgFailed;
   const label = ticker.toUpperCase();
   // Backdrop behind the logo image. Most brand marks are designed for a

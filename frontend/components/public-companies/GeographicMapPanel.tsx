@@ -332,7 +332,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
       <div className="flex gap-4 flex-col lg:flex-row min-h-[560px]">
         <div
           ref={wrapRef}
-          className="relative flex-1 min-w-0 min-h-[480px] rounded-2xl border border-rule bg-surface overflow-hidden shadow-sm"
+          className="card-2026 relative flex-1 min-w-0 min-h-[480px] overflow-hidden"
         >
           {!counties ? (
             <div className="absolute inset-0 flex items-center justify-center text-ink-mute text-[13px]">
@@ -398,7 +398,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
         </div>
 
         {/* ── Side panel ── */}
-        <aside className="w-full lg:w-[372px] shrink-0 rounded-2xl border border-rule bg-surface shadow-sm flex flex-col overflow-hidden max-h-[720px]">
+        <aside className="card-2026 w-full lg:w-[372px] shrink-0 flex flex-col overflow-hidden max-h-[720px]">
           {!selected ? (
             <>
               <div className="px-4 pt-4 pb-3.5 border-b border-rule-soft">
@@ -501,7 +501,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                     onClick={() => onSelectTicker(c.ticker)}
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-bg-2 text-left"
                   >
-                    <CompanyLogo ticker={c.ticker} size={30} />
+                    <CompanyLogo ticker={c.ticker} variant="monogram" size={30} />
                     <span className="flex-1 min-w-0">
                       <span className="flex items-baseline gap-1.5">
                         <span className="font-semibold text-[12.5px] text-ink truncate">

@@ -158,7 +158,7 @@ export function RiskRadar({ onDrillToCategory }: Props) {
 
       {/* ── Card grid: 1 col mobile, 2 col tablet, 4 col desktop ─────── */}
       <div
-        className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+        className="cards-stagger grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
         data-testid="risk-radar-grid"
       >
         {CATEGORY_ORDER.map((cat) => {
@@ -229,10 +229,8 @@ function RadarCard({
       data-category={category}
       data-level={data.level}
       className="
-        group relative w-full text-left
-        rounded-2xl border border-rule bg-surface/80
+        card-2026 group relative w-full text-left
         p-4 sm:p-5
-        transition-colors
         focus-within:border-brand/30
       "
     >

@@ -272,7 +272,7 @@ export function StockDetailDrawer({
             {/* Company logo — Clearbit + letter-avatar fallback. Same
                 visual treatment as the universe list so the user sees
                 the same brand mark on hover, click, and detail. */}
-            <CompanyLogo ticker={displayTicker} size={44} />
+            <CompanyLogo ticker={displayTicker} variant="monogram" size={44} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h2

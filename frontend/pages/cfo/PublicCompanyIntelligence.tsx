@@ -7,9 +7,10 @@
 // not the inline PublicCompanySnapshotPanel (deprecated; removed in the
 // 2026-07 dead-code cleanup, recoverable from git history).
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Activity, LayoutGrid, Globe } from "lucide-react";
 import { PublicShell } from "@/components/cfo/PublicShell";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
@@ -18,12 +19,15 @@ import { CompanySearchPanel, searchUniverse } from "@/components/public-companie
 import { MarketsOverview, type GridFilter } from "@/components/public-companies/MarketsOverview";
 import { BenchmarkingPanel } from "@/components/public-companies/BenchmarkingPanel";
 import { StockDetailDrawer } from "@/components/public-companies/StockDetailDrawer";
-// Phase A — AI Intelligence layer. RiskRadar is the new 8-card radar
-// driven by /api/public/intelligence/risk-radar. Lives on its own tab so
-// it never competes with the existing Markets Overview / Universe table.
-import { RiskRadar } from "@/components/public-companies/RiskRadar";
-// Geographic Map — Romania county (județ) choropleth (design port, 2026-07-23).
-import { GeographicMapPanel } from "@/components/public-companies/GeographicMapPanel";
+import { PeerSuggestRail } from "@/components/public-companies/PeerSuggestRail";
+import { MarketPulseStrip } from "@/components/public-companies/MarketPulseStrip";
+import {
+  workspaceBenchMetrics,
+  workspaceIndustryToSector,
+} from "@/components/public-companies/pciData";
+import "@/components/public-companies/pciI18n";
+import { useActivePeriod } from "@/lib/activePeriod";
+import { useWorkspaceName } from "@/lib/workspaceName";
 import { staticBvbRows } from "@/lib/bvbStaticUniverse";
 import { BVBBadge } from "@/components/public-companies/BVBBadge";
 import { fetchUniverse } from "@/lib/publicCompanyUniverse";
@@ -33,7 +37,34 @@ import {
   setPublicCompanyChatFromSnapshot,
 } from "@/lib/publicCompanyChatStore";
 
+// Phase A — AI Intelligence layer, lazy-loaded (2026-08-04): the Risk
+// Radar and the Geographic Map only fetch their data + bundle chunk when
+// their tab is actually opened.
+const RiskRadar = lazy(() =>
+  import("@/components/public-companies/RiskRadar").then((m) => ({
+    default: m.RiskRadar,
+  })),
+);
+const GeographicMapPanel = lazy(() =>
+  import("@/components/public-companies/GeographicMapPanel").then((m) => ({
+    default: m.GeographicMapPanel,
+  })),
+);
+
+/** Minimal shimmer while a lazy tab chunk loads — abstract bars, matching
+ *  the app's RouteFallback convention. */
+function TabFallback() {
+  return (
+    <div className="space-y-3 py-6" aria-hidden>
+      <div className="h-4 w-1/3 rounded bg-bg-2 animate-pulse" />
+      <div className="h-40 rounded-2xl bg-bg-2/70 animate-pulse" />
+      <div className="h-40 rounded-2xl bg-bg-2/50 animate-pulse" />
+    </div>
+  );
+}
+
 export default function PublicCompanyIntelligence() {
+  const { t } = useTranslation();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   // PUB-200 — chart range is per-session preference, persisted in URL
   // so a drawer reopen lands on the same range and so deep links carry
@@ -200,6 +231,23 @@ export default function PublicCompanyIntelligence() {
     };
   }, [searchQuery, allCompanies]);
 
+  // ── "Compania ta" (2026-08-04) — the loaded period's own metrics, used
+  //    by the peer rail, the benchmark drill-down overlay and the compare
+  //    sheet. Same deriveTotals the statements surfaces use; null when no
+  //    real uploaded period is loaded. ──
+  const period = useActivePeriod();
+  const wsName = useWorkspaceName();
+  const workspaceLoaded =
+    period.isLoaded && period.source === "upload" && !!period.statements;
+  const workspaceMetrics = useMemo(
+    () =>
+      workspaceLoaded ? workspaceBenchMetrics(period.statements, wsName) : null,
+    [workspaceLoaded, period.statements, wsName],
+  );
+  const workspaceSector = workspaceIndustryToSector(
+    period.industry ?? period.statements?.industry ?? null,
+  );
+
   // Drawer snapshot resolves from allCompanies, which already falls back
   // to the bundled static BVB rows — so quick-pick / search / map clicks
   // always open the drawer, with financials from the static seed when the
@@ -266,17 +314,17 @@ export default function PublicCompanyIntelligence() {
           <div className="min-w-0 flex-1">
             <PageHeader
               hero
-              eyebrow="Public Company Intelligence"
+              eyebrow={t("pci.header.eyebrow")}
               title={
                 <>
-                  Search listed companies and add them as{" "}
-                  <span className="text-grad">benchmark peers</span>.{" "}
+                  {t("pci.header.titlePre")}
+                  <span className="text-grad">{t("pci.header.titleGrad")}</span>.{" "}
                   <span className="inline-flex align-middle">
                     <BVBBadge variant="section" />
                   </span>
                 </>
               }
-              subtitle="Statutory financials for every company listed on the Bucharest Stock Exchange — revenue, margins, equity and valuation, from issuer disclosures and official ANAF filings, with live BVB prices. Add any company as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views."
+              subtitle={t("pci.header.subtitle")}
             />
 
             {/* ── Tab strip — Overview / Risk Radar ──────────────────────
@@ -286,7 +334,7 @@ export default function PublicCompanyIntelligence() {
                   so deep links + browser back/forward work. */}
             <div
               role="tablist"
-              aria-label="Public Companies sections"
+              aria-label={t("pci.header.tabsAria")}
               className="mb-5 inline-flex p-1 rounded-xl border border-rule/60 bg-bg-2/40 gap-1"
               data-testid="public-intelligence-tabs"
             >
@@ -294,24 +342,22 @@ export default function PublicCompanyIntelligence() {
                 active={view === "overview"}
                 onClick={() => switchView("overview")}
                 icon={LayoutGrid}
-                label="Overview"
+                label={t("pci.header.tabOverview")}
                 testid="tab-overview"
               />
               <TabPill
                 active={view === "risk-radar"}
                 onClick={() => switchView("risk-radar")}
                 icon={Activity}
-                label="Risk Radar"
+                label={t("pci.header.tabRisk")}
                 testid="tab-risk-radar"
-                disabled
               />
               <TabPill
                 active={view === "map"}
                 onClick={() => switchView("map")}
                 icon={Globe}
-                label="Geographic Map"
+                label={t("pci.header.tabMap")}
                 testid="tab-map"
-                disabled
               />
             </div>
           </div>
@@ -325,17 +371,30 @@ export default function PublicCompanyIntelligence() {
             radar surface is universe-scoped, not single-company. */}
         {view === "risk-radar" ? (
           <div className="space-y-5">
-            <RiskRadar onDrillToCategory={handleRadarDrill} />
+            <Suspense fallback={<TabFallback />}>
+              <RiskRadar onDrillToCategory={handleRadarDrill} />
+            </Suspense>
           </div>
         ) : view === "map" ? (
           /* Geographic Map — Romania county choropleth. Company clicks open
              the same StockDetailDrawer via handleSelectTicker, so the drawer
              rendered at the bottom of this page works from this tab too. */
-          <GeographicMapPanel rows={allCompanies} onSelectTicker={handleSelectTicker} />
+          <Suspense fallback={<TabFallback />}>
+            <GeographicMapPanel rows={allCompanies} onSelectTicker={handleSelectTicker} />
+          </Suspense>
         ) : (
         <>
-        {/* ── Section 2 — Market Search ──────────────────────────── */}
         <div className="space-y-5">
+          {/* ── Hero — peers suggested for the user's own company
+                (2026-08-04 redesign). Hidden when no real period is
+                loaded. ── */}
+          <PeerSuggestRail rows={allCompanies} onSelectTicker={handleSelectTicker} />
+
+          {/* ── Market pulse — aggregate day read of the live-quoted
+                universe (hidden entirely in static/demo mode). ── */}
+          <MarketPulseStrip rows={allCompanies} onSelectTicker={handleSelectTicker} />
+
+          {/* ── Market Search ──────────────────────────────────────── */}
           <CompanySearchPanel
             rows={allCompanies}
             onSelect={handleSelectTicker}
@@ -343,25 +402,24 @@ export default function PublicCompanyIntelligence() {
             onQueryChange={setSearchQuery}
           />
 
-          {/* ── Section 3 — Markets overview ─────────────────────────
-                Magazine-style overview: Explore pills, the BVB logo
-                grid, movers. Explore pills filter the grid IN PLACE —
-                the old Layer-2 drill-down ("Market universe" table,
-                PublicCompaniesUniverseTable) was removed 2026-07-24.
-                Risk Radar drills land in the same grid filter via
-                `drillFilter`. */}
+          {/* ── Markets overview — filter chips + company cards; the
+                compare tray lives inside. Risk Radar drills land in the
+                same grid filter via `drillFilter`. ── */}
           <MarketsOverview
             rows={allCompanies}
             onSelectTicker={handleSelectTicker}
             drillFilter={radarDrill}
             searchFilter={searchFilter}
             onClearSearch={() => setSearchQuery("")}
+            workspace={workspaceMetrics}
           />
 
-          {/* ── Section 4 — Peer benchmarking ─────────────────── */}
-          <BenchmarkingPanel />
-
-          {/* Section 5 — AI investment interpretation — removed 2026-07-25. */}
+          {/* ── Peer benchmarking — per-group stats + drill-down. ── */}
+          <BenchmarkingPanel
+            universeRows={allCompanies}
+            workspace={workspaceMetrics}
+            workspaceSector={workspaceSector}
+          />
         </div>
         </>
         )}
@@ -379,42 +437,14 @@ export default function PublicCompanyIntelligence() {
             The counts come from the same payload the tables render, so a
             demo-mode session or a partial universe says so plainly. */}
         <div className="mt-10 pt-6 border-t border-rule/60 text-[11px] text-ink-mute text-center">
-          {(() => {
-            const loaded = universeQuery.data?.companies ?? [];
-            const bvbCount = loaded.filter((c) => c.exchange === "BVB").length;
-            const usCount = loaded.length - bvbCount;
-            if (universeQuery.isLoading) return "Loading sources…";
-            if (demoMode) {
-              return (
-                <>
-                  Source: <span className="font-medium">bundled sample data</span> — the
-                  live market feed isn&apos;t configured on this deployment, so every
-                  figure on this page is illustrative.
-                </>
-              );
-            }
-            return (
-              <>
-                Sources:{" "}
-                {usCount > 0 && (
-                  <>
-                    <span className="font-medium">
-                      Nasdaq Data Link · Sharadar Equities Bundle (SF1 fundamentals + DAILY prices)
-                    </span>{" "}
-                    for {usCount} US-listed {usCount === 1 ? "company" : "companies"}
-                  </>
-                )}
-                {usCount > 0 && bvbCount > 0 && "; "}
-                {bvbCount > 0 && (
-                  <>
-                    <span className="font-medium">Bursa de Valori București</span> reference
-                    data for {bvbCount} BVB {bvbCount === 1 ? "listing" : "listings"}
-                  </>
-                )}
-                . Fundamentals are end-of-day; prices refresh every 5 minutes.
-              </>
-            );
-          })()}
+          {/* The universe fetch chokepoint filters to BVB-only rows
+              (publicCompanyUniverse.fetchUniverse), so the count here is
+              always the BVB listing count this page actually renders. */}
+          {universeQuery.isLoading
+            ? t("pci.footer.loading")
+            : demoMode
+              ? t("pci.footer.demo")
+              : t("pci.footer.sources", { bvb: allCompanies.length })}
         </div>
       </div>
     </Shell>
@@ -433,13 +463,14 @@ interface TabPillProps {
   icon: typeof Activity;
   label: string;
   testid?: string;
-  /** Renders the tab but refuses selection (2026-07-26 per operator — Risk
-   *  Radar and Geographic Map are off). Kept visible-but-dimmed rather than
-   *  hidden so the sections don't silently disappear. */
+  /** Renders the tab but refuses selection. Unused since 2026-08-04 (the
+   *  Risk Radar + Geographic Map tabs were re-enabled and lazy-loaded per
+   *  the PCI redesign spec); kept for the next time a tab needs gating. */
   disabled?: boolean;
 }
 
 function TabPill({ active, onClick, icon: Icon, label, testid, disabled = false }: TabPillProps) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -449,7 +480,7 @@ function TabPill({ active, onClick, icon: Icon, label, testid, disabled = false 
       disabled={disabled}
       onClick={onClick}
       data-testid={testid}
-      title={disabled ? `${label} is currently unavailable` : undefined}
+      title={disabled ? t("pci.header.tabUnavailable", { label }) : undefined}
       className={`
         inline-flex items-center gap-1.5
         h-8 px-3 rounded-lg
