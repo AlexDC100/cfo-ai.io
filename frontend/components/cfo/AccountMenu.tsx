@@ -51,6 +51,7 @@ import { formatEur } from "@/lib/pricingConfig";
 import { usePlanState, type PlanState } from "@/lib/planState";
 import { formatTokens, tokenUsage } from "@/lib/tokenUsage";
 import { useLearningMode, type LearningMode } from "@/stores/learningMode";
+import { useTheme, type Theme } from "@/theme";
 
 // ─────────────────────────────────────────────────────────────────────
 // Public component — wires hooks + DropdownMenu, used in TopHeader.
@@ -65,6 +66,10 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
   // Learning mode lives here since the 2026-08-04 header redesign — the
   // "Learn · <mode>" pill left the bar; the avatar menu is its home now.
   const { mode: learningMode, setMode: setLearningMode } = useLearningMode();
+  // Theme choice restored 2026-08-12 (operator request) — dark stays the
+  // default, but Light/Dark/System is pickable again. next-themes owns
+  // persistence; ThemePrefSync mirrors it to user_prefs.theme.
+  const { theme, setTheme, mounted: themeMounted } = useTheme();
   const [open, setOpen] = useState(false);
 
   if (!user) return null;
@@ -163,6 +168,8 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
           plan={state}
           learningMode={learningMode}
           onSetLearningMode={setLearningMode}
+          theme={themeMounted ? theme ?? "dark" : undefined}
+          onSetTheme={setTheme}
           onNavigateSettings={() => {
             setOpen(false);
             navigate("/settings");
@@ -191,6 +198,12 @@ export interface AccountMenuContentProps {
    *  panel without learning props keep passing. */
   learningMode?: LearningMode;
   onSetLearningMode?: (mode: LearningMode) => void;
+  /** Theme picker (2026-08-12 — restored after the dark-only period).
+   *  Optional for the same reason as the learning props: tests render
+   *  the panel bare. `theme` is undefined until next-themes has mounted
+   *  (avoids a hydration flicker on the active pill). */
+  theme?: Theme;
+  onSetTheme?: (t: Theme) => void;
   onNavigateSettings: () => void;
   onNavigateBilling: () => void;
   onSignOut: () => void;
@@ -202,6 +215,8 @@ export function AccountMenuContent({
   plan,
   learningMode,
   onSetLearningMode,
+  theme,
+  onSetTheme,
   onNavigateSettings,
   onNavigateBilling,
   onSignOut,
@@ -349,6 +364,42 @@ export function AccountMenuContent({
         </section>
       )}
 
+      {/* ── Theme (2026-08-12 — restored; dark-only pin removed) ── */}
+      {theme && onSetTheme && (
+        <section
+          className="px-2 py-2 border-t border-rule/60"
+          data-testid="account-menu-theme"
+        >
+          <SectionHeader label={t("account.theme")} />
+          <div role="radiogroup" aria-label={t("account.theme")} className="flex gap-1 px-1">
+            {(["dark", "light", "system"] as const).map((m) => {
+              const active = theme === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => onSetTheme(m)}
+                  data-testid={`account-menu-theme-${m}`}
+                  className={`
+                    flex-1 inline-flex items-center justify-center gap-1.5
+                    h-9 rounded-lg text-[12px] font-medium
+                    transition-colors duration-150
+                    ${active
+                      ? "bg-brand/[0.1] text-brand-d border border-brand/30"
+                      : "text-ink-soft hover:text-ink hover:bg-bg-2/70 border border-transparent"}
+                  `}
+                >
+                  {active && <Check size={12} strokeWidth={2.5} />}
+                  {t(`account.theme_${m}`)}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* ── Main actions ─────────────────────────────────────── */}
       {/* "Privacy (Coming soon)" row removed per operator directive —
           see comment block below the menu. */}
@@ -365,8 +416,6 @@ export function AccountMenuContent({
           onClick={onNavigateSettings}
           testId="account-menu-settings"
         />
-        {/* Theme row removed 2026-07-25 — the app is dark-only (theme
-            toggles removed app-wide, forcedTheme="dark" in App.tsx). */}
       </section>
 
       {/* ── Sign out (THE single source of truth) ─────────────── */}

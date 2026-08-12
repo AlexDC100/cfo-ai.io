@@ -174,10 +174,11 @@ function App() {
 
   return (
     <ErrorBoundary>
-    {/* 2026-07-25 — dark-only. The theme toggles were removed app-wide
-        (operator directive); forcedTheme guarantees dark even for users
-        whose localStorage still carries an old "light"/"system" pick. */}
-    <ThemeProvider defaultTheme="dark" enableSystem={false} forcedTheme="dark">
+    {/* 2026-08-12 — theme choice restored (operator request). Dark stays
+        the DEFAULT (the product is designed dark-first), but the forced
+        pin is gone: the avatar menu carries a Light/Dark/System switcher,
+        persisted via next-themes localStorage + user_prefs.theme sync. */}
+    <ThemeProvider defaultTheme="dark" enableSystem>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
         <CurrencyProvider>

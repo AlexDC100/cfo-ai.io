@@ -768,7 +768,11 @@
     "learning_off": "Off",
     "billing": "Billing",
     "settings": "Settings",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "theme": "Appearance",
+    "theme_dark": "Dark",
+    "theme_light": "Light",
+    "theme_system": "System"
   },
   "authX": {
     "tagline": "Financial Intelligence",

@@ -768,7 +768,11 @@
     "learning_off": "Oprit",
     "billing": "Facturare",
     "settings": "Setări",
-    "signOut": "Deconectare"
+    "signOut": "Deconectare",
+    "theme": "Aspect",
+    "theme_dark": "Întunecat",
+    "theme_light": "Luminos",
+    "theme_system": "Sistem"
   },
   "authX": {
     "tagline": "Inteligență financiară",
