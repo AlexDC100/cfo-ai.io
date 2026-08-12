@@ -1173,7 +1173,11 @@ export default function FinancialStatements() {
   // the filename, editable) via the dialog, THEN run the batch with the chosen
   // dates. periodConfirm holds the files awaiting confirmation.
   function startScan(filesOverride?: File[]) {
-    const batch = filesOverride ?? stagedFiles;
+    // Array.isArray, not `??`: the upload zones pass this straight into
+    // onClick (`onStartScan={startScan}`), so the first argument can be the
+    // click EVENT — spreading that threw "E is not iterable" and the button
+    // silently did nothing in prod (2026-08-12 operator report).
+    const batch = Array.isArray(filesOverride) ? filesOverride : stagedFiles;
     if (scanning || batch.length === 0) return;
     setPeriodConfirm([...batch]);
   }
