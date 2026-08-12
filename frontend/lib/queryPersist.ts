@@ -107,11 +107,20 @@ export function setupQueryPersistence(): void {
         // server-side while the tab was closed (or via another device /
         // an operator repair) would otherwise stay invisible for the full
         // 30-min staleTime — a repaired period kept rendering its old
-        // corrupt date through hard reloads (2026-08-12). Marking every
-        // hydrated entry stale keeps the instant paint and makes each
-        // query refetch in the background as soon as a component mounts
-        // it. refetchType "none": nothing is mounted yet at setup time.
-        void queryClient.invalidateQueries({ refetchType: "none" });
+        // corrupt date through hard reloads (2026-08-12).
+        //
+        // Mere staleness is NOT enough here: queryClient.ts sets
+        // `refetchOnMount: false` and `refetchOnWindowFocus: false`, so
+        // nothing in this app ever acts on a stale flag — only an ACTIVE
+        // refetch does. So: wait for the first page's queries to mount
+        // (they subscribe within the first render frames; 2.5s is
+        // comfortable), then invalidate with refetchType "active" — every
+        // query the visible page holds refetches once in the background
+        // while the user already sees the cached paint. Hydrated entries
+        // no page mounted stay cached and untouched, same as before.
+        window.setTimeout(() => {
+          void queryClient.invalidateQueries({ refetchType: "active" });
+        }, 2500);
       } else {
         localStorage.removeItem(STORAGE_KEY);
       }
