@@ -1153,7 +1153,15 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
     period_end_hint: Optional[str] = None
     if hint:
         try:
-            period_end_hint = date.fromisoformat(str(hint)[:10]).isoformat()
+            # Sane-clamped like every other source: the FE's client-side
+            # detection once seeded the confirm dialog with a garbage year
+            # (2115-03-31, from stray numbers in a header row) and this path
+            # trusted it verbatim — the one unclamped door left after the
+            # 2050-12-31 fix. Out-of-range hints now fall through to the
+            # extracted/filename dates instead of minting a corrupt period.
+            period_end_hint = _sane_period_end(
+                date.fromisoformat(str(hint)[:10]).isoformat()
+            )
         except (TypeError, ValueError):
             period_end_hint = None
 
@@ -1162,7 +1170,9 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
         period_end = period_end_hint
     elif period_end_str:
         try:
-            period_end = date.fromisoformat(period_end_str).isoformat()
+            period_end = _sane_period_end(
+                date.fromisoformat(period_end_str).isoformat()
+            ) or _detect_period_end_from_filename(doc.get("original_filename"))
         except (TypeError, ValueError):
             period_end = _detect_period_end_from_filename(doc.get("original_filename"))
     else:

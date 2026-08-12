@@ -79,7 +79,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { detectPeriodEndFromFilename, detectPeriodEndFromFile, formatDetectedMonth } from "@/lib/detectPeriodEnd";
-import { fetchWorkspacePeriodsDirect, formatPeriodMonth, useOrgPeriods } from "@/lib/orgPeriods";
+import { fetchWorkspacePeriodsDirect, formatPeriodMonth, formatPeriodMonthLoose, useOrgPeriods } from "@/lib/orgPeriods";
 import { useActiveOrg } from "@/lib/org";
 import { cfoApi } from "@/lib/cfoApi";
 import {
@@ -3151,7 +3151,13 @@ function CompactPeriodHeader({
   const rawPeriodLabel = statements?.periodLabel ?? (invoices ? t("dash.invoicesCount", { count: invoices.length }) : "");
   // Show month + year only — drop the day. A full date ("2026-05-26") becomes
   // "May 2026"; non-date labels ("FY 2025", "120 invoices") are left as-is.
-  const periodLabel = formatPeriodMonth(rawPeriodLabel) ?? rawPeriodLabel;
+  // A date-shaped label OUTSIDE the sane window (a corrupt period like
+  // 2115-03-31) still formats via the loose path — a raw ISO string in the
+  // page title reads as a glitch (operator-reported).
+  const periodLabel =
+    formatPeriodMonth(rawPeriodLabel)
+    ?? formatPeriodMonthLoose(rawPeriodLabel)
+    ?? rawPeriodLabel;
 
   // The Replace dropdown also offers "Add ... on top" for samples that
   // contribute a different document type than what's already loaded — that's

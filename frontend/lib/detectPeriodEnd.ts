@@ -17,6 +17,14 @@ const MONTHS_RO: Record<string, number> = {
 };
 
 function iso(y: number, m: number, d: number): string | null {
+  // Sane window: a trial balance is for a real accounting period, not a year
+  // like 2050 or 2115 — those come from stray numbers in spreadsheet header
+  // rows (RO thousand-separator dots, account codes, Excel serials) that the
+  // date regexes below can accidentally match. Every detection path funnels
+  // through here, so the clamp covers filename AND content detection.
+  // Out-of-range → null → the confirm dialog asks the user to pick.
+  const maxYear = new Date().getUTCFullYear() + 1;
+  if (y < 2000 || y > maxYear) return null;
   // Validate via Date round-trip (rejects e.g. 31 Feb).
   const dt = new Date(Date.UTC(y, m - 1, d));
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
