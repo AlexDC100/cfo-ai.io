@@ -102,6 +102,16 @@ export function setupQueryPersistence(): void {
       const fresh = blob?.at && Date.now() - blob.at < MAX_AGE_MS;
       if (fresh && uid && blob.uid === uid && blob.state) {
         hydrate(queryClient, blob.state);
+        // Disk-hydrated data paints instantly but must NOT be trusted as
+        // fresh: a reload is a new session, and anything that changed
+        // server-side while the tab was closed (or via another device /
+        // an operator repair) would otherwise stay invisible for the full
+        // 30-min staleTime — a repaired period kept rendering its old
+        // corrupt date through hard reloads (2026-08-12). Marking every
+        // hydrated entry stale keeps the instant paint and makes each
+        // query refetch in the background as soon as a component mounts
+        // it. refetchType "none": nothing is mounted yet at setup time.
+        void queryClient.invalidateQueries({ refetchType: "none" });
       } else {
         localStorage.removeItem(STORAGE_KEY);
       }
