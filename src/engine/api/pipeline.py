@@ -5671,6 +5671,31 @@ def build_router() -> APIRouter:
                     _te = float(_totals["total_equity"])
                     _a_bs = statements.get("assembled_bs") or {}
                     _a_bs["bs_balance_delta"] = round(_ta - (_tl + _te), 2)
+                    # Fix A1 extension (2026-08-13): the GRAND TOTALS must come
+                    # from the same write-time envelope, for the same reason.
+                    # Overriding only bs_balance_delta left total_assets /
+                    # total_equity / total_liabilities carrying the lossy
+                    # round-trip values, so the FE's Balance Sheet tab rendered
+                    # "TOTAL EQUITY & LIABILITIES" 6.6M above the true figure
+                    # (Scandia Frozen: 45.8M round-tripped vs 39.2M envelope)
+                    # while the accuracy banner showed the envelope-true 0.11%
+                    # drift — the two sides of one screen quoting two different
+                    # books. Section-level sub-aggregates stay round-tripped
+                    # (the envelope doesn't carry them); the FE reconciles
+                    # sections against these now-true totals.
+                    _a_bs["total_assets"] = round(_ta, 2)
+                    _a_bs["total_equity"] = round(_te, 2)
+                    _a_bs["total_liabilities"] = round(_tl, 2)
+                    if "current_assets" in _totals:
+                        _a_bs["total_current_assets"] = round(float(_totals["current_assets"]), 2)
+                        _a_bs["total_non_current_assets"] = round(
+                            _ta - float(_totals["current_assets"]), 2
+                        )
+                    if "current_liabilities" in _totals:
+                        _a_bs["total_current_liabilities"] = round(float(_totals["current_liabilities"]), 2)
+                        _a_bs["total_non_current_liabilities"] = round(
+                            _tl - float(_totals["current_liabilities"]), 2
+                        )
                     statements["assembled_bs"] = _a_bs
             except Exception:  # noqa: BLE001
                 logger.exception(

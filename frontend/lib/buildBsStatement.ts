@@ -694,13 +694,26 @@ export function buildBSStatement(args: BuildArgs): BSStatement {
     // `args.currentYearNetProfit` (F1.n statutory anchor) — no residual.
 
     // LT debt — engine `lt_debt` aggregates bank loans + leasing + LT
-    // interest accruals. FE rows: 1621 + 167 + 168 + 15x + 475 + 478.
+    // interest accruals ONLY (chart_of_accounts.py: lt_debt =
+    // bs["longTermDebt"]; provisions/subsidies/grants live in the separate
+    // `other_non_current_liabilities` bucket). Comparing it against FE rows
+    // that INCLUDED 15x/475/478 minted a negative residual that cancelled
+    // real liabilities out of the section — Scandia Frozen's 941,634 RON of
+    // investment subsidies vanished from TOTAL EQUITY & LIABILITIES, one of
+    // the two legs of the 6.6M display imbalance (2026-08-13).
     {
       engineValue: ab.lt_debt ?? 0,
-      feSum:
-        ltDebt.closing + leasing167.closing + ltInterest168.closing +
-        provisions15.closing + subsidies475.closing + grants478.closing,
-      label: "Other long-term debt / liabilities",
+      feSum: ltDebt.closing + leasing167.closing + ltInterest168.closing,
+      label: "Other long-term debt",
+      section: "nc-liab",
+    },
+    // Other non-current liabilities — provisions 15x + subsidies 475 +
+    // grants 478 vs the engine's dedicated bucket, so a mapping gap there
+    // surfaces as its own honest residual instead of polluting lt_debt.
+    {
+      engineValue: (ab as { other_non_current_liabilities?: number }).other_non_current_liabilities ?? (provisions15.closing + subsidies475.closing + grants478.closing),
+      feSum: provisions15.closing + subsidies475.closing + grants478.closing,
+      label: "Other non-current liabilities",
       section: "nc-liab",
     },
     // ST debt — engine `st_debt` = 519 alone.
