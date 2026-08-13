@@ -7,7 +7,9 @@ trial-balance shapes. Handles:
   - Crystal Reports / SAP exports (6-digit codes, paired Debit/Credit
     columns with no explicit Solduri-Initiale/Finale labels)
   - CIEL / WinMentor (typical Romanian column ordering)
-  - Generic pasted text from Excel (auto-delimiter)
+  - Generic 4-column closing-only exports (cont, denumire, SF D/C)
+  - CSV exports (`parse_trial_balance_csv`) and pasted text
+    (auto-delimiter) — same grid, same detection machinery
 
 When this parser succeeds, the orchestrator skips the Claude extraction
 step and feeds the structured rows directly to the mapping stage. When
@@ -25,12 +27,19 @@ import io
 import logging
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd  # type: ignore
 
+from .number_locale import ANGLO, detect_number_locale, parse_number
+
 
 logger = logging.getLogger(__name__)
+
+
+# Contract `extraction.parser_version` (docs/CANONICAL_BS_V2_CONTRACT.md).
+# Bump whenever parser logic changes what rows/values are extracted.
+PARSER_VERSION = "tb_parser_v4"
 
 
 # ─── Errors ─────────────────────────────────────────────────────────────────
@@ -45,6 +54,57 @@ class ParseError(Exception):
         self.user_message = user_message
         self.technical_detail = technical_detail
         super().__init__(user_message)
+
+
+# ─── Result carriers (backward-compatible list subclasses) ──────────────────
+# Every existing caller consumes the parse output as a plain list of row
+# dicts and the assemble-shape output as a plain list of account dicts.
+# These subclasses keep that contract byte-for-byte (iteration, len,
+# indexing all unchanged) while carrying the CANONICAL_BS_V2_CONTRACT
+# `extraction` / `source_anchor` metadata and the unmapped/excluded
+# telemetry as attributes for the pipeline to consume.
+
+
+class TrialBalanceParseResult(list):
+    """List of 10-column row dicts ({cont, nume_cont, si_d, si_c, r_d,
+    r_c, st_d, st_c, sf_d, sf_c}) plus parse metadata:
+
+      .extraction      — contract `extraction` block: {method,
+                         parser_version, source_format, number_locale,
+                         sheet, header_row_index}
+      .source_anchor   — contract `source_anchor` block (see
+                         `compute_source_anchor` for the exact shape)
+      .normalized_rows — property; contract NORMALIZED-stage rows with
+                         both sides of every column pair (rl/rc naming),
+                         so assembly can consume closing balances by SIDE
+    """
+
+    def __init__(self, rows=(), extraction: Optional[Dict] = None,
+                 source_anchor: Optional[Dict] = None):
+        super().__init__(rows)
+        self.extraction: Dict[str, Any] = extraction or {}
+        self.source_anchor: Dict[str, Any] = source_anchor or {}
+
+    @property
+    def normalized_rows(self) -> List[Dict]:
+        return normalize_rows(self)
+
+
+class AssembleShapeResult(list):
+    """List of collapsed {code, name, amount[, bucket_override]} account
+    dicts (unchanged legacy shape) plus the account-census telemetry the
+    deterministic path previously discarded:
+
+      .unmapped — [{code, name, sf_d, sf_c, reason}] accounts with no
+                  mapping rule (previously silently skipped)
+      .excluded — [{code, name, sf_d, sf_c, reason}] off-balance class 8
+                  (incl. 891/892) and deliberate ignore-bucket accounts
+    """
+
+    def __init__(self, accounts=()):
+        super().__init__(accounts)
+        self.unmapped: List[Dict] = []
+        self.excluded: List[Dict] = []
 
 
 # ─── Format detection (magic bytes, not extension) ──────────────────────────
@@ -164,6 +224,11 @@ class TbStructure:
     data_end_index: int
     columns: Dict[str, int]
     has_totals_row: bool
+    # Contract `extraction.source_format`: how many distinct D/C column
+    # pairs the file carries. "saga_10_col" = all four (SI/RL/RC/SF),
+    # "saga_compact_6_col" = 2-3 pairs (closing synthesized when the SF
+    # block is absent), "generic_4_col" = a single closing pair.
+    source_format: str = "saga_10_col"
 
 
 def detect_trial_balance_structure(df: pd.DataFrame) -> TbStructure:
@@ -260,6 +325,10 @@ def detect_trial_balance_structure(df: pd.DataFrame) -> TbStructure:
 
     # Pass 3 — explicit-label pattern matches (Solduri Initiale Debit, etc.)
     # These take precedence over the positional pairing — overwrite if found.
+    # `explicit_labels` records which semantic names were matched by their
+    # own wording (vs. inferred positionally) — the generic-4-col remap
+    # below must never repurpose an explicitly-labelled pair.
+    explicit_labels: set[str] = set()
     for semantic_name in (
         "initial_debit", "initial_credit",
         "period_debit", "period_credit",
@@ -275,7 +344,26 @@ def detect_trial_balance_structure(df: pd.DataFrame) -> TbStructure:
                 re.search(pat, header, re.IGNORECASE) for pat in COLUMN_PATTERNS[semantic_name]
             ):
                 column_map[semantic_name] = col_idx
+                explicit_labels.add(semantic_name)
                 break
+
+    # Resolve double-labelled pairs: when an explicit Pass-3 label (e.g.
+    # 'Sold final Debit') landed on the same physical columns that the
+    # positional Pass-2 pairing had already assigned to an earlier pair
+    # slot, the earlier slot is a misattribution of the SAME pair — drop
+    # it so pair counting (and the generic-4-col remap) sees the real
+    # number of distinct column pairs.
+    for target in ("final", "cumulative"):
+        td = column_map.get(f"{target}_debit")
+        tc = column_map.get(f"{target}_credit")
+        if td is None or tc is None:
+            continue
+        for p in ("initial", "period", "cumulative"):
+            if p == target:
+                continue
+            if column_map.get(f"{p}_debit") == td and column_map.get(f"{p}_credit") == tc:
+                del column_map[f"{p}_debit"]
+                del column_map[f"{p}_credit"]
 
     # Validate the essentials.
     # Layout A (8-col / Scandia / Crystal Reports) has all four block
@@ -302,15 +390,47 @@ def detect_trial_balance_structure(df: pd.DataFrame) -> TbStructure:
     has_cumulative = "cumulative_debit" in column_map and "cumulative_credit" in column_map
     has_final      = "final_debit"      in column_map and "final_credit"      in column_map
     if not (has_cumulative or has_final):
-        raise ParseError(
-            user_message=(
-                "Couldn't find a 'Sume totale' / total-sums column pair (or "
-                "a closing-balance pair). This file's structure wasn't "
-                "recognized as a supported trial balance — compare it to "
-                "the downloadable example."
-            ),
-            technical_detail=f"headers={headers}, mapped={column_map}",
+        # Generic 4-column TB (cont, denumire, one bare Debit/Credit
+        # pair): the positional pairing above labels the lone pair
+        # "initial", which used to fail this validation. A single
+        # UNLABELLED pair on a trial balance is its closing balances —
+        # remap it to final. Guarded on `explicit_labels`: a file whose
+        # lone pair is explicitly headed 'Sold initial' really is an
+        # opening-only extract and must still be rejected (no closing
+        # data to build a balance sheet from).
+        lone_positional_pair = (
+            "initial_debit" in column_map and "initial_credit" in column_map
+            and "period_debit" not in column_map
+            and "period_credit" not in column_map
+            and not explicit_labels
         )
+        if lone_positional_pair:
+            column_map["final_debit"] = column_map.pop("initial_debit")
+            column_map["final_credit"] = column_map.pop("initial_credit")
+            has_final = True
+        else:
+            raise ParseError(
+                user_message=(
+                    "Couldn't find a 'Sume totale' / total-sums column pair (or "
+                    "a closing-balance pair). This file's structure wasn't "
+                    "recognized as a supported trial balance — compare it to "
+                    "the downloadable example."
+                ),
+                technical_detail=f"headers={headers}, mapped={column_map}",
+            )
+
+    # Contract `extraction.source_format` — classified by how many
+    # distinct D/C pairs survived (post-dedup, post-remap).
+    pair_count = sum(
+        1 for p in ("initial", "period", "cumulative", "final")
+        if f"{p}_debit" in column_map and f"{p}_credit" in column_map
+    )
+    if pair_count <= 1:
+        source_format = "generic_4_col"
+    elif pair_count >= 4:
+        source_format = "saga_10_col"
+    else:
+        source_format = "saga_compact_6_col"
 
     data_start = header_idx + 1
     data_end = _find_data_end(df, data_start, column_map["account_code"])
@@ -322,6 +442,7 @@ def detect_trial_balance_structure(df: pd.DataFrame) -> TbStructure:
         data_end_index=data_end,
         columns=column_map,
         has_totals_row=has_totals_row,
+        source_format=source_format,
     )
 
 
@@ -367,7 +488,11 @@ def _is_totals_row(row: pd.Series, account_code_col: int) -> bool:
 # ─── Row → typed account dict ───────────────────────────────────────────────
 
 
-def parse_trial_balance_df(df: pd.DataFrame, structure: TbStructure) -> List[Dict]:
+def parse_trial_balance_df(
+    df: pd.DataFrame,
+    structure: TbStructure,
+    number_locale: Optional[str] = None,
+) -> List[Dict]:
     """Convert the detected trial-balance frame into typed account dicts.
 
     Output schema (compatible with the rest of the pipeline's expectations):
@@ -386,15 +511,20 @@ def parse_trial_balance_df(df: pd.DataFrame, structure: TbStructure) -> List[Dic
 
     Filters out: rows with empty Cont, non-numeric account codes (banner
     rows from Crystal Reports), and the totals row at the bottom.
+
+    `number_locale`: the per-DOCUMENT locale ("ro"/"anglo") every cell is
+    parsed under — one decision for the whole file, never re-guessed per
+    cell (contract `extraction.number_locale`). None → detect here.
     """
     accounts: List[Dict] = []
     cols = structure.columns
+    locale = number_locale or _detect_df_locale(df, structure)
 
     def col_or_zero(row: pd.Series, key: str) -> float:
         idx = cols.get(key)
         if idx is None:
             return 0.0
-        return _to_number(row.iloc[idx])
+        return parse_number(row.iloc[idx], locale)
 
     # SAGA 6-col Layout B has no `Solduri finale` block; only cumulative
     # (`Sume totale`) columns are present. The BS aggregation downstream
@@ -484,129 +614,266 @@ def parse_trial_balance_df(df: pd.DataFrame, structure: TbStructure) -> List[Dic
     return accounts
 
 
-def _to_number(value) -> float:
-    """Locale-tolerant cell-to-float conversion.
+# Cell-to-float conversion lives in `number_locale.parse_number` — ONE
+# shared implementation for the XLSX/CSV and PDF paths. The legacy
+# per-cell `_to_number` heuristic (comma-only → always Romanian decimal,
+# dot-only → float() verbatim) was retired because it decided the locale
+# independently per cell — the exact 1000× misparse class documented in
+# BS_ENGINE_AUDIT_MAP.md Ingestion §3. The locale is now detected once
+# per document (`_detect_df_locale`) and applied uniformly.
 
-    Handles:
-      - '1.234,56'    (Romanian: dot=thousands, comma=decimal) → 1234.56
-      - '1,234.56'    (English: comma=thousands, dot=decimal)  → 1234.56
-      - '1234.56'     (Crystal Reports clean)                  → 1234.56
-      - '1,56'        (Romanian short)                         → 1.56
-      - '3 980 157,61'    (SAGA: space-thousands, comma decimal) → 3980157.61
-      - '3\xa0980\xa0157.61' (SAGA nbsp variant)               → 3980157.61
-      - '(1,234.56)'  (parenthesized negative)                 → -1234.56
-      - NaN / None / '-' / '' / 'nan'                          → 0.0
 
-    Note: this helper is used ONLY by the trial-balance parser. The
-    public-records parser (_public_records_parser.py) has its own
-    `_parse_ro_number`; changes here cannot regress Bug B's behavior.
+def _detect_df_locale(df: pd.DataFrame, structure: TbStructure) -> str:
+    """Detect the document's number locale by majority vote over every
+    cell of every mapped numeric column (data rows AND totals row).
+    Default is "anglo" because pandas' dtype=str renders true numeric
+    Excel cells as dot-decimal repr strings — a workbook with no text-
+    formatted number cells carries no other locale signal.
     """
-    if pd.isna(value) or value is None:
-        return 0.0
-    s = str(value).strip()
-    if not s or s.lower() in ("nan", "none", "-", "—"):
-        return 0.0
-
-    # Parenthesized negatives, common in accounting reports.
-    is_negative = False
-    if s.startswith("(") and s.endswith(")"):
-        is_negative = True
-        s = s[1:-1].strip()
-    if s.startswith("-"):
-        is_negative = True
-        s = s[1:].strip()
-
-    # SAGA / EEI / WinMentor often render thousands as a regular space or
-    # non-breaking space (e.g. '3 980 157,61' or '3\xa0980\xa0157.61').
-    # Strip both — the only meaningful punctuation left is `,` and `.`,
-    # which are disambiguated below by position.
-    s = s.replace("\xa0", "").replace(" ", "").replace(" ", "").replace(" ", "")
-
-    if "," in s and "." in s:
-        # Both separators present — the rightmost is the decimal.
-        if s.rfind(",") > s.rfind("."):
-            s = s.replace(".", "").replace(",", ".")
-        else:
-            s = s.replace(",", "")
-    elif "," in s:
-        # Only comma — assume Romanian decimal.
-        s = s.replace(",", ".")
-
-    try:
-        n = float(s)
-    except ValueError:
-        return 0.0
-    return -n if is_negative else n
+    cols = structure.columns
+    numeric_idx = [cols[k] for k in cols if k not in ("account_code", "account_name")]
+    cells: List[Any] = []
+    for i in range(structure.data_start_index, len(df)):
+        row = df.iloc[i]
+        for idx in numeric_idx:
+            cells.append(row.iloc[idx])
+    return detect_number_locale(cells, default=ANGLO)
 
 
-# ─── Pasted-text path ───────────────────────────────────────────────────────
+# ─── Source anchor (external conservation invariant) ────────────────────────
+# Contract `source_anchor` block: the file's own TOTALS ROW is the
+# external truth extraction must reconcile against. An extraction that
+# balances internally but diverges from these anchors has FAILED
+# (BS_ENGINE_ROOT_CAUSE.md Layer 2 — the prod run that claimed 70.2M SF
+# against a file stating 60.2M while self-validating warn:false).
+
+# Extracted column sums must match the file's totals to the cent — the
+# only legitimate difference is float summation noise (~1e-6 on 60M).
+_ANCHOR_MATCH_TOLERANCE_RON = 0.01
+# The FILE's own per-pair D vs C comparison gets 1 RON, matching the
+# platform's long-standing "balanced within 1 RON" convention.
+_SOURCE_BALANCE_TOLERANCE_RON = 1.0
+
+# (contract pair key, row debit key, row credit key) in canonical order.
+_ANCHOR_PAIR_SPEC: Tuple[Tuple[str, str, str], ...] = (
+    ("si", "si_d", "si_c"),
+    ("rl", "r_d", "r_c"),
+    ("rc", "st_d", "st_c"),
+    ("sf", "sf_d", "sf_c"),
+)
+
+# Contract pair key → the structure/column-map semantic names, used to
+# look file values up in the parsed totals row.
+_ANCHOR_PAIR_COLUMNS: Dict[str, Tuple[str, str]] = {
+    "si": ("initial_debit", "initial_credit"),
+    "rl": ("period_debit", "period_credit"),
+    "rc": ("cumulative_debit", "cumulative_credit"),
+    "sf": ("final_debit", "final_credit"),
+}
 
 
-def parse_pasted_trial_balance(text: str) -> List[Dict]:
-    """Parse text pasted from Excel / Word / a CSV. Auto-detects delimiter
-    (tab / comma / semicolon / pipe) so the user doesn't have to think
-    about format. Reuses the same structure detector + row parser as
-    Excel uploads — single source of truth for column mapping."""
-    if not text or not text.strip():
-        raise ParseError(
-            user_message="Paste area is empty. Please paste trial-balance data first.",
-            technical_detail="Empty input to parse_pasted_trial_balance",
-        )
+def _find_totals_row(
+    df: pd.DataFrame, structure: TbStructure, locale: str
+) -> Optional[Tuple[int, Dict[str, Optional[float]]]]:
+    """Locate the file's totals row and parse its per-column values.
 
-    sample = text[:2000]
-    delimiter = "\t"
-    try:
-        dialect = csv.Sniffer().sniff(sample, delimiters="\t,;|")
-        delimiter = dialect.delimiter
-    except csv.Error:
-        # Fallback: pick whatever appears most often in the sample.
-        counts = {d: sample.count(d) for d in ("\t", ";", ",", "|")}
-        delimiter = max(counts, key=counts.get)
+    A candidate is any row in the data region (or after it) whose
+    account-code cell is blank OR reads 'Total…', with at least 2 nonzero
+    mapped numeric cells. SAGA/ContSal prints the grand-totals row FIRST
+    (right under the header, blank code — the frozen fixture), classic
+    exports print it LAST; per-class subtotal rows can also match.
+    Because every trial-balance column is a sum of nonnegative values,
+    the GRAND totals row is the candidate with the largest total
+    magnitude — that rule picks it deterministically wherever it sits
+    (first hit wins ties).
 
-    try:
-        df = pd.read_csv(
-            io.StringIO(text),
-            sep=delimiter,
-            dtype=str,
-            header=None,
-            skip_blank_lines=True,
-            engine="python",
-            quoting=csv.QUOTE_MINIMAL,
-        )
-    except Exception as e:  # noqa: BLE001
-        raise ParseError(
-            user_message=(
-                "Couldn't parse the pasted text. Make sure you copied from "
-                "Excel with columns intact, or export as CSV and use the "
-                "file upload instead."
-            ),
-            technical_detail=f"pandas.read_csv failed: {type(e).__name__}: {e}",
-        )
+    Returns (row_index, {semantic_column_name: value|None}) or None.
+    Blank cells map to None (absent), never 0 — a totals row that doesn't
+    span a column must not fabricate a zero file total for it.
+    """
+    cols = structure.columns
+    code_col = cols["account_code"]
+    numeric_keys = [k for k in cols if k not in ("account_code", "account_name")]
+    best: Optional[Tuple[int, Dict[str, Optional[float]], float]] = None
+    for i in range(structure.data_start_index, len(df)):
+        raw_code = df.iloc[i, code_col]
+        code_text = "" if pd.isna(raw_code) else str(raw_code).strip()
+        if code_text and not code_text.lower().startswith("total"):
+            continue
+        row = df.iloc[i]
+        values: Dict[str, Optional[float]] = {}
+        nonzero = 0
+        magnitude = 0.0
+        for k in numeric_keys:
+            raw = row.iloc[cols[k]]
+            if pd.isna(raw) or not str(raw).strip():
+                values[k] = None
+                continue
+            v = parse_number(raw, locale)
+            values[k] = v
+            if v != 0:
+                nonzero += 1
+                magnitude += abs(v)
+        if nonzero < 2:
+            continue
+        if best is None or magnitude > best[2]:
+            best = (i, values, magnitude)
+    if best is None:
+        return None
+    return best[0], best[1]
 
-    if df.empty or len(df.columns) < 4:
-        raise ParseError(
-            user_message=(
-                "The pasted data doesn't have enough columns. Expected at "
-                "least: account code, account name, debit, credit."
-            ),
-            technical_detail=f"shape={df.shape}",
-        )
 
+def compute_source_anchor(
+    tb_rows: List[Dict],
+    file_totals: Optional[Dict[str, Optional[float]]] = None,
+    pairs_present: Optional[Dict[str, bool]] = None,
+    totals_row_index: Optional[int] = None,
+    synthesized_sf: bool = False,
+) -> Dict[str, Any]:
+    """Build the contract `source_anchor` block.
+
+    Extracted per-pair sums run over ACCOUNT rows only, with class 8
+    (incl. 891/892) excluded — those are off-balance memo accounts. If a
+    file's own totals row DOES include class-8 rows, the per-side match
+    falls back to the off-balance-inclusive sum and flags
+    `file_totals_include_off_balance` instead of reporting divergence.
+
+    This replaces the circular self-validation of
+    `compute_source_imbalance` (which sums the extraction against
+    itself): here the comparison is against the FILE's own numbers.
+    `compute_source_imbalance` stays for backward compat; this anchor is
+    authoritative.
+
+    Shape (fixed keys, deterministic order):
+      {
+        "totals_row_found": bool,
+        "totals_row_index": int | None,       # traceability extension
+        "pairs": { "si"|"rl"|"rc"|"sf":
+            None                               # format lacks the pair
+            | { "file_debit": float|None, "file_credit": float|None,
+                "extracted_debit": float, "extracted_credit": float,
+                "delta_debit": float|None, "delta_credit": float|None,
+                ["synthesized_from_identity": True] } },   # sf, Layout B
+        "anchor_status": "MATCHED"|"DIVERGED"|"NO_ANCHOR",
+        "source_balanced": bool | None,        # None: no file pair to judge
+        "imbalanced_pairs": [pair keys],       # which pair, for the banner
+        "file_totals_include_off_balance": bool,
+      }
+    deltas are extracted − file (positive = extraction claims more than
+    the file's own totals row).
+    """
+    sums: Dict[str, float] = {}
+    off_balance: Dict[str, float] = {}
+    for _, dk, ck in _ANCHOR_PAIR_SPEC:
+        sums[dk] = sums[ck] = 0.0
+        off_balance[dk] = off_balance[ck] = 0.0
+    for r in tb_rows:
+        code = (r.get("cont") or "").strip()
+        target = off_balance if code.startswith("8") else sums
+        for _, dk, ck in _ANCHOR_PAIR_SPEC:
+            target[dk] += float(r.get(dk) or 0)
+            target[ck] += float(r.get(ck) or 0)
+
+    pairs: Dict[str, Optional[Dict[str, Any]]] = {}
+    any_file_value = False
+    any_file_pair = False
+    diverged = False
+    used_off_balance = False
+    imbalanced: List[str] = []
+    for key, dk, ck in _ANCHOR_PAIR_SPEC:
+        present = True if pairs_present is None else bool(pairs_present.get(key))
+        if not present:
+            pairs[key] = None  # contract: null pairs when the format lacks the block
+            continue
+        fcol_d, fcol_c = _ANCHOR_PAIR_COLUMNS[key]
+        file_d = file_totals.get(fcol_d) if file_totals else None
+        file_c = file_totals.get(fcol_c) if file_totals else None
+        ext_d, ext_c = sums[dk], sums[ck]
+        entry: Dict[str, Any] = {
+            "file_debit": None if file_d is None else round(file_d, 2),
+            "file_credit": None if file_c is None else round(file_c, 2),
+            "extracted_debit": round(ext_d, 2),
+            "extracted_credit": round(ext_c, 2),
+            "delta_debit": None if file_d is None else round(ext_d - file_d, 2),
+            "delta_credit": None if file_c is None else round(ext_c - file_c, 2),
+        }
+        if synthesized_sf and key == "sf":
+            # Layout B carries no Solduri-finale block in the file; the
+            # extracted sf sums come from the si+rl accounting identity.
+            entry["synthesized_from_identity"] = True
+        for fv, ev, xv in (
+            (file_d, ext_d, off_balance[dk]),
+            (file_c, ext_c, off_balance[ck]),
+        ):
+            if fv is None:
+                continue
+            any_file_value = True
+            if abs(ev - fv) <= _ANCHOR_MATCH_TOLERANCE_RON:
+                pass
+            elif abs(ev + xv - fv) <= _ANCHOR_MATCH_TOLERANCE_RON:
+                used_off_balance = True
+            else:
+                diverged = True
+        if file_d is not None and file_c is not None:
+            any_file_pair = True
+            # Class-8 accounts use SINGLE-entry bookkeeping (debit-only
+            # memo postings), so a file whose totals row includes them
+            # can legitimately show D≠C by exactly the off-balance
+            # contribution. Judge balance on the ON-balance content:
+            # subtract the class-8 sums from both sides first.
+            file_gap = abs(file_d - file_c)
+            on_balance_gap = abs((file_d - off_balance[dk]) - (file_c - off_balance[ck]))
+            if min(file_gap, on_balance_gap) > _SOURCE_BALANCE_TOLERANCE_RON:
+                imbalanced.append(key)
+        pairs[key] = entry
+
+    if not any_file_value:
+        anchor_status = "NO_ANCHOR"
+    elif diverged:
+        anchor_status = "DIVERGED"
+    else:
+        anchor_status = "MATCHED"
+
+    return {
+        "totals_row_found": file_totals is not None,
+        "totals_row_index": totals_row_index,
+        "pairs": pairs,
+        "anchor_status": anchor_status,
+        "source_balanced": (not imbalanced) if any_file_pair else None,
+        "imbalanced_pairs": imbalanced,
+        "file_totals_include_off_balance": used_off_balance,
+    }
+
+
+def normalize_rows(tb_rows: List[Dict]) -> List[Dict]:
+    """Contract NORMALIZED-stage rows: the full per-account structure
+    with BOTH sides of every column pair, under the contract's rl/rc
+    naming (rl = rulaj, rc = rulaj cumulat / sume totale), so assembly
+    can consume closing balances by SIDE instead of a collapsed amount.
+    """
+    out: List[Dict] = []
+    for r in tb_rows:
+        out.append({
+            "code": (r.get("cont") or "").strip(),
+            "name": (r.get("nume_cont") or "").strip(),
+            "si_d": float(r.get("si_d") or 0), "si_c": float(r.get("si_c") or 0),
+            "rl_d": float(r.get("r_d") or 0), "rl_c": float(r.get("r_c") or 0),
+            "rc_d": float(r.get("st_d") or 0), "rc_c": float(r.get("st_c") or 0),
+            "sf_d": float(r.get("sf_d") or 0), "sf_c": float(r.get("sf_c") or 0),
+        })
+    return out
+
+
+def _parse_dataframe(
+    df: pd.DataFrame, sheet_name: Optional[str], filename: str = ""
+) -> TrialBalanceParseResult:
+    """Shared core of the XLSX / CSV / pasted-text paths: structure
+    detection → per-document locale → row parsing → totals-row anchor →
+    metadata. Raises ParseError on any failure."""
     structure = detect_trial_balance_structure(df)
-    return parse_trial_balance_df(df, structure)
-
-
-# ─── Public entry point: bytes → accounts ───────────────────────────────────
-
-
-def parse_trial_balance_file(file_bytes: bytes, filename: str = "") -> List[Dict]:
-    """High-level entry: take raw Excel bytes, return the typed account
-    list. Wraps read_excel_robust + detect_trial_balance_structure +
-    parse_trial_balance_df. Raises ParseError on any failure."""
-    df = read_excel_robust(file_bytes, filename)
-    structure = detect_trial_balance_structure(df)
-    accounts = parse_trial_balance_df(df, structure)
-    if not accounts:
+    locale = _detect_df_locale(df, structure)
+    rows = parse_trial_balance_df(df, structure, number_locale=locale)
+    if not rows:
         raise ParseError(
             user_message=(
                 "We detected the file format but couldn't find any numeric "
@@ -614,7 +881,220 @@ def parse_trial_balance_file(file_bytes: bytes, filename: str = "") -> List[Dict
             ),
             technical_detail=f"structure={structure}, df_shape={df.shape}",
         )
-    return accounts
+
+    cols = structure.columns
+    has_final_cols = "final_debit" in cols and "final_credit" in cols
+    pairs_present = {
+        "si": "initial_debit" in cols and "initial_credit" in cols,
+        "rl": "period_debit" in cols and "period_credit" in cols,
+        "rc": "cumulative_debit" in cols and "cumulative_credit" in cols,
+        # Rows ALWAYS carry sf: from the file's own final block, or
+        # synthesized from the si+rl identity (Layout B).
+        "sf": True,
+    }
+    totals = _find_totals_row(df, structure, locale)
+    anchor = compute_source_anchor(
+        rows,
+        file_totals=totals[1] if totals else None,
+        pairs_present=pairs_present,
+        totals_row_index=totals[0] if totals else None,
+        synthesized_sf=not has_final_cols,
+    )
+    extraction = {
+        "method": "deterministic",
+        "parser_version": PARSER_VERSION,
+        "source_format": structure.source_format,
+        "number_locale": locale,
+        "sheet": sheet_name,
+        "header_row_index": structure.header_row_index,
+    }
+    return TrialBalanceParseResult(rows, extraction=extraction, source_anchor=anchor)
+
+
+# ─── Delimited-text grid (pasted text + CSV share this) ─────────────────────
+
+
+def _sniff_delimiter(text: str) -> str:
+    """Deterministic delimiter detection over the first 50 non-blank
+    lines. Tab, semicolon and pipe are preferred IN THAT ORDER over the
+    comma: Romanian CSV exports use ';' as the field separator precisely
+    because ',' is the decimal separator — a frequency count would let
+    decimal commas outvote the real delimiter."""
+    lines = [ln for ln in text.splitlines() if ln.strip()][:50]
+    for cand in ("\t", ";", "|"):
+        hits = sum(1 for ln in lines if cand in ln)
+        if lines and hits >= max(1, len(lines) // 2):
+            return cand
+    return ","
+
+
+def _grid_from_delimited_text(text: str, context: str) -> pd.DataFrame:
+    """Build the same header-less all-string DataFrame the Excel reader
+    produces, from delimiter-separated text. `context` labels the error
+    message ('pasted text' / 'CSV file')."""
+    delimiter = _sniff_delimiter(text)
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    # Pre-computed width forces pandas to pad ragged banner/footer rows
+    # with NaN instead of erroring on them; the raw delimiter count can
+    # only overestimate (quotes hide delimiters), which just adds empty
+    # columns that the structure detector ignores.
+    max_width = max((ln.count(delimiter) for ln in lines), default=0) + 1
+    try:
+        df = pd.read_csv(
+            io.StringIO(text),
+            sep=delimiter,
+            dtype=str,
+            header=None,
+            names=list(range(max_width)),
+            skip_blank_lines=True,
+            engine="python",
+            quoting=csv.QUOTE_MINIMAL,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise ParseError(
+            user_message=(
+                f"Couldn't parse the {context}. Make sure you exported "
+                "with columns intact (one account per line, consistent "
+                "delimiter)."
+            ),
+            technical_detail=f"pandas.read_csv failed: {type(e).__name__}: {e}",
+        )
+
+    if df.empty or len(df.columns) < 4:
+        raise ParseError(
+            user_message=(
+                f"The {context} doesn't have enough columns. Expected at "
+                "least: account code, account name, debit, credit."
+            ),
+            technical_detail=f"shape={df.shape}",
+        )
+    return df
+
+
+# ─── Pasted-text path ───────────────────────────────────────────────────────
+
+
+def parse_pasted_trial_balance(text: str) -> TrialBalanceParseResult:
+    """Parse text pasted from Excel / Word / a CSV. Auto-detects delimiter
+    (tab / semicolon / pipe / comma) so the user doesn't have to think
+    about format. Reuses the same structure detector + row parser as
+    Excel uploads — single source of truth for column mapping."""
+    if not text or not text.strip():
+        raise ParseError(
+            user_message="Paste area is empty. Please paste trial-balance data first.",
+            technical_detail="Empty input to parse_pasted_trial_balance",
+        )
+    df = _grid_from_delimited_text(text, "pasted text")
+    return _parse_dataframe(df, sheet_name=None, filename="(pasted)")
+
+
+# ─── CSV path ───────────────────────────────────────────────────────────────
+
+
+def parse_trial_balance_csv(data: bytes, filename: str = "") -> TrialBalanceParseResult:
+    """Parse a CSV export of a trial balance. Decodes utf-8 (BOM
+    tolerated) with cp1250 fallback (the Windows Central-European code
+    page SAGA/WinMENTOR exports use), sniffs the delimiter, then reuses
+    the exact header-detection + row-parsing machinery of the XLSX path —
+    same TrialBalanceParseResult, same anchor, same metadata. This closes
+    the audit's 1c defect (CSVs previously bypassed the deterministic
+    parser entirely and got LLM extraction)."""
+    if not data:
+        raise ParseError(
+            user_message="The CSV file is empty.",
+            technical_detail="0 bytes passed to parse_trial_balance_csv",
+        )
+    text: Optional[str] = None
+    # latin-1 is the never-fails last resort: digits and separators are
+    # ASCII, so numeric fidelity survives even if diacritics garble.
+    for encoding in ("utf-8-sig", "cp1250", "latin-1"):
+        try:
+            text = data.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:  # unreachable given latin-1, kept as a guard
+        raise ParseError(
+            user_message="Couldn't decode this CSV file (unknown text encoding).",
+            technical_detail="utf-8-sig, cp1250 and latin-1 all failed",
+        )
+    df = _grid_from_delimited_text(text, "CSV file")
+    return _parse_dataframe(df, sheet_name=None, filename=filename)
+
+
+# ─── Public entry point: bytes → accounts ───────────────────────────────────
+
+
+def parse_trial_balance_file(file_bytes: bytes, filename: str = "") -> TrialBalanceParseResult:
+    """High-level entry: take raw Excel bytes, return the typed account
+    list (a TrialBalanceParseResult — a plain list to legacy callers,
+    plus .extraction / .source_anchor metadata). Raises ParseError on
+    any failure.
+
+    Multi-sheet: sheets are tried in workbook order (deterministic) and
+    the FIRST sheet with a recognizable trial-balance header wins — a TB
+    on a second sheet no longer falls through to the LLM path (audit 1a
+    risk)."""
+    try:
+        fmt = detect_excel_format(file_bytes)
+    except ValueError as e:
+        raise ParseError(
+            user_message=(
+                "We couldn't read this file. It doesn't look like a valid Excel "
+                "workbook. If it's a PDF, please use the upload-PDF flow."
+            ),
+            technical_detail=str(e),
+        )
+    engine = "openpyxl" if fmt == "xlsx" else "xlrd"
+    try:
+        xl = pd.ExcelFile(io.BytesIO(file_bytes), engine=engine)
+    except Exception as e:  # noqa: BLE001
+        raise ParseError(
+            user_message=(
+                "Couldn't read this Excel file. It may be corrupted, "
+                "password-protected, or in an unsupported sub-format. Try "
+                "re-saving in Excel and re-uploading."
+            ),
+            technical_detail=f"{type(e).__name__}: {e} (engine={engine}, name={filename})",
+        )
+
+    errors: List[Tuple[str, ParseError]] = []
+    for sheet_name in xl.sheet_names:  # workbook order — deterministic
+        try:
+            df = xl.parse(sheet_name, header=None, dtype=str)
+        except Exception as e:  # noqa: BLE001
+            errors.append((sheet_name, ParseError(
+                user_message="Sheet could not be read.",
+                technical_detail=f"{type(e).__name__}: {e}",
+            )))
+            continue
+        if df.empty:
+            errors.append((sheet_name, ParseError(
+                user_message="Sheet is empty.",
+                technical_detail="DataFrame returned empty after read",
+            )))
+            continue
+        try:
+            return _parse_dataframe(df, sheet_name=sheet_name, filename=filename)
+        except ParseError as e:
+            errors.append((sheet_name, e))
+            continue
+
+    if len(errors) == 1:
+        # Single-sheet workbook: surface the sheet's own error verbatim —
+        # identical UX to the pre-multi-sheet behavior.
+        raise errors[0][1]
+    detail = "; ".join(
+        f"[{name}] {err.technical_detail or err.user_message}" for name, err in errors
+    )
+    raise ParseError(
+        user_message=(
+            "None of this workbook's sheets look like a supported trial "
+            "balance. Expected columns like 'Cont', 'Nume Cont', 'Debit', "
+            "'Credit' on one sheet."
+        ),
+        technical_detail=f"scanned {len(errors)} sheet(s): {detail}",
+    )
 
 
 def compute_source_imbalance(tb_rows: List[Dict]) -> Dict[str, float]:
@@ -697,7 +1177,7 @@ def compute_statutory_net_profit_anchor(tb_rows: List[Dict]) -> float:
 # ─── Account list → canonical TSV (for Claude downstream stages) ────────────
 
 
-def accounts_to_assemble_shape(tb_rows: List[Dict]) -> List[Dict]:
+def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
     """Convert deterministic parser output → {code, name, amount} dicts the
     `_ro_coa.assemble_statements` mapper consumes. Skips Claude entirely.
 
@@ -711,7 +1191,15 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> List[Dict]:
         sign=−1 then subtracts it from ppe)
       · P&L accounts read YTD movement (sume totale), not closing balance.
 
-    Unmapped accounts are skipped (matching Claude path behavior).
+    Returns an AssembleShapeResult: the accounts list is byte-identical
+    to the legacy return value, and the previously-silent drops are now
+    surfaced on it (contract `unmapped` / `excluded` blocks):
+      · .unmapped — codes with no mapping rule (previously
+        `if not rule: continue`, zero telemetry — audit gap 17)
+      · .excluded — off-balance class 8 incl. 891/892 (explicitly
+        excluded, no longer excluded-by-fallthrough — audit gap 14) plus
+        deliberate ignore-bucket accounts (581 transit), so the census
+        invariant Σ classified + unmapped + excluded is checkable.
     """
     # F3.1d: chart-of-accounts now lives at the pack-local path; keep the
     # `_ro_coa` alias inside this function to leave the call sites below
@@ -770,19 +1258,58 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> List[Dict]:
     # explicit sign=-1 rules in _ro_coa so they don't need this special case.
     INVENTORY_CONTRA_SIGNED_PREFIXES = ("348", "378")
 
-    out: List[Dict] = []
+    out = AssembleShapeResult()
+
+    # Document-level gate for the closing-only (generic_4_col) P&L
+    # fallback below: P&L buckets read YTD movements (sume totale), which
+    # a closing-only file doesn't carry at all. Only when the WHOLE
+    # document has no cumulative data may class 6/7 accounts fall back to
+    # their closing balances (pre-year-end-closing YTD values) — a per-
+    # row fallback would silently change Layout A/B files.
+    has_any_cumulative = any(
+        float(r.get("st_d") or 0) != 0 or float(r.get("st_c") or 0) != 0
+        for r in tb_rows
+    )
+
     for r in tb_rows:
         code = (r.get("cont") or "").strip()
         if not code:
             continue
-        rule = _ro_coa.bucket_for(code)
-        if not rule:
-            continue
-        bucket = rule.bucket
+        name = (r.get("nume_cont") or "").strip()
         sf_d = float(r.get("sf_d") or 0)
         sf_c = float(r.get("sf_c") or 0)
         st_d = float(r.get("st_d") or 0)
         st_c = float(r.get("st_c") or 0)
+
+        # Class 8 (conturi speciale, incl. 891/892 opening/closing
+        # balance-sheet accounts) is off-balance — excluded EXPLICITLY,
+        # not by rules-table fallthrough, so a future class-8 rule or
+        # name-keyword fallback can never leak memo amounts into the BS.
+        if code.startswith("8"):
+            if code.startswith("891"):
+                reason = "opening_balance_sheet_account"
+            elif code.startswith("892"):
+                reason = "closing_balance_sheet_account"
+            else:
+                reason = "off_balance_class_8"
+            out.excluded.append({
+                "code": code, "name": name,
+                "sf_d": round(sf_d, 2), "sf_c": round(sf_c, 2),
+                "reason": reason,
+            })
+            continue
+
+        rule = _ro_coa.bucket_for(code)
+        if not rule:
+            # Previously `continue` with zero telemetry — the missing
+            # balance was invisible to every drift gate. Surface it.
+            out.unmapped.append({
+                "code": code, "name": name,
+                "sf_d": round(sf_d, 2), "sf_c": round(sf_c, 2),
+                "reason": "no_rule",
+            })
+            continue
+        bucket = rule.bucket
 
         # Bucket-override for SIDE_FLIP prefixes when balance is on credit
         # side. We emit a synthetic `bucket_override` so the downstream
@@ -862,22 +1389,28 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> List[Dict]:
             else:
                 amount = sf_d if sf_d != 0 else sf_c
         elif bucket in CREDIT_POS_PL or bucket in DEBIT_POS_PL:
+            # Closing-only fallback (generic_4_col): the document carries
+            # NO cumulative block anywhere (`has_any_cumulative` gate
+            # above), so a mid-year class 6/7 closing balance IS the YTD
+            # movement — read the sf sides in place of st. On Layout A/B
+            # files the gate is False and this line is inert.
+            eff_d, eff_c = (sf_d, sf_c) if not has_any_cumulative else (st_d, st_c)
             # Crystal Reports puts the SAME signed value in both st_d and st_c
             # for class-6/7 accounts (because the year-end closing entry
             # mirrors the natural-side accumulation). SAGA-style puts the
             # movement on one side only. Pick the side with the larger
             # absolute value so both formats work; the sign of that value
             # is the real direction (709 contra-revenue shows as negative).
-            amount = st_c if abs(st_c) >= abs(st_d) else st_d
+            amount = eff_c if abs(eff_c) >= abs(eff_d) else eff_d
             # SAGA fallback: contra-revenue / contra-expense end up on the
             # "wrong" side. Sign-flip when the bucket's expected direction
             # disagrees with where the value showed up.
-            if abs(st_c) < 0.01 and st_d != 0:  # SAGA-only path (one side zero)
+            if abs(eff_c) < 0.01 and eff_d != 0:  # SAGA-only path (one side zero)
                 if bucket in CREDIT_POS_PL:
-                    amount = -st_d  # debit-balance on credit-positive bucket
-            elif abs(st_d) < 0.01 and st_c != 0:
+                    amount = -eff_d  # debit-balance on credit-positive bucket
+            elif abs(eff_d) < 0.01 and eff_c != 0:
                 if bucket in DEBIT_POS_PL:
-                    amount = -st_c  # credit-balance on debit-positive bucket
+                    amount = -eff_c  # credit-balance on debit-positive bucket
         elif bucket == "ignore_control" and code.startswith("121"):
             # F3.7d: emit account 121 (PROFIT SI PIERDERE) with its signed
             # closing balance so `chart_of_accounts.assemble_statements`
@@ -904,7 +1437,24 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> List[Dict]:
             #   sf_d > sf_c → debit balance  = LOSS    (negative amount)
             amount = sf_c - sf_d
         else:
-            continue  # ignore_transit (581), other ignore-buckets, unknown
+            # ignore_transit (581) / non-121 ignore_control: deliberately
+            # off the statements — recorded in `excluded` so the census
+            # invariant (classified + unmapped + excluded = source rows)
+            # holds. A ruled bucket missing from every membership set is
+            # a rules-table gap — surface it in `unmapped`, not silence.
+            if bucket.startswith("ignore"):
+                out.excluded.append({
+                    "code": code, "name": name,
+                    "sf_d": round(sf_d, 2), "sf_c": round(sf_c, 2),
+                    "reason": bucket,
+                })
+            else:
+                out.unmapped.append({
+                    "code": code, "name": name,
+                    "sf_d": round(sf_d, 2), "sf_c": round(sf_c, 2),
+                    "reason": f"unrouted_bucket:{bucket}",
+                })
+            continue
 
         if amount == 0:
             continue

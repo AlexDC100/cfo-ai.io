@@ -100,6 +100,139 @@ export interface PriorPeriod {
   incomeStatement: IncomeStatement;
 }
 
+// ─── canonical_bs v2 — the engine-owned Balance Sheet authority ─────────────
+// Contract: docs/CANONICAL_BS_V2_CONTRACT.md. Computed ONCE at write time by
+// the engine assembler, persisted in the period envelope, and served verbatim
+// by /api/period as `statements.canonical_bs`. Consumers (BS tab builder,
+// periodFacts, Excel + HTML exports) render rows/sections/totals/status
+// DIRECTLY from this object — zero local arithmetic, no residual plugs.
+// Absent on legacy periods (pre-bs_v2), where every consumer keeps its
+// existing fallback path unchanged.
+
+export type CanonicalBsStatus = "BALANCED" | "MINOR_DRIFT" | "MATERIAL_IMBALANCE";
+
+export interface CanonicalBsExtraction {
+  method: "deterministic" | "llm";
+  parser_version: string;
+  source_format: string;
+  number_locale: "ro" | "anglo";
+  sheet?: string;
+  header_row_index?: number;
+}
+
+export interface CanonicalBsSourceAnchorPair {
+  file_debit: number;
+  file_credit: number;
+  extracted_debit: number;
+  extracted_credit: number;
+  delta_debit: number;
+  delta_credit: number;
+}
+
+export interface CanonicalBsSourceAnchor {
+  totals_row_found: boolean;
+  /** Per column pair (si / rl / rc / sf); null when the format lacks the block. */
+  pairs: Partial<Record<"si" | "rl" | "rc" | "sf", CanonicalBsSourceAnchorPair | null>>;
+  anchor_status: "MATCHED" | "DIVERGED" | "NO_ANCHOR";
+  source_balanced: boolean;
+}
+
+export interface CanonicalBsRow {
+  id: string;
+  /** Section id — matches an entry in `CanonicalBs.sections`. */
+  section: string;
+  /** Optional i18n key; `label` is the render-as-is fallback. */
+  label_key?: string;
+  /** Presentation label — consumers render this verbatim. */
+  label: string;
+  account_codes: string[];
+  amount: number;
+  opening: number | null;
+  /** Drill-down to envelope leaves (traceability). */
+  leaf_ids?: string[];
+}
+
+export interface CanonicalBsSection {
+  id: string;
+  subtotal: number;
+}
+
+export interface CanonicalBsTotals {
+  assets: number;
+  equity: number;
+  liabilities: number;
+  equity_plus_liabilities: number;
+  current_assets: number;
+  current_liabilities: number;
+}
+
+export interface CanonicalBsDiagnosis {
+  /** Deterministic code D0–D8 (see contract "Diagnostic codes"). */
+  code: string;
+  detail: string;
+  leaf_ids?: string[];
+}
+
+export interface CanonicalBs {
+  schema: "bs_v2";
+  mapping_version: string;
+  extraction?: CanonicalBsExtraction;
+  source_anchor?: CanonicalBsSourceAnchor;
+  /** Presentation-ready, ordered; consumers render as-is. */
+  rows: CanonicalBsRow[];
+  /** OMFP 1802 bilanț sections with engine subtotals, in render order. */
+  sections: CanonicalBsSection[];
+  totals: CanonicalBsTotals;
+  /** assets − (equity + liabilities) — THE drift; banner % derives from this. */
+  difference: number;
+  status: CanonicalBsStatus;
+  /** Populated when status != BALANCED, deterministic order D0–D8. */
+  diagnosis?: CanonicalBsDiagnosis[];
+  unmapped?: { code: string; name?: string; sf_d?: number; sf_c?: number; reason?: string }[];
+  excluded?: { code: string; reason?: string }[];
+  invariants?: Record<string, unknown>;
+  reprocessed?: { changed: boolean; previous_totals?: Record<string, number> };
+}
+
+/** Display geometry for one canonical section id — which side of the
+ *  statement it belongs to plus its header/subtotal labels. Render ORDER
+ *  always follows the object's own `sections` array; this table supplies
+ *  presentation only, never numbers. */
+export interface CanonicalBsSectionMeta {
+  side: "assets" | "equity_liabilities";
+  header: string;
+  subtotalLabel: string;
+  /** Traceable bucket key for the subtotal row (same taxonomy as the
+   *  legacy BS builder) — only for the four subtotals other tabs link to. */
+  subtotalBucket?: string;
+}
+
+const CANONICAL_BS_SECTION_META: Record<string, CanonicalBsSectionMeta> = {
+  non_current_assets: { side: "assets", header: "NON-CURRENT", subtotalLabel: "Total non-current" },
+  current_assets: { side: "assets", header: "CURRENT", subtotalLabel: "Total current", subtotalBucket: "totalCurrentAssets" },
+  prepaid_expenses: { side: "assets", header: "PREPAID EXPENSES", subtotalLabel: "Total prepaid expenses" },
+  equity: { side: "equity_liabilities", header: "EQUITY", subtotalLabel: "Total equity", subtotalBucket: "totalEquity" },
+  provisions: { side: "equity_liabilities", header: "PROVISIONS", subtotalLabel: "Total provisions" },
+  non_current_liabilities: { side: "equity_liabilities", header: "NON-CURRENT LIABILITIES", subtotalLabel: "Total non-current liabilities", subtotalBucket: "totalNonCurrentLiabilities" },
+  current_liabilities: { side: "equity_liabilities", header: "CURRENT LIABILITIES", subtotalLabel: "Total current liabilities", subtotalBucket: "totalCurrentLiabilities" },
+  deferred_income: { side: "equity_liabilities", header: "DEFERRED INCOME", subtotalLabel: "Total deferred income" },
+};
+
+export function canonicalBsSectionMeta(id: string): CanonicalBsSectionMeta {
+  const known = CANONICAL_BS_SECTION_META[id];
+  if (known) return known;
+  // Contract-deviation guard: an unknown section id (from a future
+  // mapping_version) must still render rather than silently dropping its
+  // rows. The side heuristic affects placement only — totals always come
+  // from `totals`, never from summing sides.
+  const words = id.replace(/_/g, " ");
+  return {
+    side: id.includes("asset") ? "assets" : "equity_liabilities",
+    header: words.toUpperCase(),
+    subtotalLabel: `Total ${words}`,
+  };
+}
+
 export interface Statements {
   companyName: string;
   industry?: string;
@@ -144,6 +277,11 @@ export interface Statements {
     };
     [key: string]: unknown;
   };
+  /** canonical_bs v2 — the single Balance Sheet authority (docs/
+   *  CANONICAL_BS_V2_CONTRACT.md). Served verbatim by /api/period on
+   *  bs_v2 periods; absent on legacy periods. When present, the BS tab,
+   *  periodFacts and both exports consume it directly — zero recompute. */
+  canonical_bs?: CanonicalBs;
   /** F3.11 — Source-data quality telemetry. Populated upstream of any
    *  engine routing from raw sf_d/sf_c sums in the trial balance.
    *  When `warn` is true (imbalance > 2%), the dashboard shows a
@@ -1526,6 +1664,63 @@ export function renderReportHtml(s: Statements): string {
   `;
 
   const balanceSheetTable = (): string => {
+    // canonical_bs v2 — serialize the engine object verbatim (contract
+    // "Consumption rules": exports serialize canonical rows and totals when
+    // present). No deriveTotals, no bucket reads on this path; every figure
+    // below is a field of `s.canonical_bs`. Legacy fallback (no canonical_bs)
+    // keeps the deriveTotals table unchanged.
+    const cbs = s.canonical_bs;
+    if (cbs) {
+      const sideRows = (side: "assets" | "equity_liabilities"): string =>
+        cbs.sections
+          .filter((sec) => canonicalBsSectionMeta(sec.id).side === side)
+          .map((sec) => {
+            const meta = canonicalBsSectionMeta(sec.id);
+            const rows = cbs.rows.filter((row) => row.section === sec.id);
+            if (rows.length === 0 && sec.subtotal === 0) return "";
+            return (
+              rows
+                .map(
+                  (row) =>
+                    `<tr class="indent"><td>${escapeHtml(row.label)}${
+                      row.account_codes.length
+                        ? ` <span style="color:var(--ink-mute)">(${escapeHtml(row.account_codes.join(", "))})</span>`
+                        : ""
+                    }</td><td class="num">${money(row.amount, s.currency)}</td></tr>`,
+                )
+                .join("") +
+              `<tr class="subtotal"><td>${escapeHtml(meta.subtotalLabel)}</td><td class="num">${money(sec.subtotal, s.currency)}</td></tr>`
+            );
+          })
+          .join("");
+      // Status footer — MATERIAL_IMBALANCE must read as a defect (red .risk
+      // block with the engine's diagnosis), never as a clean statement.
+      const statusNote =
+        cbs.status === "MATERIAL_IMBALANCE"
+          ? `<div class="risk"><strong>Balance check: MATERIAL IMBALANCE.</strong> Assets − (Equity + Liabilities) = ${money(cbs.difference, s.currency)}. This balance sheet does not reconcile; do not rely on it until resolved.${
+              (cbs.diagnosis ?? []).length
+                ? ` Engine diagnosis: ${(cbs.diagnosis ?? [])
+                    .map((d) => `${escapeHtml(d.code)} — ${escapeHtml(d.detail)}`)
+                    .join("; ")}.`
+                : ""
+            }</div>`
+          : cbs.status === "MINOR_DRIFT"
+            ? `<div class="commentary"><strong>Balance check: minor drift.</strong> Assets − (Equity + Liabilities) = ${money(cbs.difference, s.currency)}.</div>`
+            : `<div class="commentary"><strong>Balance check: balanced.</strong> Assets = Equity + Liabilities (engine-verified, mapping ${escapeHtml(cbs.mapping_version)}).</div>`;
+      return `
+      <table class="fin">
+        <thead><tr><th>Balance Sheet</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>
+        <tbody>
+          ${sideRows("assets")}
+          <tr class="total"><td>Total Assets</td><td class="num">${money(cbs.totals.assets, s.currency)}</td></tr>
+          ${sideRows("equity_liabilities")}
+          <tr class="subtotal"><td>Total Liabilities</td><td class="num">${money(cbs.totals.liabilities, s.currency)}</td></tr>
+          <tr class="total"><td>Total Equity + Liabilities</td><td class="num">${money(cbs.totals.equity_plus_liabilities, s.currency)}</td></tr>
+        </tbody>
+      </table>
+      ${statusNote}
+    `;
+    }
     const bs = s.balanceSheet;
     return `
       <table class="fin">

@@ -14,6 +14,7 @@
 
 import * as XLSX from "xlsx";
 import {
+  canonicalBsSectionMeta,
   computeRatios,
   deriveTotals,
   generateRecommendations,
@@ -49,6 +50,11 @@ export interface ExportCurrencyContext {
 
 export function buildExcelWorkbook(s: Statements, currencyCtx?: ExportCurrencyContext): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
+  // canonical_bs v2 (docs/CANONICAL_BS_V2_CONTRACT.md) — on bs_v2 periods
+  // the Balance Sheet sheet and the Cover's BS totals serialize the engine
+  // object verbatim; deriveTotals survives for the P&L-side KPIs, debt
+  // decomposition (not carried by canonical_bs), and legacy periods.
+  const cbs = s.canonical_bs;
   const t = deriveTotals(s);
   const ratios = computeRatios(s);
   const recs = generateRecommendations(s, ratios);
@@ -75,10 +81,12 @@ export function buildExcelWorkbook(s: Statements, currencyCtx?: ExportCurrencyCo
     ["EBITDA", t.ebitda],
     ["EBIT", t.ebit],
     ["Net income", t.netIncome],
-    ["Total assets", t.totalAssets],
+    // BS headline KPIs come from the canonical object when present so the
+    // Cover can never quote a different book than the Balance Sheet sheet.
+    ["Total assets", cbs ? cbs.totals.assets : t.totalAssets],
     ["Total debt", t.totalDebt],
     ["Net debt", t.netDebt],
-    ["Total equity", t.totalEquity],
+    ["Total equity", cbs ? cbs.totals.equity : t.totalEquity],
     [],
     ["AUDIT FOOTER"],
     // Currency conversion note — only when display ≠ canonical (EUR).
@@ -137,35 +145,74 @@ export function buildExcelWorkbook(s: Statements, currencyCtx?: ExportCurrencyCo
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(plRows), "P&L");
 
   // ─ Balance sheet ─────────────────────────────────────────────────────────
-  const bs = s.balanceSheet;
-  const bsP = s.prior?.balanceSheet;
-  const bsRows: (string | number)[][] = [
-    ["Balance Sheet", s.periodLabel, s.prior?.periodLabel ?? "—", "Δ Abs", "Δ %"],
-    plRow("Cash & equivalents", bs.cash, bsP?.cash),
-    plRow("Accounts receivable", bs.accountsReceivable, bsP?.accountsReceivable),
-    plRow("Inventory", bs.inventory, bsP?.inventory),
-    plRow("Other current assets", bs.otherCurrentAssets, bsP?.otherCurrentAssets),
-    plRow("Total current assets", t.totalCurrentAssets, priorT?.totalCurrentAssets),
-    plRow("Property, plant & equipment", bs.propertyPlantEquipment, bsP?.propertyPlantEquipment),
-    plRow("Intangibles", bs.intangibles, bsP?.intangibles),
-    plRow("Other non-current assets", bs.otherNonCurrentAssets, bsP?.otherNonCurrentAssets),
-    plRow("Total non-current assets", t.totalNonCurrentAssets, priorT?.totalNonCurrentAssets),
-    plRow("Total assets", t.totalAssets, priorT?.totalAssets),
-    plRow("Accounts payable", bs.accountsPayable, bsP?.accountsPayable),
-    plRow("Short-term debt", bs.shortTermDebt, bsP?.shortTermDebt),
-    plRow("Other current liabilities", bs.otherCurrentLiabilities, bsP?.otherCurrentLiabilities),
-    plRow("Total current liabilities", t.totalCurrentLiabilities, priorT?.totalCurrentLiabilities),
-    plRow("Long-term debt", bs.longTermDebt, bsP?.longTermDebt),
-    plRow("Other non-current liabilities", bs.otherNonCurrentLiabilities, bsP?.otherNonCurrentLiabilities),
-    plRow("Total non-current liabilities", t.totalNonCurrentLiabilities, priorT?.totalNonCurrentLiabilities),
-    plRow("Total liabilities", t.totalLiabilities, priorT?.totalLiabilities),
-    plRow("Share capital", bs.shareCapital, bsP?.shareCapital),
-    plRow("Retained earnings", bs.retainedEarnings, bsP?.retainedEarnings),
-    plRow("Other equity", bs.otherEquity, bsP?.otherEquity),
-    plRow("Total equity", t.totalEquity, priorT?.totalEquity),
-    plRow("Total liabilities + equity", t.totalLiabilitiesAndEquity, priorT?.totalLiabilitiesAndEquity),
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bsRows), "Balance Sheet");
+  // canonical_bs v2 path — the sheet serializes the engine's rows, section
+  // subtotals, totals and balance status verbatim (contract "Consumption
+  // rules"); nothing on this branch is recomputed FE-side. The deriveTotals
+  // sheet below it stays as the legacy fallback for pre-bs_v2 periods.
+  if (cbs) {
+    const canonRows: (string | number)[][] = [
+      ["Balance Sheet — engine canonical", s.periodLabel, "Accounts"],
+    ];
+    for (const sec of cbs.sections) {
+      const meta = canonicalBsSectionMeta(sec.id);
+      const rows = cbs.rows.filter((row) => row.section === sec.id);
+      if (rows.length === 0 && sec.subtotal === 0) continue;
+      canonRows.push([meta.header, "", ""]);
+      for (const row of rows) {
+        canonRows.push([`  ${row.label}`, row.amount, row.account_codes.join(", ")]);
+      }
+      canonRows.push([meta.subtotalLabel, sec.subtotal, ""]);
+    }
+    canonRows.push(
+      [],
+      ["Total assets", cbs.totals.assets],
+      ["Total equity", cbs.totals.equity],
+      ["Total liabilities", cbs.totals.liabilities],
+      ["Total equity + liabilities", cbs.totals.equity_plus_liabilities],
+      ["Difference (assets − equity − liabilities)", cbs.difference],
+      ["Balance status", cbs.status],
+    );
+    if (cbs.status === "MATERIAL_IMBALANCE") {
+      // The workbook must carry the defect, not hide it: a materially
+      // imbalanced statement exports with the engine's diagnosis attached.
+      canonRows.push(
+        [],
+        ["MATERIAL IMBALANCE — this balance sheet does not reconcile; verify before external use."],
+      );
+      for (const d of cbs.diagnosis ?? []) canonRows.push([d.code, d.detail]);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(canonRows), "Balance Sheet");
+  } else {
+    const bs = s.balanceSheet;
+    const bsP = s.prior?.balanceSheet;
+    const bsRows: (string | number)[][] = [
+      ["Balance Sheet", s.periodLabel, s.prior?.periodLabel ?? "—", "Δ Abs", "Δ %"],
+      plRow("Cash & equivalents", bs.cash, bsP?.cash),
+      plRow("Accounts receivable", bs.accountsReceivable, bsP?.accountsReceivable),
+      plRow("Inventory", bs.inventory, bsP?.inventory),
+      plRow("Other current assets", bs.otherCurrentAssets, bsP?.otherCurrentAssets),
+      plRow("Total current assets", t.totalCurrentAssets, priorT?.totalCurrentAssets),
+      plRow("Property, plant & equipment", bs.propertyPlantEquipment, bsP?.propertyPlantEquipment),
+      plRow("Intangibles", bs.intangibles, bsP?.intangibles),
+      plRow("Other non-current assets", bs.otherNonCurrentAssets, bsP?.otherNonCurrentAssets),
+      plRow("Total non-current assets", t.totalNonCurrentAssets, priorT?.totalNonCurrentAssets),
+      plRow("Total assets", t.totalAssets, priorT?.totalAssets),
+      plRow("Accounts payable", bs.accountsPayable, bsP?.accountsPayable),
+      plRow("Short-term debt", bs.shortTermDebt, bsP?.shortTermDebt),
+      plRow("Other current liabilities", bs.otherCurrentLiabilities, bsP?.otherCurrentLiabilities),
+      plRow("Total current liabilities", t.totalCurrentLiabilities, priorT?.totalCurrentLiabilities),
+      plRow("Long-term debt", bs.longTermDebt, bsP?.longTermDebt),
+      plRow("Other non-current liabilities", bs.otherNonCurrentLiabilities, bsP?.otherNonCurrentLiabilities),
+      plRow("Total non-current liabilities", t.totalNonCurrentLiabilities, priorT?.totalNonCurrentLiabilities),
+      plRow("Total liabilities", t.totalLiabilities, priorT?.totalLiabilities),
+      plRow("Share capital", bs.shareCapital, bsP?.shareCapital),
+      plRow("Retained earnings", bs.retainedEarnings, bsP?.retainedEarnings),
+      plRow("Other equity", bs.otherEquity, bsP?.otherEquity),
+      plRow("Total equity", t.totalEquity, priorT?.totalEquity),
+      plRow("Total liabilities + equity", t.totalLiabilitiesAndEquity, priorT?.totalLiabilitiesAndEquity),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bsRows), "Balance Sheet");
+  }
 
   // ─ Ratios ────────────────────────────────────────────────────────────────
   const ratioRows: (string | number)[][] = [

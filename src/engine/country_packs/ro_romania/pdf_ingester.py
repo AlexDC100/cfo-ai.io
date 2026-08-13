@@ -51,13 +51,24 @@ import re
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
+from .number_locale import RO, detect_number_locale, parse_number
+
 
 logger = logging.getLogger(__name__)
 
 
-# Romanian decimal format: thousand separator ".", decimal ","  →  "12.345,67"
-_NUM_PATTERN = re.compile(r"^-?[\d.]+,\d{2}$")
-_NUM_CONTAINS = re.compile(r"-?[\d.]+,\d{2}")
+# Numeric-token shapes, one per locale. Both require a separator + exactly
+# 2 decimals (how RAS trial-balance PDFs print every amount in either
+# locale), so integers / years / account codes never classify as numbers.
+# The locale is detected ONCE per document (majority vote over all
+# matching tokens, shared `number_locale` implementation) and only THAT
+# locale's pattern parses lines — a Romanian PDF is tokenized exactly as
+# before this port, and an anglo-formatted export no longer dies with
+# every row silently failing the 10-number requirement (audit §3).
+_RO_NUM_PATTERN = re.compile(r"^-?[\d.]+,\d{2}$")       # "12.345,67"
+_RO_NUM_CONTAINS = re.compile(r"-?[\d.]+,\d{2}")
+_ANGLO_NUM_PATTERN = re.compile(r"^-?[\d,]+\.\d{2}$")   # "12,345.67"
+_ANGLO_NUM_CONTAINS = re.compile(r"-?[\d,]+\.\d{2}")
 
 # Rows whose first 3-5 words match any of these get skipped (header / footer
 # decoration rather than account data).
@@ -99,16 +110,28 @@ class PdfIngestError(Exception):
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Number parsing
+# Number parsing — shared `number_locale` implementation
 # ─────────────────────────────────────────────────────────────────────
+# The old `_parse_ro_number` (strip dots, comma→dot, hardcoded Romanian)
+# was one of three independent number parsers in the engine; it now
+# delegates to `number_locale.parse_number` under the per-document
+# locale. Ro-biased ONLY when detection is impossible: the detection
+# default is RO, so a document with zero unambiguous numeric tokens
+# parses exactly as before.
 
-def _parse_ro_number(s: str) -> float:
-    """Romanian decimal: '1.234.567,89' → 1234567.89."""
-    s = s.strip().replace(".", "").replace(",", ".")
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
+
+def _detect_pdf_locale(lines: List[List[Tuple[float, str]]]) -> str:
+    """Per-document locale from every token matching either locale's
+    numeric shape, via the shared majority vote. Default RO — Romanian
+    RAS PDFs are the overwhelmingly common case and were previously the
+    ONLY supported case."""
+    tokens = [
+        text
+        for line in lines
+        for _, text in line
+        if _RO_NUM_PATTERN.match(text) or _ANGLO_NUM_PATTERN.match(text)
+    ]
+    return detect_number_locale(tokens, default=RO)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -172,7 +195,7 @@ def _is_account_code(text: str) -> bool:
     return bool(_ACCOUNT_CODE_RE.match(text))
 
 
-def _parse_account_line(line: List[Tuple[float, str]]) -> Dict[str, Any]:
+def _parse_account_line(line: List[Tuple[float, str]], locale: str = RO) -> Dict[str, Any]:
     """Parse one y-grouped line into the 10-column row dict, or return
     None if the line doesn't carry an account row.
 
@@ -185,9 +208,16 @@ def _parse_account_line(line: List[Tuple[float, str]]) -> Dict[str, Any]:
          (e.g. "Promenada108.177,02") get split.
       3. After collection, we require exactly 10 numeric columns
          matching the WinMENTOR / SAGA / Ciel canonical layout.
+
+    `locale` is the DOCUMENT-level number locale — it selects which
+    token shape counts as a number and how it parses; individual cells
+    are never re-guessed.
     """
     if _line_should_skip(line):
         return None
+
+    num_pattern = _RO_NUM_PATTERN if locale == RO else _ANGLO_NUM_PATTERN
+    num_contains = _RO_NUM_CONTAINS if locale == RO else _ANGLO_NUM_CONTAINS
 
     account = None
     account_idx = 0
@@ -202,16 +232,16 @@ def _parse_account_line(line: List[Tuple[float, str]]) -> Dict[str, Any]:
     numbers: List[float] = []
     name_words: List[str] = []
     for _, text in line[account_idx + 1:]:
-        if _NUM_PATTERN.match(text):
-            numbers.append(_parse_ro_number(text))
-        elif _NUM_CONTAINS.search(text):
+        if num_pattern.match(text):
+            numbers.append(parse_number(text, locale))
+        elif num_contains.search(text):
             # Common pattern: "Promenada108.177,02" — stuck-together
             # text and number. Split at the first numeric match.
-            m = _NUM_CONTAINS.search(text)
+            m = num_contains.search(text)
             pre = text[:m.start()].strip()
             if pre:
                 name_words.append(pre)
-            numbers.append(_parse_ro_number(m.group(0)))
+            numbers.append(parse_number(m.group(0), locale))
         else:
             name_words.append(text)
 
@@ -231,13 +261,22 @@ def _parse_account_line(line: List[Tuple[float, str]]) -> Dict[str, Any]:
     }
 
 
-def _parse_pdf_to_rows(pdf_bytes: bytes) -> List[Dict[str, Any]]:
+def _parse_pdf_to_rows_with_locale(pdf_bytes: bytes) -> Tuple[List[Dict[str, Any]], str]:
+    """Extract lines once, detect the document locale over ALL numeric
+    tokens, then parse every line under that one locale. Returns
+    (rows, locale)."""
     lines = _extract_words_by_line(pdf_bytes)
+    locale = _detect_pdf_locale(lines)
     rows: List[Dict[str, Any]] = []
     for line in lines:
-        row = _parse_account_line(line)
+        row = _parse_account_line(line, locale)
         if row:
             rows.append(row)
+    return rows, locale
+
+
+def _parse_pdf_to_rows(pdf_bytes: bytes) -> List[Dict[str, Any]]:
+    rows, _ = _parse_pdf_to_rows_with_locale(pdf_bytes)
     return rows
 
 
@@ -378,16 +417,28 @@ def parse_pdf_trial_balance(
     Returns the same dict shape that
     `trial_balance_parser.parse_trial_balance_df()` returns for XLSX
     inputs, so downstream `accounts_to_assemble_shape()` works
-    identically. Raises `PdfIngestError` on unrecoverable parse
-    failure.
+    identically — concretely a `TrialBalanceParseResult` (a plain list
+    to legacy callers) carrying the contract `extraction` block
+    (source_format "pdf_positional", detected number_locale) and a
+    `source_anchor` with extracted sums but NO file totals (PDF totals
+    lines are skip-filtered, so anchor_status is "NO_ANCHOR"). Raises
+    `PdfIngestError` on unrecoverable parse failure.
     """
+    # Local import: trial_balance_parser never imports this module, so
+    # the dependency stays acyclic.
+    from .trial_balance_parser import (
+        PARSER_VERSION,
+        TrialBalanceParseResult,
+        compute_source_anchor,
+    )
+
     if not is_pdf(pdf_bytes):
         raise PdfIngestError(
             user_message="File does not look like a PDF (magic bytes absent).",
             technical_detail=f"first 16 bytes: {pdf_bytes[:16]!r}",
         )
 
-    rows = _parse_pdf_to_rows(pdf_bytes)
+    rows, locale = _parse_pdf_to_rows_with_locale(pdf_bytes)
     if not rows:
         raise PdfIngestError(
             user_message=(
@@ -406,15 +457,29 @@ def parse_pdf_trial_balance(
 
     validation = _validate_balance(rows)
     logger.info(
-        "[ro_pdf_ingester] %s: %d leaves, movements_balanced=%s (gap=%.2f), "
-        "closing_balanced=%s (gap=%.2f)",
+        "[ro_pdf_ingester] %s: %d leaves, locale=%s, movements_balanced=%s "
+        "(gap=%.2f), closing_balanced=%s (gap=%.2f)",
         filename or "(no filename)",
-        validation["account_count"],
+        validation["account_count"], locale,
         validation["movements_balanced"], validation["movements_gap"],
         validation["closing_balanced"], validation["closing_gap"],
     )
 
-    return _to_trial_balance_parser_shape(rows)
+    shaped = _to_trial_balance_parser_shape(rows)
+    return TrialBalanceParseResult(
+        shaped,
+        extraction={
+            "method": "deterministic",
+            "parser_version": PARSER_VERSION,
+            "source_format": "pdf_positional",
+            "number_locale": locale,
+            "sheet": None,
+            "header_row_index": None,
+        },
+        # No file totals row survives the PDF skip-filters, so the anchor
+        # carries extracted sums only and reports NO_ANCHOR.
+        source_anchor=compute_source_anchor(shaped, file_totals=None),
+    )
 
 
 def diagnose_pdf(pdf_bytes: bytes, filename: str = "") -> Dict[str, Any]:
@@ -423,7 +488,7 @@ def diagnose_pdf(pdf_bytes: bytes, filename: str = "") -> Dict[str, Any]:
     the F3.8 detection gate to verify a PDF parses cleanly without
     materially mutating any pipeline state.
     """
-    raw_rows = _parse_pdf_to_rows(pdf_bytes)
+    raw_rows, locale = _parse_pdf_to_rows_with_locale(pdf_bytes)
     leaves = _filter_to_leaves(raw_rows)
     validation = _validate_balance(leaves)
     class_dist: Dict[str, int] = defaultdict(int)
@@ -435,5 +500,6 @@ def diagnose_pdf(pdf_bytes: bytes, filename: str = "") -> Dict[str, Any]:
         "leaf_count": len(leaves),
         "parents_filtered": len(raw_rows) - len(leaves),
         "class_distribution": dict(class_dist),
+        "number_locale": locale,
         **validation,
     }

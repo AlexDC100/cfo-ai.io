@@ -27,18 +27,30 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from engine.canonical import (
     ALL_BUCKETS,
     BS_BUCKETS,
+    BucketType,
     PL_BUCKETS,
     PARENT_AGGREGATES_BS,
     PARENT_AGGREGATES_PL,
     SignMeaning,
     bucket_by_name,
+    leaves_for_aggregate,
     schema_version,
 )
+
+# Rule-table vintage stamped onto every canonical_bs emission. Imported
+# from the rules module (the single owner of the constant); the fallback
+# only fires under standalone file-loading where the relative import is
+# unavailable — it MUST carry the same value.
+try:
+    from .chart_of_accounts import MAPPING_VERSION
+except ImportError:  # standalone module loading (scripts) only
+    MAPPING_VERSION = "ro_omfp1802_v2"
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -77,9 +89,13 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("1623",  "lt_debt_bank"),
     ("1625",  "lt_debt_bank"),
     ("162",   "lt_debt_bank"),
+    ("161",   "lt_debt_other"),               # bonds
+    ("164",   "lt_debt_other"),               # non-standard LT-loan analytic
+    ("165",   "lt_debt_other"),               # non-standard LT-loan analytic
     ("166",   "lt_debt_other"),
     ("167",   "lt_debt_other"),
     ("168",   "lt_debt_bank"),
+    ("169",   "lt_debt_other"),               # contra-debt: signed sum is negative, nets vs 161
     # ─── Class 2 — Fixed assets ───
     ("201",   "intangibles_other"),
     ("203",   "intangibles_other"),
@@ -104,6 +120,7 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("2671",  "other_non_current_assets"),
     ("2678",  "other_non_current_assets"),
     ("267",   "other_non_current_assets"),
+    ("269",   "financial_investments_other"),  # contra: signed sum negative, nets vs 26x per OMFP bilanț
     ("26",    "financial_investments_other"),
     ("2801",  "accumulated_amortization_intangibles"),
     ("2803",  "accumulated_amortization_intangibles"),
@@ -173,6 +190,7 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("441",   "ap_tax"),
     ("4424",  "ar_tax_recoverable"),
     ("4426",  "ar_tax_recoverable"),
+    ("4428",  "ap_tax"),                      # C-natural; D-side flips via legacy-bucket side detection
     ("442",   "ap_tax"),
     ("444",   "ap_tax"),
     ("445",   "ap_tax"),
@@ -195,7 +213,9 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("478",   "government_grants_deferred"),
     ("481",   "ar_other"),
     ("491",   "ar_provisions"),
+    ("495",   "ar_provisions"),
     ("496",   "ar_provisions"),
+    ("49",    "ar_provisions"),               # complete 49x contra-AR family (mirrors legacy "49" rule)
     # ─── Class 5 — Cash ───
     ("509",   "st_debt_other"),
     ("5121",  "cash_operating"),
@@ -387,26 +407,70 @@ def _side_flip_canonical(
         "shortTermDebt", "stDebt", "st_debt",
         "longTermDebt", "ltDebt", "lt_debt",
     }
-    if legacy_bucket not in liab_legacy_buckets:
-        return canonical_name
-    # Map AR-side canonical → AP-side canonical (or LT-debt where applicable).
-    flip_map = {
-        "ar_trade_gross":         "ap_other",
-        "ar_doubtful_gross":      "ap_other",
-        "ar_intercompany":        "ap_intercompany",
-        "ar_personnel":           "ap_personnel_other",
-        "ar_supplier_advances":   "customer_advances",
-        "ar_tax_recoverable":     "ap_tax",
-        "ar_other":               "ap_other",
-        # PPE accounts can side-flip when the line_item indicates a liab
-        # (rare; happens with 232 advances when net direction inverts).
-        "ppe_advances":           "ap_other",
-        # Cash side-flips to ST debt for 519x analytical sub-codes
-        # already handled by the prefix map; this is the safety net.
-        "cash_operating":         "st_debt_bank",
-        "cash_fx":                "st_debt_bank",
+    if legacy_bucket in liab_legacy_buckets:
+        # Map AR-side canonical → AP-side canonical (or LT-debt where applicable).
+        flip_map = {
+            "ar_trade_gross":         "ap_other",
+            "ar_doubtful_gross":      "ap_other",
+            "ar_intercompany":        "ap_intercompany",
+            "ar_personnel":           "ap_personnel_other",
+            "ar_supplier_advances":   "customer_advances",
+            "ar_tax_recoverable":     "ap_tax",
+            "ar_other":               "ap_other",
+            # PPE accounts can side-flip when the line_item indicates a liab
+            # (rare; happens with 232 advances when net direction inverts).
+            "ppe_advances":           "ap_other",
+            # Cash side-flips to ST debt for 519x analytical sub-codes
+            # already handled by the prefix map; this is the safety net —
+            # and the live path for 512x overdrafts, which the legacy layer
+            # re-routes to stDebt via BIFUNCTIONAL_WRONG_SIDE_FLIPS.
+            "cash_operating":         "st_debt_bank",
+            "cash_fx":                "st_debt_bank",
+        }
+        return flip_map.get(canonical_name, canonical_name)
+    # Opposite direction (canonical_bs v2): the legacy layer routed a
+    # C-natural bifunctional account (401 debit, 419 debit, 462 debit,
+    # 4428 debit…) to an ASSET bucket via BIFUNCTIONAL_WRONG_SIDE_FLIPS,
+    # but the naive prefix lookup above still says liability. Follow the
+    # legacy side so the canonical row sits on the same side of the BS.
+    asset_legacy_buckets = {
+        "cash", "cash_fx", "ar", "ar_doubtful", "ar_intercompany",
+        "inventory", "otherCurrentAssets", "ppe", "ppe_investment",
+        "ppe_under_construction", "ppe_advances", "intangibles",
+        "otherNonCurrentAssets", "accountsReceivable",
     }
-    return flip_map.get(canonical_name, canonical_name)
+    if legacy_bucket in asset_legacy_buckets:
+        flip_map_to_asset = {
+            "ap_trade":          "ar_supplier_advances",  # 401 debit = advance to supplier
+            "ap_other":          "ar_other",              # 462 debit = sundry receivable
+            "ap_tax":            "ar_tax_recoverable",    # 4428/442x debit = deferred input VAT
+            "customer_advances": "ar_other",              # 419 debit = refund due from customer
+            "ap_intercompany":   "ar_intercompany",
+            "ap_personnel_other": "ar_personnel",
+        }
+        return flip_map_to_asset.get(canonical_name, canonical_name)
+    return canonical_name
+
+
+def _route_line_item(li: Dict[str, Any]):
+    """Single source of truth for line_item → canonical-leaf routing.
+
+    Returns `(code, name, signed_amount, canonical_name)` or None when the
+    row carries no code / zero amount. `canonical_name` is None for 581
+    transit and unmapped codes — the caller decides how to surface those.
+    Used by BOTH `assemble_canonical` (leaf sums) and
+    `build_canonical_bs_v2` (per-row leaf_ids traceability) so the two can
+    never route the same account differently.
+    """
+    code = str(li.get("ro_account_code") or "").strip()
+    name = str(li.get("ro_account_name") or "").strip()
+    signed_amount = float(li.get("amount") or 0)
+    if not code or signed_amount == 0:
+        return None
+    canonical_name = _canonical_bucket_for_ras(code, name)
+    canonical_name = _sign_aware_canonical(code, canonical_name, signed_amount)
+    canonical_name = _side_flip_canonical(li, canonical_name)
+    return code, name, signed_amount, canonical_name
 
 
 def _sign_adjusted_magnitude(
@@ -500,15 +564,10 @@ def assemble_canonical(
     unmapped: List[Dict[str, Any]] = []
 
     for li in line_items:
-        code = str(li.get("ro_account_code") or "").strip()
-        name = str(li.get("ro_account_name") or "").strip()
-        signed_amount = float(li.get("amount") or 0)
-        if not code or signed_amount == 0:
+        routed = _route_line_item(li)
+        if routed is None:
             continue
-
-        canonical_name = _canonical_bucket_for_ras(code, name)
-        canonical_name = _sign_aware_canonical(code, canonical_name, signed_amount)
-        canonical_name = _side_flip_canonical(li, canonical_name)
+        code, name, signed_amount, canonical_name = routed
 
         if canonical_name is None:
             # Intentionally-dropped account (581 transit) or unmapped novel.
@@ -630,23 +689,519 @@ def assemble_canonical(
                 "leaves": leaves_in_agg,
             }
 
-    # Round-trip sanity: every aggregate's net should equal the sum of
-    # its leaves with sign-application. Always passes by construction
-    # of the loop above, but we record max_deviation as a paranoia check.
-    # The real round-trip gate (F4.1-ROUNDTRIP) compares canonical-net
-    # against the LEGACY engine assembled_* totals — that lives in
-    # `scripts/check_canonical_roundtrip.py` (F4.1d).
     result: Dict[str, Any] = {
         "schema_version": schema_version(),
         "leaves": leaves,
         "aggregates": aggregates,
         "unmapped": unmapped,
-        "round_trip_check": {
-            "passed": True,
-            "tolerance_pct": 0.5,
-            "max_deviation_pct": 0.0,  # populated by F4.1d gate
-        },
     }
+    # Real round-trip check (was a hardcoded {passed: True} placeholder —
+    # any consumer trusting it was reading a constant, not a measurement).
+    # At this point the envelope has no methodology block yet, so the
+    # check runs on the aggregates basis; `assemble_statements` refreshes
+    # it after methodology evaluation to compare against methodology.totals.
+    result["round_trip_check"] = compute_round_trip_check(result)
     if source_data_quality is not None:
         result["source_data_quality"] = source_data_quality
     return result
+
+
+# ────────────────────────────────────────────────────────────────────────
+# canonical_bs v2 — the single presentation-ready Balance Sheet authority
+# (docs/CANONICAL_BS_V2_CONTRACT.md). Everything below is deterministic:
+# every iteration that reaches the output is either over a fixed
+# declaration-order list or explicitly sorted.
+# ────────────────────────────────────────────────────────────────────────
+
+_BS_SIGN_MEANINGS = {
+    SignMeaning.ASSET_POSITIVE.value, SignMeaning.ASSET_NEGATIVE.value,
+    SignMeaning.LIABILITY_POSITIVE.value,
+    SignMeaning.EQUITY_POSITIVE.value, SignMeaning.EQUITY_NEGATIVE.value,
+}
+
+
+def _recompute_side_totals(leaves: Dict[str, Any]) -> Dict[str, float]:
+    """Recompute assets / equity / liabilities straight from the leaves'
+    engine-signed sums (contra leaves carry negative sums, so plain
+    addition applies the contra math). Iteration sorted for determinism."""
+    totals = {"assets": 0.0, "equity": 0.0, "liabilities": 0.0}
+    for name in sorted(leaves):
+        bucket = bucket_by_name(name)
+        if bucket is None:
+            continue
+        signed = float((leaves[name] or {}).get("ras_line_items_sum_signed") or 0)
+        if bucket.bucket_type == BucketType.ASSET:
+            totals["assets"] += signed
+        elif bucket.bucket_type == BucketType.LIABILITY:
+            totals["liabilities"] += signed
+        elif bucket.bucket_type == BucketType.EQUITY:
+            totals["equity"] += signed
+    return {k: round(v, 2) for k, v in sorted(totals.items())}
+
+
+def compute_round_trip_check(envelope: Dict[str, Any]) -> Dict[str, Any]:
+    """REAL round-trip check: recompute leaves → aggregates → totals and
+    compare against what the envelope carries.
+
+    Two bases, picked by what's available:
+      · `methodology_totals` — envelope.methodology.totals present (the
+        Fix-A1 authority): recomputed side totals must match its
+        total_assets / total_equity / total_liabilities within 0.5%.
+      · `aggregates_only` — no methodology yet (PyYAML missing, or the
+        first pass inside `assemble_canonical`): recomputed aggregate
+        nets must match the stored `aggregates` block.
+
+    `max_deviation_pct` is in PERCENT units (0.5 == 0.5%), matching
+    `tolerance_pct`. Deterministic: comparisons iterate in sorted order.
+    """
+    leaves = envelope.get("leaves") or {}
+    stored_aggregates = envelope.get("aggregates") or {}
+    max_dev_pct = 0.0
+    worst = ""
+
+    def _observe(key: str, reference: float, recomputed: float) -> None:
+        nonlocal max_dev_pct, worst
+        dev_pct = abs(recomputed - reference) / max(abs(reference), 1.0) * 100.0
+        if dev_pct > max_dev_pct:
+            max_dev_pct = dev_pct
+            worst = key
+
+    # Aggregates: recompute each net from the leaves' signed sums (the
+    # same math `assemble_canonical` uses) and compare to the stored net.
+    for agg_name in sorted(stored_aggregates):
+        leaf_names = leaves_for_aggregate(agg_name)
+        if not leaf_names:
+            continue
+        recomputed = 0.0
+        for leaf_name in leaf_names:
+            if leaf_name in leaves:
+                recomputed += float((leaves[leaf_name] or {}).get("ras_line_items_sum_signed") or 0)
+        stored = float((stored_aggregates.get(agg_name) or {}).get("net") or 0)
+        _observe(f"aggregate:{agg_name}", stored, round(recomputed, 2))
+
+    # Totals: compare recomputed side totals against methodology.totals
+    # when the methodology block landed (it's attached after
+    # assemble_canonical returns, so only the assemble_statements refresh
+    # sees it).
+    methodology_totals = ((envelope.get("methodology") or {}).get("totals") or {})
+    basis = "aggregates_only"
+    if isinstance(methodology_totals, dict) and methodology_totals:
+        recomputed_sides = _recompute_side_totals(leaves)
+        side_by_key = {
+            "total_assets": "assets",
+            "total_equity": "equity",
+            "total_liabilities": "liabilities",
+        }
+        compared_any = False
+        for key in sorted(side_by_key):
+            if key in methodology_totals and methodology_totals[key] is not None:
+                _observe(
+                    f"totals:{key}",
+                    float(methodology_totals[key]),
+                    recomputed_sides[side_by_key[key]],
+                )
+                compared_any = True
+        if compared_any:
+            basis = "methodology_totals"
+
+    return {
+        "passed": max_dev_pct <= 0.5,
+        "tolerance_pct": 0.5,
+        "max_deviation_pct": round(max_dev_pct, 6),
+        "basis": basis,
+        "worst": worst,
+    }
+
+
+# OMFP 1802 bilanț sections ← canonical parent aggregates. Leaf-level
+# overrides split aggregates that OMFP presents across two sections.
+_AGGREGATE_TO_SECTION: Dict[str, str] = {
+    "cash_and_equivalents":        "current_assets",
+    "trade_receivables_net":       "current_assets",
+    "other_receivables":           "current_assets",
+    "inventory_net":               "current_assets",
+    "prepaid_expenses_and_other":  "prepaid_expenses",
+    "ppe_net":                     "non_current_assets",
+    "investment_property":         "non_current_assets",
+    "right_of_use_assets":         "non_current_assets",
+    "intangibles_net":             "non_current_assets",
+    "financial_investments":       "non_current_assets",
+    "deferred_tax_assets":         "non_current_assets",
+    "other_non_current_assets":    "non_current_assets",
+    "trade_payables":              "current_liabilities",
+    "tax_payables":                "current_liabilities",
+    "personnel_payables":          "current_liabilities",
+    "other_payables_st":           "current_liabilities",
+    "financial_liabilities_st":    "current_liabilities",
+    "deferred_revenue_st":         "current_liabilities",
+    "provisions_st":               "provisions",
+    "provisions_lt":               "provisions",
+    "financial_liabilities_lt":    "non_current_liabilities",
+    "deferred_tax_liabilities":    "non_current_liabilities",
+    "pension_liabilities":         "non_current_liabilities",
+    "deferred_income_lt":          "deferred_income",
+    "other_non_current_liabilities": "non_current_liabilities",
+    "contributed_capital":         "equity",
+    "reserves":                    "equity",
+    "retained_earnings":           "equity",
+    "treasury_shares":             "equity",
+    "accumulated_oci":             "equity",
+    "non_controlling_interest":    "equity",
+    "convertible_debt_equity_component": "equity",
+}
+_LEAF_SECTION_OVERRIDES: Dict[str, str] = {
+    # OMFP bilanț splits the deferred_revenue_st aggregate: 419 customer
+    # advances are Datorii (current), 472 deferred revenue is Venituri în
+    # avans (its own section, with the LT grants).
+    "deferred_revenue_st": "deferred_income",
+    "customer_advances":   "current_liabilities",
+}
+
+# Fixed presentation order — the contract's section order.
+_BS_V2_SECTION_ORDER: List[str] = [
+    "non_current_assets", "current_assets", "prepaid_expenses",
+    "equity", "provisions", "non_current_liabilities",
+    "current_liabilities", "deferred_income",
+]
+_BS_V2_ASSET_SECTIONS = {"non_current_assets", "current_assets", "prepaid_expenses"}
+_BS_V2_EQUITY_SECTIONS = {"equity"}
+# Everything not asset/equity is a liability-side section (provisions,
+# non_current_liabilities, current_liabilities, deferred_income).
+
+# BS_BUCKETS declaration order — the deterministic within-section row order.
+_BS_LEAF_ORDER: Dict[str, int] = {
+    b.canonical_name: i for i, b in enumerate(BS_BUCKETS)
+}
+
+
+def _section_for_leaf(leaf_name: str) -> Optional[str]:
+    """Map a canonical BS leaf to its OMFP presentation section. Returns
+    None for non-BS leaves (PL / memo / CF)."""
+    if leaf_name in _LEAF_SECTION_OVERRIDES:
+        return _LEAF_SECTION_OVERRIDES[leaf_name]
+    bucket = bucket_by_name(leaf_name)
+    if bucket is None or bucket.bucket_type not in (
+        BucketType.ASSET, BucketType.LIABILITY, BucketType.EQUITY
+    ):
+        return None
+    section = _AGGREGATE_TO_SECTION.get(bucket.parent_aggregate)
+    if section is not None:
+        return section
+    # Defensive fallback for a schema aggregate this map doesn't know yet:
+    # side-correct placement beats dropping the leaf from presentation.
+    if bucket.bucket_type == BucketType.ASSET:
+        return "current_assets"
+    if bucket.bucket_type == BucketType.EQUITY:
+        return "equity"
+    return "current_liabilities"
+
+
+def _matched_ras_prefix(code: str) -> str:
+    """The RAS prefix that routed this code, for the row's account_codes
+    grouping. Falls back to the code itself for kwarg-injected leaves."""
+    for prefix, _canonical in _RAS_TO_CANONICAL_SORTED:
+        if code.startswith(prefix):
+            return prefix
+    return code
+
+
+def _load_run_bs_diagnosis():
+    """Import `run_bs_diagnosis` without depending on the whole
+    `engine.confidence` package: its __init__ pulls sibling modules
+    (anomalies, quality_envelope) that are absent in some checkouts, and
+    a broken package import must not silently disable BS diagnosis.
+    Falls back to loading reconciliation_checks.py by file path."""
+    try:
+        from engine.confidence.reconciliation_checks import run_bs_diagnosis
+        return run_bs_diagnosis
+    except Exception:  # noqa: BLE001 — package __init__ may be unimportable
+        import importlib.util
+        import sys as _sys
+        path = (
+            Path(__file__).resolve().parents[2] / "confidence" / "reconciliation_checks.py"
+        )
+        mod_name = "_ro_reconciliation_checks_standalone"
+        cached = _sys.modules.get(mod_name)
+        if cached is not None:
+            return cached.run_bs_diagnosis
+        spec = importlib.util.spec_from_file_location(mod_name, str(path))
+        mod = importlib.util.module_from_spec(spec)
+        _sys.modules[mod_name] = mod  # register before exec (dataclasses)
+        spec.loader.exec_module(mod)
+        return mod.run_bs_diagnosis
+
+
+def _excluded_reason(code: str, bucket: str) -> str:
+    """Contract-facing reason for an excluded account."""
+    if code.startswith("891"):
+        return "opening_balance_sheet_account"
+    if code.startswith("892"):
+        return "closing_balance_sheet_account"
+    if bucket == "ignore_offbalance" or code.startswith(("8", "9")):
+        return "off_balance_memo_account"
+    if bucket == "ignore_transit" or code.startswith("581"):
+        return "transit_account_581"
+    if bucket == "ignore_control" or code.startswith("121"):
+        return "profit_control_account_121"
+    return "excluded_by_rule"
+
+
+def build_canonical_bs_v2(
+    envelope: Dict[str, Any],
+    *,
+    line_items: Optional[List[Dict[str, Any]]] = None,
+    source_anchor: Optional[Dict[str, Any]] = None,
+    unmapped: Optional[List[Dict[str, Any]]] = None,
+    excluded: Optional[List[Dict[str, Any]]] = None,
+    extraction: Optional[Dict[str, Any]] = None,
+    p121_anchor: Optional[float] = None,
+    cls7_minus_cls6: Optional[float] = None,
+    source_account_census: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Build the FULL canonical_bs v2 object per
+    docs/CANONICAL_BS_V2_CONTRACT.md from the canonical envelope's leaves.
+
+    Rows, section subtotals and totals all derive from the SAME leaf
+    signed sums, so they sum to each other BY CONSTRUCTION — asserted at
+    the end, never plugged. All optional inputs degrade defensively:
+      · `line_items` — for leaf_ids / account_codes traceability; absent
+        → rows carry empty lists.
+      · `source_anchor` — contract shape (pairs / anchor_status /
+        source_balanced); absent → NO_ANCHOR block.
+      · `unmapped` / `excluded` — account lists for the transparency
+        blocks + source_conservation invariant (excluded accepts the
+        assembler's `ignored_items` shape).
+      · `extraction` — provenance; method=="llm" caps status at
+        MINOR_DRIFT per the contract.
+      · `p121_anchor` / `cls7_minus_cls6` — the 121 cross-check values;
+        emitted into invariants, never auto-corrected here.
+      · `source_account_census` — source-file account count for the
+        source_conservation invariant; absent → invariant not falsifiable
+        (emitted true).
+    """
+    leaves = envelope.get("leaves") or {}
+
+    # ── Traceability: canonical leaf → contributing account codes ──────
+    # Re-runs the SAME routing (`_route_line_item`) the envelope used, so
+    # a row's leaf_ids always agree with the leaf sums beneath it.
+    leaf_codes: Dict[str, set] = {}
+    leaf_prefixes: Dict[str, set] = {}
+    for li in (line_items or []):
+        routed = _route_line_item(li)
+        if routed is None:
+            continue
+        code, _name, _signed, canonical_name = routed
+        if canonical_name is None:
+            continue
+        leaf_codes.setdefault(canonical_name, set()).add(code)
+        leaf_prefixes.setdefault(canonical_name, set()).add(_matched_ras_prefix(code))
+
+    # ── Rows — BS leaves only, fixed section order then schema order ───
+    rows: List[Dict[str, Any]] = []
+    section_sums: Dict[str, float] = {s: 0.0 for s in _BS_V2_SECTION_ORDER}
+    ordered_leaves = sorted(
+        (name for name in leaves if _section_for_leaf(name) is not None),
+        key=lambda n: (
+            _BS_V2_SECTION_ORDER.index(_section_for_leaf(n)),
+            _BS_LEAF_ORDER.get(n, len(_BS_LEAF_ORDER)),
+            n,
+        ),
+    )
+    for leaf_name in ordered_leaves:
+        section = _section_for_leaf(leaf_name)
+        amount = round(float((leaves[leaf_name] or {}).get("ras_line_items_sum_signed") or 0), 2)
+        if amount == 0:
+            continue
+        bucket = bucket_by_name(leaf_name)
+        rows.append({
+            "id": leaf_name,
+            "section": section,
+            "label_key": f"bs.row.{leaf_name}",
+            "label": bucket.display_label if bucket else leaf_name,
+            "account_codes": sorted(leaf_prefixes.get(leaf_name, set())),
+            "amount": amount,
+            "opening": None,  # prior-period column not plumbed yet
+            "leaf_ids": sorted(leaf_codes.get(leaf_name, set())),
+        })
+        section_sums[section] = round(section_sums[section] + amount, 2)
+
+    sections = [
+        {"id": s, "subtotal": round(section_sums[s], 2)}
+        for s in _BS_V2_SECTION_ORDER
+    ]
+
+    # ── Totals — sums of the SAME section subtotals (by construction) ──
+    total_assets = round(sum(
+        section_sums[s] for s in _BS_V2_SECTION_ORDER if s in _BS_V2_ASSET_SECTIONS
+    ), 2)
+    total_equity = round(sum(
+        section_sums[s] for s in _BS_V2_SECTION_ORDER if s in _BS_V2_EQUITY_SECTIONS
+    ), 2)
+    total_liabilities = round(sum(
+        section_sums[s] for s in _BS_V2_SECTION_ORDER
+        if s not in _BS_V2_ASSET_SECTIONS and s not in _BS_V2_EQUITY_SECTIONS
+    ), 2)
+    equity_plus_liabilities = round(total_equity + total_liabilities, 2)
+    difference = round(total_assets - equity_plus_liabilities, 2)
+
+    # ── Source anchor + extraction (defensive defaults; agent C plumbs) ─
+    anchor_block: Dict[str, Any] = (
+        dict(source_anchor) if isinstance(source_anchor, dict) else {
+            "totals_row_found": False,
+            "pairs": {},
+            "anchor_status": "NO_ANCHOR",
+            "source_balanced": None,
+        }
+    )
+    extraction_block: Dict[str, Any] = {"method": "deterministic"}
+    if isinstance(extraction, dict):
+        extraction_block.update(extraction)
+
+    # ── Status per the contract tolerance ladder ───────────────────────
+    #   BALANCED         |difference| ≤ max(1 RON, 0.001% of assets)
+    #   MINOR_DRIFT      |difference| ≤ 0.5% of assets
+    #   MATERIAL_IMBALANCE otherwise
+    # anchor DIVERGED ⇒ the extraction FAILED regardless of internal
+    # balance (the self-validation trap in BS_ENGINE_ROOT_CAUSE Layer 2);
+    # llm extraction can never claim BALANCED — caps at MINOR_DRIFT.
+    tol_balanced = max(1.0, abs(total_assets) * 0.00001)
+    if str(anchor_block.get("anchor_status") or "") == "DIVERGED":
+        status = "MATERIAL_IMBALANCE"
+    elif abs(difference) <= tol_balanced:
+        status = "BALANCED"
+    elif abs(difference) <= abs(total_assets) * 0.005:
+        status = "MINOR_DRIFT"
+    else:
+        status = "MATERIAL_IMBALANCE"
+    if status == "BALANCED" and str(extraction_block.get("method") or "") == "llm":
+        status = "MINOR_DRIFT"
+
+    # ── Transparency blocks — sorted for determinism ───────────────────
+    unmapped_out: List[Dict[str, Any]] = []
+    for u in (unmapped or []):
+        if not isinstance(u, dict):
+            continue
+        entry = {
+            "code": str(u.get("code") or ""),
+            "name": str(u.get("name") or ""),
+            "reason": str(u.get("reason") or "no_rule"),
+        }
+        # Carry whatever balance fields the caller had (amount on the
+        # assembler shape; sf_d/sf_c when the parser layer supplies them).
+        for key in ("amount", "sf_d", "sf_c"):
+            if key in u:
+                entry[key] = u[key]
+        unmapped_out.append(entry)
+    unmapped_out.sort(key=lambda e: (e["code"], e["name"]))
+
+    excluded_by_code: Dict[str, Dict[str, Any]] = {}
+    for e in (excluded or []):
+        if not isinstance(e, dict):
+            continue
+        code = str(e.get("code") or e.get("ro_account_code") or "")
+        if not code:
+            continue
+        reason = str(e.get("reason") or _excluded_reason(code, str(e.get("bucket") or "")))
+        excluded_by_code.setdefault(code, {"code": code, "reason": reason})
+    excluded_out = [excluded_by_code[c] for c in sorted(excluded_by_code)]
+
+    # ── Invariants — recomputed and asserted, never plugged ────────────
+    asset_row_sum = round(sum(
+        r["amount"] for r in rows if r["section"] in _BS_V2_ASSET_SECTIONS
+    ), 2)
+    el_row_sum = round(sum(
+        r["amount"] for r in rows if r["section"] not in _BS_V2_ASSET_SECTIONS
+    ), 2)
+    assets_eq_row_sum = abs(asset_row_sum - total_assets) < 0.01
+    el_eq_row_sum = abs(el_row_sum - equity_plus_liabilities) < 0.01
+    # By construction (rows, subtotals and totals derive from the same
+    # leaf sums) these can only fail on a builder bug — fail loud.
+    assert assets_eq_row_sum, (
+        f"canonical_bs v2: asset rows {asset_row_sum} != totals.assets {total_assets}"
+    )
+    assert el_eq_row_sum, (
+        f"canonical_bs v2: E+L rows {el_row_sum} != equity+liabilities {equity_plus_liabilities}"
+    )
+
+    # Source conservation: every source account must land in exactly one
+    # of classified / unmapped / excluded. Falsifiable only when the
+    # caller supplies the source census count.
+    classified_codes = set()
+    for codes in leaf_codes.values():
+        classified_codes.update(codes)
+    conservation_count = len(
+        classified_codes
+        | {e["code"] for e in unmapped_out if e["code"]}
+        | set(excluded_by_code)
+    )
+    source_conservation = (
+        True if source_account_census is None
+        else conservation_count == int(source_account_census)
+    )
+
+    # 121 cross-check: compare only — never auto-correct (the contract's
+    # explicit rule; D6 fires off `ok: false`).
+    if p121_anchor is not None and cls7_minus_cls6 is not None:
+        p121_val = round(float(p121_anchor), 2)
+        cls_val = round(float(cls7_minus_cls6), 2)
+        p121_ok = abs(p121_val - cls_val) <= max(1.0, abs(p121_val) * 0.005)
+        p121_block: Dict[str, Any] = {
+            "ok": p121_ok, "p121": p121_val, "cls7_minus_cls6": cls_val,
+        }
+    else:
+        # Not falsifiable — one side of the comparison is absent
+        # (BS-only extract, or no 121 row survived extraction).
+        p121_block = {"ok": True, "p121": None, "cls7_minus_cls6": None}
+
+    canonical_bs: Dict[str, Any] = {
+        "schema": "bs_v2",
+        "mapping_version": MAPPING_VERSION,
+        "extraction": extraction_block,
+        "source_anchor": anchor_block,
+        "rows": rows,
+        "sections": sections,
+        "totals": {
+            "assets": total_assets,
+            "equity": total_equity,
+            "liabilities": total_liabilities,
+            "equity_plus_liabilities": equity_plus_liabilities,
+            "current_assets": round(section_sums["current_assets"], 2),
+            "current_liabilities": round(section_sums["current_liabilities"], 2),
+        },
+        "difference": difference,
+        "status": status,
+        "diagnosis": [],
+        "unmapped": unmapped_out,
+        "excluded": excluded_out,
+        "invariants": {
+            "assets_eq_row_sum": assets_eq_row_sum,
+            "el_eq_row_sum": el_eq_row_sum,
+            "source_conservation": source_conservation,
+            "p121_cross_check": p121_block,
+        },
+    }
+
+    # ── Diagnosis (D0-D8) — populated when status != BALANCED ──────────
+    # The engine lives in engine.confidence.reconciliation_checks so the
+    # pipeline can also run it standalone; import guarded so a diagnosis
+    # bug can never take down the canonical_bs emission itself.
+    if status != "BALANCED":
+        try:
+            run_bs_diagnosis = _load_run_bs_diagnosis()
+            account_leaves = []
+            for li in (line_items or []):
+                routed = _route_line_item(li)
+                if routed is None:
+                    continue
+                code, name, signed_amount, _canonical = routed
+                account_leaves.append(
+                    {"code": code, "name": name, "amount": round(signed_amount, 2)}
+                )
+            account_leaves.sort(key=lambda a: (a["code"], a["name"]))
+            canonical_bs["diagnosis"] = run_bs_diagnosis(
+                canonical_bs, account_leaves, anchor_block,
+            )
+        except Exception:  # noqa: BLE001
+            canonical_bs["diagnosis"] = []
+
+    return canonical_bs

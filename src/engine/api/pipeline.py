@@ -580,6 +580,50 @@ def _xlsx_to_text(spreadsheet_bytes: bytes, *, max_chars: int = 200_000) -> str:
     return "\n\n".join(out)
 
 
+def _deterministic_tb_parsed(
+    doc: Dict[str, Any],
+    tb_rows: Any,
+    shaped: Any,
+    statutory_anchor: Optional[float],
+    source_quality: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Build the `parsed` payload for the deterministic TB fast-paths
+    (PDF / XLSX / CSV). One builder for all three branches so the
+    canonical_bs v2 plumbing (contract: docs/CANONICAL_BS_V2_CONTRACT.md)
+    can't drift between them.
+
+    Beyond the legacy keys, carries the parse-result metadata stage_map
+    forwards into `assemble_statements`' canonical_bs kwargs:
+      · source_anchor / extraction — verbatim from the parser's
+        TrialBalanceParseResult (external conservation + provenance).
+      · parser_unmapped / parser_excluded — the AssembleShapeResult
+        telemetry (accounts the deterministic path previously dropped
+        with zero trace — audit gaps 14/17).
+      · source_account_census — for invariants.source_conservation
+        (see RomaniaPack.deterministic_source_census for the counting
+        constraint).
+    `getattr` fallbacks keep the builder harmless if a caller ever hands
+    plain lists (legacy shape) instead of the metadata-carrying results.
+    """
+    return {
+        "company_name": (doc.get("original_filename") or "Imported entity").rsplit(".", 1)[0],
+        "period_label": "Imported period",
+        "period_end": _detect_period_end_from_filename(doc.get("original_filename")),
+        "currency": "RON",
+        "confidence": 0.95,
+        "detected_type": "trial_balance",
+        "accounts": list(shaped),
+        "warnings": [],
+        "source_data_quality": source_quality,
+        "statutory_net_profit_anchor": statutory_anchor,
+        "source_anchor": getattr(tb_rows, "source_anchor", None),
+        "extraction": getattr(tb_rows, "extraction", None),
+        "parser_unmapped": list(getattr(shaped, "unmapped", None) or []),
+        "parser_excluded": list(getattr(shaped, "excluded", None) or []),
+        "source_account_census": _ro_pack().deterministic_source_census(shaped),
+    }
+
+
 def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Format-aware extraction. Sends the document to Claude Opus 4.7 in the
     most appropriate content-block shape for its type, then validates the
@@ -756,18 +800,12 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                         float(source_quality.get("raw_imbalance_pct") or 0),
                         "WARN" if source_quality.get("warn") else "ok",
                     )
-                    return {
-                        "company_name": (doc.get("original_filename") or "Imported entity").rsplit(".", 1)[0],
-                        "period_label": "Imported period",
-                        "period_end": _detect_period_end_from_filename(doc.get("original_filename")),
-                        "currency": "RON",
-                        "confidence": 0.95,
-                        "detected_type": "trial_balance",
-                        "accounts": shaped,
-                        "warnings": [],
-                        "statutory_net_profit_anchor": statutory_anchor,
-                        "source_data_quality": source_quality,
-                    }
+                    # canonical_bs v2 — shared payload builder carries the
+                    # parse-result metadata (anchor/extraction/unmapped/
+                    # excluded/census) through to stage_map.
+                    return _deterministic_tb_parsed(
+                        doc, tb_rows, shaped, statutory_anchor, source_quality,
+                    )
         except Exception as e:  # noqa: BLE001
             logger.info(
                 "[stage_extract] PDF TB fast-path skipped (%s) — "
@@ -873,6 +911,14 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                         "detected_type": "statutory_f30_f10",
                         "accounts": shaped,
                         "warnings": extraction.warnings,
+                        # canonical_bs v2 provenance — deterministic row-map
+                        # parse, contract source_format for ANAF filings. No
+                        # source_anchor: statutory returns carry no TB totals
+                        # row (builder defaults to NO_ANCHOR).
+                        "extraction": {
+                            "method": "deterministic",
+                            "source_format": "statutory_f30_f10",
+                        },
                         "statutory": {
                             "pl_data": extraction.pl_data,
                             "bs_data": extraction.bs_data,
@@ -922,21 +968,48 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                     float(source_quality.get("raw_imbalance_pct") or 0),
                     "WARN" if source_quality.get("warn") else "ok",
                 )
-                return {
-                    "company_name": (doc.get("original_filename") or "Imported entity").rsplit(".", 1)[0],
-                    "period_label": "Imported period",
-                    "period_end": _detect_period_end_from_filename(doc.get("original_filename")),
-                    "currency": "RON",
-                    "confidence": 0.95,
-                    "detected_type": "trial_balance",
-                    "accounts": shaped,
-                    "warnings": [],
-                    "source_data_quality": source_quality,
-                    "statutory_net_profit_anchor": statutory_anchor,
-                }
+                # canonical_bs v2 — shared payload builder carries the
+                # parse-result metadata (anchor/extraction/unmapped/
+                # excluded/census) through to stage_map.
+                return _deterministic_tb_parsed(
+                    doc, tb_rows, shaped, statutory_anchor, source_quality,
+                )
         except Exception as e:  # noqa: BLE001
             logger.info(
                 "[stage_extract] TB fast-path skipped (%s) — falling back to Claude",
+                type(e).__name__,
+            )
+
+    # canonical_bs v2 — deterministic CSV fast-path (audit item 1c: CSVs
+    # previously ALWAYS went to the LLM as raw text, so the same SAGA
+    # balance got a different fidelity class than its XLSX twin). The
+    # parser's CSV entry point runs the same structure detection, locale
+    # detection and anchor machinery as the XLSX path; the LLM remains
+    # strictly the fallback for CSVs that don't parse as a trial balance.
+    if kind == "csv":
+        try:
+            pack = _ro_pack()
+            tb_rows = pack.parse_trial_balance_csv(
+                file_bytes, doc.get("original_filename") or "",
+            )
+            if tb_rows:
+                shaped = pack.accounts_to_assemble_shape(tb_rows)
+                statutory_anchor = pack.compute_statutory_net_profit_anchor(tb_rows)
+                source_quality = pack.compute_source_imbalance(tb_rows)
+                logger.info(
+                    "[stage_extract] deterministic CSV TB path: %d raw rows → %d mapped accounts "
+                    "(ct 121 anchor = %s RON, source imbalance %.4f%% %s)",
+                    len(tb_rows), len(shaped),
+                    f"{statutory_anchor:,.0f}" if statutory_anchor else "n/a",
+                    float(source_quality.get("raw_imbalance_pct") or 0),
+                    "WARN" if source_quality.get("warn") else "ok",
+                )
+                return _deterministic_tb_parsed(
+                    doc, tb_rows, shaped, statutory_anchor, source_quality,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.info(
+                "[stage_extract] CSV TB fast-path skipped (%s) — falling back to Claude",
                 type(e).__name__,
             )
 
@@ -1083,6 +1156,13 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     else:
         data.setdefault("statutory_net_profit_anchor", None)
 
+    # canonical_bs v2 provenance — this is the LLM extraction path. The
+    # builder caps canonical_bs.status at MINOR_DRIFT off method=="llm"
+    # (an LLM extraction can never claim BALANCED per the contract), and
+    # the NO_ANCHOR default applies: there is no file totals row to
+    # reconcile against on this path.
+    data["extraction"] = {"method": "llm", "source_format": "llm_freeform"}
+
     return data
 
 
@@ -1109,7 +1189,14 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
     # the anchor in `parsed`. See chart_of_accounts.py:1796-1804 for
     # the F3.16 forbidden-pattern marker explaining why this kwarg
     # exists (and why a comment-without-test was the original bug).
-    return _ro_pack().assemble_statements(
+    # canonical_bs v2 — forward the extraction provenance + external
+    # anchor + census + parser unmapped captured in stage_extract, so the
+    # write-time envelope's canonical_bs carries them per the contract.
+    # All keys are absent on paths that don't set them (legacy callers,
+    # statutory partially) — .get() → None keeps the builder's defensive
+    # defaults, preserving prior behavior exactly.
+    pack = _ro_pack()
+    assembled = pack.assemble_statements(
         parsed.get("accounts") or [],
         company_name=parsed.get("company_name") or "Imported entity",
         currency=parsed.get("currency") or "RON",
@@ -1117,7 +1204,17 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
         industry=industry,
         source_data_quality=parsed.get("source_data_quality"),
         account_121_anchor_override=parsed.get("statutory_net_profit_anchor"),
+        source_anchor=parsed.get("source_anchor"),
+        extraction_meta=parsed.get("extraction"),
+        source_account_census=parsed.get("source_account_census"),
+        extra_unmapped=parsed.get("parser_unmapped"),
     )
+    # Parser-level exclusions (class 8 incl. 891/892, 581 transit) are
+    # dropped BEFORE assembly, so the assembler can't record them itself
+    # — completed into canonical_bs.excluded at this seam (same helper
+    # the offline determinism/reprocessing scripts run).
+    pack.merge_parser_exclusions(assembled, parsed.get("parser_excluded"))
+    return assembled
 
 
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
@@ -1329,6 +1426,17 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
         #    captured by a newer engine — preserving the most-recent envelope).
         canonical = assembled.get("assembled_canonical_v1")
         if isinstance(canonical, dict):
+            # canonical_bs v2 — the presentation-ready BS authority
+            # travels INSIDE this envelope (built at stage_map, served
+            # verbatim by /api/period). Absence means the builder failed
+            # upstream and the period will fall back to the legacy
+            # Fix-A1 read path — loggable, not fatal.
+            if "canonical_bs" not in canonical:
+                logger.warning(
+                    "[stage_persist] envelope carries no canonical_bs for "
+                    "period %s — legacy Fix-A1 read path will serve it",
+                    period_id,
+                )
             try:
                 admin_client.update(
                     "financial_periods",
@@ -3554,7 +3662,93 @@ def _run_pipeline_sync(document_id: str) -> None:
             logger.exception("[pipeline] release_document_reservation failed (non-fatal)")
 
 
-def _rebuild_assembled(line_items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _apply_envelope_truth_to_statements(
+    statements: Dict[str, Any], period: Dict[str, Any]
+) -> None:
+    """Serve the persisted write-time BS truth onto a re-assembled
+    `statements` dict, in place. ONE code object shared by /api/period
+    and `_rebuild_assembled_for_briefing` — the audit found the briefing
+    rebuild replicated the lossy round-trip WITHOUT the Fix A1 override,
+    so a regenerated briefing could cite different totals than the tab.
+
+    Two-tier source, per docs/CANONICAL_BS_V2_CONTRACT.md:
+      1. `period.assembled_canonical_v1.canonical_bs` (bs_v2) — served
+         VERBATIM as `statements.canonical_bs` (the FE renders it with
+         zero arithmetic) AND used to source the assembled_bs totals.
+      2. Legacy envelopes (no canonical_bs key): the original Fix A1
+         path — `methodology.totals` overrides the same 8 fields.
+    Either way the source is the PERSISTED envelope (`period[...]`), never
+    the re-assembled one: the recomputed envelope reproduces the exact
+    round-trip drift this override exists to replace (0.44%–35.47%
+    across the 8 fixtures, scripts/measure_bs_drift_roundtrip.py).
+
+    The re-assembled `statements.assembled_canonical_v1.canonical_bs`
+    (assemble_statements now always attaches one) is likewise replaced
+    with the persisted object — or popped on legacy periods — so a
+    round-trip artifact can never be served as the BS authority.
+    """
+    try:
+        _env = period.get("assembled_canonical_v1") or {}
+        _served_env = statements.get("assembled_canonical_v1")
+        _cbs = _env.get("canonical_bs")
+        if isinstance(_cbs, dict) and isinstance(_cbs.get("totals"), dict):
+            # canonical_bs v2 path — serve verbatim + totals from it.
+            statements["canonical_bs"] = _cbs
+            if isinstance(_served_env, dict):
+                _served_env["canonical_bs"] = _cbs
+            _t = _cbs["totals"]
+            _ta = float(_t.get("assets") or 0.0)
+            _te = float(_t.get("equity") or 0.0)
+            _tl = float(_t.get("liabilities") or 0.0)
+            _cur_a = _t.get("current_assets")
+            _cur_l = _t.get("current_liabilities")
+            _diff = _cbs.get("difference")
+            _delta = float(_diff) if _diff is not None else _ta - (_te + _tl)
+        else:
+            # Legacy envelope — recomputed canonical_bs (if any) is a
+            # round-trip artifact; never serve it as an authority.
+            if isinstance(_served_env, dict):
+                _served_env.pop("canonical_bs", None)
+            _methodology = _env.get("methodology") or {}
+            _totals = _methodology.get("totals") or {}
+            if not all(
+                k in _totals
+                for k in ("total_assets", "total_liabilities", "total_equity")
+            ):
+                return  # nothing persisted to override with (pre-F4.1e row)
+            _ta = float(_totals["total_assets"])
+            _tl = float(_totals["total_liabilities"])
+            _te = float(_totals["total_equity"])
+            _cur_a = _totals.get("current_assets")
+            _cur_l = _totals.get("current_liabilities")
+            _delta = _ta - (_tl + _te)
+        # Fix A1 (+ 2026-08-13 extension) — GRAND TOTALS and the balance
+        # delta must come from the write-time envelope; the re-assembled
+        # values are round-trip artifacts (the "39.19M vs 45.81M" screen).
+        # Section-level sub-aggregates beyond current/non-current stay
+        # round-tripped — neither source carries them.
+        _a_bs = statements.get("assembled_bs") or {}
+        _a_bs["bs_balance_delta"] = round(_delta, 2)
+        _a_bs["total_assets"] = round(_ta, 2)
+        _a_bs["total_equity"] = round(_te, 2)
+        _a_bs["total_liabilities"] = round(_tl, 2)
+        if _cur_a is not None:
+            _a_bs["total_current_assets"] = round(float(_cur_a), 2)
+            _a_bs["total_non_current_assets"] = round(_ta - float(_cur_a), 2)
+        if _cur_l is not None:
+            _a_bs["total_current_liabilities"] = round(float(_cur_l), 2)
+            _a_bs["total_non_current_liabilities"] = round(_tl - float(_cur_l), 2)
+        statements["assembled_bs"] = _a_bs
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "[envelope-truth] persisted-envelope override failed (non-fatal)"
+        )
+
+
+def _rebuild_assembled(
+    line_items: List[Dict[str, Any]],
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Reconstruct the `assembled.statements`-shaped dict the valuation
     engine expects, given the persisted statement_line_items for a period.
     Mirrors the bucket map used in /api/period/:id."""
@@ -3575,13 +3769,65 @@ def _rebuild_assembled(line_items: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
     bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
     pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
+    # 711 production-variation lines persist under bucket `otherIncome`
+    # (DB CHECK constraint) but are a non-cash accrual — tracked apart so
+    # the net-income reconstruction below doesn't inflate equity by it.
+    # The returned `otherIncome` bucket keeps including 711 (unchanged
+    # legacy behavior for the valuation consumers of this shape).
+    inv_var_711 = 0.0
     for item in line_items:
         bucket = item["bucket"]
         amount = float(item["amount"] or 0)
+        code = (item.get("ro_account_code") or "").strip()
         if bucket in bs_buckets:
             bs[bs_buckets[bucket]] += amount
         elif bucket in pl_buckets:
+            if bucket == "otherIncome" and code.startswith("711"):
+                inv_var_711 += amount
             pl[pl_buckets[bucket]] += amount
+
+    # Equity completion (audit, persistence section): statement_line_items
+    # never persist the current-year result — assemble_statements adds it
+    # to retainedEarnings in-memory at write time only — so a rebuild from
+    # rows understates equity by exactly net income, and the valuation
+    # fallback (`total_equity = shareCapital + retainedEarnings +
+    # otherEquity` in _valuation.py) inherited the gap. Complete it here:
+    #   1. Envelope-true when the period row carries the write-time
+    #      canonical envelope (canonical_bs.totals.equity, else
+    #      methodology.totals.total_equity): adjust retainedEarnings so
+    #      bucket-summed equity equals the persisted engine truth — this
+    #      also absorbs any other round-trip equity loss.
+    #   2. Legacy fallback (no envelope): add the net income
+    #      reconstructed from the persisted P&L buckets, 711 excluded
+    #      (non-cash production variation).
+    _env_te: Optional[float] = None
+    if period:
+        _env = period.get("assembled_canonical_v1") or {}
+        _cbs = _env.get("canonical_bs")
+        if isinstance(_cbs, dict) and isinstance(_cbs.get("totals"), dict) \
+                and _cbs["totals"].get("equity") is not None:
+            _env_te = float(_cbs["totals"]["equity"])
+        else:
+            _mt = (_env.get("methodology") or {}).get("totals") or {}
+            if _mt.get("total_equity") is not None:
+                _env_te = float(_mt["total_equity"])
+    _bucket_equity = bs["shareCapital"] + bs["retainedEarnings"] + bs["otherEquity"]
+    if _env_te is not None:
+        bs["retainedEarnings"] += round(_env_te - _bucket_equity, 2)
+    else:
+        _ni = (
+            pl["revenue"]
+            + (pl["otherIncome"] - inv_var_711)
+            + pl["financialIncome"]
+            - pl["costOfGoodsSold"]
+            - pl["operatingExpenses"]
+            - pl["depreciationAmortization"]
+            - pl["interestExpense"]
+            - pl["financialExpense"]
+            - pl["taxExpense"]
+        )
+        bs["retainedEarnings"] += round(_ni, 2)
+
     return {"balanceSheet": bs, "incomeStatement": pl}
 
 
@@ -3727,6 +3973,15 @@ def _rebuild_assembled_for_briefing(
             "[briefing/regenerate] canonical re-assembly failed (non-fatal); "
             "falling back to bucket aggregates only"
         )
+
+    # canonical_bs v2 / Fix A1 extension — the audit found this rebuild
+    # replicated the /api/period round-trip WITHOUT the envelope-truth
+    # override, so a regenerated briefing could cite lossy totals while
+    # the dashboard showed envelope truth (two books on one screen,
+    # narrative edition). Same shared helper as /api/period: serves the
+    # persisted canonical_bs verbatim and overrides the assembled_bs
+    # grand/current totals from the write-time envelope.
+    _apply_envelope_truth_to_statements(statements, period)
 
     # F4.6 — surface deprecated-field warnings on the response so
     # consumers can migrate ahead of the 2Q sunset (~Nov 2026).
@@ -5632,76 +5887,6 @@ def build_router() -> APIRouter:
             # Source: chart_of_accounts.assemble_statements line ~1817.
             statements["assembled_canonical_v1"] = assembled_full.get("assembled_canonical_v1")
 
-            # F3.27-DRIFT-TRANSFORMATION-GLUE — Fix A1.
-            # The re-assembled `statements["assembled_bs"]["bs_balance_delta"]`
-            # above comes from `_coa_mod.assemble_statements(recovered_accounts)`.
-            # Because `recovered_accounts` is reconstructed from persisted
-            # `statement_line_items` — which omits _IGNORE_BUCKETS accounts
-            # (121, 581) and loses semantic-fallback routing context — the
-            # round-trip produces a different bs_balance_delta than the engine
-            # emitted at write time. `scripts/measure_bs_drift_roundtrip.py`
-            # proves this round-trip discrepancy ranges from 0.44% (Frozen) to
-            # 35.47% (RealEstate) across the 8 prod fixtures, and confirms
-            # that subtracting `methodology.totals` from the canonical
-            # envelope reproduces the engine's authoritative bs_balance_delta
-            # to the cent on every fixture. Override the round-tripped value
-            # with the envelope-true value so the FE consumes the engine's
-            # emission rather than a re-assembly artifact. All other
-            # re-assembled assembled_bs.* fields (totals, sub-aggregates,
-            # breakouts) are preserved unchanged.
-            # CRITICAL: read from the PERSISTED envelope (`period[...]`,
-            # the DB row written at upload time), NOT `assembled_full[...]`
-            # (the re-assembled output of the same lossy round-trip we are
-            # trying to override). `assembled_full["assembled_canonical_v1"]`
-            # carries RE-COMPUTED totals from `recovered_accounts`, which by
-            # definition reproduce the same round-trip delta we want to
-            # replace. The PERSISTED envelope at `period["assembled_canonical_v1"]`
-            # carries the engine's WRITE-TIME totals — those are what the
-            # F-A3.1 canary measures, and the only correct source for the
-            # override. (Browser-verified: reading from assembled_full
-            # gave 3.49% drift identical to the bug; reading from period
-            # gives the engine truth of 0.0125%.)
-            try:
-                _env = period.get("assembled_canonical_v1") or {}
-                _methodology = _env.get("methodology") or {}
-                _totals = _methodology.get("totals") or {}
-                if all(k in _totals for k in ("total_assets", "total_liabilities", "total_equity")):
-                    _ta = float(_totals["total_assets"])
-                    _tl = float(_totals["total_liabilities"])
-                    _te = float(_totals["total_equity"])
-                    _a_bs = statements.get("assembled_bs") or {}
-                    _a_bs["bs_balance_delta"] = round(_ta - (_tl + _te), 2)
-                    # Fix A1 extension (2026-08-13): the GRAND TOTALS must come
-                    # from the same write-time envelope, for the same reason.
-                    # Overriding only bs_balance_delta left total_assets /
-                    # total_equity / total_liabilities carrying the lossy
-                    # round-trip values, so the FE's Balance Sheet tab rendered
-                    # "TOTAL EQUITY & LIABILITIES" 6.6M above the true figure
-                    # (Scandia Frozen: 45.8M round-tripped vs 39.2M envelope)
-                    # while the accuracy banner showed the envelope-true 0.11%
-                    # drift — the two sides of one screen quoting two different
-                    # books. Section-level sub-aggregates stay round-tripped
-                    # (the envelope doesn't carry them); the FE reconciles
-                    # sections against these now-true totals.
-                    _a_bs["total_assets"] = round(_ta, 2)
-                    _a_bs["total_equity"] = round(_te, 2)
-                    _a_bs["total_liabilities"] = round(_tl, 2)
-                    if "current_assets" in _totals:
-                        _a_bs["total_current_assets"] = round(float(_totals["current_assets"]), 2)
-                        _a_bs["total_non_current_assets"] = round(
-                            _ta - float(_totals["current_assets"]), 2
-                        )
-                    if "current_liabilities" in _totals:
-                        _a_bs["total_current_liabilities"] = round(float(_totals["current_liabilities"]), 2)
-                        _a_bs["total_non_current_liabilities"] = round(
-                            _tl - float(_totals["current_liabilities"]), 2
-                        )
-                    statements["assembled_bs"] = _a_bs
-            except Exception:  # noqa: BLE001
-                logger.exception(
-                    "[/api/period] Fix A1 bs_balance_delta override failed (non-fatal)"
-                )
-
             # F4.3 — surface the detection envelope (country/standard/doc_type/
             # industry + methodology pin per CANONICAL_SCHEMA_V1.md §7).
             try:
@@ -5717,6 +5902,19 @@ def build_router() -> APIRouter:
                 logger.exception("[/api/period] detection envelope build failed (non-fatal)")
         except Exception:  # noqa: BLE001
             logger.exception("[/api/period] canonical re-assembly failed (non-fatal)")
+
+        # F3.27-DRIFT-TRANSFORMATION-GLUE — Fix A1, now shared with the
+        # briefing rebuild via `_apply_envelope_truth_to_statements` and
+        # extended for canonical_bs v2: when the PERSISTED envelope
+        # carries `canonical_bs`, it is served VERBATIM as
+        # `statements.canonical_bs` and sources the assembled_bs totals;
+        # legacy envelopes keep the original methodology.totals override.
+        # Deliberately OUTSIDE the re-assembly try above so the persisted
+        # truth is still served when re-assembly itself failed, and BEFORE
+        # the confidence report below — build_confidence_report reads the
+        # same `assembled_bs` dict by reference, so the override must land
+        # first (correctness-by-aliasing noted in the audit).
+        _apply_envelope_truth_to_statements(statements, period)
 
         # ── F3.3 — Per-upload confidence report ─────────────────────
         # Surface the country-detection / layout / reconciliation /
@@ -6060,7 +6258,7 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items)
+                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,
@@ -6113,7 +6311,7 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items)
+                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,
@@ -6205,7 +6403,7 @@ def build_router() -> APIRouter:
                 "statement_line_items",
                 filters={"period_id": f"eq.{period_id}"},
             )
-            assembled = _rebuild_assembled(line_items)
+            assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
 
             # Layer the user's saved EBITDA/multiple/debt/cash overrides
             # underneath the recompute's DCF overrides — same precedence

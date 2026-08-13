@@ -10,6 +10,8 @@
 
 import { useTranslation } from "react-i18next";
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
+import type { BSCanonicalMeta } from "@/lib/buildBsStatement";
+import "./bsCanonicalStatusI18n";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
 import { useHighlightFromUrl } from "./useHighlightFromUrl";
@@ -23,7 +25,9 @@ import { AccountChip, splitAccountParen, StatementCurrencyChip } from "./Account
 import "./bsStatementView.css";
 
 interface Props {
-  statement: BSStatement;
+  /** View-model from buildBSStatement — `canonical` present iff the period
+   *  carried canonical_bs (engine pass-through; drives the status strip). */
+  statement: BSStatement & { canonical?: BSCanonicalMeta };
   /** Hide the inline "Guide me" button (dashboard consolidates guides). */
   hideGuide?: boolean;
 }
@@ -58,6 +62,14 @@ export function BSStatementView({ statement, hideGuide = false }: Props) {
 
       {/* F5.0 Wave 3 — Balance Sheet Map: compact learning rail above the table. */}
       <BalanceSheetMap />
+
+      {/* canonical_bs v2 — engine balance status strip. Rendered verbatim
+          from the object's status/difference/diagnosis; the FE derives only
+          the % readout (difference / totals.assets — the one computation the
+          contract sanctions for display). */}
+      {statement.canonical && (
+        <BsCanonicalStatusStrip meta={statement.canonical} currency={statement.currency} />
+      )}
 
       {/* Column header row */}
       <div className="bs-col-header">
@@ -125,8 +137,10 @@ export function BSStatementView({ statement, hideGuide = false }: Props) {
         <span className="bs-delta">{formatDelta(statement.totalEquityLiab.delta, fmt)}</span>
       </div>
 
-      {/* Balance check */}
-      {Math.abs(statement.balanceCheck) > 1 && (
+      {/* Balance check — legacy path only. On canonical periods the engine
+          status strip above is the single verdict; the local >1 RON
+          heuristic must not second-guess the engine's tolerance bands. */}
+      {!statement.canonical && Math.abs(statement.balanceCheck) > 1 && (
         <div className="bs-imbalance-warning">
           ⚠ {t("statements.bs.drift")}: {display} {fmt(statement.balanceCheck)}.
         </div>
@@ -344,6 +358,69 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
         </>
       )}
       <span className="bs-delta">{formatDelta(deltaValue, fmt)}</span>
+    </div>
+  );
+}
+
+/** canonical_bs v2 status strip. Three states from the engine object:
+ *  BALANCED (quiet confirmation), MINOR_DRIFT (amber, with the exact signed
+ *  difference), MATERIAL_IMBALANCE (blocking red alert with the engine's
+ *  D0–D8 diagnosis list — this state must never read as "all good"). */
+function BsCanonicalStatusStrip({ meta, currency }: { meta: BSCanonicalMeta; currency: string }) {
+  const { t } = useTranslation();
+  const fmt = useAmountFormatter(currency);
+  const display = useDisplayCurrency();
+  const pct =
+    meta.totalAssets !== 0 ? (Math.abs(meta.difference) / Math.abs(meta.totalAssets)) * 100 : 0;
+
+  if (meta.status === "BALANCED") {
+    return (
+      <div
+        className="mb-3 rounded-lg border border-rule bg-surface px-3 py-2 text-[12px] text-ink-soft"
+        data-testid="bs-status-balanced"
+      >
+        ✓ {t("bsCanonical.balanced")}
+      </div>
+    );
+  }
+
+  if (meta.status === "MINOR_DRIFT") {
+    return (
+      <div
+        className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-400"
+        data-testid="bs-status-minor-drift"
+      >
+        {t("bsCanonical.minorDrift")} — {t("bsCanonical.difference")}: {display}{" "}
+        {fmt(meta.difference)} ({pct.toFixed(2)}%)
+      </div>
+    );
+  }
+
+  // MATERIAL_IMBALANCE — visually blocking: red, role="alert", diagnosis
+  // list. Non-dismissible by construction (no dismiss affordance exists).
+  return (
+    <div
+      className="mb-3 rounded-xl border-2 border-red-600 bg-red-600/10 p-4 text-[13px] text-red-700 dark:text-red-400"
+      role="alert"
+      data-testid="bs-status-material-imbalance"
+    >
+      <strong className="block text-[14px]">⚠ {t("bsCanonical.material")}</strong>
+      <p className="mt-1">{t("bsCanonical.materialBody")}</p>
+      <p className="mt-1 font-mono tabular-nums">
+        {t("bsCanonical.difference")}: {display} {fmt(meta.difference)} ({pct.toFixed(2)}%)
+      </p>
+      {meta.diagnosis.length > 0 && (
+        <div className="mt-2">
+          <span className="font-semibold">{t("bsCanonical.diagnosis")}:</span>
+          <ul className="mt-1 list-disc pl-5 space-y-0.5">
+            {meta.diagnosis.map((d, i) => (
+              <li key={`${d.code}-${i}`}>
+                <span className="font-mono text-[12px]">{d.code}</span> — {d.detail}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

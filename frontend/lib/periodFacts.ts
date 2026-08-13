@@ -341,7 +341,14 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     retained_earnings: bsField("retained_earnings", retainedCarryForward || balanceSheet.retainedEarnings),
     current_year_pnl: plFacts.net_profit,
     total_equity: totalEquity,
-    bs_balance_check: totalAssets - (totalLiabilities + totalEquity),
+    // canonical_bs v2 (docs/CANONICAL_BS_V2_CONTRACT.md) — on bs_v2 periods
+    // the balance check is the engine's `difference`, computed once at write
+    // time; the FE recomputation survives ONLY as the legacy fallback for
+    // periods without the object. Recommendation rules and the audit block
+    // therefore cite the same drift number as the BS tab and the banner.
+    bs_balance_check: statements.canonical_bs
+      ? statements.canonical_bs.difference
+      : totalAssets - (totalLiabilities + totalEquity),
     lender_concentration_pct: lenderConcentrationPct,
     tenant_concentration_pct: tenantConcentrationPct,
   };

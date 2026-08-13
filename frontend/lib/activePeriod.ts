@@ -26,6 +26,23 @@ import type { Statements } from "@/lib/financialReport";
 import type { Invoice } from "@/lib/invoiceAnalytics";
 import { getSupabase } from "@/lib/supabase";
 
+// canonical_bs v2 — the engine-owned Balance Sheet authority
+// (docs/CANONICAL_BS_V2_CONTRACT.md). It rides the /api/period payload at
+// `statements.canonical_bs` (typed on `Statements`, where the statements
+// payload shape lives); the contract types are re-exported here so
+// period-payload consumers can import them from this module directly.
+export type {
+  CanonicalBs,
+  CanonicalBsRow,
+  CanonicalBsSection,
+  CanonicalBsTotals,
+  CanonicalBsStatus,
+  CanonicalBsDiagnosis,
+  CanonicalBsExtraction,
+  CanonicalBsSourceAnchor,
+  CanonicalBsSourceAnchorPair,
+} from "@/lib/financialReport";
+
 export interface PeriodMetric {
   name: string;
   value: number | null;
@@ -257,6 +274,8 @@ interface PeriodApiResponse {
     } | null;
   };
   organization: { id: string; name: string; industry_display_name: string | null } | null;
+  /** Statements payload — on bs_v2 periods this carries `canonical_bs`
+   *  (served verbatim by the engine; contract types re-exported above). */
   statements: Statements;
   metrics: PeriodMetric[];
   briefing: { body: string; language: string; model: string | null } | null;

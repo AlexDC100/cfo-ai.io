@@ -14,6 +14,11 @@
 
 import { ApiLineItem, sumByExact, sumByPrefix } from "./plStructure";
 import type { BSLine, BSSection, BSStatement } from "./bsStructure";
+import {
+  canonicalBsSectionMeta,
+  type CanonicalBs,
+  type CanonicalBsStatus,
+} from "./financialReport";
 
 interface BuildArgs {
   /** Per-account line items from the backend (BS entries used). */
@@ -42,6 +47,114 @@ interface BuildArgs {
    * `statements.assembled_bs`).
    */
   assembledBs?: Record<string, number>;
+  /**
+   * canonical_bs v2 — the engine-owned Balance Sheet authority
+   * (docs/CANONICAL_BS_V2_CONTRACT.md, served by /api/period as
+   * `statements.canonical_bs`). When present, the ENTIRE statement is
+   * built from its rows/sections/totals/status verbatim: zero FE
+   * arithmetic, no residual entries, no reconcile plugs, and
+   * `assembledBs` / `lineItems` are not consulted. Legacy periods
+   * (no canonical_bs) keep the assembledBs / FE-recompute path
+   * below EXACTLY as before.
+   */
+  canonicalBs?: CanonicalBs;
+}
+
+// ─── canonical_bs v2 pass-through ────────────────────────────────────────
+
+/** Engine balance verdict attached to the view-model on the canonical
+ *  path — BSStatementView renders its status strip from this verbatim.
+ *  MATERIAL_IMBALANCE is the blocking state: the view must render it red
+ *  with the diagnosis list, never as "all good". */
+export interface BSCanonicalMeta {
+  status: CanonicalBsStatus;
+  /** assets − (equity + liabilities), signed — straight from the object. */
+  difference: number;
+  /** totals.assets — denominator for the strip's % readout (the one
+   *  derived display value the contract explicitly sanctions). */
+  totalAssets: number;
+  /** Deterministic D0–D8 entries; empty when status is BALANCED. */
+  diagnosis: { code: string; detail: string }[];
+  mappingVersion: string;
+}
+
+/** buildBSStatement return shape — `canonical` is present iff the period
+ *  carried canonical_bs (i.e. the statement is an engine pass-through). */
+export type BSStatementWithCanonical = BSStatement & { canonical?: BSCanonicalMeta };
+
+/**
+ * Pure pass-through of the engine object (contract "Consumption rules"):
+ * every row, section subtotal, grand total and the balance status render
+ * verbatim. Rows are deliberately NEVER summed here — if rows disagreed
+ * with a section subtotal that is an engine bug to surface upstream, not
+ * something for the FE to plug (none of the residual/carve-out machinery
+ * in the legacy path below runs on this path).
+ */
+function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWithCanonical {
+  // Group rows per section id, preserving the object's own row order.
+  const rowsBySection = new Map<string, BSLine[]>();
+  for (const row of cbs.rows) {
+    const line: BSLine = {
+      accountCode: row.account_codes.length > 0 ? row.account_codes.join("+") : undefined,
+      // Label comes from the object (label_key i18n is optional per the
+      // contract; `label` is the render-as-is fallback and what we use).
+      label: row.label,
+      // bs_v2 carries closing truth; per-row `opening` is often null. A
+      // null opening mirrors closing (Δ 0) so both columns stay symmetric
+      // — never the legacy asymmetry of 0-vs-closing across sides.
+      opening: row.opening ?? row.amount,
+      closing: row.amount,
+      style: "item",
+    };
+    const bucket = rowsBySection.get(row.section);
+    if (bucket) bucket.push(line);
+    else rowsBySection.set(row.section, [line]);
+  }
+
+  // Section order follows the object's `sections` array (engine-ordered);
+  // the meta table only says which side each id renders on.
+  const assetSections: BSSection[] = [];
+  const equityLiabSections: BSSection[] = [];
+  for (const sec of cbs.sections) {
+    const meta = canonicalBsSectionMeta(sec.id);
+    const lines = rowsBySection.get(sec.id) ?? [];
+    if (lines.length === 0 && sec.subtotal === 0) continue; // empty section — nothing to show
+    const section: BSSection = {
+      header: meta.header,
+      lines,
+      subtotalLabel: meta.subtotalLabel,
+      // Engine subtotal verbatim. bs_v2 has no opening subtotals, so the
+      // opening column mirrors closing (Δ 0) — same convention as rows.
+      subtotalOpening: sec.subtotal,
+      subtotalClosing: sec.subtotal,
+      subtotalDelta: 0,
+      subtotalBucket: meta.subtotalBucket,
+    };
+    if (meta.side === "assets") assetSections.push(section);
+    else equityLiabSections.push(section);
+  }
+
+  const totalAssets = cbs.totals.assets;
+  const totalEL = cbs.totals.equity_plus_liabilities;
+  return {
+    entity: args.entity,
+    asOf: args.asOf,
+    comparativeDate: args.comparativeDate,
+    currency: args.currency ?? "RON",
+    assetSections,
+    totalAssets: { opening: totalAssets, closing: totalAssets, delta: 0 },
+    equityLiabSections,
+    totalEquityLiab: { opening: totalEL, closing: totalEL, delta: 0 },
+    // THE drift — assets − (equity + liabilities), straight from the object.
+    balanceCheck: cbs.difference,
+    canonical: {
+      status: cbs.status,
+      difference: cbs.difference,
+      totalAssets: cbs.totals.assets,
+      diagnosis: (cbs.diagnosis ?? []).map((d) => ({ code: d.code, detail: d.detail })),
+      mappingVersion: cbs.mapping_version,
+    },
+  };
 }
 
 // Romanian account labels — used to render the per-line description next to
@@ -165,7 +278,12 @@ function bsSumByPrefix(items: ApiLineItem[], ...prefixes: string[]): number {
 
 // ─── Builder ─────────────────────────────────────────────────────────────
 
-export function buildBSStatement(args: BuildArgs): BSStatement {
+export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
+  // canonical_bs v2 short-circuit — the engine object IS the statement.
+  // Everything below this line is the legacy path and must stay byte-for-
+  // byte identical for old periods that lack canonical_bs.
+  if (args.canonicalBs) return buildFromCanonicalBs(args.canonicalBs, args);
+
   const items = args.lineItems;
   const prior = args.priorLineItems ?? [];
   const currency = args.currency ?? "RON";

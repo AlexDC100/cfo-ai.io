@@ -37,6 +37,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
+# ── Mapping-rule vintage (canonical_bs v2 contract) ─────────────────────
+# Stamped onto every canonical_bs emission so persisted periods can be
+# tied to the exact rule table that produced them. MUST be bumped on ANY
+# change to _RULES / the side-flip tables / _IGNORE_BUCKETS — a period
+# analyzed under a different vintage is not comparable row-for-row.
+MAPPING_VERSION = "ro_omfp1802_v2"
+
 
 @dataclass
 class MappingRule:
@@ -62,9 +69,11 @@ class MappingRule:
 #     without also updating scripts/validate_eei_canonical.py and the
 #     fixtures in scandi-desk-main/e2e/fixtures/ground-truth/.
 #   - DO NOT add a less-specific catchall that swallows accounts the
-#     specific rules above handle (e.g. don't add `16 → ltDebt` because
-#     `1621/1622/1623/1625` are the only debt accounts; 166/167/168 do
-#     NOT exist on EEI and must NOT be lumped into debt blindly).
+#     specific rules above handle (e.g. don't add a bare `16 → ltDebt`
+#     catchall: the 16x family is covered by EXPLICIT rules — 161/162x/
+#     164/165/166/167/168 → ltDebt, 169 contra — so any residual 16x code that
+#     falls through is a data problem that must surface as unmapped,
+#     not be silently lumped into debt).
 #   - The canonical numbers this mapping produces for EEI Dec 2025 are
 #     locked in scripts/validate_eei_canonical.py (19 hard assertions,
 #     gated in CI). Any change here must keep that test PASSING.
@@ -113,8 +122,30 @@ _RULES: List[MappingRule] = [
     # totals; NEVER summed into a real bucket (would double-count).
     MappingRule("121",  "ignore_control",    1, "Profit si pierdere — CONTROL, never summed"),
     MappingRule("129",  "retainedEarnings", -1, "Repartizare profit"),
-    MappingRule("151",  "otherCurrentLiab",  1, "Provizioane"),
-    # Long-term debt — bank loans ONLY. 162x family. NO catchall on 16/166/167.
+    # 151 — Provizioane. Per OMFP 1802 bilanț, provisions are their OWN
+    # section between equity and debt — presented NON-current (litigation,
+    # decommissioning, restructuring are >12m obligations). The canonical
+    # layer already routed 151 → provisions_lt; the legacy bucket now
+    # agrees (was otherCurrentLiab — the documented 151 current/non-current
+    # layer conflict, OMFP_GAP_MATRIX row 15). Total liabilities unchanged;
+    # only the current/non-current split moves.
+    MappingRule("151",  "otherNonCurrentLiab", 1, "Provizioane — non-current per OMFP bilanț"),
+    # Long-term borrowings — the FULL 16x family, each prefix explicit
+    # (still NO bare-16 catchall; see table rules above). 161 bonds,
+    # 164/165 non-standard analytics used by some charts for LT loans,
+    # 166 intra-group loans received. Without these, bond/affiliate LT
+    # funding silently dropped → liabilities understated → Assets>E+L
+    # drift (OMFP_GAP_MATRIX rows 6 + 15). Current-portion analytics
+    # (1687-style) keep their side-flip carve-out to otherCurrentLiab
+    # in the parser layer — they stay current.
+    MappingRule("161",  "ltDebt",            1, "Împrumuturi din emisiuni de obligațiuni (bonds)"),
+    MappingRule("164",  "ltDebt",            1, "Credite pe termen lung (non-standard analytic)"),
+    MappingRule("165",  "ltDebt",            1, "Împrumuturi pe termen lung (non-standard analytic)"),
+    MappingRule("166",  "ltDebt",            1, "Datorii către entități afiliate — LT intra-group loans"),
+    # 169 — Prime privind rambursarea obligațiunilor. CONTRA-DEBT: the
+    # OMFP bilanț nets it against bond debt (ct. 161 + 1681 − 169).
+    # Debit-natural balance; sign=-1 subtracts it from ltDebt.
+    MappingRule("169",  "ltDebt",           -1, "Prime rambursare obligațiuni — contra-debt, nets vs 161"),
     MappingRule("1621", "ltDebt",            1, "Credite bancare pe termen lung"),
     MappingRule("1622", "ltDebt",            1, "Credite bancare pe termen lung restante"),
     MappingRule("1623", "ltDebt",            1, "Credite externe garantate de stat"),
@@ -166,6 +197,11 @@ _RULES: List[MappingRule] = [
     MappingRule("265",  "otherNonCurrentAssets", 1, "Alte titluri imobilizate"),
     MappingRule("2671", "otherNonCurrentAssets", 1, "Creanțe imobilizate"),
     MappingRule("2678", "otherNonCurrentAssets", 1, "Alte creanțe imobilizate"),
+    # 269 — Vărsăminte de efectuat pentru imobilizări financiare. The OMFP
+    # bilanț nets it against financial fixed assets (ct. 26x − 269 − 296),
+    # so it is a CONTRA on the financial-investments line, not a payable.
+    # Credit-natural balance; sign=-1 subtracts from otherNonCurrentAssets.
+    MappingRule("269",  "otherNonCurrentAssets", -1, "Vărsăminte de efectuat imobilizări financiare — contra to 26x"),
     # Accumulated depreciation / amortization — contra-assets (sign -1)
     MappingRule("2801", "intangibles", -1, "Amort. cheltuieli de constituire"),
     MappingRule("2803", "intangibles", -1, "Amort. cheltuieli de dezvoltare"),
@@ -261,6 +297,19 @@ _RULES: List[MappingRule] = [
     # always-credit usage; SIDE_FLIP could be added later if needed.
     MappingRule("441",  "otherCurrentLiab",  1, "Impozit pe profit (catchall 441x)"),
     MappingRule("4424", "otherCurrentAssets", 1, "TVA de recuperat"),
+    # 4426 — TVA deductibilă. Debit-natural ASSET (input VAT awaiting
+    # settlement on monthly TBs). Previously fell to the 442 liability
+    # catchall, so a debit-balance 4426 emitted as a NEGATIVE liability —
+    # both sides of the BS understated by the same amount
+    # (OMFP_GAP_MATRIX row 11). The canonical layer already routed
+    # 4426 → ar_tax_recoverable; the legacy bucket now agrees.
+    MappingRule("4426", "otherCurrentAssets", 1, "TVA deductibilă — input VAT, asset"),
+    # 4428 — TVA neexigibilă. BIFUNCTIONAL by balance side: credit =
+    # deferred output VAT (liability, invoices not yet issued), debit =
+    # deferred input VAT (asset, invoices not received). The rule carries
+    # the credit-natural bucket; a debit-side balance re-routes to
+    # otherCurrentAssets via BIFUNCTIONAL_WRONG_SIDE_FLIPS below.
+    MappingRule("4428", "otherCurrentLiab",  1, "TVA neexigibilă — by balance side (D-side flips to asset)"),
     MappingRule("442",  "otherCurrentLiab",  1, "TVA (catchall)"),
     MappingRule("444",  "otherCurrentLiab",  1, "Impozit salarii"),
     MappingRule("446",  "otherCurrentLiab",  1, "Alte impozite"),
@@ -306,6 +355,15 @@ _RULES: List[MappingRule] = [
     # to AR). Missing rule was dropping 3.62M of provisions for Scandia —
     # the gross trade-rec was right but the net was overstated by that much.
     MappingRule("496",  "ar", -1, "Ajustări deprecierea creanțe afiliate — contra"),
+    # 495 + the 49 catchall — complete the 49x contra-AR family. Per OMFP
+    # 1802 every 49x account is an "Ajustări pentru deprecierea creanțelor"
+    # allowance (495 group/shareholder settlements; 493/494/497/498 novel
+    # analytics). Without the catchall they dropped silently on the
+    # deterministic path → AR overstated by the missing allowance
+    # (OMFP_GAP_MATRIX row 3). 491/496 above stay matched first
+    # (longest-prefix-first sort).
+    MappingRule("495",  "ar", -1, "Ajustări deprecierea creanțe decontări grup — contra"),
+    MappingRule("49",   "ar", -1, "Ajustări deprecierea creanțelor (catchall 49x) — contra"),
     # 481 — Internal-unit settlements
     MappingRule("481",  "otherCurrentAssets", 1, "Decontări în cadrul unității"),
 
@@ -330,6 +388,22 @@ _RULES: List[MappingRule] = [
     # 581 — TRANSIT / CLEARING. NEVER in cash. The single most common
     # Romanian-pipeline cash-overstatement bug.
     MappingRule("581",  "ignore_transit", 1, "Viramente interne — NEVER in cash"),
+
+    # ──────────────────────────────────────────────────────────────────────
+    # CLASS 8 — Off-balance (extrabilanțiere) — NEVER on the balance sheet
+    # ──────────────────────────────────────────────────────────────────────
+    # Explicit ignore rules so class-8 codes can NEVER classify onto BS/PL:
+    # previously they were excluded only by bucket_for() fall-through, and
+    # on the Claude/direct path the semantic NAME fallback could route them
+    # into assets (e.g. 8034 "Debitori scoși din activ" matched the
+    # "debitori" keyword → ar). Claiming the whole class here means
+    # bucket_for() always resolves, so bucket_for_name() is never consulted
+    # for an 8xx code. 891/892 kept as separate rules so the excluded-list
+    # reasons in canonical_bs can distinguish the opening/closing
+    # balance-sheet control accounts from ordinary memo accounts.
+    MappingRule("891",  "ignore_offbalance", 1, "Bilanț de deschidere — opening BS control, never summed"),
+    MappingRule("892",  "ignore_offbalance", 1, "Bilanț de închidere — closing BS control, never summed"),
+    MappingRule("8",    "ignore_offbalance", 1, "Class 8 extrabilanțiere — off-balance memo, never summed"),
 
     # ──────────────────────────────────────────────────────────────────────
     # CLASS 6 — Expenses
@@ -503,6 +577,60 @@ def bucket_for(code: str) -> Optional[MappingRule]:
     for rule in _RULES_SORTED:
         if code.startswith(rule.prefix):
             return rule
+    return None
+
+
+# ── Bifunctional wrong-side flips (canonical_bs v2, OMFP_GAP_MATRIX rows
+#    7 + 8 + 11) ─────────────────────────────────────────────────────────
+# These account families are MIXED-SIDE: the mapping rule above encodes the
+# natural-side bucket, but a closing balance on the OPPOSITE side is a real
+# position on the other side of the balance sheet — not a negative line
+# inside the natural bucket. Amounts arrive pre-signed (parser emits
+# sf_d−sf_c for debit-natural rules, sf_c−sf_d for credit-natural rules),
+# so a NEGATIVE signed value on a sign=+1 rule is exactly the wrong-side
+# case. assemble_statements re-routes it to the bucket below with the
+# absolute value, keeping BOTH sides of the BS from being understated by
+# the same amount (the invisible-to-drift residual class the audit maps).
+#
+# 512x is the headline case: a credit-closing bank account is an OVERDRAFT
+# → short-term bank debt, NEVER negative cash. 117/121 are deliberately
+# ABSENT: their debit-side balances are legitimate negative equity
+# (accumulated losses / current-year loss), not misclassifications.
+# Exported so the parser layer can share the same table instead of
+# growing a second, diverging flip list.
+BIFUNCTIONAL_WRONG_SIDE_FLIPS: List[Tuple[str, str]] = [
+    # (prefix, bucket that receives the balance when it closes on the
+    #  side opposite the natural rule's)
+    ("4111", "otherCurrentLiab"),    # customer credit balances = advances received
+    ("411",  "otherCurrentLiab"),    # 411x catchall, same economics
+    ("401",  "otherCurrentAssets"),  # supplier debit balances = advances/overpayments
+    ("409",  "otherCurrentLiab"),    # supplier-advance credit balances
+    ("419",  "otherCurrentAssets"),  # customer-advance debit balances = refund due
+    ("455",  "otherCurrentLiab"),    # shareholder account credit = payable to associate
+    ("461",  "otherCurrentLiab"),    # sundry debtor credit = payable
+    ("462",  "otherCurrentAssets"),  # sundry creditor debit = receivable
+    ("473",  "otherCurrentLiab"),    # clearing account credit side
+    ("4424", "otherCurrentLiab"),    # VAT-recoverable credit = VAT payable
+    ("4426", "otherCurrentLiab"),    # input-VAT credit side
+    ("4428", "otherCurrentAssets"),  # deferred VAT debit side = asset
+    ("5121", "stDebt"),              # overdraft on RON account → ST bank debt
+    ("5124", "stDebt"),              # overdraft on FX account → ST bank debt
+    ("512",  "stDebt"),              # every other 512x analytic — same rule
+]
+
+# Longest-prefix-first so 4428 wins over 442-family lookups etc. Stable
+# sort keeps equal-length prefixes in declaration order — deterministic.
+_WRONG_SIDE_FLIPS_SORTED = sorted(
+    BIFUNCTIONAL_WRONG_SIDE_FLIPS, key=lambda p: -len(p[0])
+)
+
+
+def wrong_side_flip_bucket(code: str) -> Optional[str]:
+    """Return the opposite-side bucket for a bifunctional account code, or
+    None when the code has no registered wrong-side flip."""
+    for prefix, flip_bucket in _WRONG_SIDE_FLIPS_SORTED:
+        if code.startswith(prefix):
+            return flip_bucket
     return None
 
 
@@ -741,9 +869,11 @@ _BUCKET_TO_PL_FIELD = {
 
 # Buckets that are intentionally NOT summed into any BS/PL field — they exist
 # only to claim the account explicitly so it doesn't fall through to a
-# catchall rule. Used for transit/clearing accounts (581) and the Romanian
-# 121 PROFIT SI PIERDERE control account (derived elsewhere, not summed).
-_IGNORE_BUCKETS = {"ignore_transit", "ignore_control"}
+# catchall rule. Used for transit/clearing accounts (581), the Romanian
+# 121 PROFIT SI PIERDERE control account (derived elsewhere, not summed),
+# and the class-8 off-balance memo accounts (891/892 + all 8xx — claimed
+# so the semantic name fallback can never route them onto the BS).
+_IGNORE_BUCKETS = {"ignore_transit", "ignore_control", "ignore_offbalance"}
 
 # Canonical bucket → legacy bucket name accepted by the existing Supabase
 # `statement_line_items.bucket` CHECK constraint. Used ONLY at the
@@ -1009,6 +1139,10 @@ def assemble_statements(
     industry: Optional[str] = None,
     source_data_quality: Optional[Dict[str, object]] = None,
     account_121_anchor_override: Optional[float] = None,
+    source_anchor: Optional[Dict[str, object]] = None,
+    extraction_meta: Optional[Dict[str, object]] = None,
+    source_account_census: Optional[int] = None,
+    extra_unmapped: Optional[List[Dict[str, object]]] = None,
 ) -> Dict[str, object]:
     """Roll account-level amounts into BS + PL totals.
 
@@ -1022,6 +1156,20 @@ def assemble_statements(
     sf_d/sf_c imbalance exceeds the 2% threshold. Default None preserves
     F3.1-PARITY byte-identical (the key is omitted from the result when
     the caller doesn't pass it).
+
+    canonical_bs v2 kwargs (all optional — the builder degrades to
+    defensive defaults when absent; the pipeline plumbs the real values):
+      `source_anchor` — per-pair file-totals conservation block per
+        docs/CANONICAL_BS_V2_CONTRACT.md (totals_row_found / pairs /
+        anchor_status / source_balanced).
+      `extraction_meta` — extraction provenance (method/parser_version/
+        source_format/…). method=="llm" caps canonical_bs.status at
+        MINOR_DRIFT per the contract.
+      `source_account_census` — count of account rows in the SOURCE file,
+        for the source_conservation invariant.
+      `extra_unmapped` — unmapped accounts dropped BEFORE this call
+        (the deterministic parser skips unknown codes pre-assembly);
+        merged into canonical_bs.unmapped for full census coverage.
     """
     bs = _empty_bs()
     pl = _empty_pl()
@@ -1136,6 +1284,29 @@ def assemble_statements(
             continue
 
         signed = amount * rule.sign
+
+        # Bifunctional wrong-side re-route (canonical_bs v2). A negative
+        # signed value on a sign=+1 rule means the closing balance sits on
+        # the side OPPOSITE the rule's natural bucket (parser emits signed
+        # sf math; Claude-path wrong-side balances arrive negative the same
+        # way). For registered bifunctional families the position belongs
+        # on the other side of the BS — 5121 credit is an overdraft (ST
+        # bank debt), never negative cash; 401 debit is a supplier
+        # receivable, never negative AP. Re-route with the absolute value.
+        # sign=-1 contra rules (491, 28x, 169, 269…) are exempt: their
+        # negative signed value IS the intended contra subtraction. Rows
+        # the parser already side-flipped arrive via bucket_override with
+        # positive amounts, so this never double-fires.
+        if not override_bucket and rule.sign == 1 and signed < 0:
+            flip_to = wrong_side_flip_bucket(code)
+            if flip_to:
+                rule = MappingRule(
+                    prefix=rule.prefix,
+                    bucket=flip_to,
+                    sign=1,
+                    description=rule.description + " (wrong-side flip)",
+                )
+                signed = -signed
 
         # Capture the 767 component as it flows past — used below to build
         # the operating-view EBITDA. The financial_income bucket still
@@ -1376,6 +1547,24 @@ def assemble_statements(
         threshold = max(abs(account_121_anchor), 100_000) * 0.05
         if abs(net_income_statutory - account_121_anchor) > threshold:
             net_income_statutory = account_121_anchor
+
+    # ── 121 cross-check emission (canonical_bs v2 invariant) ─────────────
+    # Statutorily account 121 closes to Σ(class 7) − Σ(class 6). From the
+    # assembled PL buckets that identity is net_income_operational +
+    # capitalized own-work (72x) + inventory variation (71x) — every other
+    # class-6/7 bucket is already inside net_income_operational. Computed
+    # ONLY when class 6/7 activity is present (a BS-only extract has no
+    # P&L movements and the comparison would be vacuous). This is emitted
+    # into canonical_bs.invariants.p121_cross_check for diagnosis (D6) —
+    # it never auto-corrects anything; the 5% anchor override above is a
+    # separate, pre-existing behavior on the P&L reconstruction side.
+    _pl_activity_present = any(
+        li.get("statement") == "PL" for li in line_items
+    )
+    cls7_minus_cls6: Optional[float] = (
+        round(net_income_operational + capitalized + inventory_variation_memo, 2)
+        if _pl_activity_present else None
+    )
 
     # ── THREE EBITDA VIEWS — explicit, never re-derived downstream ───────
     # The same Romanian books produce three legitimate EBITDA numbers,
@@ -1918,6 +2107,34 @@ def assemble_statements(
         except Exception:  # noqa: BLE001
             # PyYAML missing, file missing, formula error — surface as
             # absent `methodology` key, not a pipeline break.
+            pass
+        # canonical_bs v2 — round_trip_check must be recomputed AFTER the
+        # methodology block lands so it can compare recomputed totals
+        # against methodology.totals (the Fix-A1 authority); without
+        # methodology it degrades to the leaves→aggregates self-check.
+        try:
+            from .canonical_adapter import compute_round_trip_check
+            canonical_env["round_trip_check"] = compute_round_trip_check(canonical_env)
+        except Exception:  # noqa: BLE001
+            pass
+        # canonical_bs v2 — the single presentation-ready BS authority per
+        # docs/CANONICAL_BS_V2_CONTRACT.md. Best-effort like the rest of
+        # the envelope: on failure the key is absent and consumers keep
+        # the legacy Fix-A1 path.
+        try:
+            from .canonical_adapter import build_canonical_bs_v2
+            canonical_env["canonical_bs"] = build_canonical_bs_v2(
+                canonical_env,
+                line_items=line_items,
+                source_anchor=source_anchor,
+                unmapped=list(unmapped) + list(extra_unmapped or []),
+                excluded=ignored_items,
+                extraction=extraction_meta,
+                p121_anchor=account_121_anchor,
+                cls7_minus_cls6=cls7_minus_cls6,
+                source_account_census=source_account_census,
+            )
+        except Exception:  # noqa: BLE001
             pass
     return result
 

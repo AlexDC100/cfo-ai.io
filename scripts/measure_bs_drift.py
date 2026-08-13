@@ -349,8 +349,18 @@ def load_eei() -> tuple[List[Dict], str]:
 
 def load_frozen() -> tuple[List[Dict], str]:
     """F3.7e — Scandia Frozen SRL FY2025, XLSX (`Document_CH14` 10-col layout).
-    F-A3.1 acceptance: 0.2910% drift (153K RON on 52.6M total assets)."""
+    F-A3.1 acceptance: 0.2910% drift (153K RON on 52.6M total assets).
+
+    Phase-5 registration note: `files/prod_scandia_frozen_31.12.2025.xlsx`
+    (the BS_ENGINE_ROOT_CAUSE golden anchor, expected values in
+    `files/prod_scandia_frozen_31.12.2025.expected.json`) is BYTE-IDENTICAL
+    to `files/scandia_frozen_tb_2025.xlsx` (both md5
+    203a40dea87539fa2367d0fd7f798e9d) — registering it as the preferred
+    candidate path covers the golden fixture without double-running the
+    same bytes as a ninth fixture. tests/engine/test_golden_frozen_fixture.py
+    asserts the two copies stay identical."""
     candidates = _candidate_paths(
+        "files/prod_scandia_frozen_31.12.2025.xlsx",
         "files/scandia_frozen_tb_2025.xlsx",
         "tests/fixtures/scandia_frozen_tb_2025.xlsx",
     )

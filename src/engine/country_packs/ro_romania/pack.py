@@ -405,6 +405,13 @@ class RomaniaPack:
     def parse_pasted_trial_balance(self, text: str) -> List[Any]:
         return _legacy_tbp.parse_pasted_trial_balance(text)
 
+    def parse_trial_balance_csv(self, content: bytes, filename: str = "") -> List[Any]:
+        """canonical_bs v2 — deterministic CSV path. CSVs previously went
+        straight to the LLM extractor (audit item 1c); the parser now
+        handles them with the same machinery (and the same
+        TrialBalanceParseResult metadata) as XLSX."""
+        return _legacy_tbp.parse_trial_balance_csv(content, filename)
+
     def accounts_to_canonical_tsv(self, accounts: List[Any]) -> str:
         return _legacy_tbp.accounts_to_canonical_tsv(accounts)
 
@@ -444,6 +451,10 @@ class RomaniaPack:
         industry: Optional[str] = None,
         source_data_quality: Optional[dict] = None,
         account_121_anchor_override: Optional[float] = None,
+        source_anchor: Optional[dict] = None,
+        extraction_meta: Optional[dict] = None,
+        source_account_census: Optional[int] = None,
+        extra_unmapped: Optional[List[dict]] = None,
     ) -> AssembledEnvelope:
         """Delegate to `_ro_coa.assemble_statements()`. Accepts either
         the legacy dict shape or `ParsedAccount` instances and
@@ -463,6 +474,13 @@ class RomaniaPack:
         the row. None → engine falls back to in-loop capture, which
         preserves byte-identical for callers that don't ship the
         anchor. See ADR-F3.16-closure.md for the full invariant set.
+
+        canonical_bs v2 kwargs (`source_anchor` / `extraction_meta` /
+        `source_account_census` / `extra_unmapped`): forwarded verbatim to
+        the assembler so the emitted `canonical_bs` carries real
+        extraction provenance and the external-conservation anchor per
+        docs/CANONICAL_BS_V2_CONTRACT.md. All default None — callers that
+        don't plumb them keep the builder's defensive defaults.
         """
         dict_accounts = [_account_to_dict(a) for a in accounts]
         return _legacy_coa.assemble_statements(
@@ -473,7 +491,149 @@ class RomaniaPack:
             industry=industry,
             source_data_quality=source_data_quality,
             account_121_anchor_override=account_121_anchor_override,
+            source_anchor=source_anchor,
+            extraction_meta=extraction_meta,
+            source_account_census=source_account_census,
+            extra_unmapped=extra_unmapped,
         )
+
+    # ── 6b. canonical_bs v2 integration glue ─────────────────
+    # Shared by the pipeline (stage_extract/stage_map) AND the offline
+    # scripts (verify_determinism / reprocess_documents) so the numeric
+    # path is ONE code object — a hand-maintained mirror between the two
+    # is exactly the drift hazard the audit flagged on
+    # measure_bs_drift_roundtrip.py.
+
+    def deterministic_source_census(self, shaped: List[Any]) -> Optional[int]:
+        """Count of distinct source accounts that carry value and are
+        handed to assembly (classified candidates + parser unmapped).
+        This is the `source_account_census` the canonical_bs builder
+        checks its `invariants.source_conservation` against.
+
+        Constraint: zero-balance source rows and parser-level exclusions
+        (class 8 / 581) are OUTSIDE this census — both the parser shape
+        and the assembler drop zero amounts, and parser exclusions never
+        reach the assembler (they are merged into canonical_bs.excluded
+        post-assembly by `merge_parser_exclusions`). Including either
+        would make the invariant permanently false instead of a real
+        check for accounts LOST between parser handoff and canonical_bs.
+
+        The nonzero-amount filter below uses the ROUNDED shaped amount:
+        a sub-cent closing balance (e.g. -0.0029 RON) survives the
+        parser's pre-round zero gate but rounds to ±0.00, which the
+        assembler then skips as valueless — counting it here would fire
+        source_conservation on a value-free row (real case: carniprod
+        404.21).
+        """
+        codes = {
+            str(a.get("code") or "")
+            for a in shaped
+            if isinstance(a, dict) and float(a.get("amount") or 0) != 0
+        }
+        for u in (getattr(shaped, "unmapped", None) or []):
+            codes.add(str(u.get("code") or ""))
+        codes.discard("")
+        return len(codes) if codes else None
+
+    # Parser-side exclusion reasons → the contract's canonical_bs.excluded
+    # vocabulary (the builder's `_excluded_reason` emits the same enum).
+    _PARSER_EXCLUDED_REASON_MAP = {
+        "off_balance_class_8": "off_balance_memo_account",
+        "ignore_transit": "transit_account_581",
+        "ignore_control": "excluded_by_rule",
+    }
+
+    def merge_parser_exclusions(
+        self, assembled: dict, parser_excluded: Optional[List[dict]]
+    ) -> None:
+        """Merge parser-level exclusions (class 8 incl. 891/892, 581
+        transit — dropped BEFORE assembly by `accounts_to_assemble_shape`)
+        into `canonical_bs.excluded`, in place.
+
+        Constraint: `assemble_statements` has no `extra_excluded` kwarg
+        (its `excluded` input is the assembler's own ignored_items), so
+        the integration seam completes the block here. Deterministic:
+        dedup by code (builder entries win), then re-sort by code —
+        matching the builder's own ordering.
+        """
+        if not parser_excluded:
+            return
+        env = assembled.get("assembled_canonical_v1") if isinstance(assembled, dict) else None
+        cbs = env.get("canonical_bs") if isinstance(env, dict) else None
+        if not isinstance(cbs, dict):
+            return
+        by_code = {
+            str(e.get("code") or ""): e
+            for e in (cbs.get("excluded") or [])
+            if isinstance(e, dict) and e.get("code")
+        }
+        for e in parser_excluded:
+            if not isinstance(e, dict):
+                continue
+            code = str(e.get("code") or "")
+            if not code or code in by_code:
+                continue
+            reason = str(e.get("reason") or "excluded_by_rule")
+            by_code[code] = {
+                "code": code,
+                "reason": self._PARSER_EXCLUDED_REASON_MAP.get(reason, reason),
+            }
+        cbs["excluded"] = [by_code[c] for c in sorted(by_code)]
+
+    def run_deterministic_tb(
+        self,
+        content: bytes,
+        filename: str = "",
+        *,
+        company_name: str = "Imported entity",
+        period_label: str = "Imported period",
+        industry: Optional[str] = None,
+        kind: str = "auto",
+    ) -> Tuple[List[Any], List[Any], dict]:
+        """OFFLINE deterministic parse + assemble — no DB, no LLM.
+
+        The single entry point the determinism gate
+        (scripts/verify_determinism.py) and the reprocessing tool
+        (scripts/reprocess_documents.py) run; it composes the exact same
+        calls the pipeline's stage_extract + stage_map make on the
+        deterministic path, so the scripts audit the production numeric
+        path rather than a mirror of it.
+
+        `kind`: 'auto' dispatches on magic bytes (PDF / Excel container),
+        anything else falls to the CSV parser; 'csv'/'xlsx'/'pdf' force a
+        branch (reprocessing knows the stored mime).
+
+        Returns (tb_rows, shaped, assembled) — assembled carries
+        `assembled_canonical_v1.canonical_bs` with parser exclusions
+        already merged.
+        """
+        is_pdf = content[:4] == b"%PDF"
+        is_excel = (
+            content[:4] == b"PK\x03\x04"
+            or content[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+        )
+        if kind == "csv" or (kind == "auto" and not is_pdf and not is_excel):
+            tb_rows = self.parse_trial_balance_csv(content, filename)
+        else:
+            tb_rows = self.parse_trial_balance(content, filename)
+        shaped = self.accounts_to_assemble_shape(tb_rows)
+        assembled = self.assemble_statements(
+            list(shaped),
+            company_name=company_name,
+            currency="RON",
+            period_label=period_label,
+            industry=industry,
+            source_data_quality=self.compute_source_imbalance(tb_rows),
+            account_121_anchor_override=self.compute_statutory_net_profit_anchor(tb_rows),
+            source_anchor=getattr(tb_rows, "source_anchor", None),
+            extraction_meta=getattr(tb_rows, "extraction", None),
+            source_account_census=self.deterministic_source_census(shaped),
+            extra_unmapped=list(getattr(shaped, "unmapped", None) or []),
+        )
+        self.merge_parser_exclusions(
+            assembled, list(getattr(shaped, "excluded", None) or [])
+        )
+        return tb_rows, shaped, assembled
 
     # ── 7. Industry classification ──────────────────────────
     def classify_industry(self, signals: ClassifierSignals) -> dict:
