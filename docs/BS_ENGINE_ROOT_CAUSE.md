@@ -37,30 +37,55 @@ This layer explains the *display* contradiction. It does not explain why the aud
 books themselves carried a 46,613 RON imbalance from a perfectly balanced source. That is
 Layer 2.
 
-## Layer 2 — the deep defect: non-deterministic, self-validating extraction
+## Layer 2 — the deep defect: stale-analysis provenance + an unguarded numeric path
 
-Hard evidence, from the stored envelopes of two runs of the **byte-identical** file
-(md5 `203a40dea87539fa2367d0fd7f798e9d`, both prod upload and repo fixture):
+**CORRECTION (2026-08-13, evening).** The first draft of this section attributed the
+prod-vs-local difference below to LLM extraction non-determinism. Deeper forensics
+(reprocessing pass + document-linkage query) disproved that attribution and revealed
+something worse. The evidence table, re-labeled correctly:
 
-| Run | total_assets | total_equity | total_liabilities | leaves | claimed SF debit sum |
+| Envelope read | total_assets | total_equity | total_liabilities | claimed SF debit sum | actually the analysis of |
 |---|---|---|---|---|---|
-| prod 2026-08-12 (`fce6d3ea`) | 39,194,178.46 | 23,924,083.72 | 15,316,707.80 | 77 | 70,215,990.73 |
-| local 2026-08-13 (`9fcdb0f7`) | 52,722,896.54 | 7,756,589.15 | 44,966,307.39 | 81 | 60,205,165.12 |
-| **the file itself says** | — | — | — | 382 account rows | **60,205,165.12** |
+| prod `fce6d3ea` (read 08-12/08-13) | 39,194,178.46 | 23,924,083.72 | 15,316,707.80 | 70,215,990.73 | **Agras Trial Balance 2025.xlsx** |
+| local `9fcdb0f7` (Frozen scan, 08-13) | 52,722,896.54 | 7,756,589.15 | 44,966,307.39 | 60,205,165.12 | Frozen (correct) |
+| the Frozen file itself | — | — | — | **60,205,165.12** | — |
+| the Agras file itself | — | — | — | **70,215,990.73** | — |
 
-Two independent failures:
+Proof: the deterministic parser sums Agras's SF column to exactly 70,215,990.73 — the
+figure in the `fce6d3ea` envelope — and the envelope's −46,613.06 balance delta is
+Agras's own drift signature, reproduced deterministically on every Agras run.
 
-1. **Non-determinism.** `stage_extract` (src/engine/api/pipeline.py:583) runs the numeric
-   extraction through an LLM (`claude-opus-4-7`, pipeline.py:990). The same document
-   yielded 77 leaves on one run and 81 on another, with equity differing by 16M. The
-   platform's own contract ("same trial balance always produces the same output") is
-   violated at the first stage of the pipeline.
-2. **Circular self-validation.** `source_data_quality` sums the *extracted* rows'
-   debits/credits and checks D=C. The prod run's extraction diverged from the document by
-   **+10,010,825.61** (70.2M claimed vs 60.2M in the file's own totals row) — yet reported
-   `warn: false`, because its invented numbers balanced against themselves. The document's
-   own totals row (SI 63,478,148.44 / RL 119,888,234.40 / RC 997,287,481.31 /
-   SF 60,205,165.12 — every pair D=C to the cent) was never consulted.
+The real defect chain on period `fce6d3ea`:
+
+1. **2026-08-02**: an Agras document was scanned into this period; its analysis
+   (line items + envelope) was persisted.
+2. **2026-08-04**: the Agras documents were soft-deleted. The period KEPT the analysis
+   artifacts — deletion does not clear or flag them — and displayed as an "empty" period.
+3. **2026-08-12**: the user attached `Trial_Balance_Scandia_Frozen_31.12.2025.xlsx`. The
+   scan completed, the document was linked as the period's source — **but the period
+   continued serving the 2026-08-02 Agras envelope.** The screen said "Frozen"; the
+   numbers were Agras's. Nothing in the system could detect the mismatch, because the
+   envelope carried no record of which document it was built from.
+4. **2026-08-13**: the user (coincidentally) uploaded Agras into the same period,
+   making source and analysis agree again by accident.
+
+Two systemic failures underneath:
+
+1. **No provenance.** The persisted envelope did not record its source document, so a
+   period serving another (even deleted) document's analysis was undetectable. Fixed:
+   `stage_persist` now stamps `assembled_canonical_v1.provenance`
+   {source_document_id, original_filename, content_hash, written_at}; readers can assert
+   it against `period.source_document_id`.
+2. **Circular self-validation + an unguarded LLM numeric path.** `source_data_quality`
+   summed the *extracted* rows and checked D=C against themselves — it could confirm
+   internal consistency but never fidelity to the document (the file's own totals row —
+   SI 63,478,148.44 / RL 119,888,234.40 / RC 997,287,481.31 / SF 60,205,165.12, every
+   pair D=C to the cent — was never consulted). And `stage_extract`
+   (src/engine/api/pipeline.py:583) fell back to an LLM (`claude-opus-4-7`) that read and
+   produced digits for any document the deterministic parsers rejected — including ALL
+   CSVs — with no external anchor to catch infidelity. Both are now closed: the source
+   anchor reconciles extraction against the file's own totals row per column pair, and
+   recognized formats (SAGA 10-col, SAGA compact, generic 4-col, CSV) never touch the LLM.
 
 ## Why "0.11%" and never worse
 

@@ -1437,6 +1437,22 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                     "period %s — legacy Fix-A1 read path will serve it",
                     period_id,
                 )
+            # PROVENANCE STAMP (2026-08-13). A period was caught serving a
+            # DELETED document's analysis under a newer document's name: the
+            # Aug-02 Agras envelope survived its documents' soft-deletion and
+            # an Aug-12 adoption scan of a different file linked the new doc
+            # without this envelope being replaced — the numbers on screen
+            # belonged to a file that was no longer attached. Stamping the
+            # envelope with the document it was BUILT FROM makes that state
+            # detectable forever: any reader can assert
+            # envelope.provenance.source_document_id == period.source_document_id
+            # and flag a mismatch instead of trusting stale artifacts.
+            canonical["provenance"] = {
+                "source_document_id": doc.get("id"),
+                "original_filename": doc.get("original_filename"),
+                "content_hash": doc.get("content_hash"),
+                "written_at": datetime.now(timezone.utc).isoformat(),
+            }
             try:
                 admin_client.update(
                     "financial_periods",
