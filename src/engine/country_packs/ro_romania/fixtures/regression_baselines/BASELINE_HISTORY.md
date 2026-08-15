@@ -28,6 +28,68 @@ A baseline change is authorized only when:
 
 ---
 
+## 2026-08-15 — CLOSING-IDENTITY MODE: canonical_bs exact-zero difference for balanced sources (re-baseline of the parity pair)
+
+**Scope:** `canonical_adapter.build_canonical_bs_v2` rewritten as a TOTAL
+PARTITION in integer cents; `pack.attach_closing_result` (new) enriches
+`source_anchor` at parse time with the closing-column result decomposition
+(121_SF + ΣSF(cls7) − ΣSF(cls6), exact cents). For ANY deterministic source
+whose SF pair balances (D=C after netting class-8 single-entry rows),
+`canonical_bs.difference` is now EXACTLY 0.00 / status BALANCED — by
+algebraic construction, not tolerance. Three leaks closed:
+
+1. **Unmapped exclusion** (the agras/carniprod leak): unmapped accounts are
+   now IN the totals as explicit `unclassified_debit` (current assets) /
+   `unclassified_credit` (current liabilities) rows, still listed in
+   `unmapped`, flagged via new diagnosis code `D9_UNMAPPED_INCLUDED`.
+   - Agras −46,613.06 → 0.00 (account **413** Efecte de primit, sf_d
+     46,613.06 — rules table has `4130`, not bare `413`).
+   - Carniprod +15,750.23 → 0.00 (account **4282.07**, sf_d −15,750.23 —
+     rules table has `4281`/`4283`, not `4282`).
+   - Scandia 8-col 96,664.22 → 0.00 (2672xx family 422,724.89 unmapped +
+     519,389.11 result-line reconstruction gap).
+   - RealEstate 0.05 → 0.00 (`267212` sf_c 0.05).
+2. **Current-year result off-column**: the equity result line now comes from
+   the SAME closing column as every other leaf (`source_anchor.
+   closing_result`); the reconstruction remains only as fallback
+   (`invariants.result_basis` says which; LLM/PDF-anchor-less paths).
+3. **Float accumulation**: the identity path runs in integer cents end to
+   end; floats only at serialization.
+
+Additive contract surface: `invariants.identity_holds`,
+`invariants.result_basis`, `source_anchor.closing_result`,
+`unclassified_debit`/`unclassified_credit` rows, diagnosis `D9_UNMAPPED_INCLUDED`;
+canonical map gained `13`/`14`/`60` prefixes (legacy-mapped, canonically
+unrouted before — a stray-leak class). Every pre-existing key kept.
+
+**Sibiu (PDF)** deliberately NOT forced to zero: its canonical difference is
+now −12,253.38 = the extracted-SF deficit (4,250,401.72 − 4,262,655.10) of
+the lossy PyMuPDF parse, MATERIAL_IMBALANCE with honest diagnosis — per the
+"whatever their sources justify" rule.
+
+**Re-baselined files:** `eei_dec_2025.json` + `scandia_fy2025.json`
+(the two the F3.1-PARITY gate asserts), pre-state archived under
+`archive/eei_dec_2025_pre_closing_identity.json` /
+`archive/scandia_fy2025_pre_closing_identity.json`. NOTE: parity had been
+silently RED on this checkout BEFORE this work — the stored baselines
+predated F3.16-3b.6 (methodology ebitda strict/adjusted drift, 76 paths)
+and the EEI loader in `capture_assembled_baseline.py` lacked the
+`files/eei_expected_extraction.json` fallback (loader FAILED post
+repo-restructure; fixed in the same pass). Both fixtures re-captured under
+the current engine; parity GREEN again. The six unasserted baselines
+(sibiu/frozen/realestate/agras/carniprod/retail) remain as captured — no
+automated consumer reads them (audit: dead weight), left for a separate
+decision.
+
+**Gates after:** verify_determinism PASS (agras/carniprod now
+difference 0.0 BALANCED, byte-identical 5×); pytest tests/engine 492 passed
+(incl. NEW `test_identity_property.py` — 200 seeded balanced TBs assert
+difference == 0.0 exactly, 20 imbalanced assert difference == injected gap
+exactly + D1); measure_bs_drift GREEN incl. the new CLOSING-IDENTITY exact
+section; validate_eei_canonical PASS; check_canonical_roundtrip GREEN.
+
+---
+
 ## 2026-05-24 — F4.2–F4.7 sprint: methodology layer + detection envelope + fan-out routing + HU skeleton + deprecation warnings + cutover plan
 
 **Scope:** Six chunks in a single sprint per operator's "all in one go no stop super fast" authorization, executed without per-chunk stops. New surfaces:

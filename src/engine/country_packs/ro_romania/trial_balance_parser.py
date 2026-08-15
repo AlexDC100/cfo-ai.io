@@ -1443,6 +1443,21 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
             # holds. A ruled bucket missing from every membership set is
             # a rules-table gap — surface it in `unmapped`, not silence.
             if bucket.startswith("ignore"):
+                # 581 (viramente interne) normally nets to zero — excluding
+                # it is free. A NONZERO closing balance is real money in
+                # transit, and excluding it from the statement while the
+                # source-balance judgment counts it broke the closing
+                # identity (verifier probe 2026-08-15: difference −50 on a
+                # balanced 581/1012 pair). Value-bearing 581 therefore goes
+                # to `unmapped` — the canonical builder includes unmapped
+                # balances in the totals by balance side, loudly visible.
+                if bucket == "ignore_transit" and round(sf_d - sf_c, 2) != 0:
+                    out.unmapped.append({
+                        "code": code, "name": name,
+                        "sf_d": round(sf_d, 2), "sf_c": round(sf_c, 2),
+                        "reason": "transit_581_nonzero_closing",
+                    })
+                    continue
                 out.excluded.append({
                     "code": code, "name": name,
                     "sf_d": round(sf_d, 2), "sf_c": round(sf_c, 2),

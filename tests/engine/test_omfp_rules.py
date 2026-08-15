@@ -39,19 +39,21 @@ def rows10(*specs) -> List[Dict]:
 def assemble(pack):
     """Run the composed parser-shape + assemble + exclusion-merge path on
     raw 10-col rows — the same calls run_deterministic_tb makes after
-    parsing, minus the file layer."""
+    parsing, minus the file layer. Uses `pack.assemble_parsed_tb` (the
+    extracted production composition) on a TrialBalanceParseResult with
+    a real computed anchor + `closing_result`, so these pins exercise
+    the closing-identity path exactly as stage_extract produces it."""
 
     def _assemble(rows):
-        shaped = tbp.accounts_to_assemble_shape(rows)
-        assembled = pack.assemble_statements(
-            list(shaped),
-            company_name="Synthetic", period_label="TEST",
-            source_data_quality=tbp.compute_source_imbalance(rows),
-            account_121_anchor_override=tbp.compute_statutory_net_profit_anchor(rows),
-            source_account_census=pack.deterministic_source_census(shaped),
-            extra_unmapped=list(shaped.unmapped),
+        tb = tbp.TrialBalanceParseResult(
+            rows,
+            extraction={"method": "deterministic"},
+            source_anchor=tbp.compute_source_anchor(rows),
         )
-        pack.merge_parser_exclusions(assembled, list(shaped.excluded))
+        pack.attach_closing_result(tb)
+        _tb, shaped, assembled = pack.assemble_parsed_tb(
+            tb, company_name="Synthetic", period_label="TEST",
+        )
         cbs = assembled["assembled_canonical_v1"]["canonical_bs"]
         return shaped, assembled, cbs
 
@@ -230,7 +232,11 @@ def test_class8_and_891_892_excluded(assemble):
         ("8038", "Alte valori in afara bilantului", {"sf_d": 999.0}),
         ("891", "Bilant de deschidere", {"sf_d": 123.0}),
         ("892", "Bilant de inchidere", {"sf_c": 123.0}),
-        ("581", "Viramente interne", {"sf_d": 10.0}),
+        # Zero NET closing — the normal 581 state, still excluded. A
+        # NONZERO 581 closing now routes to unmapped and INTO the totals
+        # (closing-identity fix 2026-08-15) — covered by
+        # test_identity_property.py::test_transit_581_nonzero_closing_keeps_identity.
+        ("581", "Viramente interne", {"sf_d": 10.0, "sf_c": 10.0}),
     ))
     # Parser layer: explicit exclusion with specific reasons — never
     # exclusion-by-fallthrough (audit gap 14).
@@ -261,12 +267,18 @@ def test_unmapped_account_surfaced(assemble):
     shaped, _asm, cbs = assemble(rows10(
         ("1012", "Capital", {"sf_c": 500.0}),
         ("5121", "Banca", {"sf_d": 500.0}),
-        ("999", "Cont in afara planului", {"sf_d": 77.0}),
+        # Bare 413 has no rule (the table carries 4130) — the exact code
+        # behind the agras −46,613.06 leak. Class 9 codes are no longer a
+        # valid "unmapped" example: they exclude as off-balance now.
+        ("413", "Efecte de primit", {"sf_d": 77.0}),
     ))
-    assert [u["code"] for u in shaped.unmapped] == ["999"]
-    entry = [u for u in cbs["unmapped"] if u["code"] == "999"]
+    assert [u["code"] for u in shaped.unmapped] == ["413"]
+    entry = [u for u in cbs["unmapped"] if u["code"] == "413"]
     assert entry and entry[0]["reason"] == "no_rule"
     assert entry[0]["sf_d"] == 77.0
+    # Closing-identity: the unmapped balance is IN the totals (as an
+    # Unclassified row) — never dropped.
+    assert cbs["totals"]["assets"] == 577.0
 
 
 # ── Negative equity renders with its sign ──────────────────────────────
@@ -314,13 +326,22 @@ def test_preclosing_pl_balances_close_to_equity(assemble):
         ("707", "Venituri din vanzarea marfurilor", {"st_c": 700.0, "sf_c": 700.0}),
         ("607", "Cheltuieli privind marfurile", {"st_d": 100.0, "sf_d": 100.0}),
     ))
-    # The result lands in equity as the derived current-year row…
+    # The result lands in equity as the derived current-year row, sourced
+    # from the SAME closing column as everything else (closing identity)…
     profit = _row_by_id(cbs, "current_year_profit")
     assert profit["section"] == "equity"
     assert profit["amount"] == 600.0
-    # …and NO class 6/7 account appears on the balance sheet, asset side
-    # or otherwise (a 6xx-as-asset would also unbalance the statement).
+    assert cbs["invariants"]["result_basis"] == "sf_closing_column"
+    # …which DOCUMENTS the absorbed 6/7 balances via its leaf_ids
+    # (contract 1b: excluded from asset/liability placement, absorbed
+    # into the result line, traceable on the row).
+    assert set(profit["leaf_ids"]) == {"607", "707"}
+    # NO class 6/7 account appears on any OTHER balance-sheet row, asset
+    # side or otherwise (a 6xx-as-asset would also unbalance the
+    # statement) — only the derived result row may absorb them.
     for row in cbs["rows"]:
+        if row["id"] in ("current_year_profit", "current_year_loss"):
+            continue
         for code in row.get("leaf_ids") or []:
             assert not code.startswith(("6", "7")), (
                 f"P&L account {code} leaked into BS row {row['id']}"
@@ -328,3 +349,5 @@ def test_preclosing_pl_balances_close_to_equity(assemble):
     assert cbs["totals"]["assets"] == 1000.0
     assert cbs["totals"]["equity"] == 1000.0   # 400 capital + 600 result
     assert cbs["status"] == "BALANCED"
+    assert cbs["difference"] == 0.0
+    assert cbs["invariants"]["identity_holds"] is True

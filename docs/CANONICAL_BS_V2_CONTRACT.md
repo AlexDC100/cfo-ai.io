@@ -76,6 +76,53 @@ impossible because there is exactly one object.
 - `D6_121_MISMATCH` — 121 ≠ class7 − class6 (both from the same TB)
 - `D7_MAGNITUDE` — leaf value 100× / 1000× off vs its column total (separator parse error)
 - `D8_OMITTED` — source census accounts absent from classified+unmapped+excluded
+- `D9_UNMAPPED_INCLUDED` — unmapped accounts included in the statement totals as
+  Unclassified rows (closing identity); emitted REGARDLESS of status (also on
+  BALANCED) so the inclusion stays loud; always appended after D0-D8
+
+## CLOSING-IDENTITY MODE (additive, 2026-08-15)
+
+For ANY deterministic source whose SF pair balances (D=C after netting
+off-balance class-8 single-entry rows), `difference` is EXACTLY 0.00 and
+status BALANCED — by algebraic construction: the statement is a TOTAL
+PARTITION where every value-bearing account contributes its signed closing
+balance to exactly one side, accumulated in INTEGER CENTS (floats only at
+serialization), so assets − (equity+liabilities) == ΣSF_D − ΣSF_C. Nonzero
+`difference` remains possible only for: imbalanced sources (D1 — the
+difference then EQUALS the source gap to the cent), anchor divergence (D0),
+llm extraction, or fallback-path results (see `result_basis`). Additive keys:
+
+- `source_anchor.closing_result` — `{basis: "sf", p121_cents, pl_net_cents,
+  codes}`: the current-year result decomposition read from the SAME closing
+  column as every BS leaf (121_SF + ΣSF(cls 7) − ΣSF(cls 6), exact integer
+  cents). Attached by `RomaniaPack.attach_closing_result` at the pack parse
+  seam (`parse_trial_balance` / `parse_trial_balance_csv`), so both the
+  pipeline and the offline scripts carry it. Source data, never a plug.
+- rows `unclassified_debit` (section current_assets) / `unclassified_credit`
+  (section current_liabilities) — unmapped accounts' balances IN the totals,
+  by their balance side, account codes listed (`account_codes` == `leaf_ids`);
+  the accounts also stay in `unmapped` and D9 flags the inclusion. Never
+  silently classified, never dropped.
+- the derived `current_year_profit` / `current_year_loss` row documents the
+  absorbed 121/6xx/7xx accounts via `leaf_ids` when sourced from the closing
+  column (empty on the reconstruction fallback).
+- `invariants.identity_holds` — `difference == 0` exactly, whenever the
+  source is balanced (anchor `source_balanced`, or the extracted SF pair
+  within 1 RON when no file totals exist) and extraction is deterministic;
+  vacuously true otherwise. Emitted, not hard-asserted — False is the honest
+  signal of a fallback-path or engine leak.
+- `invariants.result_basis` — `"sf_closing_column" | "reconstruction"`.
+- Excluded accounts (class 8 incl. 891/892, 581 transit) stay OUT of both
+  the statement and the source-balance judgment. A nonzero 581 closing
+  balance is the one known case that honestly breaks the identity (money in
+  transit at period end) — it surfaces as a nonzero difference with
+  diagnosis, never absorbed.
+
+Property gate: `tests/engine/test_identity_property.py` — 200 seeded random
+balanced TBs (classes 1-7, contra families, bifunctionals both sides, TVA,
+117 both sides, pre-/post-closing/mixed/closing-only states, unmapped codes,
+class-8 memo rows) assert `difference == 0.0` EXACTLY; 20 deliberately
+imbalanced TBs assert `difference` == the injected gap exactly with D1.
 
 AI (council) may PROPOSE a correction referencing a diagnosis entry; the deterministic
 validator accepts it only with source evidence + all invariants passing + confidence

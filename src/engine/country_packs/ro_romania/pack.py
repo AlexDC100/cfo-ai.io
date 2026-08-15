@@ -392,7 +392,11 @@ class RomaniaPack:
         from . import pdf_ingester as _pdf
         if _pdf.is_pdf(content):
             try:
-                return _pdf.parse_pdf_trial_balance(content, filename)
+                # PDF rows are a plain list (no anchor metadata) — the
+                # attach helper no-ops on them by design.
+                return self.attach_closing_result(
+                    _pdf.parse_pdf_trial_balance(content, filename)
+                )
             except _pdf.PdfIngestError as e:
                 # Surface as ParseError so the existing endpoint's 400
                 # response shape stays unchanged.
@@ -400,17 +404,80 @@ class RomaniaPack:
                     user_message=e.user_message,
                     technical_detail=e.technical_detail,
                 )
-        return _legacy_tbp.parse_trial_balance_file(content, filename)
+        return self.attach_closing_result(
+            _legacy_tbp.parse_trial_balance_file(content, filename)
+        )
 
     def parse_pasted_trial_balance(self, text: str) -> List[Any]:
-        return _legacy_tbp.parse_pasted_trial_balance(text)
+        return self.attach_closing_result(
+            _legacy_tbp.parse_pasted_trial_balance(text)
+        )
 
     def parse_trial_balance_csv(self, content: bytes, filename: str = "") -> List[Any]:
         """canonical_bs v2 — deterministic CSV path. CSVs previously went
         straight to the LLM extractor (audit item 1c); the parser now
         handles them with the same machinery (and the same
         TrialBalanceParseResult metadata) as XLSX."""
-        return _legacy_tbp.parse_trial_balance_csv(content, filename)
+        return self.attach_closing_result(
+            _legacy_tbp.parse_trial_balance_csv(content, filename)
+        )
+
+    def attach_closing_result(self, tb_rows: Any) -> Any:
+        """CLOSING-IDENTITY MODE — enrich the parse result's
+        `source_anchor` with the `closing_result` block: the current-year
+        result read from the SAME closing column (solduri finale) as
+        every balance-sheet leaf, in EXACT integer cents.
+
+            closing_result = {
+                "basis": "sf",
+                "p121_cents":  Σ cents(sf_c − sf_d) over 121x rows,
+                "pl_net_cents": Σ cents(sf_c − sf_d) over class 6/7 rows,
+                "codes": sorted 121/6xx/7xx codes with a nonzero SF,
+            }
+
+        The equity result line is p121_cents + pl_net_cents — one
+        formula for every closing state (post-closing: 6/7 SF are zero;
+        pre-closing: 121 SF is zero; mixed: both terms carry). This is
+        SOURCE data (the SF column), never a plug: on an imbalanced
+        source the canonical_bs difference still surfaces the exact gap.
+
+        Attached HERE (the pack parse seam) so both the pipeline's
+        stage_extract (which calls `pack.parse_trial_balance*`) and the
+        offline scripts pick it up from one code object. No-ops on
+        parse results without an anchor dict (PDF plain lists) — those
+        paths keep the builder's reconstruction fallback.
+        """
+        anchor = getattr(tb_rows, "source_anchor", None)
+        if not isinstance(anchor, dict):
+            return tb_rows
+        p121_cents = 0
+        pl_net_cents = 0
+        codes: set = set()
+        for r in tb_rows:
+            if not isinstance(r, dict):
+                continue
+            code = str(r.get("cont") or "").strip()
+            if not code:
+                continue
+            is_121 = code.startswith("121")
+            is_pl = code[:1] in ("6", "7")
+            if not (is_121 or is_pl):
+                continue
+            sf_d = int(round(float(r.get("sf_d") or 0) * 100))
+            sf_c = int(round(float(r.get("sf_c") or 0) * 100))
+            if is_121:
+                p121_cents += sf_c - sf_d
+            else:
+                pl_net_cents += sf_c - sf_d
+            if sf_d or sf_c:
+                codes.add(code)
+        anchor["closing_result"] = {
+            "basis": "sf",
+            "p121_cents": p121_cents,
+            "pl_net_cents": pl_net_cents,
+            "codes": sorted(codes),
+        }
+        return tb_rows
 
     def accounts_to_canonical_tsv(self, accounts: List[Any]) -> str:
         return _legacy_tbp.accounts_to_canonical_tsv(accounts)
@@ -616,6 +683,30 @@ class RomaniaPack:
             tb_rows = self.parse_trial_balance_csv(content, filename)
         else:
             tb_rows = self.parse_trial_balance(content, filename)
+        return self.assemble_parsed_tb(
+            tb_rows,
+            company_name=company_name,
+            period_label=period_label,
+            industry=industry,
+        )
+
+    def assemble_parsed_tb(
+        self,
+        tb_rows: Any,
+        *,
+        company_name: str = "Imported entity",
+        period_label: str = "Imported period",
+        industry: Optional[str] = None,
+    ) -> Tuple[List[Any], List[Any], dict]:
+        """The post-parse half of `run_deterministic_tb`: shape + anchor
+        + assemble + exclusion-merge on already-parsed 10-col rows.
+
+        Split out so test harnesses (the closing-identity property suite
+        builds tb_rows dicts directly) run the PRODUCTION composition —
+        the same calls stage_extract + stage_map make — instead of
+        hand-mirroring it, which is the drift hazard the audit flagged
+        on measure_bs_drift_roundtrip.py.
+        """
         shaped = self.accounts_to_assemble_shape(tb_rows)
         assembled = self.assemble_statements(
             list(shaped),

@@ -90,6 +90,14 @@ def load_eei() -> tuple[List[Dict], str]:
         REPO / "scandi-desk-main/e2e/fixtures/ground-truth/ro_eei_dec_2025/expected_extraction.json",
         Path("/app/scandi-desk-main/e2e/fixtures/ground-truth/ro_eei_dec_2025/expected_extraction.json"),
         Path("/host_repo/scandi-desk-main/e2e/fixtures/ground-truth/ro_eei_dec_2025/expected_extraction.json"),
+        # Post repo-restructure fallback — the FE tree (scandi-desk-main)
+        # is legacy/absent in some checkouts and excluded by .dockerignore;
+        # files/ carries the same fixture (same chain measure_bs_drift
+        # uses). Without this, EEI silently dropped out of the parity
+        # gate on such checkouts (loader FAILED → RED with no baseline
+        # comparison at all).
+        REPO / "files/eei_expected_extraction.json",
+        Path("/app/files/eei_expected_extraction.json"),
     ]
     p = next((c for c in candidates if c.is_file()), None)
     if p is None:

@@ -404,6 +404,14 @@ def load_agras() -> tuple[List[Dict], str]:
     micro-classification differences. Registered with 3.0% threshold to
     match the file's intrinsic data quality (analogous to Sibiu's 1.0%
     PDF threshold rationale). F-A3.1 acceptance: 2.4981% drift.
+
+    CLOSING-IDENTITY note (2026-08-15): the file's SF pair balances to
+    the cent (Σ 70,215,990.73 both sides, class 8 netted). The legacy
+    −46,613.06 delta was account 413 (Efecte de primit, sf_d 46,613.06)
+    — unmapped (rules table has 4130, not bare 413) and previously
+    EXCLUDED from totals. canonical_bs now includes it as an
+    Unclassified row → difference exactly 0.00 (see the
+    CLOSING-IDENTITY gate below).
     """
     candidates = _candidate_paths(
         "files/agras_tb_2025.xlsx",
@@ -423,16 +431,18 @@ def load_agras() -> tuple[List[Dict], str]:
 def load_carniprod() -> tuple[List[Dict], str]:
     """F3.7g-extension — Carniprod SRL FY2025, extended 22-col XLSX.
 
-    Source data has intrinsic 4.46% raw imbalance (sf_d vs sf_c = 8.58M
-    RON off) before any engine processing — this is a source-document
-    quality issue irreducible by engine logic alone. Engine drift =
-    source imbalance + ~3pp extended-layout routing noise. Registered
-    with 8.0% threshold to capture the source-imbalance reality (any
-    tighter would fail spuriously on data the engine cannot reasonably
-    fix). F-A3.1 acceptance: 7.4436% drift.
+    Historical registration note: the "intrinsic 4.46% raw imbalance
+    (sf_d vs sf_c = 8.58M RON off)" was compute_source_imbalance
+    TELEMETRY CONTAMINATION — class-8 single-entry memo rows inflate one
+    side of that naive sum. After netting off-balance class 8 the SF
+    pair balances to the cent (Σ 202,329,749.34 both sides). The 8.0%
+    threshold is retained only for the legacy telemetry path.
 
-    Future improvement path: source-data telemetry + warning surfaced
-    to operator before analysis when sf_d/sf_c imbalance >2% (F3.9+).
+    CLOSING-IDENTITY note (2026-08-15): the legacy +15,750.23 delta was
+    account 4282.07 (personnel receivable, sf_d −15,750.23) — unmapped
+    (rules table has 4281/4283, not 4282) and previously EXCLUDED from
+    totals. canonical_bs now includes it as an Unclassified row →
+    difference exactly 0.00 (see the CLOSING-IDENTITY gate below).
     """
     candidates = _candidate_paths(
         "files/carniprod_tb_2025.xlsx",
@@ -712,6 +722,10 @@ def main() -> None:
             print(f"  {fixture:<11s}  drift {drift:>7.4f}%   {verdict}{thresh_note}")
             if drift > threshold:
                 all_green = False
+
+    canonical_green = _measure_canonical_identity()
+    all_green = all_green and canonical_green
+
     print()
     print(
         "Overall: "
@@ -719,6 +733,76 @@ def main() -> None:
            if all_green else
            "NOT GREEN — see verdicts above.")
     )
+    if not all_green:
+        sys.exit(1)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# CLOSING-IDENTITY gate (re-baselined 2026-08-15) — canonical_bs
+# difference through the FULL deterministic path
+# (`RomaniaPack.run_deterministic_tb`, the same composition the
+# pipeline's stage_extract + stage_map run: parse → closing_result
+# anchor → shape → assemble). EXACT expected values, not thresholds:
+# for every fixture whose SF pair balances after netting class 8, the
+# canonical difference is 0.00 BY CONSTRUCTION. Sibiu (PDF) keeps its
+# honest nonzero — its PyMuPDF extraction drops rows and the canonical
+# difference now equals the extracted-SF deficit to the cent
+# (4,250,401.72 − 4,262,655.10), with the diagnosis naming it. EEI has
+# no source file here (LLM-shape JSON fixture) so it has no entry.
+# ─────────────────────────────────────────────────────────────────────
+
+_CANONICAL_IDENTITY_EXPECTED: List[tuple] = [
+    # (label, files/ fixture, expected difference RON, expected status)
+    ("Scandia",    "scandia_trial_balance_2025_downloaded.xlsx", 0.00, "BALANCED"),
+    ("Sibiu",      "scandia_sibiu_tb_2019.pdf", -12253.38, "MATERIAL_IMBALANCE"),
+    ("Frozen",     "prod_scandia_frozen_31.12.2025.xlsx", 0.00, "BALANCED"),
+    ("RealEstate", "scandia_realestate_tb_2025.xlsx", 0.00, "BALANCED"),
+    ("Agras",      "agras_tb_2025.xlsx", 0.00, "BALANCED"),
+    ("Carniprod",  "carniprod_tb_2025.xlsx", 0.00, "BALANCED"),
+    ("Retail",     "scandia_retail_tb_2025.xlsx", 0.00, "BALANCED"),
+]
+
+
+def _measure_canonical_identity() -> bool:
+    print()
+    print("=" * 60)
+    print("CLOSING-IDENTITY — canonical_bs.difference (exact, full path)")
+    print("=" * 60)
+    try:
+        import engine.country_packs.ro_romania  # noqa: F401 — registers pack
+        from engine.core.country_pack_registry import get_pack
+        pack = get_pack("RO")
+    except Exception as e:  # noqa: BLE001
+        print(f"  RomaniaPack not loadable ({type(e).__name__}: {e}) — gate RED")
+        return False
+    green = True
+    for label, rel, expected_diff, expected_status in _CANONICAL_IDENTITY_EXPECTED:
+        candidates = _candidate_paths(f"files/{rel}", f"tests/fixtures/{rel}")
+        if not candidates:
+            print(f"  {label:<11s}  FIXTURE MISSING files/{rel}")
+            green = False
+            continue
+        try:
+            _tb, _shaped, assembled = pack.run_deterministic_tb(
+                candidates[0].read_bytes(), candidates[0].name,
+            )
+            cbs = assembled["assembled_canonical_v1"]["canonical_bs"]
+        except Exception as e:  # noqa: BLE001
+            print(f"  {label:<11s}  FAILED: {type(e).__name__}: {e}")
+            green = False
+            continue
+        diff = float(cbs.get("difference"))
+        status = str(cbs.get("status"))
+        identity = (cbs.get("invariants") or {}).get("identity_holds")
+        ok = diff == expected_diff and status == expected_status and identity is True
+        print(
+            f"  {label:<11s}  difference {diff:>14,.2f}  {status:<19s}"
+            f"identity_holds={identity}  "
+            + ("GREEN" if ok else
+               f"RED (expected {expected_diff:,.2f} {expected_status})")
+        )
+        green = green and ok
+    return green
 
 
 if __name__ == "__main__":

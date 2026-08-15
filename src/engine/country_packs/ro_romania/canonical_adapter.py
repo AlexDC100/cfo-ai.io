@@ -96,6 +96,13 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("167",   "lt_debt_other"),
     ("168",   "lt_debt_bank"),
     ("169",   "lt_debt_other"),               # contra-debt: signed sum is negative, nets vs 161
+    # Closing-identity gap fixes: the legacy table routes 13x (F3.8
+    # subsidy catchall) and 14x (equity-instrument gains/losses) but the
+    # canonical map previously had NO rule for either — those balances
+    # reached line_items yet dropped out of every canonical total, a
+    # silent one-sided leak (assets ≠ E+L by exactly the dropped value).
+    ("13",    "government_grants_deferred"),  # Subvenții pt. investiții (13x family)
+    ("14",    "other_reserves"),              # Câștiguri/pierderi instrumente capital
     # ─── Class 2 — Fixed assets ───
     ("201",   "intangibles_other"),
     ("203",   "intangibles_other"),
@@ -234,6 +241,10 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("581",   None),                                # transit — never in totals
     ("59",    "ar_provisions"),                     # cash adjustments — contra
     # ─── Class 6 — Expenses ───
+    # Legacy F3.8 "60" catchall counterpart (606/608-variants without a
+    # longer rule) — absent here before the closing-identity pass, which
+    # left such line_items canonically unrouted.
+    ("60",    "materials_non_inventory"),
     ("601",   "cogs_raw_materials"),
     ("602",   "cogs_auxiliary_consumables"),
     ("603",   "materials_non_inventory"),
@@ -873,6 +884,38 @@ _BS_LEAF_ORDER: Dict[str, int] = {
     b.canonical_name: i for i, b in enumerate(BS_BUCKETS)
 }
 
+# ── Closing-identity machinery (CLOSING-IDENTITY MODE) ──────────────────
+# The identity partition runs in INTEGER CENTS end to end: every
+# value-bearing account contributes its signed closing balance to exactly
+# one side of the statement, so for a source whose SF pair balances
+# (D == C after netting off-balance class 8), assets − (equity +
+# liabilities) == ΣSF_D − ΣSF_C == 0 EXACTLY — by construction, never by
+# tolerance. Floats appear only at serialization (cents / 100.0).
+
+
+def _cents(value: Any) -> int:
+    """Parse a 2-decimal currency value into exact integer cents."""
+    try:
+        return int(round(float(value or 0) * 100))
+    except (TypeError, ValueError):
+        return 0
+
+
+# Kwarg-injected equity leaves replaced by the closing-column result line.
+_RESULT_LEAF_NAMES = {"current_year_profit", "current_year_loss"}
+
+# Legacy bucket names that place a line_item on the ASSET side of the
+# legacy BS (mirrors chart_of_accounts._BUCKET_TO_BS_FIELD's asset
+# fields). Used ONLY to side-place canonically-unrouted ("stray")
+# line_items into the Unclassified rows — their legacy placement is the
+# side evidence the canonical router lost.
+_LEGACY_ASSET_BUCKETS = {
+    "cash", "cash_fx", "ar", "ar_doubtful", "ar_provisions",
+    "ar_intercompany", "inventory", "otherCurrentAssets", "ppe",
+    "ppe_investment", "ppe_under_construction", "ppe_advances",
+    "intangibles", "otherNonCurrentAssets",
+}
+
 
 def _section_for_leaf(leaf_name: str) -> Optional[str]:
     """Map a canonical BS leaf to its OMFP presentation section. Returns
@@ -961,8 +1004,28 @@ def build_canonical_bs_v2(
     """Build the FULL canonical_bs v2 object per
     docs/CANONICAL_BS_V2_CONTRACT.md from the canonical envelope's leaves.
 
-    Rows, section subtotals and totals all derive from the SAME leaf
-    signed sums, so they sum to each other BY CONSTRUCTION — asserted at
+    CLOSING-IDENTITY MODE: the whole statement is a TOTAL PARTITION of
+    the source's value-bearing accounts, accumulated in INTEGER CENTS —
+    floats only at serialization. Every account contributes its signed
+    closing (SF) balance to exactly one side:
+      · classified leaves — routed line_items, per OMFP placement;
+      · unmapped accounts — explicit `unclassified_debit` /
+        `unclassified_credit` rows (IN the totals, still listed in
+        `unmapped`, flagged via D9_UNMAPPED_INCLUDED);
+      · the current-year result — from the SAME closing column
+        (121_SF + ΣSF(cls 7) − ΣSF(cls 6), the parser-attached
+        `source_anchor.closing_result` block), falling back to the
+        envelope's reconstruction leaf when that source data is absent
+        (LLM / PDF paths) — `invariants.result_basis` says which;
+      · excluded accounts (class 8 incl. 891/892, 581 transit) stay
+        OUT of both the statement and the source-balance judgment.
+    Consequence (invariants.identity_holds): a balanced deterministic
+    source yields difference == 0.00 EXACTLY, by construction — nonzero
+    difference remains possible only for imbalanced sources (D1),
+    anchor divergence (D0), llm extraction, or fallback-path results.
+
+    Rows, section subtotals and totals all derive from the SAME cent
+    sums, so they sum to each other BY CONSTRUCTION — asserted at
     the end, never plugged. All optional inputs degrade defensively:
       · `line_items` — for leaf_ids / account_codes traceability; absent
         → rows carry empty lists.
@@ -981,70 +1044,9 @@ def build_canonical_bs_v2(
     """
     leaves = envelope.get("leaves") or {}
 
-    # ── Traceability: canonical leaf → contributing account codes ──────
-    # Re-runs the SAME routing (`_route_line_item`) the envelope used, so
-    # a row's leaf_ids always agree with the leaf sums beneath it.
-    leaf_codes: Dict[str, set] = {}
-    leaf_prefixes: Dict[str, set] = {}
-    for li in (line_items or []):
-        routed = _route_line_item(li)
-        if routed is None:
-            continue
-        code, _name, _signed, canonical_name = routed
-        if canonical_name is None:
-            continue
-        leaf_codes.setdefault(canonical_name, set()).add(code)
-        leaf_prefixes.setdefault(canonical_name, set()).add(_matched_ras_prefix(code))
-
-    # ── Rows — BS leaves only, fixed section order then schema order ───
-    rows: List[Dict[str, Any]] = []
-    section_sums: Dict[str, float] = {s: 0.0 for s in _BS_V2_SECTION_ORDER}
-    ordered_leaves = sorted(
-        (name for name in leaves if _section_for_leaf(name) is not None),
-        key=lambda n: (
-            _BS_V2_SECTION_ORDER.index(_section_for_leaf(n)),
-            _BS_LEAF_ORDER.get(n, len(_BS_LEAF_ORDER)),
-            n,
-        ),
-    )
-    for leaf_name in ordered_leaves:
-        section = _section_for_leaf(leaf_name)
-        amount = round(float((leaves[leaf_name] or {}).get("ras_line_items_sum_signed") or 0), 2)
-        if amount == 0:
-            continue
-        bucket = bucket_by_name(leaf_name)
-        rows.append({
-            "id": leaf_name,
-            "section": section,
-            "label_key": f"bs.row.{leaf_name}",
-            "label": bucket.display_label if bucket else leaf_name,
-            "account_codes": sorted(leaf_prefixes.get(leaf_name, set())),
-            "amount": amount,
-            "opening": None,  # prior-period column not plumbed yet
-            "leaf_ids": sorted(leaf_codes.get(leaf_name, set())),
-        })
-        section_sums[section] = round(section_sums[section] + amount, 2)
-
-    sections = [
-        {"id": s, "subtotal": round(section_sums[s], 2)}
-        for s in _BS_V2_SECTION_ORDER
-    ]
-
-    # ── Totals — sums of the SAME section subtotals (by construction) ──
-    total_assets = round(sum(
-        section_sums[s] for s in _BS_V2_SECTION_ORDER if s in _BS_V2_ASSET_SECTIONS
-    ), 2)
-    total_equity = round(sum(
-        section_sums[s] for s in _BS_V2_SECTION_ORDER if s in _BS_V2_EQUITY_SECTIONS
-    ), 2)
-    total_liabilities = round(sum(
-        section_sums[s] for s in _BS_V2_SECTION_ORDER
-        if s not in _BS_V2_ASSET_SECTIONS and s not in _BS_V2_EQUITY_SECTIONS
-    ), 2)
-    equity_plus_liabilities = round(total_equity + total_liabilities, 2)
-    difference = round(total_assets - equity_plus_liabilities, 2)
-
-    # ── Source anchor + extraction (defensive defaults; agent C plumbs) ─
+    # ── Source anchor + extraction (defensive defaults) ────────────────
+    # Built FIRST because the closing-identity result line reads the
+    # parser-attached `closing_result` block off the anchor.
     anchor_block: Dict[str, Any] = (
         dict(source_anchor) if isinstance(source_anchor, dict) else {
             "totals_row_found": False,
@@ -1056,6 +1058,304 @@ def build_canonical_bs_v2(
     extraction_block: Dict[str, Any] = {"method": "deterministic"}
     if isinstance(extraction, dict):
         extraction_block.update(extraction)
+
+    # ── Traceability + identity partition (INTEGER CENTS) ──────────────
+    # Re-runs the SAME routing (`_route_line_item`) the envelope used, so
+    # a row's leaf_ids always agree with the leaf sums beneath it, and
+    # accumulates each BS leaf in exact integer cents — the arithmetic
+    # basis of the closing identity. Canonically-unrouted BS line_items
+    # ("strays": legacy placed them, the canonical map didn't) are NOT
+    # dropped — they land in the Unclassified rows below, side-placed by
+    # their legacy bucket, and are surfaced in `unmapped`.
+    leaf_codes: Dict[str, set] = {}
+    leaf_prefixes: Dict[str, set] = {}
+    leaf_cents: Dict[str, int] = {}
+    stray_bs_items: List[tuple] = []  # (code, name, debit_signed_cents)
+    for li in (line_items or []):
+        routed = _route_line_item(li)
+        if routed is None:
+            continue
+        code, li_name, signed, canonical_name = routed
+        if canonical_name is None:
+            if code.startswith("581"):
+                # Nonzero transit closing = real money in transit — route
+                # into the partition as a stray (debit-signed) so the
+                # identity holds; the parser-exclusion path below does the
+                # same for the deterministic route. Zero balances (the
+                # normal 581 state) contribute nothing either way.
+                if _cents(signed) != 0:
+                    stray_bs_items.append((code, li_name, _cents(signed)))
+                continue
+            if str(li.get("statement") or "") == "BS":
+                legacy_bucket = str(
+                    li.get("canonical_bucket") or li.get("bucket") or ""
+                )
+                # Contribution as a DEBIT-signed balance: legacy asset
+                # placement carries +signed, E/L placement −signed.
+                b_cents = (
+                    _cents(signed) if legacy_bucket in _LEGACY_ASSET_BUCKETS
+                    else -_cents(signed)
+                )
+                stray_bs_items.append((code, li_name, b_cents))
+            # PL-statement strays carry movement data; the result line is
+            # sourced from the SF closing column, so nothing to place.
+            continue
+        leaf_codes.setdefault(canonical_name, set()).add(code)
+        leaf_prefixes.setdefault(canonical_name, set()).add(_matched_ras_prefix(code))
+        bucket = bucket_by_name(canonical_name)
+        if bucket is not None and bucket.bucket_type in (
+            BucketType.ASSET, BucketType.LIABILITY, BucketType.EQUITY
+        ):
+            leaf_cents[canonical_name] = leaf_cents.get(canonical_name, 0) + _cents(signed)
+
+    # ── Unmapped accounts — IN the totals AND loudly visible ───────────
+    # Contract 1(a): excluding unmapped balances broke the identity — a
+    # balanced source minus a dropped account is an imbalanced statement.
+    # Every unmapped account now contributes its signed closing balance
+    # to an explicit Unclassified row (debit side under current assets /
+    # credit side under current liabilities) while STAYING in the
+    # `unmapped` transparency list + a D9 diagnosis entry. Never
+    # silently classified, never dropped.
+    unmapped_out: List[Dict[str, Any]] = []
+    for u in (unmapped or []):
+        if not isinstance(u, dict):
+            continue
+        entry = {
+            "code": str(u.get("code") or ""),
+            "name": str(u.get("name") or ""),
+            "reason": str(u.get("reason") or "no_rule"),
+        }
+        # Carry whatever balance fields the caller had (amount on the
+        # assembler shape; sf_d/sf_c when the parser layer supplies them).
+        for key in ("amount", "sf_d", "sf_c"):
+            if key in u:
+                entry[key] = u[key]
+        unmapped_out.append(entry)
+    for code, li_name, b_cents in sorted(stray_bs_items):
+        unmapped_out.append({
+            "code": code,
+            "name": li_name,
+            "reason": "no_canonical_mapping",
+            "amount": b_cents / 100.0,
+        })
+    unmapped_out.sort(key=lambda e: (e["code"], e["name"]))
+
+    uncls_cents = {"debit": 0, "credit": 0}
+    uncls_codes: Dict[str, List[str]] = {"debit": [], "credit": []}
+
+    def _include_unclassified(code: str, b_cents: int) -> None:
+        if b_cents > 0:
+            uncls_cents["debit"] += b_cents
+            uncls_codes["debit"].append(code)
+        elif b_cents < 0:
+            uncls_cents["credit"] += -b_cents
+            uncls_codes["credit"].append(code)
+
+    for u in unmapped_out:
+        if u.get("reason") == "no_canonical_mapping":
+            continue  # strays are included via their exact side-signed cents below
+        code_str = str(u.get("code") or "")
+        # Class 6/7 codes are ALREADY absorbed by the result line —
+        # attach_closing_result sums EVERY class-6/7 tb_row's closing
+        # balance, mapped or not. Routing an unmapped 6xx/7xx into the
+        # Unclassified rows as well double-counted it (adversarial-
+        # verifier probe: balanced 5121/799 pair → difference −100).
+        # They stay in the `unmapped` list for visibility; their value
+        # rides in the result row only.
+        if code_str[:1] in ("6", "7"):
+            u["reason"] = str(u.get("reason") or "no_rule") + "_absorbed_in_result"
+            continue
+        # Class 9 (management accounting) is off-balance like class 8 —
+        # a self-balancing 9xx pair kept the identity but inflated both
+        # sides via Unclassified rows. Exclude from the statement with
+        # the same vocabulary as class 8.
+        if code_str[:1] == "9":
+            u["reason"] = "off_balance_management_class_9"
+            continue
+        if "sf_d" in u or "sf_c" in u:
+            b_cents = _cents(u.get("sf_d")) - _cents(u.get("sf_c"))
+        else:
+            # Assembler-shape entry (LLM path): a single signed amount with
+            # no side columns — positive is read as a debit-side balance.
+            b_cents = _cents(u.get("amount"))
+        _include_unclassified(u["code"], b_cents)
+    for code, _li_name, b_cents in sorted(stray_bs_items):
+        _include_unclassified(code, b_cents)
+
+    # 581 (viramente interne) — excluded from the statement by the parser
+    # but INCLUDED in the source-balance judgment, so a nonzero closing
+    # 581 broke the identity (verifier probe: difference −50). A nonzero
+    # 581 closing balance is real money in transit: include it in the
+    # partition by balance side, exactly like an unclassified balance,
+    # and surface it in `unmapped` so it stays loudly visible.
+    for ex in (excluded or []):
+        if not isinstance(ex, dict):
+            continue
+        if str(ex.get("code") or "")[:3] != "581":
+            continue
+        b_cents = _cents(ex.get("sf_d")) - _cents(ex.get("sf_c"))
+        if b_cents == 0:
+            continue
+        _include_unclassified(str(ex.get("code")), b_cents)
+        unmapped_out.append({
+            "code": str(ex.get("code")),
+            "name": str(ex.get("name") or "Viramente interne"),
+            "reason": "transit_581_nonzero_closing_included",
+            "amount": b_cents / 100.0,
+        })
+    unmapped_out.sort(key=lambda e: (e["code"], e["name"]))
+
+    # ── Current-year result — from the SAME closing column (1b) ────────
+    # result = 121_SF + (Σ SF(class 7) − Σ SF(class 6)), all read from
+    # the source's own solduri-finale columns (the `closing_result` block
+    # the pack attaches at parse time). Post-closing TBs: 6/7 SF are 0 →
+    # result == 121_SF. Pre-closing: 121_SF is 0 → result == Σ7−Σ6.
+    # Mixed: both terms. This is SOURCE data, not a plug — when it is
+    # unavailable (LLM path, PDF rows without anchor metadata) the
+    # builder falls back to the envelope's injected reconstruction leaf
+    # and says so in `invariants.result_basis`.
+    closing_result = anchor_block.get("closing_result")
+    if (
+        isinstance(closing_result, dict)
+        and "p121_cents" in closing_result
+        and "pl_net_cents" in closing_result
+    ):
+        result_cents = (
+            int(closing_result.get("p121_cents") or 0)
+            + int(closing_result.get("pl_net_cents") or 0)
+        )
+        result_leaf_ids = sorted(str(c) for c in (closing_result.get("codes") or []))
+        result_basis = "sf_closing_column"
+    else:
+        result_cents = (
+            _cents((leaves.get("current_year_profit") or {}).get("ras_line_items_sum_signed"))
+            + _cents((leaves.get("current_year_loss") or {}).get("ras_line_items_sum_signed"))
+        )
+        result_leaf_ids = []
+        result_basis = "reconstruction"
+
+    # ── Rows — fixed section order then schema order, all in cents ─────
+    sortable_rows: List[tuple] = []
+    row_leaf_names = sorted(
+        (set(leaves) | set(leaf_cents)) - _RESULT_LEAF_NAMES
+    )
+    for leaf_name in row_leaf_names:
+        section = _section_for_leaf(leaf_name)
+        if section is None:
+            continue
+        if leaf_name in leaf_cents:
+            amount_cents = leaf_cents[leaf_name]
+        else:
+            # Kwarg-injected leaf with no line_item backing (129 on the
+            # ignore path) — its envelope signed sum is the only value.
+            amount_cents = _cents(
+                (leaves.get(leaf_name) or {}).get("ras_line_items_sum_signed")
+            )
+        if amount_cents == 0:
+            continue
+        bucket = bucket_by_name(leaf_name)
+        sortable_rows.append((
+            (
+                _BS_V2_SECTION_ORDER.index(section),
+                _BS_LEAF_ORDER.get(leaf_name, len(_BS_LEAF_ORDER)),
+                leaf_name,
+            ),
+            {
+                "id": leaf_name,
+                "section": section,
+                "label_key": f"bs.row.{leaf_name}",
+                "label": bucket.display_label if bucket else leaf_name,
+                "account_codes": sorted(leaf_prefixes.get(leaf_name, set())),
+                "amount": amount_cents / 100.0,
+                "opening": None,  # prior-period column not plumbed yet
+                "leaf_ids": sorted(leaf_codes.get(leaf_name, set())),
+            },
+            amount_cents,
+        ))
+
+    if result_cents != 0:
+        result_id = "current_year_profit" if result_cents > 0 else "current_year_loss"
+        result_bucket = bucket_by_name(result_id)
+        result_prefixes = sorted({
+            ("121" if c.startswith("121") else c[:1]) for c in result_leaf_ids
+        })
+        sortable_rows.append((
+            (
+                _BS_V2_SECTION_ORDER.index("equity"),
+                _BS_LEAF_ORDER.get(result_id, len(_BS_LEAF_ORDER)),
+                result_id,
+            ),
+            {
+                "id": result_id,
+                "section": "equity",
+                "label_key": f"bs.row.{result_id}",
+                "label": result_bucket.display_label if result_bucket else result_id,
+                "account_codes": result_prefixes,
+                "amount": result_cents / 100.0,
+                "opening": None,
+                "leaf_ids": result_leaf_ids,
+            },
+            result_cents,
+        ))
+
+    for side, section, row_id, label in (
+        ("debit", "current_assets", "unclassified_debit",
+         "Unclassified — debit side"),
+        ("credit", "current_liabilities", "unclassified_credit",
+         "Unclassified — credit side"),
+    ):
+        cents = uncls_cents[side]
+        if cents == 0:
+            continue
+        codes = sorted(set(uncls_codes[side]))
+        sortable_rows.append((
+            (
+                _BS_V2_SECTION_ORDER.index(section),
+                len(_BS_LEAF_ORDER) + 1,  # always last within the section
+                row_id,
+            ),
+            {
+                "id": row_id,
+                "section": section,
+                "label_key": f"bs.row.{row_id}",
+                "label": label,
+                "account_codes": codes,
+                "amount": cents / 100.0,
+                "opening": None,
+                "leaf_ids": codes,
+            },
+            cents,
+        ))
+
+    sortable_rows.sort(key=lambda t: t[0])
+    rows: List[Dict[str, Any]] = [t[1] for t in sortable_rows]
+
+    section_cents: Dict[str, int] = {s: 0 for s in _BS_V2_SECTION_ORDER}
+    for _key, row, amount_cents in sortable_rows:
+        section_cents[row["section"]] += amount_cents
+
+    sections = [
+        {"id": s, "subtotal": section_cents[s] / 100.0}
+        for s in _BS_V2_SECTION_ORDER
+    ]
+
+    # ── Totals — sums of the SAME section cents (by construction) ──────
+    assets_cents = sum(
+        section_cents[s] for s in _BS_V2_SECTION_ORDER if s in _BS_V2_ASSET_SECTIONS
+    )
+    equity_cents = sum(
+        section_cents[s] for s in _BS_V2_SECTION_ORDER if s in _BS_V2_EQUITY_SECTIONS
+    )
+    liabilities_cents = sum(
+        section_cents[s] for s in _BS_V2_SECTION_ORDER
+        if s not in _BS_V2_ASSET_SECTIONS and s not in _BS_V2_EQUITY_SECTIONS
+    )
+    difference_cents = assets_cents - (equity_cents + liabilities_cents)
+    total_assets = assets_cents / 100.0
+    total_equity = equity_cents / 100.0
+    total_liabilities = liabilities_cents / 100.0
+    equity_plus_liabilities = (equity_cents + liabilities_cents) / 100.0
+    difference = difference_cents / 100.0
 
     # ── Status per the contract tolerance ladder ───────────────────────
     #   BALANCED         |difference| ≤ max(1 RON, 0.001% of assets)
@@ -1077,23 +1377,8 @@ def build_canonical_bs_v2(
         status = "MINOR_DRIFT"
 
     # ── Transparency blocks — sorted for determinism ───────────────────
-    unmapped_out: List[Dict[str, Any]] = []
-    for u in (unmapped or []):
-        if not isinstance(u, dict):
-            continue
-        entry = {
-            "code": str(u.get("code") or ""),
-            "name": str(u.get("name") or ""),
-            "reason": str(u.get("reason") or "no_rule"),
-        }
-        # Carry whatever balance fields the caller had (amount on the
-        # assembler shape; sf_d/sf_c when the parser layer supplies them).
-        for key in ("amount", "sf_d", "sf_c"):
-            if key in u:
-                entry[key] = u[key]
-        unmapped_out.append(entry)
-    unmapped_out.sort(key=lambda e: (e["code"], e["name"]))
-
+    # (`unmapped_out` is built ABOVE, before the rows, because the
+    # Unclassified rows consume it — see the identity partition.)
     excluded_by_code: Dict[str, Dict[str, Any]] = {}
     for e in (excluded or []):
         if not isinstance(e, dict):
@@ -1106,22 +1391,51 @@ def build_canonical_bs_v2(
     excluded_out = [excluded_by_code[c] for c in sorted(excluded_by_code)]
 
     # ── Invariants — recomputed and asserted, never plugged ────────────
-    asset_row_sum = round(sum(
-        r["amount"] for r in rows if r["section"] in _BS_V2_ASSET_SECTIONS
-    ), 2)
-    el_row_sum = round(sum(
-        r["amount"] for r in rows if r["section"] not in _BS_V2_ASSET_SECTIONS
-    ), 2)
-    assets_eq_row_sum = abs(asset_row_sum - total_assets) < 0.01
-    el_eq_row_sum = abs(el_row_sum - equity_plus_liabilities) < 0.01
+    # Row sums recomputed in the SAME integer cents the totals used.
+    asset_row_cents = sum(
+        c for _k, r, c in sortable_rows if r["section"] in _BS_V2_ASSET_SECTIONS
+    )
+    el_row_cents = sum(
+        c for _k, r, c in sortable_rows if r["section"] not in _BS_V2_ASSET_SECTIONS
+    )
+    assets_eq_row_sum = asset_row_cents == assets_cents
+    el_eq_row_sum = el_row_cents == (equity_cents + liabilities_cents)
     # By construction (rows, subtotals and totals derive from the same
-    # leaf sums) these can only fail on a builder bug — fail loud.
+    # cent sums) these can only fail on a builder bug — fail loud.
     assert assets_eq_row_sum, (
-        f"canonical_bs v2: asset rows {asset_row_sum} != totals.assets {total_assets}"
+        f"canonical_bs v2: asset rows {asset_row_cents} != totals.assets cents {assets_cents}"
     )
     assert el_eq_row_sum, (
-        f"canonical_bs v2: E+L rows {el_row_sum} != equity+liabilities {equity_plus_liabilities}"
+        f"canonical_bs v2: E+L rows {el_row_cents} != equity+liabilities cents "
+        f"{equity_cents + liabilities_cents}"
     )
+
+    # Closing identity (contract invariant `identity_holds`): when the
+    # source's own SF pair balances AND extraction is deterministic, the
+    # difference must be EXACTLY zero — every value-bearing account
+    # contributed its signed closing balance to exactly one side, so
+    # assets − (E+L) == ΣSF_D − ΣSF_C == 0 by construction. The premise
+    # uses the anchor's own balance judgment when the file carries a
+    # totals row; without one, the extracted SF pair sums stand in
+    # (parser convention: balanced within 1 RON). Emitted as a boolean,
+    # never hard-asserted: a False here is the honest signal that a
+    # fallback path (no closing-column data) or an engine defect leaked
+    # value — exactly what the diagnosis block then names.
+    src_balanced = anchor_block.get("source_balanced")
+    pairs_sf = (anchor_block.get("pairs") or {}).get("sf") or None
+    extracted_sf_balanced = False
+    if isinstance(pairs_sf, dict):
+        ext_d, ext_c = pairs_sf.get("extracted_debit"), pairs_sf.get("extracted_credit")
+        if ext_d is not None and ext_c is not None:
+            extracted_sf_balanced = abs(float(ext_d) - float(ext_c)) <= 1.0
+    identity_premise = (
+        str(extraction_block.get("method") or "") == "deterministic"
+        and (
+            src_balanced is True
+            or (src_balanced is None and extracted_sf_balanced)
+        )
+    )
+    identity_holds = (not identity_premise) or difference_cents == 0
 
     # Source conservation: every source account must land in exactly one
     # of classified / unmapped / excluded. Falsifiable only when the
@@ -1165,8 +1479,8 @@ def build_canonical_bs_v2(
             "equity": total_equity,
             "liabilities": total_liabilities,
             "equity_plus_liabilities": equity_plus_liabilities,
-            "current_assets": round(section_sums["current_assets"], 2),
-            "current_liabilities": round(section_sums["current_liabilities"], 2),
+            "current_assets": section_cents["current_assets"] / 100.0,
+            "current_liabilities": section_cents["current_liabilities"] / 100.0,
         },
         "difference": difference,
         "status": status,
@@ -1178,6 +1492,8 @@ def build_canonical_bs_v2(
             "el_eq_row_sum": el_eq_row_sum,
             "source_conservation": source_conservation,
             "p121_cross_check": p121_block,
+            "identity_holds": identity_holds,
+            "result_basis": result_basis,
         },
     }
 
@@ -1203,5 +1519,27 @@ def build_canonical_bs_v2(
             )
         except Exception:  # noqa: BLE001
             canonical_bs["diagnosis"] = []
+
+    # ── D9_UNMAPPED_INCLUDED — emitted whenever Unclassified rows carry
+    # value, REGARDLESS of status (contract-additive code): the statement
+    # totals now include balances no mapping rule claimed, and that must
+    # stay loud even on a perfectly balanced sheet. Appended after the
+    # engine's D0-D8 entries — deterministic order preserved.
+    if uncls_cents["debit"] or uncls_cents["credit"]:
+        parts = []
+        for side, label in (("debit", "debit side"), ("credit", "credit side")):
+            if uncls_cents[side]:
+                codes = ", ".join(sorted(set(uncls_codes[side])))
+                parts.append(
+                    f"{label} {uncls_cents[side] / 100.0:,.2f} RON ({codes})"
+                )
+        canonical_bs["diagnosis"] = list(canonical_bs.get("diagnosis") or []) + [{
+            "code": "D9_UNMAPPED_INCLUDED",
+            "detail": (
+                "unmapped accounts included in statement totals as "
+                "Unclassified rows: " + "; ".join(parts)
+            ),
+            "leaf_ids": sorted(set(uncls_codes["debit"]) | set(uncls_codes["credit"])),
+        }]
 
     return canonical_bs
