@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "CFO AI",
+    "slug": "cfo-ai",
+    "scheme": "cfoai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "io.cfoai.app"
+    },
+    "android": {
+      "package": "io.cfoai.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0C1210",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "extra": {
+      "webAppUrl": "https://cfo-ai.io"
+    }
+  }
+}

@@ -12,6 +12,8 @@
 // see lib/comparison/parseBudget.ts) and render it as an HTML table. PDFs and
 // images DO preview natively, so those open straight from a URL.
 
+import { previewBackButtonHtml } from "@/lib/previewChrome";
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -47,7 +49,7 @@ function previewDocument(title: string, body: string): string {
         font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .err { color: #ff8a8a; }
 </style></head>
-<body><h1>${escapeHtml(title)}</h1><p class="sub">${escapeHtml(subLabel(title))}</p>${body}</body></html>`;
+<body>${previewBackButtonHtml()}<h1>${escapeHtml(title)}</h1><p class="sub">${escapeHtml(subLabel(title))}</p>${body}</body></html>`;
 }
 
 // tiny helper so the sub-label stays a plain string

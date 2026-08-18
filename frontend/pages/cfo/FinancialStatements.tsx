@@ -30,6 +30,7 @@ import { useTranslation } from "react-i18next";
 // Module-level i18n handle — for the few strings rendered outside React
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
+import { previewBackButtonHtml } from "@/lib/previewChrome";
 import { formatDateTime } from "@/lib/locale";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { Money } from "@/components/ui/Money";
@@ -3309,7 +3310,7 @@ async function previewExampleInNewTab(file: string): Promise<void> {
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
       "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
-      `</style></head><body><h1>${i18n.t("dash.previewSheetCaption", { file, sheet: sheetName })}</h1>${tableHtml}</body></html>`;
+      `</style></head><body>${previewBackButtonHtml()}<h1>${i18n.t("dash.previewSheetCaption", { file, sheet: sheetName })}</h1>${tableHtml}</body></html>`;
     if (tab) {
       tab.document.open();
       tab.document.write(doc);
@@ -3321,6 +3322,7 @@ async function previewExampleInNewTab(file: string): Promise<void> {
       tab.document.open();
       tab.document.write(
         `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
+        previewBackButtonHtml() +
         `${i18n.t("dash.previewLoadFailed", { msg })} ` +
         `<a href="/examples/${file}" download>${i18n.t("dash.downloadInstead")}</a>.</body>`,
       );

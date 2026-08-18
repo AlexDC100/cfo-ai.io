@@ -34,6 +34,7 @@ import { useState } from "react";
 // Module-level i18n instance — previewWorkbookInNewTab runs outside the React
 // tree (it writes into a raw window.open tab), so it can't use the hook.
 import i18n from "@/i18n";
+import { previewBackButtonHtml } from "@/lib/previewChrome";
 
 type Variant = "compact" | "prominent";
 
@@ -97,7 +98,7 @@ async function previewWorkbookInNewTab(
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:8px}" +
       "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
-      `</style></head><body><h1>${filename} — ${subtitle}</h1>${sections}</body></html>`;
+      `</style></head><body>${previewBackButtonHtml()}<h1>${filename} — ${subtitle}</h1>${sections}</body></html>`;
     if (tab) {
       tab.document.open();
       tab.document.write(doc);
@@ -108,7 +109,7 @@ async function previewWorkbookInNewTab(
     if (tab) {
       tab.document.open();
       tab.document.write(
-        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">${i18n.t("tmpl.previewError", { msg })}</body>`,
+        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">${previewBackButtonHtml()}${i18n.t("tmpl.previewError", { msg })}</body>`,
       );
       tab.document.close();
     }

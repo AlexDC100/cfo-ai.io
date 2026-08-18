@@ -22,6 +22,12 @@ import { queryClient } from "@/lib/queryClient";
 import { clearDataPresence } from "@/lib/dataPresence";
 import { flushNewsletterOptIn } from "@/lib/newsletterOptIn";
 import {
+  NATIVE_OAUTH_REDIRECT,
+  installNativeAuthCallback,
+  isNativeShell,
+  postToNativeShell,
+} from "@/lib/nativeShell";
+import {
   isPublicTestMode,
   TEST_USER_ID,
   TEST_USER_EMAIL,
@@ -197,6 +203,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // pending, so the periodic TOKEN_REFRESHED ticks cost nothing.
       if (s?.user) void flushNewsletterOptIn(s.user.email);
 
+      // Native shell (mobile/): announce real auth transitions so the shell
+      // reloads its other WebView tabs into the new session. INITIAL_SESSION
+      // is deliberately excluded — it fires on every page load and would
+      // reload-loop the tabs. No-op in a regular browser.
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        postToNativeShell({ source: "cfo-ai", type: "auth", event });
+      }
+
       setSession(s);
       setStatus(s ? "signed_in" : "signed_out");
     });
@@ -204,6 +218,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       sub.subscription.unsubscribe();
     };
+  }, [supabase]);
+
+  // Native shell (mobile/): OAuth runs in the system browser (Google rejects
+  // embedded WebViews) and the shell hands the captured redirect URL back here
+  // to complete the session — either implicit-flow tokens in the fragment or a
+  // PKCE ?code=. No-op in a regular browser (installer returns immediately).
+  useEffect(() => {
+    if (!supabase || !isNativeShell()) return;
+    return installNativeAuthCallback((redirectUrl) => {
+      void (async () => {
+        try {
+          const url = new URL(redirectUrl);
+          const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
+          const accessToken = fragment.get("access_token");
+          const refreshToken = fragment.get("refresh_token");
+          if (accessToken && refreshToken) {
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            return;
+          }
+          const code = url.searchParams.get("code");
+          if (code) await supabase.auth.exchangeCodeForSession(code);
+        } catch {
+          /* malformed redirect — user stays on the login screen */
+        }
+      })();
+    });
   }, [supabase]);
 
   const user = session?.user ?? null;
@@ -268,6 +311,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // exchange happens in one place.
   const signInWithOAuth = useCallback<AuthActions["signInWithOAuth"]>(async (provider) => {
     if (!supabase) return { error: disabledError() };
+    // Native shell (mobile/): the provider page must open in the SYSTEM
+    // browser, so ask the SDK for the URL instead of redirecting, hand it to
+    // the shell, and finish via the installNativeAuthCallback effect above.
+    // NATIVE_OAUTH_REDIRECT must be allowlisted in Supabase → Authentication
+    // → URL Configuration → Redirect URLs (see mobile/README.md).
+    if (isNativeShell()) {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: NATIVE_OAUTH_REDIRECT, skipBrowserRedirect: true },
+      });
+      if (!error && data?.url) {
+        postToNativeShell({ source: "cfo-ai", type: "oauth", url: data.url });
+      }
+      return { error };
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {

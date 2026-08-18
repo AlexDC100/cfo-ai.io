@@ -50,10 +50,13 @@ import {
   Building2,
   Info,
   Loader2,
+  User as UserIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { NotificationsMenu } from "./NotificationsMenu";
+import { CurrencyToggle } from "./CurrencyToggle";
+import { useAuth } from "@/lib/auth";
 import { useActiveOrg } from "@/lib/org";
 import { startPeriodSwitch } from "@/lib/periodSwitch";
 import { blockedByScan } from "@/lib/scanGuard";
@@ -82,6 +85,10 @@ interface Props {
   /** Drawer mode — closes the slide-over after a click on mobile. */
   inDrawer?: boolean;
   onItemClick?: () => void;
+  /** Drawer mode only — opens the account surface (Command Center).
+   *  Inside the native mobile shell the TopHeader isn't rendered, so the
+   *  drawer's credentials row is the account entry point (2026-08-18). */
+  onOpenAccount?: () => void;
   /** No workspace yet — every destination that needs workspace data is
    *  disabled; only the routes in ALWAYS_ENABLED (Workspaces, Settings,
    *  website), plus the collapse toggle + disclaimer, stay live. */
@@ -219,11 +226,16 @@ export function Sidebar({
   onSignOut,
   inDrawer = false,
   onItemClick,
+  onOpenAccount,
   noWorkspace = false,
 }: Props) {
   const { t } = useTranslation();
   const period = useActivePeriod();
   const workspaceName = useWorkspaceName();
+  // Currency row + drawer account row (2026-08-18, native-shell pass) —
+  // the display-currency toggle lives in this menu and the drawer carries
+  // the signed-in credentials row (the shell renders no TopHeader).
+  const { user, displayName, initials } = useAuth();
   // True while an Ask CFO AI reply is in flight anywhere in the app —
   // drives the thinking spinner on the chat rail item.
   const chatReplyPending = useChatReplyPending();
@@ -309,6 +321,17 @@ export function Sidebar({
             the top with left/right arrows has no real use"). Months are
             managed in Settings → Perioade and loaded via the app's own
             navigation; the rail is nav-only again. */}
+        {/* Currency — DRAWER ONLY, above the Intelligence divider
+            (2026-08-18, native-shell pass): inside the shell the TopHeader
+            (and its CurrencyMenu) isn't rendered, so the burger menu
+            carries the display-currency toggle. Desktop keeps the header
+            dropdown. Signed-in only. */}
+        {inDrawer && user && (
+          <div className="flex items-center justify-between gap-3 px-[9px]">
+            <span className="text-[13px] text-ink-soft">{t("settings.currency", "Currency")}</span>
+            <CurrencyToggle />
+          </div>
+        )}
         {groups.filter((g) => g.key !== "workspace").map((g) => (
           <Section
             key={g.key}
@@ -368,8 +391,12 @@ export function Sidebar({
       </nav>
 
       {/* System group (Settings / Website) — pinned to the rail's BOTTOM
-          (2026-07-24), outside the scrolling nav, just above the footer. */}
-      {groups.some((g) => g.key === "workspace") && (
+          (2026-07-24), outside the scrolling nav, just above the footer.
+          DESKTOP RAIL ONLY (2026-08-18 per operator): the drawer drops both
+          rows — Settings is reachable through the account row's Command
+          Center, and the marketing site has no place in the app's mobile
+          nav. */}
+      {!inDrawer && groups.some((g) => g.key === "workspace") && (
         <div className="px-2.5 pb-2 pt-1">
           {groups.filter((g) => g.key === "workspace").map((g) => (
             <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
@@ -388,6 +415,42 @@ export function Sidebar({
               ))}
             </Section>
           ))}
+        </div>
+      )}
+
+      {/* Account row — DRAWER ONLY (2026-08-18, native-shell pass): inside
+          the shell there is no TopHeader avatar, so the credentials row is
+          the account entry point; it opens the Command Center account
+          surface via `onOpenAccount`. */}
+      {inDrawer && user && (
+        <div className="px-2.5 pt-2 pb-2 border-t border-rule">
+          <button
+            type="button"
+            data-testid="sidebar-account"
+            onClick={() => onOpenAccount?.()}
+            className="
+              w-full flex items-center gap-3 px-[9px] min-h-[52px]
+              rounded-lg text-left
+              hover:bg-bg-2/70 active:bg-bg-2/50 transition-colors
+            "
+          >
+            <span
+              aria-hidden
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-paper text-[11.5px] font-semibold tracking-tight"
+            >
+              {initials ?? <UserIcon size={14} strokeWidth={1.75} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-ink truncate">
+                {displayName ?? "Account"}
+              </span>
+              {user.email && (
+                <span className="block text-[11px] text-ink-soft truncate">
+                  {user.email}
+                </span>
+              )}
+            </span>
+          </button>
         </div>
       )}
 

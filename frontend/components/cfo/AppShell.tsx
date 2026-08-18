@@ -42,6 +42,11 @@ import { DatasetsPanel } from "./DatasetsPanel";
 import { getChatShellRef } from "./chat/sharedShellRef";
 import { OPEN_ASK_CFO_AI_EVENT, type OpenAskCfoAiDetail } from "./chat/openAskCfoAi";
 import { useAuth } from "@/lib/auth";
+import {
+  isNativeShell,
+  postToNativeShell,
+  NATIVE_ACTION_EVENT,
+} from "@/lib/nativeShell";
 import { useWorkspaces } from "@/lib/workspaces";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
@@ -80,6 +85,38 @@ export function AppShell({ children }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ── iOS/Android native shell integration (see frontend/lib/nativeShell.ts
+  // and mobile/README.md). Inside the shell the TopHeader isn't rendered at
+  // all; navigation is the shell's NATIVE floating burger (native because a
+  // web-fixed button drifts during fling scrolls/overscroll). `inNativeShell`
+  // is stable for the page's lifetime — the WebView injects the marker
+  // before any script runs.
+  const inNativeShell = isNativeShell();
+
+  // Tell the shell when to show its burger: on while AppShell is mounted,
+  // off while the drawer is open (the native button would float above the
+  // open drawer) and off when AppShell unmounts (sign-out → /login).
+  useEffect(() => {
+    if (!inNativeShell) return undefined;
+    postToNativeShell({ source: "cfo-ai", type: "chrome", burger: !sidebarOpen });
+    return () => {
+      postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false });
+    };
+  }, [inNativeShell, sidebarOpen]);
+
+  // A native burger tap arrives as a `cfo:native-action` CustomEvent.
+  useEffect(() => {
+    if (!inNativeShell) return undefined;
+    function onAction(e: Event) {
+      if ((e as CustomEvent<{ action?: string }>).detail?.action === "menu") {
+        setSidebarOpen(true);
+      }
+    }
+    window.addEventListener(NATIVE_ACTION_EVENT, onAction as EventListener);
+    return () =>
+      window.removeEventListener(NATIVE_ACTION_EVENT, onAction as EventListener);
+  }, [inNativeShell]);
 
   // Navigate to the full /chat page (the slide-over panel is gone,
   // 2026-07-24), preserving ?period= and delivering the prompt into the
@@ -269,14 +306,20 @@ export function AppShell({ children }: Props) {
       <UploadResumeProvider />
       {/* Full-screen veil while switching months from the tab-bar stepper. */}
       <MonthSwitchOverlay />
-      <TopHeader
-        onOpenAi={openAskCfoAi}
-        onOpenSidebar={() => setSidebarOpen(true)}
-        // onOpenAccount removed 2026-08-04 (header redesign): the avatar
-        // opens the AccountMenu dropdown again — it now hosts the
-        // Learning-mode picker, Billing, Settings and sign-out. The
-        // Command Center drawer stays reachable via its other triggers.
-      />
+      {/* No TopHeader inside the native shell (2026-08-18 per operator) —
+          the shell's native floating burger owns navigation and the drawer
+          carries currency + account, so the header would only duplicate
+          chrome on a small screen. Browsers are unchanged. */}
+      {!inNativeShell && (
+        <TopHeader
+          onOpenAi={openAskCfoAi}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          // onOpenAccount removed 2026-08-04 (header redesign): the avatar
+          // opens the AccountMenu dropdown again — it now hosts the
+          // Learning-mode picker, Billing, Settings and sign-out. The
+          // Command Center drawer stays reachable via its other triggers.
+        />
+      )}
 
       {/* Persistent sidebar (lg+). With no workspace yet, it stays visible but
           every destination that needs workspace data is disabled — only
@@ -302,12 +345,21 @@ export function AppShell({ children }: Props) {
           }}
         >
           <SheetTitle className="sr-only">{t("panels.navigation")}</SheetTitle>
-          <div className="h-14 border-b border-rule" />
+          {/* Header-height spacer — only where the fixed TopHeader exists;
+              in the native shell the drawer content starts at the top. */}
+          {!inNativeShell && <div className="h-14 border-b border-rule" />}
           <Sidebar
             {...sidebarHandlers}
             inDrawer
             noWorkspace={noWorkspaces}
             onItemClick={() => setSidebarOpen(false)}
+            // Drawer account row (2026-08-18) — no header inside the native
+            // shell, so the drawer's credentials row opens the Command
+            // Center account surface, closing the drawer first.
+            onOpenAccount={() => {
+              setSidebarOpen(false);
+              setDrawerOpen(true);
+            }}
           />
         </SheetContent>
       </Sheet>
@@ -332,7 +384,7 @@ export function AppShell({ children }: Props) {
           slide-out is open on wide screens (≥1280px) the content shifts
           left by the panel's width so nothing is hidden. */}
       <main
-        className={`pt-14 ${sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}
+        className={`${inNativeShell ? "" : "pt-14"} ${sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}
         // Notch devices: keep content clear of the home indicator.
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >

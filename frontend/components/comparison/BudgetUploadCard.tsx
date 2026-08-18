@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Upload, Download, FileSpreadsheet, X, Loader2, Cloud, ArrowUp, Info, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
+import { previewBackButtonHtml } from "@/lib/previewChrome";
 import { VARIANCE_LINES, type ComparisonDataset } from "@/lib/comparison/types";
 
 interface Props {
@@ -75,7 +76,7 @@ function viewTemplate() {
     "th{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
     "td.l{text-align:left}" +
     "p{margin-top:12px;color:#6B7280;font-size:12px}" +
-    `</style></head><body><h1>cfo_ai_budget_template.csv — budget template</h1>` +
+    `</style></head><body>${previewBackButtonHtml()}<h1>cfo_ai_budget_template.csv — budget template</h1>` +
     `<table><thead><tr><th>Line</th><th>Budget</th><th>Last year</th></tr></thead><tbody>${rows}</tbody></table>` +
     `<p>Fill in the Budget column (required) and optionally Last year, then re-upload. Fictional/blank template.</p>` +
     `</body></html>`;
