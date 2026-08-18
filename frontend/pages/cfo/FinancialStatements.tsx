@@ -24,6 +24,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AddFileTile, SourceFilesRow } from "@/components/cfo/SourceFilesRow";
 import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
+import { previewBackButtonHtml } from "@/lib/previewChrome";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
@@ -3557,7 +3558,7 @@ async function previewExampleInNewTab(file: string): Promise<void> {
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
       "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
-      `</style></head><body><h1>${file} · sheet "${sheetName}" (example — fictional data)</h1>${tableHtml}</body></html>`;
+      `</style></head><body>${previewBackButtonHtml()}<h1>${file} · sheet "${sheetName}" (example — fictional data)</h1>${tableHtml}</body></html>`;
     if (tab) {
       tab.document.open();
       tab.document.write(doc);
@@ -3569,6 +3570,7 @@ async function previewExampleInNewTab(file: string): Promise<void> {
       tab.document.open();
       tab.document.write(
         `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
+        previewBackButtonHtml() +
         `Couldn't load preview: ${msg}. ` +
         `<a href="/examples/${file}" download>Download instead</a>.</body>`,
       );

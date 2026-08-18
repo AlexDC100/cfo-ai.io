@@ -30,6 +30,7 @@ import { motion } from "framer-motion";
 import { Download, FileSpreadsheet, ExternalLink, Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
+import { previewBackButtonHtml } from "@/lib/previewChrome";
 
 type Variant = "compact" | "prominent";
 
@@ -92,7 +93,7 @@ async function previewWorkbookInNewTab(
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:8px}" +
       "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
-      `</style></head><body><h1>${filename} — ${subtitle}</h1>${sections}</body></html>`;
+      `</style></head><body>${previewBackButtonHtml()}<h1>${filename} — ${subtitle}</h1>${sections}</body></html>`;
     if (tab) {
       tab.document.open();
       tab.document.write(doc);
@@ -103,7 +104,7 @@ async function previewWorkbookInNewTab(
     if (tab) {
       tab.document.open();
       tab.document.write(
-        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">Couldn't load preview: ${msg}</body>`,
+        `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">${previewBackButtonHtml()}Couldn't load preview: ${msg}</body>`,
       );
       tab.document.close();
     }

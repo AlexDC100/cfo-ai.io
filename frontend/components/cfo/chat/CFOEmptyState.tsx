@@ -74,7 +74,9 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
         </span>
       )}
     </h2>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+    {/* 2-wide everywhere below lg (2026-08-18 per operator — the stacked
+        single column read as a long list on phones); lg keeps 4-up. */}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
       {prompts.map((p) => {
         const Icon = p.icon;
         return (

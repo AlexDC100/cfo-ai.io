@@ -53,8 +53,10 @@ import {
   ChevronRight,
   Info,
   Loader2,
+  User as UserIcon,
   type LucideIcon,
 } from "lucide-react";
+import { CurrencyToggle } from "./CurrencyToggle";
 import { useQuery } from "@tanstack/react-query";
 import {
   currentMonthEnd,
@@ -93,6 +95,10 @@ interface Props {
   /** Drawer mode — closes the slide-over after a click on mobile. */
   inDrawer?: boolean;
   onItemClick?: () => void;
+  /** Drawer mode only — opens the account surface (Command Center).
+   *  Mirrors the TopHeader avatar's `onOpenAccount`, which is hidden on
+   *  mobile (2026-08-18): the account entry lives here instead. */
+  onOpenAccount?: () => void;
   /** No workspace yet — every destination that needs workspace data is
    *  disabled; only the routes in ALWAYS_ENABLED (Workspaces, Settings,
    *  website), plus the collapse toggle + disclaimer, stay live. */
@@ -228,11 +234,15 @@ export function Sidebar({
   onSignOut,
   inDrawer = false,
   onItemClick,
+  onOpenAccount,
   noWorkspace = false,
 }: Props) {
   const { t } = useTranslation();
   const period = useActivePeriod();
   const workspaceName = useWorkspaceName();
+  // Drawer-only account row (2026-08-18) — the TopHeader avatar + currency
+  // toggle are hidden on mobile, so the burger menu carries both instead.
+  const { user, displayName, initials } = useAuth();
   // True while an Ask CFO AI reply is in flight anywhere in the app —
   // drives the thinking spinner on the chat rail item.
   const chatReplyPending = useChatReplyPending();
@@ -315,6 +325,17 @@ export function Sidebar({
             Hidden in the collapsed rail: a month label has no icon-only
             form, and squeezing arrows into 56px would misread as nav. */}
         {!effectivelyCollapsed && <SidebarMonthStepper />}
+        {/* Currency — ABOVE the Intelligence divider (2026-08-18 per
+            operator), directly under the month stepper: the display
+            currency is context for every number the nav items lead to,
+            same as the month. Hidden in the collapsed rail (the pill has
+            no icon-only form). Signed-in only. */}
+        {user && !effectivelyCollapsed && (
+          <div className="flex items-center justify-between gap-3 px-[9px]">
+            <span className="text-[13px] text-ink-soft">Currency</span>
+            <CurrencyToggle />
+          </div>
+        )}
         {groups.filter((g) => g.key !== "workspace").map((g) => (
           <Section
             key={g.key}
@@ -374,8 +395,12 @@ export function Sidebar({
       </nav>
 
       {/* System group (Settings / Website) — pinned to the rail's BOTTOM
-          (2026-07-24), outside the scrolling nav, just above the footer. */}
-      {groups.some((g) => g.key === "workspace") && (
+          (2026-07-24), outside the scrolling nav, just above the footer.
+          DESKTOP RAIL ONLY (2026-08-18 per operator): the drawer drops
+          both rows — Settings is reachable through the account row's
+          Command Center, and the marketing site has no place in the app's
+          mobile nav. */}
+      {!inDrawer && groups.some((g) => g.key === "workspace") && (
         <div className="px-2.5 pb-2 pt-1">
           {groups.filter((g) => g.key === "workspace").map((g) => (
             <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
@@ -394,6 +419,43 @@ export function Sidebar({
               ))}
             </Section>
           ))}
+        </div>
+      )}
+
+      {/* Account row — DRAWER ONLY (2026-08-18): it mirrors the TopHeader
+          avatar, which still renders on desktop; pressing it opens the same
+          Command Center account surface. (The currency toggle that used to
+          share this section moved to the TOP of the nav, above the
+          Intelligence divider, per operator.) */}
+      {inDrawer && user && (
+        <div className="px-2.5 pt-2 pb-2 border-t border-rule">
+          <button
+            type="button"
+            data-testid="sidebar-account"
+            onClick={() => onOpenAccount?.()}
+            className="
+              w-full flex items-center gap-3 px-[9px] min-h-[52px]
+              rounded-lg text-left
+              hover:bg-bg-2/70 active:bg-bg-2/50 transition-colors
+            "
+          >
+            <span
+              aria-hidden
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-paper text-[11.5px] font-semibold tracking-tight"
+            >
+              {initials ?? <UserIcon size={14} strokeWidth={1.75} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-ink truncate">
+                {displayName ?? "Account"}
+              </span>
+              {user.email && (
+                <span className="block text-[11px] text-ink-soft truncate">
+                  {user.email}
+                </span>
+              )}
+            </span>
+          </button>
         </div>
       )}
 

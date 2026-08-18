@@ -17,7 +17,7 @@
 
 import { AnimatePresence } from "framer-motion";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Paperclip, ArrowUp, CornerDownLeft, Square } from "lucide-react";
+import { Paperclip, ArrowUp, Square } from "lucide-react";
 import { CFOFilePreview } from "./CFOFilePreview";
 import { readDraft, writeDraft } from "./chatDrafts";
 import type { ChatAttachment } from "./types";
@@ -124,13 +124,14 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     },
   }));
 
-  // Auto-grow the textarea up to ~7 lines, then scroll inside it.
+  // Auto-grow the textarea up to ~7 lines, then scroll inside it. The
+  // 40px floor keeps the single-line layout level with the 36px buttons.
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
     ta.style.height = "auto";
     const next = Math.min(ta.scrollHeight, 7 * 22);  // ~7 lines @ 22px line-height
-    ta.style.height = `${Math.max(48, next)}px`;
+    ta.style.height = `${Math.max(40, next)}px`;
   }, [text]);
 
   function submit() {
@@ -218,12 +219,17 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
         </div>
       )}
 
+      {/* Single-line arrangement (2026-08-18 per operator): attach · input ·
+          send on ONE row, buttons bottom-aligned so the textarea can still
+          grow into multiple lines above them. The old layout stacked the
+          textarea over a second toolbar row (attach + shortcut hint + send);
+          the hint went away with the row. */}
       <div className={`
         relative rounded-2xl border border-rule
         bg-transparent backdrop-blur-md
         shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]
         transition-all
-        ${compact ? "px-3 pt-2 pb-2" : "px-4 pt-3 pb-2.5"}
+        ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}
         ${blockedReason ? "opacity-70" : ""}
       `}>
         {/* Attachments row */}
@@ -241,69 +247,63 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           )}
         </AnimatePresence>
 
-        <textarea
-          ref={taRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onKeyDown}
-          onFocus={(e) => {
-            // iOS Safari: when the virtual keyboard opens, the composer can
-            // be pushed off-screen. Wait a tick for the keyboard animation
-            // to settle, then scroll the textarea into view. TOUCH DEVICES
-            // ONLY — on desktop there is no keyboard, and this smooth
-            // scroll fired on the programmatic focus that happens when the
-            // Ask CFO AI button opens the tab, visibly gliding the page on
-            // entry (2026-07-25 probe).
-            if (!window.matchMedia("(pointer: coarse)").matches) return;
-            const el = e.currentTarget;
-            window.setTimeout(() => {
-              try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
-              catch { /* older browsers — ignore */ }
-            }, 250);
-          }}
-          placeholder={blockedReason ? "Chat is paused — see banner above" : placeholder}
-          rows={1}
-          disabled={hardDisabled}
-          data-testid="chat-input"
-          aria-label="Ask CFO AI"
-          className="
-            w-full resize-none bg-transparent
-            text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
-            placeholder:text-ink-mute focus:outline-none focus-visible:shadow-none
-            disabled:opacity-60
-            min-h-[48px] max-h-[170px]
-          "
-        />
+        <div className="flex items-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={hardDisabled}
+            data-testid="chat-attach"
+            aria-label="Attach a document"
+            className="
+              inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-lg
+              text-ink-mute hover:text-ink hover:bg-bg-2/70
+              disabled:opacity-50 transition-colors
+            "
+          >
+            <Paperclip size={15} strokeWidth={1.75} />
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={ACCEPT}
+            onChange={(e) => onFiles(e.target.files)}
+            className="hidden"
+            data-testid="chat-file-input"
+          />
 
-        <div className="mt-1.5 -mx-2 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={hardDisabled}
-              data-testid="chat-attach"
-              aria-label="Attach a document"
-              className="
-                inline-flex items-center justify-center h-8 w-8 rounded-lg
-                text-ink-mute hover:text-ink hover:bg-bg-2/70
-                disabled:opacity-50 transition-colors
-              "
-            >
-              <Paperclip size={15} strokeWidth={1.75} />
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept={ACCEPT}
-              onChange={(e) => onFiles(e.target.files)}
-              className="hidden"
-              data-testid="chat-file-input"
-            />
-            <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] text-ink-mute pl-1">
-              <CornerDownLeft size={10} strokeWidth={2} />
-              <span>Enter to send · Shift+Enter for newline</span>
-            </span>
-          </div>
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+            onFocus={(e) => {
+              // iOS Safari: when the virtual keyboard opens, the composer can
+              // be pushed off-screen. Wait a tick for the keyboard animation
+              // to settle, then scroll the textarea into view. TOUCH DEVICES
+              // ONLY — on desktop there is no keyboard, and this smooth
+              // scroll fired on the programmatic focus that happens when the
+              // Ask CFO AI button opens the tab, visibly gliding the page on
+              // entry (2026-07-25 probe).
+              if (!window.matchMedia("(pointer: coarse)").matches) return;
+              const el = e.currentTarget;
+              window.setTimeout(() => {
+                try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+                catch { /* older browsers — ignore */ }
+              }, 250);
+            }}
+            placeholder={blockedReason ? "Chat is paused — see banner above" : placeholder}
+            rows={1}
+            disabled={hardDisabled}
+            data-testid="chat-input"
+            aria-label="Ask CFO AI"
+            className="
+              flex-1 min-w-0 resize-none bg-transparent py-2
+              text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
+              placeholder:text-ink-mute focus:outline-none focus-visible:shadow-none
+              disabled:opacity-60
+              min-h-[40px] max-h-[170px]
+            "
+          />
 
           {pending ? (
             <button
@@ -313,7 +313,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               aria-label="Stop generating"
               title="Stop generating"
               className="
-                inline-flex items-center justify-center h-8 w-8 rounded-lg
+                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-lg
                 ask-ai-anim-fill [animation-duration:10s]
                 border border-brand/40 text-ink
               "
@@ -328,7 +328,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               data-testid="chat-send"
               aria-label="Send message"
               className="
-                inline-flex items-center justify-center h-8 w-8 rounded-lg
+                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-lg
                 ask-ai-anim-fill [animation-duration:10s]
                 border border-brand/40 text-ink
                 disabled:[background-image:none] disabled:animate-none disabled:bg-bg-2 disabled:border-transparent disabled:text-ink-mute disabled:cursor-not-allowed

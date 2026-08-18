@@ -15,7 +15,6 @@ import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
 import { BackendStatusIndicator } from "./BackendStatusIndicator";
 import { NotificationsMenu } from "./NotificationsMenu";
-import { CurrencyToggle } from "./CurrencyToggle";
 import { LanguageToggle } from "./LanguageToggle";
 import { LearningHubMenu } from "@/components/learning/LearningHubMenu";
 import { useAuth } from "@/lib/auth";
@@ -81,7 +80,9 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
       }}
     >
       <div className="h-full px-3 sm:px-6 flex items-center gap-2 sm:gap-3">
-        {/* Mobile hamburger — 44px touch target per Apple HIG */}
+        {/* Mobile hamburger — 44px touch target per Apple HIG. (Inside the
+            native shell this whole header is skipped by AppShell; the shell
+            gets a floating burger button instead.) */}
         <button
           onClick={onOpenSidebar}
           aria-label="Open navigation"
@@ -166,16 +167,12 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
             (Guided / Subtle / Off), which used to be Settings-only. */}
         {status === "signed_in" && user && <LearningHubMenu />}
 
-        {/* Currency display toggle — sits between Ask CFO AI + AccountMenu.
-            Affects all <Money> + <MoneyValue> instances globally. Hidden
-            for unauthed visitors (no analyst surfaces to convert). */}
-        {status === "signed_in" && user && (
-          <div className="hidden sm:inline-flex">
-            <CurrencyToggle />
-          </div>
-        )}
+        {/* Currency display toggle removed from the header entirely
+            (2026-08-18, second pass) — it lives in the sidebar menu now on
+            every viewport (drawer on mobile, persistent rail on desktop).
+            See the currency row in Sidebar.tsx. */}
 
-        {/* Language toggle — compact dropdown next to CurrencyToggle.
+        {/* Language toggle — compact dropdown next to the account menu.
             Sidebar's Globe popover stays as a secondary surface (and is
             the primary one on mobile where this hides via the same
             `hidden sm:inline-flex` pattern). pickLanguageWithProfileSync
@@ -192,8 +189,12 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenAccount }: Props) {
             alerts are org-scoped, so there's nothing to show a visitor. */}
         {status === "signed_in" && user && <NotificationsMenu />}
 
+        {/* lg+ only (2026-08-18): on mobile the account entry lives in the
+            sidebar drawer (burger menu) instead — see Sidebar `inDrawer`. */}
         {status === "signed_in" && user ? (
-          <AccountMenu onOpen={onOpenAccount} />
+          <div className="hidden lg:inline-flex">
+            <AccountMenu onOpen={onOpenAccount} />
+          </div>
         ) : (
           <button
             onClick={() => navigate("/login")}

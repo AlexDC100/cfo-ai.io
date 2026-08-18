@@ -1026,6 +1026,157 @@ today's movers**, all beneath `CompanySearchPanel`.
 
 ---
 
+## 19. iOS / Android native apps — React Native hybrid shell (2026-08-05)
+
+New self-contained Expo (SDK 57) app in **`mobile/`** — own `package.json`,
+does not touch the web build. Architecture: **hybrid shell** — native bottom
+tabs (Home `/dashboard`, Chat `/chat`, Workspace `/workspace`, Markets
+`/public-companies`, Settings `/settings`), each tab a WebView into the
+deployed web app (`https://cfo-ai.io`, overridable via
+`EXPO_PUBLIC_WEB_APP_URL` for LAN dev). Feature parity with the website is by
+construction; surfaces can be rewritten natively one tab at a time later.
+Full architecture + run/EAS-build instructions in `mobile/README.md`.
+
+Native affordances in `mobile/src/WebAppScreen.tsx`: Android hardware back
+walks WebView history; external links / `mailto:` open in the system browser;
+offline detection with auto-retry on reconnect; first-load spinner; iOS file
+downloads fall back to the system browser. `mobile/src/webviewRegistry.ts`
+coordinates tabs (debounced cross-tab reload after auth changes, deep-link
+broadcast).
+
+**OAuth bridge** — Google rejects embedded WebViews (`disallowed_useragent`),
+so the shell runs OAuth in the system browser. Web side:
+`frontend/lib/nativeShell.ts` (new) + guarded branches in
+`frontend/lib/auth.tsx` — detection is `window.ReactNativeWebView`, so all of
+it is inert in a normal browser. In-shell `signInWithOAuth` uses
+`skipBrowserRedirect` + `redirectTo: cfoai://auth-callback`, posts the
+provider URL to the shell; the shell captures the redirect via
+`openAuthSessionAsync` and injects it back; `auth.tsx` finishes with
+`setSession`/`exchangeCodeForSession`. Auth transitions (`SIGNED_IN`/
+`SIGNED_OUT` only — NOT `INITIAL_SESSION`, which would reload-loop) are posted
+to the shell so other tabs reload into the new session.
+
+**⚠ One-time setup not yet done:** `cfoai://auth-callback` must be added to
+Supabase → Authentication → URL Configuration → Redirect URLs, or Google/
+Apple login in the app bounces back to the login screen (email/password
+unaffected). Also: `assets/` still has Expo placeholder icons/splash —
+replace with CFO AI branding before store submission.
+
+Verified: mobile `tsc` clean, `expo export` bundles; web `tsc --noEmit` clean,
+vitest 139 passed / 1 failed (pre-existing CommandCenter failure, confirmed
+identical with the auth.tsx change stashed).
+
+### Native tab bar removed — burger-menu-only navigation (2026-08-18)
+
+The shell's native bottom tabs are gone. `mobile/App.tsx` now renders a
+**single `WebAppScreen`** opening `HOME_PATH` (`/dashboard`, in
+`src/config.ts` — `TABS` was deleted); all navigation is the web app's own
+burger menu. `@react-navigation/native`, `@react-navigation/bottom-tabs`,
+`react-native-screens` and `@expo/vector-icons` were dropped from
+`mobile/package.json`; `WebAppScreen`'s Android back handler switched from
+`useFocusEffect` to plain `useEffect` (one always-focused screen). The
+`webviewRegistry` stays — with one WebView it's the OAuth deep-link
+forwarding path (`broadcastJavaScript`), and `reloadOtherWebViews` is a
+harmless no-op.
+
+**Shell chrome iterations (same day) — final state: floating burger only.**
+Two intermediate designs were built and then REMOVED the same day per
+operator direction (git history has them): (a) a native bottom action bar
+holding a burger button, and (b) per-route floating action buttons
+("Import" / "New chat") driven by a `NativeShellBridge` route-reporting
+protocol. All of it is gone — `NativeShellBridge.tsx`, `BottomActionBar.tsx`,
+the `{ type: "route" }` shell message, the `cfo:native-action` event, the
+`cfo:request-doc-upload` listener in FinancialStatements, and the
+`@expo/vector-icons` dependency were deleted. What REMAINS:
+
+- **No TopHeader inside the shell.** `AppShell` skips `<TopHeader>` when
+  `isNativeShell()` — wordmark, notifications bell, Ask CFO AI pill and
+  backend dot are gone in the app; `<main>` drops its `pt-16` and the
+  drawer skips its header-height spacer. Browser rendering is unchanged.
+  Flagged consequence: notifications have NO surface in the shell (Ask CFO
+  AI is still the Chat menu item).
+- **One navigation affordance: a floating burger button pinned top-left —
+  rendered NATIVELY by the shell** (2026-08-18, third pass: it was
+  web-`fixed` first, but fixed/sticky elements drift during fling scrolls
+  and overscroll in mobile WebViews — a native overlay physically cannot
+  move with web scrolling). Protocol: AppShell posts
+  `{ type: "chrome", burger }` (true on mount, false while the drawer is
+  open and on unmount); `WebAppScreen` renders the button (safe-area
+  inset + 12, drawn with plain Views — no icon dependency) and a tap
+  injects a `cfo:native-action` CustomEvent that AppShell maps to
+  `setSidebarOpen(true)`. `onLoadStart` hides it so a reload into /login
+  can't keep a stale button. Import/new-chat happen through each page's
+  own in-page buttons.
+- **The chat composer is `fixed` below lg** (`lg:sticky` above): sticky
+  visibly lagged behind during touch scrolling — mobile compositors
+  re-anchor sticky per frame and repaint late; fixed is viewport-anchored.
+  The keyboard-inset offset applies to both modes.
+- **Black shell chrome.** The status-bar strip read GREEN from the dark
+  palette's tinted background (`#0C1210`); `WebAppScreen`'s root
+  SafeAreaView is now always `#000000` with `StatusBar style="light"`
+  (the web app is dark-only, so black always matches).
+
+Verified live on the Pixel_9_Pro emulator against a local Vite + Metro
+stack (note: Windows Firewall blocks the emulator→LAN-IP Metro path on
+this machine; `adb reverse tcp:8081 tcp:8081` is the fix).
+
+**Chat surface, mobile pass (same day).** `CFOEmptyState`'s suggested-
+question grid is `grid-cols-2` below lg (was a stacked single column on
+phones; lg keeps 4-up). `CFOComposer` was rearranged to a SINGLE LINE —
+attach · textarea · send on one bottom-aligned row (the textarea still
+auto-grows to ~7 lines above the buttons); the second toolbar row and its
+"Enter to send" hint are gone. The composer runs nearly edge-to-edge on
+phones (`composerPadX` px-4 → px-2 below sm in `CFOChatShell`).
+
+**On-screen keyboard handling in chat (same day).** New
+`chat/useKeyboardInset.ts` measures how much of the layout viewport an
+OVERLAYING keyboard covers (visualViewport; re-measures on its `scroll`
+so the value stays right while the page scrolls). `CFOChatShell` (page
+variant) applies it as the sticky composer block's inline `bottom` — the
+input rides above the keyboard even mid-scroll — and hides the context-
+pill/disclosure row while the keyboard is up (inset > 0, or composer
+focused on a coarse pointer), so the "CFO AI can answer general
+questions…" line drops under the keyboard instead of eating the space
+above it. When the platform resizes the whole viewport instead (Android
+adjustResize) the inset is 0 and sticky already works; the focus signal
+still hides the row.
+
+**Burger drawer pass 2 (same day, per operator).** The Currency row moved
+to the TOP of the sidebar nav — directly under the month stepper, above
+the Intelligence divider (both drawer AND desktop rail; hidden collapsed).
+The drawer no longer renders the System group at all (Settings + Website
+rows) — Settings is reachable through the account row, which opens the
+Command Center account surface (`onOpenAccount`, verified on-device). The
+desktop rail keeps its System group.
+
+**Generated file previews got a "← Back" button (same day).** Every
+document.write preview (dashboard example trial balances + official
+template + sales example in `TemplateDownloadCard`/`FinancialStatements`,
+budget template in `BudgetUploadCard`, staged/uploaded file previews in
+`lib/stagedFilePreview.ts`) now injects `previewBackButtonHtml()` from new
+`lib/previewChrome.ts`. Reason: inside the shell the WebView disables
+multiple windows, so these "new tab" previews REPLACE the app with no way
+back. The button covers all cases: real popup → `window.close()`;
+same-WebView → `history.back()`; neither → `location.replace('/dashboard')`
+after a 400ms grace period cancelled by `pagehide`. Verified on-device:
+View example → Back lands back in the app.
+
+Web-side counterpart: **account + currency moved from the TopHeader into the
+burger menu.** In `TopHeader.tsx` the signed-in `<AccountMenu>` avatar is
+`hidden lg:inline-flex` (desktop-only) and the `<CurrencyToggle>` was
+removed from the header ENTIRELY (second pass, same day, per operator) —
+the sidebar menu is its only home now, on every viewport. In `Sidebar.tsx`,
+a section between the System group and the footer (`user &&
+!effectivelyCollapsed`; hidden in the collapsed rail like the month
+stepper) renders a "Currency" row with the same global `CurrencyToggle` in
+BOTH the mobile drawer and the desktop rail, plus — drawer-only — an
+account row (initials avatar + name + email,
+`data-testid="sidebar-account"`) wired via a new `onOpenAccount` prop:
+AppShell's drawer instance closes the drawer and opens the **Command
+Center**, the same surface the desktop avatar opens.
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*

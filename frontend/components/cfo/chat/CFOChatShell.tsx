@@ -18,6 +18,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useKeyboardInset } from "./useKeyboardInset";
 import { CFOComposer, type CFOComposerHandle } from "./CFOComposer";
 import { CFOMessageList } from "./CFOMessageList";
 import { CFOEmptyState, WORKSPACE_PROMPTS, GENERAL_PROMPTS } from "./CFOEmptyState";
@@ -104,6 +105,19 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // (2026-07-26 per operator).
   const [chatQuery, setChatQuery] = useState("");
   const interactedRef = useRef(false);
+  // On-screen keyboard handling (2026-08-18 per operator, full page only):
+  // `keyboardInset` lifts the sticky composer above an OVERLAYING keyboard
+  // (and keeps it there while the conversation scrolls — the hook re-measures
+  // on visualViewport scroll). `composerFocused` hides the context-pill/
+  // disclosure row under the input while typing on touch devices, so the
+  // "CFO AI can answer general questions…" line sits under the keyboard
+  // instead of eating the little space above it.
+  const keyboardInset = useKeyboardInset();
+  const [composerFocused, setComposerFocused] = useState(false);
+  const coarsePointer =
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches;
+  const keyboardOpen = keyboardInset > 0 || (coarsePointer && composerFocused);
   // Once per SESSION, not per mount (2026-07-26 per operator). The freeze is
   // an entrance treatment for the first time you land on the tab; re-applying
   // it on every remount meant leaving /chat and coming back froze the typing
@@ -376,7 +390,9 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // prompt padding) so the input box spans the same content box as the bubbles
   // — its right edge then lines up with the right-aligned user message bubbles,
   // while still honoring the px-6 side padding.
-  const composerPadX = noConversations ? "px-4 sm:px-8 lg:px-10" : "px-4 sm:px-6 lg:px-8";
+  // px-2 on phones (2026-08-18 per operator: the input should run nearly
+  // edge-to-edge); sm+ keeps the message-list alignment described above.
+  const composerPadX = noConversations ? "px-2 sm:px-8 lg:px-10" : "px-2 sm:px-6 lg:px-8";
   return (
     // Cancel AppShell's large bottom padding for this page only (it lives on
     // the shared content wrapper) so the composer sits near the bottom instead
@@ -480,10 +496,25 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         )}
         </AnimatePresence>
 
-        {/* Composer + context pill are pinned to the bottom of the viewport
-            (sticky) so they stay visible while the conversation scrolls behind
-            them. The gradient fades the conversation into the input. */}
-        <div className={`sticky bottom-0 z-10 ${composerPadX} bg-gradient-to-t from-bg via-bg/90 to-transparent pt-6 pb-1`}>
+        {/* Composer + context pill pinned to the bottom of the viewport.
+            FIXED below lg (2026-08-18 per operator: sticky visibly lagged
+            behind during touch scrolling — mobile compositors re-anchor
+            sticky per frame and repaint it late; fixed is viewport-anchored
+            and never moves). lg+ keeps sticky, which the multi-column
+            desktop layout needs (fixed would ignore the sidebar offsets).
+            The gradient fades the conversation into the input. The inline
+            `bottom` lifts the block above an overlaying on-screen keyboard
+            (0 on desktop / when closed). */}
+        <div
+          className={`fixed inset-x-0 lg:sticky lg:inset-x-auto z-10 ${composerPadX} bg-gradient-to-t from-bg via-bg/90 to-transparent pt-6 pb-1`}
+          style={{ bottom: keyboardInset }}
+          onFocusCapture={() => setComposerFocused(true)}
+          onBlurCapture={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setComposerFocused(false);
+            }
+          }}
+        >
           {/* Quick-prompt pills — only inside an active conversation (the empty
               state shows the full prompt cards). Single scrollable row so they
               stay compact above the input. */}
@@ -523,8 +554,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           {/* Context pill + general-answer disclosure — in line, under the input.
               The pill renders only when a workspace is grounded; the
               "No workspace loaded — open-domain mode" variant was removed
-              per the operator (2026-07-25). */}
-          <div className="max-w-[1760px] pt-0.5 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              per the operator (2026-07-25). Hidden while the on-screen
+              keyboard is up (2026-08-18) — on a phone this row would eat
+              the sliver of space above the keyboard; conceptually it drops
+              "under" it and returns when the keyboard closes. */}
+          <div className={`max-w-[1760px] pt-0.5 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1 ${keyboardOpen ? "hidden" : ""}`}>
             {hasPeriod && (
               <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-bg-2 border border-rule text-[11.5px] text-ink-soft whitespace-nowrap">
                 {contextLine}
