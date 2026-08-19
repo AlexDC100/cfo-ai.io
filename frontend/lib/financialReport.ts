@@ -109,7 +109,36 @@ export interface PriorPeriod {
 // Absent on legacy periods (pre-bs_v2), where every consumer keeps its
 // existing fallback path unchanged.
 
-export type CanonicalBsStatus = "BALANCED" | "MINOR_DRIFT" | "MATERIAL_IMBALANCE";
+export type CanonicalBsStatus =
+  | "BALANCED"
+  | "MINOR_DRIFT"
+  | "MATERIAL_IMBALANCE"
+  // RECONCILIATION FLOW (contract §"RECONCILIATION FLOW") — a fourth,
+  // explicitly-entered state. Never produced by the build itself; only by
+  // the validator-gated POST /api/period/{id}/reconcile. RECONCILED is
+  // never BALANCED — altered numbers can't claim the pristine verdict.
+  | "RECONCILED";
+
+/** Receipt stored alongside an accepted reconciliation (contract §4).
+ *  Keyed by provenance content_hash server-side; the FE renders it as the
+ *  one-line receipt under the green chip and as the synthetic row's
+ *  tooltip (rationale + origin + timestamp). Source cents are NEVER
+ *  overwritten — this object describes the reversible synthetic entry. */
+export interface CanonicalBsReconciliation {
+  content_hash?: string;
+  original_difference: number;
+  applied_delta: number;
+  target_row_id?: string;
+  origin: "deterministic" | "llm_proposed";
+  diagnosis_code?: string | null;
+  /** Human-readable reason for the adjusting entry (proposal rationale). */
+  rationale?: string | null;
+  model?: string | null;
+  prompt_version?: string | null;
+  applied_at?: string | null;
+  applied_by?: string | null;
+  reversible?: boolean;
+}
 
 export interface CanonicalBsExtraction {
   method: "deterministic" | "llm";
@@ -150,6 +179,10 @@ export interface CanonicalBsRow {
   opening: number | null;
   /** Drill-down to envelope leaves (traceability). */
   leaf_ids?: string[];
+  /** RECONCILIATION FLOW — true only on the "Diferențe de reconciliere"
+   *  adjusting row injected by an accepted reconciliation (leaf_ids []).
+   *  Renders with a visible marker + tooltip; never a source figure. */
+  synthetic?: boolean;
 }
 
 export interface CanonicalBsSection {
@@ -192,6 +225,13 @@ export interface CanonicalBs {
   excluded?: { code: string; reason?: string }[];
   invariants?: Record<string, unknown>;
   reprocessed?: { changed: boolean; previous_totals?: Record<string, number> };
+  /** RECONCILIATION FLOW trigger — computed deterministically on every
+   *  build: true iff 0 < |difference| / max(assets, e+l) ≤ 0.1% AND no
+   *  accepted reconciliation is stored. Drives the amber "Off by …"
+   *  chip + Reconcile button; the FE never derives this itself. */
+  reconcile_offer?: boolean;
+  /** Present iff status is RECONCILED — the stored, reversible receipt. */
+  reconciliation?: CanonicalBsReconciliation | null;
 }
 
 /** Display geometry for one canonical section id — which side of the
@@ -1706,7 +1746,13 @@ export function renderReportHtml(s: Statements): string {
             }</div>`
           : cbs.status === "MINOR_DRIFT"
             ? `<div class="commentary"><strong>Balance check: minor drift.</strong> Assets − (Equity + Liabilities) = ${money(cbs.difference, s.currency)}.</div>`
-            : `<div class="commentary"><strong>Balance check: balanced.</strong> Assets = Equity + Liabilities (engine-verified, mapping ${escapeHtml(cbs.mapping_version)}).</div>`;
+            : cbs.status === "RECONCILED"
+              // RECONCILED is machine-distinct from BALANCED and must never
+              // export as the pristine verdict (verifier kill-criterion).
+              // The receipt travels with the report: original delta, the
+              // adjusting line, origin, timestamp.
+              ? `<div class="commentary"><strong>Balance check: reconciled.</strong> A source imbalance of ${money(cbs.reconciliation?.original_difference ?? 0, s.currency)} was closed by the visible adjusting line "Diferențe de reconciliere" (${money(cbs.reconciliation?.applied_delta ?? 0, s.currency)}, ${escapeHtml(cbs.reconciliation?.origin ?? "deterministic")}, ${escapeHtml(cbs.reconciliation?.applied_at ?? "")}) — verified against source, reversible. Reconciled ≠ balanced; mapping ${escapeHtml(cbs.mapping_version)}.</div>`
+              : `<div class="commentary"><strong>Balance check: balanced.</strong> Assets = Equity + Liabilities (engine-verified, mapping ${escapeHtml(cbs.mapping_version)}).</div>`;
       return `
       <table class="fin">
         <thead><tr><th>Balance Sheet</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>

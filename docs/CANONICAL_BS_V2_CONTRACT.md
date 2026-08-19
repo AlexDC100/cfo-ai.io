@@ -153,3 +153,126 @@ per-period report (JSON + MD). Apply mode: archive the old envelope under
 timestamp), write the new envelope + canonical_bs, set
 `canonical_bs.reprocessed: { "changed": true|false, "previous_totals": {...} }`.
 FE shows a "Figures updated by engine vX" note on changed periods. Never a silent overwrite.
+
+## RECONCILIATION FLOW (additive, 2026-08-15) — spec'd by the operator
+
+A calm, reversible, validator-gated fix for files that land slightly off. The
+engine owns arithmetic; AI may only PROPOSE; the deterministic validator decides.
+No path produces BALANCED from altered numbers — RECONCILED is a distinct state.
+
+Trigger (deterministic, computed on every build; served on canonical_bs):
+- `reconcile_offer: true` iff 0 < |difference| / max(assets, equity_plus_liabilities)
+  <= 0.001 (0.1%) AND no accepted reconciliation is stored. Above 0.1%: no offer
+  (needs a human); exactly 0: BALANCED, no offer.
+
+Action (only on explicit user request — POST /api/period/{id}/reconcile):
+1. DETERMINISTIC diagNOSIS first, in order: (a) rounding-cent drift (|difference|
+   <= 1 RON x number of sections touched); (b) a single unmapped/unclassified
+   account whose |balance| equals |difference| to the cent; (c) a sign/contra
+   side-flip whose 2x|balance| equals |difference|. Found -> that is the proposal.
+2. Only if inconclusive: AI proposes {target_account, amount_cents, rationale} —
+   a PROPOSAL OBJECT, never a mutation. Model + prompt_version recorded. AI
+   unavailable/failing -> inconclusive -> hand off to human mapping (409 response
+   with the diagnosis; FE shows it).
+3. VALIDATOR GATE: re-run the full canonical build against the SOURCE figures
+   with the proposed adjusting entry applied as a SYNTHETIC row ("Diferențe de
+   reconciliere", synthetic: true, leaf_ids []). Accept ONLY if the result closes
+   to EXACTLY 0 cents. Otherwise reject -> stay IMBALANCED + diagnosis.
+4. Acceptance -> status "RECONCILED" (never BALANCED), served with:
+   `reconciliation: { content_hash, original_difference, applied_delta,
+   target_row_id, origin: "deterministic"|"llm_proposed", diagnosis_code,
+   model, prompt_version, applied_at, applied_by, reversible: true }`.
+   The synthetic row carries a visible marker; every adjusted figure tooltips
+   its reason. Undo: POST /api/period/{id}/reconcile/undo -> removes the stored
+   entry, next build serves the original status.
+
+Persistence & refresh stability: the accepted reconciliation persists in
+`assembled_canonical_v1.reconciliation` KEYED BY provenance.content_hash.
+Serving path applies it only when the hash matches the period's current source
+document — a re-scan of a different file drops it automatically. Hard refresh
+re-serves RECONCILED with its receipt; source cents are NEVER overwritten.
+
+Status vocabulary note: the existing ladder (BALANCED / MINOR_DRIFT /
+MATERIAL_IMBALANCE) is unchanged; RECONCILED is a fourth, explicitly-entered
+state. The operator-spec names "IMBALANCED" ~= MINOR_DRIFT|MATERIAL_IMBALANCE.
+
+## AUTO-RECONCILE addendum (revised operator spec, 2026-08-19)
+
+Reconciliation is now a FULLY AUTOMATIC server-side stage: extract →
+classify → validate → **auto-reconcile** → persist snapshot → serve all
+views. Users never see a sub-threshold imbalance on ANY page — the client
+is never sent an intermediate unreconciled state, and there is NO manual
+Reconcile button. Everything above in "RECONCILIATION FLOW" still holds
+(engine owns arithmetic, AI proposes only, validator accepts ONLY an
+exact 0-cent close, source cents never overwritten, RECONCILED ≠
+BALANCED) — this addendum revises WHO triggers it and WHEN.
+
+**The stage** (`engine.api._reconcile.auto_reconcile_envelope`, called by
+`pipeline.stage_persist` between the canonical build and the SINGLE
+envelope write):
+- ratio == 0 → BALANCED, no-op.
+- 0 < |difference| / max(assets, E+L) <= 0.001 AND status MINOR_DRIFT AND
+  deterministic extraction AND no suppression entry matches → diagnose:
+  DETERMINISTIC first, in order **R1** rounding cents (|diff| ≤ 1 RON ×
+  sections touched) → **R2** single unmapped == delta → **R3** sign/contra
+  flip (2×|balance| == |diff|) → **R_DUP_TOTALS_ROW** duplicated totals
+  row (exactly one D5_DUPLICATE_ROWS pair appearing twice whose removal
+  closes to 0, i.e. |amount| == |diff| to the cent); AI proposal ONLY if
+  inconclusive. The validator accepts ONLY an exact-zero close from
+  source cents.
+- accepted → status **RECONCILED** (never BALANCED) written into the SAME
+  envelope the persist writes (`reconciliation` receipt: origin
+  "deterministic"|"llm_proposed", applied_by "system:auto-reconcile",
+  plus `parser_version` + `mapping_version` on the record) — a freshly
+  scanned period is already RECONCILED on its very first serving.
+- rejected proposal / AI unavailable / no key → honest MINOR_DRIFT +
+  `needs_review: true` stamped on the SERVED object (a
+  `reconciliation_auto` marker keyed by content_hash+versions persists
+  the attempt); calm, never an error, never a fake zero.
+- ratio > 0.001 → no auto-fix (needs a human).
+
+**PLACEMENT RULE** — one visible line "Diferențe de reconciliere". The
+receipt carries `placement: "balance_sheet" | "pnl"` (the value the FE
+strip consumes) **and** `placement_detail: "bs" | "pl_other_income" |
+"pl_other_expense"` (the operator vocabulary). A class-6/7 diagnosed
+cause routes the line to the P&L by the delta's sign (diff > 0 → other
+income, diff < 0 → other expense), reaching the BS via the RESULT row —
+the serve path adjusts `current_year_profit`/`current_year_loss` by the
+delta (leaf note: `reconciliation_delta` + `reconciliation_note` on the
+row; a statement with no result row gets the synthetic row in equity
+instead) AND `/api/period` serves the line on `statements.assembled_pl`
+as `reconciliation_adjustment` `{label, placement (3-way detail), amount
+(signed effect on the result), synthetic: true}`. Any other cause is a
+balance-sheet line (prior behavior). Never smear, never alter extracted
+cents.
+
+**SNAPSHOT / carry-forward** — the reconciliation state is keyed by
+content_hash + parser_version + mapping_version. `stage_persist` replaces
+the whole envelope on every run, so `carry_forward_reconciliation` copies
+`reconciliation` + `reconciliation_history` + `reconciliation_suppressed`
+from the old envelope when ALL three key parts match (same file, same
+engine build) and drops them otherwise (logged). Hard refresh serves the
+identical snapshot; recompute happens only on new file, version bump, or
+explicit re-scan.
+
+**UNDO** — restores the raw state (the TRUE source imbalance) and writes
+a suppression entry `{content_hash, parser_version, mapping_version,
+suppressed_at, suppressed_by}` under
+`assembled_canonical_v1.reconciliation_suppressed`; the auto stage and
+POST /reconcile honor it, so a re-scan cannot silently re-apply against
+the user's explicit choice. The suppression clears on file/version change
+(the key stops matching) and on an explicit POST /reconcile (the call IS
+the override; matching entries are removed, logged).
+
+**`reconcile_offer` (REVISED semantics)** — the field survives for API
+compatibility but is now `true` ONLY in the needs-review situations where
+the auto stage could not fix (rejected proposal / AI unavailable), i.e.
+exactly when `needs_review: true` is served. The FE no longer renders a
+button from it. POST /api/period/{id}/reconcile stays mounted as an
+ops/manual trigger with unchanged refusal semantics (409 + diagnosis).
+
+**UI** — calm green "Balanced"-family chip with a subtle "· auto-adjusted
+{X}" micro-caption; tap reveals a one-line receipt + Undo. Machine truth
+(API, exports) says RECONCILED. Audit record = the receipt: original
+delta, cause (`diagnosis_code` + `target_account`), method (`origin`),
+`model` + `prompt_version` when AI was consulted, timestamps, actor.

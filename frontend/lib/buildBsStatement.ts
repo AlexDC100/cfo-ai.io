@@ -17,6 +17,7 @@ import type { BSLine, BSSection, BSStatement } from "./bsStructure";
 import {
   canonicalBsSectionMeta,
   type CanonicalBs,
+  type CanonicalBsReconciliation,
   type CanonicalBsStatus,
 } from "./financialReport";
 
@@ -62,6 +63,25 @@ interface BuildArgs {
 
 // ─── canonical_bs v2 pass-through ────────────────────────────────────────
 
+/** AUTO-RECONCILE (revised operator spec, 2026-08-19) — fields the engine
+ *  serves on top of the base contract types. The base types live in
+ *  financialReport.ts (owned by the export workstream); these widenings
+ *  let the FE read the new served flags without touching that file, and
+ *  every field is optional so pre-auto-stage envelopes stay valid. */
+export type CanonicalBsReconciliationExt = CanonicalBsReconciliation & {
+  /** Where the "Diferențe de reconciliere" line lives: class-6/7 causes
+   *  route to the P&L (reaching the BS via the result line — the BS row
+   *  may then be absent), everything else is a balance-sheet line. */
+  placement?: "balance_sheet" | "pnl";
+};
+export type CanonicalBsExt = CanonicalBs & {
+  /** Served when the auto-reconcile stage ran and was REJECTED by the
+   *  validator (or the diagnosis was inconclusive): honest imbalance +
+   *  "needs manual mapping". Never accompanies RECONCILED/BALANCED. */
+  needs_review?: boolean;
+  reconciliation?: CanonicalBsReconciliationExt | null;
+};
+
 /** Engine balance verdict attached to the view-model on the canonical
  *  path — BSStatementView renders its status strip from this verbatim.
  *  MATERIAL_IMBALANCE is the blocking state: the view must render it red
@@ -73,9 +93,46 @@ export interface BSCanonicalMeta {
   /** totals.assets — denominator for the strip's % readout (the one
    *  derived display value the contract explicitly sanctions). */
   totalAssets: number;
+  /** totals.equity_plus_liabilities — kept for % readouts that mirror
+   *  the engine's max(assets, e+l) denominator. */
+  equityPlusLiabilities?: number;
   /** Deterministic D0–D8 entries; empty when status is BALANCED. */
   diagnosis: { code: string; detail: string }[];
   mappingVersion: string;
+  /** AUTO-RECONCILE — engine-served flag: the automatic stage could not
+   *  close the drift (validator reject / inconclusive diagnosis). Drives
+   *  the calm amber "Needs manual mapping" panel. Never derived FE-side. */
+  needsReview: boolean;
+  /** Present iff status is RECONCILED — receipt for the green chip's
+   *  micro-caption + tap-receipt and the synthetic row tooltip. */
+  reconciliation?: CanonicalBsReconciliationExt;
+}
+
+/** Extract the strip's view-meta from a canonical_bs object verbatim.
+ *  Shared by the builder below and by the undo POST response
+ *  (BsCanonicalStatusStrip swaps its local meta from the response). */
+export function canonicalMetaFromBs(cbs: CanonicalBs): BSCanonicalMeta {
+  const ext = cbs as CanonicalBsExt;
+  return {
+    status: cbs.status,
+    difference: cbs.difference,
+    totalAssets: cbs.totals.assets,
+    equityPlusLiabilities: cbs.totals.equity_plus_liabilities,
+    diagnosis: (cbs.diagnosis ?? []).map((d) => ({ code: d.code, detail: d.detail })),
+    mappingVersion: cbs.mapping_version,
+    needsReview: ext.needs_review === true,
+    reconciliation: (ext.reconciliation as CanonicalBsReconciliationExt | null) ?? undefined,
+  };
+}
+
+/** Tooltip for the synthetic "Diferențe de reconciliere" row: rationale ·
+ *  origin · timestamp, straight from the stored receipt (no invention). */
+function syntheticNoteFrom(rec: CanonicalBsReconciliation | null | undefined): string | undefined {
+  if (!rec) return undefined;
+  const parts = [rec.rationale, rec.origin, rec.applied_at].filter(
+    (p): p is string => typeof p === "string" && p.length > 0,
+  );
+  return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
 /** buildBSStatement return shape — `canonical` is present iff the period
@@ -92,6 +149,7 @@ export type BSStatementWithCanonical = BSStatement & { canonical?: BSCanonicalMe
  */
 function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWithCanonical {
   // Group rows per section id, preserving the object's own row order.
+  const syntheticNote = syntheticNoteFrom(cbs.reconciliation);
   const rowsBySection = new Map<string, BSLine[]>();
   for (const row of cbs.rows) {
     const line: BSLine = {
@@ -105,6 +163,12 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
       opening: row.opening ?? row.amount,
       closing: row.amount,
       style: "item",
+      // RECONCILIATION FLOW — the adjusting row carries a visible marker
+      // + tooltip (rationale · origin · timestamp). Pass-through only:
+      // the engine decides which row is synthetic, never the FE.
+      ...(row.synthetic === true
+        ? { synthetic: true, ...(syntheticNote ? { syntheticNote } : {}) }
+        : {}),
     };
     const bucket = rowsBySection.get(row.section);
     if (bucket) bucket.push(line);
@@ -147,13 +211,7 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
     totalEquityLiab: { opening: totalEL, closing: totalEL, delta: 0 },
     // THE drift — assets − (equity + liabilities), straight from the object.
     balanceCheck: cbs.difference,
-    canonical: {
-      status: cbs.status,
-      difference: cbs.difference,
-      totalAssets: cbs.totals.assets,
-      diagnosis: (cbs.diagnosis ?? []).map((d) => ({ code: d.code, detail: d.detail })),
-      mappingVersion: cbs.mapping_version,
-    },
+    canonical: canonicalMetaFromBs(cbs),
   };
 }
 

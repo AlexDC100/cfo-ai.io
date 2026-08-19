@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 
 from . import _detect
 from . import _org
+from . import _reconcile
 from . import _supabase
 from . import _usage_limits
 from . import _valuation
@@ -1282,6 +1283,11 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
 
     period_start = period_end  # we don't have start info — treat as point-in-time
 
+    # AUTO-RECONCILE addendum — the previously-persisted period row (when
+    # one exists) supplies the OLD envelope so reconciliation state can be
+    # carried forward on a same-file re-scan (see step 5 below).
+    prior_period_row: Optional[Dict[str, Any]] = None
+
     with _supabase.admin() as admin_client:
         # 1. Lookup existing period for this (org, period_end, source_document_id).
         # Post-Bug-A: the DB enforces UNIQUE (org_id, period_end, source_document_id);
@@ -1299,6 +1305,7 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
         )
         if existing:
             period_id = existing[0]["id"]
+            prior_period_row = existing[0]
             # Keep source_document_id pointing at the original. Update mutable
             # fields only — extraction_confidence reflects the latest analysis.
             admin_client.update(
@@ -1336,6 +1343,7 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             )
             if month_periods:
                 period_id = month_periods[0]["id"]
+                prior_period_row = month_periods[0]
                 admin_client.update(
                     "financial_periods",
                     {
@@ -1379,6 +1387,7 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                     if not rows:
                         raise
                     period_id = rows[0]["id"]
+                    prior_period_row = rows[0]
 
         # 3. Pin the document to the resolved period. Documents drive period
         #    ownership now — multiple docs per period.
@@ -1453,6 +1462,49 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 "content_hash": doc.get("content_hash"),
                 "written_at": datetime.now(timezone.utc).isoformat(),
             }
+            # AUTO-RECONCILE (contract addendum, 2026-08-19) — between the
+            # canonical build and the SINGLE envelope write below:
+            #   1. Same-file carry-forward: a re-scan of the SAME file
+            #      (content_hash + parser_version + mapping_version all
+            #      matching) keeps its reconciliation, history and
+            #      undo-suppression instead of dropping them with the
+            #      replaced envelope — no flicker, no re-run of the AI.
+            #   2. The automatic stage: MINOR_DRIFT within the 0.1% gate
+            #      is diagnosed (deterministic first, AI proposal only if
+            #      inconclusive), validated (exact 0-cent close only) and
+            #      written into THIS envelope before the persist — so the
+            #      period is already RECONCILED on its very first serving
+            #      and the client never sees an intermediate unreconciled
+            #      sub-threshold state. Failure to fix → honest
+            #      MINOR_DRIFT + needs_review on the served object (calm,
+            #      not an error). Never raises.
+            try:
+                _carried = _reconcile.carry_forward_reconciliation(
+                    canonical,
+                    (prior_period_row or {}).get("assembled_canonical_v1"),
+                )
+                if _carried != "nothing_to_carry":
+                    logger.info(
+                        "[stage_persist] reconciliation carry-forward=%s "
+                        "for period %s",
+                        _carried,
+                        period_id,
+                    )
+                _auto = _reconcile.auto_reconcile_envelope(canonical)
+                if _auto.get("outcome") not in ("balanced_noop",):
+                    logger.info(
+                        "[stage_persist] auto-reconcile outcome=%s for "
+                        "period %s: %s",
+                        _auto.get("outcome"),
+                        period_id,
+                        _auto,
+                    )
+            except Exception:  # noqa: BLE001 — persist must never break
+                logger.exception(
+                    "[stage_persist] auto-reconcile stage failed "
+                    "(non-fatal) for period %s",
+                    period_id,
+                )
             try:
                 admin_client.update(
                     "financial_periods",
@@ -3706,12 +3758,48 @@ def _apply_envelope_truth_to_statements(
     try:
         _env = period.get("assembled_canonical_v1") or {}
         _served_env = statements.get("assembled_canonical_v1")
-        _cbs = _env.get("canonical_bs")
+        # AUTO-RECONCILE (contract addendum): the served canonical_bs is
+        # a pure function of the persisted envelope — the stored accepted
+        # reconciliation (written by the automatic persist-seam stage or
+        # the ops POST, keyed by provenance.content_hash) is applied to a
+        # SERVED COPY (status RECONCILED, difference 0, visible line +
+        # receipt), and `needs_review` / `reconcile_offer` (true ONLY in
+        # the needs-review state where auto could not fix) are stamped on
+        # every serving. The persisted canonical_bs itself is never
+        # touched (source cents never overwritten), and the deterministic
+        # build path never sees any of this.
+        _cbs = _reconcile.served_canonical_bs(_env)
         if isinstance(_cbs, dict) and isinstance(_cbs.get("totals"), dict):
             # canonical_bs v2 path — serve verbatim + totals from it.
             statements["canonical_bs"] = _cbs
             if isinstance(_served_env, dict):
                 _served_env["canonical_bs"] = _cbs
+            # PLACEMENT RULE (auto-reconcile addendum): a P&L-placed
+            # reconciliation ("Diferențe de reconciliere" caused by a
+            # class 6/7 account) reaches the BS through the result row;
+            # the visible LINE is served on `statements.assembled_pl`
+            # as `reconciliation_adjustment` so the P&L view renders it.
+            # `amount` is the signed effect on the result (+ income /
+            # − expense); extracted P&L figures are never altered.
+            _rec = _cbs.get("reconciliation")
+            if (
+                _cbs.get("status") == "RECONCILED"
+                and isinstance(_rec, dict)
+                and str(_rec.get("placement") or "") == _reconcile.PLACEMENT_PL
+            ):
+                _a_pl = statements.get("assembled_pl")
+                if isinstance(_a_pl, dict):
+                    _a_pl["reconciliation_adjustment"] = {
+                        "label": _reconcile.SYNTHETIC_ROW_LABEL,
+                        "placement": _rec.get("placement_detail")
+                        or (
+                            _reconcile.PLACEMENT_DETAIL_PL_INCOME
+                            if float(_rec.get("applied_delta") or 0) >= 0
+                            else _reconcile.PLACEMENT_DETAIL_PL_EXPENSE
+                        ),
+                        "amount": float(_rec.get("applied_delta") or 0.0),
+                        "synthetic": True,
+                    }
             _t = _cbs["totals"]
             _ta = float(_t.get("assets") or 0.0)
             _te = float(_t.get("equity") or 0.0)
@@ -4301,6 +4389,11 @@ class ReviewReanalyzeRequest(BaseModel):
 
 def build_router() -> APIRouter:
     router = APIRouter(tags=["pipeline"])
+
+    # RECONCILIATION FLOW (docs/CANONICAL_BS_V2_CONTRACT.md addendum):
+    # POST /api/period/{id}/reconcile + /reconcile/undo. `_require_jwt`
+    # is injected so _reconcile never imports back into this module.
+    _reconcile.register_routes(router, require_jwt=_require_jwt)
 
     # ── FX rates endpoint (currency toggle, BNR proxy) ────────────────
     # Returns {base, rates, source, as_of, fetched_at, stale}. Backend

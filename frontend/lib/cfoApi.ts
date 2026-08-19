@@ -5,6 +5,8 @@
 // truth for the executive_summary block, and the others are scoped to their
 // section's data.
 
+import type { CanonicalBs } from "./financialReport";
+
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
@@ -291,6 +293,25 @@ function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return callUrl<T>(`${API_URL}${path}`, init);
 }
 
+/** RECONCILIATION FLOW (docs/CANONICAL_BS_V2_CONTRACT.md §"RECONCILIATION
+ *  FLOW") — response of POST /api/period/{id}/reconcile/undo (and the
+ *  ops-only /reconcile). The engine serves the freshly rebuilt
+ *  canonical_bs (either bare or wrapped under `canonical_bs`) — after an
+ *  undo that is the honest raw state with the true source imbalance. */
+export type ReconcileApiResponse = Partial<CanonicalBs> & { canonical_bs?: CanonicalBs };
+
+/** Normalize a reconcile/undo response to its canonical_bs object.
+ *  Returns null when the payload carries none (caller then falls back to
+ *  a plain period refetch instead of trusting a partial shape). */
+export function extractCanonicalBsFromReconcile(
+  resp: ReconcileApiResponse | null | undefined,
+): CanonicalBs | null {
+  if (!resp || typeof resp !== "object") return null;
+  if (resp.canonical_bs && resp.canonical_bs.schema === "bs_v2") return resp.canonical_bs;
+  if (resp.schema === "bs_v2") return resp as CanonicalBs;
+  return null;
+}
+
 export const cfoApi = {
   today: (req: TodayRequest) =>
     call<TodayResponse>("/api/cfo/today", { method: "POST", body: JSON.stringify(req) }),
@@ -429,6 +450,23 @@ export const cfoApi = {
         method: "POST",
         body: JSON.stringify(req),
       },
+    ),
+
+  // AUTO-RECONCILE (2026-08-19): reconciliation is a fully automatic
+  // server-side stage — the UI never POSTs /reconcile anymore (the former
+  // reconcilePeriod client was removed with the manual Reconcile button;
+  // the route remains curl-able for ops). Only undo stays user-facing.
+
+  /** Reverse an auto-applied reconciliation — removes the stored synthetic
+   *  entry and serves the honest raw state (the true source imbalance).
+   *  The server suppresses re-auto-reconcile for the same content_hash +
+   *  versions after an explicit undo, so a refetch cannot silently
+   *  re-apply it. Source cents were never touched, so undo is always
+   *  exact. */
+  undoReconcilePeriod: (periodId: string) =>
+    call<ReconcileApiResponse>(
+      `/api/period/${encodeURIComponent(periodId)}/reconcile/undo`,
+      { method: "POST" },
     ),
 
   /** Delete a month (period): hard-deletes the period + all derivatives and

@@ -8,9 +8,13 @@
 // around TOTAL ASSETS and TOTAL EQUITY & LIABILITIES, contra-asset rows
 // (accumulated depreciation) in parens.
 
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
-import type { BSCanonicalMeta } from "@/lib/buildBsStatement";
+import { canonicalMetaFromBs, type BSCanonicalMeta } from "@/lib/buildBsStatement";
+import { cfoApi, extractCanonicalBsFromReconcile } from "@/lib/cfoApi";
+import { queryClient } from "@/lib/queryClient";
+import { periodQueryKey } from "@/lib/activePeriod";
 import "./bsCanonicalStatusI18n";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
@@ -30,9 +34,13 @@ interface Props {
   statement: BSStatement & { canonical?: BSCanonicalMeta };
   /** Hide the inline "Guide me" button (dashboard consolidates guides). */
   hideGuide?: boolean;
+  /** Active period id — required for the undo POST on the canonical
+   *  status strip. Falls back to the `?period=` URL param when absent
+   *  (the app threads the active period through the URL). */
+  periodId?: string | null;
 }
 
-export function BSStatementView({ statement, hideGuide = false }: Props) {
+export function BSStatementView({ statement, hideGuide = false, periodId }: Props) {
   useHighlightFromUrl();
   const { t } = useTranslation();
   // 2026-05-24 — currency-aware formatting. `fmt(value)` converts the
@@ -68,7 +76,11 @@ export function BSStatementView({ statement, hideGuide = false }: Props) {
           the % readout (difference / totals.assets — the one computation the
           contract sanctions for display). */}
       {statement.canonical && (
-        <BsCanonicalStatusStrip meta={statement.canonical} currency={statement.currency} />
+        <BsCanonicalStatusStrip
+          meta={statement.canonical}
+          currency={statement.currency}
+          periodId={periodId}
+        />
       )}
 
       {/* Column header row */}
@@ -235,6 +247,7 @@ function BSSectionView({ section, currency }: { section: BSSection; currency: st
 
 function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
   const fmt = useAmountFormatter(currency);
+  const { t } = useTranslation();
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
   const conceptKey = bucketToConcept(line.bucket);
 
@@ -331,6 +344,22 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
           labelText
         )}
         <AccountChip code={chipCode} />
+        {/* RECONCILIATION FLOW — the synthetic "Diferențe de reconciliere"
+            row carries a visible marker + tooltip (rationale · origin ·
+            timestamp) so the adjusting entry can never pass as a source
+            figure. */}
+        {line.synthetic && (
+          <span
+            className="ml-1 inline-block align-middle text-amber-600 dark:text-amber-400"
+            style={{ fontSize: "9px", lineHeight: 1 }}
+            data-testid="bs-synthetic-marker"
+            title={line.syntheticNote}
+            role="img"
+            aria-label={t("bsCanonical.reconcile.syntheticRowAria")}
+          >
+            ●
+          </span>
+        )}
       </span>
       {conceptKey ? (
         <>
@@ -362,18 +391,193 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
   );
 }
 
-/** canonical_bs v2 status strip. Three states from the engine object:
- *  BALANCED (quiet confirmation), MINOR_DRIFT (amber, with the exact signed
- *  difference), MATERIAL_IMBALANCE (blocking red alert with the engine's
- *  D0–D8 diagnosis list — this state must never read as "all good"). */
-function BsCanonicalStatusStrip({ meta, currency }: { meta: BSCanonicalMeta; currency: string }) {
+// ─── AUTO-RECONCILE (canonical status strip) ─────────────────────────────
+// Contract: docs/CANONICAL_BS_V2_CONTRACT.md §"RECONCILIATION FLOW" +
+// revised operator spec (2026-08-19): reconciliation is a fully automatic
+// server-side stage — the client is never sent an intermediate unreconciled
+// sub-threshold state and there is NO manual Reconcile action. The UI only
+// renders the engine's verdict (RECONCILED is machine-distinct from
+// BALANCED) and offers the reversible Undo.
+
+/** canonical_bs v2 status strip. Engine states rendered verbatim:
+ *  BALANCED (quiet confirmation), RECONCILED (calm green Balanced-family
+ *  chip + "auto-adjusted" micro-caption; tap reveals a one-line receipt +
+ *  Undo), MINOR_DRIFT with `needs_review` (calm amber "Needs manual
+ *  mapping" panel — the auto stage rejected the fix), MINOR_DRIFT plain
+ *  (amber, exact signed difference), MATERIAL_IMBALANCE (blocking red
+ *  alert with the D0–D8 diagnosis list — never reads as "all good").
+ *  Exported for tests. */
+export function BsCanonicalStatusStrip({
+  meta,
+  currency,
+  periodId,
+}: {
+  meta: BSCanonicalMeta;
+  currency: string;
+  periodId?: string | null;
+}) {
   const { t } = useTranslation();
   const fmt = useAmountFormatter(currency);
   const display = useDisplayCurrency();
-  const pct =
-    meta.totalAssets !== 0 ? (Math.abs(meta.difference) / Math.abs(meta.totalAssets)) * 100 : 0;
 
-  if (meta.status === "BALANCED") {
+  // Resolve the active period: explicit prop first, `?period=` URL param
+  // as the app-wide fallback (the URL is the source of truth for the
+  // active period across pages).
+  const pid =
+    periodId ??
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("period")
+      : null);
+
+  // Local override of the server meta after the undo POST — the response's
+  // canonical_bs replaces the strip's state instantly (the honest raw
+  // imbalance) while resetQueries refetches the full period (rows without
+  // the synthetic entry). Cleared whenever the server meta itself changes.
+  const [live, setLive] = useState<BSCanonicalMeta | null>(null);
+  // Tap-receipt visibility on the RECONCILED chip. The toggle is an
+  // instant conditional render (no staged animation), so it satisfies
+  // prefers-reduced-motion by construction.
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const metaKey = `${meta.status}|${meta.difference}|${meta.needsReview}|${
+    meta.reconciliation?.applied_at ?? ""
+  }`;
+  useEffect(() => {
+    setLive(null);
+    setReceiptOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaKey]);
+  const m = live ?? meta;
+
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [errorNote, setErrorNote] = useState<string | null>(null);
+
+  async function onUndo() {
+    if (!pid || undoBusy) return;
+    setErrorNote(null);
+    setUndoBusy(true);
+    try {
+      const resp = await cfoApi.undoReconcilePeriod(pid);
+      const next = extractCanonicalBsFromReconcile(resp);
+      // Response carries the raw pre-reconciliation state — the TRUE
+      // source imbalance, rendered honestly (the server suppresses
+      // re-auto-reconcile for this content_hash+versions after an
+      // explicit undo). Without a parsable body, fall back to the
+      // server meta + refetch.
+      setLive(next ? canonicalMetaFromBs(next) : null);
+      void queryClient.resetQueries({ queryKey: periodQueryKey(pid) });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : null;
+      setErrorNote(
+        `${t("bsCanonical.reconcile.undoFailed")}${msg ? ` ${msg}` : ""}`,
+      );
+    } finally {
+      setUndoBusy(false);
+    }
+  }
+
+  const pct =
+    m.totalAssets !== 0 ? (Math.abs(m.difference) / Math.abs(m.totalAssets)) * 100 : 0;
+
+  // RECONCILED — calm green Balanced-family chip + subtle "auto-adjusted"
+  // micro-caption. Tapping the chip toggles the one-line receipt + Undo.
+  if (m.status === "RECONCILED") {
+    const rec = m.reconciliation;
+    const moved = Math.abs(rec?.applied_delta ?? rec?.original_difference ?? 0);
+    const movedStr = `${display} ${fmt(moved)}`;
+    const placementLabel = t(
+      rec?.placement === "pnl"
+        ? "bsCanonical.reconcile.placementPnl"
+        : "bsCanonical.reconcile.placementBs",
+    );
+    const originLabel = t(
+      rec?.origin === "llm_proposed"
+        ? "bsCanonical.reconcile.originLlm"
+        : "bsCanonical.reconcile.originDeterministic",
+    );
+    return (
+      <div
+        className="mb-3 rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-3 py-2 text-[12px]"
+        data-testid="bs-status-reconciled"
+      >
+        <button
+          type="button"
+          data-testid="bs-reconciled-chip"
+          onClick={() => setReceiptOpen((o) => !o)}
+          aria-expanded={receiptOpen}
+          aria-label={t("bsCanonical.reconcile.receiptToggleAria")}
+          className="flex w-full flex-wrap items-baseline gap-x-2 text-left"
+        >
+          <span className="inline-flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
+            <span
+              aria-hidden="true"
+              className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400"
+            />
+            ✓ {t("bsCanonical.balanced")}
+          </span>
+          <span
+            className="text-[11px] text-ink-mute"
+            data-testid="bs-auto-adjusted-caption"
+          >
+            {t("bsCanonical.reconcile.autoAdjusted", { amount: movedStr })}
+          </span>
+        </button>
+        {receiptOpen && (
+          <div className="mt-1 text-ink-soft" data-testid="bs-reconcile-receipt">
+            {t("bsCanonical.reconcile.receipt", {
+              amount: movedStr,
+              placement: placementLabel,
+              origin: originLabel,
+            })}
+            {" · "}
+            <button
+              type="button"
+              data-testid="bs-reconcile-undo"
+              onClick={onUndo}
+              disabled={undoBusy || !pid}
+              aria-busy={undoBusy}
+              className="underline underline-offset-2 hover:text-ink disabled:opacity-50"
+            >
+              {t("bsCanonical.reconcile.undo")}
+            </button>
+          </div>
+        )}
+        {errorNote && (
+          <p className="mt-1.5 text-[12px] text-ink-soft" data-testid="bs-reconcile-error">
+            {errorNote}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // needs_review — the automatic stage ran and was rejected (validator
+  // refused a non-exact close / diagnosis inconclusive): honest imbalance
+  // plus a calm amber "Needs manual mapping" panel with the diagnosis
+  // line. No button, no modal — mapping is the fix, not a retry.
+  if (m.status === "MINOR_DRIFT" && m.needsReview) {
+    const diagLine = m.diagnosis
+      .map((d) => [d.code, d.detail].filter(Boolean).join(" — "))
+      .join("; ");
+    return (
+      <div
+        className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-[12px]"
+        data-testid="bs-status-needs-review"
+      >
+        <span className="font-medium text-amber-700 dark:text-amber-400">
+          {t("bsCanonical.reconcile.needsReview")}
+        </span>
+        <p className="mt-0.5 text-ink-soft">
+          {t("bsCanonical.difference")}: {display} {fmt(m.difference)} (
+          {pct.toFixed(2)}%){diagLine ? ` · ${diagLine}` : ""}
+        </p>
+        <p className="mt-0.5 text-ink-soft">
+          {t("bsCanonical.reconcile.needsReviewBody")}
+        </p>
+      </div>
+    );
+  }
+
+  if (m.status === "BALANCED") {
     return (
       <div
         className="mb-3 rounded-lg border border-rule bg-surface px-3 py-2 text-[12px] text-ink-soft"
@@ -384,14 +588,15 @@ function BsCanonicalStatusStrip({ meta, currency }: { meta: BSCanonicalMeta; cur
     );
   }
 
-  if (meta.status === "MINOR_DRIFT") {
+  // MINOR_DRIFT without a reconcile offer — unchanged rendering.
+  if (m.status === "MINOR_DRIFT") {
     return (
       <div
         className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-400"
         data-testid="bs-status-minor-drift"
       >
         {t("bsCanonical.minorDrift")} — {t("bsCanonical.difference")}: {display}{" "}
-        {fmt(meta.difference)} ({pct.toFixed(2)}%)
+        {fmt(m.difference)} ({pct.toFixed(2)}%)
       </div>
     );
   }
@@ -407,13 +612,13 @@ function BsCanonicalStatusStrip({ meta, currency }: { meta: BSCanonicalMeta; cur
       <strong className="block text-[14px]">⚠ {t("bsCanonical.material")}</strong>
       <p className="mt-1">{t("bsCanonical.materialBody")}</p>
       <p className="mt-1 font-mono tabular-nums">
-        {t("bsCanonical.difference")}: {display} {fmt(meta.difference)} ({pct.toFixed(2)}%)
+        {t("bsCanonical.difference")}: {display} {fmt(m.difference)} ({pct.toFixed(2)}%)
       </p>
-      {meta.diagnosis.length > 0 && (
+      {m.diagnosis.length > 0 && (
         <div className="mt-2">
           <span className="font-semibold">{t("bsCanonical.diagnosis")}:</span>
           <ul className="mt-1 list-disc pl-5 space-y-0.5">
-            {meta.diagnosis.map((d, i) => (
+            {m.diagnosis.map((d, i) => (
               <li key={`${d.code}-${i}`}>
                 <span className="font-mono text-[12px]">{d.code}</span> — {d.detail}
               </li>

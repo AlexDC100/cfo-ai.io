@@ -1891,6 +1891,7 @@ export default function FinancialStatements() {
             {remotePeriod.lineItems && remotePeriod.lineItems.length > 0 ? (
               <BSStatementView
                 hideGuide
+                periodId={remotePeriod.id ?? searchParams.get("period")}
                 statement={buildBSStatement({
                   lineItems: remotePeriod.lineItems,
                   entity: statements.companyName ?? t("dash.entity"),
@@ -1919,6 +1920,11 @@ export default function FinancialStatements() {
                   assembledBs: (statements as Statements & {
                     assembled_bs?: Record<string, number>;
                   }).assembled_bs,
+                  // canonical_bs v2 — when the period carries the engine
+                  // authority object, the whole statement renders from it
+                  // verbatim (incl. the reconcile status strip); legacy
+                  // periods keep the assembledBs path above unchanged.
+                  canonicalBs: (statements as Statements).canonical_bs,
                 })}
               />
             ) : (

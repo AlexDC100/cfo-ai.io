@@ -30,6 +30,13 @@ export interface BSLine {
    *  a `<TraceableNumber>` click lands here. See
    *  src/lib/traceableSource.ts for the bucket taxonomy. */
   bucket?: string;
+  /** RECONCILIATION FLOW (canonical_bs path only) — true on the synthetic
+   *  "Diferențe de reconciliere" adjusting row. The renderer shows a small
+   *  visible marker so the row can never pass as a source figure. */
+  synthetic?: boolean;
+  /** Tooltip for the synthetic marker: reconciliation rationale · origin
+   *  · timestamp, prebuilt by the canonical builder. */
+  syntheticNote?: string;
 }
 
 export interface BSSection {
