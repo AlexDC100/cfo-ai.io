@@ -1555,3 +1555,139 @@ def test_quarantine_hook_passes_assume_misses_through(tmp_path, monkeypatch):
         with quarantine("SCRATCH_assume_unit", {"x": 1}):
             raise UnsatisfiedAssumption()
     assert not (tmp_path / "quarantine").exists()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# N5 — ABSENT is not ZERO, end to end through the Phase-1 IR
+# ═══════════════════════════════════════════════════════════════════════
+
+# The IR's invariant #1 (engine/ir/ledgerdoc.py): a null source value is
+# ABSENT (None slot, key OMITTED on the wire), a stated 0 is ZERO Money
+# (key present, amount_minor 0). Rows are generated with random
+# ABSENT/ZERO/value patterns and adapted by the REAL llm_extract
+# front-end (the one lane whose source schema states nullability per
+# cell), then the distinction must survive serialize → deserialize →
+# derive_legacy, on both the original and the round-tripped doc.
+# Values are drawn as integer cents (floats only at the JSON boundary).
+
+_N5_SIDE = st.one_of(
+    st.none(),                                            # ABSENT
+    st.just(0),                                           # stated ZERO
+    st.integers(1, 10**11).map(lambda c: c / 100.0),      # stated value
+)
+_N5_BALANCE = st.one_of(
+    st.none(),
+    st.just(0),
+    st.integers(1, 10**11).map(lambda c: c / 100.0),
+    st.integers(1, 10**11).map(lambda c: -c / 100.0),     # credit-side balance
+)
+
+
+@st.composite
+def n5_absent_zero_case(draw) -> Dict[str, Any]:
+    n = draw(st.integers(1, 10))
+    rows = [
+        {
+            "code": "%d" % (100 + i),
+            "label": "acct %d" % i,
+            "debit": draw(_N5_SIDE),
+            "credit": draw(_N5_SIDE),
+            "balance": draw(_N5_BALANCE),
+        }
+        for i in range(n)
+    ]
+    totals = draw(st.one_of(
+        st.none(),
+        st.fixed_dictionaries({"debit": _N5_SIDE, "credit": _N5_SIDE}),
+    ))
+    currency = draw(st.sampled_from(("RON", "HUF", "KWD")))
+    return {"rows": rows, "totals_row": totals, "currency": currency}
+
+
+@prop_settings(30, 300)
+@given(case=n5_absent_zero_case())
+def test_n5_absent_is_never_zero_through_ir_and_derive(case):
+    """serialize / deserialize / derive_legacy all preserve ABSENT≠ZERO:
+    a null source cell stays None at every hop (atom slot None, wire key
+    omitted, derived field None) while a stated 0 stays a value at every
+    hop (ZERO Money, wire amount_minor 0, derived 0.0) — across RON(2) /
+    HUF(0) / KWD(3) scale tables."""
+    from engine.frontends import derive_legacy, resolve_front_end
+    from engine.ir import content_hash as _ir_hash
+    from engine.ir import deserialize as _ir_load
+    from engine.ir import serialize as _ir_dump
+
+    with quarantine("N5_absent_is_never_zero", case):
+        data = json.dumps(
+            {"rows": case["rows"], "totals_row": case["totals_row"]}
+        ).encode("utf-8")
+        doc, _diags = resolve_front_end("llm_extract").parse(
+            data, {"jurisdiction": "OTHER", "currency": case["currency"]}
+        )
+        assert len(doc.atoms) == len(case["rows"])
+
+        # 1. Atom encoding (per the documented llm_extractor mapping).
+        for row, atom in zip(case["rows"], doc.atoms):
+            balance_only = (row["debit"] is None and row["credit"] is None
+                            and row["balance"] is not None)
+            if balance_only:
+                if row["balance"] >= 0:
+                    assert atom.closing_debit is not None
+                    assert atom.closing_debit.is_zero() == (row["balance"] == 0)
+                    assert atom.closing_credit is None
+                else:
+                    assert atom.closing_credit is not None
+                    assert not atom.closing_credit.is_zero()
+                    assert atom.closing_debit is None
+            else:
+                assert (atom.closing_debit is None) == (row["debit"] is None)
+                assert (atom.closing_credit is None) == (row["credit"] is None)
+                if row["debit"] is not None and row["debit"] == 0:
+                    assert atom.closing_debit.is_zero()
+                if row["credit"] is not None and row["credit"] == 0:
+                    assert atom.closing_credit.is_zero()
+            # This shape carries only the closing pair — the rest ABSENT.
+            assert atom.opening_debit is None and atom.opening_credit is None
+            assert atom.period_debit is None and atom.period_credit is None
+
+        # 2. Wire shape: ABSENT keys OMITTED, ZERO present with minor 0.
+        payload = _ir_dump(doc)
+        for atom, wire in zip(doc.atoms, payload["atoms"]):
+            for name in ("closing_debit", "closing_credit"):
+                slot = getattr(atom, name)
+                assert (name in wire) == (slot is not None)
+                if slot is not None and slot.is_zero():
+                    assert wire[name]["amount_minor"] == 0
+
+        # 3. Round trip: byte-stable, hash-stable, distinction intact.
+        blob = json.dumps(payload, sort_keys=True)
+        round_tripped = _ir_load(payload)
+        assert json.dumps(_ir_dump(round_tripped), sort_keys=True) == blob
+        assert _ir_hash(round_tripped) == _ir_hash(doc)
+        for atom, atom_rt in zip(doc.atoms, round_tripped.atoms):
+            for name in ("closing_debit", "closing_credit"):
+                assert getattr(atom_rt, name) == getattr(atom, name)
+                assert (getattr(atom_rt, name) is None) == \
+                    (getattr(atom, name) is None)
+
+        # 4. derive_legacy — on the original AND the round-tripped doc:
+        #    None stays None, 0 stays 0.0, values reproduce exactly.
+        for view in (derive_legacy(doc), derive_legacy(round_tripped)):
+            assert len(view.rows) == len(case["rows"])
+            for row, derived in zip(case["rows"], view.rows):
+                for key in ("debit", "credit", "balance"):
+                    src, got = row[key], derived[key]
+                    assert (got is None) == (src is None), (key, row, derived)
+                    if src is not None:
+                        assert got == float(src)
+                        assert (got == 0.0) == (src == 0)
+            totals = case["totals_row"]
+            if totals is None:
+                assert view.totals_debit is None
+                assert view.totals_credit is None
+            else:
+                for src, got in ((totals["debit"], view.totals_debit),
+                                 (totals["credit"], view.totals_credit)):
+                    assert (got is None) == (src is None)
+                    if src is not None:
+                        assert got == float(src)
