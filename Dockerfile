@@ -46,6 +46,9 @@ COPY methodology/ ./methodology/
 # without manual docker-cp's. Sibling _pgrst_visibility helper +
 # measure_bs_drift fixtures all live in scripts/.
 COPY scripts/ ./scripts/
+# Golden corpus — the in-container replay gate (scripts/corpus_replay.py)
+# and the nightly prod canary need the cases + frozen goldens at /app/corpus.
+COPY corpus/ ./corpus/
 # F3.16-3b.2 — EEI JSON fixture source-of-truth lives in the FE tree
 # (`scandi-desk-main/e2e/fixtures/...`) which is excluded by
 # .dockerignore. To make the F-A3.2-CROSS-PATH gate run GREEN on EEI
