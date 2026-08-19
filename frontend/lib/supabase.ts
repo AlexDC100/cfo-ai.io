@@ -684,6 +684,12 @@ export async function uploadDocument(
   options: {
     scope?: "financial" | "sku";
     periodEndHint?: string | null;
+    /** AI LANE (2026-08-19) — user-chosen accounting jurisdiction from the
+     *  period-confirm dialog's dropdown ("RO" | "HU" | "INTL"; null =
+     *  Auto-detect, no column written). Travels on documents.jurisdiction_hint
+     *  the same way periodEndHint travels; the engine's stage_extract
+     *  prefers it over its own country-pack detection. */
+    jurisdictionHint?: string | null;
     /** Pin the document to a month up front. Used by SKU uploads, which the
      *  engine pipeline deliberately does NOT resolve a period for (its
      *  finalize passes `period_id=None`, and `_admin_set_status` omits the
@@ -830,6 +836,10 @@ export async function uploadDocument(
     // filename/content detection. Included only when the caller supplied one;
     // if the column isn't migrated yet the insert retries without it below.
     ...(options.periodEndHint ? { period_end_hint: options.periodEndHint } : {}),
+    // jurisdiction_hint: the user-chosen accounting jurisdiction (country
+    // pack). Same include-only-when-supplied + graceful-degrade shape as
+    // period_end_hint above; "Auto-detect" sends null and writes nothing.
+    ...(options.jurisdictionHint ? { jurisdiction_hint: options.jurisdictionHint } : {}),
     // Pin to a month at insert time (see the `periodId` option's docs). Only
     // when the caller supplied one — omitting the key leaves the column NULL,
     // which the Products file list reads as "unassigned, show in every month".
@@ -843,7 +853,18 @@ export async function uploadDocument(
     console.info("[supabase] period_end_hint column missing — retrying without it (apply schema_phase_period_end_hint.sql)");
     const { period_end_hint: _omit, ...withoutHint } = baseRow;
     void _omit;
+    delete baseRow.period_end_hint; // keep later degrade retries consistent
     ins = await client.from("documents").insert(withoutHint).select().single();
+  }
+  // Same degrade for jurisdiction_hint: an unmigrated column must never
+  // cost the user their upload — the file lands, the engine just falls
+  // back to auto-detecting the jurisdiction.
+  if (ins.error && options.jurisdictionHint && /jurisdiction_hint/i.test(ins.error.message)) {
+    console.info("[supabase] jurisdiction_hint column missing — retrying without it (engine will auto-detect the jurisdiction)");
+    const { jurisdiction_hint: _omitJurisdiction, ...withoutJurisdiction } = baseRow;
+    void _omitJurisdiction;
+    delete baseRow.jurisdiction_hint;
+    ins = await client.from("documents").insert(withoutJurisdiction).select().single();
   }
   // Same degrade for period_id: an unmigrated column (or an FK/RLS rejection
   // on the period) must never cost the user their upload — the file still

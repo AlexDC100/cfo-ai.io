@@ -147,6 +147,58 @@ export interface CanonicalBsExtraction {
   number_locale: "ro" | "anglo";
   sheet?: string;
   header_row_index?: number;
+  /** AI lane only — the model that read the document. The engine persists
+   *  model id + prompt versions from its single config module on every
+   *  run; the FE surfaces them in the AI-read badge tooltip. */
+  model?: string | null;
+  prompt_version?: string | null;
+}
+
+/** AI lane — how the extracted rows were CLASSIFIED into the canonical
+ *  sections. On the AI lane this is permanently `method: "llm"` (and the
+ *  status can never be BALANCED); deterministic periods either omit the
+ *  object or carry `method: "deterministic"`. Additive + optional so
+ *  pre-AI-lane envelopes stay valid. */
+export interface CanonicalBsClassification {
+  method?: "deterministic" | "llm";
+  model?: string | null;
+  prompt_version?: string | null;
+  /** AI lane parks a survives-serving copy of the low-confidence list
+   *  here, because the auto-reconcile serve stage owns the top-level
+   *  `needs_review` key (boolean semantics). Read as fallback. */
+  needs_review?: CanonicalBsNeedsReviewEntry[] | null;
+}
+
+/** AI lane — one low-confidence classified line awaiting human mapping.
+ *  These values sit in the Unclassified rows (they ARE included in the
+ *  totals per the closing-identity convention) until a human confirms the
+ *  mapping. Field aliases (`code`/`name`) tolerated because the engine
+ *  side ships in parallel. */
+export interface CanonicalBsNeedsReviewEntry {
+  account_code?: string | null;
+  /** Alias of account_code. */
+  code?: string | null;
+  label?: string | null;
+  /** Alias of label. */
+  name?: string | null;
+  amount?: number | null;
+  /** Classifier confidence — either 0..1 or 0..100; the FE normalizes. */
+  confidence?: number | null;
+  /** One-line model rationale for the proposed classification. */
+  rationale?: string | null;
+  section?: string | null;
+}
+
+/** Resolved accounting jurisdiction (country pack) for the period. The
+ *  engine may serve a bare code string or the structured object; the FE
+ *  normalizes (see buildBsStatement.canonicalMetaFromBs). */
+export interface CanonicalBsJurisdiction {
+  /** Country-pack code — "RO" | "HU" | "INTL" (open set). */
+  resolved?: string | null;
+  /** How it was decided: "auto" (detection) | "hint" (upload dropdown) |
+   *  "override" (post-scan re-extraction). */
+  source?: string | null;
+  pack_version?: string | null;
 }
 
 export interface CanonicalBsSourceAnchorPair {
@@ -232,6 +284,17 @@ export interface CanonicalBs {
   reconcile_offer?: boolean;
   /** Present iff status is RECONCILED — the stored, reversible receipt. */
   reconciliation?: CanonicalBsReconciliation | null;
+  /** AI lane (additive) — classification provenance; permanently
+   *  `method: "llm"` on AI-lane periods. */
+  classification?: CanonicalBsClassification | null;
+  /** Two engine meanings, one field (both additive):
+   *  · boolean `true` — the AUTO-RECONCILE stage ran and was rejected
+   *    (drives the "Needs manual mapping" strip state);
+   *  · an ARRAY — AI-lane low-confidence lines pending human mapping
+   *    (drives the collapsible needs-review panel). */
+  needs_review?: boolean | CanonicalBsNeedsReviewEntry[] | null;
+  /** Resolved jurisdiction — structured object or a bare pack code. */
+  jurisdiction?: CanonicalBsJurisdiction | string | null;
 }
 
 /** Display geometry for one canonical section id — which side of the

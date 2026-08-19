@@ -58,7 +58,11 @@ import { openStagedFile } from "@/lib/stagedFilePreview";
 import { clearStagedFiles, readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import { PLStatementView } from "@/components/cfo/PLStatementView";
-import { BSStatementView } from "@/components/cfo/BSStatementView";
+import { AiReadBadge, BSStatementView } from "@/components/cfo/BSStatementView";
+import {
+  JurisdictionSelect,
+  jurisdictionHintFromSelection,
+} from "@/components/cfo/JurisdictionSelect";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { NavValuationView } from "@/components/cfo/NavValuationView";
 import {
@@ -138,6 +142,7 @@ import {
   downloadReport,
   formatRatio,
   generateRecommendations,
+  type CanonicalBs,
   type Ratio,
   type RatioBundle,
   type Recommendation,
@@ -1064,14 +1069,21 @@ export default function FinancialStatements() {
   // Upload + enqueue + await terminal status for ONE staged file. Hand-off to
   // State B (navigation / toast) happens only when navigateOnDone — the last
   // file in a batch; earlier files are processed silently, periods persist.
-  function scanOneFile(file: File, navigateOnDone: boolean, periodEndHint: string | null = null): Promise<void> {
+  function scanOneFile(
+    file: File,
+    navigateOnDone: boolean,
+    periodEndHint: string | null = null,
+    // AI LANE (2026-08-19) — the period-confirm dialog's jurisdiction
+    // dropdown; null = Auto-detect (no hint written, engine decides).
+    jurisdictionHint: string | null = null,
+  ): Promise<void> {
     return new Promise<void>((resolve) => {
       void (async () => {
         setUploadName(file.name);
         startUpload({ docId: "", filename: file.name, status: "queued" });
         const { uploadDocument, subscribeToDocumentStatus, getSupabase } =
           await import("@/lib/supabase");
-        const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint });
+        const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint, jurisdictionHint });
         if (!row) {
           clearUpload();
           toast({ title: t("dash.uploadFailedTitle"), description: error ?? t("dash.unknownError"), variant: "destructive" });
@@ -1186,13 +1198,21 @@ export default function FinancialStatements() {
   // Scan every staged file sequentially; the last one navigates into its
   // result. Clears the staged list when the batch finishes. `dates` maps
   // filename → confirmed ISO period-end (or null to let the engine detect).
-  async function runScan(dates: Record<string, string | null>) {
+  async function runScan(
+    dates: Record<string, string | null>,
+    jurisdictionHint: string | null = null,
+  ) {
     setPeriodConfirm(null);
     if (scanning || stagedFiles.length === 0) return;
     setScanning(true);
     const batch = [...stagedFiles];
     for (let i = 0; i < batch.length; i++) {
-      await scanOneFile(batch[i], i === batch.length - 1, dates[batch[i].name] ?? null);
+      await scanOneFile(
+        batch[i],
+        i === batch.length - 1,
+        dates[batch[i].name] ?? null,
+        jurisdictionHint,
+      );
     }
     // Reset the drop zone once the batch is done — staged list AND the
     // "Received: <filename>" indicator, so it returns to a clean empty state.
@@ -1454,6 +1474,7 @@ export default function FinancialStatements() {
             <AccuracyBanner
               assembledBs={statements?.assembled_bs as Record<string, number> | undefined}
               sourceDataQuality={sourceDataQuality ?? null}
+              canonicalBs={(statements as Statements | null)?.canonical_bs ?? null}
             />
             {/* The add-another-month dropzone now lives in a modal opened by
                 the "Add month" pill (see the Dialog near the period-confirm
@@ -2348,7 +2369,12 @@ function PeriodConfirmDialog({
    *  only safe then: a period with an analysis keeps its month, and "match
    *  the file" degrades to filing under the file's month as its own period. */
   activePeriodEmpty?: boolean;
-  onConfirm: (dates: Record<string, string | null>) => void;
+  /** Second arg — AI LANE (2026-08-19): the jurisdiction dropdown's value
+   *  as an upload hint ("RO" | "HU" | "INTL"), or null for Auto-detect. */
+  onConfirm: (
+    dates: Record<string, string | null>,
+    jurisdictionHint?: string | null,
+  ) => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
@@ -2387,6 +2413,10 @@ function PeriodConfirmDialog({
   });
   // Manual fallback month, only used when neither source has a date.
   const [manual, setManual] = useState<Record<string, string>>({});
+  // AI LANE (2026-08-19) — accounting jurisdiction for the scan. Default
+  // "auto" (engine detects); anything else rides the upload as
+  // documents.jurisdiction_hint.
+  const [jurisdiction, setJurisdiction] = useState<string>("auto");
   const [reading, setReading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const queryClient = useQueryClient();
@@ -2466,7 +2496,7 @@ function PeriodConfirmDialog({
       }
     }
 
-    onConfirm(dates);
+    onConfirm(dates, jurisdictionHintFromSelection(jurisdiction));
   }
 
   // Mid-month day dodges timezone month-shift in toLocaleDateString.
@@ -2594,6 +2624,25 @@ function PeriodConfirmDialog({
               </div>
             );
           })}
+        </div>
+
+        {/* AI LANE (2026-08-19) — accounting jurisdiction, decided BEFORE
+            the scan. Auto-detect (default) sends no hint; a country choice
+            rides the upload as jurisdiction_hint. */}
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor="period-confirm-jurisdiction"
+            className="text-[11.5px] text-ink-mute"
+          >
+            {t("bsCanonical.jurisdiction.dialogLabel")}
+          </label>
+          <JurisdictionSelect
+            id="period-confirm-jurisdiction"
+            value={jurisdiction}
+            onChange={setJurisdiction}
+            data-testid="period-confirm-jurisdiction"
+            className="h-9 rounded-lg border border-rule bg-surface px-2.5 text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+          />
         </div>
 
         {/* The footer IS the decision (2026-07-26 per operator — Cancel was
@@ -2895,9 +2944,12 @@ interface AccuracyBannerProps {
   assembledBs?: Record<string, number> | null;
   /** F3.11 source-data-quality telemetry (null on pre-F3.11 / Claude-extracted / statutory periods) */
   sourceDataQuality?: { raw_imbalance_pct: number; raw_imbalance_abs: number } | null;
+  /** AI LANE (2026-08-19) — the period's canonical_bs, for the permanent
+   *  AI-read badge on the accuracy line when extraction method is "llm". */
+  canonicalBs?: CanonicalBs | null;
 }
 
-function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps) {
+function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: AccuracyBannerProps) {
   const { t } = useTranslation();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     try {
@@ -2929,22 +2981,35 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
       ? "watch"
       : "problem";
 
+  // AI LANE — permanent AI-read badge on the accuracy line whenever the
+  // period was llm-extracted (never removable, so it also renders on the
+  // collapsed link state below).
+  const aiReadBadge = (
+    <AiReadBadge
+      extraction={canonicalBs?.extraction}
+      classification={canonicalBs?.classification ?? undefined}
+    />
+  );
+
   // Dismissed → small re-open link (always discoverable per disclosure
   // discipline; never hide drift warnings even when dismissed — see below).
   if (dismissed && band === "clean") {
     return (
-      <button
-        type="button"
-        data-testid="accuracy-banner-link"
-        onClick={() => {
-          try { localStorage.removeItem("accuracy_banner_dismissed"); } catch { /* private mode */ }
-          setDismissed(false);
-        }}
-        className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink mb-3"
-      >
-        <CheckCircle2 size={11} strokeWidth={1.75} className="text-[#2AA89B]" />
-        {t("dash.qualityPassedLink")}
-      </button>
+      <span className="inline-flex items-center gap-2 mb-3">
+        <button
+          type="button"
+          data-testid="accuracy-banner-link"
+          onClick={() => {
+            try { localStorage.removeItem("accuracy_banner_dismissed"); } catch { /* private mode */ }
+            setDismissed(false);
+          }}
+          className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink"
+        >
+          <CheckCircle2 size={11} strokeWidth={1.75} className="text-[#2AA89B]" />
+          {t("dash.qualityPassedLink")}
+        </button>
+        {aiReadBadge}
+      </span>
     );
   }
   // Watch + problem bands ALWAYS render — dismissal doesn't suppress
@@ -3039,6 +3104,8 @@ function AccuracyBanner({ assembledBs, sourceDataQuality }: AccuracyBannerProps)
               {t("dash.accUnknownBody")}
             </>
           )}
+          {/* AI LANE — the badge sits ON the accuracy line itself. */}
+          <span className="ml-2 inline-flex align-middle">{aiReadBadge}</span>
         </div>
       </div>
       {/* Dismiss (×) removed 2026-07-25 — the accuracy note now sits under the

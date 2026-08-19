@@ -12,6 +12,13 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
 import { canonicalMetaFromBs, type BSCanonicalMeta } from "@/lib/buildBsStatement";
+import type {
+  CanonicalBsClassification,
+  CanonicalBsExtraction,
+  CanonicalBsJurisdiction,
+  CanonicalBsNeedsReviewEntry,
+} from "@/lib/financialReport";
+import { JurisdictionSelect, jurisdictionLabel } from "./JurisdictionSelect";
 import { cfoApi, extractCanonicalBsFromReconcile } from "@/lib/cfoApi";
 import { queryClient } from "@/lib/queryClient";
 import { periodQueryKey } from "@/lib/activePeriod";
@@ -76,11 +83,25 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           the % readout (difference / totals.assets — the one computation the
           contract sanctions for display). */}
       {statement.canonical && (
-        <BsCanonicalStatusStrip
-          meta={statement.canonical}
-          currency={statement.currency}
-          periodId={periodId}
-        />
+        <>
+          {/* AI LANE (2026-08-19) — provenance badges next to the status
+              chip: resolved jurisdiction (with override → re-extraction)
+              and the permanent AI-read badge for llm-extracted periods. */}
+          <BsCanonicalBadgesRow meta={statement.canonical} periodId={periodId} />
+          <BsCanonicalStatusStrip
+            meta={statement.canonical}
+            currency={statement.currency}
+            periodId={periodId}
+          />
+          {/* AI LANE — low-confidence classified lines pending human
+              mapping, directly under the status strip. */}
+          {(statement.canonical.needsReviewEntries?.length ?? 0) > 0 && (
+            <BsNeedsReviewPanel
+              entries={statement.canonical.needsReviewEntries ?? []}
+              currency={statement.currency}
+            />
+          )}
+        </>
       )}
 
       {/* Column header row */}
@@ -623,6 +644,274 @@ export function BsCanonicalStatusStrip({
                 <span className="font-mono text-[12px]">{d.code}</span> — {d.detail}
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AI LANE (2026-08-19) — provenance badges + needs-review panel ───────
+// Contract: docs/CANONICAL_BS_V2_CONTRACT.md — AI-lane extractions are
+// permanently `extraction.method: "llm"` + `classification.method: "llm"`
+// and their status can never be BALANCED. The FE renders provenance
+// verbatim; nothing here is derived or dismissible.
+
+/** Permanent "AI-read" badge — renders whenever the canonical extraction
+ *  (or classification) method is "llm". No dismiss affordance exists by
+ *  construction; tooltip carries model + prompt version + the review
+ *  warning. Exported for the AccuracyBanner line and tests. */
+export function AiReadBadge({
+  extraction,
+  classification,
+  className,
+}: {
+  extraction?: CanonicalBsExtraction | null;
+  classification?: CanonicalBsClassification | null;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  if (extraction?.method !== "llm" && classification?.method !== "llm") return null;
+  const model = extraction?.model ?? classification?.model ?? null;
+  const promptVersion =
+    extraction?.prompt_version ?? classification?.prompt_version ?? null;
+  const tooltip = [model, promptVersion, t("bsCanonical.aiRead.tooltip")]
+    .filter((p): p is string => typeof p === "string" && p.length > 0)
+    .join(" · ");
+  return (
+    <span
+      data-testid="ai-read-badge"
+      title={tooltip}
+      className={
+        className ??
+        "inline-flex items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-violet-700 dark:text-violet-300"
+      }
+    >
+      <span
+        aria-hidden="true"
+        className="inline-block h-1.5 w-1.5 rounded-full bg-violet-600 dark:bg-violet-400"
+      />
+      {t("bsCanonical.aiRead.label")}
+    </span>
+  );
+}
+
+/** Badge row rendered directly above the canonical status strip: resolved
+ *  jurisdiction (with override → re-extraction) + the AI-read badge. */
+function BsCanonicalBadgesRow({
+  meta,
+  periodId,
+}: {
+  meta: BSCanonicalMeta;
+  periodId?: string | null;
+}) {
+  const hasJurisdiction = !!meta.jurisdiction?.resolved;
+  const isLlm =
+    meta.extraction?.method === "llm" || meta.classification?.method === "llm";
+  if (!hasJurisdiction && !isLlm) return null;
+  return (
+    <div
+      className="mb-2 flex flex-wrap items-center gap-2"
+      data-testid="bs-canonical-badges"
+    >
+      {hasJurisdiction && (
+        <BsJurisdictionBadge
+          jurisdiction={meta.jurisdiction!}
+          periodId={periodId}
+        />
+      )}
+      <AiReadBadge
+        extraction={meta.extraction}
+        classification={meta.classification}
+      />
+    </div>
+  );
+}
+
+/** Resolved-jurisdiction badge + override. Changing the select arms an
+ *  inline confirm ("Re-extraction re-reads the document with AI.") whose
+ *  Confirm calls cfoApi.reextractPeriod(periodId, jurisdiction) and resets
+ *  the period query so the re-extracted result is refetched. */
+function BsJurisdictionBadge({
+  jurisdiction,
+  periodId,
+}: {
+  jurisdiction: CanonicalBsJurisdiction;
+  periodId?: string | null;
+}) {
+  const { t } = useTranslation();
+  const resolved = jurisdiction.resolved ?? "";
+  // Same period-resolution fallback as the status strip: explicit prop
+  // first, `?period=` URL param second.
+  const pid =
+    periodId ??
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("period")
+      : null);
+
+  const [pending, setPending] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [errorNote, setErrorNote] = useState<string | null>(null);
+
+  async function onReextract() {
+    if (!pid || !pending || busy) return;
+    setErrorNote(null);
+    setBusy(true);
+    try {
+      await cfoApi.reextractPeriod(pid, pending);
+      // The re-extraction replaces the period's canonical result — reset
+      // so every consumer refetches the fresh envelope.
+      void queryClient.resetQueries({ queryKey: periodQueryKey(pid) });
+      setPending(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : null;
+      setErrorNote(
+        `${t("bsCanonical.jurisdiction.reextractFailed")}${msg ? ` ${msg}` : ""}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span
+        data-testid="bs-jurisdiction-badge"
+        className="inline-flex items-center gap-1.5 rounded-full border border-rule bg-surface px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-soft"
+      >
+        {t("bsCanonical.jurisdiction.badge")}: {jurisdictionLabel(resolved, t)}
+      </span>
+      <JurisdictionSelect
+        includeAuto={false}
+        value={pending ?? resolved}
+        onChange={(v) => setPending(v === resolved ? null : v)}
+        disabled={busy}
+        data-testid="bs-jurisdiction-override"
+        aria-label={t("bsCanonical.jurisdiction.overrideAria")}
+        className="h-7 rounded-lg border border-rule bg-surface px-1.5 text-[11px] text-ink-soft focus:outline-none focus:ring-2 focus:ring-brand/40"
+      />
+      {pending && (
+        <span
+          className="inline-flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-soft"
+          data-testid="bs-jurisdiction-confirm"
+        >
+          {t("bsCanonical.jurisdiction.reextractBody")}
+          <button
+            type="button"
+            data-testid="bs-jurisdiction-reextract"
+            onClick={() => void onReextract()}
+            disabled={busy || !pid}
+            aria-busy={busy}
+            className="underline underline-offset-2 hover:text-ink disabled:opacity-50"
+          >
+            {t("bsCanonical.jurisdiction.reextractConfirm")}
+          </button>
+          <button
+            type="button"
+            data-testid="bs-jurisdiction-cancel"
+            onClick={() => setPending(null)}
+            disabled={busy}
+            className="text-ink-mute hover:text-ink disabled:opacity-50"
+          >
+            {t("bsCanonical.jurisdiction.cancel")}
+          </button>
+        </span>
+      )}
+      {errorNote && (
+        <span
+          className="text-[11.5px] text-ink-soft"
+          data-testid="bs-jurisdiction-error"
+        >
+          {errorNote}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Confidence → display %. The engine may serve 0..1 or 0..100; missing
+ *  confidence sorts FIRST (lowest — most in need of attention). */
+function confidencePct(c: number | null | undefined): number {
+  if (typeof c !== "number" || !Number.isFinite(c)) return 0;
+  return c <= 1 ? c * 100 : c;
+}
+
+/** Calm amber collapsible panel listing AI-lane low-confidence lines,
+ *  sorted by confidence ascending. These values sit in the Unclassified
+ *  rows (included in totals) until a human maps them. Exported for tests. */
+export function BsNeedsReviewPanel({
+  entries,
+  currency,
+}: {
+  entries: CanonicalBsNeedsReviewEntry[];
+  currency: string;
+}) {
+  const { t } = useTranslation();
+  const fmt = useAmountFormatter(currency);
+  const display = useDisplayCurrency();
+  const [open, setOpen] = useState(true);
+  if (entries.length === 0) return null;
+
+  const sorted = [...entries].sort(
+    (a, b) => confidencePct(a.confidence) - confidencePct(b.confidence),
+  );
+
+  return (
+    <div
+      className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/[0.07] px-3 py-2 text-[12px]"
+      data-testid="bs-needs-review-panel"
+    >
+      <button
+        type="button"
+        data-testid="bs-needs-review-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full flex-wrap items-baseline gap-x-2 text-left"
+      >
+        <span className="font-medium text-amber-700 dark:text-amber-400">
+          {t("bsCanonical.needsReviewPanel.title", { count: entries.length })}
+        </span>
+        <span className="text-[11px] text-ink-mute">
+          {open
+            ? t("bsCanonical.needsReviewPanel.hide")
+            : t("bsCanonical.needsReviewPanel.show")}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1.5">
+          <p className="text-ink-soft">{t("bsCanonical.needsReviewPanel.body")}</p>
+          <ul className="space-y-1">
+            {sorted.map((e, i) => {
+              const code = e.account_code ?? e.code ?? "—";
+              const label = e.label ?? e.name ?? "";
+              const pct = Math.round(confidencePct(e.confidence));
+              return (
+                <li
+                  key={`${code}-${i}`}
+                  data-testid="bs-needs-review-entry"
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+                >
+                  <span className="font-mono text-[11.5px] text-ink">{code}</span>
+                  {label && <span className="text-ink">{label}</span>}
+                  {typeof e.amount === "number" && (
+                    <span className="font-mono tabular-nums text-ink">
+                      {display} {fmt(e.amount)}
+                    </span>
+                  )}
+                  <span
+                    className="text-amber-700 dark:text-amber-400"
+                    data-testid="bs-needs-review-confidence"
+                  >
+                    {pct}% {t("bsCanonical.needsReviewPanel.confidence")}
+                  </span>
+                  {e.rationale && (
+                    <span className="basis-full text-[11.5px] text-ink-soft">
+                      {e.rationale}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

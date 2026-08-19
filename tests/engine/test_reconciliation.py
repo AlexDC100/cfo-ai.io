@@ -1068,3 +1068,35 @@ def test_reconcile_routes_mounted():
     paths = {route.path for route in build_router().routes}
     assert "/api/period/{period_id}/reconcile" in paths
     assert "/api/period/{period_id}/reconcile/undo" in paths
+
+
+def test_serve_preserves_ai_lane_needs_review_array():
+    """Verifier NO-GO regression (2026-08-19): served_canonical_bs used to
+    overwrite the AI lane's needs_review ARRAY (low-confidence mapping
+    queue) with this stage's boolean, silencing the FE panel on every
+    real serving. The array must survive the serve path verbatim."""
+    from engine.api import _reconcile
+
+    entries = [
+        {"code": "466", "label": "Egyéb kötelezettség", "amount": 400000.0,
+         "confidence": 0.62, "rationale": "ambiguous mapping"},
+    ]
+    envelope = {
+        "provenance": {"content_hash": "h1"},
+        "canonical_bs": {
+            "schema": "bs_v2",
+            "status": "MINOR_DRIFT",
+            "difference": 12.0,
+            "totals": {"assets": 100000.0, "equity_plus_liabilities": 99988.0},
+            "extraction": {"method": "llm"},
+            "needs_review": list(entries),
+            "rows": [], "sections": [], "diagnosis": [],
+        },
+    }
+    served = _reconcile.served_canonical_bs(envelope)
+    assert served["needs_review"] == entries, served["needs_review"]
+    # The auto-reconcile boolean semantics still apply when the stored
+    # value is NOT an array (deterministic-lane envelopes).
+    envelope["canonical_bs"]["needs_review"] = False
+    served2 = _reconcile.served_canonical_bs(envelope)
+    assert isinstance(served2["needs_review"], bool)

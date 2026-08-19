@@ -53,6 +53,8 @@ from . import _valuation
 # swapped at runtime in F3.3+. Importing the ro_romania subpackage as
 # a side-effect registers the Romania pack with the registry.
 import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers RomaniaPack
+from engine import ai_lane as _ai_lane  # HU/OTHER jurisdiction AI extraction lane
+from engine.ai_lane import routes as _ai_lane_routes
 # F4.5 — Hungary pack (SKELETON / UNCALIBRATED). Registered so F4.4 fan-out
 # routing can exercise multi-pack logic. detect_from_content() returns 0.0
 # confidence so the RO pack always wins on RO uploads.
@@ -625,6 +627,45 @@ def _deterministic_tb_parsed(
     }
 
 
+def _maybe_route_ai_lane(
+    doc: Dict[str, Any], file_bytes: bytes, kind: str,
+) -> Optional[Dict[str, Any]]:
+    """Jurisdiction gate for the AI extraction lane — runs the
+    deterministic resolver BEFORE lane selection.
+
+    RO (or any resolver failure) → returns None and the existing RO code
+    path runs EXACTLY as before — deterministic fast-paths, statutory
+    detection and the RO freeform LLM fallback are all untouched.
+    HU/OTHER → the ai_lane pipeline (format_detect → extract → classify
+    → self-check) replaces the freeform LLM fallback for those
+    jurisdictions only. AiLaneError propagates → documents.status
+    'failed' with the clear lane error (never partial numbers).
+    """
+    try:
+        resolution = _ai_lane.resolve_jurisdiction(doc, file_bytes)
+        jurisdiction = str(resolution.get("jurisdiction") or "RO")
+    except Exception:  # noqa: BLE001 — the RO lane must never be blocked
+        logger.exception(
+            "[stage_extract] jurisdiction resolver failed — defaulting to RO path"
+        )
+        return None
+    if jurisdiction == "RO":
+        return None
+    logger.info(
+        "[stage_extract] AI lane engaged: jurisdiction=%s source=%s "
+        "confidence=%s kind=%s doc=%s",
+        jurisdiction, resolution.get("source"), resolution.get("confidence"),
+        kind, doc.get("id"),
+    )
+    return _ai_lane.run_ai_lane(
+        doc=doc,
+        file_bytes=file_bytes,
+        kind=kind,
+        resolution=resolution,
+        admin_factory=_supabase.admin,
+    )
+
+
 def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Format-aware extraction. Sends the document to Claude Opus 4.7 in the
     most appropriate content-block shape for its type, then validates the
@@ -765,6 +806,20 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 f"years_found={_pr_unparseable['years_found']}]"
             )
 
+        # ── AI-lane jurisdiction gate (PDF) ─────────────────────────
+        # Resolver BEFORE lane selection. Uses the bytes already
+        # downloaded for public-records detection; when that download
+        # failed the gate is skipped and the RO fallback path below runs
+        # unchanged. RO documents fall straight through (gate → None).
+        try:
+            _pdf_bytes_for_resolver: Optional[bytes] = _pdf_bytes
+        except NameError:
+            _pdf_bytes_for_resolver = None
+        if _pdf_bytes_for_resolver is not None:
+            _ai_parsed = _maybe_route_ai_lane(doc, _pdf_bytes_for_resolver, "pdf")
+            if _ai_parsed is not None:
+                return _ai_parsed
+
         # ── F3.8c — Deterministic PDF trial-balance fast-path ───────
         # Romanian RAS PDF trial balances (WinMENTOR / SAGA / Ciel /
         # generic-RAS) parse cleanly via the PyMuPDF position-based
@@ -848,6 +903,15 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
 
     if len(file_bytes) > 25 * 1024 * 1024:
         raise RuntimeError(f"File too large ({len(file_bytes)/1_000_000:.1f} MB) — 25 MB ceiling.")
+
+    # ── AI-lane jurisdiction gate (xlsx/csv/text/image) ──────────────
+    # Resolver BEFORE lane selection: HU/OTHER documents route to the
+    # ai_lane pipeline (replacing the freeform LLM fallback for those
+    # jurisdictions only); RO documents return None here and every
+    # branch below runs exactly as before.
+    _ai_parsed = _maybe_route_ai_lane(doc, file_bytes, kind)
+    if _ai_parsed is not None:
+        return _ai_parsed
 
     # Fix 9 — dual-pipeline routing. BEFORE the trial-balance fast-path
     # runs, detect whether this xlsx/xls is a statutory ANAF filing
@@ -3408,6 +3472,49 @@ def _run_pipeline_sync(document_id: str) -> None:
                     pass  # CHECK constraint rejection is non-fatal
                 return  # Short-circuit — no TB stages for this doc.
 
+        # ── AI-lane (HU/OTHER jurisdictions) short-circuit ──────────────
+        # `stage_extract` returns `detected_type='ai_lane_statement'` when
+        # the jurisdiction resolver routed the document through the AI
+        # extraction lane. The lane already built the FULL canonical
+        # envelope (canonical_bs via build_canonical_bs_v2 + ai_audit +
+        # needs_review) — persist it through the UNTOUCHED stage_persist
+        # (provenance stamp + auto-reconcile seam, which correctly skips
+        # llm extractions) and stop: the RO mapper/compute/narrate stages
+        # must never consume non-RO accounts. Mirrors the public-records
+        # marker-payload pattern above.
+        if (parsed or {}).get("detected_type") == _ai_lane.AI_LANE_DETECTED_TYPE:
+            _ai_info = parsed.get("ai_lane") or {}
+            if _ai_info.get("cached"):
+                # Cache hit — the persisted envelope IS the cache; the
+                # period already carries this content_hash + prompt
+                # versions. Zero model calls, zero writes.
+                _admin_set_status(
+                    document_id, "analyzed",
+                    duration_ms=int((time.time() - t0) * 1000),
+                    period_id=_ai_info.get("period_id"),
+                )
+                logger.info(
+                    "[pipeline] %s ai_lane cache hit — served persisted "
+                    "envelope (period %s)",
+                    document_id, _ai_info.get("period_id"),
+                )
+                return
+            _admin_set_status(document_id, "mapping")
+            assembled = _ai_info.get("assembled") or {}
+            period_id = stage_persist(doc, parsed, assembled)
+            _admin_set_status(
+                document_id, "analyzed",
+                duration_ms=int((time.time() - t0) * 1000),
+                period_id=period_id,
+            )
+            logger.info(
+                "[pipeline] %s ai_lane complete in %dms (jurisdiction=%s, "
+                "period %s)",
+                document_id, int((time.time() - t0) * 1000),
+                _ai_info.get("jurisdiction"), period_id,
+            )
+            return
+
         # Persist the deterministic detected_type back to the documents
         # row. Upload-time detection uses filename heuristics only — once
         # `stage_extract` has inspected the content (TB anchors, F30/F10
@@ -4394,6 +4501,11 @@ def build_router() -> APIRouter:
     # POST /api/period/{id}/reconcile + /reconcile/undo. `_require_jwt`
     # is injected so _reconcile never imports back into this module.
     _reconcile.register_routes(router, require_jwt=_require_jwt)
+
+    # AI-lane: POST /api/period/{id}/reextract — flags the period's
+    # envelope for forced re-extraction (cache bypass) on the next scan.
+    # Mounted exactly like the reconcile routes (require_jwt injected).
+    _ai_lane_routes.register_routes(router, require_jwt=_require_jwt)
 
     # ── FX rates endpoint (currency toggle, BNR proxy) ────────────────
     # Returns {base, rates, source, as_of, fetched_at, stale}. Backend

@@ -37,6 +37,39 @@ const bsCanonicalEn = {
     syntheticRowAria: "Reconciliation adjustment row",
     receiptToggleAria: "Show reconciliation details",
   },
+  // AI LANE (2026-08-19) — permanent provenance badge for llm-extracted
+  // periods. Never removable: the badge renders whenever
+  // extraction/classification method is "llm", in every status state.
+  aiRead: {
+    label: "AI-read",
+    tooltip:
+      "Numbers were read by AI, not mechanically extracted — review before external use.",
+  },
+  // Jurisdiction (country accounting pack) — pre-scan hint dropdown +
+  // post-scan resolved badge with override → re-extraction.
+  jurisdiction: {
+    badge: "Jurisdiction",
+    dialogLabel: "Accounting jurisdiction",
+    auto: "Auto-detect",
+    ro: "Romania",
+    hu: "Hungary",
+    intl: "Other (international)",
+    selectAria: "Accounting jurisdiction",
+    overrideAria: "Change jurisdiction and re-extract",
+    reextractBody: "Re-extraction re-reads the document with AI.",
+    reextractConfirm: "Re-extract",
+    cancel: "Cancel",
+    reextractFailed: "Couldn't start re-extraction — try again.",
+  },
+  // AI-lane needs-review panel — low-confidence classified lines that sit
+  // in the Unclassified rows until a human maps them.
+  needsReviewPanel: {
+    title: "Lines to review ({{count}})",
+    body: "These values sit in Unclassified rows pending human mapping — review each line and map its account to confirm the statement.",
+    confidence: "confidence",
+    show: "Show lines",
+    hide: "Hide lines",
+  },
 };
 
 const bsCanonicalRo = {
@@ -61,6 +94,32 @@ const bsCanonicalRo = {
     undoFailed: "Nu am putut anula ajustarea — încearcă din nou.",
     syntheticRowAria: "Rând de ajustare din reconciliere",
     receiptToggleAria: "Arată detaliile reconcilierii",
+  },
+  aiRead: {
+    label: "Citit de AI",
+    tooltip:
+      "Cifrele au fost citite de AI, nu extrase mecanic — verifică-le înainte de a le folosi în exterior.",
+  },
+  jurisdiction: {
+    badge: "Jurisdicție",
+    dialogLabel: "Jurisdicție contabilă",
+    auto: "Detectare automată",
+    ro: "România",
+    hu: "Ungaria",
+    intl: "Alta (internațional)",
+    selectAria: "Jurisdicție contabilă",
+    overrideAria: "Schimbă jurisdicția și re-extrage",
+    reextractBody: "Re-extragerea recitește documentul cu AI.",
+    reextractConfirm: "Re-extrage",
+    cancel: "Anulează",
+    reextractFailed: "Nu am putut porni re-extragerea — încearcă din nou.",
+  },
+  needsReviewPanel: {
+    title: "Linii de verificat ({{count}})",
+    body: "Aceste valori stau în rânduri Neclasificate până la maparea manuală — verifică fiecare linie și mapează-i contul ca să confirmi situația.",
+    confidence: "încredere",
+    show: "Arată liniile",
+    hide: "Ascunde liniile",
   },
 };
 

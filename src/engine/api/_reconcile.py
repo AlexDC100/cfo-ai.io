@@ -437,7 +437,14 @@ def served_canonical_bs(envelope: Any) -> Optional[Dict[str, Any]]:
         served.get("status") != "RECONCILED"
         and _matching_needs_review_marker(envelope) is not None
     )
-    served["needs_review"] = needs_review
+    # AI-lane envelopes carry needs_review as an ARRAY of low-confidence
+    # lines (a different meaning: human mapping queue, not auto-reconcile
+    # rejection). Overwriting it with this stage's boolean silenced the
+    # FE's needs-review panel on every real serving (verifier NO-GO,
+    # 2026-08-19). LLM extractions are out of auto-reconcile scope, so
+    # the boolean is never true for them — preserve the array.
+    if not isinstance(served.get("needs_review"), list):
+        served["needs_review"] = needs_review
     served["reconcile_offer"] = compute_reconcile_offer(
         served, needs_review=needs_review
     )

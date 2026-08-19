@@ -469,6 +469,20 @@ export const cfoApi = {
       { method: "POST" },
     ),
 
+  /** AI LANE (2026-08-19) — re-read the period's source document with the
+   *  AI extraction lane under an explicitly chosen jurisdiction (country
+   *  pack code: "RO" | "HU" | "INTL"). Called from the BS jurisdiction
+   *  badge's override confirm ("Re-extraction re-reads the document with
+   *  AI"). The engine replaces the period's canonical result; callers
+   *  reset the period query afterwards. Response typed loosely — the
+   *  engine side ships in parallel; the FE relies on nothing beyond
+   *  success/failure plus an optional fresh canonical_bs. */
+  reextractPeriod: (periodId: string, jurisdiction: string) =>
+    call<ReconcileApiResponse & { ok?: boolean; period_id?: string }>(
+      `/api/period/${encodeURIComponent(periodId)}/reextract`,
+      { method: "POST", body: JSON.stringify({ jurisdiction }) },
+    ),
+
   /** Delete a month (period): hard-deletes the period + all derivatives and
    *  soft-deletes its attached documents (recoverable from "Recently deleted"
    *  for 30 days). Backend: DELETE /api/period/{id}. */

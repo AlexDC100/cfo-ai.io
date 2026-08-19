@@ -17,6 +17,10 @@ import type { BSLine, BSSection, BSStatement } from "./bsStructure";
 import {
   canonicalBsSectionMeta,
   type CanonicalBs,
+  type CanonicalBsClassification,
+  type CanonicalBsExtraction,
+  type CanonicalBsJurisdiction,
+  type CanonicalBsNeedsReviewEntry,
   type CanonicalBsReconciliation,
   type CanonicalBsStatus,
 } from "./financialReport";
@@ -75,10 +79,10 @@ export type CanonicalBsReconciliationExt = CanonicalBsReconciliation & {
   placement?: "balance_sheet" | "pnl";
 };
 export type CanonicalBsExt = CanonicalBs & {
-  /** Served when the auto-reconcile stage ran and was REJECTED by the
-   *  validator (or the diagnosis was inconclusive): honest imbalance +
-   *  "needs manual mapping". Never accompanies RECONCILED/BALANCED. */
-  needs_review?: boolean;
+  // `needs_review` moved to the base CanonicalBs type (financialReport.ts)
+  // when the AI lane widened it to `boolean | CanonicalBsNeedsReviewEntry[]`
+  // — boolean `true` still means "auto-reconcile rejected, needs manual
+  // mapping"; the array form lists AI-lane low-confidence lines.
   reconciliation?: CanonicalBsReconciliationExt | null;
 };
 
@@ -106,6 +110,27 @@ export interface BSCanonicalMeta {
   /** Present iff status is RECONCILED — receipt for the green chip's
    *  micro-caption + tap-receipt and the synthetic row tooltip. */
   reconciliation?: CanonicalBsReconciliationExt;
+  /** AI lane — extraction provenance verbatim (`method: "llm"` drives the
+   *  permanent AI-read badge; model + prompt_version feed its tooltip). */
+  extraction?: CanonicalBsExtraction;
+  /** AI lane — classification provenance (also permanently "llm" there). */
+  classification?: CanonicalBsClassification;
+  /** AI lane — low-confidence lines pending human mapping; empty array
+   *  when the engine served none (drives the needs-review panel). */
+  needsReviewEntries?: CanonicalBsNeedsReviewEntry[];
+  /** Resolved jurisdiction, normalized to the structured shape (a bare
+   *  engine string becomes `{ resolved }`). */
+  jurisdiction?: CanonicalBsJurisdiction;
+}
+
+/** Normalize the served jurisdiction field — the engine (built in
+ *  parallel) may ship a bare pack code or the structured object. */
+function normalizeJurisdiction(
+  j: CanonicalBsJurisdiction | string | null | undefined,
+): CanonicalBsJurisdiction | undefined {
+  if (!j) return undefined;
+  if (typeof j === "string") return j.length > 0 ? { resolved: j } : undefined;
+  return j.resolved || j.source || j.pack_version ? j : undefined;
 }
 
 /** Extract the strip's view-meta from a canonical_bs object verbatim.
@@ -120,8 +145,21 @@ export function canonicalMetaFromBs(cbs: CanonicalBs): BSCanonicalMeta {
     equityPlusLiabilities: cbs.totals.equity_plus_liabilities,
     diagnosis: (cbs.diagnosis ?? []).map((d) => ({ code: d.code, detail: d.detail })),
     mappingVersion: cbs.mapping_version,
-    needsReview: ext.needs_review === true,
+    // Boolean form only — the AI-lane ARRAY form feeds needsReviewEntries
+    // below and must not trip the auto-reconcile "Needs manual mapping"
+    // strip state (a different situation with different copy).
+    needsReview: cbs.needs_review === true,
     reconciliation: (ext.reconciliation as CanonicalBsReconciliationExt | null) ?? undefined,
+    extraction: cbs.extraction,
+    classification: cbs.classification ?? undefined,
+    // Top-level array when the serve path preserved it; otherwise the
+    // AI lane's survives-serving copy under classification.needs_review
+    // (the auto-reconcile stage owns the top-level key's boolean form —
+    // verifier finding 2026-08-19).
+    needsReviewEntries: Array.isArray(cbs.needs_review)
+      ? cbs.needs_review
+      : cbs.classification?.needs_review ?? [],
+    jurisdiction: normalizeJurisdiction(cbs.jurisdiction),
   };
 }
 
