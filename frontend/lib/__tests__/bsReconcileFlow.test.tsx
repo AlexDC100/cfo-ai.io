@@ -262,13 +262,16 @@ describe("buildBSStatement — auto-reconcile pass-through (canonical path only)
 // ─── status strip states ─────────────────────────────────────────────────
 
 describe("BsCanonicalStatusStrip — RECONCILED (auto-adjusted)", () => {
-  it("renders the calm green Balanced-family chip with the auto-adjusted micro-caption; no receipt until tapped", () => {
+  it("renders the calm green chip labeled 'Reconciled' (sv1: NEVER a balanced-family word) with the auto-adjusted micro-caption; no receipt until tapped", () => {
     render(<BsCanonicalStatusStrip meta={reconciledMeta()} currency="RON" periodId="p1" />);
 
     const strip = screen.getByTestId("bs-status-reconciled");
     expect(strip).toBeInTheDocument();
-    // The chip reads the NORMAL balanced label…
-    expect(strip.textContent).toContain("Balance check passed");
+    // sv1 locked invariant (engine.serving.present_status, mirrored by
+    // servedFacts.presentStatus): the RECONCILED display string is
+    // "Reconciled" — never a 'balanced'-family label in any language.
+    expect(strip.textContent).toContain("Reconciled");
+    expect(strip.textContent!.toLowerCase()).not.toMatch(/balanc/);
     // …plus the subtle micro-caption with the adjusted amount.
     const caption = screen.getByTestId("bs-auto-adjusted-caption");
     expect(caption.textContent).toContain("auto-adjusted");

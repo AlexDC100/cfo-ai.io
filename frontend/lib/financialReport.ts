@@ -11,6 +11,14 @@
 // to PDF" without any tooling. The visual language is a navy + neutral
 // board-pack template designed for institutional financial reporting.
 
+// BS totals gateway — every Balance-Sheet TOTAL consumed in this file goes
+// through `factsFrom(statements)` (frontend/lib/servedFacts.ts): the served,
+// reconciliation-ADJUSTED figures on canonical periods, envelope totals or
+// deriveTotals bucket sums on legacy ones. deriveTotals stays exported for
+// P&L concepts + debt decomposition (not carried by canonical_bs), but no
+// consumer below reads BS grand totals from it directly anymore.
+import { factsFrom, presentStatus } from "./servedFacts";
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface BalanceSheet {
@@ -546,6 +554,12 @@ export function computeRatios(
   metricsByName?: Record<string, number | null>,
 ): RatioBundle {
   const t = deriveTotals(s);
+  // servedFacts gateway — BS totals (assets / equity / liabilities /
+  // current splits / working capital) come from the served envelope, so
+  // every ratio's denominator agrees to the cent with the BS tab, both
+  // exports and periodFacts. P&L concepts + the debt decomposition keep
+  // reading `t` (deriveTotals) — canonical_bs carries no debt split.
+  const sf = factsFrom(s);
   const bs = s.balanceSheet;
   const is = s.incomeStatement;
   const sup = s.supplementary;
@@ -571,12 +585,12 @@ export function computeRatios(
   };
 
   // Liquidity ────────────────────────────────────────────────────────────────
-  const currentRatio = mOr("current_ratio", safeDiv(t.totalCurrentAssets, t.totalCurrentLiabilities));
+  const currentRatio = mOr("current_ratio", safeDiv(sf.currentAssets(), sf.currentLiabilities()));
   const quickRatio = mOr(
     "quick_ratio",
-    safeDiv(bs.cash + bs.accountsReceivable, t.totalCurrentLiabilities),
+    safeDiv(bs.cash + bs.accountsReceivable, sf.currentLiabilities()),
   );
-  const cashRatio = mOr("cash_ratio", safeDiv(bs.cash, t.totalCurrentLiabilities));
+  const cashRatio = mOr("cash_ratio", safeDiv(bs.cash, sf.currentLiabilities()));
 
   // Profitability ────────────────────────────────────────────────────────────
   // F1.e + F2.2: prefer engine canonical when supplied (via either the
@@ -594,20 +608,20 @@ export function computeRatios(
     : (canonicalMargins?.netMargin != null
         ? canonicalMargins.netMargin * 100
         : pct(t.netIncome, is.revenue));
-  const roa = mPctOr("roa", pct(t.netIncome, t.totalAssets));
-  const roe = mPctOr("roe", pct(t.netIncome, t.totalEquity));
+  const roa = mPctOr("roa", pct(t.netIncome, sf.totalAssets()));
+  const roe = mPctOr("roe", pct(t.netIncome, sf.totalEquity()));
   // F2.2 — ROIC added as a new Profitability row (engine emits; FE didn't
   // surface previously). Engine formula: operating_profit × (1 − 0.16) /
   // max(total_debt + total_equity, 1) — NOPAT over invested capital.
   const roic = mPctOr(
     "roic",
-    pct(t.ebit * (1 - 0.16), Math.max(t.totalDebt + t.totalEquity, 1)),
+    pct(t.ebit * (1 - 0.16), Math.max(t.totalDebt + sf.totalEquity(), 1)),
   );
 
   // Leverage ─────────────────────────────────────────────────────────────────
   const debtToEbitda = mOr("debt_to_ebitda", safeDiv(t.totalDebt, t.ebitda));
-  const debtToEquity = mOr("debt_to_equity", safeDiv(t.totalDebt, t.totalEquity));
-  const equityRatio = mPctOr("equity_ratio", pct(t.totalEquity, t.totalAssets));
+  const debtToEquity = mOr("debt_to_equity", safeDiv(t.totalDebt, sf.totalEquity()));
+  const equityRatio = mPctOr("equity_ratio", pct(sf.totalEquity(), sf.totalAssets()));
   // F2.2 — LTV stays FE-arithmetic when propertyMarketValue is supplied
   // (user input, not engine-derived). When no override, read engine's
   // `debt_to_assets` canonical. This is one of the few FE-arithmetic sites
@@ -617,7 +631,7 @@ export function computeRatios(
   // user's market-value input from the LTV displayed value.
   const ltv = sup.propertyMarketValue
     ? pct(t.totalDebt, sup.propertyMarketValue)
-    : mPctOr("debt_to_assets", pct(t.totalDebt, t.totalAssets));
+    : mPctOr("debt_to_assets", pct(t.totalDebt, sf.totalAssets()));
 
   // Coverage ─────────────────────────────────────────────────────────────────
   // F2.2 — interest_coverage switches from FE EBIT-basis to engine
@@ -671,7 +685,7 @@ export function computeRatios(
   const dio = mOr("dio", safeDiv(bs.inventory, totalOperatingExpense) * days);
   const dpo = mOr("dpo", safeDiv(bs.accountsPayable, totalOperatingExpense) * days);
   const ccc = mOr("ccc", dso + dio - dpo);
-  const assetTurnover = mOr("asset_turnover", safeDiv(is.revenue, t.totalAssets));
+  const assetTurnover = mOr("asset_turnover", safeDiv(is.revenue, sf.totalAssets()));
 
   // Bankruptcy — Altman Z″ (engine canonical, 1995 EM variant) ─────────────
   // F2.2 — Switched from FE inline Z(1968) formula to engine `altman_z_score`
@@ -694,11 +708,12 @@ export function computeRatios(
     : (
         // FE fallback — Z″ inline (single variant, no industry switch).
         // Z″ = 6.56·(WC/TA) + 3.26·(RE+CurrentNP)/TA + 6.72·(EBIT/TA)
-        //    + 1.05·(Equity/TL)
-        6.56 * safeDiv(t.workingCapital, t.totalAssets) +
-        3.26 * safeDiv(bs.retainedEarnings + t.netIncome, t.totalAssets) +
-        6.72 * safeDiv(t.ebit, t.totalAssets) +
-        1.05 * safeDiv(t.totalEquity, t.totalLiabilities)
+        //    + 1.05·(Equity/TL) — BS totals via the servedFacts gateway
+        // (X4 equity is the ADJUSTED figure on RECONCILED periods).
+        6.56 * safeDiv(sf.workingCapital(), sf.totalAssets()) +
+        3.26 * safeDiv(bs.retainedEarnings + t.netIncome, sf.totalAssets()) +
+        6.72 * safeDiv(t.ebit, sf.totalAssets()) +
+        1.05 * safeDiv(sf.totalEquity(), sf.totalLiabilities())
       );
 
   return {
@@ -1056,6 +1071,11 @@ export function generateRecommendations(
   // distress rule stays silent unless the underlying condition is
   // genuinely present.
   const t = deriveTotals(s);
+  // servedFacts gateway — BS grand totals (assets / equity / liabilities /
+  // current splits) come from the served envelope; the old
+  // `pick(ab.total_*, t.total*)` dual path is deleted. Bucket-level fields
+  // (cash, dividends, intercompany, debt) keep their assembled_bs reads.
+  const sf = factsFrom(s);
   const ap = (s as Statements & { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
   const ab = (s as Statements & { assembled_bs?: Record<string, number> }).assembled_bs ?? {};
   const ac = (s as Statements & { assembled_cf?: Record<string, number> }).assembled_cf ?? {};
@@ -1069,8 +1089,8 @@ export function generateRecommendations(
   const cfo = pick(ac.cash_from_operating, niStatutory + pick(ap.depreciation, s.incomeStatement.depreciationAmortization));
   const capexReal = pick(ac.capex_real, -(ap.capitalized_own_work_memo ?? 0));
   const bankDebt = pick(ab.total_debt, t.totalDebt);
-  const totalAssets = pick(ab.total_assets, t.totalAssets);
-  const totalEquity = pick(ab.total_equity, t.totalEquity);
+  const totalAssets = sf.totalAssets();
+  const totalEquity = sf.totalEquity();
   const cash = pick(ab.cash, s.balanceSheet.cash);
   const apDividends = pick(ab.ap_dividends, 0);
   const intercompany = pick(ab.intercompany_loans, 0);
@@ -1119,22 +1139,24 @@ export function generateRecommendations(
       ar_net: s.balanceSheet.accountsReceivable,
       intercompany_loans: intercompany,
       prepayments: 0,
-      current_assets: t.totalCurrentAssets,
+      current_assets: sf.currentAssets(),
       investment_property_net: investmentProp,
       ppe_net: investmentProp,
-      non_current_assets: t.totalNonCurrentAssets,
+      non_current_assets: sf.nonCurrentAssets(),
       total_assets: totalAssets,
       suppliers: s.balanceSheet.accountsPayable,
       dividends_payable: apDividends,
       bank_debt_total: bankDebt,
-      short_term_liabilities: t.totalCurrentLiabilities,
-      total_liabilities: pick(ab.total_liabilities, t.totalLiabilities),
+      short_term_liabilities: sf.currentLiabilities(),
+      total_liabilities: sf.totalLiabilities(),
       share_capital: s.balanceSheet.shareCapital,
       revaluation_reserves: 0,
       retained_earnings: pick(ab.retained_earnings, s.balanceSheet.retainedEarnings),
       current_year_pnl: niStatutory,
       total_equity: totalEquity,
-      bs_balance_check: 0,
+      // Served drift, not a hardcoded 0 — cross-surface identical with
+      // periodFacts.audit and the BS chip by construction.
+      bs_balance_check: sf.difference(),
       // Concentration heuristics — fed by the periodFacts builder when
       // it has line items. Without them (legacy entry-point), default
       // to undefined; the rules then stay silent rather than guessing.
@@ -1166,7 +1188,7 @@ export function generateRecommendations(
       primary_method: "asset_based", primary_value: 0, confidence: "low" as const,
       industry_key: s.industry ?? null, ev_ebitda_p50: null,
     },
-    audit: { bs_balance_check: 0, has_line_items: false, industry_classified: !!s.industry },
+    audit: { bs_balance_check: sf.difference(), has_line_items: false, industry_classified: !!s.industry },
   };
   const conditions = detectConditions(safeFacts as never).sort(
     (a, b) => severityRank(a.severity) - severityRank(b.severity),
@@ -1276,6 +1298,10 @@ export function verdictLabel(v: RatioVerdict): string {
 
 export function renderReportHtml(s: Statements): string {
   const t = deriveTotals(s);
+  // servedFacts gateway — the report's BS totals + the balance-status
+  // footer read the served envelope; this renderer never branches on
+  // `s.canonical_bs` presence itself (the module knows).
+  const sf = factsFrom(s);
   const r = computeRatios(s);
   const recs = generateRecommendations(s, r);
 
@@ -1769,10 +1795,12 @@ export function renderReportHtml(s: Statements): string {
   const balanceSheetTable = (): string => {
     // canonical_bs v2 — serialize the engine object verbatim (contract
     // "Consumption rules": exports serialize canonical rows and totals when
-    // present). No deriveTotals, no bucket reads on this path; every figure
-    // below is a field of `s.canonical_bs`. Legacy fallback (no canonical_bs)
-    // keeps the deriveTotals table unchanged.
-    const cbs = s.canonical_bs;
+    // present). The object + totals + status all come through the
+    // servedFacts gateway (adjusted figures on RECONCILED periods); the
+    // status footer wording comes from presentStatus — the same presenter
+    // the BS chip and the Excel status cell use, so the three can never
+    // word the verdict differently.
+    const cbs = sf.canonicalForRender();
     if (cbs) {
       const sideRows = (side: "assets" | "equity_liabilities"): string =>
         cbs.sections
@@ -1796,35 +1824,29 @@ export function renderReportHtml(s: Statements): string {
             );
           })
           .join("");
-      // Status footer — MATERIAL_IMBALANCE must read as a defect (red .risk
-      // block with the engine's diagnosis), never as a clean statement.
-      const statusNote =
-        cbs.status === "MATERIAL_IMBALANCE"
-          ? `<div class="risk"><strong>Balance check: MATERIAL IMBALANCE.</strong> Assets − (Equity + Liabilities) = ${money(cbs.difference, s.currency)}. This balance sheet does not reconcile; do not rely on it until resolved.${
-              (cbs.diagnosis ?? []).length
-                ? ` Engine diagnosis: ${(cbs.diagnosis ?? [])
-                    .map((d) => `${escapeHtml(d.code)} — ${escapeHtml(d.detail)}`)
-                    .join("; ")}.`
-                : ""
-            }</div>`
-          : cbs.status === "MINOR_DRIFT"
-            ? `<div class="commentary"><strong>Balance check: minor drift.</strong> Assets − (Equity + Liabilities) = ${money(cbs.difference, s.currency)}.</div>`
-            : cbs.status === "RECONCILED"
-              // RECONCILED is machine-distinct from BALANCED and must never
-              // export as the pristine verdict (verifier kill-criterion).
-              // The receipt travels with the report: original delta, the
-              // adjusting line, origin, timestamp.
-              ? `<div class="commentary"><strong>Balance check: reconciled.</strong> A source imbalance of ${money(cbs.reconciliation?.original_difference ?? 0, s.currency)} was closed by the visible adjusting line "Diferențe de reconciliere" (${money(cbs.reconciliation?.applied_delta ?? 0, s.currency)}, ${escapeHtml(cbs.reconciliation?.origin ?? "deterministic")}, ${escapeHtml(cbs.reconciliation?.applied_at ?? "")}) — verified against source, reversible. Reconciled ≠ balanced; mapping ${escapeHtml(cbs.mapping_version)}.</div>`
-              : `<div class="commentary"><strong>Balance check: balanced.</strong> Assets = Equity + Liabilities (engine-verified, mapping ${escapeHtml(cbs.mapping_version)}).</div>`;
+      // Status footer — ONE presenter (servedFacts.presentStatus) words the
+      // verdict for chip + HTML + Excel alike. MATERIAL_IMBALANCE must read
+      // as a defect (red .risk block with the engine's diagnosis), never as
+      // a clean statement; RECONCILED is machine-distinct from BALANCED and
+      // must never export as the pristine verdict (verifier kill-criterion)
+      // — the receipt travels with the report.
+      const p = sf.presentStatus(s.currency);
+      const diagnosisSuffix =
+        p.band === "material_imbalance" && (cbs.diagnosis ?? []).length
+          ? ` Engine diagnosis: ${(cbs.diagnosis ?? [])
+              .map((d) => `${escapeHtml(d.code)} — ${escapeHtml(d.detail)}`)
+              .join("; ")}.`
+          : "";
+      const statusNote = `<div class="${p.band === "material_imbalance" ? "risk" : "commentary"}"><strong>${escapeHtml(p.exportHeadline)}</strong>${p.exportDetail ? ` ${escapeHtml(p.exportDetail)}` : ""}${diagnosisSuffix}</div>`;
       return `
       <table class="fin">
         <thead><tr><th>Balance Sheet</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>
         <tbody>
           ${sideRows("assets")}
-          <tr class="total"><td>Total Assets</td><td class="num">${money(cbs.totals.assets, s.currency)}</td></tr>
+          <tr class="total"><td>Total Assets</td><td class="num">${money(sf.totalAssets(), s.currency)}</td></tr>
           ${sideRows("equity_liabilities")}
-          <tr class="subtotal"><td>Total Liabilities</td><td class="num">${money(cbs.totals.liabilities, s.currency)}</td></tr>
-          <tr class="total"><td>Total Equity + Liabilities</td><td class="num">${money(cbs.totals.equity_plus_liabilities, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Total Liabilities</td><td class="num">${money(sf.totalLiabilities(), s.currency)}</td></tr>
+          <tr class="total"><td>Total Equity + Liabilities</td><td class="num">${money(sf.equityPlusLiabilities(), s.currency)}</td></tr>
         </tbody>
       </table>
       ${statusNote}
@@ -1835,30 +1857,30 @@ export function renderReportHtml(s: Statements): string {
       <table class="fin">
         <thead><tr><th>Balance Sheet</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>
         <tbody>
-          <tr class="subtotal"><td>Current Assets</td><td class="num">${money(t.totalCurrentAssets, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Current Assets</td><td class="num">${money(sf.currentAssets(), s.currency)}</td></tr>
           <tr class="indent"><td>Cash & equivalents</td><td class="num">${money(bs.cash, s.currency)}</td></tr>
           <tr class="indent"><td>Accounts receivable</td><td class="num">${money(bs.accountsReceivable, s.currency)}</td></tr>
           <tr class="indent"><td>Inventory</td><td class="num">${money(bs.inventory, s.currency)}</td></tr>
           <tr class="indent"><td>Other current assets</td><td class="num">${money(bs.otherCurrentAssets, s.currency)}</td></tr>
-          <tr class="subtotal"><td>Non-Current Assets</td><td class="num">${money(t.totalNonCurrentAssets, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Non-Current Assets</td><td class="num">${money(sf.nonCurrentAssets(), s.currency)}</td></tr>
           <tr class="indent"><td>Property, plant & equipment</td><td class="num">${money(bs.propertyPlantEquipment, s.currency)}</td></tr>
           <tr class="indent"><td>Intangibles</td><td class="num">${money(bs.intangibles, s.currency)}</td></tr>
           <tr class="indent"><td>Other non-current assets</td><td class="num">${money(bs.otherNonCurrentAssets, s.currency)}</td></tr>
-          <tr class="total"><td>Total Assets</td><td class="num">${money(t.totalAssets, s.currency)}</td></tr>
+          <tr class="total"><td>Total Assets</td><td class="num">${money(sf.totalAssets(), s.currency)}</td></tr>
 
-          <tr class="subtotal"><td>Current Liabilities</td><td class="num">${money(t.totalCurrentLiabilities, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Current Liabilities</td><td class="num">${money(sf.currentLiabilities(), s.currency)}</td></tr>
           <tr class="indent"><td>Accounts payable</td><td class="num">${money(bs.accountsPayable, s.currency)}</td></tr>
           <tr class="indent"><td>Short-term debt</td><td class="num">${money(bs.shortTermDebt, s.currency)}</td></tr>
           <tr class="indent"><td>Other current liabilities</td><td class="num">${money(bs.otherCurrentLiabilities, s.currency)}</td></tr>
-          <tr class="subtotal"><td>Non-Current Liabilities</td><td class="num">${money(t.totalNonCurrentLiabilities, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Non-Current Liabilities</td><td class="num">${money(sf.nonCurrentLiabilities(), s.currency)}</td></tr>
           <tr class="indent"><td>Long-term debt</td><td class="num">${money(bs.longTermDebt, s.currency)}</td></tr>
           <tr class="indent"><td>Other non-current liabilities</td><td class="num">${money(bs.otherNonCurrentLiabilities, s.currency)}</td></tr>
-          <tr class="subtotal"><td>Total Liabilities</td><td class="num">${money(t.totalLiabilities, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Total Liabilities</td><td class="num">${money(sf.totalLiabilities(), s.currency)}</td></tr>
           <tr class="indent"><td>Share capital</td><td class="num">${money(bs.shareCapital, s.currency)}</td></tr>
           <tr class="indent"><td>Retained earnings</td><td class="num">${money(bs.retainedEarnings, s.currency)}</td></tr>
           <tr class="indent"><td>Other equity</td><td class="num">${money(bs.otherEquity, s.currency)}</td></tr>
-          <tr class="subtotal"><td>Total Equity</td><td class="num">${money(t.totalEquity, s.currency)}</td></tr>
-          <tr class="total"><td>Total Liabilities + Equity</td><td class="num">${money(t.totalLiabilitiesAndEquity, s.currency)}</td></tr>
+          <tr class="subtotal"><td>Total Equity</td><td class="num">${money(sf.totalEquity(), s.currency)}</td></tr>
+          <tr class="total"><td>Total Liabilities + Equity</td><td class="num">${money(sf.equityPlusLiabilities(), s.currency)}</td></tr>
         </tbody>
       </table>
     `;

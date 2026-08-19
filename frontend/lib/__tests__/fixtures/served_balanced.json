@@ -1,0 +1,117 @@
+{
+  "__comment": "Served /api/period statements fixture — canonical bs_v2 period, status BALANCED (docs/served_envelope.schema.json, served_v1). The balanceSheet buckets deliberately do NOT sum to the canonical totals: any surface still recomputing from buckets instead of the servedFacts gateway fails the cross-surface suite.",
+  "companyName": "Servita Balanced SRL",
+  "industry": "manufacturing",
+  "currency": "RON",
+  "periodLabel": "FY 2025",
+  "balanceSheet": {
+    "cash": 5000000,
+    "accountsReceivable": 20000000,
+    "inventory": 2000000,
+    "otherCurrentAssets": 0,
+    "propertyPlantEquipment": 11000000,
+    "intangibles": 0,
+    "otherNonCurrentAssets": 0,
+    "accountsPayable": 6000000,
+    "shortTermDebt": 500000,
+    "otherCurrentLiabilities": 6000000,
+    "longTermDebt": 6000000,
+    "otherNonCurrentLiabilities": 0,
+    "shareCapital": 100000,
+    "retainedEarnings": 9000000,
+    "otherEquity": 14000000
+  },
+  "incomeStatement": {
+    "revenue": 10000000,
+    "costOfGoodsSold": 4000000,
+    "operatingExpenses": 3000000,
+    "depreciationAmortization": 800000,
+    "interestExpense": 200000,
+    "otherIncome": 0,
+    "taxExpense": 320000
+  },
+  "supplementary": {},
+  "assembled_pl": {
+    "revenue": 10000000,
+    "ebitda_statutory": 3000000,
+    "operating_ebit": 2200000,
+    "net_income_statutory": 1680000,
+    "depreciation": 800000,
+    "interest_expense": 200000,
+    "tax": 320000
+  },
+  "assembled_bs": {
+    "total_assets": 39194178.46,
+    "total_equity": 23924083.72,
+    "total_liabilities": 15270094.74,
+    "bs_balance_delta": 0,
+    "total_current_assets": 27397734.37,
+    "total_non_current_assets": 11796444.09,
+    "total_current_liabilities": 12934654.2,
+    "total_non_current_liabilities": 2335440.54,
+    "cash": 5000000,
+    "total_debt": 6500000,
+    "ar_net": 20000000,
+    "ap": 6000000,
+    "ppe_net": 11000000,
+    "share_capital": 100000,
+    "retained_earnings": 9000000,
+    "current_year_pnl": 1680000
+  },
+  "assembled_cf": {
+    "cash_from_operating": 2480000,
+    "cash_used_in_investing": -900000,
+    "cash_used_in_financing": -400000,
+    "net_change_in_cash": 1180000,
+    "is_approximated": true
+  },
+  "canonical_bs": {
+    "schema": "bs_v2",
+    "envelope_version": "sv1",
+    "mapping_version": "ro_omfp1802_v2",
+    "status_presentation": {
+      "machine": "BALANCED",
+      "display_key": "bs.status.balanced",
+      "display_en": "Balanced",
+      "display_ro": "Echilibrat",
+      "micro_caption": null
+    },
+    "extraction": {
+      "method": "deterministic",
+      "parser_version": "tb_parser_v4",
+      "source_format": "saga_10_col",
+      "number_locale": "ro"
+    },
+    "rows": [
+      { "id": "ppe_all", "section": "non_current_assets", "label": "Property, plant & equipment", "account_codes": ["21"], "amount": 11796444.09, "opening": null },
+      { "id": "trade_receivables", "section": "current_assets", "label": "Trade receivables", "account_codes": ["4111"], "amount": 20397734.37, "opening": null },
+      { "id": "cash", "section": "current_assets", "label": "Cash at bank", "account_codes": ["5121"], "amount": 7000000, "opening": null },
+      { "id": "share_capital", "section": "equity", "label": "Share capital", "account_codes": ["1012"], "amount": 100000, "opening": null },
+      { "id": "other_equity", "section": "equity", "label": "Reserves and retained earnings", "account_codes": ["106", "117"], "amount": 22144083.72, "opening": null },
+      { "id": "current_year_profit", "section": "equity", "label": "Current year net profit", "account_codes": ["121"], "amount": 1680000, "opening": null },
+      { "id": "lt_bank", "section": "non_current_liabilities", "label": "LT bank loans", "account_codes": ["1621"], "amount": 2335440.54, "opening": null },
+      { "id": "trade_payables", "section": "current_liabilities", "label": "Trade payables", "account_codes": ["401"], "amount": 12934654.2, "opening": null }
+    ],
+    "sections": [
+      { "id": "non_current_assets", "subtotal": 11796444.09 },
+      { "id": "current_assets", "subtotal": 27397734.37 },
+      { "id": "equity", "subtotal": 23924083.72 },
+      { "id": "non_current_liabilities", "subtotal": 2335440.54 },
+      { "id": "current_liabilities", "subtotal": 12934654.2 }
+    ],
+    "totals": {
+      "assets": 39194178.46,
+      "equity": 23924083.72,
+      "liabilities": 15270094.74,
+      "equity_plus_liabilities": 39194178.46,
+      "current_assets": 27397734.37,
+      "current_liabilities": 12934654.2
+    },
+    "difference": 0,
+    "status": "BALANCED",
+    "diagnosis": [],
+    "reconcile_offer": false,
+    "reconciliation": null,
+    "needs_review": false
+  }
+}

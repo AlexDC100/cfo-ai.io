@@ -55,6 +55,12 @@ from . import _valuation
 import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers RomaniaPack
 from engine import ai_lane as _ai_lane  # HU/OTHER jurisdiction AI extraction lane
 from engine.ai_lane import routes as _ai_lane_routes
+# sv1 FACTS GATEWAY — the ONE typed reader of served (reconciliation-
+# adjusted) balance-sheet truth. Every totals-level read in this module
+# goes through it; raw envelope/canonical_bs totals reads are forbidden
+# here (scripts/check_import_boundary.py enforces the boundary).
+from engine.serving.facts import FactsGateway as _FactsGateway
+from engine.serving.facts import MissingFactError as _MissingFact
 # F4.5 — Hungary pack (SKELETON / UNCALIBRATED). Registered so F4.4 fan-out
 # routing can exercise multi-pack logic. detect_from_content() returns 0.0
 # confidence so the RO pack always wins on RO uploads.
@@ -2459,6 +2465,44 @@ def stage_council(doc: Dict[str, Any], parsed: Dict[str, Any],
         return {}
 
 
+def _briefing_grand_totals(assembled: Dict[str, Any],
+                           bs_canonical: Dict[str, Any]) -> Dict[str, float]:
+    """The four BS grand totals `stage_narrate`'s briefing_facts cites
+    (total_assets / total_equity / total_liabilities / bs_balance_delta)
+    — resolved through the sv1 FactsGateway so the briefing narrates the
+    SERVED (reconciliation-adjusted) figures on BOTH paths:
+
+      · WRITE TIME: `assembled` carries the canonical envelope at its
+        top level, already mutated in place by stage_persist (provenance
+        + any auto-reconcile receipt) — the gateway serves it exactly
+        like /api/period will, so the FIRST briefing cites the same
+        totals the dashboard renders (previously builder-fresh values:
+        write-time vs regenerate diverged on reconciled periods).
+      · REGENERATE: `_rebuild_assembled_for_briefing` already ran
+        `_apply_envelope_truth_to_statements` (the same gateway) over
+        the statements, so `bs_canonical` carries the served totals and
+        `assembled` has no top-level envelope — the landed values pass
+        through unchanged. Degenerate docs with no envelope at all
+        (SKU-scope briefings) keep the builder values the same way.
+    """
+    out = {
+        "total_assets": bs_canonical.get("total_assets", 0.0),
+        "total_equity": bs_canonical.get("total_equity", 0.0),
+        "total_liabilities": bs_canonical.get("total_liabilities", 0.0),
+        "bs_balance_delta": bs_canonical.get("bs_balance_delta", 0.0),
+    }
+    try:
+        _gw = _FactsGateway.from_envelope(assembled.get("assembled_canonical_v1") or {})
+        if _gw is not None:
+            out["total_assets"] = round(_gw.total_assets().to_float(), 2)
+            out["total_equity"] = round(_gw.equity().to_float(), 2)
+            out["total_liabilities"] = round(_gw.total_liabilities().to_float(), 2)
+            out["bs_balance_delta"] = round(_gw.difference().to_float(), 2)
+    except Exception:  # noqa: BLE001 — narration must never break on facts
+        logger.exception("[stage_narrate] served grand-totals read failed (non-fatal)")
+    return out
+
+
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
                   org: Dict[str, Any], period_id: str,
                   parsed: Optional[Dict[str, Any]] = None,
@@ -2674,10 +2718,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     pl_canonical = assembled["statements"].get("assembled_pl", {}) or {}
     bs_canonical = assembled["statements"].get("assembled_bs", {}) or {}
 
+    # sv1 — the four BS grand totals come from the FactsGateway (served,
+    # reconciliation-adjusted truth), not the builder-fresh assembled_bs:
+    # write-time briefings now cite the same figures /api/period serves.
+    grand_totals = _briefing_grand_totals(assembled, bs_canonical)
+
     operating_ebitda = pl_canonical.get("operating_ebitda", 0.0)
     total_operating_revenue = pl_canonical.get("total_operating_revenue", 0.0)
     total_debt = bs_canonical.get("total_debt", 0.0)
-    total_equity = bs_canonical.get("total_equity", 0.0)
+    total_equity = grand_totals["total_equity"]
     cash_val = bs_canonical.get("cash", 0.0)
     ebitda_for_ratios = operating_ebitda if operating_ebitda else 1e-9
 
@@ -2692,10 +2741,12 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),
         "net_income_operational": pl_canonical.get("net_income_operational", 0.0),
         "capitalized_own_work_memo": pl_canonical.get("capitalized_own_work_memo", 0.0),
-        # BS — closing balances (Solduri finale year-end convention).
-        "total_assets": bs_canonical.get("total_assets", 0.0),
+        # BS — closing balances (Solduri finale year-end convention);
+        # grand totals are the SERVED, reconciliation-adjusted figures
+        # (sv1 gateway — see _briefing_grand_totals).
+        "total_assets": grand_totals["total_assets"],
         "total_equity": total_equity,
-        "total_liabilities": bs_canonical.get("total_liabilities", 0.0),
+        "total_liabilities": grand_totals["total_liabilities"],
         "total_debt": total_debt,
         "lt_debt": bs_canonical.get("lt_debt", 0.0),
         "st_debt": bs_canonical.get("st_debt", 0.0),
@@ -2707,7 +2758,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "ppe_net": bs_canonical.get("ppe_net", 0.0),
         "ppe_under_construction": bs_canonical.get("ppe_under_construction", 0.0),
         "current_year_pnl": bs_canonical.get("current_year_pnl", 0.0),
-        "bs_balance_delta": bs_canonical.get("bs_balance_delta", 0.0),
+        "bs_balance_delta": grand_totals["bs_balance_delta"],
         # Key derived ratios — operating-view based, so the briefing's
         # leverage / coverage commentary stays consistent with the tab.
         "ratios": {
@@ -3846,12 +3897,16 @@ def _apply_envelope_truth_to_statements(
     rebuild replicated the lossy round-trip WITHOUT the Fix A1 override,
     so a regenerated briefing could cite different totals than the tab.
 
-    Two-tier source, per docs/CANONICAL_BS_V2_CONTRACT.md:
-      1. `period.assembled_canonical_v1.canonical_bs` (bs_v2) — served
+    Two-tier source, per docs/CANONICAL_BS_V2_CONTRACT.md — both tiers
+    resolved through ONE authority object, `engine.serving.facts
+    .FactsGateway` (sv1):
+      1. `period.assembled_canonical_v1.canonical_bs` (bs_v2) — the
+         gateway's SERVED copy (reconciliation applied) is served
          VERBATIM as `statements.canonical_bs` (the FE renders it with
-         zero arithmetic) AND used to source the assembled_bs totals.
+         zero arithmetic) AND sources the assembled_bs totals.
       2. Legacy envelopes (no canonical_bs key): the original Fix A1
-         path — `methodology.totals` overrides the same 8 fields.
+         path — the gateway's methodology tier (`methodology.totals`)
+         overrides the same 8 fields.
     Either way the source is the PERSISTED envelope (`period[...]`), never
     the re-assembled one: the recomputed envelope reproduces the exact
     round-trip drift this override exists to replace (0.44%–35.47%
@@ -3865,19 +3920,30 @@ def _apply_envelope_truth_to_statements(
     try:
         _env = period.get("assembled_canonical_v1") or {}
         _served_env = statements.get("assembled_canonical_v1")
-        # AUTO-RECONCILE (contract addendum): the served canonical_bs is
-        # a pure function of the persisted envelope — the stored accepted
-        # reconciliation (written by the automatic persist-seam stage or
-        # the ops POST, keyed by provenance.content_hash) is applied to a
-        # SERVED COPY (status RECONCILED, difference 0, visible line +
-        # receipt), and `needs_review` / `reconcile_offer` (true ONLY in
-        # the needs-review state where auto could not fix) are stamped on
-        # every serving. The persisted canonical_bs itself is never
-        # touched (source cents never overwritten), and the deterministic
-        # build path never sees any of this.
-        _cbs = _reconcile.served_canonical_bs(_env)
-        if isinstance(_cbs, dict) and isinstance(_cbs.get("totals"), dict):
-            # canonical_bs v2 path — serve verbatim + totals from it.
+        # sv1 FACTS GATEWAY (engine.serving.facts) — the ONE typed reader
+        # of served balance-sheet truth. Internally runs the AUTO-RECONCILE
+        # serve path (`_reconcile.served_canonical_bs`): the stored
+        # accepted reconciliation (written by the automatic persist-seam
+        # stage or the ops POST, keyed by provenance.content_hash) is
+        # applied to a SERVED COPY (status RECONCILED, difference 0,
+        # visible line + receipt + sv1 stamps), and every totals-level
+        # figure below is the reconciliation-ADJUSTED value. The
+        # persisted canonical_bs itself is never touched (source cents
+        # never overwritten), and the deterministic build path never
+        # sees any of this. Legacy (pre-canonical_bs) envelopes resolve
+        # through the same gateway from methodology.totals.
+        _gateway = _FactsGateway.from_envelope(
+            _env, currency=str(statements.get("currency") or "RON")
+        )
+        if _gateway is None:
+            # Nothing persisted to override with (pre-F4.1e row) — the
+            # recomputed canonical_bs (if any) is a round-trip artifact.
+            if isinstance(_served_env, dict):
+                _served_env.pop("canonical_bs", None)
+            return
+        _cbs = _gateway.served_canonical_bs
+        if isinstance(_cbs, dict):
+            # canonical_bs v2 path — serve verbatim.
             statements["canonical_bs"] = _cbs
             if isinstance(_served_env, dict):
                 _served_env["canonical_bs"] = _cbs
@@ -3907,32 +3973,22 @@ def _apply_envelope_truth_to_statements(
                         "amount": float(_rec.get("applied_delta") or 0.0),
                         "synthetic": True,
                     }
-            _t = _cbs["totals"]
-            _ta = float(_t.get("assets") or 0.0)
-            _te = float(_t.get("equity") or 0.0)
-            _tl = float(_t.get("liabilities") or 0.0)
-            _cur_a = _t.get("current_assets")
-            _cur_l = _t.get("current_liabilities")
-            _diff = _cbs.get("difference")
-            _delta = float(_diff) if _diff is not None else _ta - (_te + _tl)
-        else:
+        elif isinstance(_served_env, dict):
             # Legacy envelope — recomputed canonical_bs (if any) is a
             # round-trip artifact; never serve it as an authority.
-            if isinstance(_served_env, dict):
-                _served_env.pop("canonical_bs", None)
-            _methodology = _env.get("methodology") or {}
-            _totals = _methodology.get("totals") or {}
-            if not all(
-                k in _totals
-                for k in ("total_assets", "total_liabilities", "total_equity")
-            ):
-                return  # nothing persisted to override with (pre-F4.1e row)
-            _ta = float(_totals["total_assets"])
-            _tl = float(_totals["total_liabilities"])
-            _te = float(_totals["total_equity"])
-            _cur_a = _totals.get("current_assets")
-            _cur_l = _totals.get("current_liabilities")
-            _delta = _ta - (_tl + _te)
+            _served_env.pop("canonical_bs", None)
+        _ta = _gateway.total_assets().to_float()
+        _te = _gateway.equity().to_float()
+        _tl = _gateway.total_liabilities().to_float()
+        _delta = _gateway.difference().to_float()
+        try:
+            _cur_a = _gateway.current_assets().to_float()
+        except _MissingFact:
+            _cur_a = None
+        try:
+            _cur_l = _gateway.current_liabilities().to_float()
+        except _MissingFact:
+            _cur_l = None
         # Fix A1 (+ 2026-08-13 extension) — GRAND TOTALS and the balance
         # delta must come from the write-time envelope; the re-assembled
         # values are round-trip artifacts (the "39.19M vs 45.81M" screen).
@@ -3944,11 +4000,11 @@ def _apply_envelope_truth_to_statements(
         _a_bs["total_equity"] = round(_te, 2)
         _a_bs["total_liabilities"] = round(_tl, 2)
         if _cur_a is not None:
-            _a_bs["total_current_assets"] = round(float(_cur_a), 2)
-            _a_bs["total_non_current_assets"] = round(_ta - float(_cur_a), 2)
+            _a_bs["total_current_assets"] = round(_cur_a, 2)
+            _a_bs["total_non_current_assets"] = round(_ta - _cur_a, 2)
         if _cur_l is not None:
-            _a_bs["total_current_liabilities"] = round(float(_cur_l), 2)
-            _a_bs["total_non_current_liabilities"] = round(_tl - float(_cur_l), 2)
+            _a_bs["total_current_liabilities"] = round(_cur_l, 2)
+            _a_bs["total_non_current_liabilities"] = round(_tl - _cur_l, 2)
         statements["assembled_bs"] = _a_bs
     except Exception:  # noqa: BLE001
         logger.exception(
@@ -4004,24 +4060,32 @@ def _rebuild_assembled(
     # fallback (`total_equity = shareCapital + retainedEarnings +
     # otherEquity` in _valuation.py) inherited the gap. Complete it here:
     #   1. Envelope-true when the period row carries the write-time
-    #      canonical envelope (canonical_bs.totals.equity, else
-    #      methodology.totals.total_equity): adjust retainedEarnings so
-    #      bucket-summed equity equals the persisted engine truth — this
+    #      canonical envelope: `FactsGateway.equity()` — the SERVED,
+    #      reconciliation-ADJUSTED equity (canonical_bs tier, else the
+    #      legacy methodology tier). Adjust retainedEarnings so
+    #      bucket-summed equity equals the served engine truth — this
     #      also absorbs any other round-trip equity loss.
     #   2. Legacy fallback (no envelope): add the net income
     #      reconstructed from the persisted P&L buckets, 711 excluded
     #      (non-cash production variation).
+    #
+    # sv1 INTENTIONAL NUMBER CHANGE (the ONE in this effort): this read
+    # previously took the PERSISTED canonical_bs['totals']['equity'] RAW
+    # — bypassing `served_canonical_bs` — so on RECONCILED periods the
+    # Valuation tab (POST/DELETE /valuation-assumptions + POST
+    # /valuation/recompute → persisted valuations row → tab + dashboard
+    # hero) valued the company on PRE-reconciliation equity while every
+    # other surface served the adjusted figure. The gateway read makes
+    # valuation equity the ADJUSTED (reconciliation-inclusive) figure.
+    # BALANCED periods are numerically unchanged (adjusted == raw).
     _env_te: Optional[float] = None
     if period:
-        _env = period.get("assembled_canonical_v1") or {}
-        _cbs = _env.get("canonical_bs")
-        if isinstance(_cbs, dict) and isinstance(_cbs.get("totals"), dict) \
-                and _cbs["totals"].get("equity") is not None:
-            _env_te = float(_cbs["totals"]["equity"])
-        else:
-            _mt = (_env.get("methodology") or {}).get("totals") or {}
-            if _mt.get("total_equity") is not None:
-                _env_te = float(_mt["total_equity"])
+        _gw = _FactsGateway.from_envelope(period.get("assembled_canonical_v1") or {})
+        if _gw is not None:
+            try:
+                _env_te = _gw.equity().to_float()
+            except _MissingFact:
+                _env_te = None
     _bucket_equity = bs["shareCapital"] + bs["retainedEarnings"] + bs["otherEquity"]
     if _env_te is not None:
         bs["retainedEarnings"] += round(_env_te - _bucket_equity, 2)

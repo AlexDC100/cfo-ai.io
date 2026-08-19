@@ -1,0 +1,58 @@
+# Allowlist for scripts/check_import_boundary.py — the serving-gateway boundary.
+#
+# One repo-relative path prefix per line ("#" starts a comment). An allowlisted
+# path is exempt from ALL boundary checks (engine AST half, frontend regex half,
+# private-snapshot-field grep guard). src/engine/serving/** and
+# frontend/lib/servedFacts.ts are structurally exempt in the script itself and
+# do not need entries here.
+#
+# Two kinds of entries — keep them labeled:
+#   PERMANENT  — build/serve internals that legitimately touch raw totals
+#   BURN-DOWN  — legacy pre-gateway call sites; migrate to the gateway and
+#                delete the entry. Never add new BURN-DOWN entries for new code.
+
+# ── PERMANENT: engine build + serve internals ─────────────────────────────────
+# _reconcile owns served_canonical_bs (the single serve-time object /api/period
+# and the briefing rebuild consume) — it IS the serve internal the gateway wraps.
+src/engine/api/_reconcile.py
+# Canonical builder write side: computes canonical_bs/methodology totals at
+# assembly time. Writing (and re-reading its own intermediate) totals is legal.
+src/engine/country_packs/
+src/engine/canonical/
+src/engine/methodology/
+# AI lane: parks needs_review arrays and reads canonical totals for its
+# guardrail comparisons during extraction/classification (build side).
+src/engine/ai_lane/
+
+# ── PERMANENT: out-of-band tooling ────────────────────────────────────────────
+# Tests exercise raw shapes on purpose; offline scripts (drift measurement,
+# determinism gate, reprocessing) diff raw envelopes by design.
+tests/
+scripts/
+
+# ── BURN-DOWN: engine ─────────────────────────────────────────────────────────
+# (none — pipeline.py migrated to engine.serving.facts on 2026-08-19: the
+# equity-completion read now takes the gateway's ADJUSTED equity(), the serve
+# hook and the briefing grand totals read through FactsGateway, and the raw
+# canonical_bs/methodology totals reads were deleted.)
+
+# ── PERMANENT: frontend canonical path ────────────────────────────────────────
+# buildBsStatement.ts renders canonical_bs rows/totals/status verbatim per the
+# v2 contract consumption rules (zero local arithmetic) — sanctioned reader.
+frontend/lib/buildBsStatement.ts
+
+# ── BURN-DOWN: frontend legacy pre-servedFacts call sites ─────────────────────
+# Existing deriveTotals()/.totals.*/.difference consumers that predate
+# frontend/lib/servedFacts.ts. Migrate each to servedFacts.ts and delete its
+# line. financialReport.ts also hosts the deriveTotals definition.
+frontend/components/cfo/BSStatementView.tsx
+frontend/components/public-companies/pciData.ts
+frontend/lib/financialExports.ts
+frontend/lib/financialReport.ts
+frontend/lib/financialValuation.ts
+frontend/lib/learning/buildReportingMetrics.ts
+frontend/lib/periodFacts.ts
+frontend/lib/resolveFormulaInput.ts
+frontend/lib/scenarios/baseline.ts
+frontend/lib/scenarios/dashboardCanon.ts
+frontend/pages/cfo/FinancialStatements.tsx

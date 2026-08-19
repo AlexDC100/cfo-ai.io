@@ -20,7 +20,11 @@ import { pickPLBuilder } from "./buildPlStatement";
 // F2.1 — buildBSStatement import removed alongside the dead local at
 // line ~173. The only consumer of buildBSStatement is now
 // FinancialStatements.tsx (BS tab render).
-import { deriveTotals } from "./financialReport";
+// servedFacts gateway — BS totals + the balance check come from the served
+// envelope (reconciliation-ADJUSTED on RECONCILED periods). The old
+// deriveTotals bucket-sum reads for those concepts are deleted; the
+// legacy fallback lives inside servedFacts, not here.
+import { factsFrom } from "./servedFacts";
 
 // ─── Fact blob shape ────────────────────────────────────────────────────
 // JSON-serializable (mirrors the prompt's pl_facts / bs_facts / ratio_facts
@@ -182,7 +186,7 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // surviving consumer of `buildBSStatement`. Hygiene cleanup that the
   // F2.1 BS-tab rewrite makes obsolete.
 
-  const totals = deriveTotals(statements);
+  const served = factsFrom(statements);
   const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
   const rentalRevenue =
     statements.incomeStatement.revenue;  // 706 only when 722 is memo-excluded by the canonical pipeline
@@ -241,9 +245,12 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
 
   const balanceSheet = statements.balanceSheet;
   const cash = balanceSheet.cash;
-  const totalAssets = totals.totalAssets;
-  const totalLiabilities = totals.totalLiabilities;
-  const totalEquity = totals.totalEquity;
+  // servedFacts gateway — grand totals are the served envelope's
+  // (adjusted on RECONCILED periods), identical to the cent with the BS
+  // tab, both exports and the ratios below.
+  const totalAssets = served.totalAssets();
+  const totalLiabilities = served.totalLiabilities();
+  const totalEquity = served.totalEquity();
 
   // Bank debt + dividends payable from line items if available
   let bankDebt = balanceSheet.shortTermDebt + balanceSheet.longTermDebt;
@@ -326,29 +333,28 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     ar_net: bsField("ar_net", balanceSheet.accountsReceivable),
     intercompany_loans: bsField("ar_intercompany", intercompany),
     prepayments: bsField("prepayments", 0),
-    current_assets: totals.totalCurrentAssets,
+    current_assets: served.currentAssets(),
     investment_property_net: bsField("ppe_investment_net", 0),
     ppe_net: balanceSheet.propertyPlantEquipment,
-    non_current_assets: totals.totalNonCurrentAssets,
+    non_current_assets: served.nonCurrentAssets(),
     total_assets: totalAssets,
     suppliers: bsField("ap", suppliers || balanceSheet.accountsPayable),
     dividends_payable: bsField("ap_dividends", dividendsPayable),
     bank_debt_total: bsField("total_debt", bankDebt),
-    short_term_liabilities: totals.totalCurrentLiabilities,
+    short_term_liabilities: served.currentLiabilities(),
     total_liabilities: totalLiabilities,
     share_capital: balanceSheet.shareCapital,
     revaluation_reserves: bsField("revaluation_reserves", revalReserves),
     retained_earnings: bsField("retained_earnings", retainedCarryForward || balanceSheet.retainedEarnings),
     current_year_pnl: plFacts.net_profit,
     total_equity: totalEquity,
-    // canonical_bs v2 (docs/CANONICAL_BS_V2_CONTRACT.md) — on bs_v2 periods
-    // the balance check is the engine's `difference`, computed once at write
-    // time; the FE recomputation survives ONLY as the legacy fallback for
-    // periods without the object. Recommendation rules and the audit block
-    // therefore cite the same drift number as the BS tab and the banner.
-    bs_balance_check: statements.canonical_bs
-      ? statements.canonical_bs.difference
-      : totalAssets - (totalLiabilities + totalEquity),
+    // servedFacts gateway (docs/CANONICAL_BS_V2_CONTRACT.md "Consumption
+    // rules") — the balance check IS the served `difference` (exactly 0 on
+    // RECONCILED periods); the presence branch and the legacy recompute
+    // both live inside servedFacts now. Recommendation rules and the audit
+    // block therefore cite the same drift number as the BS tab, the chip
+    // and both exports.
+    bs_balance_check: served.difference(),
     lender_concentration_pct: lenderConcentrationPct,
     tenant_concentration_pct: tenantConcentrationPct,
   };
@@ -397,9 +403,9 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     return v === null ? fb : v;
   };
   const ratioFacts: RatioFacts = {
-    current_ratio: mOr("current_ratio", safeDiv(totals.totalCurrentAssets, totals.totalCurrentLiabilities)),
-    quick_ratio: mOr("quick_ratio", safeDiv(totals.totalCurrentAssets - bsFacts.prepayments, totals.totalCurrentLiabilities)),
-    cash_ratio: mOr("cash_ratio", safeDiv(bsFacts.cash, totals.totalCurrentLiabilities)),
+    current_ratio: mOr("current_ratio", safeDiv(bsFacts.current_assets, bsFacts.short_term_liabilities)),
+    quick_ratio: mOr("quick_ratio", safeDiv(bsFacts.current_assets - bsFacts.prepayments, bsFacts.short_term_liabilities)),
+    cash_ratio: mOr("cash_ratio", safeDiv(bsFacts.cash, bsFacts.short_term_liabilities)),
     debt_to_equity: mOr("debt_to_equity", safeDiv(bsFacts.bank_debt_total, bsFacts.total_equity)),
     debt_to_assets: mOr("debt_to_assets", safeDiv(bsFacts.bank_debt_total, bsFacts.total_assets)),
     equity_ratio: mOr("equity_ratio", safeDiv(bsFacts.total_equity, bsFacts.total_assets)),
@@ -417,6 +423,12 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   };
 
   // ── Valuation Facts ─────────────────────────────────────────────────
+  // ⚠ INTENTIONAL NUMBER CHANGE (served-facts gateway rollout): the
+  // asset-based fallback below is `bsFacts.total_equity`, which now reads
+  // the ADJUSTED (reconciliation-inclusive) served equity instead of raw
+  // canonical totals — on RECONCILED periods the valuation fact agrees
+  // with the BS tab and both exports. Engine-persisted valuations get the
+  // same fix engine-side (pipeline._rebuild_assembled equity completion).
   const valuationFacts: ValuationFacts = {
     primary_method: valuation?.primary_method ?? "asset_based",
     primary_value:

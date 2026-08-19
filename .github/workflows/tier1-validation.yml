@@ -25,6 +25,9 @@ on:
       - "scripts/run_tier1_validation.py"
       - "scripts/validate_eei_canonical.py"
       - "scripts/verify_determinism.py"
+      - "scripts/check_import_boundary.py"
+      - "scripts/import_boundary_allowlist.txt"
+      - "frontend/lib/**"
       - "files/**"
       - "tests/**"
       - ".github/workflows/tier1-validation.yml"
@@ -80,6 +83,16 @@ jobs:
           python -m pytest tests/engine -q \
             --deselect tests/engine/public/test_adapter.py::test_get_daily_metrics_parses_aapl \
             --deselect tests/engine/public/test_adapter.py::test_normalizer_emits_envelope_shape_from_aapl_fixture
+      # ── Serving-gateway import boundary (canonical_bs v2) ──────────────
+      # Static enforcement that raw envelope/canonical_bs totals are read
+      # ONLY through the serving gateway (src/engine/serving/facts.py on the
+      # engine side, frontend/lib/servedFacts.ts on the FE side). Stdlib-only
+      # script; self-activates on gateway-package existence, so it passes
+      # trivially (with a warning) on trees where the gateway has not landed.
+      # Also runs inside pytest via tests/engine/test_import_boundary.py —
+      # this direct step keeps the failure visible as its own CI line.
+      - name: Import-boundary check (serving gateway)
+        run: python3 scripts/check_import_boundary.py
 
   romania-eei:
     needs: [eei-canonical-numbers]

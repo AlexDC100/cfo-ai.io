@@ -21,6 +21,11 @@ import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { CFOChatShell, type CFOChatShellHandle } from "@/components/cfo/chat/CFOChatShell";
 import { setChatShellRef } from "@/components/cfo/chat/sharedShellRef";
 import { buildCanonicalMetrics } from "@/lib/canonicalMetrics";
+// servedFacts gateway — the snapshot's BS totals are the SERVED
+// (reconciliation-adjusted) figures, so the assistant quotes the same
+// book the dashboard, exports and BS tab show.
+import { factsFrom } from "@/lib/servedFacts";
+import type { Statements } from "@/lib/financialReport";
 
 export default function Chat() {
   // 2026-05-24 — auto-resolve active period so the chat has workspace
@@ -153,17 +158,33 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
     pushIf(lines, "Depreciation",                              canonical.headline.depreciation);
     pushIf(lines, "Tax",                                       canonical.headline.tax);
   }
-  if (abs) {
+  const served = p.statements ? factsFrom(p.statements as Statements) : null;
+  if (served && (served.isCanonical || abs || served.totalAssets() !== 0)) {
+    // Grand totals via the servedFacts gateway — the ADJUSTED served
+    // figures (identical to the BS tab and both exports); bucket-level
+    // highlights keep their assembled_bs reads (no canonical equivalent).
     lines.push("");
     lines.push("Balance sheet highlights:");
-    pushIf(lines, "Total assets", abs.total_assets);
-    pushIf(lines, "Total equity", abs.total_equity);
-    pushIf(lines, "Total liabilities", abs.total_liabilities);
-    pushIf(lines, "Total debt", abs.total_debt);
-    pushIf(lines, "Cash", abs.cash);
-    pushIf(lines, "Accounts receivable (net)", abs.ar_net);
-    pushIf(lines, "Accounts payable", abs.ap);
-    pushIf(lines, "PP&E (net)", abs.ppe_net);
+    pushIf(lines, "Total assets", served.totalAssets());
+    pushIf(lines, "Total equity", served.totalEquity());
+    pushIf(lines, "Total liabilities", served.totalLiabilities());
+    const status = served.status();
+    if (status) {
+      lines.push(`  · Balance status: ${status}`);
+      const rec = served.reconciliation();
+      if (status === "RECONCILED" && rec) {
+        lines.push(
+          `  · Reconciliation: a source imbalance of ${fmtNum(rec.original_difference)} was closed by the visible adjusting line "Diferențe de reconciliere" (${rec.placement === "pnl" ? "P&L" : "balance sheet"} placement, ${rec.origin}); totals above include the adjustment. Reconciled is not balanced.`,
+        );
+      }
+    }
+    if (abs) {
+      pushIf(lines, "Total debt", abs.total_debt);
+      pushIf(lines, "Cash", abs.cash);
+      pushIf(lines, "Accounts receivable (net)", abs.ar_net);
+      pushIf(lines, "Accounts payable", abs.ap);
+      pushIf(lines, "PP&E (net)", abs.ppe_net);
+    }
   }
   if (acf) {
     lines.push("");

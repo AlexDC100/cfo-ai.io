@@ -14,6 +14,11 @@
 
 import { ApiLineItem, sumByExact, sumByPrefix } from "./plStructure";
 import type { BSLine, BSSection, BSStatement } from "./bsStructure";
+// servedFacts gateway — the canonical path's status/difference/totals
+// picks are shared with every other consumer via `canonicalStatusCore`
+// (same cents, same fallbacks), so the strip meta and the facts modules
+// can never read the same object differently.
+import { canonicalStatusCore, toDisplay } from "./servedFacts";
 import {
   canonicalBsSectionMeta,
   type CanonicalBs,
@@ -138,17 +143,21 @@ function normalizeJurisdiction(
  *  (BsCanonicalStatusStrip swaps its local meta from the response). */
 export function canonicalMetaFromBs(cbs: CanonicalBs): BSCanonicalMeta {
   const ext = cbs as CanonicalBsExt;
+  // Shared numeric/status picks (servedFacts.canonicalStatusCore) — the
+  // strip reads the SAME cents as periodFacts / exports / valuation. The
+  // AI-lane ARRAY form of needs_review feeds needsReviewEntries below and
+  // must not trip the auto-reconcile "Needs manual mapping" strip state
+  // (a different situation with different copy) — the core's boolean-only
+  // read enforces that.
+  const core = canonicalStatusCore(cbs);
   return {
-    status: cbs.status,
-    difference: cbs.difference,
-    totalAssets: cbs.totals.assets,
-    equityPlusLiabilities: cbs.totals.equity_plus_liabilities,
+    status: core.status,
+    difference: toDisplay(core.differenceCents),
+    totalAssets: toDisplay(core.totalAssetsCents),
+    equityPlusLiabilities: toDisplay(core.equityPlusLiabilitiesCents),
     diagnosis: (cbs.diagnosis ?? []).map((d) => ({ code: d.code, detail: d.detail })),
     mappingVersion: cbs.mapping_version,
-    // Boolean form only — the AI-lane ARRAY form feeds needsReviewEntries
-    // below and must not trip the auto-reconcile "Needs manual mapping"
-    // strip state (a different situation with different copy).
-    needsReview: cbs.needs_review === true,
+    needsReview: core.needsReview,
     reconciliation: (ext.reconciliation as CanonicalBsReconciliationExt | null) ?? undefined,
     extraction: cbs.extraction,
     classification: cbs.classification ?? undefined,
@@ -236,8 +245,11 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
     else equityLiabSections.push(section);
   }
 
-  const totalAssets = cbs.totals.assets;
-  const totalEL = cbs.totals.equity_plus_liabilities;
+  // Grand totals + THE drift through the shared gateway core — the same
+  // cents every other surface serves (adjusted on RECONCILED periods).
+  const core = canonicalStatusCore(cbs);
+  const totalAssets = toDisplay(core.totalAssetsCents);
+  const totalEL = toDisplay(core.equityPlusLiabilitiesCents);
   return {
     entity: args.entity,
     asOf: args.asOf,
@@ -248,7 +260,7 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
     equityLiabSections,
     totalEquityLiab: { opening: totalEL, closing: totalEL, delta: 0 },
     // THE drift — assets − (equity + liabilities), straight from the object.
-    balanceCheck: cbs.difference,
+    balanceCheck: toDisplay(core.differenceCents),
     canonical: canonicalMetaFromBs(cbs),
   };
 }

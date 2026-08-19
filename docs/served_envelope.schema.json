@@ -1,0 +1,219 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "cfo-ai/served_envelope.schema.json",
+  "title": "Served period envelope — the /api/period `statements` serve-time contract",
+  "description": "Shape of the statements object AFTER the engine serve gateway (_reconcile.served_canonical_bs applied by pipeline._apply_envelope_truth_to_statements). This is the object the FE facts gateway (frontend/lib/servedFacts.ts) and the engine facts gateway (src/engine/serving/facts.py) both read. Totals here are the ADJUSTED (reconciliation-inclusive) figures on RECONCILED periods — the persisted source cents are never overwritten; the adjustment lives on a served copy plus the receipt. Shared fixture contract between tests/engine (test_envelope_contract.py validates every serving of every fixture against $defs/canonical_bs and snapshots the flattened field->type listing) and frontend/lib/__tests__. envelope_version below is the runtime stamp the serve path writes onto every served canonical_bs; x-envelope-version is the FE-side alias constant (frontend/lib/servedFacts.ts SERVED_ENVELOPE_VERSION) for the same contract generation. ANY field removal or retype requires bumping envelope_version AND appending a migration_notes entry here AND regenerating the engine schema snapshot (tests/engine/served_envelope_schema_snapshot.json).",
+  "envelope_version": "sv1",
+  "x-envelope-version": "served_v1",
+  "migration_notes": [
+    {
+      "version": "sv1",
+      "date": "2026-08-19",
+      "note": "Initial served-envelope contract. Serve path stamps envelope_version + status_presentation (engine.serving.present_status — the one wording authority; machine RECONCILED never presents as a 'balanced'-family label) + needs_review (boolean-when-not-array) + reconcile_offer onto every served canonical_bs. Additive-only serve guard active: serve mutations may add keys, never remove or retype pipeline-produced fields."
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "statements": {
+      "type": "object",
+      "properties": {
+        "canonical_bs": { "$ref": "#/$defs/canonical_bs" },
+        "assembled_bs": { "$ref": "#/$defs/assembled_bs_serve" },
+        "assembled_pl": { "$ref": "#/$defs/assembled_pl_serve" }
+      }
+    }
+  },
+  "$defs": {
+    "canonical_bs": {
+      "description": "canonical_bs v2 (docs/CANONICAL_BS_V2_CONTRACT.md), SERVED copy: the stored accepted reconciliation is already applied (status RECONCILED, difference 0, visible line + receipt) when its content_hash matches the period's source, and the sv1 serve stamps (envelope_version, status_presentation, needs_review, reconcile_offer) are present on EVERY serving. Render-verbatim; zero consumer arithmetic.",
+      "type": "object",
+      "required": ["schema", "mapping_version", "rows", "sections", "totals", "difference", "status", "envelope_version", "status_presentation", "needs_review", "reconcile_offer"],
+      "properties": {
+        "schema": { "const": "bs_v2" },
+        "mapping_version": { "type": "string" },
+        "envelope_version": {
+          "description": "Runtime serve stamp — the served-envelope contract version this object conforms to (engine.serving.ENVELOPE_VERSION).",
+          "const": "sv1"
+        },
+        "status_presentation": { "$ref": "#/$defs/status_presentation" },
+        "extraction": {
+          "type": "object",
+          "properties": {
+            "method": { "enum": ["deterministic", "llm"] },
+            "parser_version": { "type": "string" },
+            "source_format": { "type": "string" },
+            "number_locale": { "enum": ["ro", "anglo"] },
+            "sheet": { "type": ["string", "null"] },
+            "header_row_index": { "type": "integer" },
+            "model": { "type": ["string", "null"] },
+            "prompt_version": { "type": ["string", "null"] }
+          }
+        },
+        "source_anchor": {
+          "type": "object",
+          "properties": {
+            "totals_row_found": { "type": "boolean" },
+            "pairs": { "type": "object" },
+            "anchor_status": { "enum": ["MATCHED", "DIVERGED", "NO_ANCHOR"] },
+            "source_balanced": {
+              "description": "Per-pair D=C on the FILE's own numbers; null when not falsifiable (no totals row / pairs absent).",
+              "type": ["boolean", "null"]
+            }
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "section", "label", "account_codes", "amount"],
+            "properties": {
+              "id": { "type": "string" },
+              "section": { "type": "string" },
+              "label_key": { "type": "string" },
+              "label": { "type": "string" },
+              "account_codes": { "type": "array", "items": { "type": "string" } },
+              "amount": { "type": "number" },
+              "opening": { "type": ["number", "null"] },
+              "leaf_ids": { "type": "array", "items": { "type": "string" } },
+              "synthetic": { "type": "boolean" },
+              "reconciliation_delta": { "type": "number" },
+              "reconciliation_note": { "type": "string" }
+            }
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "subtotal"],
+            "properties": {
+              "id": { "type": "string" },
+              "subtotal": { "type": "number" }
+            }
+          }
+        },
+        "totals": {
+          "description": "Grand totals as served — reconciliation-ADJUSTED on RECONCILED periods. The single BS-totals authority for every surface, valuation equity included.",
+          "type": "object",
+          "required": ["assets", "equity", "liabilities", "equity_plus_liabilities", "current_assets", "current_liabilities"],
+          "properties": {
+            "assets": { "type": "number" },
+            "equity": { "type": "number" },
+            "liabilities": { "type": "number" },
+            "equity_plus_liabilities": { "type": "number" },
+            "current_assets": { "type": "number" },
+            "current_liabilities": { "type": "number" }
+          }
+        },
+        "difference": {
+          "description": "assets − (equity + liabilities) as served; exactly 0 on RECONCILED.",
+          "type": "number"
+        },
+        "status": { "enum": ["BALANCED", "MINOR_DRIFT", "MATERIAL_IMBALANCE", "RECONCILED"] },
+        "diagnosis": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "detail"],
+            "properties": {
+              "code": { "type": "string" },
+              "detail": { "type": "string" },
+              "leaf_ids": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "unmapped": { "type": "array" },
+        "excluded": { "type": "array" },
+        "invariants": { "type": "object" },
+        "reprocessed": { "type": "object" },
+        "reconcile_offer": {
+          "description": "Revised semantics (auto-reconcile addendum): true ONLY in the needs-review state; never renders a button.",
+          "type": "boolean"
+        },
+        "reconciliation": { "$ref": "#/$defs/reconciliation_receipt" },
+        "classification": {
+          "type": "object",
+          "properties": {
+            "method": { "enum": ["deterministic", "llm"] },
+            "model": { "type": ["string", "null"] },
+            "prompt_version": { "type": ["string", "null"] },
+            "needs_review": { "type": ["array", "null"] }
+          }
+        },
+        "needs_review": {
+          "description": "boolean true = auto-reconcile could not fix (needs manual mapping); array = AI-lane low-confidence lines.",
+          "type": ["boolean", "array", "null"]
+        },
+        "jurisdiction": { "type": ["object", "string", "null"] }
+      }
+    },
+    "status_presentation": {
+      "description": "The ONE status-wording object (engine.serving.present_status) every surface — FE chip, HTML footer, Excel export, API — derives its status copy from. Machine RECONCILED NEVER maps to a 'balanced'-family display string in any language (locked by tests/engine/test_facts_gateway.py); the adjustment is disclosed via micro_caption ('auto-adjusted {X}').",
+      "type": "object",
+      "required": ["machine", "display_key", "display_en", "display_ro", "micro_caption"],
+      "properties": {
+        "machine": { "enum": ["BALANCED", "RECONCILED", "MINOR_DRIFT", "MATERIAL_IMBALANCE"] },
+        "display_key": { "type": "string" },
+        "display_en": { "type": "string" },
+        "display_ro": { "type": "string" },
+        "micro_caption": { "type": ["string", "null"] }
+      }
+    },
+    "reconciliation_receipt": {
+      "description": "Receipt served with status RECONCILED — the reversible synthetic entry's audit record. original_difference is the TRUE pre-adjustment source drift (the raw figure the audit/undo UI shows); applied_delta is the signed adjustment on the equity+liabilities side (== original_difference for an exact close).",
+      "type": ["object", "null"],
+      "required": ["original_difference", "applied_delta", "origin"],
+      "properties": {
+        "content_hash": { "type": "string" },
+        "original_difference": { "type": "number" },
+        "applied_delta": { "type": "number" },
+        "amount_cents": { "type": "integer" },
+        "target_row_id": { "type": ["string", "null"] },
+        "origin": { "enum": ["deterministic", "llm_proposed"] },
+        "diagnosis_code": { "type": ["string", "null"] },
+        "rationale": { "type": ["string", "null"] },
+        "model": { "type": ["string", "null"] },
+        "prompt_version": { "type": ["string", "null"] },
+        "applied_at": { "type": ["string", "null"] },
+        "applied_by": { "type": ["string", "null"] },
+        "reversible": { "type": "boolean" },
+        "placement": { "enum": ["balance_sheet", "pnl"] },
+        "placement_detail": { "enum": ["bs", "pl_other_income", "pl_other_expense"] },
+        "parser_version": { "type": "string" },
+        "mapping_version": { "type": "string" }
+      }
+    },
+    "assembled_bs_serve": {
+      "description": "Legacy assembled_bs view AFTER the serve gateway: on canonical_bs periods the 8 totals fields below are OVERWRITTEN from the served (adjusted) canonical totals; on legacy (pre-canonical) periods they come from methodology.totals. Bucket-level fields (cash, total_debt, ar_net, …) pass through unchanged and are NOT part of this totals contract.",
+      "type": "object",
+      "properties": {
+        "total_assets": { "type": "number" },
+        "total_equity": { "type": "number" },
+        "total_liabilities": { "type": "number" },
+        "bs_balance_delta": { "type": "number" },
+        "total_current_assets": { "type": "number" },
+        "total_non_current_assets": { "type": "number" },
+        "total_current_liabilities": { "type": "number" },
+        "total_non_current_liabilities": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "assembled_pl_serve": {
+      "description": "P&L serve additions. reconciliation_adjustment is present iff the period is RECONCILED with placement 'pnl' — the visible \"Diferențe de reconciliere\" line (signed effect on the result; extracted P&L cents never altered).",
+      "type": "object",
+      "properties": {
+        "reconciliation_adjustment": {
+          "type": "object",
+          "required": ["label", "placement", "amount", "synthetic"],
+          "properties": {
+            "label": { "type": "string" },
+            "placement": { "enum": ["bs", "pl_other_income", "pl_other_expense"] },
+            "amount": { "type": "number" },
+            "synthetic": { "const": true }
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

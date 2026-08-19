@@ -63,6 +63,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Header, HTTPException
 
+from engine import serving as _serving
+
 from . import _supabase
 
 logger = logging.getLogger("engine.api.reconcile")
@@ -373,11 +375,23 @@ def served_canonical_bs(envelope: Any) -> Optional[Dict[str, Any]]:
     content_hash matches the envelope's provenance.content_hash (and
     only when it still closes to exactly 0 cents), then stamps
     `needs_review` (True iff the auto stage attempted and could not fix
-    THIS source+build) and `reconcile_offer` (revised semantics: true
-    only in that needs-review state). Byte-identical output for the
-    same envelope — hard-refresh stable by construction. Returns None
-    when the envelope carries no usable canonical_bs (legacy periods
-    keep the Fix-A1 path).
+    THIS source+build), `reconcile_offer` (revised semantics: true only
+    in that needs-review state), `envelope_version` ("sv1" — the served
+    contract version, docs/served_envelope.schema.json) and
+    `status_presentation` (the ONE wording object every surface derives
+    its status copy from — engine.serving.present_status). Byte-identical
+    output for the same envelope — hard-refresh stable by construction.
+    Returns None when the envelope carries no usable canonical_bs
+    (legacy periods keep the Fix-A1 path).
+
+    ADDITIVE-ONLY SERVE GUARD (sv1): the served object is compared
+    key->type against the persisted canonical_bs — serve mutations may
+    only ADD keys (incl. the documented needs_review boolean stamp when
+    the key was absent); a removal or retype (incl. replacing the
+    AI-lane needs_review ARRAY with a boolean — the array-preserve
+    guard) trips the guard, which logs loudly and falls back to serving
+    the UNMUTATED persisted object with the serve stamps only. Serving
+    never breaks; the guard's real teeth are the contract tests.
     """
     if not isinstance(envelope, dict):
         return None
@@ -430,24 +444,50 @@ def served_canonical_bs(envelope: Any) -> Optional[Dict[str, Any]]:
                 provenance_hash,
             )
 
-    # needs_review — served flag only (never persisted into canonical_bs):
-    # the auto stage ran on THIS source+build and could not close it
-    # (validator reject / AI unavailable). Honest drift, calm surface.
-    needs_review = (
-        served.get("status") != "RECONCILED"
-        and _matching_needs_review_marker(envelope) is not None
-    )
-    # AI-lane envelopes carry needs_review as an ARRAY of low-confidence
-    # lines (a different meaning: human mapping queue, not auto-reconcile
-    # rejection). Overwriting it with this stage's boolean silenced the
-    # FE's needs-review panel on every real serving (verifier NO-GO,
-    # 2026-08-19). LLM extractions are out of auto-reconcile scope, so
-    # the boolean is never true for them — preserve the array.
-    if not isinstance(served.get("needs_review"), list):
-        served["needs_review"] = needs_review
-    served["reconcile_offer"] = compute_reconcile_offer(
-        served, needs_review=needs_review
-    )
+    def _stamped(obj: Dict[str, Any]) -> Dict[str, Any]:
+        # needs_review — served flag only (never persisted into
+        # canonical_bs): the auto stage ran on THIS source+build and
+        # could not close it (validator reject / AI unavailable).
+        # Honest drift, calm surface.
+        needs_review = (
+            obj.get("status") != "RECONCILED"
+            and _matching_needs_review_marker(envelope) is not None
+        )
+        # AI-lane envelopes carry needs_review as an ARRAY of
+        # low-confidence lines (a different meaning: human mapping
+        # queue, not auto-reconcile rejection). Overwriting it with
+        # this stage's boolean silenced the FE's needs-review panel on
+        # every real serving (verifier NO-GO, 2026-08-19). LLM
+        # extractions are out of auto-reconcile scope, so the boolean
+        # is never true for them — preserve the array.
+        if not isinstance(obj.get("needs_review"), list):
+            obj["needs_review"] = needs_review
+        obj["reconcile_offer"] = compute_reconcile_offer(
+            obj, needs_review=needs_review
+        )
+        # sv1 served-envelope contract stamps (engine.serving):
+        # `envelope_version` versions the served shape against
+        # docs/served_envelope.schema.json; `status_presentation` is the
+        # ONE wording object chip/HTML/Excel/API status copy derives
+        # from (RECONCILED never presents as a 'balanced'-family label).
+        obj["envelope_version"] = _serving.ENVELOPE_VERSION
+        obj["status_presentation"] = _serving.present_status(obj, surface="api")
+        return obj
+
+    served = _stamped(served)
+    # ADDITIVE-ONLY SERVE GUARD — serve mutations must never remove or
+    # retype a pipeline-produced field (sv1 contract). Unreachable by
+    # construction today; if a future serve edit trips it, serve the
+    # UNMUTATED persisted object (stamps only) rather than a payload
+    # that dropped pipeline truth. Serving itself never breaks.
+    _violations = _serving.additive_serve_violations(cbs, served)
+    if _violations:
+        logger.error(
+            "[reconcile] ADDITIVE-ONLY SERVE GUARD tripped — serving the "
+            "unmutated canonical_bs instead: %s",
+            "; ".join(_violations),
+        )
+        served = _stamped(copy.deepcopy(cbs))
     return served
 
 

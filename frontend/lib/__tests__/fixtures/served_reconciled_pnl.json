@@ -1,0 +1,137 @@
+{
+  "__comment": "Served /api/period statements fixture — RECONCILED with placement 'pnl' (served_v1). A class-6/7 diagnosed cause: source difference was −52.18 (E+L > assets); the delta reaches the BS through the RESULT row (current_year_profit 1,000,052.18 → 1,000,000.00, leaf note attached) and the visible line is served on assembled_pl.reconciliation_adjustment. Totals below are the SERVED (adjusted) figures — equity includes the −52.18; difference is exactly 0. THE intentional-number-change fixture: valuation equity must read 5,000,000.00 (adjusted), never the raw 5,000,052.18 (that figure is rawFactsForAuditOnly-only).",
+  "companyName": "Servita Reconciled PNL SRL",
+  "industry": "services",
+  "currency": "RON",
+  "periodLabel": "FY 2025",
+  "balanceSheet": {
+    "cash": 900000,
+    "accountsReceivable": 2600000,
+    "inventory": 1900000,
+    "otherCurrentAssets": 0,
+    "propertyPlantEquipment": 2500000,
+    "intangibles": 0,
+    "otherNonCurrentAssets": 0,
+    "accountsPayable": 1100000,
+    "shortTermDebt": 200000,
+    "otherCurrentLiabilities": 600000,
+    "longTermDebt": 1000000,
+    "otherNonCurrentLiabilities": 0,
+    "shareCapital": 150000,
+    "retainedEarnings": 3400000,
+    "otherEquity": 1400000
+  },
+  "incomeStatement": {
+    "revenue": 5400000,
+    "costOfGoodsSold": 2200000,
+    "operatingExpenses": 1700000,
+    "depreciationAmortization": 350000,
+    "interestExpense": 90000,
+    "otherIncome": 0,
+    "taxExpense": 170000
+  },
+  "supplementary": {},
+  "assembled_pl": {
+    "revenue": 5400000,
+    "ebitda_statutory": 1500000,
+    "operating_ebit": 1150000,
+    "net_income_statutory": 1000000,
+    "depreciation": 350000,
+    "interest_expense": 90000,
+    "tax": 170000,
+    "reconciliation_adjustment": {
+      "label": "Diferențe de reconciliere",
+      "placement": "pl_other_expense",
+      "amount": -52.18,
+      "synthetic": true
+    }
+  },
+  "assembled_bs": {
+    "total_assets": 8000000,
+    "total_equity": 5000000,
+    "total_liabilities": 3000000,
+    "bs_balance_delta": 0,
+    "total_current_assets": 5500000,
+    "total_non_current_assets": 2500000,
+    "total_current_liabilities": 2000000,
+    "total_non_current_liabilities": 1000000,
+    "cash": 900000,
+    "total_debt": 1200000,
+    "ar_net": 2600000,
+    "ap": 1100000,
+    "ppe_net": 2500000,
+    "share_capital": 150000,
+    "retained_earnings": 3400000,
+    "current_year_pnl": 1000000
+  },
+  "canonical_bs": {
+    "schema": "bs_v2",
+    "envelope_version": "sv1",
+    "mapping_version": "ro_omfp1802_v2",
+    "status_presentation": {
+      "machine": "RECONCILED",
+      "display_key": "bs.status.reconciled",
+      "display_en": "Reconciled",
+      "display_ro": "Reconciliat",
+      "micro_caption": "auto-adjusted 52.18"
+    },
+    "extraction": {
+      "method": "deterministic",
+      "parser_version": "tb_parser_v4",
+      "source_format": "saga_10_col",
+      "number_locale": "ro"
+    },
+    "rows": [
+      { "id": "ppe_all", "section": "non_current_assets", "label": "Property, plant & equipment", "account_codes": ["21"], "amount": 2500000, "opening": null },
+      { "id": "inventory", "section": "current_assets", "label": "Inventory", "account_codes": ["3"], "amount": 1900000, "opening": null },
+      { "id": "trade_receivables", "section": "current_assets", "label": "Trade receivables", "account_codes": ["4111"], "amount": 2700000, "opening": null },
+      { "id": "cash", "section": "current_assets", "label": "Cash at bank", "account_codes": ["5121"], "amount": 900000, "opening": null },
+      { "id": "share_capital", "section": "equity", "label": "Share capital", "account_codes": ["1012"], "amount": 150000, "opening": null },
+      { "id": "other_equity", "section": "equity", "label": "Reserves and retained earnings", "account_codes": ["106", "117"], "amount": 3850000, "opening": null },
+      { "id": "current_year_profit", "section": "equity", "label": "Current year net profit", "account_codes": ["121"], "amount": 1000000, "opening": null, "reconciliation_delta": -52.18, "reconciliation_note": "Diferențe de reconciliere" },
+      { "id": "lt_bank", "section": "non_current_liabilities", "label": "LT bank loans", "account_codes": ["1621"], "amount": 1000000, "opening": null },
+      { "id": "trade_payables", "section": "current_liabilities", "label": "Trade payables", "account_codes": ["401"], "amount": 2000000, "opening": null }
+    ],
+    "sections": [
+      { "id": "non_current_assets", "subtotal": 2500000 },
+      { "id": "current_assets", "subtotal": 5500000 },
+      { "id": "equity", "subtotal": 5000000 },
+      { "id": "non_current_liabilities", "subtotal": 1000000 },
+      { "id": "current_liabilities", "subtotal": 2000000 }
+    ],
+    "totals": {
+      "assets": 8000000,
+      "equity": 5000000,
+      "liabilities": 3000000,
+      "equity_plus_liabilities": 8000000,
+      "current_assets": 5500000,
+      "current_liabilities": 2000000
+    },
+    "difference": 0,
+    "status": "RECONCILED",
+    "diagnosis": [
+      { "code": "D6_121_MISMATCH", "detail": "121 ≠ class7 − class6 by 52.18", "leaf_ids": ["121"] }
+    ],
+    "reconcile_offer": false,
+    "reconciliation": {
+      "content_hash": "sha256:fixture-pnl-recon",
+      "original_difference": -52.18,
+      "applied_delta": -52.18,
+      "amount_cents": -5218,
+      "target_row_id": "current_year_profit",
+      "origin": "llm_proposed",
+      "diagnosis_code": "D6_121_MISMATCH",
+      "rationale": "Class 6/7 rounding on closing entries — routed to P&L other expense",
+      "model": "claude-sonnet-4-5",
+      "prompt_version": "recon_v2",
+      "applied_at": "2026-08-19T09:30:00Z",
+      "applied_by": "system:auto-reconcile",
+      "reversible": true,
+      "placement": "pnl",
+      "placement_detail": "pl_other_expense",
+      "parser_version": "tb_parser_v4",
+      "mapping_version": "ro_omfp1802_v2"
+    },
+    "needs_review": false
+  }
+}

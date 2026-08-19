@@ -19,6 +19,10 @@ import type {
   CanonicalBsNeedsReviewEntry,
 } from "@/lib/financialReport";
 import { JurisdictionSelect, jurisdictionLabel } from "./JurisdictionSelect";
+// THE status presenter (servedFacts gateway) — the chip, the HTML export
+// footer and the Excel status cell all word the balance verdict through
+// presentStatus; this component carries no status→wording ladder of its own.
+import { presentStatus } from "@/lib/servedFacts";
 import { cfoApi, extractCanonicalBsFromReconcile } from "@/lib/cfoApi";
 import { queryClient } from "@/lib/queryClient";
 import { periodQueryKey } from "@/lib/activePeriod";
@@ -499,9 +503,20 @@ export function BsCanonicalStatusStrip({
   const pct =
     m.totalAssets !== 0 ? (Math.abs(m.difference) / Math.abs(m.totalAssets)) * 100 : 0;
 
+  // ONE presenter decides the band + wording keys (servedFacts.presentStatus
+  // — shared with both exports); the branches below carry layout only.
+  const p = presentStatus({
+    status: m.status,
+    needsReview: m.needsReview,
+    reconciliation: m.reconciliation ?? null,
+    mappingVersion: m.mappingVersion,
+    difference: m.difference,
+    currency: display,
+  });
+
   // RECONCILED — calm green Balanced-family chip + subtle "auto-adjusted"
   // micro-caption. Tapping the chip toggles the one-line receipt + Undo.
-  if (m.status === "RECONCILED") {
+  if (p.band === "reconciled") {
     const rec = m.reconciliation;
     const moved = Math.abs(rec?.applied_delta ?? rec?.original_difference ?? 0);
     const movedStr = `${display} ${fmt(moved)}`;
@@ -533,13 +548,13 @@ export function BsCanonicalStatusStrip({
               aria-hidden="true"
               className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400"
             />
-            ✓ {t("bsCanonical.balanced")}
+            ✓ {t(p.chipKey)}
           </span>
           <span
             className="text-[11px] text-ink-mute"
             data-testid="bs-auto-adjusted-caption"
           >
-            {t("bsCanonical.reconcile.autoAdjusted", { amount: movedStr })}
+            {t(p.chipCaptionKey ?? "bsCanonical.reconcile.autoAdjusted", { amount: movedStr })}
           </span>
         </button>
         {receiptOpen && (
@@ -575,7 +590,7 @@ export function BsCanonicalStatusStrip({
   // refused a non-exact close / diagnosis inconclusive): honest imbalance
   // plus a calm amber "Needs manual mapping" panel with the diagnosis
   // line. No button, no modal — mapping is the fix, not a retry.
-  if (m.status === "MINOR_DRIFT" && m.needsReview) {
+  if (p.band === "needs_review") {
     const diagLine = m.diagnosis
       .map((d) => [d.code, d.detail].filter(Boolean).join(" — "))
       .join("; ");
@@ -585,7 +600,7 @@ export function BsCanonicalStatusStrip({
         data-testid="bs-status-needs-review"
       >
         <span className="font-medium text-amber-700 dark:text-amber-400">
-          {t("bsCanonical.reconcile.needsReview")}
+          {t(p.chipKey)}
         </span>
         <p className="mt-0.5 text-ink-soft">
           {t("bsCanonical.difference")}: {display} {fmt(m.difference)} (
@@ -598,25 +613,25 @@ export function BsCanonicalStatusStrip({
     );
   }
 
-  if (m.status === "BALANCED") {
+  if (p.band === "balanced") {
     return (
       <div
         className="mb-3 rounded-lg border border-rule bg-surface px-3 py-2 text-[12px] text-ink-soft"
         data-testid="bs-status-balanced"
       >
-        ✓ {t("bsCanonical.balanced")}
+        ✓ {t(p.chipKey)}
       </div>
     );
   }
 
   // MINOR_DRIFT without a reconcile offer — unchanged rendering.
-  if (m.status === "MINOR_DRIFT") {
+  if (p.band === "minor_drift") {
     return (
       <div
         className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-400"
         data-testid="bs-status-minor-drift"
       >
-        {t("bsCanonical.minorDrift")} — {t("bsCanonical.difference")}: {display}{" "}
+        {t(p.chipKey)} — {t("bsCanonical.difference")}: {display}{" "}
         {fmt(m.difference)} ({pct.toFixed(2)}%)
       </div>
     );
@@ -630,7 +645,7 @@ export function BsCanonicalStatusStrip({
       role="alert"
       data-testid="bs-status-material-imbalance"
     >
-      <strong className="block text-[14px]">⚠ {t("bsCanonical.material")}</strong>
+      <strong className="block text-[14px]">⚠ {t(p.chipKey)}</strong>
       <p className="mt-1">{t("bsCanonical.materialBody")}</p>
       <p className="mt-1 font-mono tabular-nums">
         {t("bsCanonical.difference")}: {display} {fmt(m.difference)} ({pct.toFixed(2)}%)

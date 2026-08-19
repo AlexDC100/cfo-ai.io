@@ -276,3 +276,52 @@ ops/manual trigger with unchanged refusal semantics (409 + diagnosis).
 (API, exports) says RECONCILED. Audit record = the receipt: original
 delta, cause (`diagnosis_code` + `target_account`), method (`origin`),
 `model` + `prompt_version` when AI was consulted, timestamps, actor.
+
+## SERVED-ENVELOPE CONTRACT sv1 — facts gateway + status presenter (2026-08-19)
+
+The serve side now has ONE typed authority and a versioned shape. Schema:
+`docs/served_envelope.schema.json` (header `envelope_version: "sv1"` +
+`migration_notes`; the flattened field->type listing is snapshotted in
+`tests/engine/served_envelope_schema_snapshot.json` and locked by
+`tests/engine/test_envelope_contract.py` — a field removal/retype fails CI
+unless the version is bumped with a migration note and the snapshot is
+regenerated via `python tests/engine/test_envelope_contract.py --regen`).
+
+**Serve stamps** — `_reconcile.served_canonical_bs` stamps every served
+canonical_bs with `envelope_version: "sv1"` and `status_presentation`
+(from `engine.serving.present_status` — the ONE wording object the chip /
+HTML footer / Excel / API derive status copy from), alongside the existing
+`needs_review` / `reconcile_offer`. **Status wording revision:** machine
+RECONCILED now presents as its own band ("Reconciled" / "Reconciliat",
+micro-caption "auto-adjusted {X}") — it NEVER maps to a 'balanced'-family
+display string (supersedes the earlier "calm green Balanced-family chip"
+UI note above; locked by `tests/engine/test_facts_gateway.py`).
+
+**Additive-only serve guard** — serve-stage mutations may only ADD keys
+(incl. the documented needs_review boolean-when-not-array stamp); removing
+or retyping a pipeline-produced field (incl. the AI-lane needs_review
+array → boolean retype) trips `engine.serving.additive_serve_violations`,
+which logs loudly and falls back to serving the unmutated persisted object
+with stamps only.
+
+**Facts gateway** (`src/engine/serving/facts.py`) — `FactsGateway`, built
+from ONE persisted envelope, is the only sanctioned reader of served
+totals (integer minor units inside; reconciliation adjustment included
+per its placement — pnl placement reaches net_result/revenue-expense AND
+equity through the result row; balance_sheet placement reaches its BS
+line). `raw_*()` accessors expose pre-adjustment source cents for
+audit/receipt/undo surfaces ONLY. Boundary enforced by
+`scripts/check_import_boundary.py` + `tests/engine/test_import_boundary.py`
++ the raw-caller test in `tests/engine/test_facts_gateway.py`. Engine
+consumers migrated: `_apply_envelope_truth_to_statements` (both tiers),
+`stage_narrate` briefing grand totals (write time now equals regenerate),
+and the `_rebuild_assembled` equity completion.
+
+**THE one intentional number change (sv1):** valuation equity — the
+`_rebuild_assembled` equity completion (feeding POST/DELETE
+/valuation-assumptions + POST /valuation/recompute → the persisted
+valuations row → Valuation tab + dashboard hero) previously read the
+persisted `canonical_bs.totals.equity` RAW, bypassing the serve path, so
+RECONCILED periods were valued on pre-reconciliation equity. It now reads
+`FactsGateway.equity()` — the ADJUSTED (reconciliation-inclusive) figure.
+BALANCED periods are numerically unchanged.

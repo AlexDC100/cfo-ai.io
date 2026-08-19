@@ -15,6 +15,19 @@ const bsCanonicalEn = {
   balanced: "Balance check passed — Assets = Equity + Liabilities (engine-verified)",
   minorDrift: "Minor balance drift",
   material: "Material imbalance — this balance sheet does not reconcile",
+  // Short machine-status labels — MIRROR of the engine presenter table
+  // (src/engine/serving/status.py `_DISPLAY`, served on every canonical_bs
+  // as `status_presentation`). sv1 locked invariant: the RECONCILED label
+  // is NEVER a 'balanced'-family word in any language — the adjustment is
+  // disclosed via the auto-adjusted micro-caption, not hidden behind a
+  // "Balanced" headline. Consumed by servedFacts.presentStatus (the one
+  // status presenter for chip + HTML footer + Excel status cell).
+  status: {
+    balanced: "Balanced",
+    reconciled: "Reconciled",
+    minorDrift: "Minor drift",
+    materialImbalance: "Material imbalance",
+  },
   materialBody:
     "Assets do not equal Equity + Liabilities. The engine flagged the causes below; do not rely on the figures in this tab until this is resolved.",
   difference: "Difference",
@@ -76,6 +89,14 @@ const bsCanonicalRo = {
   balanced: "Verificare de echilibru trecută — Active = Capitaluri + Datorii (verificat de motor)",
   minorDrift: "Abatere minoră de echilibru",
   material: "Dezechilibru material — acest bilanț nu se reconciliază",
+  // Oglinda tabelului motorului (vezi nota EN) — "Reconciliat" nu este
+  // niciodată un cuvânt din familia "echilibrat".
+  status: {
+    balanced: "Echilibrat",
+    reconciled: "Reconciliat",
+    minorDrift: "Abatere minoră",
+    materialImbalance: "Dezechilibru semnificativ",
+  },
   materialBody:
     "Activele nu sunt egale cu Capitalurile + Datoriile. Motorul a marcat cauzele mai jos; nu te baza pe cifrele din acest tab până la rezolvare.",
   difference: "Diferență",

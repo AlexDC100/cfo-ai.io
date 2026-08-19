@@ -17,6 +17,16 @@ import {
   type DerivedTotals,
   type PriorPeriod,
 } from "./financialReport";
+// servedFacts gateway — every BS grand total below (assets / equity /
+// liabilities / current splits / working capital) reads the SERVED
+// envelope. ⚠ THE ONE INTENTIONAL NUMBER CHANGE of the gateway rollout
+// lands in this file: valuation equity (WACC weights, Altman X4, credit
+// components, book-equity floors) is now the ADJUSTED
+// (reconciliation-inclusive) figure, never raw canonical totals — on
+// RECONCILED periods the Valuation tab agrees with the BS tab and both
+// exports. deriveTotals survives for P&L concepts and the debt/cash
+// decomposition, which canonical_bs does not carry.
+import { factsFrom } from "./servedFacts";
 
 // ─── FCF / CFO ──────────────────────────────────────────────────────────────
 
@@ -95,13 +105,13 @@ export function computeCostOfCapital(s: Statements): CostOfCapital {
   // lender carries EUR debt against RON cash flow (the EEI pattern).
   const kdPre = sup.costOfDebt ?? Math.max(0.05, impliedKd);
   const kdAfter = kdPre * (1 - taxRate);
-  // Prefer canonical book equity / debt from the assembled BS view.
+  // Book equity via the servedFacts gateway — the ADJUSTED
+  // (reconciliation-inclusive) served figure, the documented intentional
+  // change of the gateway rollout. Debt keeps the assembled_bs bucket
+  // read (canonical_bs carries no debt decomposition).
   const canonBs = s.assembled_bs ?? {};
   const debt = typeof canonBs.total_debt === "number" ? canonBs.total_debt : t.totalDebt;
-  const equity = Math.max(
-    typeof canonBs.total_equity === "number" ? canonBs.total_equity : t.totalEquity,
-    1,
-  );
+  const equity = Math.max(factsFrom(s).totalEquity(), 1);
   const wd = debt / (debt + equity);
   const we = 1 - wd;
   return {
@@ -359,6 +369,13 @@ export function runGraham(s: Statements): GrahamResult {
 // the backend populated them (real EEI data path); legacy is the fallback
 // for sample-mode without canonical views.
 
+// BS grand totals inside this accessor now flow through the servedFacts
+// gateway (see the import note at the top of the file): the equity that
+// feeds Altman X4, the credit-score components and every book-equity
+// floor is the ADJUSTED served figure — identical to the BS tab, both
+// exports and periodFacts to the cent. P&L statutory picks and the
+// bucket-level fields (cash, debt, retained earnings) keep their
+// assembled_* reads.
 function canonical(s: Statements): {
   netIncomeStatutory: number;
   ebitStatutory: number;
@@ -379,6 +396,7 @@ function canonical(s: Statements): {
   interestExpense: number;
 } {
   const t = deriveTotals(s);
+  const sf = factsFrom(s);
   const pl = s.assembled_pl ?? {};
   const bs = s.assembled_bs ?? {};
   const cf = s.assembled_cf ?? {};
@@ -402,12 +420,12 @@ function canonical(s: Statements): {
     ebitStatutory,
     ebitdaStatutory,
     cfo,
-    totalAssets: typeof bs.total_assets === "number" ? bs.total_assets : t.totalAssets,
-    totalLiabilities: typeof bs.total_liabilities === "number" ? bs.total_liabilities : t.totalLiabilities,
-    totalEquity: typeof bs.total_equity === "number" ? bs.total_equity : t.totalEquity,
-    totalCurrentAssets: t.totalCurrentAssets,
-    totalCurrentLiabilities: t.totalCurrentLiabilities,
-    workingCapital: t.workingCapital,
+    totalAssets: sf.totalAssets(),
+    totalLiabilities: sf.totalLiabilities(),
+    totalEquity: sf.totalEquity(),
+    totalCurrentAssets: sf.currentAssets(),
+    totalCurrentLiabilities: sf.currentLiabilities(),
+    workingCapital: sf.workingCapital(),
     // Z" needs retained earnings + current-year P&L (the cumulative book).
     retainedEarningsPlusCurrent:
       (typeof bs.retained_earnings === "number" ? bs.retained_earnings : s.balanceSheet.retainedEarnings)

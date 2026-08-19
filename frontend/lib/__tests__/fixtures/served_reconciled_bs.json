@@ -1,0 +1,132 @@
+{
+  "__comment": "Served /api/period statements fixture — RECONCILED with placement 'balance_sheet' (served_v1). Source difference was +117.43 (assets > E+L); the auto stage inserted the synthetic 'Diferențe de reconciliere' row in current_liabilities. Totals below are the SERVED (adjusted) figures — liabilities/current_liabilities include the +117.43; difference is exactly 0. The raw pre-adjustment liabilities figure 4,000,000.00 must only ever surface through rawFactsForAuditOnly.",
+  "companyName": "Servita Reconciled BS SRL",
+  "industry": "manufacturing",
+  "currency": "RON",
+  "periodLabel": "FY 2025",
+  "balanceSheet": {
+    "cash": 1200000,
+    "accountsReceivable": 3300000,
+    "inventory": 2400000,
+    "otherCurrentAssets": 0,
+    "propertyPlantEquipment": 3000000,
+    "intangibles": 0,
+    "otherNonCurrentAssets": 0,
+    "accountsPayable": 1400000,
+    "shortTermDebt": 300000,
+    "otherCurrentLiabilities": 700000,
+    "longTermDebt": 1500000,
+    "otherNonCurrentLiabilities": 0,
+    "shareCapital": 200000,
+    "retainedEarnings": 4200000,
+    "otherEquity": 1500000
+  },
+  "incomeStatement": {
+    "revenue": 6200000,
+    "costOfGoodsSold": 2600000,
+    "operatingExpenses": 1900000,
+    "depreciationAmortization": 400000,
+    "interestExpense": 120000,
+    "otherIncome": 0,
+    "taxExpense": 190000
+  },
+  "supplementary": {},
+  "assembled_pl": {
+    "revenue": 6200000,
+    "ebitda_statutory": 1700000,
+    "operating_ebit": 1300000,
+    "net_income_statutory": 990000,
+    "depreciation": 400000,
+    "interest_expense": 120000,
+    "tax": 190000
+  },
+  "assembled_bs": {
+    "total_assets": 10000117.43,
+    "total_equity": 6000000,
+    "total_liabilities": 4000117.43,
+    "bs_balance_delta": 0,
+    "total_current_assets": 7000000,
+    "total_non_current_assets": 3000117.43,
+    "total_current_liabilities": 2500117.43,
+    "total_non_current_liabilities": 1500000,
+    "cash": 1200000,
+    "total_debt": 1800000,
+    "ar_net": 3300000,
+    "ap": 1400000,
+    "ppe_net": 3000000,
+    "share_capital": 200000,
+    "retained_earnings": 4200000,
+    "current_year_pnl": 990000
+  },
+  "canonical_bs": {
+    "schema": "bs_v2",
+    "envelope_version": "sv1",
+    "mapping_version": "ro_omfp1802_v2",
+    "status_presentation": {
+      "machine": "RECONCILED",
+      "display_key": "bs.status.reconciled",
+      "display_en": "Reconciled",
+      "display_ro": "Reconciliat",
+      "micro_caption": "auto-adjusted 117.43"
+    },
+    "extraction": {
+      "method": "deterministic",
+      "parser_version": "tb_parser_v4",
+      "source_format": "saga_10_col",
+      "number_locale": "ro"
+    },
+    "rows": [
+      { "id": "ppe_all", "section": "non_current_assets", "label": "Property, plant & equipment", "account_codes": ["21"], "amount": 3000117.43, "opening": null },
+      { "id": "inventory", "section": "current_assets", "label": "Inventory", "account_codes": ["3"], "amount": 2400000, "opening": null },
+      { "id": "trade_receivables", "section": "current_assets", "label": "Trade receivables", "account_codes": ["4111"], "amount": 3400000, "opening": null },
+      { "id": "cash", "section": "current_assets", "label": "Cash at bank", "account_codes": ["5121"], "amount": 1200000, "opening": null },
+      { "id": "share_capital", "section": "equity", "label": "Share capital", "account_codes": ["1012"], "amount": 200000, "opening": null },
+      { "id": "other_equity", "section": "equity", "label": "Reserves and retained earnings", "account_codes": ["106", "117"], "amount": 4810000, "opening": null },
+      { "id": "current_year_profit", "section": "equity", "label": "Current year net profit", "account_codes": ["121"], "amount": 990000, "opening": null },
+      { "id": "lt_bank", "section": "non_current_liabilities", "label": "LT bank loans", "account_codes": ["1621"], "amount": 1500000, "opening": null },
+      { "id": "trade_payables", "section": "current_liabilities", "label": "Trade payables", "account_codes": ["401"], "amount": 2500000, "opening": null },
+      { "id": "reconciliation_difference", "section": "current_liabilities", "label": "Diferențe de reconciliere", "account_codes": [], "amount": 117.43, "opening": null, "leaf_ids": [], "synthetic": true }
+    ],
+    "sections": [
+      { "id": "non_current_assets", "subtotal": 3000117.43 },
+      { "id": "current_assets", "subtotal": 7000000 },
+      { "id": "equity", "subtotal": 6000000 },
+      { "id": "non_current_liabilities", "subtotal": 1500000 },
+      { "id": "current_liabilities", "subtotal": 2500117.43 }
+    ],
+    "totals": {
+      "assets": 10000117.43,
+      "equity": 6000000,
+      "liabilities": 4000117.43,
+      "equity_plus_liabilities": 10000117.43,
+      "current_assets": 7000000,
+      "current_liabilities": 2500117.43
+    },
+    "difference": 0,
+    "status": "RECONCILED",
+    "diagnosis": [
+      { "code": "D2_FINGERPRINT", "detail": "account 4511 amount 117.43 ≈ difference", "leaf_ids": ["4511"] }
+    ],
+    "reconcile_offer": false,
+    "reconciliation": {
+      "content_hash": "sha256:fixture-bs-recon",
+      "original_difference": 117.43,
+      "applied_delta": 117.43,
+      "amount_cents": 11743,
+      "target_row_id": "reconciliation_difference",
+      "origin": "deterministic",
+      "diagnosis_code": "R2_SINGLE_UNMAPPED",
+      "rationale": "Unmapped account 4511 balance equals the difference to the cent",
+      "model": null,
+      "prompt_version": null,
+      "applied_at": "2026-08-19T09:00:00Z",
+      "applied_by": "system:auto-reconcile",
+      "reversible": true,
+      "placement": "balance_sheet",
+      "placement_detail": "bs",
+      "parser_version": "tb_parser_v4",
+      "mapping_version": "ro_omfp1802_v2"
+    },
+    "needs_review": false
+  }
+}
