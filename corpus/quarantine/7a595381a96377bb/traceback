@@ -1,7 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/alex/Desktop/folder claude Scandia copy/tests/engine/test_properties.py", line 243, in quarantine
-    yield
-  File "/Users/alex/Desktop/folder claude Scandia copy/tests/engine/test_properties.py", line 1680, in test_n5_absent_is_never_zero_through_ir_and_derive
-    assert (got is None) == (src is None), (key, row, derived)
-AssertionError: ('debit', {'balance': None, 'code': '100', 'credit': None, 'debit': None, ...}, {'balance': None, 'code': '100', 'credit': 0.0, 'debit': 0.0, ...})
-assert (0.0 is None) == (None is None)

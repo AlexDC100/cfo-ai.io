@@ -1,1 +1,0 @@
-{"derandomize": true, "hypothesis": "6.141.1", "note": "ci profile is derandomized \u2014 re-running the property reproduces this failure without a seed; input.json is the exact falsifying input either way", "profile": "ci"}

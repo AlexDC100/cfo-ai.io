@@ -119,12 +119,19 @@ ssh "$VPS" "cd $REMOTE && \
   docker compose up -d --force-recreate $SERVICES_STR"
 
 echo
-echo "→ Waiting 6s for containers to bind ports..."
-sleep 6
+# Retry loop instead of a fixed 6s: the backend's boot_verify (anthropic
+# key check + stripe probe) can take 20-40s, and the old single-shot probe
+# produced three false "Deploy RED" alarms on perfectly good deploys.
+echo "→ Waiting for containers (up to 90s)..."
+HEALTH_JSON='{"ok":false,"error":"unreachable"}'
+for i in $(seq 1 18); do
+  sleep 5
+  HEALTH_JSON=$(curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null || echo '{"ok":false,"error":"unreachable"}')
+  if echo "$HEALTH_JSON" | grep -q '"ok": *true'; then break; fi
+done
 
 echo
 echo "→ Smoke test: ${HEALTH_URL}"
-HEALTH_JSON=$(curl -fsS --max-time 15 "$HEALTH_URL" || echo '{"ok":false,"error":"unreachable"}')
 echo "$HEALTH_JSON" | python3 -m json.tool 2>/dev/null || echo "$HEALTH_JSON"
 
 OK_FIELD=$(echo "$HEALTH_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ok', False))" 2>/dev/null || echo "False")
