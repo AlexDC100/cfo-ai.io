@@ -1,0 +1,152 @@
+{
+  "classification": {
+    "method": "llm",
+    "model": "claude-opus-4-7",
+    "needs_review": [
+      {
+        "amount": 400000.0,
+        "code": "466",
+        "confidence": 0.62,
+        "line_id": "ar_tax_recoverable",
+        "name": "Előzetesen felszámított áfa",
+        "rationale": "input VAT — uncertain",
+        "reason": "low_confidence_llm",
+        "section": "current_assets"
+      }
+    ],
+    "prompt_version": "classify_v1"
+  },
+  "jurisdiction": {
+    "pack_version": "ai_lane_v1",
+    "resolved": "HU",
+    "source": "auto"
+  },
+  "line_items": [
+    {
+      "amount": 2500000.0,
+      "bucket": "intangibles_other",
+      "canonical_bucket": "intangibles_other",
+      "is_derived": false,
+      "ro_account_code": "114",
+      "ro_account_name": "Szellemi termékek",
+      "statement": "BS"
+    },
+    {
+      "amount": 12000000.0,
+      "bucket": "ppe_buildings",
+      "canonical_bucket": "ppe_buildings",
+      "is_derived": false,
+      "ro_account_code": "123",
+      "ro_account_name": "Épületek",
+      "statement": "BS"
+    },
+    {
+      "amount": 3200000.0,
+      "bucket": "inventory_raw_materials",
+      "canonical_bucket": "inventory_raw_materials",
+      "is_derived": false,
+      "ro_account_code": "211",
+      "ro_account_name": "Anyagok",
+      "statement": "BS"
+    },
+    {
+      "amount": 4750000.0,
+      "bucket": "ar_trade_gross",
+      "canonical_bucket": "ar_trade_gross",
+      "is_derived": false,
+      "ro_account_code": "311",
+      "ro_account_name": "Belföldi vevők",
+      "statement": "BS"
+    },
+    {
+      "amount": 6400000.0,
+      "bucket": "cash_operating",
+      "canonical_bucket": "cash_operating",
+      "is_derived": false,
+      "ro_account_code": "384",
+      "ro_account_name": "Elszámolási betétszámla",
+      "statement": "BS"
+    },
+    {
+      "amount": 350000.0,
+      "bucket": "cash_operating",
+      "canonical_bucket": "cash_operating",
+      "is_derived": false,
+      "ro_account_code": "381",
+      "ro_account_name": "Pénztár",
+      "statement": "BS"
+    },
+    {
+      "amount": 10000000.0,
+      "bucket": "share_capital",
+      "canonical_bucket": "share_capital",
+      "is_derived": false,
+      "ro_account_code": "411",
+      "ro_account_name": "Jegyzett tőke",
+      "statement": "BS"
+    },
+    {
+      "amount": 5500000.0,
+      "bucket": "retained_earnings_prior_years",
+      "canonical_bucket": "retained_earnings_prior_years",
+      "is_derived": false,
+      "ro_account_code": "413",
+      "ro_account_name": "Eredménytartalék",
+      "statement": "BS"
+    },
+    {
+      "amount": 3800000.0,
+      "bucket": "ap_trade",
+      "canonical_bucket": "ap_trade",
+      "is_derived": false,
+      "ro_account_code": "454",
+      "ro_account_name": "Belföldi szállítók",
+      "statement": "BS"
+    },
+    {
+      "amount": 900000.0,
+      "bucket": "ap_tax",
+      "canonical_bucket": "ap_tax",
+      "is_derived": false,
+      "ro_account_code": "467",
+      "ro_account_name": "Fizetendő áfa",
+      "statement": "BS"
+    },
+    {
+      "amount": 500000.0,
+      "bucket": "rent_operating_lease",
+      "canonical_bucket": "rent_operating_lease",
+      "is_derived": false,
+      "ro_account_code": "522",
+      "ro_account_name": "Bérleti díjak",
+      "statement": "PL"
+    },
+    {
+      "amount": 7500000.0,
+      "bucket": "cogs_raw_materials",
+      "canonical_bucket": "cogs_raw_materials",
+      "is_derived": false,
+      "ro_account_code": "811",
+      "ro_account_name": "Anyagjellegű ráfordítások",
+      "statement": "PL"
+    },
+    {
+      "amount": 17400000.0,
+      "bucket": "revenue_products",
+      "canonical_bucket": "revenue_products",
+      "is_derived": false,
+      "ro_account_code": "911",
+      "ro_account_name": "Belföldi értékesítés árbevétele",
+      "statement": "PL"
+    }
+  ],
+  "method": "llm_ai_lane",
+  "unmapped": [
+    {
+      "amount": 400000.0,
+      "code": "466",
+      "name": "Előzetesen felszámított áfa",
+      "reason": "low_confidence_llm"
+    }
+  ]
+}

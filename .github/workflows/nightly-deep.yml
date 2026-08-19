@@ -1,0 +1,107 @@
+# Nightly deep battery — canonical_bs v2 (docs/CANONICAL_BS_V2_CONTRACT.md).
+#
+# Three jobs, all heavier / longer than the PR battery is allowed to be:
+#
+#   deep-properties   tests/engine/test_properties.py at HYPOTHESIS_PROFILE=deep
+#                     (fresh entropy, 10-15x example counts, print_blob). A
+#                     failing example is shrunk and written to
+#                     corpus/quarantine/<sha16>/ by the suite's quarantine
+#                     writer — uploaded as an artifact for pinning.
+#
+#   corpus-replay     the full golden corpus replay (every case, all five
+#                     artifacts byte-compared). Same gate as the PR battery,
+#                     re-run nightly so an environment/dependency drift is
+#                     caught even on a quiet main.
+#
+#   prod-canary       scripts/prod_canary_replay.py — the sentinel case
+#                     (prod_scandia_frozen, corpus id saga_10_col) replayed
+#                     offline in the checkout AND, when the PROD_SSH_KEY /
+#                     PROD_HOST secrets exist, inside the running
+#                     cfo-ai-backend container on the VPS with a byte-compare
+#                     of the prod-produced served envelope vs the repo golden.
+#                     Those two secrets are OPTIONAL and do not exist yet in
+#                     this repo (only SUPABASE_* / ANTHROPIC_API_KEY /
+#                     MISTRAL_API_KEY do) — when absent the script prints a
+#                     documented SKIP and exits 0; the operator runs the prod
+#                     half manually over ssh, same habit as measure_bs_drift.
+#
+# NO LIVE API CALLS anywhere in this workflow: the property suite and the
+# corpus replay both carry the anthropic-import sentinel, so the Anthropic
+# credit state can never affect these gates.
+
+name: nightly-deep
+
+on:
+  schedule:
+    - cron: "30 2 * * *"   # 02:30 UTC nightly
+  workflow_dispatch: {}
+
+jobs:
+  deep-properties:
+    name: Property suite (deep profile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Deep property run (fresh entropy, high counts)
+        env:
+          HYPOTHESIS_PROFILE: deep
+        run: python -m pytest tests/engine/test_properties.py -q
+      - name: Upload quarantined failing examples
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hypothesis-quarantine
+          path: corpus/quarantine/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  corpus-replay:
+    name: Full corpus replay (golden byte-compare)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Corpus replay — every case
+        run: python3 scripts/corpus_replay.py
+
+  prod-canary:
+    name: Prod canary (sentinel replay, secret-guarded)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Sentinel replay (offline always; prod when secrets exist)
+        env:
+          # Optional secrets — empty when not configured, and the script
+          # then prints its documented SKIP for the prod phase (exit 0).
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+        run: python3 scripts/prod_canary_replay.py

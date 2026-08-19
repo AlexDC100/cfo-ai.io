@@ -1,0 +1,193 @@
+{
+  "diagnosis": [],
+  "difference": 0.0,
+  "envelope_version": "sv1",
+  "excluded": [],
+  "extraction": {
+    "header_row_index": 0,
+    "method": "deterministic",
+    "number_locale": "anglo",
+    "parser_version": "tb_parser_v5",
+    "sheet": "TB_compact",
+    "source_format": "saga_compact_6_col"
+  },
+  "invariants": {
+    "assets_eq_row_sum": true,
+    "el_eq_row_sum": true,
+    "identity_holds": true,
+    "p121_cross_check": {
+      "cls7_minus_cls6": 500.0,
+      "ok": false,
+      "p121": 0.0
+    },
+    "result_basis": "sf_closing_column",
+    "source_conservation": true
+  },
+  "mapping_version": "ro_omfp1802_v2",
+  "needs_review": false,
+  "reconcile_offer": false,
+  "rows": [
+    {
+      "account_codes": [
+        "5121"
+      ],
+      "amount": 1200.0,
+      "id": "cash_operating",
+      "label": "Cash in operating currency",
+      "label_key": "bs.row.cash_operating",
+      "leaf_ids": [
+        "5121"
+      ],
+      "opening": null,
+      "section": "current_assets"
+    },
+    {
+      "account_codes": [
+        "371"
+      ],
+      "amount": 300.0,
+      "id": "inventory_merchandise_resale",
+      "label": "Merchandise for resale",
+      "label_key": "bs.row.inventory_merchandise_resale",
+      "leaf_ids": [
+        "371"
+      ],
+      "opening": null,
+      "section": "current_assets"
+    },
+    {
+      "account_codes": [
+        "1012"
+      ],
+      "amount": 1000.0,
+      "id": "share_capital",
+      "label": "Share capital",
+      "label_key": "bs.row.share_capital",
+      "leaf_ids": [
+        "1012"
+      ],
+      "opening": null,
+      "section": "equity"
+    },
+    {
+      "account_codes": [
+        "6",
+        "7"
+      ],
+      "amount": 500.0,
+      "id": "current_year_profit",
+      "label": "Current year profit",
+      "label_key": "bs.row.current_year_profit",
+      "leaf_ids": [
+        "607",
+        "707"
+      ],
+      "opening": null,
+      "section": "equity"
+    }
+  ],
+  "schema": "bs_v2",
+  "sections": [
+    {
+      "id": "non_current_assets",
+      "subtotal": 0.0
+    },
+    {
+      "id": "current_assets",
+      "subtotal": 1500.0
+    },
+    {
+      "id": "prepaid_expenses",
+      "subtotal": 0.0
+    },
+    {
+      "id": "equity",
+      "subtotal": 1500.0
+    },
+    {
+      "id": "provisions",
+      "subtotal": 0.0
+    },
+    {
+      "id": "non_current_liabilities",
+      "subtotal": 0.0
+    },
+    {
+      "id": "current_liabilities",
+      "subtotal": 0.0
+    },
+    {
+      "id": "deferred_income",
+      "subtotal": 0.0
+    }
+  ],
+  "source_anchor": {
+    "anchor_status": "MATCHED",
+    "closing_result": {
+      "basis": "sf",
+      "codes": [
+        "607",
+        "707"
+      ],
+      "p121_cents": 0,
+      "pl_net_cents": 50000
+    },
+    "file_totals_include_off_balance": false,
+    "imbalanced_pairs": [],
+    "pairs": {
+      "rc": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1800.0,
+        "extracted_debit": 1800.0,
+        "file_credit": 1800.0,
+        "file_debit": 1800.0
+      },
+      "rl": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 800.0,
+        "extracted_debit": 800.0,
+        "file_credit": 800.0,
+        "file_debit": 800.0
+      },
+      "sf": {
+        "delta_credit": null,
+        "delta_debit": null,
+        "extracted_credit": 1800.0,
+        "extracted_debit": 1800.0,
+        "file_credit": null,
+        "file_debit": null,
+        "synthesized_from_identity": true
+      },
+      "si": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1000.0,
+        "extracted_debit": 1000.0,
+        "file_credit": 1000.0,
+        "file_debit": 1000.0
+      }
+    },
+    "source_balanced": true,
+    "totals_row_found": true,
+    "totals_row_index": 6
+  },
+  "status": "BALANCED",
+  "status_presentation": {
+    "display_en": "Balanced",
+    "display_key": "bs.status.balanced",
+    "display_ro": "Echilibrat",
+    "machine": "BALANCED",
+    "micro_caption": null
+  },
+  "totals": {
+    "assets": 1500.0,
+    "current_assets": 1500.0,
+    "current_liabilities": 0.0,
+    "equity": 1500.0,
+    "equity_plus_liabilities": 1500.0,
+    "liabilities": 0.0
+  },
+  "unmapped": []
+}

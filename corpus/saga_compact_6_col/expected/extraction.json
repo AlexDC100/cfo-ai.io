@@ -1,0 +1,124 @@
+{
+  "extraction": {
+    "header_row_index": 0,
+    "method": "deterministic",
+    "number_locale": "anglo",
+    "parser_version": "tb_parser_v5",
+    "sheet": "TB_compact",
+    "source_format": "saga_compact_6_col"
+  },
+  "rows": [
+    {
+      "cont": "1012",
+      "nume_cont": "Capital subscris varsat",
+      "r_c": 0.0,
+      "r_d": 0.0,
+      "sf_c": 1000.0,
+      "sf_d": 0.0,
+      "si_c": 1000.0,
+      "si_d": 0.0,
+      "st_c": 1000.0,
+      "st_d": 0.0
+    },
+    {
+      "cont": "5121",
+      "nume_cont": "Conturi la banci in lei",
+      "r_c": 0.0,
+      "r_d": 500.0,
+      "sf_c": 0.0,
+      "sf_d": 1200.0,
+      "si_c": 0.0,
+      "si_d": 700.0,
+      "st_c": 0.0,
+      "st_d": 1200.0
+    },
+    {
+      "cont": "371",
+      "nume_cont": "Marfuri",
+      "r_c": 0.0,
+      "r_d": 0.0,
+      "sf_c": 0.0,
+      "sf_d": 300.0,
+      "si_c": 0.0,
+      "si_d": 300.0,
+      "st_c": 0.0,
+      "st_d": 300.0
+    },
+    {
+      "cont": "707",
+      "nume_cont": "Venituri din vanzarea marfurilor",
+      "r_c": 800.0,
+      "r_d": 0.0,
+      "sf_c": 800.0,
+      "sf_d": 0.0,
+      "si_c": 0.0,
+      "si_d": 0.0,
+      "st_c": 800.0,
+      "st_d": 0.0
+    },
+    {
+      "cont": "607",
+      "nume_cont": "Cheltuieli privind marfurile",
+      "r_c": 0.0,
+      "r_d": 300.0,
+      "sf_c": 0.0,
+      "sf_d": 300.0,
+      "si_c": 0.0,
+      "si_d": 0.0,
+      "st_c": 0.0,
+      "st_d": 300.0
+    }
+  ],
+  "source_anchor": {
+    "anchor_status": "MATCHED",
+    "closing_result": {
+      "basis": "sf",
+      "codes": [
+        "607",
+        "707"
+      ],
+      "p121_cents": 0,
+      "pl_net_cents": 50000
+    },
+    "file_totals_include_off_balance": false,
+    "imbalanced_pairs": [],
+    "pairs": {
+      "rc": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1800.0,
+        "extracted_debit": 1800.0,
+        "file_credit": 1800.0,
+        "file_debit": 1800.0
+      },
+      "rl": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 800.0,
+        "extracted_debit": 800.0,
+        "file_credit": 800.0,
+        "file_debit": 800.0
+      },
+      "sf": {
+        "delta_credit": null,
+        "delta_debit": null,
+        "extracted_credit": 1800.0,
+        "extracted_debit": 1800.0,
+        "file_credit": null,
+        "file_debit": null,
+        "synthesized_from_identity": true
+      },
+      "si": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1000.0,
+        "extracted_debit": 1000.0,
+        "file_credit": 1000.0,
+        "file_debit": 1000.0
+      }
+    },
+    "source_balanced": true,
+    "totals_row_found": true,
+    "totals_row_index": 6
+  }
+}

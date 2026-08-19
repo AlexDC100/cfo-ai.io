@@ -1,0 +1,17 @@
+{
+  "accounts": [
+    {
+      "amount": 1000000.0,
+      "code": "5121",
+      "name": "Conturi la banci in lei"
+    },
+    {
+      "amount": 997000.0,
+      "code": "1012",
+      "name": "Capital subscris varsat"
+    }
+  ],
+  "excluded": [],
+  "method": "deterministic_coa_mapping",
+  "unmapped": []
+}

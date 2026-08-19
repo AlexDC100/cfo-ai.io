@@ -1,0 +1,36 @@
+{
+  "needs_review": false,
+  "persisted_difference": 300.0,
+  "persisted_status": "MINOR_DRIFT",
+  "reconcile_offer": false,
+  "reconciliation": {
+    "amount_cents": 30000,
+    "applied_at": "<volatile:stripped>",
+    "applied_by": "system:auto-reconcile",
+    "applied_delta": 300.0,
+    "content_hash": "sha256-1c3c00f586c15dab7d30cc87ebd5071af1cf32fbb8fa2042e8c76f10390ce9cc",
+    "diagnosis_code": "R2_SINGLE_UNMAPPED_MATCH",
+    "mapping_version": "ro_omfp1802_v2",
+    "model": null,
+    "origin": "deterministic",
+    "original_difference": 300.0,
+    "parser_version": "tb_parser_v5",
+    "placement": "balance_sheet",
+    "placement_detail": "bs",
+    "prompt_version": null,
+    "rationale": "unmapped account 413 balance 300.00 RON equals the difference 300.00 RON to the cent",
+    "reversible": true,
+    "target_account": "413",
+    "target_row_id": "reconciliation_adjustment"
+  },
+  "reconciliation_auto": null,
+  "served_difference": 0.0,
+  "served_status": "RECONCILED",
+  "status_presentation": {
+    "display_en": "Reconciled",
+    "display_key": "bs.status.reconciled",
+    "display_ro": "Reconciliat",
+    "machine": "RECONCILED",
+    "micro_caption": "auto-adjusted 300.00"
+  }
+}

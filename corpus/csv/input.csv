@@ -1,0 +1,8 @@
+Cont;Denumire cont;Solduri initiale Debit;Solduri initiale Credit;Rulaje Debit;Rulaje Credit;Sume totale Debit;Sume totale Credit;Solduri finale Debit;Solduri finale Credit
+1012;Capital subscris varsat;;1.000.000,00;;234.567,89;;1.234.567,89;;1.234.567,89
+212;Constructii;800.000,00;;200.000,00;;1.000.000,00;;1.000.000,00;
+2813;Amortizarea constructiilor;;100.000,00;;23.456,78;;123.456,78;;123.456,78
+371;Mãrfuri;300.000,00;;54.024,67;;354.024,67;;354.024,67;
+5121;Conturi la banci in lei;;;4.568;;4.568;;4.568;
+401;Furnizori;;;;568,00;;568,00;;568,00
+TOTAL;;1.100.000,00;1.100.000,00;258.592,67;258.592,67;1.358.592,67;1.358.592,67;1.358.592,67;1.358.592,67

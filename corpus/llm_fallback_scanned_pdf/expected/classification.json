@@ -1,0 +1,92 @@
+{
+  "accounts": [
+    {
+      "amount": 80000.0,
+      "code": "212",
+      "name": "Constructii"
+    },
+    {
+      "amount": 50000.0,
+      "code": "371",
+      "name": "Marfuri"
+    },
+    {
+      "amount": 20000.0,
+      "code": "5121",
+      "name": "Conturi la banci in lei"
+    },
+    {
+      "amount": 100000.0,
+      "code": "1012",
+      "name": "Capital subscris varsat"
+    },
+    {
+      "amount": 30000.0,
+      "code": "117",
+      "name": "Rezultatul reportat"
+    },
+    {
+      "amount": 20000.0,
+      "code": "401",
+      "name": "Furnizori"
+    }
+  ],
+  "line_items": [
+    {
+      "amount": 80000.0,
+      "bucket": "ppe",
+      "canonical_bucket": "ppe",
+      "is_derived": false,
+      "ro_account_code": "212",
+      "ro_account_name": "Constructii",
+      "statement": "BS"
+    },
+    {
+      "amount": 50000.0,
+      "bucket": "inventory",
+      "canonical_bucket": "inventory",
+      "is_derived": false,
+      "ro_account_code": "371",
+      "ro_account_name": "Marfuri",
+      "statement": "BS"
+    },
+    {
+      "amount": 20000.0,
+      "bucket": "cash",
+      "canonical_bucket": "cash",
+      "is_derived": false,
+      "ro_account_code": "5121",
+      "ro_account_name": "Conturi la banci in lei",
+      "statement": "BS"
+    },
+    {
+      "amount": 100000.0,
+      "bucket": "shareCapital",
+      "canonical_bucket": "shareCapital",
+      "is_derived": false,
+      "ro_account_code": "1012",
+      "ro_account_name": "Capital subscris varsat",
+      "statement": "BS"
+    },
+    {
+      "amount": 30000.0,
+      "bucket": "retainedEarnings",
+      "canonical_bucket": "retained_earnings",
+      "is_derived": false,
+      "ro_account_code": "117",
+      "ro_account_name": "Rezultatul reportat",
+      "statement": "BS"
+    },
+    {
+      "amount": 20000.0,
+      "bucket": "ap",
+      "canonical_bucket": "ap",
+      "is_derived": false,
+      "ro_account_code": "401",
+      "ro_account_name": "Furnizori",
+      "statement": "BS"
+    }
+  ],
+  "method": "llm_fallback_accounts_via_coa_mapping",
+  "unmapped": []
+}

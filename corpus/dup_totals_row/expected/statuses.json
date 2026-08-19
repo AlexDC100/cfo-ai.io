@@ -1,0 +1,36 @@
+{
+  "needs_review": false,
+  "persisted_difference": 250.0,
+  "persisted_status": "MINOR_DRIFT",
+  "reconcile_offer": false,
+  "reconciliation": {
+    "amount_cents": 25000,
+    "applied_at": "<volatile:stripped>",
+    "applied_by": "system:auto-reconcile",
+    "applied_delta": 250.0,
+    "content_hash": "sha256-8e8cf358bee529f535fe6a13bf9d4ae3e0b3a8fb6850224216d41b1fa74cade5",
+    "diagnosis_code": "R_DUP_TOTALS_ROW",
+    "mapping_version": "ro_omfp1802_v2",
+    "model": null,
+    "origin": "deterministic",
+    "original_difference": 250.0,
+    "parser_version": "tb_parser_v5",
+    "placement": "balance_sheet",
+    "placement_detail": "bs",
+    "prompt_version": null,
+    "rationale": "account 371 appears twice with identical amount 250.00 RON — removing the duplicated totals row closes the difference 250.00 RON exactly",
+    "reversible": true,
+    "target_account": "371",
+    "target_row_id": "reconciliation_adjustment"
+  },
+  "reconciliation_auto": null,
+  "served_difference": 0.0,
+  "served_status": "RECONCILED",
+  "status_presentation": {
+    "display_en": "Reconciled",
+    "display_key": "bs.status.reconciled",
+    "display_ro": "Reconciliat",
+    "machine": "RECONCILED",
+    "micro_caption": "auto-adjusted 250.00"
+  }
+}

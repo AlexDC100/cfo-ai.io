@@ -1,0 +1,36 @@
+{
+  "needs_review": false,
+  "persisted_difference": 400.0,
+  "persisted_status": "MINOR_DRIFT",
+  "reconcile_offer": false,
+  "reconciliation": {
+    "amount_cents": 40000,
+    "applied_at": "<volatile:stripped>",
+    "applied_by": "system:auto-reconcile",
+    "applied_delta": 400.0,
+    "content_hash": "sha256-25beab629affac41623152f3704097328437d619fdbdc9f0f5f1ae312c4dc0eb",
+    "diagnosis_code": "R3_SIDE_FLIP",
+    "mapping_version": "ro_omfp1802_v2",
+    "model": null,
+    "origin": "deterministic",
+    "original_difference": 400.0,
+    "parser_version": "tb_parser_v5",
+    "placement": "balance_sheet",
+    "placement_detail": "bs",
+    "prompt_version": null,
+    "rationale": "ar_other at 200.00 RON: twice its magnitude equals the difference 400.00 RON — likely classified on the wrong side",
+    "reversible": true,
+    "target_account": "ar_other",
+    "target_row_id": "reconciliation_adjustment"
+  },
+  "reconciliation_auto": null,
+  "served_difference": 0.0,
+  "served_status": "RECONCILED",
+  "status_presentation": {
+    "display_en": "Reconciled",
+    "display_key": "bs.status.reconciled",
+    "display_ro": "Reconciliat",
+    "machine": "RECONCILED",
+    "micro_caption": "auto-adjusted 400.00"
+  }
+}

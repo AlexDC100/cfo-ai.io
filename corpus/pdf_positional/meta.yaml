@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "pdf_positional"
+jurisdiction: "RO"
+expected_parser: "pdf_positional"
+period: "FY2019 (31.12.2019)"
+period_end: "2019-12-31"
+anonymized: false
+expect_ai_never_consulted: true
+source_notes: "files/scandia_sibiu_tb_2019.pdf — positional RAS PDF export (PyMuPDF geometry extraction). NOT anonymized: the scrambler does not rewrite PDF content streams (documented limitation); the file is the platform's long-standing PDF fixture. The case freezes an honest MATERIAL_IMBALANCE (0.99%, above the reconcile gate) with a D6 121-mismatch diagnosis."

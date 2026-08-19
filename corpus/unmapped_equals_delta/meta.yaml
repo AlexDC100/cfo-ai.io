@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "unmapped_equals_delta"
+jurisdiction: "RO"
+expected_parser: "saga_10_col"
+period: "FY2025"
+period_end: "2025-12-31"
+anonymized: false
+expect_ai_never_consulted: true
+source_notes: "SYNTHETIC adversarial case. single unmapped account 413 == the 300.00 source gap to the cent → R2 auto-fix naming the account; deterministic, no AI. The file's own totals row faithfully sums the account rows, so extraction stays honest (anchor MATCHED) and any gap is the SOURCE's own (D1)."

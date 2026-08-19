@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "llm_fallback_scanned_pdf"
+jurisdiction: "RO"
+expected_parser: "ro_llm_fallback"
+period: "FY2019"
+period_end: "2019-12-31"
+anonymized: false
+expect_ai_never_consulted: false
+source_notes: "SYNTHETIC image-only PDF (no text layer) — the deterministic positional ingester finds zero rows, so stage_extract falls back to the RO LLM extraction (financial_statements.parse_document). Replay injects mock_model_response.json through a scripted `anthropic` module (sys.modules seam) — never a live call. KNOWN CONTRACT GAP frozen honestly by this golden: the PDF fallback's parsed payload carries NO extraction stamp, so the envelope reads method=deterministic and can claim BALANCED — both violate CANONICAL_BS_V2 ('llm ⇒ never BALANCED'). An engine fix will flip this golden via UPDATE_GOLDEN with a note."

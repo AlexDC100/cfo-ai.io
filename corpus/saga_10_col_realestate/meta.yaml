@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "saga_10_col_realestate"
+jurisdiction: "RO"
+expected_parser: "saga_10_col"
+period: "FY2025 (31.12.2025)"
+period_end: "2025-12-31"
+anonymized: true
+expect_ai_never_consulted: true
+source_notes: "files/scandia_realestate_tb_2025.xlsx — real SAGA/ContSal 10-col export (leading blank-code totals row, BLN_* headers). Labels scrambled by scripts/anonymize_tb.py; codes, numerics and the totals-row anchor preserved to the cent."

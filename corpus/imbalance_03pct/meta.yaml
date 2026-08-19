@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "imbalance_03pct"
+jurisdiction: "RO"
+expected_parser: "saga_10_col"
+period: "FY2025"
+period_end: "2025-12-31"
+anonymized: false
+expect_ai_never_consulted: true
+source_notes: "SYNTHETIC adversarial case. 0.3% drift is ABOVE the 0.1% auto-reconcile gate → refused: honest MINOR_DRIFT, no receipt, no needs_review, no offer. The file's own totals row faithfully sums the account rows, so extraction stays honest (anchor MATCHED) and any gap is the SOURCE's own (D1)."

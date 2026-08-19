@@ -1,0 +1,226 @@
+{
+  "diagnosis": [
+    {
+      "code": "D1_SOURCE_IMBALANCED",
+      "detail": "Sursă dezechilibrată: 1.60 RON (pereche sf)",
+      "leaf_ids": []
+    }
+  ],
+  "difference": 0.0,
+  "envelope_version": "sv1",
+  "excluded": [],
+  "extraction": {
+    "header_row_index": 0,
+    "method": "deterministic",
+    "number_locale": "anglo",
+    "parser_version": "tb_parser_v5",
+    "sheet": "TB_adversarial",
+    "source_format": "saga_10_col"
+  },
+  "invariants": {
+    "assets_eq_row_sum": true,
+    "el_eq_row_sum": true,
+    "identity_holds": true,
+    "p121_cross_check": {
+      "cls7_minus_cls6": null,
+      "ok": true,
+      "p121": null
+    },
+    "result_basis": "sf_closing_column",
+    "source_conservation": true
+  },
+  "mapping_version": "ro_omfp1802_v2",
+  "needs_review": false,
+  "reconcile_offer": false,
+  "reconciliation": {
+    "amount_cents": 160,
+    "applied_at": "<volatile:stripped>",
+    "applied_by": "system:auto-reconcile",
+    "applied_delta": 1.6,
+    "content_hash": "sha256-4df1d3249c6a059f2a08e68c4a04b072e54dc1832d1cb6dc498d39161511d3be",
+    "diagnosis_code": "R1_ROUNDING_CENTS",
+    "mapping_version": "ro_omfp1802_v2",
+    "model": null,
+    "origin": "deterministic",
+    "original_difference": 1.6,
+    "parser_version": "tb_parser_v5",
+    "placement": "balance_sheet",
+    "placement_detail": "bs",
+    "prompt_version": null,
+    "rationale": "difference of 1.60 RON is within 1 RON x 4 sections touched — rounding-cent drift",
+    "reversible": true,
+    "target_account": null,
+    "target_row_id": "reconciliation_adjustment"
+  },
+  "rows": [
+    {
+      "account_codes": [
+        "212"
+      ],
+      "amount": 3000.0,
+      "id": "ppe_buildings",
+      "label": "Buildings",
+      "label_key": "bs.row.ppe_buildings",
+      "leaf_ids": [
+        "212"
+      ],
+      "opening": null,
+      "section": "non_current_assets"
+    },
+    {
+      "account_codes": [
+        "5121"
+      ],
+      "amount": 1000.0,
+      "id": "cash_operating",
+      "label": "Cash in operating currency",
+      "label_key": "bs.row.cash_operating",
+      "leaf_ids": [
+        "5121"
+      ],
+      "opening": null,
+      "section": "current_assets"
+    },
+    {
+      "account_codes": [
+        "1012"
+      ],
+      "amount": 2000.0,
+      "id": "share_capital",
+      "label": "Share capital",
+      "label_key": "bs.row.share_capital",
+      "leaf_ids": [
+        "1012"
+      ],
+      "opening": null,
+      "section": "equity"
+    },
+    {
+      "account_codes": [
+        "401"
+      ],
+      "amount": 1998.4,
+      "id": "ap_trade",
+      "label": "Trade payables",
+      "label_key": "bs.row.ap_trade",
+      "leaf_ids": [
+        "401"
+      ],
+      "opening": null,
+      "section": "current_liabilities"
+    },
+    {
+      "account_codes": [],
+      "amount": 1.6,
+      "id": "reconciliation_adjustment",
+      "label": "Diferențe de reconciliere",
+      "label_key": "bs.row.reconciliation_adjustment",
+      "leaf_ids": [],
+      "opening": null,
+      "section": "current_liabilities",
+      "synthetic": true
+    }
+  ],
+  "schema": "bs_v2",
+  "sections": [
+    {
+      "id": "non_current_assets",
+      "subtotal": 3000.0
+    },
+    {
+      "id": "current_assets",
+      "subtotal": 1000.0
+    },
+    {
+      "id": "prepaid_expenses",
+      "subtotal": 0.0
+    },
+    {
+      "id": "equity",
+      "subtotal": 2000.0
+    },
+    {
+      "id": "provisions",
+      "subtotal": 0.0
+    },
+    {
+      "id": "non_current_liabilities",
+      "subtotal": 0.0
+    },
+    {
+      "id": "current_liabilities",
+      "subtotal": 2000.0
+    },
+    {
+      "id": "deferred_income",
+      "subtotal": 0.0
+    }
+  ],
+  "source_anchor": {
+    "anchor_status": "MATCHED",
+    "closing_result": {
+      "basis": "sf",
+      "codes": [],
+      "p121_cents": 0,
+      "pl_net_cents": 0
+    },
+    "file_totals_include_off_balance": false,
+    "imbalanced_pairs": [
+      "sf"
+    ],
+    "pairs": {
+      "rc": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 0.0,
+        "extracted_debit": 0.0,
+        "file_credit": 0.0,
+        "file_debit": 0.0
+      },
+      "rl": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 0.0,
+        "extracted_debit": 0.0,
+        "file_credit": 0.0,
+        "file_debit": 0.0
+      },
+      "sf": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 3998.4,
+        "extracted_debit": 4000.0,
+        "file_credit": 3998.4,
+        "file_debit": 4000.0
+      },
+      "si": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 0.0,
+        "extracted_debit": 0.0,
+        "file_credit": 0.0,
+        "file_debit": 0.0
+      }
+    },
+    "source_balanced": false,
+    "totals_row_found": true,
+    "totals_row_index": 5
+  },
+  "status": "RECONCILED",
+  "status_presentation": {
+    "display_en": "Reconciled",
+    "display_key": "bs.status.reconciled",
+    "display_ro": "Reconciliat",
+    "machine": "RECONCILED",
+    "micro_caption": "auto-adjusted 1.60"
+  },
+  "totals": {
+    "assets": 4000.0,
+    "current_assets": 1000.0,
+    "current_liabilities": 2000.0,
+    "equity": 2000.0,
+    "equity_plus_liabilities": 4000.0,
+    "liabilities": 2000.0
+  },
+  "unmapped": []
+}

@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "saga_10_col_carniprod"
+jurisdiction: "RO"
+expected_parser: "saga_10_col"
+period: "FY2025 (12-25)"
+period_end: "2025-12-31"
+anonymized: true
+expect_ai_never_consulted: true
+source_notes: "files/carniprod_tb_2025.xlsx — real 10-col-family export with multi-level analytic codes (5121.04.01, 7584.1.1.1, apostrophe-suffixed 701.00'). Labels scrambled by scripts/anonymize_tb.py; codes and all numerics preserved to the cent."

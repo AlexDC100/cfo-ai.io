@@ -1,0 +1,1525 @@
+{
+  "accounts": [
+    {
+      "amount": 2500000.0,
+      "code": "101201",
+      "name": "Cap.subscris varsat"
+    },
+    {
+      "amount": 3408994.0,
+      "code": "104101",
+      "name": "Prima de emisie"
+    },
+    {
+      "amount": 3152071.46,
+      "code": "105101",
+      "name": "Rezerve din reevaluare"
+    },
+    {
+      "amount": 208734.0,
+      "code": "106101",
+      "name": "Rezerve legale"
+    },
+    {
+      "amount": 40553.0,
+      "code": "106802",
+      "name": "Profit scutit de repartiz"
+    },
+    {
+      "amount": -1184210.78,
+      "code": "117101",
+      "name": "Rez.report/pierd.neacop"
+    },
+    {
+      "amount": -523144.69,
+      "code": "117401",
+      "name": "Rez.rep.erori contabile"
+    },
+    {
+      "amount": 402869.16,
+      "code": "121101",
+      "name": "Profit sau pierdere"
+    },
+    {
+      "amount": 249287.0,
+      "code": "129001",
+      "name": "Repartizarea profitului"
+    },
+    {
+      "amount": 1777872.44,
+      "code": "162101",
+      "name": "Credit inv EUR curent"
+    },
+    {
+      "amount": 536684.22,
+      "code": "162102",
+      "name": "Credit restrEUR curent-BT"
+    },
+    {
+      "amount": 11474129.87,
+      "code": "162121",
+      "name": "Credit inv EUR noncurent"
+    },
+    {
+      "amount": 1702760.51,
+      "code": "162122",
+      "name": "Credit restrEUR nonc-BT"
+    },
+    {
+      "amount": 279401.39,
+      "code": "162131",
+      "name": "Credit inv EUR curen-reev"
+    },
+    {
+      "amount": 41463.16,
+      "code": "162132",
+      "name": "Credit restrEUR curent-re"
+    },
+    {
+      "amount": 54323.65,
+      "code": "167201",
+      "name": "Leasing auto.curent"
+    },
+    {
+      "amount": 152629.0,
+      "code": "167401",
+      "name": "Leasing noncrt.-auto"
+    },
+    {
+      "amount": 211526.88,
+      "code": "205001",
+      "name": "Concesiuni,brevete,marci"
+    },
+    {
+      "amount": -125179.58,
+      "code": "207501",
+      "name": "Fond comercial negativ"
+    },
+    {
+      "amount": 90580.2,
+      "code": "208001",
+      "name": "Alte imob.necorp.licente"
+    },
+    {
+      "amount": 3483.97,
+      "code": "208002",
+      "name": "Alte imob.necorp.in curs"
+    },
+    {
+      "amount": 3043714.0,
+      "code": "211101",
+      "name": "Terenuri"
+    },
+    {
+      "amount": 19039218.0,
+      "code": "212101",
+      "name": "Cladiri"
+    },
+    {
+      "amount": 5470877.16,
+      "code": "213101",
+      "name": "Echipamente tehnologice"
+    },
+    {
+      "amount": 19510.0,
+      "code": "213102",
+      "name": "Echip.tehnol. MFOB"
+    },
+    {
+      "amount": 405469.64,
+      "code": "213201",
+      "name": "Aparat&instal.masura"
+    },
+    {
+      "amount": 914887.13,
+      "code": "213301",
+      "name": "Mijloace transport"
+    },
+    {
+      "amount": 424282.54,
+      "code": "214101",
+      "name": "Mobil.birot. alte active"
+    },
+    {
+      "amount": 14770.5,
+      "code": "214102",
+      "name": "Mob.bir.alte active MFOB"
+    },
+    {
+      "amount": 90738.32,
+      "code": "231201",
+      "name": "Instal.teh&masini in curs"
+    },
+    {
+      "amount": 211526.86,
+      "code": "280501",
+      "name": "Amz.conces.brev.marci"
+    },
+    {
+      "amount": 58791.38,
+      "code": "280801",
+      "name": "Amz.alte imobiliz.necorp."
+    },
+    {
+      "amount": 2919319.95,
+      "code": "281301",
+      "name": "Amz.echipam.tehnologice"
+    },
+    {
+      "amount": 17958.5,
+      "code": "281302",
+      "name": "Amz.echip.tehnolog.MFOB"
+    },
+    {
+      "amount": 156687.8,
+      "code": "281321",
+      "name": "Amz.aparat.,instalatii"
+    },
+    {
+      "amount": 579807.48,
+      "code": "281331",
+      "name": "Amz.mijloace transport"
+    },
+    {
+      "amount": 275154.86,
+      "code": "281401",
+      "name": "Amz.alte imob.corporale"
+    },
+    {
+      "amount": 14770.5,
+      "code": "281402",
+      "name": "Amz.alte imob.corp.MFOB"
+    },
+    {
+      "amount": 3113793.63,
+      "code": "301001",
+      "name": "Mat.prime-orig.animala"
+    },
+    {
+      "amount": 864567.75,
+      "code": "301002",
+      "name": "Mat.prime-orig.vegetala"
+    },
+    {
+      "amount": 1631946.86,
+      "code": "301003",
+      "name": "Alte materii prime"
+    },
+    {
+      "amount": 1689153.31,
+      "code": "302301",
+      "name": "Mat.pt ambalat principale"
+    },
+    {
+      "amount": 833412.77,
+      "code": "302302",
+      "name": "Mat.pt amb.secundare"
+    },
+    {
+      "amount": 125593.73,
+      "code": "302801",
+      "name": "Alte mat.consumabile"
+    },
+    {
+      "amount": 200330.03,
+      "code": "341001",
+      "name": "Semifabricate"
+    },
+    {
+      "amount": 469735.9,
+      "code": "345139",
+      "name": "Prod.finite export"
+    },
+    {
+      "amount": 352083.52,
+      "code": "345170",
+      "name": "Prod.finite livrari"
+    },
+    {
+      "amount": 1985862.37,
+      "code": "345237",
+      "name": "Prod.finite blank"
+    },
+    {
+      "amount": 158.84,
+      "code": "345347",
+      "name": "Prod.finite contraprobe"
+    },
+    {
+      "amount": 9981.3,
+      "code": "346101",
+      "name": "Produse reziduale"
+    },
+    {
+      "amount": 455356.0,
+      "code": "348101",
+      "name": "Diferente pret"
+    },
+    {
+      "amount": 422245.92,
+      "code": "351102",
+      "name": "Produs Finit la terti"
+    },
+    {
+      "amount": 476105.77,
+      "code": "381001",
+      "name": "Ambalaje"
+    },
+    {
+      "amount": 104418.11,
+      "code": "391001",
+      "name": "Ajust.deprec.mat.prime"
+    },
+    {
+      "amount": 7867.99,
+      "code": "392002",
+      "name": "Ajust.depr.mat.consum.sec"
+    },
+    {
+      "amount": 202522.99,
+      "code": "394001",
+      "name": "Ajust.depr.produse finite"
+    },
+    {
+      "amount": 4619193.91,
+      "code": "401101",
+      "name": "Furnizori interni"
+    },
+    {
+      "amount": 16936.75,
+      "code": "401106",
+      "name": "Furnizori interni afiliat"
+    },
+    {
+      "amount": 1204828.69,
+      "code": "401110",
+      "name": "Furnizori ICO"
+    },
+    {
+      "amount": 2177436.0,
+      "code": "401201",
+      "name": "Furnizori externi EUR"
+    },
+    {
+      "amount": 931.28,
+      "code": "401202",
+      "name": "Furnizori externi USD"
+    },
+    {
+      "amount": 9224.2,
+      "code": "401203",
+      "name": "Furnizori externi CHF"
+    },
+    {
+      "amount": 486901.08,
+      "code": "401204",
+      "name": "Furnizori externi GPB"
+    },
+    {
+      "amount": 47044.15,
+      "code": "401208",
+      "name": "Furnizori externi CAD"
+    },
+    {
+      "amount": 9843.0,
+      "code": "401401",
+      "name": "Furnizori TVA in vama"
+    },
+    {
+      "amount": 16148.14,
+      "code": "404101",
+      "name": "Furniz.imobiliz.interni"
+    },
+    {
+      "amount": 43191.23,
+      "code": "404206",
+      "name": "Furniz.imobiliz.ext.GBP"
+    },
+    {
+      "amount": 943944.64,
+      "code": "408101",
+      "name": "Fz.fact.nesos.stocuri"
+    },
+    {
+      "amount": 353951.86,
+      "code": "408102",
+      "name": "Fz.fact.nesos.servicii"
+    },
+    {
+      "amount": 26634.84,
+      "code": "408104",
+      "name": "Fz.fact.nesos.diversi"
+    },
+    {
+      "amount": 53534.25,
+      "code": "408231",
+      "name": "Fact.nes.prov.audit fin."
+    },
+    {
+      "amount": 11831.62,
+      "code": "409101",
+      "name": "Fz.deb.bun.int.plati avan"
+    },
+    {
+      "amount": 276431.79,
+      "code": "409102",
+      "name": "Fz.deb.bun.int.facturi"
+    },
+    {
+      "amount": 6787.74,
+      "code": "409121",
+      "name": "Fz.deb.bun.externi EUR"
+    },
+    {
+      "amount": 22268.1,
+      "code": "409202",
+      "name": "Fz.deb.avansuri"
+    },
+    {
+      "amount": 361888.19,
+      "code": "409304",
+      "name": "Avans pt instalatii tehno"
+    },
+    {
+      "amount": 308348.06,
+      "code": "411101",
+      "name": "Clienti int.TT"
+    },
+    {
+      "amount": 700918.51,
+      "code": "411102",
+      "name": "Clienti int.KA"
+    },
+    {
+      "amount": 464306.95,
+      "code": "411104",
+      "name": "Clienti int.ocazionali"
+    },
+    {
+      "amount": 86191.93,
+      "code": "411110",
+      "name": "Clienti int.ICO"
+    },
+    {
+      "amount": 11030372.05,
+      "code": "411121",
+      "name": "Clienti ext.EUR"
+    },
+    {
+      "amount": 73222.09,
+      "code": "411124",
+      "name": "Clienti ext.GBP"
+    },
+    {
+      "amount": 11953.58,
+      "code": "413001",
+      "name": "Efecte de primit clienti"
+    },
+    {
+      "amount": 4663.54,
+      "code": "418101",
+      "name": "Clienti fact.de intocmit"
+    },
+    {
+      "amount": 37252.0,
+      "bucket_override": "otherCurrentLiab",
+      "code": "418201",
+      "name": "Clienti fact.prov.OFF inv"
+    },
+    {
+      "amount": 45544.21,
+      "code": "419001",
+      "name": "Clienti cred.avans primit"
+    },
+    {
+      "amount": 423711.0,
+      "code": "421001",
+      "name": "Personal-salarii datorate"
+    },
+    {
+      "amount": 8720.0,
+      "code": "423001",
+      "name": "Pers.ajut.mat.datorate"
+    },
+    {
+      "amount": 15455.67,
+      "code": "427002",
+      "name": "Ret.remun.-rate"
+    },
+    {
+      "amount": 300.0,
+      "code": "427003",
+      "name": "Pensii facultative"
+    },
+    {
+      "amount": 300883.0,
+      "code": "428104",
+      "name": "Alte datorii pers concedi"
+    },
+    {
+      "amount": 255483.0,
+      "code": "428301",
+      "name": "Alte datorii legate de pe"
+    },
+    {
+      "amount": 515604.0,
+      "code": "431501",
+      "name": "CAS angajat CIM"
+    },
+    {
+      "amount": 100721.15,
+      "code": "431601",
+      "name": "CASS angajat CIM"
+    },
+    {
+      "amount": 20881.0,
+      "code": "436001",
+      "name": "Contrib.asigurat.pt.munca"
+    },
+    {
+      "amount": 80532.0,
+      "code": "438201",
+      "name": "CM de recuperat Casa Sana"
+    },
+    {
+      "amount": 211257.0,
+      "code": "441101",
+      "name": "Impozitul pe profit"
+    },
+    {
+      "amount": 481355.28,
+      "code": "442401",
+      "name": "TVA de recuperat"
+    },
+    {
+      "amount": -41821.25,
+      "code": "442804",
+      "name": "TVA neexigibil-jurnal TVA"
+    },
+    {
+      "amount": 64995.0,
+      "code": "444001",
+      "name": "Impozit salarii-salariati"
+    },
+    {
+      "amount": 10871.0,
+      "code": "447001",
+      "name": "Fond.handicap.neincadrati"
+    },
+    {
+      "amount": 133252.36,
+      "code": "451128",
+      "name": "Sume de incasat SF"
+    },
+    {
+      "amount": 8771.71,
+      "code": "451828",
+      "name": "Sume de incasat SF"
+    },
+    {
+      "amount": 10.0,
+      "code": "456001",
+      "name": "Decontari cu actionarii/a"
+    },
+    {
+      "amount": 224829.88,
+      "code": "461001",
+      "name": "Debitori diversi"
+    },
+    {
+      "amount": 1191.13,
+      "code": "461008",
+      "name": "Debit.div.refact.intern"
+    },
+    {
+      "amount": 48010.62,
+      "code": "471001",
+      "name": "Ch.avans servicii"
+    },
+    {
+      "amount": 24960.46,
+      "code": "471004",
+      "name": "Ch.avans taxe auto&asig"
+    },
+    {
+      "amount": 77233.6,
+      "code": "471005",
+      "name": "Ch.avans comis credit"
+    },
+    {
+      "amount": 227.84,
+      "code": "472002",
+      "name": "Venit.inreg.in avans alte"
+    },
+    {
+      "amount": 660250.86,
+      "code": "491001",
+      "name": "Ajust.depr.creante client"
+    },
+    {
+      "amount": 149548.0,
+      "code": "496001",
+      "name": "Aj.depr.debitori.div."
+    },
+    {
+      "amount": 152955.0,
+      "code": "508102",
+      "name": "Depozit BT"
+    },
+    {
+      "amount": 200.0,
+      "code": "512126",
+      "name": "BT cont capital social"
+    },
+    {
+      "amount": 3576.55,
+      "code": "512128",
+      "name": "BT card debit VBC Flota"
+    },
+    {
+      "amount": 40439.22,
+      "code": "512141",
+      "name": "Trezorerie cont curent"
+    },
+    {
+      "amount": 214.78,
+      "code": "512421",
+      "name": "BT cont curent USD"
+    },
+    {
+      "amount": 1205386.86,
+      "code": "512422",
+      "name": "BT cont curent EUR"
+    },
+    {
+      "amount": 218.11,
+      "code": "512424",
+      "name": "BT cont curent GBP"
+    },
+    {
+      "amount": 16967214.51,
+      "code": "519131",
+      "name": "Credit linie BT LEI"
+    },
+    {
+      "amount": 5003.65,
+      "code": "531101",
+      "name": "Casa in LEI Sibiu"
+    },
+    {
+      "amount": 9075722.32,
+      "code": "601101",
+      "name": "Ch.mat.prime cons.carne"
+    },
+    {
+      "amount": 2758375.11,
+      "code": "601102",
+      "name": "Ch.mat.prime cons.vegetal"
+    },
+    {
+      "amount": 6320572.84,
+      "code": "601103",
+      "name": "Ch.mat.prim.cons.alte mp"
+    },
+    {
+      "amount": 1936.3,
+      "code": "601402",
+      "name": "Chelt.exp. mat.cons.R&D"
+    },
+    {
+      "amount": 149122.36,
+      "code": "602201",
+      "name": "Ch.carburanti autoturisme"
+    },
+    {
+      "amount": 16029.15,
+      "code": "602202",
+      "name": "Ch carburanti stivuit_1"
+    },
+    {
+      "amount": 14163.3,
+      "code": "602203",
+      "name": "Ch.carburanti TIR"
+    },
+    {
+      "amount": 85732.47,
+      "code": "602204",
+      "name": "Ch carburanti stivuit_2"
+    },
+    {
+      "amount": 6320.29,
+      "code": "602221",
+      "name": "Ch.ulei autovehicule"
+    },
+    {
+      "amount": 849665.47,
+      "code": "602301",
+      "name": "Ch.mat.aux.ambalat princi"
+    },
+    {
+      "amount": 1212476.71,
+      "code": "602304",
+      "name": "Ch.mat.amb.secundare"
+    },
+    {
+      "amount": 183035.69,
+      "code": "602305",
+      "name": "Ch.mat.amb.cons.alte mat."
+    },
+    {
+      "amount": 4423.88,
+      "code": "602391",
+      "name": "Ch.mat.amb.dif.inventar"
+    },
+    {
+      "amount": 5981.81,
+      "code": "602401",
+      "name": "Ch.piese schimb utilaje"
+    },
+    {
+      "amount": 5126.64,
+      "code": "602403",
+      "name": "Ch.piese schimb TIR"
+    },
+    {
+      "amount": 2662.05,
+      "code": "602404",
+      "name": "Ch.piese schimb diverse"
+    },
+    {
+      "amount": 523.53,
+      "code": "602801",
+      "name": "Ch.mat.cons.mat.intretin."
+    },
+    {
+      "amount": 122192.73,
+      "code": "602802",
+      "name": "Ch.mat.cons.mat.curatenie"
+    },
+    {
+      "amount": 42270.29,
+      "code": "602803",
+      "name": "Ch.mat.cons.mat.diverse"
+    },
+    {
+      "amount": 2294.11,
+      "code": "603001",
+      "name": "Ch.ob.inventar"
+    },
+    {
+      "amount": 2177.48,
+      "code": "603002",
+      "name": "Ch.ob.inventar IT"
+    },
+    {
+      "amount": 11491.94,
+      "code": "604002",
+      "name": "Ch.mat.nest.autoturisme"
+    },
+    {
+      "amount": 418.55,
+      "code": "604004",
+      "name": "Ch.mat.nest.stivuitoare"
+    },
+    {
+      "amount": 35862.09,
+      "code": "604005",
+      "name": "Ch.mat.nest.piese utilaje"
+    },
+    {
+      "amount": 34525.06,
+      "code": "604006",
+      "name": "Ch.mat.nest.intretinere"
+    },
+    {
+      "amount": 4886.7,
+      "code": "604007",
+      "name": "Ch.mat.nest.sectie"
+    },
+    {
+      "amount": 56596.13,
+      "code": "604009",
+      "name": "Ch.mat.nest.igienizare"
+    },
+    {
+      "amount": 6283.58,
+      "code": "604010",
+      "name": "Ch.mat.nest.R&D"
+    },
+    {
+      "amount": 943.35,
+      "code": "604011",
+      "name": "Ch.mat.nest.IT"
+    },
+    {
+      "amount": 11735.1,
+      "code": "604012",
+      "name": "Ch.mat.nest.birotica"
+    },
+    {
+      "amount": 131933.5,
+      "code": "604014",
+      "name": "Ch.mat.nest.activ.sociale"
+    },
+    {
+      "amount": 140828.13,
+      "code": "604015",
+      "name": "Ch.mat.nest.diverse"
+    },
+    {
+      "amount": 124.37,
+      "code": "604016",
+      "name": "Ch.mat.nest.export"
+    },
+    {
+      "amount": 15572.38,
+      "code": "604017",
+      "name": "Ch.mat.nest.pal"
+    },
+    {
+      "amount": 4724.25,
+      "code": "604020",
+      "name": "Ch.mat.nest.peleti"
+    },
+    {
+      "amount": 919968.12,
+      "code": "605101",
+      "name": "Ch.consum energ.electrica"
+    },
+    {
+      "amount": 683033.5,
+      "code": "605801",
+      "name": "Ch.consum azot"
+    },
+    {
+      "amount": 133194.26,
+      "code": "607401",
+      "name": "Ch.marfuri diverse"
+    },
+    {
+      "amount": 117403.58,
+      "code": "611001",
+      "name": "Ch.intret&reparat.utilaje"
+    },
+    {
+      "amount": 52352.66,
+      "code": "611002",
+      "name": "Ch.intret&repar.autovehic"
+    },
+    {
+      "amount": 52093.74,
+      "code": "611005",
+      "name": "Ch.intret&reparat.admin."
+    },
+    {
+      "amount": 398187.67,
+      "code": "612003",
+      "name": "Ch.chirii spatii,terenuri"
+    },
+    {
+      "amount": 10569.0,
+      "code": "612007",
+      "name": "Ch.chirii LO-rata finan."
+    },
+    {
+      "amount": 3462.6,
+      "code": "612008",
+      "name": "Ch.chirii LO-asigurari"
+    },
+    {
+      "amount": 118.45,
+      "code": "612009",
+      "name": "Ch.chirii LO-impozite"
+    },
+    {
+      "amount": 3958.7,
+      "code": "612010",
+      "name": "Ch.chirii LO-rep.&intret."
+    },
+    {
+      "amount": 2648.34,
+      "code": "612011",
+      "name": "Ch.chirii LO-alte serv."
+    },
+    {
+      "amount": 21238.5,
+      "code": "612015",
+      "name": "Ch.chirii si redevente"
+    },
+    {
+      "amount": 207860.0,
+      "code": "612016",
+      "name": "Ch.chirii auto inchiriat"
+    },
+    {
+      "amount": 12996.0,
+      "code": "613001",
+      "name": "Ch.asigurari cladiri"
+    },
+    {
+      "amount": 4488.0,
+      "code": "613002",
+      "name": "Ch.asigurari utilaje"
+    },
+    {
+      "amount": 5868.0,
+      "code": "613003",
+      "name": "Ch.asigurari stocuri"
+    },
+    {
+      "amount": 27257.72,
+      "code": "613004",
+      "name": "Ch.asigurari autoturisme"
+    },
+    {
+      "amount": 1728.0,
+      "code": "613011",
+      "name": "Ch.asigurare -intrerupere"
+    },
+    {
+      "amount": 20830.74,
+      "code": "618207",
+      "name": "Ch.alte serv.consultanta"
+    },
+    {
+      "amount": 43.98,
+      "code": "623103",
+      "name": "Ch.publ.list.prod&aniv.KA"
+    },
+    {
+      "amount": 3325.92,
+      "code": "623204",
+      "name": "Ch.taxe de agentie"
+    },
+    {
+      "amount": 139978.26,
+      "code": "623205",
+      "name": "Ch.trade mkting"
+    },
+    {
+      "amount": 68079.37,
+      "code": "623301",
+      "name": "Ch.protocol companie"
+    },
+    {
+      "amount": 852.35,
+      "code": "623304",
+      "name": "Ch.protocol neded."
+    },
+    {
+      "amount": 1988906.02,
+      "code": "624001",
+      "name": "Ch.transp.prod.la clienti"
+    },
+    {
+      "amount": 1307039.05,
+      "code": "624002",
+      "name": "Ch.transport persoane"
+    },
+    {
+      "amount": 11719.67,
+      "code": "624005",
+      "name": "Ch.transp.diverse"
+    },
+    {
+      "amount": 25104.86,
+      "code": "624007",
+      "name": "Ch.transp.colete"
+    },
+    {
+      "amount": 104478.38,
+      "code": "625201",
+      "name": "Ch.cazare deplasari"
+    },
+    {
+      "amount": 32670.79,
+      "code": "626002",
+      "name": "Ch.telefonie mobila"
+    },
+    {
+      "amount": 1510.36,
+      "code": "626003",
+      "name": "Ch.comunic.internet"
+    },
+    {
+      "amount": 6797.74,
+      "code": "626004",
+      "name": "Ch.expedieri postale"
+    },
+    {
+      "amount": 4571.06,
+      "code": "627121",
+      "name": "Ch.comis.banc.op.BT"
+    },
+    {
+      "amount": 651.0,
+      "code": "627141",
+      "name": "Ch.comis.banc.op.alte"
+    },
+    {
+      "amount": 8274.15,
+      "code": "627161",
+      "name": "Ch.comis.banc.op.CEC"
+    },
+    {
+      "amount": 12110.06,
+      "code": "627201",
+      "name": "Ch.comis.banc.credit"
+    },
+    {
+      "amount": 233412.95,
+      "code": "628101",
+      "name": "Ch.serv.logistica KA"
+    },
+    {
+      "amount": 66118.98,
+      "code": "628132",
+      "name": "Ch.serv.logistica diverse"
+    },
+    {
+      "amount": 555377.25,
+      "code": "628201",
+      "name": "Ch.serv.consultanta"
+    },
+    {
+      "amount": 69072.53,
+      "code": "628202",
+      "name": "Ch.serv.informatice"
+    },
+    {
+      "amount": 68890.55,
+      "code": "628203",
+      "name": "Ch.serv.econ&financiare"
+    },
+    {
+      "amount": 97179.63,
+      "code": "628204",
+      "name": "Ch.serv.juridice"
+    },
+    {
+      "amount": 12679.58,
+      "code": "628207",
+      "name": "Ch.alte serv.consultanta"
+    },
+    {
+      "amount": 48110.89,
+      "code": "628209",
+      "name": "Ch.alte serv.payroll"
+    },
+    {
+      "amount": 8354.33,
+      "code": "628301",
+      "name": "Ch.serv.autoturisme"
+    },
+    {
+      "amount": 102806.76,
+      "code": "628401",
+      "name": "Ch.serv.sanitar veterin."
+    },
+    {
+      "amount": 203588.83,
+      "code": "628402",
+      "name": "Ch.serv.intretinere&admin"
+    },
+    {
+      "amount": 310325.77,
+      "code": "628404",
+      "name": "Alte ch.prestari servicii"
+    },
+    {
+      "amount": 68098.25,
+      "code": "628406",
+      "name": "Ch.serv.colectare deseuri"
+    },
+    {
+      "amount": 11325.94,
+      "code": "628407",
+      "name": "Ch.serv.intretinere&tehni"
+    },
+    {
+      "amount": 8250.0,
+      "code": "628501",
+      "name": "Ch.serv.recrutare"
+    },
+    {
+      "amount": 170939.03,
+      "code": "628504",
+      "name": "Chelt.serv.securit si med"
+    },
+    {
+      "amount": -1496.15,
+      "code": "628901",
+      "name": "Ch.serv.ec.fin.accruals"
+    },
+    {
+      "amount": 140412.0,
+      "code": "635101",
+      "name": "Ch.impozit cladiri"
+    },
+    {
+      "amount": 3198.96,
+      "code": "635102",
+      "name": "Ch.impozit terenuri"
+    },
+    {
+      "amount": 5963.86,
+      "code": "635103",
+      "name": "Ch.imp&taxe autoturisme"
+    },
+    {
+      "amount": 541.62,
+      "code": "635104",
+      "name": "Ch.imp&taxe TIR"
+    },
+    {
+      "amount": 262593.0,
+      "code": "635201",
+      "name": "Ch.Fond handicapati"
+    },
+    {
+      "amount": 100.0,
+      "code": "635202",
+      "name": "Ch. taxe mediu"
+    },
+    {
+      "amount": 16787.15,
+      "code": "635203",
+      "name": "Ch.alte impozite&taxe"
+    },
+    {
+      "amount": 19397.0,
+      "code": "635301",
+      "name": "Chelt.impoz.constr.spec."
+    },
+    {
+      "amount": 4528.16,
+      "code": "635901",
+      "name": "Ch.impoz&taxe neded."
+    },
+    {
+      "amount": 9241902.0,
+      "code": "641001",
+      "name": "Ch.remuneratii personal"
+    },
+    {
+      "amount": 1590193.0,
+      "code": "641003",
+      "name": "Ch.bonus performanta"
+    },
+    {
+      "amount": 641722.0,
+      "code": "641005",
+      "name": "Ch.ore suplimentare"
+    },
+    {
+      "amount": 242855.0,
+      "code": "641007",
+      "name": "Ch.spor.ore noapte"
+    },
+    {
+      "amount": 62093.0,
+      "code": "641008",
+      "name": "Ch.salarii comp.concedii"
+    },
+    {
+      "amount": 63888.4,
+      "code": "641111",
+      "name": "Concedii de odihna"
+    },
+    {
+      "amount": 252733.55,
+      "code": "641112",
+      "name": "Bonus de performanta"
+    },
+    {
+      "amount": 30300.0,
+      "code": "642002",
+      "name": "Ch.tichete cadou_che soc"
+    },
+    {
+      "amount": 1106690.0,
+      "code": "642201",
+      "name": "Ch.tichete masa personal"
+    },
+    {
+      "amount": 105436.0,
+      "code": "645801",
+      "name": "Ch.concedii medicale"
+    },
+    {
+      "amount": 3189.0,
+      "code": "645804",
+      "name": "Ch.soc.-educatie timpurie"
+    },
+    {
+      "amount": 2753.0,
+      "code": "645901",
+      "name": "Contrib.unit.prov"
+    },
+    {
+      "amount": 267395.0,
+      "code": "646001",
+      "name": "Contributii asig de munca"
+    },
+    {
+      "amount": 2045.0,
+      "code": "658101",
+      "name": "Penalit.dat.buget stat"
+    },
+    {
+      "amount": 2134.97,
+      "code": "658102",
+      "name": "Penalit.contr.comerciale"
+    },
+    {
+      "amount": 10988.2,
+      "code": "658103",
+      "name": "Con penalitati com ka"
+    },
+    {
+      "amount": 250.0,
+      "code": "658104",
+      "name": "Amenzi"
+    },
+    {
+      "amount": 2282.27,
+      "code": "658301",
+      "name": "Ch.priv.active cedate"
+    },
+    {
+      "amount": 12723.88,
+      "code": "658801",
+      "name": "Alte ch.expl.dif.pret"
+    },
+    {
+      "amount": 20192.81,
+      "code": "658802",
+      "name": "Alte ch.expl.casari"
+    },
+    {
+      "amount": -14570.75,
+      "code": "658803",
+      "name": "Alte ch.expl.diverse"
+    },
+    {
+      "amount": 105551.48,
+      "code": "665102",
+      "name": "Ch.dif.curs plati totale"
+    },
+    {
+      "amount": 281523.4,
+      "code": "665103",
+      "name": "Ch.dif.curs reevaluari"
+    },
+    {
+      "amount": 439708.61,
+      "code": "665104",
+      "name": "Ch.dif.curs reeval.imprum"
+    },
+    {
+      "amount": 1564.06,
+      "code": "665201",
+      "name": "Ch.dif.curs"
+    },
+    {
+      "amount": 79005.91,
+      "code": "666120",
+      "name": "Ch.dob.BT_restructurare b"
+    },
+    {
+      "amount": 968559.02,
+      "code": "666121",
+      "name": "Ch.dob.BT_linie credit"
+    },
+    {
+      "amount": 454404.03,
+      "code": "666122",
+      "name": "Ch.dob.BT credit Inv EUR"
+    },
+    {
+      "amount": 195111.29,
+      "code": "666161",
+      "name": "Dobanda CEC"
+    },
+    {
+      "amount": 221951.71,
+      "code": "666170",
+      "name": "Dobanda credit CEC"
+    },
+    {
+      "amount": 84613.89,
+      "code": "666181",
+      "name": "Dobanda Credit CEC Rural"
+    },
+    {
+      "amount": 14186.66,
+      "code": "666201",
+      "name": "Ch.dobanzi-leasing"
+    },
+    {
+      "amount": 8880.0,
+      "code": "666301",
+      "name": "Chelt.dobanzi esalonare"
+    },
+    {
+      "amount": 6816.24,
+      "code": "666901",
+      "name": "Chelt.dobanzi imprumuturi"
+    },
+    {
+      "amount": 377927.87,
+      "code": "668001",
+      "name": "Alte chelt.financiare"
+    },
+    {
+      "amount": 1506727.34,
+      "code": "681101",
+      "name": "Ch.expl.amz.imob.corp."
+    },
+    {
+      "amount": 121976.82,
+      "code": "681102",
+      "name": "Ch.expl.amz.imob.necorp."
+    },
+    {
+      "amount": 352221.1,
+      "code": "681401",
+      "name": "Ch.expl.aj.depr.act.circ."
+    },
+    {
+      "amount": 112286.1,
+      "code": "681403",
+      "name": "Ch.proviz.stocuri-div"
+    },
+    {
+      "amount": 202522.99,
+      "code": "681404",
+      "name": "Ch.proviz.stocuri-contra"
+    },
+    {
+      "amount": 211257.0,
+      "code": "691001",
+      "name": "Chelt.impozitul pe profit"
+    },
+    {
+      "amount": 47597017.4,
+      "code": "701501",
+      "name": "Venit vanz.produse finite"
+    },
+    {
+      "amount": 666608.38,
+      "code": "704001",
+      "name": "Venit din serv.transport"
+    },
+    {
+      "amount": 69807.54,
+      "code": "704002",
+      "name": "Venit din alte serv.prest"
+    },
+    {
+      "amount": 7117.04,
+      "code": "706003",
+      "name": "Venit chirii auto"
+    },
+    {
+      "amount": 235376.58,
+      "code": "707201",
+      "name": "Venit vanz.marf.diverse"
+    },
+    {
+      "amount": -202772.78,
+      "code": "709101",
+      "name": "Disc.OFF prin casa x+N"
+    },
+    {
+      "amount": -12350.57,
+      "code": "709502",
+      "name": "Frz risturn efic com"
+    },
+    {
+      "amount": -11722.0,
+      "code": "709901",
+      "name": "Con prov red comerc"
+    },
+    {
+      "amount": 36616813.56,
+      "code": "711101",
+      "name": "Ven.prod.stoc.intr.neamb"
+    },
+    {
+      "amount": 39807903.22,
+      "code": "711104",
+      "name": "Ven.prod.stoc.intr.ambal"
+    },
+    {
+      "amount": 371898.41,
+      "code": "711105",
+      "name": "Ven.prod.stoc.ies.ambal"
+    },
+    {
+      "amount": 1566367.8,
+      "code": "711106",
+      "name": "Ven.schimb.cost.standard"
+    },
+    {
+      "amount": 18295.02,
+      "code": "711107",
+      "name": "Plus de inventar"
+    },
+    {
+      "amount": 18126.49,
+      "code": "711108",
+      "name": "Minus de inventar"
+    },
+    {
+      "amount": 3787752.56,
+      "code": "711109",
+      "name": "Ven.pr.stoc.dif.pret."
+    },
+    {
+      "amount": 645024.29,
+      "code": "711301",
+      "name": "VPS.iesi.semif finit-cons"
+    },
+    {
+      "amount": 17154.74,
+      "code": "711309",
+      "name": "VPS.pr.stoc.dif.pret.semi"
+    },
+    {
+      "amount": 98672.5,
+      "code": "711909",
+      "name": "VPS.dif .pret.ulei"
+    },
+    {
+      "amount": 250.0,
+      "code": "758101",
+      "name": "Ven.despag.amenzi,penalit"
+    },
+    {
+      "amount": 2859.79,
+      "code": "758301",
+      "name": "Venit.vanzari active"
+    },
+    {
+      "amount": 2023.84,
+      "code": "758802",
+      "name": "Alte ven.disc.furniz.IT"
+    },
+    {
+      "amount": 61.78,
+      "code": "758803",
+      "name": "Alte ven.expl.dif.pret"
+    },
+    {
+      "amount": 71951.89,
+      "code": "758804",
+      "name": "Alte ven.expl.deseuri"
+    },
+    {
+      "amount": 235956.51,
+      "code": "758805",
+      "name": "Alte ven.expl.diverse"
+    },
+    {
+      "amount": 131318.5,
+      "code": "758807",
+      "name": "Alte ven.fond solidaritat"
+    },
+    {
+      "amount": 3983.96,
+      "code": "758891",
+      "name": "Alte ven.expl.plus inven."
+    },
+    {
+      "amount": 307433.01,
+      "code": "765102",
+      "name": "Ven.dif.curs.plati totale"
+    },
+    {
+      "amount": 310601.02,
+      "code": "765103",
+      "name": "Venit.dif.curs.reevaluare"
+    },
+    {
+      "amount": 19722.31,
+      "code": "765104",
+      "name": "Ven.dif.curs reeval.impr."
+    },
+    {
+      "amount": 747.19,
+      "code": "765201",
+      "name": "Venit.dif.curs"
+    },
+    {
+      "amount": 163.59,
+      "code": "766102",
+      "name": "Venit.dobinzi BT"
+    },
+    {
+      "amount": 96.52,
+      "code": "766104",
+      "name": "Venit.dobinzi alte banci"
+    },
+    {
+      "amount": 8771.71,
+      "code": "766901",
+      "name": "Venit.dobanzi imprumuturi"
+    },
+    {
+      "amount": 14628.0,
+      "code": "768001",
+      "name": "Alte venituri financiare"
+    },
+    {
+      "amount": 54304.98,
+      "code": "781401",
+      "name": "Venit.aj.depr.act.circul."
+    },
+    {
+      "amount": 250358.76,
+      "code": "781501",
+      "name": "Venituri Din Fondul Comer"
+    }
+  ],
+  "excluded": [
+    {
+      "code": "581001",
+      "name": "Viramente interne",
+      "reason": "ignore_transit",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    }
+  ],
+  "method": "deterministic_coa_mapping",
+  "unmapped": [
+    {
+      "code": "162701",
+      "name": "Credit CEC curent",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    },
+    {
+      "code": "162702",
+      "name": "Credit CEC noncurent",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    },
+    {
+      "code": "267501",
+      "name": "Imprumuturi pe termen lun",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    },
+    {
+      "code": "482101",
+      "name": "Decont.intre gestiuni",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    }
+  ]
+}

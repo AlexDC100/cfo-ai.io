@@ -27,6 +27,10 @@ on:
       - "scripts/verify_determinism.py"
       - "scripts/check_import_boundary.py"
       - "scripts/import_boundary_allowlist.txt"
+      - "scripts/corpus_replay.py"
+      - "scripts/anonymize_tb.py"
+      - "scripts/check_golden_change_guard.py"
+      - "corpus/**"
       - "frontend/lib/**"
       - "files/**"
       - "tests/**"
@@ -71,10 +75,28 @@ jobs:
       - name: Install engine + test deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .
-          python -m pip install pytest
+          python -m pip install -e ".[dev]"
       - name: Determinism gate (5 identical runs per fixture)
         run: python3 scripts/verify_determinism.py
+      # ── Golden-corpus replay (canonical_bs v2 battery) ─────────────────
+      # scripts/corpus_replay.py runs the FULL offline pipeline (parse →
+      # assemble → auto-reconcile → stage_persist → serve → FactsGateway)
+      # for every case under corpus/ and byte-compares all five artifacts
+      # against the frozen expected/ goldens. No live API calls — a
+      # sys.modules sentinel makes any real anthropic import raise.
+      # Also runs inside pytest via tests/engine/test_corpus_replay.py;
+      # this named step keeps a corpus diff visible as its own CI line.
+      - name: Corpus replay (golden byte-compare)
+        run: python3 scripts/corpus_replay.py
+      # ── Property suite, fast profile (Hypothesis "ci") ────────────────
+      # tests/engine/test_properties.py at the derandomized bounded-count
+      # "ci" profile. The nightly-deep workflow runs the same suite at
+      # HYPOTHESIS_PROFILE=deep with fresh entropy and 10-15x counts.
+      # Also runs inside the full pytest step below; named for visibility.
+      - name: Property suite (fast profile)
+        env:
+          HYPOTHESIS_PROFILE: ci
+        run: python -m pytest tests/engine/test_properties.py -q
       - name: Engine pytest suite
         # The two deselected tests fail on the pre-existing SHARADAR
         # market-cap scaling defect in the public-companies adapter
@@ -93,6 +115,31 @@ jobs:
       # this direct step keeps the failure visible as its own CI line.
       - name: Import-boundary check (serving gateway)
         run: python3 scripts/check_import_boundary.py
+
+  # ─── Golden-change guard (PR-only) ───────────────────────────────────
+  # A diff under corpus/*/expected/ is a pipeline contract change and must
+  # be DECLARED: the PR body needs a line starting `golden-change:` or this
+  # job fails. Stdlib-only script; fetch-depth 0 so the PR base sha is
+  # resolvable. PR body is passed via env (never interpolated into the
+  # shell — it is untrusted input).
+  golden-change-guard:
+    name: Golden-change guard (corpus expected/)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check corpus golden changes are declared
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 scripts/check_golden_change_guard.py \
+            --base "${{ github.event.pull_request.base.sha }}"
 
   romania-eei:
     needs: [eei-canonical-numbers]

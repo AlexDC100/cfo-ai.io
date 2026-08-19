@@ -1,0 +1,215 @@
+{
+  "diagnosis": [],
+  "difference": 0.0,
+  "envelope_version": "sv1",
+  "excluded": [],
+  "extraction": {
+    "header_row_index": 0,
+    "method": "deterministic",
+    "number_locale": "ro",
+    "parser_version": "tb_parser_v5",
+    "sheet": null,
+    "source_format": "saga_10_col"
+  },
+  "invariants": {
+    "assets_eq_row_sum": true,
+    "el_eq_row_sum": true,
+    "identity_holds": true,
+    "p121_cross_check": {
+      "cls7_minus_cls6": null,
+      "ok": true,
+      "p121": null
+    },
+    "result_basis": "sf_closing_column",
+    "source_conservation": true
+  },
+  "mapping_version": "ro_omfp1802_v2",
+  "needs_review": false,
+  "reconcile_offer": false,
+  "rows": [
+    {
+      "account_codes": [
+        "212"
+      ],
+      "amount": 1000000.0,
+      "id": "ppe_buildings",
+      "label": "Buildings",
+      "label_key": "bs.row.ppe_buildings",
+      "leaf_ids": [
+        "212"
+      ],
+      "opening": null,
+      "section": "non_current_assets"
+    },
+    {
+      "account_codes": [
+        "2813"
+      ],
+      "amount": -123456.78,
+      "id": "accumulated_depreciation_ppe",
+      "label": "Accumulated depreciation (PPE)",
+      "label_key": "bs.row.accumulated_depreciation_ppe",
+      "leaf_ids": [
+        "2813"
+      ],
+      "opening": null,
+      "section": "non_current_assets"
+    },
+    {
+      "account_codes": [
+        "5121"
+      ],
+      "amount": 4568.0,
+      "id": "cash_operating",
+      "label": "Cash in operating currency",
+      "label_key": "bs.row.cash_operating",
+      "leaf_ids": [
+        "5121"
+      ],
+      "opening": null,
+      "section": "current_assets"
+    },
+    {
+      "account_codes": [
+        "371"
+      ],
+      "amount": 354024.67,
+      "id": "inventory_merchandise_resale",
+      "label": "Merchandise for resale",
+      "label_key": "bs.row.inventory_merchandise_resale",
+      "leaf_ids": [
+        "371"
+      ],
+      "opening": null,
+      "section": "current_assets"
+    },
+    {
+      "account_codes": [
+        "1012"
+      ],
+      "amount": 1234567.89,
+      "id": "share_capital",
+      "label": "Share capital",
+      "label_key": "bs.row.share_capital",
+      "leaf_ids": [
+        "1012"
+      ],
+      "opening": null,
+      "section": "equity"
+    },
+    {
+      "account_codes": [
+        "401"
+      ],
+      "amount": 568.0,
+      "id": "ap_trade",
+      "label": "Trade payables",
+      "label_key": "bs.row.ap_trade",
+      "leaf_ids": [
+        "401"
+      ],
+      "opening": null,
+      "section": "current_liabilities"
+    }
+  ],
+  "schema": "bs_v2",
+  "sections": [
+    {
+      "id": "non_current_assets",
+      "subtotal": 876543.22
+    },
+    {
+      "id": "current_assets",
+      "subtotal": 358592.67
+    },
+    {
+      "id": "prepaid_expenses",
+      "subtotal": 0.0
+    },
+    {
+      "id": "equity",
+      "subtotal": 1234567.89
+    },
+    {
+      "id": "provisions",
+      "subtotal": 0.0
+    },
+    {
+      "id": "non_current_liabilities",
+      "subtotal": 0.0
+    },
+    {
+      "id": "current_liabilities",
+      "subtotal": 568.0
+    },
+    {
+      "id": "deferred_income",
+      "subtotal": 0.0
+    }
+  ],
+  "source_anchor": {
+    "anchor_status": "MATCHED",
+    "closing_result": {
+      "basis": "sf",
+      "codes": [],
+      "p121_cents": 0,
+      "pl_net_cents": 0
+    },
+    "file_totals_include_off_balance": false,
+    "imbalanced_pairs": [],
+    "pairs": {
+      "rc": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1358592.67,
+        "extracted_debit": 1358592.67,
+        "file_credit": 1358592.67,
+        "file_debit": 1358592.67
+      },
+      "rl": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 258592.67,
+        "extracted_debit": 258592.67,
+        "file_credit": 258592.67,
+        "file_debit": 258592.67
+      },
+      "sf": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1358592.67,
+        "extracted_debit": 1358592.67,
+        "file_credit": 1358592.67,
+        "file_debit": 1358592.67
+      },
+      "si": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1100000.0,
+        "extracted_debit": 1100000.0,
+        "file_credit": 1100000.0,
+        "file_debit": 1100000.0
+      }
+    },
+    "source_balanced": true,
+    "totals_row_found": true,
+    "totals_row_index": 7
+  },
+  "status": "BALANCED",
+  "status_presentation": {
+    "display_en": "Balanced",
+    "display_key": "bs.status.balanced",
+    "display_ro": "Echilibrat",
+    "machine": "BALANCED",
+    "micro_caption": null
+  },
+  "totals": {
+    "assets": 1235135.89,
+    "current_assets": 358592.67,
+    "current_liabilities": 568.0,
+    "equity": 1234567.89,
+    "equity_plus_liabilities": 1235135.89,
+    "liabilities": 568.0
+  },
+  "unmapped": []
+}

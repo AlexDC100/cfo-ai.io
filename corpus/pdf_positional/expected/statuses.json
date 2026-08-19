@@ -1,0 +1,17 @@
+{
+  "needs_review": false,
+  "persisted_difference": -12253.38,
+  "persisted_status": "MATERIAL_IMBALANCE",
+  "reconcile_offer": false,
+  "reconciliation": null,
+  "reconciliation_auto": null,
+  "served_difference": -12253.38,
+  "served_status": "MATERIAL_IMBALANCE",
+  "status_presentation": {
+    "display_en": "Material imbalance",
+    "display_key": "bs.status.material_imbalance",
+    "display_ro": "Dezechilibru semnificativ",
+    "machine": "MATERIAL_IMBALANCE",
+    "micro_caption": null
+  }
+}

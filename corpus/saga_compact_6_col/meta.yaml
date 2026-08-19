@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "saga_compact_6_col"
+jurisdiction: "RO"
+expected_parser: "saga_compact_6_col"
+period: "FY2025"
+period_end: "2025-12-31"
+anonymized: false
+expect_ai_never_consulted: true
+source_notes: "SYNTHETIC until a real anonymized export is contributed (the spec prefers real files — flagged as an open leftover). Layout-B compact: SI/RL/Sume-totale pairs only, closing balances synthesized from the si+rl identity; pre-closing 607/707 open."

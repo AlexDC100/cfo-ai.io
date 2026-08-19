@@ -1,0 +1,1004 @@
+{
+  "accounts": [
+    {
+      "amount": 2500.0,
+      "code": "101201",
+      "name": "Capital subscris var"
+    },
+    {
+      "amount": 500.0,
+      "code": "106101",
+      "name": "Rezerve legale"
+    },
+    {
+      "amount": -1549139.17,
+      "code": "117101",
+      "name": "Rezultatul reportat"
+    },
+    {
+      "amount": -334136.22,
+      "code": "117102",
+      "name": "Rezultat reportat 20"
+    },
+    {
+      "amount": 292611.78,
+      "code": "117103",
+      "name": "Rezultat reportat 20"
+    },
+    {
+      "amount": 477794.7,
+      "code": "117104",
+      "name": "Rezultat reportat 20"
+    },
+    {
+      "amount": 110562.89,
+      "code": "117105",
+      "name": "Rezultat reportat 20"
+    },
+    {
+      "amount": 463213.0,
+      "code": "117106",
+      "name": "Rezultat reportat 20"
+    },
+    {
+      "amount": -4262.33,
+      "code": "117601",
+      "name": "Rezultat reportat pro"
+    },
+    {
+      "amount": 650887.06,
+      "code": "121101",
+      "name": "Profit sau pierdere"
+    },
+    {
+      "amount": 40797.0,
+      "code": "151801",
+      "name": "Alte provizioane pen"
+    },
+    {
+      "amount": 165304.51,
+      "code": "208001",
+      "name": "Alte imobilizari neco"
+    },
+    {
+      "amount": 514103.57,
+      "code": "213101",
+      "name": "Echipam. tehnologic"
+    },
+    {
+      "amount": 55261.37,
+      "code": "213102",
+      "name": "Echipamente tehnolo"
+    },
+    {
+      "amount": 33335.96,
+      "code": "213201",
+      "name": "Aparate si instalatii"
+    },
+    {
+      "amount": 2288.3,
+      "code": "213202",
+      "name": "Aparate & instalatii m"
+    },
+    {
+      "amount": 55537.19,
+      "code": "213301",
+      "name": "Mijloace de transpo"
+    },
+    {
+      "amount": 67451.3,
+      "code": "214101",
+      "name": "Mobilier, ap.birotica,"
+    },
+    {
+      "amount": 6405.0,
+      "code": "214102",
+      "name": "Mobilier, birotica si a"
+    },
+    {
+      "amount": 375591.31,
+      "code": "214103",
+      "name": "Alte active neregasi"
+    },
+    {
+      "amount": 4360.67,
+      "code": "267801",
+      "name": "Alte creante imobiliz"
+    },
+    {
+      "amount": 92211.8,
+      "code": "267802",
+      "name": "Garantii spatiu Bane"
+    },
+    {
+      "amount": 72597.61,
+      "code": "267803",
+      "name": "Garantii spatiu Vitan"
+    },
+    {
+      "amount": 114581.4,
+      "code": "267806",
+      "name": "Garantii spatiu Prom"
+    },
+    {
+      "amount": 163783.76,
+      "code": "280801",
+      "name": "Amortizarea altor im"
+    },
+    {
+      "amount": 426185.85,
+      "code": "281301",
+      "name": "Amortiz.instal.,mijl.d"
+    },
+    {
+      "amount": 65268.21,
+      "code": "281302",
+      "name": "Amz. echip. tehnolog"
+    },
+    {
+      "amount": 17962.16,
+      "code": "281321",
+      "name": "Amz.aparat., instala"
+    },
+    {
+      "amount": 2288.28,
+      "code": "281322",
+      "name": "Amz.aparat.,instal.M"
+    },
+    {
+      "amount": 53490.22,
+      "code": "281331",
+      "name": "Amz.mijloace transp"
+    },
+    {
+      "amount": 55167.29,
+      "code": "281401",
+      "name": "Amortiz.altor imobil."
+    },
+    {
+      "amount": 341538.34,
+      "code": "281403",
+      "name": "Amz alte imob corpo"
+    },
+    {
+      "amount": 8785.0,
+      "code": "291001",
+      "name": "Provizioane pt.depre"
+    },
+    {
+      "amount": 8418.03,
+      "code": "301001",
+      "name": "Materii prime - Bane"
+    },
+    {
+      "amount": 8133.18,
+      "code": "301002",
+      "name": "Materii prime - Vitan"
+    },
+    {
+      "amount": 7123.75,
+      "code": "301007",
+      "name": "Materii prime - Prom"
+    },
+    {
+      "amount": 579.56,
+      "code": "302802",
+      "name": "Alte materiale consu"
+    },
+    {
+      "amount": 2167.14,
+      "code": "303001",
+      "name": "Materiale de natura"
+    },
+    {
+      "amount": 2612.79,
+      "code": "371001",
+      "name": "Marfuri - Baneasa"
+    },
+    {
+      "amount": 1581.06,
+      "code": "371002",
+      "name": "Marfuri Vitan"
+    },
+    {
+      "amount": 1437.0,
+      "code": "371007",
+      "name": "Marfuri - Promenada"
+    },
+    {
+      "amount": 105513.03,
+      "code": "401101",
+      "name": "Furnizori interni"
+    },
+    {
+      "amount": 688408.2,
+      "code": "401106",
+      "name": "Furnizori interni afilia"
+    },
+    {
+      "amount": 13950.0,
+      "code": "408102",
+      "name": "Furnizori - facturi ne"
+    },
+    {
+      "amount": 463.67,
+      "code": "408105",
+      "name": "Fz.fact nes - stimule"
+    },
+    {
+      "amount": 29108.19,
+      "code": "409101",
+      "name": "Furnizori-debitori bu"
+    },
+    {
+      "amount": 161.47,
+      "code": "409102",
+      "name": "Furnizori-debitori bu"
+    },
+    {
+      "amount": 8784.64,
+      "code": "409301",
+      "name": "Avansuri acordate p"
+    },
+    {
+      "amount": 5614.76,
+      "code": "409401",
+      "name": "Avansuri acordate p"
+    },
+    {
+      "amount": 99853.55,
+      "code": "411101",
+      "name": "Clienti interni - resta"
+    },
+    {
+      "amount": 466.0,
+      "code": "411102",
+      "name": "Clienti interni servici"
+    },
+    {
+      "amount": 844.43,
+      "code": "411103",
+      "name": "Clienti interni caterin"
+    },
+    {
+      "amount": 81815.58,
+      "code": "411106",
+      "name": "Clienti interni afiliati"
+    },
+    {
+      "amount": 2293.5,
+      "code": "411109",
+      "name": "Clienti interni Grup"
+    },
+    {
+      "amount": 827.53,
+      "code": "419001",
+      "name": "Clienti - creditori"
+    },
+    {
+      "amount": 124539.0,
+      "code": "421001",
+      "name": "Personal - remunera"
+    },
+    {
+      "amount": 5667.0,
+      "code": "426001",
+      "name": "Drepturi de persona"
+    },
+    {
+      "amount": 5961.13,
+      "code": "427002",
+      "name": "Retineri din remune"
+    },
+    {
+      "amount": 1127.0,
+      "code": "431101",
+      "name": "Contributia unitatii la"
+    },
+    {
+      "amount": 450.0,
+      "code": "431301",
+      "name": "Contrib.angajatorulu"
+    },
+    {
+      "amount": 62900.0,
+      "code": "431501",
+      "name": "CAS angajat"
+    },
+    {
+      "amount": 24796.0,
+      "code": "431601",
+      "name": "CASS angajat"
+    },
+    {
+      "amount": 5714.0,
+      "code": "436001",
+      "name": "CAM"
+    },
+    {
+      "amount": 71281.0,
+      "code": "438201",
+      "name": "Alte creante sociale"
+    },
+    {
+      "amount": 27405.0,
+      "code": "441501",
+      "name": "Impozitul specific un"
+    },
+    {
+      "amount": 7422.0,
+      "code": "442401",
+      "name": "TVA de recuperat"
+    },
+    {
+      "amount": -2259.41,
+      "code": "442802",
+      "name": "TVA neexigibila fac"
+    },
+    {
+      "amount": 4347.0,
+      "code": "444001",
+      "name": "Impozitul pe venituri"
+    },
+    {
+      "amount": 4956.0,
+      "code": "444003",
+      "name": "Impozit salarii Banea"
+    },
+    {
+      "amount": 3899.0,
+      "code": "444004",
+      "name": "Impozit salariati-Vita"
+    },
+    {
+      "amount": 4486.0,
+      "code": "444006",
+      "name": "Impozit salariati-Prom"
+    },
+    {
+      "amount": 3910.0,
+      "code": "447001",
+      "name": "Fond.handicap.nein"
+    },
+    {
+      "amount": 98574.0,
+      "code": "448201",
+      "name": "Alte creante privind"
+    },
+    {
+      "amount": 8983.79,
+      "code": "461003",
+      "name": "Debitori diversi"
+    },
+    {
+      "amount": 3036.6,
+      "code": "471001",
+      "name": "Cheltuieli inregistrat"
+    },
+    {
+      "amount": 1882.95,
+      "code": "471004",
+      "name": "Cheltuieli inregistrat"
+    },
+    {
+      "amount": 12746.61,
+      "code": "473201",
+      "name": "Decontari din opera"
+    },
+    {
+      "amount": 239266.09,
+      "code": "5121",
+      "name": "Conturi la banci in le"
+    },
+    {
+      "amount": 66796.35,
+      "code": "5124",
+      "name": "Conturi la banci in d"
+    },
+    {
+      "amount": 7333.69,
+      "code": "531102",
+      "name": "Casa in lei - BANEA"
+    },
+    {
+      "amount": 6489.43,
+      "code": "531103",
+      "name": "Casa in lei - VITAN"
+    },
+    {
+      "amount": 4537.45,
+      "code": "531105",
+      "name": "Casa in lei - PROME"
+    },
+    {
+      "amount": 12230.01,
+      "code": "532801",
+      "name": "Tichete de masa CO"
+    },
+    {
+      "amount": 679832.73,
+      "code": "601101",
+      "name": "Cheltuieli cu materiil"
+    },
+    {
+      "amount": 432970.44,
+      "code": "601102",
+      "name": "Cheltuieli cu materii"
+    },
+    {
+      "amount": 483051.47,
+      "code": "601107",
+      "name": "Cheltuieli cu materii"
+    },
+    {
+      "amount": 17282.86,
+      "code": "601201",
+      "name": "Cheltuieli cu materii"
+    },
+    {
+      "amount": 4583.24,
+      "code": "601202",
+      "name": "Cheltuieli cu materii"
+    },
+    {
+      "amount": 13127.6,
+      "code": "601991",
+      "name": "Cheltuieli cu materii"
+    },
+    {
+      "amount": 1179.16,
+      "code": "601993",
+      "name": "Cheltuieli cu materii"
+    },
+    {
+      "amount": 6563.96,
+      "code": "602201",
+      "name": "Cheltuieli privind com"
+    },
+    {
+      "amount": 5448.68,
+      "code": "602203",
+      "name": "Cheltuieli privind com"
+    },
+    {
+      "amount": 7737.35,
+      "code": "602292",
+      "name": "Cheltuieli privind com"
+    },
+    {
+      "amount": 26.0,
+      "code": "602801",
+      "name": "Cheltuieli privind alte"
+    },
+    {
+      "amount": 34666.24,
+      "code": "602802",
+      "name": "Ch. alte mat.consum"
+    },
+    {
+      "amount": 10496.74,
+      "code": "603001",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 112.66,
+      "code": "604003",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 1755.11,
+      "code": "604006",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 390339.33,
+      "code": "604007",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 64893.66,
+      "code": "604009",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 6179.7,
+      "code": "604011",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 4293.43,
+      "code": "604012",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 47602.46,
+      "code": "604015",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 158320.1,
+      "code": "605001",
+      "name": "Cheltuieli privind ene"
+    },
+    {
+      "amount": 19160.48,
+      "code": "605002",
+      "name": "Cheltuieli privind apa"
+    },
+    {
+      "amount": 61482.67,
+      "code": "605003",
+      "name": "Cheltuieli privind gaz"
+    },
+    {
+      "amount": 8735.05,
+      "code": "605004",
+      "name": "Cheltuieli privind ene"
+    },
+    {
+      "amount": 1.45,
+      "code": "607001",
+      "name": "Cheltuieli privind ma"
+    },
+    {
+      "amount": 105149.96,
+      "code": "607102",
+      "name": "Cheltuieli marfuri - B"
+    },
+    {
+      "amount": 55309.89,
+      "code": "607103",
+      "name": "Cheltuieli marfuri - V"
+    },
+    {
+      "amount": 69541.93,
+      "code": "607107",
+      "name": "Cheltuieli marfuri - P"
+    },
+    {
+      "amount": 31726.8,
+      "code": "607401",
+      "name": "Cheltuieli marfuri - d"
+    },
+    {
+      "amount": 388.94,
+      "code": "607991",
+      "name": "Cheltuieli marfuri - d"
+    },
+    {
+      "amount": 1.49,
+      "code": "607992",
+      "name": "Cheltuieli marfuri - d"
+    },
+    {
+      "amount": -30346.9,
+      "code": "609001",
+      "name": "Reduceri comerciale"
+    },
+    {
+      "amount": 97575.27,
+      "code": "611001",
+      "name": "Cheltuieli de intretine"
+    },
+    {
+      "amount": 246.64,
+      "code": "611002",
+      "name": "Cheltuieli de intretin"
+    },
+    {
+      "amount": 4451.74,
+      "code": "611003",
+      "name": "Cheltuieli de intretine"
+    },
+    {
+      "amount": 293.5,
+      "code": "611006",
+      "name": "Cheltuieli de intretin"
+    },
+    {
+      "amount": 11197.49,
+      "code": "612001",
+      "name": "Cheltuieli cu redeve"
+    },
+    {
+      "amount": 1423.09,
+      "code": "612002",
+      "name": "Cheltuieli cu redeve"
+    },
+    {
+      "amount": 922830.36,
+      "code": "612003",
+      "name": "Cheltuieli cu redeve"
+    },
+    {
+      "amount": 8733.15,
+      "code": "613002",
+      "name": "Cheltuieli cu primele"
+    },
+    {
+      "amount": 3550.2,
+      "code": "613005",
+      "name": "Cheltuieli cu primele"
+    },
+    {
+      "amount": 1485.1,
+      "code": "613007",
+      "name": "Cheltuieli cu primele"
+    },
+    {
+      "amount": 270.0,
+      "code": "615001",
+      "name": "Cheltuieli cu pregati"
+    },
+    {
+      "amount": -278.7,
+      "code": "623194",
+      "name": "Cheltuieli stimulente"
+    },
+    {
+      "amount": 58200.23,
+      "code": "623205",
+      "name": "Cheltuieli trade mark"
+    },
+    {
+      "amount": 6649.18,
+      "code": "623301",
+      "name": "Cheltuieli de protoco"
+    },
+    {
+      "amount": 174.2,
+      "code": "623302",
+      "name": "Cheltuieli de protoco"
+    },
+    {
+      "amount": 262.82,
+      "code": "623304",
+      "name": "Cheltuieli de protoco"
+    },
+    {
+      "amount": 74031.39,
+      "code": "624002",
+      "name": "Cheltuieli cu transpo"
+    },
+    {
+      "amount": 23.66,
+      "code": "626001",
+      "name": "Cheltuieli telefonie fi"
+    },
+    {
+      "amount": 4134.48,
+      "code": "626002",
+      "name": "Cheltuieli telefonie m"
+    },
+    {
+      "amount": 5432.51,
+      "code": "626003",
+      "name": "Cheltuieli comunic.in"
+    },
+    {
+      "amount": 5.29,
+      "code": "626004",
+      "name": "Cheltuieli expedieri p"
+    },
+    {
+      "amount": 47741.62,
+      "code": "627101",
+      "name": "Cheltuieli comis.ban"
+    },
+    {
+      "amount": 53582.96,
+      "code": "628201",
+      "name": "Chelt.serv.consultan"
+    },
+    {
+      "amount": 62404.66,
+      "code": "628202",
+      "name": "Chelt.serv.informatic"
+    },
+    {
+      "amount": 4775.0,
+      "code": "628204",
+      "name": "Chelt.serv.juridice"
+    },
+    {
+      "amount": 152.0,
+      "code": "628302",
+      "name": "Chelt.serv.TIR"
+    },
+    {
+      "amount": 12272.04,
+      "code": "628401",
+      "name": "Chelt.serv.sanitar ve"
+    },
+    {
+      "amount": 154384.85,
+      "code": "628402",
+      "name": "Chelt.serv.intretinere"
+    },
+    {
+      "amount": 110254.42,
+      "code": "628404",
+      "name": "Alte chelt.prestari s"
+    },
+    {
+      "amount": 13468.42,
+      "code": "628501",
+      "name": "Chelt.serv.recrutare"
+    },
+    {
+      "amount": 54866.23,
+      "code": "628504",
+      "name": "Cheltuieli servicii HR"
+    },
+    {
+      "amount": 37045.28,
+      "code": "628505",
+      "name": "Cheltuieli servicii HR"
+    },
+    {
+      "amount": 55.78,
+      "code": "635103",
+      "name": "Cheltuieli impozite&t"
+    },
+    {
+      "amount": 375.0,
+      "code": "635104",
+      "name": "Cheltuieli impozite&ta"
+    },
+    {
+      "amount": 55.78,
+      "code": "635105",
+      "name": "Cheltuieli impozite&t"
+    },
+    {
+      "amount": 42343.0,
+      "code": "635201",
+      "name": "Cheltuieli fond hand"
+    },
+    {
+      "amount": 37.0,
+      "code": "635202",
+      "name": "Cheltuieli taxe mediu"
+    },
+    {
+      "amount": 18699.26,
+      "code": "635203",
+      "name": "Cheltuieli alte impoz"
+    },
+    {
+      "amount": 2224878.0,
+      "code": "641001",
+      "name": "Cheltuieli remunerat"
+    },
+    {
+      "amount": 193548.0,
+      "code": "641004",
+      "name": "Cheltuieli bonus van"
+    },
+    {
+      "amount": 70865.0,
+      "code": "641005",
+      "name": "Cheltuieli ore suplim"
+    },
+    {
+      "amount": 42246.0,
+      "code": "641008",
+      "name": "Cheltuieli salarii com"
+    },
+    {
+      "amount": 126510.0,
+      "code": "641009",
+      "name": "Cheltuieli weekend"
+    },
+    {
+      "amount": 155265.0,
+      "code": "642201",
+      "name": "Cheltuieli cu tichetel"
+    },
+    {
+      "amount": 1085.0,
+      "code": "645101",
+      "name": "CAS unitate"
+    },
+    {
+      "amount": 433.0,
+      "code": "645301",
+      "name": "Contrib. angajatorulu"
+    },
+    {
+      "amount": 20431.0,
+      "code": "645801",
+      "name": "Ch.concedii medical"
+    },
+    {
+      "amount": 16350.0,
+      "code": "645803",
+      "name": "Ch cu tichetele cado"
+    },
+    {
+      "amount": 60267.0,
+      "code": "646001",
+      "name": "CAM"
+    },
+    {
+      "amount": 4000.0,
+      "code": "658103",
+      "name": "Amenzi"
+    },
+    {
+      "amount": 1424.19,
+      "code": "658801",
+      "name": "Alte ch.expl.dif.pret"
+    },
+    {
+      "amount": 3.94,
+      "code": "658803",
+      "name": "Alte ch.expl. diverse"
+    },
+    {
+      "amount": 289.29,
+      "code": "658821",
+      "name": "Alte ch.expl.neded"
+    },
+    {
+      "amount": 3517.86,
+      "code": "665101",
+      "name": "Diferente nefavorab"
+    },
+    {
+      "amount": 62104.72,
+      "code": "681101",
+      "name": "Chelt.de expl.privind"
+    },
+    {
+      "amount": 5932.26,
+      "code": "681102",
+      "name": "Chelt.de expl.privind"
+    },
+    {
+      "amount": 54810.0,
+      "code": "695001",
+      "name": "Cheltuieli cu impozit"
+    },
+    {
+      "amount": 3078911.35,
+      "code": "701501",
+      "name": "Venituri din vinzarea"
+    },
+    {
+      "amount": 2049442.9,
+      "code": "701502",
+      "name": "Venituri din vinzarea"
+    },
+    {
+      "amount": 2264691.42,
+      "code": "701507",
+      "name": "Venituri din vinzarea"
+    },
+    {
+      "amount": 136950.0,
+      "code": "704001",
+      "name": "Venituri din servicii"
+    },
+    {
+      "amount": 261347.88,
+      "code": "707102",
+      "name": "Venituri din vinzarea"
+    },
+    {
+      "amount": 128735.01,
+      "code": "707103",
+      "name": "Venituri din vinzarea"
+    },
+    {
+      "amount": 164591.33,
+      "code": "707107",
+      "name": "Venituri din vinzarea"
+    },
+    {
+      "amount": 33628.5,
+      "code": "707201",
+      "name": "Venituri din vinzarea"
+    },
+    {
+      "amount": 6644.85,
+      "code": "708001",
+      "name": "Venituri din activitat"
+    },
+    {
+      "amount": -3353.61,
+      "code": "709101",
+      "name": "Reduceri comerciale"
+    },
+    {
+      "amount": 1537325.29,
+      "code": "711101",
+      "name": "Venituri aferente co"
+    },
+    {
+      "amount": 4395.44,
+      "code": "758101",
+      "name": "Venituri din despagu"
+    },
+    {
+      "amount": 10.0,
+      "code": "758301",
+      "name": "Venituri din vanz.ac"
+    },
+    {
+      "amount": 63.39,
+      "code": "758801",
+      "name": "Alte venituri din exp"
+    },
+    {
+      "amount": 25145.38,
+      "code": "758803",
+      "name": "Alte ven.expl.dif.pre"
+    },
+    {
+      "amount": 30.03,
+      "code": "758805",
+      "name": "Alte ven.expl.divers"
+    },
+    {
+      "amount": 858.19,
+      "code": "758891",
+      "name": "Alte ven.expl.plus.in"
+    },
+    {
+      "amount": 11939.33,
+      "code": "765301",
+      "name": "Venit.dif.curs.reeva"
+    },
+    {
+      "amount": 85.39,
+      "code": "766101",
+      "name": "Venituri din dobanzi"
+    },
+    {
+      "amount": 13.06,
+      "code": "766102",
+      "name": "Venit.dobanzi BT"
+    }
+  ],
+  "excluded": [
+    {
+      "code": "581001",
+      "name": "Viramente interne",
+      "reason": "ignore_transit",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    }
+  ],
+  "method": "deterministic_coa_mapping",
+  "unmapped": [
+    {
+      "code": "233001",
+      "name": "Imobilizari necorpor",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    },
+    {
+      "code": "437101",
+      "name": "Contributia unitatii la",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    },
+    {
+      "code": "437201",
+      "name": "Contributia personal",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    },
+    {
+      "code": "437301",
+      "name": "Fd.gar.creante sala",
+      "reason": "no_rule",
+      "sf_c": 0.0,
+      "sf_d": 0.0
+    }
+  ]
+}

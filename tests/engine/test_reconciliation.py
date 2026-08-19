@@ -823,7 +823,12 @@ def test_suppression_clears_on_version_bump(rounding_env, monkeypatch):
     _reconcile.auto_reconcile_envelope(rounding_env)
     undone, _ = _reconcile.perform_undo(rounding_env, "user-2")
     bumped = copy.deepcopy(undone)
-    bumped["canonical_bs"]["extraction"]["parser_version"] = "tb_parser_v5"
+    # Any version OTHER than the current one (was the literal
+    # "tb_parser_v5", which stopped being a bump when the real parser
+    # reached v5 — hypothesis-suite session, 2026-08-19).
+    bumped["canonical_bs"]["extraction"]["parser_version"] = (
+        tbp.PARSER_VERSION + "-bumped"
+    )
     calls = _ai_sentinel(monkeypatch)
     out = _reconcile.auto_reconcile_envelope(bumped)
     assert out["outcome"] == "accepted"

@@ -1,0 +1,36 @@
+{
+  "needs_review": false,
+  "persisted_difference": 1.6,
+  "persisted_status": "MINOR_DRIFT",
+  "reconcile_offer": false,
+  "reconciliation": {
+    "amount_cents": 160,
+    "applied_at": "<volatile:stripped>",
+    "applied_by": "system:auto-reconcile",
+    "applied_delta": 1.6,
+    "content_hash": "sha256-4df1d3249c6a059f2a08e68c4a04b072e54dc1832d1cb6dc498d39161511d3be",
+    "diagnosis_code": "R1_ROUNDING_CENTS",
+    "mapping_version": "ro_omfp1802_v2",
+    "model": null,
+    "origin": "deterministic",
+    "original_difference": 1.6,
+    "parser_version": "tb_parser_v5",
+    "placement": "balance_sheet",
+    "placement_detail": "bs",
+    "prompt_version": null,
+    "rationale": "difference of 1.60 RON is within 1 RON x 4 sections touched — rounding-cent drift",
+    "reversible": true,
+    "target_account": null,
+    "target_row_id": "reconciliation_adjustment"
+  },
+  "reconciliation_auto": null,
+  "served_difference": 0.0,
+  "served_status": "RECONCILED",
+  "status_presentation": {
+    "display_en": "Reconciled",
+    "display_key": "bs.status.reconciled",
+    "display_ro": "Reconciliat",
+    "machine": "RECONCILED",
+    "micro_caption": "auto-adjusted 1.60"
+  }
+}

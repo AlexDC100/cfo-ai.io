@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "hu_ai_lane"
+jurisdiction: "HU"
+expected_parser: "hu_ai_lane"
+period: "FY2025"
+period_end: "2025-12-31"
+anonymized: false
+expect_ai_never_consulted: false
+source_notes: "src/engine/country_packs/hu_hungary/fixtures/hu_szamlatukor_tb_2025.csv (synthetic HU fixture) through the full AI lane: deterministic resolver → format_detect → extract → classify → confidence gating (466 at 0.62 < 0.85 → needs_review + Unclassified row). Stage responses are mocked from mock_model_responses.json via the lane's injectable client_factory seam — never a live call."

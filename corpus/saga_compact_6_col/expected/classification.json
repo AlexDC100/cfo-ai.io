@@ -1,0 +1,32 @@
+{
+  "accounts": [
+    {
+      "amount": 1000.0,
+      "code": "1012",
+      "name": "Capital subscris varsat"
+    },
+    {
+      "amount": 1200.0,
+      "code": "5121",
+      "name": "Conturi la banci in lei"
+    },
+    {
+      "amount": 300.0,
+      "code": "371",
+      "name": "Marfuri"
+    },
+    {
+      "amount": 800.0,
+      "code": "707",
+      "name": "Venituri din vanzarea marfurilor"
+    },
+    {
+      "amount": 300.0,
+      "code": "607",
+      "name": "Cheltuieli privind marfurile"
+    }
+  ],
+  "excluded": [],
+  "method": "deterministic_coa_mapping",
+  "unmapped": []
+}

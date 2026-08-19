@@ -1,0 +1,9 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "saga_10_col"
+jurisdiction: "RO"
+expected_parser: "saga_10_col"
+period: "FY2025 (31.12.2025)"
+period_end: "2025-12-31"
+anonymized: false
+expect_ai_never_consulted: true
+source_notes: "files/prod_scandia_frozen_31.12.2025.xlsx — the frozen SAGA/ContSal 10-col production golden (blank-code totals row printed FIRST). Already anonymized fictional data upstream (calibration fixture), so the corpus scrambler was deliberately NOT applied."

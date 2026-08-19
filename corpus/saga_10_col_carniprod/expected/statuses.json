@@ -1,0 +1,17 @@
+{
+  "needs_review": false,
+  "persisted_difference": 0.0,
+  "persisted_status": "BALANCED",
+  "reconcile_offer": false,
+  "reconciliation": null,
+  "reconciliation_auto": null,
+  "served_difference": 0.0,
+  "served_status": "BALANCED",
+  "status_presentation": {
+    "display_en": "Balanced",
+    "display_key": "bs.status.balanced",
+    "display_ro": "Echilibrat",
+    "machine": "BALANCED",
+    "micro_caption": null
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "accounts": [
+    {
+      "amount": 3000.0,
+      "code": "212",
+      "name": "Constructii"
+    },
+    {
+      "amount": 1000.0,
+      "code": "5121",
+      "name": "Conturi la banci in lei"
+    },
+    {
+      "amount": 2000.0,
+      "code": "1012",
+      "name": "Capital subscris varsat"
+    },
+    {
+      "amount": 1998.4,
+      "code": "401",
+      "name": "Furnizori"
+    }
+  ],
+  "excluded": [],
+  "method": "deterministic_coa_mapping",
+  "unmapped": []
+}

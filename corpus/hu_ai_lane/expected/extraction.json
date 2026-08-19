@@ -1,0 +1,142 @@
+{
+  "extraction": {
+    "language": "hu",
+    "method": "llm",
+    "model": "claude-opus-4-7",
+    "number_locale": "ro",
+    "parser_version": "ai_lane_v1",
+    "prompt_version": "extract_v1",
+    "prompt_versions": {
+      "classify": "classify_v1",
+      "extract": "extract_v1",
+      "format_detect": "format_detect_v1",
+      "parser_version": "ai_lane_v1"
+    },
+    "scale": 1.0,
+    "separators": {
+      "decimal_sep": ",",
+      "thousands_sep": " "
+    },
+    "source_format": "llm_hu"
+  },
+  "resolution": {
+    "confidence": 0.95,
+    "jurisdiction": "HU",
+    "source": "language"
+  },
+  "rows": [
+    {
+      "balance": null,
+      "code": "114",
+      "credit": null,
+      "debit": 2500000.0,
+      "label": "Szellemi termékek"
+    },
+    {
+      "balance": null,
+      "code": "123",
+      "credit": null,
+      "debit": 12000000.0,
+      "label": "Épületek"
+    },
+    {
+      "balance": null,
+      "code": "211",
+      "credit": null,
+      "debit": 3200000.0,
+      "label": "Anyagok"
+    },
+    {
+      "balance": null,
+      "code": "311",
+      "credit": null,
+      "debit": 4750000.0,
+      "label": "Belföldi vevők"
+    },
+    {
+      "balance": null,
+      "code": "384",
+      "credit": null,
+      "debit": 6400000.0,
+      "label": "Elszámolási betétszámla"
+    },
+    {
+      "balance": null,
+      "code": "381",
+      "credit": null,
+      "debit": 350000.0,
+      "label": "Pénztár"
+    },
+    {
+      "balance": null,
+      "code": "466",
+      "credit": null,
+      "debit": 400000.0,
+      "label": "Előzetesen felszámított áfa"
+    },
+    {
+      "balance": null,
+      "code": "411",
+      "credit": 10000000.0,
+      "debit": null,
+      "label": "Jegyzett tőke"
+    },
+    {
+      "balance": null,
+      "code": "413",
+      "credit": 5500000.0,
+      "debit": null,
+      "label": "Eredménytartalék"
+    },
+    {
+      "balance": null,
+      "code": "454",
+      "credit": 3800000.0,
+      "debit": null,
+      "label": "Belföldi szállítók"
+    },
+    {
+      "balance": null,
+      "code": "467",
+      "credit": 900000.0,
+      "debit": null,
+      "label": "Fizetendő áfa"
+    },
+    {
+      "balance": null,
+      "code": "522",
+      "credit": null,
+      "debit": 500000.0,
+      "label": "Bérleti díjak"
+    },
+    {
+      "balance": null,
+      "code": "811",
+      "credit": null,
+      "debit": 7500000.0,
+      "label": "Anyagjellegű ráfordítások"
+    },
+    {
+      "balance": null,
+      "code": "911",
+      "credit": 17400000.0,
+      "debit": null,
+      "label": "Belföldi értékesítés árbevétele"
+    }
+  ],
+  "source_anchor": {
+    "anchor_status": "MATCHED",
+    "pairs": {
+      "sf": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 37600000.0,
+        "extracted_debit": 37600000.0,
+        "file_credit": 37600000.0,
+        "file_debit": 37600000.0
+      }
+    },
+    "source_balanced": true,
+    "totals_row_found": true
+  }
+}

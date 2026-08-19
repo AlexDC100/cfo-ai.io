@@ -1,0 +1,42 @@
+{
+  "confidence": 0.6,
+  "detected_type": "trial_balance",
+  "extraction": null,
+  "model": "corpus-mock-model",
+  "rows": [
+    {
+      "amount": 80000.0,
+      "code": "212",
+      "name": "Constructii"
+    },
+    {
+      "amount": 50000.0,
+      "code": "371",
+      "name": "Marfuri"
+    },
+    {
+      "amount": 20000.0,
+      "code": "5121",
+      "name": "Conturi la banci in lei"
+    },
+    {
+      "amount": 100000.0,
+      "code": "1012",
+      "name": "Capital subscris varsat"
+    },
+    {
+      "amount": 30000.0,
+      "code": "117",
+      "name": "Rezultatul reportat"
+    },
+    {
+      "amount": 20000.0,
+      "code": "401",
+      "name": "Furnizori"
+    }
+  ],
+  "source_anchor": null,
+  "warnings": [
+    "scanned document; totals row unreadable"
+  ]
+}

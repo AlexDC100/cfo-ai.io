@@ -325,3 +325,49 @@ persisted `canonical_bs.totals.equity` RAW, bypassing the serve path, so
 RECONCILED periods were valued on pre-reconciliation equity. It now reads
 `FactsGateway.equity()` — the ADJUSTED (reconciliation-inclusive) figure.
 BALANCED periods are numerically unchanged.
+
+## VERIFICATION BATTERY (2026-08-19) — the gates, in one list
+
+Every engine change must leave ALL of these green. The PR battery runs in
+`.github/workflows/tier1-validation.yml`; the heavy tier runs nightly in
+`.github/workflows/nightly-deep.yml`. None of the gates below makes a live
+API call — the property suite and the corpus replay both carry the
+anthropic-import sentinel, so the Anthropic credit state can never affect
+a gate.
+
+PR battery (every PR + push to main):
+- `scripts/verify_determinism.py` — 5 runs per golden fixture, BYTE-IDENTICAL
+  canonical JSON.
+- `pytest tests/engine` (2 SHARADAR deselects) — includes the corpus replay
+  wrapper (`tests/engine/test_corpus_replay.py`) and the property suite.
+- **Corpus replay** (NEW) — `scripts/corpus_replay.py`: the 17-case golden
+  corpus under `corpus/<case_id>/`, full offline pipeline (parse → assemble →
+  auto-reconcile → `stage_persist` → serve → FactsGateway), all five
+  artifacts (`extraction` / `classification` / `statuses` / `served_envelope`
+  / `gateway_facts`) byte-compared against `expected/`. Named CI step for
+  visibility. Refreeze deliberately with `UPDATE_GOLDEN=1`.
+- **Property suite, fast profile** (NEW) —
+  `pytest tests/engine/test_properties.py` at the derandomized Hypothesis
+  "ci" profile (P1–P9 + P2b through the REAL production chain). Named CI
+  step for visibility.
+- **Golden-change guard** (PR-only) — `scripts/check_golden_change_guard.py`:
+  any diff under `corpus/*/expected/` requires a PR-body line starting
+  `golden-change:` explaining the contract change; otherwise the PR fails.
+  Also the local pre-push habit (`--base origin/main` default).
+- `scripts/check_import_boundary.py` — serving-gateway boundary.
+- FE: `tsc --noEmit`, `vitest`, `npm run build`.
+
+Nightly deep tier (`nightly-deep.yml`, cron + manual dispatch):
+- Deep property run — `HYPOTHESIS_PROFILE=deep` (fresh entropy, 10–15×
+  counts); shrunken failures land in `corpus/quarantine/<sha16>/` and are
+  uploaded as a CI artifact.
+- Full corpus replay — same gate as the PR battery, re-run nightly to catch
+  environment/dependency drift on a quiet main.
+- **Prod canary** — `scripts/prod_canary_replay.py`: the sentinel case
+  (prod_scandia_frozen, corpus id `saga_10_col`) replayed offline, AND —
+  only when the optional `PROD_SSH_KEY` / `PROD_HOST` secrets exist —
+  ssh-executed inside the running `cfo-ai-backend` container with a
+  byte-compare of the prod-produced served envelope vs the repo golden.
+  Without the secrets it prints a documented SKIP (exit 0); the operator
+  runs the prod half manually over ssh, same habit as `measure_bs_drift.py`
+  (both fixtures must stay GREEN: EEI 0.0000%, Scandia 0.3698%).

@@ -1,0 +1,27 @@
+{
+  "accounts": [
+    {
+      "amount": 500000.0,
+      "code": "5121",
+      "name": "Conturi la banci in lei"
+    },
+    {
+      "amount": 250.0,
+      "code": "371",
+      "name": "Marfuri"
+    },
+    {
+      "amount": 250.0,
+      "code": "371",
+      "name": "Marfuri"
+    },
+    {
+      "amount": 500250.0,
+      "code": "1012",
+      "name": "Capital subscris varsat"
+    }
+  ],
+  "excluded": [],
+  "method": "deterministic_coa_mapping",
+  "unmapped": []
+}

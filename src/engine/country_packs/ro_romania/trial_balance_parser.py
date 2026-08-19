@@ -39,7 +39,14 @@ logger = logging.getLogger(__name__)
 
 # Contract `extraction.parser_version` (docs/CANONICAL_BS_V2_CONTRACT.md).
 # Bump whenever parser logic changes what rows/values are extracted.
-PARSER_VERSION = "tb_parser_v4"
+PARSER_VERSION = "tb_parser_v5"
+# v5 (2026-08-19, found by the Hypothesis property suite P3/P4): sign=−1
+# contra rules (129/169/269, 28x/29x/39x/49x/59x) now emit SIGNED closing
+# math in `accounts_to_assemble_shape` instead of the magnitude of
+# whichever side is populated. Natural-side balances are byte-identical;
+# a balance closing on the WRONG side (e.g. 169 credit, 491 debit) used
+# to invert its contribution and break the closing identity by exactly
+# 2× the balance on a balanced source (identity_holds=False, silent).
 
 
 # ─── Errors ─────────────────────────────────────────────────────────────────
@@ -723,6 +730,17 @@ def _find_totals_row(
     return best[0], best[1]
 
 
+def _round2z(value: float) -> float:
+    """round(x, 2) with the zero sign normalized: float accumulation is
+    order-sensitive in its last ulp, so two orderings of the same rows
+    can land at +1e-10 vs −1e-10 around an exact-zero delta — and
+    round() preserves the sign of zero, serializing as "-0.0" vs "0.0".
+    Adding 0.0 collapses both to +0.0 (IEEE), keeping the anchor a pure
+    function of the row MULTISET (property-suite P7 finding, tb_parser_v5).
+    Nonzero values are untouched."""
+    return round(value, 2) + 0.0
+
+
 def compute_source_anchor(
     tb_rows: List[Dict],
     file_totals: Optional[Dict[str, Optional[float]]] = None,
@@ -790,12 +808,12 @@ def compute_source_anchor(
         file_c = file_totals.get(fcol_c) if file_totals else None
         ext_d, ext_c = sums[dk], sums[ck]
         entry: Dict[str, Any] = {
-            "file_debit": None if file_d is None else round(file_d, 2),
-            "file_credit": None if file_c is None else round(file_c, 2),
-            "extracted_debit": round(ext_d, 2),
-            "extracted_credit": round(ext_c, 2),
-            "delta_debit": None if file_d is None else round(ext_d - file_d, 2),
-            "delta_credit": None if file_c is None else round(ext_c - file_c, 2),
+            "file_debit": None if file_d is None else _round2z(file_d),
+            "file_credit": None if file_c is None else _round2z(file_c),
+            "extracted_debit": _round2z(ext_d),
+            "extracted_credit": _round2z(ext_c),
+            "delta_debit": None if file_d is None else _round2z(ext_d - file_d),
+            "delta_credit": None if file_c is None else _round2z(ext_c - file_c),
         }
         if synthesized_sf and key == "sf":
             # Layout B carries no Solduri-finale block in the file; the
@@ -1355,9 +1373,14 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
             #
             # For sign=−1 ("contra-natural-direction") accounts like
             # 129 (Repartizarea profitului, balance on debit by
-            # design), keep the legacy absolute-side logic. The
-            # rule's sign=−1 then negates the positive amount to
-            # subtract from equity.
+            # design), emit the DEBIT-signed math: the rule's sign=−1
+            # then restores the true credit-positive contribution
+            # (natural debit balance → subtracts from equity/debt,
+            # byte-identical to the legacy absolute-side logic; a
+            # WRONG-side credit balance → adds, which the legacy
+            # logic inverted — the closing-identity leak the property
+            # suite quarantined: 169/129 sf_c broke a balanced source
+            # by exactly 2× the balance, tb_parser_v5).
             #
             # Empirical impact (operator-authorized re-baseline):
             #   EEI:     unchanged (0.0000% drift, byte-identical)
@@ -1371,7 +1394,7 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
             if rule.sign == 1:
                 amount = sf_c - sf_d
             else:
-                amount = sf_c if sf_c != 0 else sf_d
+                amount = sf_d - sf_c
         elif bucket in DEBIT_POS_BS:
             # Assets: normal balance on debit side. For contra-asset
             # accounts (28x accumulated depreciation, 29x impairment,
@@ -1382,12 +1405,17 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
             # sign=+1 natural-direction assets, use signed math
             # (amount = sf_d − sf_c) so a credit-side balance
             # (overpayment, fund reversal) correctly emits negative.
-            # For sign=−1 contra-assets, keep absolute-side logic
-            # — the rule's sign=−1 already inverts.
+            # For sign=−1 contra-assets, emit CREDIT-signed math — the
+            # rule's sign=−1 restores the debit-positive contribution
+            # (natural credit balance reduces the asset, byte-identical
+            # to the legacy absolute-side logic; a WRONG-side debit
+            # balance adds to it — the legacy logic inverted that and
+            # broke the closing identity by 2× the balance,
+            # tb_parser_v5).
             if rule.sign == 1:
                 amount = sf_d - sf_c
             else:
-                amount = sf_d if sf_d != 0 else sf_c
+                amount = sf_c - sf_d
         elif bucket in CREDIT_POS_PL or bucket in DEBIT_POS_PL:
             # Closing-only fallback (generic_4_col): the document carries
             # NO cumulative block anywhere (`has_any_cumulative` gate

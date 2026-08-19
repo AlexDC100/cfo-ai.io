@@ -1,0 +1,132 @@
+{
+  "extraction": {
+    "header_row_index": 0,
+    "method": "deterministic",
+    "number_locale": "ro",
+    "parser_version": "tb_parser_v5",
+    "sheet": null,
+    "source_format": "saga_10_col"
+  },
+  "rows": [
+    {
+      "cont": "1012",
+      "nume_cont": "Capital subscris varsat",
+      "r_c": 234567.89,
+      "r_d": 0.0,
+      "sf_c": 1234567.89,
+      "sf_d": 0.0,
+      "si_c": 1000000.0,
+      "si_d": 0.0,
+      "st_c": 1234567.89,
+      "st_d": 0.0
+    },
+    {
+      "cont": "212",
+      "nume_cont": "Constructii",
+      "r_c": 0.0,
+      "r_d": 200000.0,
+      "sf_c": 0.0,
+      "sf_d": 1000000.0,
+      "si_c": 0.0,
+      "si_d": 800000.0,
+      "st_c": 0.0,
+      "st_d": 1000000.0
+    },
+    {
+      "cont": "2813",
+      "nume_cont": "Amortizarea constructiilor",
+      "r_c": 23456.78,
+      "r_d": 0.0,
+      "sf_c": 123456.78,
+      "sf_d": 0.0,
+      "si_c": 100000.0,
+      "si_d": 0.0,
+      "st_c": 123456.78,
+      "st_d": 0.0
+    },
+    {
+      "cont": "371",
+      "nume_cont": "Mărfuri",
+      "r_c": 0.0,
+      "r_d": 54024.67,
+      "sf_c": 0.0,
+      "sf_d": 354024.67,
+      "si_c": 0.0,
+      "si_d": 300000.0,
+      "st_c": 0.0,
+      "st_d": 354024.67
+    },
+    {
+      "cont": "5121",
+      "nume_cont": "Conturi la banci in lei",
+      "r_c": 0.0,
+      "r_d": 4568.0,
+      "sf_c": 0.0,
+      "sf_d": 4568.0,
+      "si_c": 0.0,
+      "si_d": 0.0,
+      "st_c": 0.0,
+      "st_d": 4568.0
+    },
+    {
+      "cont": "401",
+      "nume_cont": "Furnizori",
+      "r_c": 568.0,
+      "r_d": 0.0,
+      "sf_c": 568.0,
+      "sf_d": 0.0,
+      "si_c": 0.0,
+      "si_d": 0.0,
+      "st_c": 568.0,
+      "st_d": 0.0
+    }
+  ],
+  "source_anchor": {
+    "anchor_status": "MATCHED",
+    "closing_result": {
+      "basis": "sf",
+      "codes": [],
+      "p121_cents": 0,
+      "pl_net_cents": 0
+    },
+    "file_totals_include_off_balance": false,
+    "imbalanced_pairs": [],
+    "pairs": {
+      "rc": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1358592.67,
+        "extracted_debit": 1358592.67,
+        "file_credit": 1358592.67,
+        "file_debit": 1358592.67
+      },
+      "rl": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 258592.67,
+        "extracted_debit": 258592.67,
+        "file_credit": 258592.67,
+        "file_debit": 258592.67
+      },
+      "sf": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1358592.67,
+        "extracted_debit": 1358592.67,
+        "file_credit": 1358592.67,
+        "file_debit": 1358592.67
+      },
+      "si": {
+        "delta_credit": 0.0,
+        "delta_debit": 0.0,
+        "extracted_credit": 1100000.0,
+        "extracted_debit": 1100000.0,
+        "file_credit": 1100000.0,
+        "file_debit": 1100000.0
+      }
+    },
+    "source_balanced": true,
+    "totals_row_found": true,
+    "totals_row_index": 7
+  }
+}

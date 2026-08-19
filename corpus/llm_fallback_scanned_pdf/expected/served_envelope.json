@@ -1,0 +1,168 @@
+{
+  "diagnosis": [],
+  "difference": 0.0,
+  "envelope_version": "sv1",
+  "excluded": [],
+  "extraction": {
+    "method": "deterministic"
+  },
+  "invariants": {
+    "assets_eq_row_sum": true,
+    "el_eq_row_sum": true,
+    "identity_holds": true,
+    "p121_cross_check": {
+      "cls7_minus_cls6": null,
+      "ok": true,
+      "p121": null
+    },
+    "result_basis": "reconstruction",
+    "source_conservation": true
+  },
+  "mapping_version": "ro_omfp1802_v2",
+  "needs_review": false,
+  "reconcile_offer": false,
+  "rows": [
+    {
+      "account_codes": [
+        "212"
+      ],
+      "amount": 80000.0,
+      "id": "ppe_buildings",
+      "label": "Buildings",
+      "label_key": "bs.row.ppe_buildings",
+      "leaf_ids": [
+        "212"
+      ],
+      "opening": null,
+      "section": "non_current_assets"
+    },
+    {
+      "account_codes": [
+        "5121"
+      ],
+      "amount": 20000.0,
+      "id": "cash_operating",
+      "label": "Cash in operating currency",
+      "label_key": "bs.row.cash_operating",
+      "leaf_ids": [
+        "5121"
+      ],
+      "opening": null,
+      "section": "current_assets"
+    },
+    {
+      "account_codes": [
+        "371"
+      ],
+      "amount": 50000.0,
+      "id": "inventory_merchandise_resale",
+      "label": "Merchandise for resale",
+      "label_key": "bs.row.inventory_merchandise_resale",
+      "leaf_ids": [
+        "371"
+      ],
+      "opening": null,
+      "section": "current_assets"
+    },
+    {
+      "account_codes": [
+        "1012"
+      ],
+      "amount": 100000.0,
+      "id": "share_capital",
+      "label": "Share capital",
+      "label_key": "bs.row.share_capital",
+      "leaf_ids": [
+        "1012"
+      ],
+      "opening": null,
+      "section": "equity"
+    },
+    {
+      "account_codes": [
+        "117"
+      ],
+      "amount": 30000.0,
+      "id": "retained_earnings_prior_years",
+      "label": "Retained earnings (prior years)",
+      "label_key": "bs.row.retained_earnings_prior_years",
+      "leaf_ids": [
+        "117"
+      ],
+      "opening": null,
+      "section": "equity"
+    },
+    {
+      "account_codes": [
+        "401"
+      ],
+      "amount": 20000.0,
+      "id": "ap_trade",
+      "label": "Trade payables",
+      "label_key": "bs.row.ap_trade",
+      "leaf_ids": [
+        "401"
+      ],
+      "opening": null,
+      "section": "current_liabilities"
+    }
+  ],
+  "schema": "bs_v2",
+  "sections": [
+    {
+      "id": "non_current_assets",
+      "subtotal": 80000.0
+    },
+    {
+      "id": "current_assets",
+      "subtotal": 70000.0
+    },
+    {
+      "id": "prepaid_expenses",
+      "subtotal": 0.0
+    },
+    {
+      "id": "equity",
+      "subtotal": 130000.0
+    },
+    {
+      "id": "provisions",
+      "subtotal": 0.0
+    },
+    {
+      "id": "non_current_liabilities",
+      "subtotal": 0.0
+    },
+    {
+      "id": "current_liabilities",
+      "subtotal": 20000.0
+    },
+    {
+      "id": "deferred_income",
+      "subtotal": 0.0
+    }
+  ],
+  "source_anchor": {
+    "anchor_status": "NO_ANCHOR",
+    "pairs": {},
+    "source_balanced": null,
+    "totals_row_found": false
+  },
+  "status": "BALANCED",
+  "status_presentation": {
+    "display_en": "Balanced",
+    "display_key": "bs.status.balanced",
+    "display_ro": "Echilibrat",
+    "machine": "BALANCED",
+    "micro_caption": null
+  },
+  "totals": {
+    "assets": 150000.0,
+    "current_assets": 70000.0,
+    "current_liabilities": 20000.0,
+    "equity": 130000.0,
+    "equity_plus_liabilities": 150000.0,
+    "liabilities": 20000.0
+  },
+  "unmapped": []
+}
