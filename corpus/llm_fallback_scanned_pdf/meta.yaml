@@ -6,4 +6,9 @@ period: "FY2019"
 period_end: "2019-12-31"
 anonymized: false
 expect_ai_never_consulted: false
-source_notes: "SYNTHETIC image-only PDF (no text layer) — the deterministic positional ingester finds zero rows, so stage_extract falls back to the RO LLM extraction (financial_statements.parse_document). Replay injects mock_model_response.json through a scripted `anthropic` module (sys.modules seam) — never a live call. KNOWN CONTRACT GAP frozen honestly by this golden: the PDF fallback's parsed payload carries NO extraction stamp, so the envelope reads method=deterministic and can claim BALANCED — both violate CANONICAL_BS_V2 ('llm ⇒ never BALANCED'). An engine fix will flip this golden via UPDATE_GOLDEN with a note."
+source_notes: >
+  Scanned (no-text-layer) PDF exercising the RO Claude-extraction fallback
+  with a mocked model response (no live API). 2026-08-21: the extraction
+  stamp bug is FIXED — pipeline._stamp_llm_extraction now marks this path
+  method=llm, so the golden asserts the llm stamp and the never-BALANCED
+  cap (status MINOR_DRIFT). Red test: tests/engine/test_llm_stamp.py.

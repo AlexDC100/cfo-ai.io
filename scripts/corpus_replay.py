@@ -552,15 +552,15 @@ def _run_ro_llm_fallback(case_id: str, meta: Dict[str, Any], input_path: Path,
             original_filename=input_path.name,
         ))
         parsed = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+        # PRODUCTION stamp — the SAME helper stage_extract's scanned-PDF
+        # branch applies (pipeline._stamp_llm_extraction; integrity fix
+        # 2026-08-21, red test tests/engine/test_llm_stamp.py). The replay
+        # exercises the shared implementation, never a mirror.
+        parsed = _pipeline._stamp_llm_extraction(parsed)
     if len(calls) != 1:
         raise CaseFailure("scripted model expected exactly 1 call, saw %d" % len(calls))
 
     extraction = {
-        # HONEST CAPTURE of current behavior: this parsed payload carries
-        # NO extraction stamp (the non-PDF freeform fallback stamps
-        # {"method": "llm", "source_format": "llm_freeform"}; the PDF
-        # fallback does not) — a documented CANONICAL_BS_V2 contract gap
-        # this golden keeps loud. See the case's meta source_notes.
         "extraction": parsed.get("extraction"),
         "source_anchor": parsed.get("source_anchor"),
         "rows": parsed.get("accounts"),

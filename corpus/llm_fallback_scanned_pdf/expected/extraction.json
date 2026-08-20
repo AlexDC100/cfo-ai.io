@@ -1,7 +1,10 @@
 {
   "confidence": 0.6,
   "detected_type": "trial_balance",
-  "extraction": null,
+  "extraction": {
+    "method": "llm",
+    "source_format": "llm_freeform"
+  },
   "model": "corpus-mock-model",
   "rows": [
     {

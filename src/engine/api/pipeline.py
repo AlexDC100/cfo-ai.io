@@ -589,6 +589,26 @@ def _xlsx_to_text(spreadsheet_bytes: bytes, *, max_chars: int = 200_000) -> str:
     return "\n\n".join(out)
 
 
+def _stamp_llm_extraction(out: Dict[str, Any]) -> Dict[str, Any]:
+    """PROVENANCE STAMP for LLM-extracted `parsed` payloads (integrity fix,
+    2026-08-21). The scanned-PDF Claude fallback returned NO extraction
+    stamp, so build_canonical_bs_v2 defaulted to method="deterministic"
+    and the envelope could claim BALANCED — violating the CANONICAL_BS_V2
+    llm cap ("llm => never BALANCED") and leaving the period
+    auto-reconcile-eligible (verifier finding, previously frozen LOUDLY by
+    the llm_fallback_scanned_pdf corpus golden; red test:
+    tests/engine/test_llm_stamp.py). Shared with scripts/corpus_replay.py
+    so the replay exercises THIS implementation, never a mirror. Never
+    overwrites a stamp the extractor already set."""
+    if not (out.get("extraction") or {}).get("method"):
+        out["extraction"] = {
+            **(out.get("extraction") or {}),
+            "method": "llm",
+            "source_format": "llm_freeform",
+        }
+    return out
+
+
 def _deterministic_tb_parsed(
     doc: Dict[str, Any],
     tb_rows: Any,
@@ -904,7 +924,8 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
             pdf_url=signed,
             original_filename=doc.get("original_filename"),
         ))
-        return parsed.model_dump() if hasattr(parsed, "model_dump") else dict(parsed)
+        out = parsed.model_dump() if hasattr(parsed, "model_dump") else dict(parsed)
+        return _stamp_llm_extraction(out)
 
     # Everything else: download bytes, build a Claude message, parse the JSON.
     api_key = os.environ.get("ANTHROPIC_API_KEY")

@@ -1,17 +1,17 @@
 {
   "needs_review": false,
   "persisted_difference": 0.0,
-  "persisted_status": "BALANCED",
+  "persisted_status": "MINOR_DRIFT",
   "reconcile_offer": false,
   "reconciliation": null,
   "reconciliation_auto": null,
   "served_difference": 0.0,
-  "served_status": "BALANCED",
+  "served_status": "MINOR_DRIFT",
   "status_presentation": {
-    "display_en": "Balanced",
-    "display_key": "bs.status.balanced",
-    "display_ro": "Echilibrat",
-    "machine": "BALANCED",
+    "display_en": "Minor drift",
+    "display_key": "bs.status.minor_drift",
+    "display_ro": "Abatere minoră",
+    "machine": "MINOR_DRIFT",
     "micro_caption": null
   }
 }

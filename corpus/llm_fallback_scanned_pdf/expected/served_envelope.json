@@ -4,7 +4,8 @@
   "envelope_version": "sv1",
   "excluded": [],
   "extraction": {
-    "method": "deterministic"
+    "method": "llm",
+    "source_format": "llm_freeform"
   },
   "invariants": {
     "assets_eq_row_sum": true,
@@ -148,12 +149,12 @@
     "source_balanced": null,
     "totals_row_found": false
   },
-  "status": "BALANCED",
+  "status": "MINOR_DRIFT",
   "status_presentation": {
-    "display_en": "Balanced",
-    "display_key": "bs.status.balanced",
-    "display_ro": "Echilibrat",
-    "machine": "BALANCED",
+    "display_en": "Minor drift",
+    "display_key": "bs.status.minor_drift",
+    "display_ro": "Abatere minoră",
+    "machine": "MINOR_DRIFT",
     "micro_caption": null
   },
   "totals": {
