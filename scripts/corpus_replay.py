@@ -76,6 +76,7 @@ import base64
 import contextlib
 import copy
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -638,6 +639,24 @@ def _run_hu_ai_lane(case_id: str, meta: Dict[str, Any], input_path: Path,
     return extraction, classification, envelope, str(parsed.get("currency") or "EUR")
 
 
+def _missing_redaction_toolchain(content: bytes, anonymize_tb: Any) -> Optional[str]:
+    """Name of the redaction dependency this input would need and that is
+    not importable here, else None.
+
+    PDF redaction needs `pikepdf` (a dev extra: it bundles qpdf and is
+    deliberately not shipped in the runtime image). Tabular redaction
+    needs nothing beyond what the engine already has. Returning a name
+    means "this environment cannot re-derive the redaction", never
+    "the redaction is wrong".
+    """
+    try:
+        if anonymize_tb.detect_format(content) != "pdf":
+            return None
+    except Exception:  # noqa: BLE001 — format sniffing must not gate the run
+        return None
+    return None if importlib.util.find_spec("pikepdf") is not None else "pikepdf"
+
+
 def _notice(message: str) -> None:
     """Non-blocking operator notice — visible on every run, never a
     failure. Used for capability gaps (a check that cannot run here)
@@ -667,16 +686,21 @@ def run_case(case_dir: Path, update: bool = False) -> List[str]:
             # + CI, which installs .[dev]) it runs and must pass. Only a
             # genuinely missing module skips — a real verification failure
             # still fails the case.
-            try:
-                failures = anonymize_tb.verify_bytes(content)
-            except ModuleNotFoundError as exc:
+            # Probe the toolchain BEFORE running: pdf_scrambler catches its
+            # own ImportError and reports it as a verification failure
+            # string, so an exception handler here would never fire, and
+            # string-matching the message would be fragile.
+            missing = _missing_redaction_toolchain(content, anonymize_tb)
+            if missing:
                 _notice(
                     "anonymize --verify SKIPPED for %s: redaction toolchain "
                     "absent (%s). Engine artifact comparison still strict; "
                     "this check runs in CI, which installs the dev extras."
-                    % (case_id, exc.name)
+                    % (case_id, missing)
                 )
                 failures = []
+            else:
+                failures = anonymize_tb.verify_bytes(content)
             if failures:
                 return ["[%s] anonymize --verify failed:" % case_id] + [
                     "    ✗ %s" % f for f in failures
