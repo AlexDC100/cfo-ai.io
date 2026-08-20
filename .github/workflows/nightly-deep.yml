@@ -1,6 +1,8 @@
 # Nightly deep battery — canonical_bs v2 (docs/CANONICAL_BS_V2_CONTRACT.md).
 #
-# Three jobs, all heavier / longer than the PR battery is allowed to be:
+# Five jobs, all heavier / longer than the PR battery is allowed to be,
+# or re-runs of a PR gate whose subject can change without any PR
+# touching it:
 #
 #   deep-properties   tests/engine/test_properties.py at HYPOTHESIS_PROFILE=deep
 #                     (fresh entropy, 10-15x example counts, print_blob). A
@@ -24,6 +26,21 @@
 #                     MISTRAL_API_KEY do) — when absent the script prints a
 #                     documented SKIP and exits 0; the operator runs the prod
 #                     half manually over ssh, same habit as measure_bs_drift.
+#
+#   pack-integrity    the jurisdiction packs are the RUNTIME
+#                     classification source since the Phase 3+4 cutover.
+#                     Lint + cross-pack effective-window tiling + both
+#                     frozen-port drift alarms + cross-path shadow (all
+#                     also in the PR battery), plus the one analysis too
+#                     noisy to gate a PR on: RULE COVERAGE of every
+#                     corpus account code against the RO pack.
+#
+#   corpus-policy     data-hygiene gate + scrub-tooling unreachability.
+#                     Both describe the tree as it is TODAY, and a merge
+#                     can open a hole in either without touching a file
+#                     in the PR job's paths filter — a new data payload,
+#                     a new workflow, a new deploy script, a new local
+#                     git hook. Nightly closes that window.
 #
 # NO LIVE API CALLS anywhere in this workflow: the property suite and the
 # corpus replay both carry the anthropic-import sentinel, so the Anthropic
@@ -105,3 +122,89 @@ jobs:
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
           PROD_HOST: ${{ secrets.PROD_HOST }}
         run: python3 scripts/prod_canary_replay.py
+
+  # ─── Jurisdiction-pack integrity (deep) ──────────────────────────────
+  # The PR battery lints the packs and checks them against the frozen
+  # port snapshots. This job re-runs that nightly for the same reason
+  # corpus-replay does — environment / dependency drift on a quiet main —
+  # and adds the one analysis too slow and too noisy to gate a PR on:
+  # RULE COVERAGE of every corpus case's account codes against the RO
+  # pack. An unmatched code is a real hole (a code the classifier would
+  # silently drop into "unmapped"), but it is a hole a legitimate new
+  # fixture can open, so it belongs on a nightly line rather than in the
+  # path a PR author has to clear.
+  pack-integrity:
+    name: Pack integrity (lint + tiling + drift + coverage + shadow)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Pack lint — schema + cross-pack effective-window tiling
+        run: python3 scripts/pack_lint.py --root packs
+      - name: Pack drift alarm — RO (packs/ro/omfp1802-v1)
+        run: python3 scripts/port_ro_pack.py --check
+      - name: Pack drift alarm — HU + IFRS captions
+        run: python3 scripts/port_hu_pack.py --check
+      # Every account code in every corpus case must be matched by a rule
+      # in the RO pack. Non-RO lanes contribute 0 codes and pass trivially
+      # rather than being excluded by a hardcoded case list that would
+      # silently stop covering a case someone renamed.
+      - name: Rule coverage — every corpus code hits an RO pack rule
+        run: |
+          python3 scripts/pack_lint.py packs/ro/omfp1802-v1 \
+            --coverage corpus/*/expected/classification.json
+      - name: Cross-path shadow consistency (production vs classify pass)
+        run: python3 scripts/shadow_report.py --all
+
+  # ─── Corpus policy (deep) ────────────────────────────────────────────
+  # Same two gates the PR battery runs, re-run nightly. The lexicon and
+  # the automation-surface enumeration both describe the tree as it is
+  # TODAY: a merge that lands a new data payload, a new workflow, a new
+  # deploy script or a new git hook can open a hole without touching any
+  # file in the PR job's paths filter. Nightly closes that window.
+  corpus-policy:
+    name: Corpus policy (data hygiene + scrub-tooling unreachability)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # fetch-depth stays at the default 1: both gates are TREE-ONLY by
+      # construction and must never become history scanners. See the
+      # corpus-policy job in tier1-validation.yml for the full rationale.
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      # BLOCKING, stdlib-only, before install — this invariant must not
+      # be silenceable by a broken dependency resolution.
+      - name: Scrub-tooling unreachability (proof by absence)
+        run: python3 scripts/check_scrub_tooling_unreachable.py --verbose
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Corpus data-hygiene gate (declarations + lexicon)
+        run: python3 scripts/check_corpus_policy.py
+      # NON-BLOCKING, output only — never a failing step.
+      - name: Notices — history + real-file coverage (informational)
+        if: always()
+        continue-on-error: true
+        run: |
+          {
+            echo "### Corpus policy notices (informational — never blocking)"
+            echo ""
+            echo '```'
+            python3 scripts/check_corpus_policy.py 2>&1 | grep '^NOTICE' || \
+              echo "(no notices emitted)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY" || true

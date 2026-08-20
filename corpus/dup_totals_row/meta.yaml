@@ -4,6 +4,7 @@ jurisdiction: "RO"
 expected_parser: "saga_10_col"
 period: "FY2025"
 period_end: "2025-12-31"
+synthetic: true
 anonymized: false
 expect_ai_never_consulted: true
 source_notes: "SYNTHETIC adversarial case. (371, 250.00) duplicated; removing one copy closes the 250.00 difference exactly → R_DUP auto-fix; deterministic, no AI. The file's own totals row faithfully sums the account rows, so extraction stays honest (anchor MATCHED) and any gap is the SOURCE's own (D1)."

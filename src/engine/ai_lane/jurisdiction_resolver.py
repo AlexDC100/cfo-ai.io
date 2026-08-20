@@ -1,8 +1,9 @@
 """Deterministic jurisdiction resolver — runs BEFORE lane selection.
 
 resolve(doc_meta, file_bytes, user_choice) ->
-    {"jurisdiction": "RO"|"HU"|"OTHER", "source": "user"|"language"|
-     "account_pattern"|"default", "confidence": float}
+    {"jurisdiction": "RO"|"HU"|<any jurisdiction with a pack>|"OTHER",
+     "source": "user"|"language"|"account_pattern"|"default",
+     "confidence": float}
 
 Priority ladder (task contract):
   1. Explicit user choice — the `user_choice` argument, else the
@@ -10,8 +11,12 @@ Priority ladder (task contract):
      passes `doc.get("jurisdiction_hint")`; the `documents` table today
      has no such column, so the hint is absent until a migration adds it
      (or a caller injects the key into the doc dict). Values are
-     normalized upper-case; "RO"/"HU" map to themselves, any other
-     non-empty value resolves "OTHER" (an explicit non-RO/HU choice).
+     normalized upper-case and admitted BY PACK DISCOVERY (N7): a choice
+     naming a jurisdiction that has a discoverable data pack resolves to
+     that jurisdiction; anything else resolves "OTHER". There is
+     deliberately NO hardcoded list of admissible jurisdictions here —
+     adding a jurisdiction means authoring packs/<jur>/..., never
+     editing this module (locked by tests/engine/test_new_jurisdiction.py).
   2. Document language/locale — deterministic keyword + diacritic scan
      over a text sample (xlsx sharedStrings, PDF text, raw decode). The
      HU pack's own `detect_from_content` is consulted as an additional
@@ -31,7 +36,7 @@ import io
 import logging
 import re
 import zipfile
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 logger = logging.getLogger("engine.api")
 
@@ -134,18 +139,91 @@ def _result(jurisdiction: str, source: str, confidence: float) -> Dict[str, Any]
     }
 
 
+#: The platform's calibrated HOME jurisdiction — rung 4's default, the
+#: deterministic lane, and the jurisdiction every internal failure falls
+#: back to. Named once here instead of being spelled "RO" in five places.
+HOME_JURISDICTION = "RO"
+
+#: The GENERIC (non-jurisdiction) pack. Documents that name no
+#: jurisdiction-specific pack are classified against it, and this lane's
+#: wire code for that state is "OTHER" (engine.ai_lane.config.
+#: classify_pack maps OTHER -> the INTL pack). It has a pack directory
+#: like every other jurisdiction, so pack-discovery admission has to skip
+#: it explicitly: admitting "INTL" as a jurisdiction of its own would
+#: rename the lane's OTHER bucket and change what every stored envelope
+#: and golden records.
+GENERIC_PACK_JURISDICTION = "INTL"
+
+#: Long-form spellings callers have historically sent for the two
+#: jurisdictions that predate pack-driven admission. Alias -> the
+#: jurisdiction CODE; the code itself is admitted by pack discovery like
+#: any other, so this table never grows for a NEW jurisdiction — it only
+#: carries spellings that are not the code.
+_CHOICE_ALIASES = {
+    "ROU": "RO", "ROMANIA": "RO",
+    "HUN": "HU", "HUNGARY": "HU",
+}
+
+
+def _has_pack(jurisdiction: str) -> bool:
+    """True when a jurisdiction DATA PACK is discoverable for this code.
+
+    Goes through the production pack runtime (cached per packs root +
+    jurisdiction), so this costs one dict lookup after the first call.
+    Guarded: a missing/broken packs root must never break resolution —
+    it degrades to 'not admitted', and the caller's own fallbacks
+    (rung 4, HOME_JURISDICTION) take over."""
+    try:
+        from engine.packs.runtime import active_pack
+
+        active_pack(jurisdiction)
+        return True
+    except Exception:  # noqa: BLE001 — resolver must NEVER raise
+        return False
+
+
+def selectable_jurisdictions() -> Tuple[str, ...]:
+    """Every jurisdiction an explicit choice may name, sorted.
+
+    DATA-DRIVEN (N7): the set is whatever packs/ contains, plus the home
+    jurisdiction (which the resolver falls back to regardless, and which
+    must stay selectable even if pack discovery is unavailable). The
+    generic pack is excluded — its wire code is "OTHER", not a
+    jurisdiction. Callers that validate a user-supplied jurisdiction
+    (e.g. the reextract route) read this instead of keeping their own
+    list, so a new pack is selectable the moment it is deployed."""
+    found = {HOME_JURISDICTION}
+    try:
+        from engine.packs.loader import discover_packs
+        from engine.packs.runtime import default_packs_root
+
+        for pack in discover_packs(default_packs_root()):
+            code = pack.identity.jurisdiction.strip().upper()
+            if code and code != GENERIC_PACK_JURISDICTION:
+                found.add(code)
+    except Exception:  # noqa: BLE001 — never break on a broken pack root
+        logger.exception("[ai_lane] pack discovery failed listing jurisdictions")
+    return tuple(sorted(found))
+
+
 def _normalize_choice(choice: Any) -> Optional[str]:
+    """An explicit choice -> the jurisdiction it names, or "OTHER".
+
+    Admission is BY PACK DISCOVERY, not by a list in this file: any code
+    with a discoverable pack resolves to itself. The generic pack's code
+    ("INTL", the FE's wire code for the international pack) and every
+    unknown code resolve "OTHER" — unchanged behavior for every value
+    that existed before packs became the registry."""
     if choice is None:
         return None
     val = str(choice).strip().upper()
     if not val:
         return None
-    if val in ("RO", "ROU", "ROMANIA"):
-        return "RO"
-    if val in ("HU", "HUN", "HUNGARY"):
-        return "HU"
-    # "INTL" is the FE's wire code for the generic international pack;
-    # any other explicit non-RO/HU choice also resolves OTHER.
+    val = _CHOICE_ALIASES.get(val, val)
+    if val == GENERIC_PACK_JURISDICTION:
+        return "OTHER"
+    if val == HOME_JURISDICTION or _has_pack(val):
+        return val
     return "OTHER"
 
 
@@ -213,8 +291,8 @@ def resolve(
             if ro_markers == 1 and hu_markers == 0:
                 return _result("RO", "account_pattern", 0.55)
 
-        # 4 — default: RO, the calibrated home jurisdiction.
-        return _result("RO", "default", 0.2)
+        # 4 — default: the calibrated home jurisdiction.
+        return _result(HOME_JURISDICTION, "default", 0.2)
     except Exception:  # noqa: BLE001 — resolver must NEVER break extraction
-        logger.exception("[ai_lane] jurisdiction resolver crashed — defaulting RO")
-        return _result("RO", "default", 0.0)
+        logger.exception("[ai_lane] jurisdiction resolver crashed — defaulting home")
+        return _result(HOME_JURISDICTION, "default", 0.0)

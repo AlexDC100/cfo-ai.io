@@ -4,6 +4,33 @@ jurisdiction: "RO"
 expected_parser: "pdf_positional"
 period: "FY2019 (31.12.2019)"
 period_end: "2019-12-31"
-anonymized: false
+synthetic: false
+anonymized: true
 expect_ai_never_consulted: true
-source_notes: "files/scandia_sibiu_tb_2019.pdf — positional RAS PDF export (PyMuPDF geometry extraction). NOT anonymized: the scrambler does not rewrite PDF content streams (documented limitation); the file is the platform's long-standing PDF fixture. The case freezes an honest MATERIAL_IMBALANCE (0.99%, above the reconcile gate) with a D6 121-mismatch diagnosis."
+source_notes: >
+  Real positional RAS PDF export (WinMENTOR exporter, PyMuPDF geometry
+  extraction) — the platform's long-standing PDF fixture and the only
+  real file exercising this lane.
+
+  REDACTED 2026-08-20 by scripts/pdf_scrambler.py, which rewrites the
+  sensitive spans INSIDE the PDF content streams (plus docinfo and XMP)
+  using the same deterministic seed, folding and substitution alphabet as
+  scripts/anonymize_tb.py: statutory identifiers, the entity's legal
+  name, the trading-site names and the preparer's name. Fonts, glyph
+  origins and every numeric token are untouched. The numeric IR was
+  PROVEN identical before the swap — 249 atoms, every Money slot, every
+  account code, row order, document_totals, the rc_pair / rulaj_prec /
+  float-repr side-channels and the front-end diagnostics all equal; 44 of
+  7,126 text runs changed, each exactly the deterministic mapping of its
+  original; 26 atom labels differ (label text is clipped to a rectangle
+  by this exporter, so a scrambled label's clip boundary can land a
+  character either side). measure_bs_drift still reports the same
+  -12,253.38 / MATERIAL_IMBALANCE Sibiu baseline it did before.
+
+  The earlier non-anonymized copy remains in git history by an explicit,
+  reviewed risk acceptance — see docs/decisions/ADR-corpus-history-sibiu.md
+  for the blob identity, the accepted residual and the review triggers
+  that require running scripts/history-scrub/ before proceeding.
+
+  The case itself freezes an honest MATERIAL_IMBALANCE (0.99%, above the
+  reconcile gate) with a D6 121-mismatch diagnosis.

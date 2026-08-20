@@ -1,0 +1,48 @@
+# Corpus-policy exemptions — scripts/check_corpus_policy.py
+#
+# FORMAT   path | selector | reason
+#          All three columns are REQUIRED. An entry with a blank reason
+#          is a hard gate FAILURE, not a warning: an exemption nobody
+#          had to justify is how a control quietly dies.
+#
+#   path      exact repo-relative path. No globs, no directories. One
+#             entry exempts one file. Exempting a class of files would
+#             also hide a real hit inside that class.
+#
+#   selector  EITHER a lexicon CATEGORY (company_legal_name,
+#             site_location, site_location_short, person_name) OR the
+#             literal matched string (used for identifier-shaped hits).
+#
+#             A literal that is ITSELF a lexicon term is REFUSED by the
+#             gate. That rule is load-bearing: without it, the file you
+#             use to silence the leak detector becomes the place the
+#             leaked term lives. Exempt those by category instead — and
+#             write the reason WITHOUT naming the term, because this
+#             file is scanned like every other tracked file and cannot
+#             exempt itself.
+#
+#   reason    why this specific hit is not a disclosure. Printed in the
+#             gate's summary on every run, so exemptions stay visible
+#             rather than becoming invisible history.
+#
+# NOT LISTED HERE, ON PURPOSE
+#   Demo fixtures with fabricated identifiers (public/examples/*.xlsx,
+#   tests/fixtures/trial_balance/*.xlsx), geographic coordinate data
+#   (public/geo/*.geojson), version strings like the pack revision, and
+#   VAT-rate fragments inside spreadsheet cells are NOT exemptions —
+#   they are simply not matches. They are excluded by PRECISION (the
+#   tightened identifier patterns, the fabricated-placeholder filter,
+#   the CNP control-digit check and the corroboration rule), not by
+#   allowlisting. Precision is strictly better: an allowlist entry for
+#   "public/examples/" would also hide a real identifier that landed
+#   there tomorrow.
+#
+# Reviewed 2026-08-20. Background: docs/decisions/ADR-corpus-history-sibiu.md
+
+frontend/components/cfo/SearchDialog.tsx | site_location_short | Three-letter collision with a lucide-react icon identifier imported for the dashboard nav entry. Frontend UI code; no relation to any Romanian source document.
+
+src/engine/public/cache.py | site_location_short | Three-letter collision with a weekday abbreviation in a market-calendar comment (the weekend check for the public-markets cache).
+
+src/engine/api/benchmarks_deep_seed.json | site_location | Collides with a retail-centre name quoted from NEPI Rockcastle's public 2024 annual report in the listed-REIT benchmark seed. Public issuer disclosure, not sourced from a client document.
+
+scripts/measure_bs_drift.py | company_legal_name | Reviewed provenance reference: the F3.7c fixture-registration docstring and the display label the drift gate hands to assemble_statements. Deliberately retained and registered as an accepted residual in the ADR; the numeric baseline it produces is unaffected.

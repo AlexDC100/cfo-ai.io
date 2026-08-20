@@ -1,0 +1,86 @@
+# ZZ checks — declarative CONFIG for engine-side check implementations.
+#
+# A pack may only REFERENCE an implementation, never supply one: `impl`
+# must name an id registered in engine.packs.schema.CHECK_IMPLS at load
+# time, or the pack fails to load (`unknown-check-impl`, with the
+# registered ids printed). That registry gate is what keeps a data pack
+# from naming engine code that does not exist — and what keeps a pack
+# from being a place to smuggle behavior in.
+#
+# Registered built-ins today:
+#   builtin.bs_diagnosis                the canonical_bs v2 D0-D8
+#                                       diagnosis pass
+#   builtin.reconciliation_identities   the assembled-output accounting
+#                                       identities (debits=credits,
+#                                       A=L+E, P&L rollups)
+#
+# D0-D9 are the KNOWN DECLARATIVE ids (docs/CANONICAL_BS_V2_CONTRACT.md).
+# They may be configured with no `impl` at all; any OTHER check_id MUST
+# carry one. D9 is emitted by the canonical builder itself rather than
+# by the diagnosis pass, so it is declared without an impl.
+#
+# The values below are the jurisdiction-NEUTRAL engine constants every
+# pack mirrors — they are engine machinery, not ZZ law. A real pack
+# copies them unless it has a documented reason to differ.
+
+checks:
+  - check_id: D0_ANCHOR_DIVERGENCE
+    impl: builtin.bs_diagnosis
+    params:
+      ron_tolerance: 1.0
+      anchor_pair_order: ["si", "rl", "rc", "sf"]
+  - check_id: D1_SOURCE_IMBALANCED
+    impl: builtin.bs_diagnosis
+    params:
+      ron_tolerance: 1.0
+  - check_id: D2_FINGERPRINT
+    impl: builtin.bs_diagnosis
+    params:
+      ron_tolerance: 1.0
+      half_difference_sign_flip: true
+  - check_id: D3_CONTRA_MISPLACED
+    impl: builtin.bs_diagnosis
+    params:
+      # ZZ's own contra family (28x accumulated depreciation) belongs on
+      # the asset side; found inside a liability-side section it is D3.
+      contra_prefixes: ["28"]
+      asset_section_ids: ["non_current_assets", "current_assets", "prepaid_expenses"]
+  - check_id: D4_BIFUNCTIONAL_SIDE
+    impl: builtin.bs_diagnosis
+    params:
+      ron_tolerance: 1.0
+      # The families ZZ declares a side_flip for.
+      bifunctional_prefixes: ["51"]
+  - check_id: D5_DUPLICATE_ROWS
+    impl: builtin.bs_diagnosis
+    params:
+      ron_tolerance: 1.0
+  - check_id: D6_121_MISMATCH
+    impl: builtin.bs_diagnosis
+    params:
+      invariant_key: p121_cross_check
+  - check_id: D7_MAGNITUDE
+    impl: builtin.bs_diagnosis
+    params:
+      ron_tolerance: 1.0
+      residual_fractions: [0.99, 0.999]
+  - check_id: D8_OMITTED
+    impl: builtin.bs_diagnosis
+    params:
+      requires_source_census: true
+      detail_max_listed: 20
+  # Builder-emitted, not part of the diagnosis pass — declarative, no impl.
+  - check_id: D9_UNMAPPED_INCLUDED
+    params:
+      emit_regardless_of_status: true
+      row_ids: ["unclassified_debit", "unclassified_credit"]
+  # Assembled-output accounting identities. Tolerances mirror the engine
+  # module's own: pct_tolerance 0.00001 is the BALANCED gate, and
+  # minor_drift_pct 0.005 the MINOR_DRIFT ceiling.
+  - check_id: reconciliation_identities
+    impl: builtin.reconciliation_identities
+    params:
+      ron_tolerance: 1.0
+      pct_tolerance: 0.00001
+      minor_drift_pct: 0.005
+      ebitda_rollup_tolerance_pct: 0.01

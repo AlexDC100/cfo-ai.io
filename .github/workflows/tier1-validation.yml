@@ -34,6 +34,22 @@ on:
       - "frontend/lib/**"
       - "files/**"
       - "tests/**"
+      # ── Jurisdiction packs + pack tooling + corpus policy ─────────────
+      # The named-script entries above predate the compiler restructure
+      # and matched NOTHING under packs/. Since the Phase 3+4 cutover the
+      # pack YAML is the RUNTIME classification source, so a PR that edits
+      # only packs/ro/omfp1802-v1/classification.yaml changes live
+      # classification behaviour — and until these entries existed it
+      # triggered zero CI. `scripts/**` deliberately subsumes the
+      # individually-named script entries above (kept for provenance) and
+      # covers pack_lint / port_ro_pack / port_hu_pack / shadow_report /
+      # check_corpus_policy / pdf_scrambler /
+      # check_scrub_tooling_unreachable in one line, so a NEW gate script
+      # is in-filter the moment it lands rather than the day someone
+      # remembers to add it here.
+      - "packs/**"
+      - "scripts/**"
+      - "docs/decisions/**"
       - ".github/workflows/tier1-validation.yml"
   push:
     branches: [main]
@@ -97,6 +113,38 @@ jobs:
         env:
           HYPOTHESIS_PROFILE: ci
         run: python -m pytest tests/engine/test_properties.py -q
+      # ── Jurisdiction-pack lint (all packs, incl. cross-pack tiling) ────
+      # Schema validation + per-pack rule shadowing + the CROSS-PACK
+      # effective-window tiling analysis (effective-gap / effective-overlap
+      # within a (jurisdiction, pack_id) lineage). The tiling half is NOT
+      # covered by pytest — it is a property of the pack SET on disk, not
+      # of any one pack — so this step is the only place it runs.
+      # Placed BEFORE the pytest step on purpose: a malformed pack then
+      # fails with pack_lint's own explicit finding text instead of an
+      # opaque pytest collection error three layers down.
+      - name: Jurisdiction-pack lint (schema + cross-pack tiling)
+        run: python3 scripts/pack_lint.py --root packs
+      # ── Frozen-port drift alarms ──────────────────────────────────────
+      # The legacy in-code rules tables are DELETED from runtime and live
+      # on only as the FROZEN_* snapshots inside these two generators.
+      # `--check` regenerates each pack and demands a byte-identical match
+      # with the checked-in v1, so pack_hash cannot drift silently. A
+      # failure means either the v1 YAML was hand-edited (revert; cut a v2
+      # with a new effective window instead) or one of the still-live
+      # engine constants the generator mirrors changed — both of which
+      # demand a deliberate new pack version, never a silent v1 rewrite.
+      - name: Pack drift alarm — RO (packs/ro/omfp1802-v1)
+        run: python3 scripts/port_ro_pack.py --check
+      - name: Pack drift alarm — HU + IFRS captions
+        run: python3 scripts/port_hu_pack.py --check
+      # ── Cross-path shadow consistency ─────────────────────────────────
+      # Both lanes read the SAME CompiledPack through two different code
+      # paths (production parse/assemble composition vs the front-end IR +
+      # engine.passes.classify). Zero divergence across every corpus case
+      # is the proof that the two agree on real inputs. Skips print
+      # loudly and count as green; any divergence exits 1.
+      - name: Cross-path shadow consistency (production vs classify pass)
+        run: python3 scripts/shadow_report.py --all
       - name: Engine pytest suite
         # The two deselected tests fail on the pre-existing SHARADAR
         # market-cap scaling defect in the public-companies adapter
@@ -140,6 +188,113 @@ jobs:
         run: |
           python3 scripts/check_golden_change_guard.py \
             --base "${{ github.event.pull_request.base.sha }}"
+
+  # ─── Corpus data-hygiene policy gate ─────────────────────────────────
+  # Answers exactly one question: "is the tree we are about to ship
+  # clean?" — anonymization declarations on every corpus case, plus a
+  # sensitive-lexicon sweep over tracked files (statutory identifiers
+  # everywhere; named entities inside data payloads).
+  #
+  # DELIBERATELY ITS OWN JOB, and deliberately NOT in tier1-aggregate's
+  # `needs`. Data hygiene and pipeline correctness are different claims
+  # about different risks; a lexicon finding must not be able to take
+  # down the Tier-1 launch gate, and a numeric regression must not be
+  # able to hide behind a green hygiene run. Each stands or falls alone.
+  #
+  # fetch-depth is left at the default 1 ON PURPOSE. Both gates in this
+  # job are TREE-ONLY by construction (check_corpus_policy.py allows
+  # itself exactly one git subcommand, `ls-files`, which reads the index
+  # and cannot reach a past revision). A shallow checkout makes that
+  # structural: there is no history here to scan even if someone tried.
+  # The historical exposure is carried as a NOTICE sourced from the ADR
+  # file, never from an archaeology pass — see
+  # docs/decisions/ADR-corpus-history-sibiu.md.
+  corpus-policy:
+    name: Corpus policy (data hygiene + scrub-tooling unreachability)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # ── BLOCKING. Stdlib-only, so it runs BEFORE dependency install:
+      # this invariant must not be silenceable by a broken requirements
+      # resolution. The remedial scrub tooling named in the ADR REWRITES
+      # GIT HISTORY — a one-way operation with a blast radius of every
+      # clone and every open PR. It is reachable only by a human who has
+      # read the ADR and decided to run it, never by a push, a cron, a
+      # merge, an editable install, an image build or a pytest
+      # collection.
+      #
+      # This comment deliberately does NOT spell the tooling's path.
+      # A `#` inside a `run: |` block is a SHELL comment, and the gate
+      # cannot tell a commented-out invocation from a live one — nor
+      # should it, since the two are one keystroke apart. The gate's own
+      # output vocabulary was renamed for the same reason, so a workflow
+      # may grep its verdict lines without tripping it.
+      #
+      # The gate enumerates every trigger surface in the tree (workflows,
+      # composite actions, tracked AND local git hooks, pre-commit,
+      # package.json scripts, pyproject/tox/setup, Makefile, Dockerfiles,
+      # docker-compose, deploy/, every conftest.py, and the other CI
+      # systems' well-known filenames), walks the transitive closure of
+      # the files those surfaces invoke, then sweeps every executable
+      # file in the tracked tree — because code that names the tooling
+      # but is not wired up YET is one `run:` line away from being wired
+      # up. It PRINTS the closure it proved, so the proof is auditable
+      # rather than asserted. Documented prose (the ADR, the corpus
+      # meta.yaml) is reported as a notice and never fails: a gate that
+      # failed on its own documentation would be un-passable by design.
+      - name: Scrub-tooling unreachability (proof by absence)
+        run: python3 scripts/check_scrub_tooling_unreachable.py --verbose
+
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      # ── BLOCKING. Exit 1 = a real violation; exit 2 = the gate could
+      # not run, which is also a failure (a control that silently
+      # no-ops is worse than no control).
+      - name: Corpus data-hygiene gate (declarations + lexicon)
+        run: python3 scripts/check_corpus_policy.py
+
+      # ── NON-BLOCKING, OUTPUT ONLY. The history notice and the
+      # synthetic/real coverage notice are situational awareness, not
+      # verdicts: "a real input for this parser lane does not exist yet"
+      # and "N plaintext blobs are risk-accepted in the ADR" are facts to
+      # keep visible, not reasons to reject a PR. Failing on them would
+      # make the gate permanently red and teach people to ignore it.
+      #
+      # `if: always()` so the notices are still surfaced when the gate
+      # above FAILED — that is precisely when the reviewer wants the
+      # context. `|| true` plus continue-on-error makes this step
+      # structurally incapable of failing the job, belt and braces.
+      - name: Notices — history + real-file coverage (informational)
+        if: always()
+        continue-on-error: true
+        run: |
+          {
+            echo "### Corpus policy notices (informational — never blocking)"
+            echo ""
+            echo '```'
+            python3 scripts/check_corpus_policy.py 2>&1 | grep '^NOTICE' || \
+              echo "(no notices emitted)"
+            echo '```'
+            echo ""
+            echo "Scrub-tooling reachability proof:"
+            echo ""
+            echo '```'
+            python3 scripts/check_scrub_tooling_unreachable.py 2>&1 | \
+              grep -E '^(scrub tooling|proved over|NOTICE|SCRUB-TOOLING)' || \
+              echo "(no proof record emitted)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY" || true
 
   romania-eei:
     needs: [eei-canonical-numbers]

@@ -1,0 +1,91 @@
+# ZZ statement map — the canonical statement-line vocabulary this pack
+# classifies into.
+#
+# TWO HARD CONSTRAINTS, both enforced:
+#
+# 1. Every `line_id` (and every `side_flip.line_id`) in
+#    classification.yaml must exist here AS A LEAF. The loader rejects a
+#    dangling target (`dangling-line-id`) and a target that names a
+#    parent/subtotal node (`non-leaf-target`).
+#
+# 2. The TOP-LEVEL balance-sheet node ids are the canonical_bs v2
+#    SECTION ids, and the leaf ids are canonical bucket names
+#    (engine.canonical.schema_v1). That is not a pack-schema rule — the
+#    pack schema would happily accept any identifiers — it is what the
+#    canonical builder needs in order to PLACE a leaf. Invent your own
+#    leaf names and the builder will drop them from the statement.
+#    Section vocabulary (declaration order == presentation order):
+#      non_current_assets, current_assets, prepaid_expenses,
+#      equity, provisions, non_current_liabilities,
+#      current_liabilities, deferred_income
+#    Asset-natural sections (debit-positive): non_current_assets,
+#    current_assets, prepaid_expenses. Every other section is
+#    credit-positive. A pack does NOT declare that — leaf SIDE is
+#    schema-owned engine placement logic, not jurisdiction data.
+#
+# MINIMAL BY DESIGN: only the leaves ZZ actually routes to are listed.
+# A real jurisdiction pack normally carries the full canonical
+# vocabulary (see packs/hu/actc2000-v1/statement_map.yaml) so that a
+# later rule addition does not need a statement-map edit too.
+
+statements:
+  balance_sheet:
+    - id: non_current_assets
+      label: "Non-current assets"
+      children:
+        - id: ppe_buildings
+          label: "Buildings"
+        - id: accumulated_depreciation_ppe
+          label: "Accumulated depreciation (PPE)"
+    - id: current_assets
+      label: "Current assets"
+      children:
+        - id: inventory_raw_materials
+          label: "Raw materials"
+        - id: ar_trade_gross
+          label: "Trade receivables (gross)"
+        - id: cash_operating
+          label: "Cash in operating currency"
+    - id: equity
+      label: "Equity"
+      children:
+        - id: share_capital
+          label: "Share capital"
+        - id: other_reserves
+          label: "Other reserves"
+        # The current-year result is a DERIVED equity leaf: the P&L
+        # nets into it, which is what makes a trial balance carrying
+        # class 6/7 closing balances add up as a balance sheet. Both
+        # signs are declared because the sign is not known until the
+        # numbers are in.
+        - id: current_year_profit
+          label: "Current year profit"
+        - id: current_year_loss
+          label: "Current year loss"
+    - id: current_liabilities
+      label: "Current liabilities"
+      children:
+        - id: ap_trade
+          label: "Trade payables"
+        - id: st_debt_bank
+          label: "Short-term bank debt"
+    # NOT a statement section: the excluded branch. Accounts claimed
+    # here are dropped from the statement AND from the balance judgment
+    # — they must self-balance in the source, or the source's own
+    # debit/credit totals stop agreeing with the statement's.
+    - id: excluded
+      label: "Excluded from statements — control / technical / memo accounts (never summed)"
+      children:
+        - id: excluded_control
+          label: "control/technical/memo account, keep OUT of the statement"
+  profit_loss:
+    - id: pl_revenue
+      label: "Revenue"
+      children:
+        - id: revenue_products
+          label: "Revenue — finished products"
+    - id: pl_opex
+      label: "Operating expenses (by nature)"
+      children:
+        - id: other_operating_expenses
+          label: "Other operating expenses"

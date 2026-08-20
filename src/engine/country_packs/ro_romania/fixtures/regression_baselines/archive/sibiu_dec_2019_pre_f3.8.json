@@ -1,7 +1,7 @@
 {
   "_meta": {
     "fixture": "sibiu_dec_2019",
-    "company": "Scandia Sibiu SRL",
+    "company": "Ddlepzl Dzrzm DLZ",
     "captured_from": "F3.7d re-baseline ceremony \u2014 117 catchall + 5 D-extension catchalls capture more accounts (semantically correct); residual drift comes from PDF parser intrinsic 0.29% raw-sum imbalance",
     "engine_module": "/host_repo/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "engine_version": "post-F3.7a + post-F3.7b + post-F3.7d (121-anchor + 117-catchall + 5 D-extension catchalls)",
@@ -13,7 +13,7 @@
   },
   "assembled": {
     "statements": {
-      "companyName": "Scandia Sibiu SRL",
+      "companyName": "Ddlepzl Dzrzm DLZ",
       "industry": null,
       "currency": "RON",
       "periodLabel": "X",

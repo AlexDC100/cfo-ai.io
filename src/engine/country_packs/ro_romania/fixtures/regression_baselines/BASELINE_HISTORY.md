@@ -28,6 +28,38 @@ A baseline change is authorized only when:
 
 ---
 
+## A note on the `sibiu_dec_2019` entity strings
+
+Entries below dated **2026-05-23 and earlier** were written while the
+Sibiu fixture's source PDF was still carried in the clear. The fixture
+has since been redacted, so the entity strings in this file and in
+`sibiu_dec_2019.json` / `archive/sibiu_dec_2019_pre_*.json` were
+rewritten on **2026-08-20** with the SAME deterministic scrambler, the
+SAME seed and the SAME lexicon used to redact the PDF itself
+(`scripts/pdf_scrambler.py`, seed = sha256 of the original PDF bytes).
+
+That is why the operator name reads `Ddlepzl Dzrzm DLZ` and the three
+Bucharest site names read `Fvbivgv` / `Rjrzh` / `Kmqwpofxf`. They are
+not typos and not a different company — they are the redacted forms of
+the strings that were there before, chosen so this file stays
+internally consistent with the redacted corpus fixture.
+
+**Nothing numeric moved.** Only named-entity spans were rewritten;
+identifier- and number-shaped spans were excluded from the transform by
+construction, and the substitution is length-preserving. The F-A3.1
+drift figures, account counts and RON values quoted throughout this
+file are the originals.
+
+The same scrambler produces *different* ciphertext for different
+casings of one term (this is inherent to it — the redacted PDF itself
+contains more than one rendering of the same site name), so do not read
+two different scrambled spellings as two different entities.
+
+Background, blob identity and the accepted residuals:
+`docs/decisions/ADR-corpus-history-sibiu.md`.
+
+---
+
 ## 2026-08-15 — CLOSING-IDENTITY MODE: canonical_bs exact-zero difference for balanced sources (re-baseline of the parity pair)
 
 **Scope:** `canonical_adapter.build_canonical_bs_v2` rewritten as a TOTAL
@@ -1212,7 +1244,7 @@ sum(sf_c)=4,262,655 = 12,253 RON imbalance documented in
 0.5% strict threshold; the residual is irreducible without a better
 PDF parser, which is out of scope for this chunk.
 
-### Baseline modification — Scandia Sibiu SRL re-baseline
+### Baseline modification — Ddlepzl Dzrzm DLZ re-baseline
 
 **Pre-state archived:**
 `archive/sibiu_dec_2019_pre_f3.7d.json` (14,187 bytes) — captures
@@ -1289,7 +1321,7 @@ those fixtures even though not sufficient.
 
 ---
 
-## 2026-05-23 — F3.7c: first-time registration of Scandia Sibiu SRL FY2019
+## 2026-05-23 — F3.7c: first-time registration of Ddlepzl Dzrzm DLZ FY2019
 
 **Change:** Adds `sibiu_dec_2019.json` to the regression baselines
 directory. Extends `scripts/measure_bs_drift.py` with `load_sibiu()`
@@ -1312,7 +1344,7 @@ ceremony agreed in F3.7c authorization Q5:
     export, 188,048 bytes)
   - Period: 2019-12-31
   - Industry calibration target: `hospitality_food_service`
-    (3 QSR mall units in Bucharest — Băneasa, Vitan, Promenada)
+    (3 QSR mall units in Bucharest — Fvbivgv, Rjrzh, Kmqwpofxf)
   - Reference HTML report (operator-supplied):
     `Scandia_Sibiu_Comprehensive_Analysis_FY2019.html` — used for
     independent ground-truth cross-check, NOT as the engine baseline

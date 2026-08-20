@@ -39,7 +39,9 @@ goldens (`--force-inputs` rebuilds deliberately; refreeze after).
 | `jurisdiction` | `RO` / `HU` |
 | `expected_parser` | dispatch lane: `saga_10_col`, `saga_compact_6_col`, `generic_4_col`, `csv`, `pdf_positional`, `ro_llm_fallback`, `hu_ai_lane`. For the XLSX lanes the replay also asserts the parser's detected `extraction.source_format` equals this value (`csv` dispatches through `parse_trial_balance_csv`; its detected format is asserted inside `expected/extraction.json`). |
 | `period` / `period_end` | human label / ISO date passed as the upload flow's `period_end_hint` |
-| `anonymized` | `true` ⇒ the input was produced by `scripts/anonymize_tb.py` and the replay runs its `--verify` invariants on every run |
+| `synthetic` | **required.** `true` ⇒ the input is fabricated; `false` ⇒ it is a real export. Enforced by `scripts/check_corpus_policy.py`: a case that does not say is a failure, because "is it real data?" is the question every other hygiene decision hangs off. |
+| `anonymized` | `true` ⇒ the input was produced by `scripts/anonymize_tb.py` (or `scripts/pdf_scrambler.py` for PDFs) and the replay runs its `--verify` invariants on every run |
+| `anonymized_upstream` | reviewed escape hatch: a real export this repo's scrambler deliberately did NOT touch. Put the reason in `source_notes`. Every use is printed as a NOTICE on every gate run, so it can never become invisible. |
 | `expect_ai_never_consulted` | `true` ⇒ the replay FAILS if the reconcile AI-proposal path (or any model client) is ever invoked for this case |
 | `source_notes` | provenance + anything a future maintainer must know |
 
@@ -72,6 +74,41 @@ why in the commit message.
   `anonymized: true` re-prove on every run that scrambling preserves
   account codes, every per-row numeric field, every column-pair sum
   and the totals-row anchor (see `scripts/anonymize_tb.py --verify`).
+
+## Data hygiene
+
+`scripts/check_corpus_policy.py` is the gate. It runs blocking in tier1
+and nightly, and asks exactly one question: **is the tree I am about to
+ship clean?**
+
+- **Declarations.** Every case must declare `synthetic`. A real,
+  un-anonymized input fails unless it declares `anonymized_upstream` or
+  lives under `corpus/private/` (encrypted at rest).
+- **Sensitive lexicon.** Named entities are matched by salted digest
+  against the terms `scripts/pdf_scrambler.py` knows about — not by
+  shape. A term that is not in the lexicon is not a violation. That is
+  what keeps the gate believable: an earlier revision matched generic
+  identifier *shapes* and produced 115 findings, none of them real.
+- **Identifiers** (CUI/CIF, Reg-Com, CNP) are reported only where they
+  mean something: inside a data payload, or beside a real lexicon hit.
+  Fabricated demo values (`RO99999999`) and long numeric data are not
+  violations. Binary payloads are decoded structurally — PDFs through
+  the content-stream extractor, workbooks through openpyxl — never
+  byte-scanned.
+- **Exemptions** live in `scripts/corpus_policy_allowlist.txt`, one per
+  (path, selector), each with a **mandatory reason**, all printed on
+  every run. A literal selector that is itself a lexicon term is
+  refused — otherwise the file used to silence the detector becomes the
+  place the leaked term lives.
+
+**The gate never reads git history**, by construction: its single git
+entry point refuses any subcommand but `ls-files`. A non-anonymized copy
+of the `pdf_positional` input exists in this repository's past under an
+explicit, reviewed risk acceptance, so a history-scanning gate would be
+red forever by design — and a permanently-red control is one people
+learn to skip. That exposure surfaces as a NOTICE sourced from
+`docs/decisions/ADR-corpus-history-sibiu.md`, which also carries the
+blob identity, the other accepted residuals and the review triggers.
 
 ## Known-gap goldens (frozen honestly, flagged loudly)
 

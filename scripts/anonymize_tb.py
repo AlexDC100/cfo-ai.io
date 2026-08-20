@@ -27,9 +27,12 @@ OMFP account vocabulary that is irrelevant; for bespoke party names it
 leaks shape only, never content. Files needing stronger guarantees
 should not enter the corpus.
 
-Formats: XLSX (all sheets) and delimited CSV/TXT. PDF is NOT supported
-(rewriting embedded content streams is out of scope) — PDF corpus cases
-must be marked `anonymized: false` with a source note.
+Formats: XLSX (all sheets) and delimited CSV/TXT. PDF is NOT written by
+this tool — a PDF has no columns to key off, so its redaction is
+lexicon-driven and lives in `scripts/pdf_scrambler.py`, which reuses
+THIS module's seed rule, folding and substitution alphabet. `--verify`
+on a PDF delegates there (see `verify_bytes`); `anonymize_bytes` still
+refuses one, deliberately.
 
 CLI:
   anonymize_tb.py INPUT -o OUTPUT [--self-check]
@@ -335,8 +338,9 @@ def anonymize_bytes(data: bytes, seed_hex: Optional[str] = None) -> bytes:
         return anonymize_xlsx_bytes(data, seed_hex)
     if kind == "pdf":
         raise ValueError(
-            "PDF anonymization is not supported (content-stream rewrite is out "
-            "of scope) — mark the corpus case `anonymized: false` with a note."
+            "PDF anonymization does not belong to the tabular scrambler — use "
+            "scripts/pdf_scrambler.py (lexicon-driven content-stream rewrite, "
+            "same seed and substitution alphabet)."
         )
     return anonymize_csv_bytes(data, seed_hex)
 
@@ -417,7 +421,17 @@ def numeric_invariant_failures(original: bytes, transformed: bytes) -> List[str]
 def verify_bytes(data: bytes) -> List[str]:
     """--verify contract (used by the corpus replay runner): scramble
     the input IN MEMORY and prove the numeric structure is invariant
-    under anonymization. Returns failures (empty == pass)."""
+    under anonymization. Returns failures (empty == pass).
+
+    PDF inputs delegate to `pdf_scrambler.verify_bytes`: a PDF has no
+    columns to scramble, so its anonymization is lexicon-driven and its
+    replay-time contract is the residual-lexicon + convergence pair
+    documented there. The WRITE path (`anonymize_bytes`) still refuses
+    PDFs — that division is deliberate, one tool per file family."""
+    if detect_format(data) == "pdf":
+        import pdf_scrambler  # same scripts/ directory
+
+        return pdf_scrambler.verify_bytes(data)
     try:
         transformed = anonymize_bytes(data)
     except Exception as exc:  # noqa: BLE001

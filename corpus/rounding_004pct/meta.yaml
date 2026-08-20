@@ -4,6 +4,7 @@ jurisdiction: "RO"
 expected_parser: "saga_10_col"
 period: "FY2025"
 period_end: "2025-12-31"
+synthetic: true
 anonymized: false
 expect_ai_never_consulted: true
 source_notes: "SYNTHETIC adversarial case. 0.04% rounding drift (1.60 RON / 4,000 RON, 4 sections) → R1 deterministic auto-fix at persist; the model client is NEVER constructed (ai-sentinel asserted by the replay). The file's own totals row faithfully sums the account rows, so extraction stays honest (anchor MATCHED) and any gap is the SOURCE's own (D1)."

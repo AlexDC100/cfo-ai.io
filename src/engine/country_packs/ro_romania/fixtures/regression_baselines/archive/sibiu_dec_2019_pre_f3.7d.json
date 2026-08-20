@@ -1,7 +1,7 @@
 {
   "_meta": {
     "fixture": "sibiu_dec_2019",
-    "company": "Scandia Sibiu SRL",
+    "company": "Ddlepzl Dzrzm DLZ",
     "captured_from": "F3.7c \u2014 first-time registration; PDF via engine pdf_ingester; ceremony per Q5 (no pre-state archive)",
     "engine_module": "/host_repo/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "engine_version": "post-F3.7a + post-F3.7b",
@@ -13,7 +13,7 @@
   },
   "assembled": {
     "statements": {
-      "companyName": "Scandia Sibiu SRL",
+      "companyName": "Ddlepzl Dzrzm DLZ",
       "industry": null,
       "currency": "RON",
       "periodLabel": "2019-12-31",

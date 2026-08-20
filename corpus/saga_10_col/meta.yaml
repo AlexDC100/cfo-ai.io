@@ -4,6 +4,8 @@ jurisdiction: "RO"
 expected_parser: "saga_10_col"
 period: "FY2025 (31.12.2025)"
 period_end: "2025-12-31"
+synthetic: false
 anonymized: false
+anonymized_upstream: true
 expect_ai_never_consulted: true
-source_notes: "files/prod_scandia_frozen_31.12.2025.xlsx — the frozen SAGA/ContSal 10-col production golden (blank-code totals row printed FIRST). Already anonymized fictional data upstream (calibration fixture), so the corpus scrambler was deliberately NOT applied."
+source_notes: "files/prod_scandia_frozen_31.12.2025.xlsx — the frozen SAGA/ContSal 10-col production golden (blank-code totals row printed FIRST). Already anonymized fictional data upstream (calibration fixture), so the corpus scrambler was deliberately NOT applied — hence `anonymized: false` (the key means 'produced by scripts/anonymize_tb.py', which this was not) together with `anonymized_upstream: true` (the file carries no real party data). This is the ONLY case using that escape hatch; scripts/check_corpus_policy.py prints it as a notice on every run so it can never go unnoticed."

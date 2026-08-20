@@ -29,24 +29,24 @@ from .reconciliation_checks import (
     run_reconciliation_checks,
     ReconciliationCheck,
 )
-from .anomalies import (
-    detect_anomalies,
-    AnomalyFlag,
-)
-from .quality_envelope import (
-    build_extraction_quality,
-    EXTRACTION_QUALITY_VERSION,
-    MetricConfidence,
-    ExtractionQualityEnvelope,
-)
-
+# NOTE (2026-08-21) — F4.8's `anomalies` and `quality_envelope` modules
+# were NEVER WRITTEN. This __init__ was authored against the full planned
+# API, so `import engine.confidence` raised ModuleNotFoundError in every
+# clean checkout, silently breaking every consumer that imports through
+# the package: the jurisdiction packs' CHECK_IMPLS binding (registered
+# check impls could not load for ANY jurisdiction — RO/HU/INTL alike) and
+# canonical_adapter's run_bs_diagnosis import. Two call sites had already
+# grown by-file-path importlib workarounds for exactly this reason
+# without the root cause being fixed.
+#
+# The eager imports are removed rather than stubbed: nothing in the repo
+# consumes `detect_anomalies` / `build_extraction_quality` / their
+# siblings (verified by grep across src/, scripts/ and tests/), so the
+# only thing they did was break the package. Restore these lines when —
+# and only when — the modules actually land.
 __all__ = [
     "ParseFlag", "parse_flag_multiplier", "ROW_CONFIDENCE_FLOOR",
     "compute_row_confidence", "RowConfidenceResult",
     "classification_confidence_for_line_item",
     "run_reconciliation_checks", "ReconciliationCheck",
-    "detect_anomalies", "AnomalyFlag",
-    "build_extraction_quality",
-    "EXTRACTION_QUALITY_VERSION",
-    "MetricConfidence", "ExtractionQualityEnvelope",
 ]

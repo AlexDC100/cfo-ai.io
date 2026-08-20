@@ -1,0 +1,41 @@
+# ZZ — A FICTIONAL JURISDICTION. NOT A REAL COUNTRY, NOT REAL LAW.
+#
+# This pack exists for exactly one reason: it is the payload of the N7
+# acceptance gate (tests/engine/test_new_jurisdiction.py). N7 proves the
+# architecture claim
+#
+#     "adding a minimal new jurisdiction = authoring a pack
+#      (+ optionally a front-end), with ZERO engine code changes"
+#
+# by actually doing it — end to end, through the production front-end,
+# classify pass, canonical builder, persist/auto-reconcile seam, serve
+# path and facts gateway — and failing if any of that ever needs a
+# `src/engine` edit again.
+#
+# It lives under the REAL packs root (packs/) on purpose: pack discovery
+# is what admits a jurisdiction, so the gate has to exercise the real
+# discovery, not a fixture root. Consequence to be aware of: this pack
+# ships wherever packs/ ships (the backend image COPYs packs/), and any
+# surface that offers "every jurisdiction with a pack" will therefore
+# offer ZZ. That is the honest reading of a deployed pack; it classifies
+# nothing unless a document explicitly names ZZ.
+#
+# Hand-authored (NOT generated) — deliberately: it is also the worked
+# example docs/ADDING_A_JURISDICTION.md walks a first-time pack author
+# through, so it must be readable as data, not as generator output.
+
+schema_version: pack1
+jurisdiction: ZZ
+pack_id: zz-minimal
+version: v1
+# Fictional statute, fictional window. Half-open [from, to): a period_end
+# on or after 2001-01-01 resolves this pack; `effective_to: null` means
+# the window is still open, so there is no successor pack to tile with.
+effective_from: 2001-01-01
+effective_to: null
+legal_sources:
+  - citation: "Zzedonia Accounting Act No. 1 of 2001, Annex 2 (Uniform Chart of Accounts) — FICTIONAL. No such statute, country, ministry or chart of accounts exists. This citation is a placeholder that shows WHERE a real pack cites the instrument its rules come from; a real pack cites the actual legal text (see packs/ro/omfp1802-v1/pack.yaml for OMFP 1802/2014 and packs/hu/actc2000-v1/pack.yaml for Act C of 2000)."
+changelog:
+  - version: v1
+    date: "2026-08-20"
+    notes: "Initial ZZ pack — the N7 acceptance-gate jurisdiction. Eleven classification rules covering every rule kind the pack1 schema supports: 1 exact, 8 prefix and 2 numeric range. Two of the prefix rules also carry the optional modifiers — zz.28x is contra, zz.51x declares a balance-side-conditional side_flip — so the pack exercises both flags as well as all three kinds. Plus a statement map over the canonical section/leaf vocabulary the canonical_bs v2 builder places, the jurisdiction-neutral D0-D9 + reconciliation-identity check bindings, and the standard auto-reconcile policy. Authored by hand as the worked example for docs/ADDING_A_JURISDICTION.md. ZZ classifies no real document: it is reachable only when a caller explicitly names jurisdiction ZZ."

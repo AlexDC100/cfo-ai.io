@@ -1,0 +1,14 @@
+Cont;Account name;Debit;Credit
+100;Registered capital;;80000.00
+200;Buildings;100000.00;
+280;Accumulated depreciation of buildings;;20000.00
+300;Raw materials;15000.00;
+400;Trade payables;;18000.00
+410;Trade receivables;30000.00;
+510;Bank current account;25000.00;
+511;Bank current account (overdrawn);;5000.00
+600;Operating expenses;40000.00;
+700;Sales revenue;;87000.00
+900;Memo account, debit leg;1000.00;
+901;Memo account, credit leg;;1000.00
+;TOTAL;211000.00;211000.00

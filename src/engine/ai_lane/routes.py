@@ -26,7 +26,7 @@ POST /api/period/{period_id}/reextract
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import Body, Header, HTTPException
 
@@ -35,7 +35,23 @@ from . import FORCE_REEXTRACT_ENVELOPE_KEY
 
 logger = logging.getLogger("engine.api")
 
-_ALLOWED_JURISDICTIONS = {"RO", "HU", "INTL"}
+def _allowed_jurisdictions() -> Tuple[str, ...]:
+    """The jurisdictions this route accepts as an explicit override.
+
+    DATA-DRIVEN (N7): every jurisdiction with a discoverable data pack,
+    plus the home jurisdiction and the generic international pack's wire
+    code — resolved at REQUEST time through the resolver that will
+    actually consume the value, so the route can never drift from what
+    the resolver admits. A newly deployed pack is selectable without an
+    engine edit; nothing here enumerates jurisdictions by name."""
+    from .jurisdiction_resolver import (
+        GENERIC_PACK_JURISDICTION,
+        selectable_jurisdictions,
+    )
+
+    return tuple(sorted(
+        set(selectable_jurisdictions()) | {GENERIC_PACK_JURISDICTION}
+    ))
 
 
 def register_routes(router: Any, *, require_jwt: Any) -> None:
@@ -54,11 +70,11 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
         jurisdiction: Optional[str] = None
         if isinstance(payload, dict) and payload.get("jurisdiction"):
             jurisdiction = str(payload["jurisdiction"]).strip().upper()
-            if jurisdiction not in _ALLOWED_JURISDICTIONS:
+            allowed = _allowed_jurisdictions()
+            if jurisdiction not in allowed:
                 raise HTTPException(
                     422,
-                    "jurisdiction must be one of %s"
-                    % sorted(_ALLOWED_JURISDICTIONS),
+                    "jurisdiction must be one of %s" % list(allowed),
                 )
 
         # Lazy import — engine.api boots the FastAPI app; only route

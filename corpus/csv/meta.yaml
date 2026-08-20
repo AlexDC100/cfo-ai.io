@@ -4,6 +4,7 @@ jurisdiction: "RO"
 expected_parser: "csv"
 period: "FY2025"
 period_end: "2025-12-31"
+synthetic: true
 anonymized: false
 expect_ai_never_consulted: true
 source_notes: "SYNTHETIC until a real anonymized export is contributed — copy of the Phase-5 fixture synthetic_tb_ro_locale.csv (semicolon CSV, cp1250, RO number locale, TOTAL-labelled totals row). Dispatches through parse_trial_balance_csv; the detected source_format is saga_10_col (asserted in extraction.json)."

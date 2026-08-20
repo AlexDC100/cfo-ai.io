@@ -298,7 +298,7 @@
     },
     {
       "cont": "267802",
-      "nume_cont": "Garantii spatiu Bane",
+      "nume_cont": "Garantii spatiu Fvbiv",
       "r_c": 929.97,
       "r_d": 3156.4900000000002,
       "sf_c": 0.0,
@@ -310,7 +310,7 @@
     },
     {
       "cont": "267803",
-      "nume_cont": "Garantii spatiu Vitan",
+      "nume_cont": "Garantii spatiu Rjrzh",
       "r_c": 1369.79,
       "r_d": 2502.42,
       "sf_c": 0.0,
@@ -322,7 +322,7 @@
     },
     {
       "cont": "267804",
-      "nume_cont": "Garantii spatiu Sun P",
+      "nume_cont": "Garantii spatiu Qrk Dtg",
       "r_c": 0.0,
       "r_d": 0.0,
       "sf_c": 0.0,
@@ -334,7 +334,7 @@
     },
     {
       "cont": "267806",
-      "nume_cont": "Garantii spatiu Prom",
+      "nume_cont": "Garantii spatiu Kmqw",
       "r_c": 1117.97,
       "r_d": 7522.35,
       "sf_c": 0.0,
@@ -454,7 +454,7 @@
     },
     {
       "cont": "301001",
-      "nume_cont": "Materii prime - Bane",
+      "nume_cont": "Materii prime - Fvbiv",
       "r_c": 708008.8,
       "r_d": 707328.48,
       "sf_c": 0.0,
@@ -466,7 +466,7 @@
     },
     {
       "cont": "301002",
-      "nume_cont": "Materii prime - Vitan",
+      "nume_cont": "Materii prime - Rjrzh",
       "r_c": 443397.36,
       "r_d": 444341.86,
       "sf_c": 0.0,
@@ -478,7 +478,7 @@
     },
     {
       "cont": "301004",
-      "nume_cont": "Materii prime Sun",
+      "nume_cont": "Materii prime Hth",
       "r_c": 0.0,
       "r_d": 0.0,
       "sf_c": 0.0,
@@ -490,7 +490,7 @@
     },
     {
       "cont": "301007",
-      "nume_cont": "Materii prime - Prom",
+      "nume_cont": "Materii prime - Kmqwp",
       "r_c": 500254.68,
       "r_d": 497393.87,
       "sf_c": 0.0,
@@ -538,7 +538,7 @@
     },
     {
       "cont": "345001",
-      "nume_cont": "Produse finite - Ban",
+      "nume_cont": "Produse finite - Fvb",
       "r_c": 649242.2,
       "r_d": 649242.2,
       "sf_c": 0.0,
@@ -550,7 +550,7 @@
     },
     {
       "cont": "345002",
-      "nume_cont": "Produse finite - Vita",
+      "nume_cont": "Produse finite - Rjrz",
       "r_c": 417132.20999999996,
       "r_d": 417132.20999999996,
       "sf_c": 0.0,
@@ -562,7 +562,7 @@
     },
     {
       "cont": "345007",
-      "nume_cont": "Produse finite - Prom",
+      "nume_cont": "Produse finite - Kmqw",
       "r_c": 470950.88,
       "r_d": 470950.88,
       "sf_c": 0.0,
@@ -574,7 +574,7 @@
     },
     {
       "cont": "371001",
-      "nume_cont": "Marfuri - Baneasa",
+      "nume_cont": "Marfuri - Fvbivgv",
       "r_c": 105254.67,
       "r_d": 105015.98999999999,
       "sf_c": 0.0,
@@ -586,7 +586,7 @@
     },
     {
       "cont": "371002",
-      "nume_cont": "Marfuri Vitan",
+      "nume_cont": "Marfuri Rjrzh",
       "r_c": 56399.22,
       "r_d": 56084.66,
       "sf_c": 0.0,
@@ -610,7 +610,7 @@
     },
     {
       "cont": "371005",
-      "nume_cont": "Marfuri - Sun Plaza",
+      "nume_cont": "Marfuri - Qrk Dtgmg",
       "r_c": 0.0,
       "r_d": 0.0,
       "sf_c": 0.0,
@@ -622,7 +622,7 @@
     },
     {
       "cont": "371007",
-      "nume_cont": "Marfuri - Promenada",
+      "nume_cont": "Marfuri - Kmqwpofxf",
       "r_c": 69947.13,
       "r_d": 69695.77,
       "sf_c": 0.0,
@@ -1174,7 +1174,7 @@
     },
     {
       "cont": "444003",
-      "nume_cont": "Impozit salarii Banea",
+      "nume_cont": "Impozit salarii Fvbivg",
       "r_c": 52732.0,
       "r_d": 52590.0,
       "sf_c": 4956.0,
@@ -1186,7 +1186,7 @@
     },
     {
       "cont": "444004",
-      "nume_cont": "Impozit salariati-Vita",
+      "nume_cont": "Impozit salariati-Rjrz",
       "r_c": 40652.0,
       "r_d": 40579.0,
       "sf_c": 3899.0,
@@ -1198,7 +1198,7 @@
     },
     {
       "cont": "444005",
-      "nume_cont": "Impozit salariati- Sun",
+      "nume_cont": "Impozit salariati- Qrk D",
       "r_c": 0.0,
       "r_d": 0.0,
       "sf_c": 0.0,
@@ -1210,7 +1210,7 @@
     },
     {
       "cont": "444006",
-      "nume_cont": "Impozit salariati-Prom",
+      "nume_cont": "Impozit salariati-Kmqw",
       "r_c": 47334.0,
       "r_d": 47271.0,
       "sf_c": 4486.0,
@@ -1450,7 +1450,7 @@
     },
     {
       "cont": "531102",
-      "nume_cont": "Casa in lei - BANEA",
+      "nume_cont": "Casa in lei - EQBMQTQ",
       "r_c": 2349635.95,
       "r_d": 2354385.77,
       "sf_c": 0.0,
@@ -1462,7 +1462,7 @@
     },
     {
       "cont": "531103",
-      "nume_cont": "Casa in lei - VITAN",
+      "nume_cont": "Casa in lei - NFSXL",
       "r_c": 1552455.56,
       "r_d": 1556329.68,
       "sf_c": 0.0,
@@ -1474,7 +1474,7 @@
     },
     {
       "cont": "531104",
-      "nume_cont": "Casa in lei - SUN",
+      "nume_cont": "Casa in lei - VYX",
       "r_c": 0.0,
       "r_d": 0.0,
       "sf_c": 0.0,
@@ -1486,7 +1486,7 @@
     },
     {
       "cont": "531105",
-      "nume_cont": "Casa in lei - PROME",
+      "nume_cont": "Casa in lei - VYSEXFPB",
       "r_c": 1081082.94,
       "r_d": 1082295.05,
       "sf_c": 0.0,
@@ -1882,7 +1882,7 @@
     },
     {
       "cont": "607102",
-      "nume_cont": "Cheltuieli marfuri - B",
+      "nume_cont": "Cheltuieli marfuri - F",
       "r_c": 105149.95999999999,
       "r_d": 105149.95999999999,
       "sf_c": 0.0,
@@ -1894,7 +1894,7 @@
     },
     {
       "cont": "607103",
-      "nume_cont": "Cheltuieli marfuri - V",
+      "nume_cont": "Cheltuieli marfuri - R",
       "r_c": 55309.89,
       "r_d": 55309.89,
       "sf_c": 0.0,
@@ -1906,7 +1906,7 @@
     },
     {
       "cont": "607107",
-      "nume_cont": "Cheltuieli marfuri - P",
+      "nume_cont": "Cheltuieli marfuri - K",
       "r_c": 69541.93,
       "r_d": 69541.93,
       "sf_c": 0.0,

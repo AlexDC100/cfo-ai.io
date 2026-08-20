@@ -57,10 +57,18 @@ list -> tuple) so no caller can alias-mutate a compiled pack.
 """
 from __future__ import annotations
 
+import importlib.util
+import sys
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+
+#: `sys.modules` key for the standalone-loaded built-in check module.
+#: Deliberately NOT `engine.confidence.reconciliation_checks`, so this
+#: private load can never shadow the real package.
+_RECONCILIATION_MODULE_KEY = "engine.packs._reconciliation_checks"
 
 __all__ = [
     "PACK_SCHEMA_VERSION",
@@ -256,20 +264,64 @@ def registered_check_impls() -> Tuple[str, ...]:
     return tuple(sorted(CHECK_IMPLS))
 
 
+def _reconciliation_checks_module() -> Any:
+    """`engine.confidence.reconciliation_checks`, loaded WITHOUT executing
+    `engine/confidence/__init__.py`.
+
+    WHY BY PATH: `engine.packs` is deliberately an import-leaf — it must
+    never pull a sibling engine package in transitively, which is the
+    reason these check impls are lazy at all. Loading the module from its
+    own file (it imports nothing but stdlib) preserves that property.
+
+    HISTORICAL NOTE: this helper was originally forced rather than chosen.
+    `engine/confidence/__init__.py` eagerly imported two modules that were
+    never written (`.anomalies`, `.quality_envelope`), so ANY import
+    through the package raised ModuleNotFoundError — which silently left
+    pack-bound checks unrunnable for every jurisdiction. That root cause
+    is fixed (2026-08-21); the by-path load stays for the import-leaf
+    property above, not as a workaround.
+
+    Cached in `sys.modules` under a private name so repeated check runs
+    pay the cost once and never collide with the real package.
+    """
+    cached = sys.modules.get(_RECONCILIATION_MODULE_KEY)
+    if cached is not None:
+        return cached
+
+    source = (
+        Path(__file__).resolve().parent.parent
+        / "confidence"
+        / "reconciliation_checks.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        _RECONCILIATION_MODULE_KEY, str(source)
+    )
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise PackError(
+            "cannot load the built-in check implementations from %s" % source
+        )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_RECONCILIATION_MODULE_KEY] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # pragma: no cover - defensive
+        del sys.modules[_RECONCILIATION_MODULE_KEY]
+        raise
+    return module
+
+
 def _builtin_bs_diagnosis(*args: Any, **kwargs: Any) -> Any:
     """Built-in impl: the canonical_bs v2 D0-D8 diagnosis pass.
     Lazy import keeps this package an import-leaf."""
-    from engine.confidence.reconciliation_checks import run_bs_diagnosis
-
-    return run_bs_diagnosis(*args, **kwargs)
+    return _reconciliation_checks_module().run_bs_diagnosis(*args, **kwargs)
 
 
 def _builtin_reconciliation_identities(*args: Any, **kwargs: Any) -> Any:
     """Built-in impl: the assembled-output accounting-identity checks
     (debits=credits, A=L+E, P&L rollups). Lazy import — see above."""
-    from engine.confidence.reconciliation_checks import run_reconciliation_checks
-
-    return run_reconciliation_checks(*args, **kwargs)
+    return _reconciliation_checks_module().run_reconciliation_checks(
+        *args, **kwargs
+    )
 
 
 CHECK_IMPLS["builtin.bs_diagnosis"] = _builtin_bs_diagnosis

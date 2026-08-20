@@ -4,6 +4,7 @@ jurisdiction: "RO"
 expected_parser: "ro_llm_fallback"
 period: "FY2019"
 period_end: "2019-12-31"
+synthetic: true
 anonymized: false
 expect_ai_never_consulted: false
 source_notes: >

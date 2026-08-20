@@ -1,0 +1,107 @@
+# ZZ classification rules — account code -> canonical statement line.
+#
+# FICTIONAL chart of accounts (see pack.yaml). The classes are laid out
+# the way most continental charts are, so the example is recognisable:
+#
+#   1xx  capital and reserves          (credit-natural)
+#   2xx  fixed assets, 28x their contra accumulated depreciation
+#   3xx  inventory
+#   4xx  third parties (40x payables, 41x receivables)
+#   5xx  treasury (51x bank)
+#   6xx  expenses          }  P&L; nets into the current-year result
+#   7xx  revenue           }
+#   9xx  memo / off-balance — never summed into any statement total
+#
+# PRECEDENCE is fixed by the engine, NOT by declaration order:
+#
+#     exact  >  longest prefix  >  range (ranges in declaration order)
+#
+# Account 100 below proves it: the code is covered by prefix rule zz.1xx
+# ("10" -> other_reserves) AND by exact rule zz.100 ("100" ->
+# share_capital); the exact rule wins.
+#
+# CONTRA (`contra: true`) marks a line that SUBTRACTS from its section —
+# 28x accumulated depreciation reduces the non-current asset side. On a
+# closing-balance lane the contra account's balance already sits on the
+# side opposite its section's natural side, so the arithmetic works out
+# either way; the flag is what carries the semantics to consumers and to
+# lanes that see an unsigned magnitude instead of a D/C pair.
+#
+# SIDE_FLIP is the balance-side-conditional re-route: a bifunctional
+# account whose CLOSING balance lands on the side opposite its rule's
+# natural side is a REAL position on the other side of the balance
+# sheet, not a negative one. 51x is the classic case — a bank account in
+# credit is an overdraft (short-term debt), never negative cash.
+
+rules:
+  # ── exact: beats the 10-prefix below for this one code ──────────────
+  - rule_id: "zz.100"
+    exact: "100"
+    line_id: share_capital
+    description: "Registered capital (Act No. 1/2001 Annex 2, account 100)"
+
+  # ── prefix rules ────────────────────────────────────────────────────
+  - rule_id: "zz.1xx"
+    prefix: "10"
+    line_id: other_reserves
+    description: "Reserves — the 10x catchall behind the exact 100 rule"
+
+  - rule_id: "zz.2xx"
+    prefix: "20"
+    line_id: ppe_buildings
+    description: "Buildings and structures"
+
+  - rule_id: "zz.28x"
+    prefix: "28"
+    line_id: accumulated_depreciation_ppe
+    contra: true
+    description: "Accumulated depreciation of buildings — contra-asset, subtracts from the non-current asset side"
+
+  - rule_id: "zz.3xx"
+    prefix: "30"
+    line_id: inventory_raw_materials
+    description: "Raw materials and consumables"
+
+  - rule_id: "zz.40x"
+    prefix: "40"
+    line_id: ap_trade
+    description: "Trade payables"
+
+  - rule_id: "zz.41x"
+    prefix: "41"
+    line_id: ar_trade_gross
+    description: "Trade receivables (gross)"
+
+  - rule_id: "zz.51x"
+    prefix: "51"
+    line_id: cash_operating
+    side_flip:
+      side: credit
+      line_id: st_debt_bank
+    description: "Bank current accounts — a CREDIT closing balance is an overdraft (short-term bank debt), never negative cash"
+
+  - rule_id: "zz.9xx"
+    prefix: "9"
+    line_id: excluded_control
+    description: "Off-balance memo accounts — kept OUT of every statement total"
+
+  # ── numeric ranges: contiguous prefix BANDS ─────────────────────────
+  # Both bounds are digit strings of EQUAL length L; a code matches when
+  # its first L digits, read as an integer, fall inside [from, to]. So
+  # 60..64 covers 600xx through 649xx, and never collides with the 70..74
+  # band below. A range only ever wins when no exact and no prefix rule
+  # matched — pack_lint rejects a range that some prefix already covers
+  # end to end (`range-shadowed-by-prefix`), because it would be dead data.
+  - rule_id: "zz.expenses"
+    range:
+      from: "60"
+      to: "64"
+    line_id: other_operating_expenses
+    description: "Operating expenses by nature (classes 60-64)"
+
+  - rule_id: "zz.revenue"
+    range:
+      from: "70"
+      to: "74"
+    line_id: revenue_products
+    description: "Revenue from sales (classes 70-74)"

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "fixture": "sibiu_dec_2019",
-    "company": "Scandia Sibiu SRL",
+    "company": "Ddlepzl Dzrzm DLZ",
     "captured_from": "F3.8 — systematic RAS coverage pass re-capture",
     "engine_module": "/Users/alex/Desktop/folder claude Scandia copy/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "engine_version": "post-F3.8 (25 catchall MappingRules added across classes 1/2/5/6/7 per OMFP 1802; preserves F3.7d locked-truth + F-A3.1 GREEN on 8-fixture registry)",
@@ -13,7 +13,7 @@
   },
   "assembled": {
     "statements": {
-      "companyName": "Scandia Sibiu SRL",
+      "companyName": "Ddlepzl Dzrzm DLZ",
       "industry": null,
       "currency": "RON",
       "periodLabel": "FY2025",

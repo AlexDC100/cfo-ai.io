@@ -1,0 +1,28 @@
+# ZZ auto-reconcile policy (docs/CANONICAL_BS_V2_CONTRACT.md,
+# AUTO-RECONCILE addendum).
+#
+# threshold — the gate the automatic stage may act inside:
+#   |difference| / max(assets, equity_plus_liabilities) <= 0.001 (0.1%).
+#   Above it, nothing is auto-adjusted; the period is served honestly as
+#   MINOR_DRIFT / MATERIAL_IMBALANCE with its diagnosis.
+threshold: 0.001
+
+# placement_rules — where the ONE visible adjustment line goes, keyed by
+# the diagnosed cause. A cause naming a P&L account routes the line to
+# the P&L by the delta's SIGN; every other cause is a balance-sheet line
+# (the synthetic `reconciliation_adjustment` row). The `default` cause is
+# REQUIRED — the loader rejects a policy without it, because an
+# undiagnosed difference must still have a defined home.
+placement_rules:
+  - cause: class_67_target_delta_positive
+    placement: pl_other_income
+  - cause: class_67_target_delta_negative
+    placement: pl_other_expense
+  - cause: default
+    placement: bs
+
+# adjustment_labels — the visible label per language. `label_for` falls
+# back to the first language by sorted key when the requested one is
+# absent, so a single entry is a valid (if monolingual) policy.
+adjustment_labels:
+  en: "Reconciliation difference"

@@ -4,6 +4,7 @@ jurisdiction: "RO"
 expected_parser: "saga_10_col"
 period: "FY2025 (12-25)"
 period_end: "2025-12-31"
+synthetic: false
 anonymized: true
 expect_ai_never_consulted: true
 source_notes: "files/scandia_retail_tb_2025.xlsx — real 10-col-family retail export (largest corpus case, 582 rows). Labels scrambled by scripts/anonymize_tb.py; codes and numerics preserved."
