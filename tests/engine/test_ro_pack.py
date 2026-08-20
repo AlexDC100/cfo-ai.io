@@ -1,33 +1,37 @@
-"""packs/ro/omfp1802-v1 — the mechanical RO pack port (Part C, shadow phase).
+"""packs/ro/omfp1802-v1 — the RUNTIME classification pack vs its frozen port source.
 
-Locked properties:
+Phase 3 cutover: the pack YAML is the production classification source
+(chart_of_accounts.bucket_for / accounts_to_assemble_shape read it); the
+pre-cutover in-code tables live on ONLY as the FROZEN snapshot inside
+scripts/port_ro_pack.py (FROZEN_RULES / FROZEN_BIFUNCTIONAL_WRONG_SIDE_
+FLIPS / FROZEN_PARSER_SIDE_FLIPS). These tests pin v1 immutability and
+frozen-vs-pack consistency:
+
   · the checked-in pack loads and LINTS CLEAN (zero findings, warnings
     included);
   · pack_hash is stable across loads and directory location;
-  · REGENERATION IS BYTE-IDENTICAL — scripts/port_ro_pack.py re-run
-    against the live in-code tables must reproduce the five files
-    exactly. Until Phase 3 deletes chart_of_accounts._RULES, this is
-    the drift alarm between the code table and the pack data;
-  · completeness census BOTH directions: every in-code _RULES entry has
-    a pack rule (same prefix, same line, same contra) and every pack
-    rule maps back to _RULES or to a BIFUNCTIONAL_WRONG_SIDE_FLIPS
-    flip-carrier;
-  · UNIVERSE PARITY: for every 1-4 digit code (plus rule/flip prefix
-    extensions), the pack classifies exactly like the in-code tables —
-    same rule-or-None, same line_id, same contra, same wrong-side flip
-    behavior on both closing sides against the FULL legacy model —
-    the parser-layer SIDE_FLIP_TO_LIAB_PREFIXES first (credit-side
-    re-route to otherCurrentLiab on the deterministic lane), then the
-    assembler's BIFUNCTIONAL_WRONG_SIDE_FLIPS;
+  · REGENERATION IS BYTE-IDENTICAL — scripts/port_ro_pack.py re-run from
+    the frozen snapshot (+ the still-live engine constants it mirrors)
+    must reproduce the five files exactly: v1 cannot drift silently, and
+    pack_hash cannot change without a deliberate new pack version;
+  · completeness census BOTH directions: every FROZEN_RULES entry has a
+    pack rule (same prefix, same line, same contra) and every pack rule
+    maps back to FROZEN_RULES or to a flip-carrier synthesized from the
+    frozen flip layers;
+  · UNIVERSE PARITY vs the FROZEN model: for every 1-4 digit code (plus
+    rule/flip prefix extensions), the pack classifies exactly like the
+    frozen tables — same rule-or-None, same line_id, same contra, same
+    flip behavior on both closing sides (frozen parser layer first,
+    then the frozen bifunctional layer) — AND the LIVE facades
+    (chart_of_accounts.bucket_for / wrong_side_flip_bucket) agree with
+    the pack, so the production seam can never drift from the data it
+    fronts;
   · spot semantics: 28x contra, 4111 side-conditional, 5121 overdraft
     flip, class 8 excluded, 121 result/control;
   · D0-D9 check configuration mirrors engine.confidence.
     reconciliation_checks constants; reconcile.yaml mirrors the
     auto-reconcile constants (0.001 gate, class-6/7 P&L placement,
     'Diferențe de reconciliere' labels).
-
-Shadow phase: nothing in the production pipeline reads packs/ — these
-tests pin the DATA, they change no behavior.
 """
 from __future__ import annotations
 
@@ -177,32 +181,32 @@ def test_regeneration_into_fresh_dir_same_hash(porter, tmp_path, ro_pack):
 # ── completeness census — both directions ─────────────────────────────
 
 
-def test_census_every_incode_rule_has_a_pack_counterpart(ro_pack):
+def test_census_every_frozen_rule_has_a_pack_counterpart(ro_pack, porter):
     by_prefix = {r.prefix: r for r in ro_pack.rules}
-    for rule in coa._RULES:
+    for rule in porter.FROZEN_RULES:
         pack_rule = by_prefix.get(rule.prefix)
         assert pack_rule is not None, "missing pack rule for prefix %s" % rule.prefix
         assert pack_rule.kind == "prefix"
         assert pack_rule.line_id == rule.bucket, rule.prefix
         assert pack_rule.contra == (rule.sign == -1), rule.prefix
-        # the in-code description is carried verbatim (per-rule OMFP
+        # the frozen description is carried verbatim (per-rule OMFP
         # citations may be appended in brackets)
         assert pack_rule.description.startswith(rule.description), rule.prefix
 
 
 def test_census_every_pack_rule_maps_back(ro_pack, porter):
-    in_code = {r.prefix for r in coa._RULES}
-    flip_table = dict(coa.BIFUNCTIONAL_WRONG_SIDE_FLIPS)
+    frozen = {r.prefix for r in porter.FROZEN_RULES}
+    flip_table = dict(porter.FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS)
     parser_flips = set(porter.extract_parser_side_flips())
     extras = []
     for rule in ro_pack.rules:
-        if rule.prefix in in_code:
+        if rule.prefix in frozen:
             continue
         extras.append(rule)
         # only permissible extras: flip-carriers for flip entries FINER
         # than the rule table (from EITHER flip layer) — classification
         # must be unchanged.
-        winner = coa.bucket_for(rule.prefix)
+        winner = porter.frozen_bucket_for(rule.prefix)
         assert winner is not None and len(winner.prefix) < len(rule.prefix)
         assert rule.line_id == winner.bucket, rule.rule_id
         assert rule.contra is False
@@ -221,9 +225,9 @@ def test_census_every_pack_rule_maps_back(ro_pack, porter):
     assert sorted(r.prefix for r in extras) == ["1687", "512"]
 
 
-def test_census_flip_table_fully_represented(ro_pack):
-    for flip_prefix, flip_bucket in coa.BIFUNCTIONAL_WRONG_SIDE_FLIPS:
-        winner = coa.bucket_for(flip_prefix)
+def test_census_flip_table_fully_represented(ro_pack, porter):
+    for flip_prefix, flip_bucket in porter.FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS:
+        winner = porter.frozen_bucket_for(flip_prefix)
         if winner is None:
             # code-unreachable family head (e.g. '411': 4112-4117/4119
             # have no rule); its code-mapped SUB-families must carry the
@@ -232,12 +236,12 @@ def test_census_flip_table_fully_represented(ro_pack):
             assert subs, flip_prefix
             for sub in subs:
                 assert sub.side_flip is not None, sub.rule_id
-                assert sub.side_flip.line_id == coa.wrong_side_flip_bucket(sub.prefix)
+                assert sub.side_flip.line_id == porter.frozen_wrong_side_flip_bucket(sub.prefix)
             continue
         rule = ro_pack.match(flip_prefix)
         assert rule is not None and rule.side_flip is not None, flip_prefix
         # longest-prefix-first: the flip that fires for this family
-        assert rule.side_flip.line_id == coa.wrong_side_flip_bucket(flip_prefix)
+        assert rule.side_flip.line_id == porter.frozen_wrong_side_flip_bucket(flip_prefix)
         assert rule.side_flip.side == (
             "credit" if _natural_side(rule.line_id) == "debit" else "debit"
         )
@@ -256,7 +260,7 @@ def test_census_parser_flip_table_fully_represented(ro_pack, porter):
     unmapped on BOTH sides — the legacy flip can never fire for them
     because rule lookup precedes the flip check."""
     for prefix in porter.extract_parser_side_flips():
-        winner = coa.bucket_for(prefix)
+        winner = porter.frozen_bucket_for(prefix)
         if winner is None:
             assert ro_pack.match(prefix) is None, prefix  # 467
             continue
@@ -266,15 +270,20 @@ def test_census_parser_flip_table_fully_represented(ro_pack, porter):
         assert ro_pack.target_line(prefix + "01", "credit") == "otherCurrentLiab", prefix
 
 
-def test_universe_parity_with_incode_tables(ro_pack, porter):
+def test_universe_parity_with_frozen_tables(ro_pack, porter):
+    """The pack classifies every code exactly like the FROZEN pre-cutover
+    model (frozen parser flip layer first, then the frozen bifunctional
+    layer), AND the LIVE pack-backed facades agree with the pack — the
+    executable proof that the cutover changed the SOURCE of the rules,
+    not their meaning."""
     assert _ASSET_BS_FIELDS <= set(coa._empty_bs().keys())
     parser_flips = porter.extract_parser_side_flips()
     codes = [str(n) for n in range(1, 10000)]
     extras = set()
-    for rule in coa._RULES:
+    for rule in porter.FROZEN_RULES:
         extras.add(rule.prefix + "0")
         extras.add(rule.prefix + "9")
-    for flip_prefix, _bucket in coa.BIFUNCTIONAL_WRONG_SIDE_FLIPS:
+    for flip_prefix, _bucket in porter.FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS:
         extras.add(flip_prefix + "0")
         extras.add(flip_prefix + "1")
     for flip_prefix in parser_flips:
@@ -283,36 +292,52 @@ def test_universe_parity_with_incode_tables(ro_pack, porter):
     codes += sorted(extras - set(codes))
 
     for code in codes:
-        in_rule = coa.bucket_for(code)
+        frozen_rule = porter.frozen_bucket_for(code)
         pack_rule = ro_pack.match(code)
-        if in_rule is None:
+        live_rule = coa.bucket_for(code)
+        if frozen_rule is None:
             assert pack_rule is None, code
+            assert live_rule is None, code
             continue
         assert pack_rule is not None, code
-        assert pack_rule.line_id == in_rule.bucket, code
-        assert pack_rule.contra == (in_rule.sign == -1), code
+        assert pack_rule.line_id == frozen_rule.bucket, code
+        assert pack_rule.contra == (frozen_rule.sign == -1), code
+        # the LIVE facade is a view over the pack — same surface values
+        assert live_rule is not None, code
+        assert live_rule.bucket == pack_rule.line_id, code
+        assert live_rule.sign == (-1 if pack_rule.contra else 1), code
+        assert live_rule.prefix == pack_rule.prefix, code
 
-        # The FULL legacy flip model, both closing sides. The parser
-        # layer fires FIRST (deterministic lane: any ruled code inside a
-        # SIDE_FLIP_TO_LIAB_PREFIXES family whose closing balance sits
-        # on the CREDIT side re-routes to otherCurrentLiab); then the
-        # assembler's BIFUNCTIONAL wrong-side flip fires on sign=+1
-        # rules when the balance sits on the non-natural side.
-        def legacy_target(side: str) -> str:
+        # The FULL frozen flip model, both closing sides. The parser
+        # layer fired FIRST (deterministic lane: any ruled code inside a
+        # frozen parser-flip family whose closing balance sits on the
+        # CREDIT side re-routed to otherCurrentLiab); then the
+        # assembler's bifunctional wrong-side flip fired on sign=+1
+        # rules when the balance sat on the non-natural side.
+        def frozen_target(side: str) -> str:
             if side == "credit" and any(code.startswith(p) for p in parser_flips):
                 return "otherCurrentLiab"
-            if in_rule.sign == 1:
-                flip_bucket = coa.wrong_side_flip_bucket(code)
+            if frozen_rule.sign == 1:
+                flip_bucket = porter.frozen_wrong_side_flip_bucket(code)
                 if flip_bucket is not None:
-                    natural = _natural_side(in_rule.bucket)
+                    natural = _natural_side(frozen_rule.bucket)
                     if side != natural:
                         return flip_bucket
-            return in_rule.bucket
+            return frozen_rule.bucket
 
         for side in ("debit", "credit"):
-            assert ro_pack.target_line(code, side) == legacy_target(side), (code, side)
+            assert ro_pack.target_line(code, side) == frozen_target(side), (code, side)
         # side-agnostic lookup keeps the plain rule line
-        assert ro_pack.target_line(code, None) == in_rule.bucket, code
+        assert ro_pack.target_line(code, None) == frozen_rule.bucket, code
+
+        # the LIVE wrong-side facade == the pack's wrong-side flip
+        # (side_flip on the winning rule, wrong-side only, never contra)
+        expected_wrong_side = None
+        if pack_rule.side_flip is not None and not pack_rule.contra:
+            natural = _natural_side(pack_rule.line_id)
+            if pack_rule.side_flip.side != natural:
+                expected_wrong_side = pack_rule.side_flip.line_id
+        assert coa.wrong_side_flip_bucket(code) == expected_wrong_side, code
 
 
 def test_spot_28x_accumulated_depreciation_is_contra(ro_pack):

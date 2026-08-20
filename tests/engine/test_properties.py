@@ -19,7 +19,10 @@ mirror of it:
 
 GENERATORS — synthetic TBs built from REAL RAS account codes: the
 account pools are derived at import time from the OMFP-1802 rules pack
-(`chart_of_accounts._RULES`), with analytic sub-codes re-verified
+(the compiled packs/ro/omfp1802-v1 rules — the runtime classification
+source since the Phase 3 cutover; the two synthesized flip-carrier
+rules are excluded so the pools stay byte-equal to the pre-cutover
+`_RULES`-derived ones), with analytic sub-codes re-verified
 against the real `bucket_for`; amounts are integer cents (floats only
 at the row boundary, the engine's own convention); optional
 currency-scale variants (×100 / ×1000); row-order shuffles; occasional
@@ -296,17 +299,28 @@ def _ai_scripted(target_account: str, amount_cents: int) -> Iterator[None]:
 
 
 # ── Account pools from the REAL rules pack ─────────────────────────────
+# Post-cutover the rule table is the compiled pack; the two synthesized
+# flip-carrier rules ('512' / '1687' — flip data finer than the rule
+# table, classification unchanged) are excluded so the pools match the
+# pre-cutover `_RULES`-derived ones exactly.
+
+
+def _pack_rule_prefixes() -> List[tuple]:
+    return [
+        (rule.prefix, rule.line_id)
+        for rule in coa.classification_pack().rules
+        if rule.kind == "prefix" and not rule.rule_id.endswith(".flip-carrier")
+    ]
 
 
 def _build_bs_pool() -> List[str]:
     pool = set()
-    for rule in coa._RULES:
-        prefix = rule.prefix
+    for prefix, line_id in _pack_rule_prefixes():
         if not prefix or not prefix.isdigit() or len(prefix) < 3:
             continue
         if prefix[0] not in "12345":
             continue
-        if rule.bucket.startswith("ignore"):
+        if line_id.startswith("ignore"):
             continue  # 121 control, 581 transit, … — exercised separately
         if coa.bucket_for(prefix) is None:
             continue
@@ -317,8 +331,7 @@ def _build_bs_pool() -> List[str]:
 
 def _build_pl_pool(class_digit: str) -> List[str]:
     pool = set()
-    for rule in coa._RULES:
-        prefix = rule.prefix
+    for prefix, _line_id in _pack_rule_prefixes():
         if not prefix or not prefix.isdigit() or len(prefix) < 3:
             continue
         if prefix[0] != class_digit:

@@ -49,6 +49,11 @@ COPY scripts/ ./scripts/
 # Golden corpus — the in-container replay gate (scripts/corpus_replay.py)
 # and the nightly prod canary need the cases + frozen goldens at /app/corpus.
 COPY corpus/ ./corpus/
+# Jurisdiction data packs — the RUNTIME classification source since the
+# Phase 3 cutover (engine.packs.runtime resolves /app/packs from the
+# module path; chart_of_accounts fails LOUDLY at import without it —
+# there is no in-code rules fallback anymore).
+COPY packs/ ./packs/
 # F3.16-3b.2 — EEI JSON fixture source-of-truth lives in the FE tree
 # (`scandi-desk-main/e2e/fixtures/...`) which is excluded by
 # .dockerignore. To make the F-A3.2-CROSS-PATH gate run GREEN on EEI

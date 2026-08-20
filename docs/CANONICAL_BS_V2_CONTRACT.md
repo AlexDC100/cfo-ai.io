@@ -326,6 +326,60 @@ RECONCILED periods were valued on pre-reconciliation equity. It now reads
 `FactsGateway.equity()` — the ADJUSTED (reconciliation-inclusive) figure.
 BALANCED periods are numerically unchanged.
 
+## PACK PROVENANCE addendum (Phase 3 RO cutover, 2026-08-20)
+
+Romanian classification runs off the JURISDICTION DATA PACK
+(`packs/ro/omfp1802-v1/`, loaded via `engine.packs.runtime.active_pack("RO")`)
+— the in-code rule tables (`chart_of_accounts._RULES`,
+`BIFUNCTIONAL_WRONG_SIDE_FLIPS`, the parser's `SIDE_FLIP_TO_LIAB_PREFIXES`)
+were deleted; their frozen historical copy lives in `scripts/port_ro_pack.py`
+(the pack-vs-frozen-snapshot `--check` plus `tests/engine/test_ro_pack.py`
+keep v1 immutable and byte-stable — `pack_hash` cannot drift silently).
+
+**Additive envelope fields** — every assembled envelope records the pack it
+was classified under, at the ENVELOPE ROOT (never inside `canonical_bs`, so
+the served payload and the golden artifacts are byte-identical across the
+cutover):
+
+```jsonc
+"assembled_canonical_v1": {
+  ...,
+  "pack_provenance": {
+    "jurisdiction": "RO",
+    "pack": "omfp1802@v1",                    // resolved pack id@version
+    "pack_hash": "<sha256 of the pack CONTENT>", // exact-content pin
+    "mapping_version": "ro_omfp1802_v2"       // the vintage alias (below)
+  }
+}
+```
+
+**mapping_version now derives from the resolved pack**
+(`chart_of_accounts.mapping_version_for`): pack `omfp1802@v1` keeps the
+frozen pre-cutover string `"ro_omfp1802_v2"` (every stored envelope and
+golden already carries it — byte-stability), and any future pack version
+derives mechanically as `"<jur>_<pack_id>_pack_<version>"` (deliberately
+distinct from the legacy `"..._v2"` spelling so `omfp1802@v2` can never
+collide with v1-era emissions). Rule changes are PACK changes: a new pack
+version with its own effective window — `MAPPING_VERSION` follows it
+automatically; the constant is never hand-bumped again.
+
+**Snapshot keying gains pack_hash** — the reconciliation carry-forward
+(`engine.api._reconcile.carry_forward_reconciliation`) drops state unless
+content_hash + parser_version + mapping_version match AND the old
+envelope's `pack_provenance.pack_hash` equals the new build's. An old
+envelope WITHOUT the stamp is a pre-cutover snapshot and matches by rule
+(its mapping_version half already pins the vintage). Receipt / suppression
+/ auto-marker entry shapes are unchanged (golden byte-stability); the
+envelope-level check covers them, since entries only survive a re-persist
+through the carry-forward.
+
+**Serving is pinned** — `served_canonical_bs` is a pure function of the
+persisted envelope and never re-resolves a pack: a stored period keeps
+serving the numbers its recorded `pack_hash` produced even after newer
+pack versions land in `packs/` (locked by `tests/engine/test_pack_pinning.py`,
+which also exercises effective-dated resolution through the real
+`active_pack` seam on the ro_2024/ro_2025 fixtures).
+
 ## VERIFICATION BATTERY (2026-08-19) — the gates, in one list
 
 Every engine change must leave ALL of these green. The PR battery runs in

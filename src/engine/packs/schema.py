@@ -8,7 +8,13 @@ jurisdiction's accounting rules for one effective window:
                          changelog
     classification.yaml  account-code -> statement-line rules (exact |
                          prefix | numeric range), contra flags,
-                         balance-side-conditional side_flip re-routes
+                         balance-side-conditional side_flip re-routes;
+                         OPTIONAL `prompt_guidance` (Phase 4, AI-lane
+                         prompt-from-pack): header prose + class_map
+                         entries + footer prose the LLM classify prompt
+                         renders — jurisdictions whose classification is
+                         LLM-driven (HU/INTL) carry their chart logic
+                         here instead of in engine code
     checks.yaml          declarative check configs (D0-D9 + per-
                          jurisdiction ids); escape hatch: named impl
                          refs into the engine-side CHECK_IMPLS registry
@@ -16,6 +22,22 @@ jurisdiction's accounting rules for one effective window:
                          its ids must cover every classification target
     reconcile.yaml       auto-reconcile threshold, placement rules,
                          adjustment labels per language
+    confirmed_mappings.yaml
+                         OPTIONAL overlay (Phase 4): human-confirmed
+                         account-code -> line_id memoizations, loaded as
+                         HIGHEST-PRECEDENCE exact rules (rule_id
+                         "confirmed.<code>", appended after the base
+                         rules so the exact index resolves them last-
+                         wins over any base rule for the same code).
+                         Covered by pack_hash like every other rule, so
+                         adding/editing a confirmation re-versions the
+                         pack content (and with it the AI-lane classify
+                         prompt_version and cache key).
+
+Both optional additions are BACKWARD-COMPATIBLE within pack1: packs
+without them load exactly as before, and their canonical_form (the
+pack_hash input) is unchanged — the new sections only enter the hash
+when present.
 
 This module owns the TYPES (frozen dataclasses, deep-frozen mappings),
 the typed error hierarchy, and the engine-side ``CHECK_IMPLS`` registry.
@@ -436,6 +458,10 @@ class CompiledPack:
     reconcile: ReconcilePolicy
     pack_hash: str
     schema_version: str = PACK_SCHEMA_VERSION
+    #: Optional LLM-prompt guidance (deep-frozen mapping) — header prose,
+    #: class_map entries ({digit, name, guidance}), footer prose. None for
+    #: packs whose classification is fully deterministic (e.g. RO).
+    prompt_guidance: Optional[Mapping[str, Any]] = None
     # derived indexes (built by the loader; equality-safe read-only views)
     exact_index: Mapping[str, ClassificationRule] = field(
         default_factory=lambda: MappingProxyType({})
@@ -512,9 +538,14 @@ class CompiledPack:
     def canonical_form(self) -> Dict[str, Any]:
         """Plain JSON-shaped dict of the pack CONTENT — the normalized
         data the pack_hash is computed over. Excludes everything
-        run-specific (paths, load order) and the hash itself."""
+        run-specific (paths, load order) and the hash itself.
+
+        `prompt_guidance` enters the form ONLY when present, so packs
+        predating the Phase-4 optional sections keep their exact
+        pre-extension hash (confirmed-mapping overlay rules ride inside
+        `classification` like every other rule)."""
         ident = self.identity
-        return {
+        form: Dict[str, Any] = {
             "schema_version": self.schema_version,
             "identity": {
                 "jurisdiction": ident.jurisdiction,
@@ -571,6 +602,9 @@ class CompiledPack:
                 "adjustment_labels": thaw_json(self.reconcile.adjustment_labels),
             },
         }
+        if self.prompt_guidance is not None:
+            form["prompt_guidance"] = thaw_json(self.prompt_guidance)
+        return form
 
 
 def _node_form(node: StatementNode) -> Dict[str, Any]:

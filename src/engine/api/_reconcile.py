@@ -199,6 +199,22 @@ def _envelope_key(envelope: Dict[str, Any]) -> Tuple[Optional[str], Optional[str
     )
 
 
+def _envelope_pack_hash(envelope: Any) -> Optional[str]:
+    """The classification pack content hash the envelope was built under
+    (assembled_canonical_v1.pack_provenance.pack_hash — Phase 3 cutover),
+    or None for pre-cutover envelopes / lanes without a pack (HU AI
+    lane). Part of the carry-forward snapshot key: a pack content change
+    (even without a version bump) must drop stale reconciliation state
+    the same way a parser/mapping version bump does."""
+    if not isinstance(envelope, dict):
+        return None
+    provenance = envelope.get("pack_provenance")
+    if not isinstance(provenance, dict):
+        return None
+    pack_hash = provenance.get("pack_hash")
+    return str(pack_hash) if pack_hash else None
+
+
 def _entry_matches_key(
     entry: Any, key: Tuple[Optional[str], Optional[str], Optional[str]]
 ) -> bool:
@@ -1140,7 +1156,13 @@ def carry_forward_reconciliation(
     `reconciliation_history` and `reconciliation_suppressed` from the
     old envelope onto the new one when old provenance.content_hash ==
     new provenance.content_hash AND parser_version + mapping_version
-    match (the snapshot key); drop otherwise. Returns an outcome string
+    match AND the classification pack_hash matches (the snapshot key);
+    drop otherwise. Pack-hash rule (Phase 3 cutover): an old envelope
+    WITHOUT a pack_provenance stamp is a pre-cutover snapshot — treated
+    as matching (its mapping_version half already pins the rule
+    vintage); once the old side carries a hash, any mismatch with the
+    new build's hash drops the state, so even a same-version pack
+    content edit invalidates carry-forward. Returns an outcome string
     for the caller's log line: "carried" | "dropped_stale" |
     "nothing_to_carry". Mutates `new_envelope` in place.
     """
@@ -1156,6 +1178,9 @@ def carry_forward_reconciliation(
     old_key = _envelope_key(old_envelope)
     new_key = _envelope_key(new_envelope)
     if not old_key[0] or not new_key[0] or old_key != new_key:
+        return "dropped_stale"
+    old_pack_hash = _envelope_pack_hash(old_envelope)
+    if old_pack_hash is not None and old_pack_hash != _envelope_pack_hash(new_envelope):
         return "dropped_stale"
     for k in carry_keys:
         value = old_envelope.get(k)

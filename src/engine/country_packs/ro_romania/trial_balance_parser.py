@@ -1244,19 +1244,33 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
         "taxExpense",
     }
 
-    # ── Side-flip prefixes ──────────────────────────────────────────────
-    # These class-4 codes are MIXED-SIDE. The mapping rule encodes the
-    # natural debit-side bucket (because that's the textbook usage), but
-    # on a given trial balance any one of them might land on the credit
-    # side and IS a liability for that period. When sf_c > sf_d we redirect
-    # to a liability bucket; the asset bucket only fires when D > C.
-    # Without this layer:
+    # ── Parser-lane override ENCODING families (Phase 3 cutover) ────────
+    # These class-4/16 codes are MIXED-SIDE: on the credit side they are
+    # liabilities for the period. WHICH line a credit-side balance lands
+    # on is PACK DATA — `_ro_coa.classification_pack().target_line(code,
+    # "credit")` below reads the pack's side_flip (418/451/452/455/461/
+    # 1687 → otherCurrentLiab) or the rule's own line (425, already
+    # otherCurrentLiab). This tuple carries the one bit the pack cannot:
+    # WHICH families this deterministic lane surfaces as a pre-assembly
+    # `bucket_override` row (positive amount + override key) instead of
+    # a signed-negative row later re-routed by the assembler's
+    # wrong-side flip. Both encodings classify identically; the split is
+    # frozen in the corpus goldens' shaped-account artifacts
+    # (classification.json byte-compares this function's output), so it
+    # is parser REPRESENTATION data, not classification data — the
+    # retired SIDE_FLIP_TO_LIAB_PREFIXES table's routing half now lives
+    # in the pack (see scripts/port_ro_pack.py FROZEN_PARSER_SIDE_FLIPS
+    # for the frozen historical source).
+    #
+    # Pre-cutover rationale, still true:
     #   - 418 customer accruals on C-side → sat in AR (asset) when they're
     #     actually liabilities, swinging assets by 2× the amount.
     #   - 451/452/455 affiliated balances — the D-side from group-receivable
     #     positions never landed in receivables at all because the rule
     #     hardcoded a single bucket.
-    SIDE_FLIP_TO_LIAB_PREFIXES = (
+    # 467 is unreachable here (no classification rule — the lookup above
+    # `continue`s first); kept for fidelity with the frozen port source.
+    PARSER_OVERRIDE_ENCODING_PREFIXES = (
         "418",        # Clienți facturi de întocmit — D=accrued AR, C=customer accrual liab
         "451",        # Decontări afiliate — D=group rec, C=group pay
         "452",        # Decontări participanți — D=rec, C=pay
@@ -1329,15 +1343,23 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
             continue
         bucket = rule.bucket
 
-        # Bucket-override for SIDE_FLIP prefixes when balance is on credit
-        # side. We emit a synthetic `bucket_override` so the downstream
-        # assemble_statements step routes to the right bucket regardless
-        # of what bucket_for(code) returned. The amount is the absolute
-        # credit balance and goes into the override bucket as positive
-        # (matching the liability-positive convention).
+        # Bucket-override for the encoding families when the balance is
+        # on the credit side. We emit a synthetic `bucket_override` so
+        # the downstream assemble_statements step routes to the right
+        # bucket regardless of what bucket_for(code) returned. The
+        # DESTINATION comes from the pack (the same side_flip data the
+        # assembler's wrong-side re-route reads): target_line(code,
+        # 'credit') — today otherCurrentLiab for every family member.
+        # The amount is the absolute credit balance and goes into the
+        # override bucket as positive (liability-positive convention).
         bucket_override: Optional[str] = None
-        if any(code.startswith(p) for p in SIDE_FLIP_TO_LIAB_PREFIXES) and sf_c > sf_d:
-            bucket_override = "otherCurrentLiab"
+        if (
+            any(code.startswith(p) for p in PARSER_OVERRIDE_ENCODING_PREFIXES)
+            and sf_c > sf_d
+        ):
+            bucket_override = _ro_coa.classification_pack().target_line(
+                code, "credit"
+            )
             amount = sf_c - sf_d
             if amount > 0:
                 out.append({

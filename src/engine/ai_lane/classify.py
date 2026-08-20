@@ -11,26 +11,51 @@ the needs_review list and its balance rides in the Unclassified rows
 (closing-identity machinery — value never dropped) with reason
 "low_confidence_llm".
 
-Jurisdiction knowledge:
-  · HU — the Act C of 2000 chart-logic block from
-    engine.country_packs.hu_hungary.classification_map (data, not a
-    deterministic parser).
-  · OTHER — IFRS-style guidance (statement captions, no national chart).
+PROMPT-FROM-PACK (Phase 4): the jurisdiction knowledge is DATA, not
+code. The classification vocabulary (statement-map leaves, labels,
+document order), the chart-logic class map, the notable-account lines
+(base exact rules + any human-confirmed overlay from
+confirmed_mappings.yaml) and the guidance prose all render from the
+resolved CompiledPack:
+
+  · HU    — packs/hu/actc2000-v1 (Act C of 2000 számlatükör logic,
+            ported from the deleted classification_map module — frozen
+            snapshot in scripts/port_hu_pack.py)
+  · OTHER — packs/intl/ifrs-captions-v1 (IFRS-caption guidance)
+
+and the stage's prompt_version derives from the pack content hash
+(engine.ai_lane.config.classify_prompt_version), so a pack edit —
+including adding a confirmed mapping — re-versions the prompt and
+invalidates the AI cache automatically.
+
+Statement SIDE stays schema-owned: each leaf's asset/liability/equity/
+revenue/expense/memo annotation (and the envelope's placement math in
+engine.ai_lane.build_ai_envelope) reads engine.canonical BucketType —
+placement logic, not jurisdiction data (the same split the RO cutover
+drew around its engine-side placement tables). Pack leaves and the
+schema are pinned 1:1 by tests/engine/test_hu_pack.py, and an unknown
+leaf fails the render loudly.
 """
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 
 from engine.canonical import BS_BUCKETS, PL_BUCKETS
+from engine.packs.schema import CompiledPack, StatementNode
 
 from . import config
 from ._client import call_strict_json
-from .schemas import ClassifiedAccount, ClassifyResult, ExtractedRow
+from .schemas import AiLaneError, ClassifiedAccount, ClassifyResult, ExtractedRow
 
 # Special vocabulary token for control/technical accounts that must stay
 # OUT of the statement (HU 49x opening/closing, classes 6/7 management
 # accounting, class 0 memo; IFRS suspense/clearing accounts).
 EXCLUDED_CONTROL = "excluded_control"
+
+#: Statement-map section id whose leaves are the excluded vocabulary —
+#: they render LAST in the prompt with side "excluded" and are never
+#: summed into any statement total.
+EXCLUDED_SECTION_ID = "excluded"
 
 
 def vocabulary() -> Dict[str, Any]:
@@ -42,34 +67,94 @@ def vocabulary() -> Dict[str, Any]:
     return vocab
 
 
-def _vocabulary_block() -> str:
+def _walk_leaves(nodes, out: List[StatementNode]) -> None:
+    for node in nodes:
+        if node.is_leaf:
+            out.append(node)
+        else:
+            _walk_leaves(node.children, out)
+
+
+def _vocabulary_block(pack: CompiledPack) -> str:
+    """The CANONICAL LINE VOCABULARY prompt block, rendered from the
+    pack's statement map: leaves in document order with their pack
+    labels; leaves under the `excluded` section render last with side
+    "excluded"; every other leaf's side is its schema BucketType. A pack
+    leaf the schema does not know is a hard error — the vocabulary must
+    never silently diverge from what build_ai_envelope can place."""
+    side_by_id = {
+        b.canonical_name: b.bucket_type.value
+        for b in list(BS_BUCKETS) + list(PL_BUCKETS)
+    }
     lines: List[str] = ["CANONICAL LINE VOCABULARY (line_id — label — side):"]
-    for b in BS_BUCKETS:
-        lines.append("  %s — %s — %s" % (b.canonical_name, b.display_label, b.bucket_type.value))
-    for b in PL_BUCKETS:
-        lines.append("  %s — %s — %s" % (b.canonical_name, b.display_label, b.bucket_type.value))
-    lines.append(
-        "  %s — control/technical/closing account, keep OUT of the statement — excluded"
-        % EXCLUDED_CONTROL
-    )
+    excluded: List[StatementNode] = []
+    for tree in (pack.balance_sheet, pack.profit_loss):
+        for section in tree:
+            leaves: List[StatementNode] = []
+            _walk_leaves((section,), leaves)
+            if section.id == EXCLUDED_SECTION_ID:
+                excluded.extend(leaves)
+                continue
+            for leaf in leaves:
+                side = side_by_id.get(leaf.id)
+                if side is None:
+                    raise AiLaneError(
+                        "classification pack %s@%s carries statement leaf %r "
+                        "that is not in the canonical schema — the classify "
+                        "vocabulary cannot include lines the envelope builder "
+                        "cannot place." % (
+                            pack.identity.pack_id, pack.identity.version,
+                            leaf.id,
+                        )
+                    )
+                lines.append("  %s — %s — %s" % (leaf.id, leaf.label, side))
+    for leaf in excluded:
+        lines.append("  %s — %s — excluded" % (leaf.id, leaf.label))
     return "\n".join(lines)
 
 
-def _jurisdiction_block(jurisdiction: str) -> str:
-    if jurisdiction == "HU":
-        from engine.country_packs.hu_hungary.classification_map import (
-            classify_prompt_block,
+def _guidance_block(pack: CompiledPack) -> str:
+    """The jurisdiction chart-logic prompt block, rendered from the
+    pack's prompt_guidance + its exact rules:
+
+        <header prose>
+        [  class <digit> — <name>: <guidance>   per class_map entry]
+        [Notable accounts:
+           <code> = <description>               per exact rule, sorted]
+        [<footer prose>]
+
+    Exact rules include any confirmed_mappings.yaml overlay entries
+    (rule_id "confirmed.<code>") — a human confirmation feeds the next
+    prompt, and because it changes pack_hash it also re-versions the
+    prompt and invalidates the cache."""
+    guidance = pack.prompt_guidance
+    if guidance is None:
+        raise AiLaneError(
+            "classification pack %s@%s has no prompt_guidance — an LLM-driven "
+            "jurisdiction pack must carry its prompt data."
+            % (pack.identity.pack_id, pack.identity.version)
         )
-        return classify_prompt_block()
-    return (
-        "INTERNATIONAL (IFRS-style) DOCUMENT. Codes may be arbitrary — "
-        "classify by the account NAME's economic meaning using IFRS "
-        "statement captions (IAS 1 / IAS 7). Suspense or clearing "
-        "accounts are `excluded_control`."
+    lines: List[str] = [guidance["header"]]
+    for entry in guidance.get("class_map") or ():
+        lines.append(
+            "  class %s — %s: %s"
+            % (entry["digit"], entry["name"], entry["guidance"])
+        )
+    exact_rules = sorted(
+        (r for r in pack.rules if r.kind == "exact"),
+        key=lambda r: r.exact or "",
     )
+    if exact_rules:
+        lines.append("Notable accounts:")
+        for rule in exact_rules:
+            lines.append("  %s = %s" % (rule.exact, rule.description))
+    footer = guidance.get("footer")
+    if footer:
+        lines.append(footer)
+    return "\n".join(lines)
 
 
-def _system_prompt(jurisdiction: str) -> str:
+def _system_prompt(pack: CompiledPack) -> str:
     return (
         "You are a financial-statement classification engine. For EVERY "
         "account you are given, choose exactly one line_id from the "
@@ -90,9 +175,9 @@ def _system_prompt(jurisdiction: str) -> str:
         "- Be honest with confidence: use values below 0.85 whenever the "
         "account's meaning is not certain from its code and name — those "
         "accounts are routed to human review rather than guessed.\n\n"
-        + _jurisdiction_block(jurisdiction)
+        + _guidance_block(pack)
         + "\n\n"
-        + _vocabulary_block()
+        + _vocabulary_block(pack)
     )
 
 
@@ -106,6 +191,9 @@ def run_classify(
 ) -> ClassifyResult:
     if client is None:
         client = (client_factory or config.default_client_factory)()
+    # ONE pack resolve per run: the prompt text and the prompt_version
+    # recorded beside it must come from the SAME pack content.
+    pack = config.classify_pack(jurisdiction)
     account_lines = [
         "%s\t%s\tdebit=%s\tcredit=%s\tbalance=%s"
         % (r.code, r.label, r.debit, r.credit, r.balance)
@@ -118,8 +206,8 @@ def run_classify(
     data = call_strict_json(
         client,
         stage="classify",
-        prompt_version=config.CLASSIFY_PROMPT_VERSION,
-        system=_system_prompt(jurisdiction),
+        prompt_version=config.classify_prompt_version_for(pack),
+        system=_system_prompt(pack),
         user_text=user_text,
         max_tokens=config.CLASSIFY_MAX_TOKENS,
         audit_stages=audit_stages,

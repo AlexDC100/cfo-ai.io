@@ -184,8 +184,12 @@ def test_happy_path_canonical_bs_llm_labels_and_cap():
     assert cbs["extraction"]["source_format"] == "llm_hu"
     assert cbs["extraction"]["model"] == lane_config.MODEL_ID
     assert cbs["extraction"]["parser_version"] == lane_config.AI_LANE_PARSER_VERSION
-    assert cbs["extraction"]["prompt_versions"] == lane_config.prompt_versions()
+    assert cbs["extraction"]["prompt_versions"] == lane_config.prompt_versions("HU")
     assert cbs["classification"]["method"] == "llm"
+    # Pack-derived classify version: the checked-in v1 HU pack aliases
+    # to the frozen 'classify_v1' (byte-stability with stored envelopes
+    # and the golden corpus).
+    assert cbs["classification"]["prompt_version"] == lane_config.classify_prompt_version("HU")
     assert cbs["classification"]["prompt_version"] == lane_config.CLASSIFY_PROMPT_VERSION
     assert cbs["classification"]["model"] == lane_config.MODEL_ID
 
@@ -270,7 +274,7 @@ def test_happy_path_ai_audit_complete():
     env = parsed["ai_lane"]["assembled"]["assembled_canonical_v1"]
     audit = env["ai_audit"]
     assert audit["model"] == lane_config.MODEL_ID
-    assert audit["prompt_versions"] == lane_config.prompt_versions()
+    assert audit["prompt_versions"] == lane_config.prompt_versions("HU")
     assert audit["content_hash"] == lane.content_hash_of(HU_BYTES)
     assert audit["jurisdiction"] == "HU"
     assert audit["resolution"] == HU_RESOLUTION
@@ -389,7 +393,7 @@ def _cached_period_row(content_hash: str, prompt_versions: Optional[Dict[str, st
         "canonical_bs": {"status": "MINOR_DRIFT", "totals": {}},
         "ai_audit": {
             "content_hash": content_hash,
-            "prompt_versions": prompt_versions or lane_config.prompt_versions(),
+            "prompt_versions": prompt_versions or lane_config.prompt_versions("HU"),
             "model": lane_config.MODEL_ID,
         },
     }
@@ -418,7 +422,7 @@ def test_cache_hit_zero_client_calls():
 
 
 def test_cache_miss_on_prompt_version_bump():
-    stale_versions = dict(lane_config.prompt_versions())
+    stale_versions = dict(lane_config.prompt_versions("HU"))
     stale_versions["extract"] = "extract_v0_stale"
     row = _cached_period_row(lane.content_hash_of(HU_BYTES), prompt_versions=stale_versions)
     client = _FakeClient([FMT_JSON, EXTRACT_JSON, CLASSIFY_JSON])

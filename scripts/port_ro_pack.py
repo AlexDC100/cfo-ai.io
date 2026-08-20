@@ -1,61 +1,76 @@
 #!/usr/bin/env python3
-"""port_ro_pack.py — generate packs/ro/omfp1802-v1/ from the in-code tables.
+"""port_ro_pack.py — the FROZEN historical port source of packs/ro/omfp1802-v1/.
 
-MECHANICAL 1:1 PORT (Part C, shadow phase; zero behavior change). This
-script reads the ACTUAL in-code Romanian OMFP-1802 tables — it imports
-them, it does not copy them — and emits the five pack data files:
+DIRECTION OF TRUTH (Phase 3 cutover, 2026-08-20): the pack YAML under
+packs/ro/omfp1802-v1/ is the RUNTIME SOURCE OF TRUTH for Romanian
+classification — chart_of_accounts._RULES / BIFUNCTIONAL_WRONG_SIDE_FLIPS
+and the parser's SIDE_FLIP_TO_LIAB_PREFIXES no longer exist as runtime
+tables (bucket_for / accounts_to_assemble_shape read the CompiledPack).
+This script keeps the tables AS THEY WERE at the cutover, FROZEN below
+(FROZEN_RULES / FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS /
+FROZEN_PARSER_SIDE_FLIPS / FROZEN_MAPPING_VERSION), and regenerates the
+five pack files from them:
 
     packs/ro/omfp1802-v1/pack.yaml            identity + provenance
-    packs/ro/omfp1802-v1/classification.yaml  chart_of_accounts._RULES +
-                                              BIFUNCTIONAL_WRONG_SIDE_FLIPS
-                                              + the parser-layer
-                                              SIDE_FLIP_TO_LIAB_PREFIXES
-                                              (side_flip) + contra (sign=-1)
+    packs/ro/omfp1802-v1/classification.yaml  FROZEN_RULES + both frozen
+                                              flip layers folded to
+                                              side_flip + contra (sign=-1)
     packs/ro/omfp1802-v1/checks.yaml          D0-D9 diagnosis configuration
                                               (engine.confidence.
-                                              reconciliation_checks constants)
-                                              + the assembled-identity check
+                                              reconciliation_checks constants
+                                              — still LIVE reads: those
+                                              tolerances stay engine-owned)
     packs/ro/omfp1802-v1/statement_map.yaml   canonical_bs v2 section/row
-                                              vocabulary with the _RULES
-                                              bucket ids as classifiable leaves
+                                              vocabulary with the frozen
+                                              rule buckets as leaves (the
+                                              _BUCKET_TO_*_FIELD placement
+                                              tables are still LIVE reads —
+                                              they remain engine presentation
+                                              tables, not classification)
     packs/ro/omfp1802-v1/reconcile.yaml       auto-reconcile constants
                                               (0.001 gate, class-6/7 P&L
                                               placement, 'Diferențe de
-                                              reconciliere' labels)
+                                              reconciliere' labels — LIVE
+                                              reads from engine.api._reconcile)
 
-Because the source of every emitted value is the live code table, the
-port is provably mechanical and RE-RUNNABLE: regenerating must produce
-byte-identical files (tests/engine/test_ro_pack.py::
-test_regeneration_is_byte_identical). Until Phase 3 deletes the in-code
-table, a byte-diff between a fresh regeneration and the checked-in pack
-is the DRIFT ALARM between chart_of_accounts.py and packs/ro/.
+--check is therefore the PACK-VS-FROZEN-SNAPSHOT gate: regeneration must
+stay byte-identical to the checked-in v1 pack
+(tests/engine/test_ro_pack.py::test_regeneration_is_byte_identical), so
+pack_hash cannot drift silently. Any deliberate rule change is made in
+the PACK YAML as a NEW pack version (new directory, new effective
+window) — this script is never edited to "update" v1; it documents what
+v1 was ported from. A --check failure means either (a) the v1 YAML was
+hand-edited (revert it, cut a v2 instead), or (b) one of the still-live
+engine constants this generator mirrors changed (reconcile constants,
+D0-D9 params, statement placement tables) — which likewise demands a
+deliberate new pack version, not a silent v1 rewrite.
 
-SIDE-FLIP REPRESENTATION. The in-code engine has TWO flip layers; the
-pack schema carries ONE flip on the winning ClassificationRule, so both
-layers are folded onto it (they never disagree — asserted at
-generation):
+SIDE-FLIP REPRESENTATION (as ported). The pre-cutover engine had TWO
+flip layers; the pack schema carries ONE flip on the winning
+ClassificationRule, so both layers were folded onto it (they never
+disagree — asserted at generation):
 
-  * BIFUNCTIONAL_WRONG_SIDE_FLIPS (chart_of_accounts, assembler layer):
-    matched per CODE longest-prefix-first; a sign=+1 rule whose closing
-    balance sits on the side OPPOSITE its natural one re-routes. A rule
-    whose prefix falls inside a flip family carries that family's flip
-    (longest flip entry matching the rule's prefix).
-  * SIDE_FLIP_TO_LIAB_PREFIXES (trial_balance_parser.
-    accounts_to_assemble_shape, parser layer — the DETERMINISTIC lane's
-    first flip layer, found by the shadow-divergence gate): a family
-    whose closing balance sits on the CREDIT side re-routes to
-    otherCurrentLiab BEFORE the assembler runs. The table is a
-    function-local tuple, so it is extracted from the parser SOURCE
-    TEXT with hard-failing patterns (same discipline as the reconcile
-    constants below). Families whose winning rule already targets
-    otherCurrentLiab need no flip (425 — a no-op); families with NO
-    classification rule (467) stay unmapped — the legacy flip can never
-    fire for them because rule lookup precedes the flip check. NOTE the
-    parser layer fires on the credit side even when that IS the rule's
-    natural side (1687 under the 168 -> ltDebt winner), so a pack flip
-    may legitimately carry the natural side — the schema permits it.
+  * FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS (assembler layer): matched per
+    CODE longest-prefix-first; a sign=+1 rule whose closing balance sat
+    on the side OPPOSITE its natural one re-routed. A rule whose prefix
+    falls inside a flip family carries that family's flip (longest flip
+    entry matching the rule's prefix).
+  * FROZEN_PARSER_SIDE_FLIPS (trial_balance_parser layer — the
+    DETERMINISTIC lane's first flip layer, found by the shadow-
+    divergence gate): a family whose closing balance sat on the CREDIT
+    side re-routed to otherCurrentLiab BEFORE the assembler ran.
+    Families whose winning rule already targets otherCurrentLiab need
+    no flip (425 — a no-op; the parser lane still surfaces those rows
+    as bucket_override for byte-stability of its shaped output);
+    families with NO classification rule (467) stay unmapped — the flip
+    could never fire because rule lookup preceded the flip check. NOTE
+    the parser layer fired on the credit side even when that IS the
+    rule's natural side (1687 under the 168 -> ltDebt winner), so a
+    pack flip may legitimately carry the natural side — the schema
+    permits it, and the assembler's wrong-side re-route deliberately
+    ignores natural-side flips (chart_of_accounts.wrong_side_flip_bucket).
   * a flip entry FINER than the rule table gets a synthesized
-    FLIP-CARRIER rule — same line_id the in-code winner produces, so
+    FLIP-CARRIER rule — same line_id the frozen winner produces, so
     classification is unchanged; only the flip is carried ('512' under
     the '51' cash catchall from the bifunctional table; '1687' under
     the '168' ltDebt rule from the parser table).
@@ -64,12 +79,14 @@ generation):
     which is engine logic outside the pack) is represented by the flips
     already carried on its code-mapped sub-families (4111, 4118).
 
-The equivalence is proven exhaustively by the universe-parity test in
-tests/engine/test_ro_pack.py (every 1-4 digit code: same rule-or-None,
-same line, same contra, same flip behavior as the FULL in-code model —
-parser layer first, then the bifunctional layer) and end-to-end by the
-shadow gate (tests/engine/test_shadow_divergence.py: zero divergence on
-every deterministic corpus case + 50 property TBs).
+The frozen-vs-pack equivalence is proven exhaustively by the
+universe-parity test in tests/engine/test_ro_pack.py (every 1-4 digit
+code: same rule-or-None, same line, same contra, same flip behavior as
+the FULL frozen model — parser layer first, then the bifunctional
+layer) and end-to-end by the corpus battery (scripts/corpus_replay.py,
+byte-identical across the cutover) plus the consistency harness
+(scripts/shadow_report.py: production composition vs the classify pass
+over the front-end IR, both reading the same pack).
 
 USAGE
   python scripts/port_ro_pack.py                 # (re)write packs/ro/omfp1802-v1/
@@ -110,9 +127,13 @@ SRC = REPO / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-# The in-code tables — imported, never copied. These imports ARE the
-# mechanical guarantee: any edit to the tables changes this script's
-# output, which the byte-identity test turns into a loud drift alarm.
+# Still-LIVE engine reads (post-cutover): the presentation/placement
+# tables (_BUCKET_TO_BS_FIELD / _BUCKET_TO_PL_FIELD / _empty_bs) and the
+# canonical section vocabulary remain engine-owned — the generator reads
+# them live so an engine-side change to statement PLACEMENT trips --check
+# and forces a deliberate new pack version. The CLASSIFICATION tables are
+# NOT imported anymore — they no longer exist in the engine; the frozen
+# copies below are the historical port source.
 from engine.country_packs.ro_romania import chart_of_accounts as coa  # noqa: E402
 from engine.country_packs.ro_romania import canonical_adapter as ca  # noqa: E402
 
@@ -130,6 +151,271 @@ PACK_FILE_NAMES = (
 
 #: Port date — fixed so regeneration stays byte-identical.
 PORT_DATE = "2026-08-19"
+
+
+# ── THE FROZEN PORT SOURCE (Phase 3 cutover, 2026-08-20) ───────────────
+# The in-code tables exactly as they stood when packs/ro/omfp1802-v1 was
+# cut. These are HISTORY, not configuration: the running engine reads
+# the pack YAML; editing these constants can only make --check fail.
+
+
+class PortRule:
+    """The frozen shape of a chart_of_accounts.MappingRule at the
+    cutover: (prefix, bucket, sign, description)."""
+
+    __slots__ = ("prefix", "bucket", "sign", "description")
+
+    def __init__(self, prefix: str, bucket: str, sign: int, description: str):
+        self.prefix = prefix
+        self.bucket = bucket
+        self.sign = sign
+        self.description = description
+
+
+#: The in-code MAPPING_VERSION at the moment of the Phase-3 cutover —
+#: the vintage string every pre-cutover envelope carries. FROZEN.
+FROZEN_MAPPING_VERSION = "ro_omfp1802_v2"
+
+#: chart_of_accounts._RULES at the cutover — (prefix, bucket, sign,
+#: description) tuples, DECLARATION ORDER (classification.yaml emits
+#: rules in this order). Descriptions verbatim, diacritics included.
+FROZEN_RULES: Tuple[PortRule, ...] = (
+    PortRule('1012', 'shareCapital', 1, 'Capital subscris vărsat'),
+    PortRule('101', 'shareCapital', 1, 'Capital subscris (catchall 101x)'),
+    PortRule('104', 'otherEquity', 1, 'Prime de capital'),
+    PortRule('105', 'equity_revaluation', 1, 'Rezerve din reevaluare — non-cash equity'),
+    PortRule('1061', 'otherEquity', 1, 'Rezerve legale'),
+    PortRule('106', 'otherEquity', 1, 'Rezerve (catchall 106x other than 1061)'),
+    PortRule('1171', 'retained_earnings', 1, 'Rezultatul reportat — prior-year carry-forward'),
+    PortRule('117', 'retained_earnings', 1, 'Rezultatul reportat (catchall 117x other than 1171)'),
+    PortRule('121', 'ignore_control', 1, 'Profit si pierdere — CONTROL, never summed'),
+    PortRule('129', 'retainedEarnings', -1, 'Repartizare profit'),
+    PortRule('151', 'otherNonCurrentLiab', 1, 'Provizioane — non-current per OMFP bilanț'),
+    PortRule('161', 'ltDebt', 1, 'Împrumuturi din emisiuni de obligațiuni (bonds)'),
+    PortRule('164', 'ltDebt', 1, 'Credite pe termen lung (non-standard analytic)'),
+    PortRule('165', 'ltDebt', 1, 'Împrumuturi pe termen lung (non-standard analytic)'),
+    PortRule('166', 'ltDebt', 1, 'Datorii către entități afiliate — LT intra-group loans'),
+    PortRule('169', 'ltDebt', -1, 'Prime rambursare obligațiuni — contra-debt, nets vs 161'),
+    PortRule('1621', 'ltDebt', 1, 'Credite bancare pe termen lung'),
+    PortRule('1622', 'ltDebt', 1, 'Credite bancare pe termen lung restante'),
+    PortRule('1623', 'ltDebt', 1, 'Credite externe garantate de stat'),
+    PortRule('1625', 'ltDebt', 1, 'Credite bancare nerambursate la scadență'),
+    PortRule('168', 'ltDebt', 1, 'Dobânzi aferente împrumuturilor — accrued LT interest (BS liability)'),
+    PortRule('167', 'ltDebt', 1, 'Datorii din leasing financiar'),
+    PortRule('201', 'intangibles', 1, 'Cheltuieli de constituire'),
+    PortRule('203', 'intangibles', 1, 'Cheltuieli de dezvoltare'),
+    PortRule('205', 'intangibles', 1, 'Concesiuni, brevete'),
+    PortRule('207', 'intangibles', 1, 'Fond comercial'),
+    PortRule('208', 'intangibles', 1, 'Alte imobilizări necorporale'),
+    PortRule('211', 'ppe', 1, 'Terenuri'),
+    PortRule('212', 'ppe', 1, 'Construcții'),
+    PortRule('213', 'ppe', 1, 'Echipamente'),
+    PortRule('214', 'ppe', 1, 'Mobilier, aparatură birotică'),
+    PortRule('215', 'ppe_investment', 1, 'Investiții imobiliare — CRE signal'),
+    PortRule('231', 'ppe_under_construction', 1, 'Imobilizări corporale în curs'),
+    PortRule('232', 'ppe', 1, 'Avansuri imobilizări (legacy advance — see 4093)'),
+    PortRule('261', 'otherNonCurrentAssets', 1, 'Acțiuni entități afiliate'),
+    PortRule('263', 'otherNonCurrentAssets', 1, 'Interese de participare'),
+    PortRule('265', 'otherNonCurrentAssets', 1, 'Alte titluri imobilizate'),
+    PortRule('2671', 'otherNonCurrentAssets', 1, 'Creanțe imobilizate'),
+    PortRule('2678', 'otherNonCurrentAssets', 1, 'Alte creanțe imobilizate'),
+    PortRule('269', 'otherNonCurrentAssets', -1, 'Vărsăminte de efectuat imobilizări financiare — contra to 26x'),
+    PortRule('2801', 'intangibles', -1, 'Amort. cheltuieli de constituire'),
+    PortRule('2803', 'intangibles', -1, 'Amort. cheltuieli de dezvoltare'),
+    PortRule('2805', 'intangibles', -1, 'Amort. concesiuni, brevete'),
+    PortRule('2808', 'intangibles', -1, 'Amort. alte imob. necorporale'),
+    PortRule('2811', 'ppe', -1, 'Amort. construcții (1)'),
+    PortRule('2812', 'ppe', -1, 'Amort. construcții (2)'),
+    PortRule('2813', 'ppe', -1, 'Amort. instalații / transport'),
+    PortRule('2814', 'ppe', -1, 'Amort. alte imob. corporale'),
+    PortRule('2815', 'ppe', -1, 'Amort. investiții imobiliare'),
+    PortRule('29', 'ppe', -1, 'Ajustări depreciere imobilizări'),
+    PortRule('371', 'inventory', 1, 'Mărfuri'),
+    PortRule('345', 'inventory', 1, 'Produse finite'),
+    PortRule('391', 'inventory', -1, 'Ajustări depreciere materii prime — contra'),
+    PortRule('392', 'inventory', -1, 'Ajustări depreciere materiale — contra'),
+    PortRule('393', 'inventory', -1, 'Ajustări depreciere producție în curs — contra'),
+    PortRule('394', 'inventory', -1, 'Ajustări depreciere produse finite — contra'),
+    PortRule('395', 'inventory', -1, 'Ajustări depreciere semifabricate — contra'),
+    PortRule('396', 'inventory', -1, 'Ajustări depreciere bunuri expediate — contra'),
+    PortRule('397', 'inventory', -1, 'Ajustări depreciere mărfuri — contra'),
+    PortRule('398', 'inventory', -1, 'Ajustări depreciere ambalaje — contra'),
+    PortRule('3', 'inventory', 1, 'Stocuri (catchall)'),
+    PortRule('401', 'ap', 1, 'Furnizori'),
+    PortRule('403', 'ap', 1, 'Efecte de plătit'),
+    PortRule('404', 'ap', 1, 'Furnizori imobilizări'),
+    PortRule('408', 'ap', 1, 'Furnizori facturi nesosite'),
+    PortRule('4093', 'ppe_advances', 1, 'Avansuri pt. imobilizări — capex advance'),
+    PortRule('4091', 'otherCurrentAssets', 1, 'Avansuri furnizori stocuri'),
+    PortRule('4092', 'otherCurrentAssets', 1, 'Avansuri furnizori servicii'),
+    PortRule('409', 'otherCurrentAssets', 1, 'Avansuri furnizori (catchall 409x)'),
+    PortRule('4111', 'ar', 1, 'Clienți'),
+    PortRule('4118', 'ar_doubtful', 1, 'Clienți incerți (gross — see 491 contra)'),
+    PortRule('4130', 'ar', 1, 'Efecte de primit (notes receivable)'),
+    PortRule('418', 'ar', 1, 'Clienți facturi de întocmit (D-side)'),
+    PortRule('419', 'otherCurrentLiab', 1, 'Clienți creditori — advances FROM customers'),
+    PortRule('421', 'otherCurrentLiab', 1, 'Personal — salarii datorate'),
+    PortRule('4281', 'otherCurrentLiab', 1, 'Alte datorii personal'),
+    PortRule('4283', 'otherCurrentLiab', 1, 'Alte datorii legate de personal'),
+    PortRule('423', 'otherCurrentLiab', 1, 'Personal — ajutoare'),
+    PortRule('425', 'otherCurrentLiab', 1, 'Avansuri salarii'),
+    PortRule('426', 'otherCurrentLiab', 1, 'Drepturi neplătite'),
+    PortRule('427', 'otherCurrentLiab', 1, 'Alte drepturi personal'),
+    PortRule('4315', 'otherCurrentLiab', 1, 'Contribuții asigurări sociale'),
+    PortRule('4316', 'otherCurrentLiab', 1, 'Contribuții asigurări sănătate'),
+    PortRule('431', 'otherCurrentLiab', 1, 'Asigurări sociale (catchall 431x)'),
+    PortRule('436', 'otherCurrentLiab', 1, 'Contribuția asiguratorie de muncă'),
+    PortRule('4382', 'otherCurrentAssets', 1, 'Alte creanțe sociale'),
+    PortRule('4411', 'otherCurrentLiab', 1, 'Impozit pe profit DE PLĂTIT — BS liab, NOT P&L'),
+    PortRule('441', 'otherCurrentLiab', 1, 'Impozit pe profit (catchall 441x)'),
+    PortRule('4424', 'otherCurrentAssets', 1, 'TVA de recuperat'),
+    PortRule('4426', 'otherCurrentAssets', 1, 'TVA deductibilă — input VAT, asset'),
+    PortRule('4428', 'otherCurrentLiab', 1, 'TVA neexigibilă — by balance side (D-side flips to asset)'),
+    PortRule('442', 'otherCurrentLiab', 1, 'TVA (catchall)'),
+    PortRule('444', 'otherCurrentLiab', 1, 'Impozit salarii'),
+    PortRule('446', 'otherCurrentLiab', 1, 'Alte impozite'),
+    PortRule('4482', 'otherCurrentAssets', 1, 'Alte creanțe bugetul statului'),
+    PortRule('448', 'otherCurrentLiab', 1, 'Alte datorii fiscale'),
+    PortRule('445', 'otherCurrentLiab', 1, 'Alte impozite locale'),
+    PortRule('447', 'otherCurrentLiab', 1, 'Fonduri speciale (mediu, accize, etc.)'),
+    PortRule('451', 'ar_intercompany', 1, 'Decontări entități afiliate (D-side)'),
+    PortRule('452', 'ar_intercompany', 1, 'Decontări participanți și acționari (D-side)'),
+    PortRule('455', 'ar_intercompany', 1, 'Asociați conturi curente (D-side)'),
+    PortRule('456', 'shareCapital', 1, 'Decontări acționari'),
+    PortRule('457', 'ap_dividends', 1, 'Dividende de plată — NEVER in total_debt'),
+    PortRule('461', 'ar_intercompany', 1, 'Debitori diverși — related-party flag'),
+    PortRule('462', 'otherCurrentLiab', 1, 'Creditori diverși'),
+    PortRule('471', 'otherCurrentAssets', 1, 'Cheltuieli înregistrate în avans'),
+    PortRule('473', 'otherCurrentAssets', 1, 'Decontări operațiuni curs clarificare (473x)'),
+    PortRule('472', 'otherCurrentLiab', 1, 'Venituri înregistrate în avans (deferred revenue)'),
+    PortRule('475', 'otherNonCurrentLiab', 1, 'Subvenții pentru investiții (LT)'),
+    PortRule('478', 'otherNonCurrentLiab', 1, 'Venituri în avans LT (grants)'),
+    PortRule('491', 'ar', -1, 'Ajustări deprecierea creanțelor — contra-asset'),
+    PortRule('496', 'ar', -1, 'Ajustări deprecierea creanțe afiliate — contra'),
+    PortRule('495', 'ar', -1, 'Ajustări deprecierea creanțe decontări grup — contra'),
+    PortRule('49', 'ar', -1, 'Ajustări deprecierea creanțelor (catchall 49x) — contra'),
+    PortRule('481', 'otherCurrentAssets', 1, 'Decontări în cadrul unității'),
+    PortRule('509', 'stDebt', 1, 'Vărsăminte de efectuat'),
+    PortRule('5121', 'cash', 1, 'Conturi curente bancă RON'),
+    PortRule('5124', 'cash_fx', 1, 'Conturi curente bancă valută'),
+    PortRule('5191', 'stDebt', 1, 'Credite bancare termen scurt'),
+    PortRule('5192', 'stDebt', 1, 'Credite bancare termen scurt nerambursate'),
+    PortRule('5311', 'cash', 1, 'Casa în lei'),
+    PortRule('5314', 'cash_fx', 1, 'Casa în valută'),
+    PortRule('532', 'otherCurrentAssets', 1, 'Alte valori — tichete masă etc (532x)'),
+    PortRule('581', 'ignore_transit', 1, 'Viramente interne — NEVER in cash'),
+    PortRule('891', 'ignore_offbalance', 1, 'Bilanț de deschidere — opening BS control, never summed'),
+    PortRule('892', 'ignore_offbalance', 1, 'Bilanț de închidere — closing BS control, never summed'),
+    PortRule('8', 'ignore_offbalance', 1, 'Class 8 extrabilanțiere — off-balance memo, never summed'),
+    PortRule('601', 'cogs', 1, 'Cheltuieli cu materii prime'),
+    PortRule('602', 'cogs', 1, 'Materiale consumabile'),
+    PortRule('607', 'cogs', 1, 'Cheltuieli privind mărfurile'),
+    PortRule('603', 'operatingExpenses', 1, 'Obiecte de inventar'),
+    PortRule('604', 'operatingExpenses', 1, 'Materiale nestocate'),
+    PortRule('605', 'operatingExpenses', 1, 'Energia și apa'),
+    PortRule('6024', 'operatingExpenses', 1, 'Piese de schimb'),
+    PortRule('6051', 'operatingExpenses', 1, 'Consum de energie'),
+    PortRule('611', 'operatingExpenses', 1, 'Întreținerea și reparațiile'),
+    PortRule('6123', 'operatingExpenses', 1, 'Chirii'),
+    PortRule('613', 'operatingExpenses', 1, 'Prime de asigurare'),
+    PortRule('622', 'operatingExpenses', 1, 'Comisioane și onorarii'),
+    PortRule('626', 'operatingExpenses', 1, 'Poștă și telecomunicații'),
+    PortRule('627', 'operatingExpenses', 1, 'Servicii bancare (non-financial)'),
+    PortRule('628', 'opex_third_party', 1, 'Servicii executate de terți — anomaly check'),
+    PortRule('635', 'operatingExpenses', 1, 'Impozite și taxe'),
+    PortRule('65', 'operatingExpenses', 1, 'Class 65 — alte cheltuieli exploatare (catchall)'),
+    PortRule('62', 'operatingExpenses', 1, 'Class 62 — servicii executate de terți (catchall)'),
+    PortRule('612', 'operatingExpenses', 1, 'Ch. chirii și redevențe (rent + royalties)'),
+    PortRule('615', 'operatingExpenses', 1, 'Ch. pregătire personal (training)'),
+    PortRule('618', 'operatingExpenses', 1, 'Ch. servicii diverse (subclass)'),
+    PortRule('642', 'operatingExpenses', 1, 'Ch. tichete (meal & gift vouchers)'),
+    PortRule('646', 'operatingExpenses', 1, 'Ch. contribuții asiguratorie muncă'),
+    PortRule('6814', 'depreciation', 1, 'Ch. provizioane active circulante'),
+    PortRule('665', 'fx_loss', 1, 'Diferențe nefavorabile curs (catchall)'),
+    PortRule('668', 'financialExpense', 1, 'Alte cheltuieli financiare'),
+    PortRule('781', 'otherIncome', 1, 'Venituri din provizioane reluare (operating)'),
+    PortRule('768', 'financial_income', 1, 'Alte venituri financiare'),
+    PortRule('641', 'operatingExpenses', 1, 'Salariile personalului'),
+    PortRule('645', 'operatingExpenses', 1, 'Asigurări sociale (cheltuieli)'),
+    PortRule('6458', 'operatingExpenses', 1, 'Alte asigurări sociale'),
+    PortRule('6461', 'operatingExpenses', 1, 'Contribuția asiguratorie pt. muncă'),
+    PortRule('6651', 'fx_loss', 1, 'Diferențe nefavorabile de curs valutar'),
+    PortRule('666', 'interest_expense', 1, 'Cheltuieli privind dobânzile'),
+    PortRule('667', 'financialExpense', 1, 'Sconturi acordate'),
+    PortRule('6811', 'depreciation', 1, 'Amortizarea imobilizărilor'),
+    PortRule('6812', 'depreciation', 1, 'Provizioane pt. exploatare'),
+    PortRule('691', 'taxExpense', 1, 'Cheltuieli cu impozitul pe profit'),
+    PortRule('701', 'revenue', 1, 'Venituri din vânzarea produselor finite'),
+    PortRule('704', 'revenue', 1, 'Venituri din servicii prestate'),
+    PortRule('706', 'revenue', 1, 'Venituri din chirii — CRE signal'),
+    PortRule('707', 'revenue', 1, 'Venituri din vânzarea mărfurilor'),
+    PortRule('708', 'revenue', 1, 'Venituri din activități diverse'),
+    PortRule('709', 'revenue', 1, 'Reduceri comerciale acordate — contra-revenue (Claude-signed)'),
+    PortRule('711', 'inventoryVariationMemo', 1, 'Variația stocurilor — non-cash memo'),
+    PortRule('721', 'capitalizedOwnWork', 1, 'Capitalized own-work — MEMO, excluded from EBITDA'),
+    PortRule('722', 'capitalizedOwnWork', 1, 'Producția imobilizări corporale — MEMO'),
+    PortRule('725', 'capitalizedOwnWork', 1, 'Producția imobilizări (other) — MEMO'),
+    PortRule('740', 'otherIncome', 1, 'Subvenții — flagged non-recurring'),
+    PortRule('758', 'otherIncome', 1, 'Alte venituri exploatare'),
+    PortRule('7611', 'financial_income', 1, 'Venituri dividende — entități afiliate'),
+    PortRule('7612', 'financial_income', 1, 'Venituri dividende — entități asociate'),
+    PortRule('762', 'financial_income', 1, 'Venituri din interese de participare'),
+    PortRule('763', 'financial_income', 1, 'Venituri din creanțe imobilizate'),
+    PortRule('7651', 'fx_gain', 1, 'Diferențe favorabile de curs valutar'),
+    PortRule('766', 'interest_income', 1, 'Venituri din dobânzi'),
+    PortRule('767', 'financial_income', 1, 'Venituri din sconturi obținute'),
+    PortRule('13', 'otherNonCurrentLiab', 1, 'F3.8: Subvenții pentru investiții (catchall 13x)'),
+    PortRule('14', 'otherEquity', 1, 'F3.8: Câștiguri/pierderi instrumente capital (catchall 14x)'),
+    PortRule('22', 'ppe', 1, 'F3.8: Imobilizări în concesiune / leasing (catchall 22x)'),
+    PortRule('50', 'otherCurrentAssets', 1, 'F3.8: Investiții pe termen scurt (catchall 50x; 509 stays stDebt)'),
+    PortRule('519', 'stDebt', 1, 'F3.8: Credite bancare termen scurt (catchall 519x other than 5191/5192)'),
+    PortRule('51', 'cash', 1, 'F3.8: Conturi la bănci (catchall 51x; 519/5121/5124 stay specific)'),
+    PortRule('54', 'cash', 1, 'F3.8: Acreditive (letters of credit — catchall 54x)'),
+    PortRule('59', 'cash', -1, 'F3.8: Ajustări depreciere trezorerie — contra (catchall 59x)'),
+    PortRule('60', 'operatingExpenses', 1, 'F3.8: Class 60 catchall (606/608/609 — packaging, returns, discounts received)'),
+    PortRule('61', 'operatingExpenses', 1, 'F3.8: Class 61 catchall (614/616/617 — equipment rent, misc services)'),
+    PortRule('63', 'operatingExpenses', 1, 'F3.8: Class 63 catchall (633/634/636/637/638 — other taxes & fees)'),
+    PortRule('64', 'operatingExpenses', 1, 'F3.8: Class 64 catchall (643/644/647/648 — deferred personnel, jetoane, social tickets)'),
+    PortRule('66', 'financialExpense', 1, 'F3.8: Class 66 catchall (663/664/669 — other financial losses)'),
+    PortRule('67', 'operatingExpenses', 1, 'F3.8: Class 67 catchall (pre-2015 extraordinary expenses, rare)'),
+    PortRule('68', 'depreciation', 1, 'F3.8: Class 68 catchall (686/687/689 — other depreciation/provisions)'),
+    PortRule('69', 'taxExpense', 1, 'F3.8: Class 69 catchall (695/698 — deferred tax, other income tax)'),
+    PortRule('765', 'fx_gain', 1, 'F3.8: Diferențe favorabile curs (catchall 765x; 7651 stays specific)'),
+    PortRule('70', 'revenue', 1, 'F3.8: Class 70 catchall (702/703/705 — semifabricate, reziduale, cercetare)'),
+    PortRule('71', 'inventoryVariationMemo', 1, 'F3.8: Class 71 catchall (712 — variația produselor; same memo as 711)'),
+    PortRule('72', 'capitalizedOwnWork', 1, 'F3.8: Class 72 catchall (723/724 — capitalized prod. of inventory/intangibles)'),
+    PortRule('74', 'otherIncome', 1, 'F3.8: Class 74 catchall (741/745/749 — operating subsidies, other grants)'),
+    PortRule('75', 'otherIncome', 1, 'F3.8: Class 75 catchall (754/755/757 — reactivated receivables, other op income)'),
+    PortRule('76', 'financial_income', 1, 'F3.8: Class 76 catchall (any 76x not specifically mapped above)'),
+    PortRule('77', 'otherIncome', 1, 'F3.8: Class 77 catchall (pre-2015 extraordinary income, rare)'),
+    PortRule('78', 'otherIncome', 1, 'F3.8: Class 78 catchall (786/788 — other reversals; 781 stays specific)'),
+)
+
+#: chart_of_accounts.BIFUNCTIONAL_WRONG_SIDE_FLIPS at the cutover —
+#: (prefix, opposite-side bucket), declaration order.
+FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS: Tuple[Tuple[str, str], ...] = (
+    ('4111', 'otherCurrentLiab'),
+    ('411', 'otherCurrentLiab'),
+    ('401', 'otherCurrentAssets'),
+    ('409', 'otherCurrentLiab'),
+    ('419', 'otherCurrentAssets'),
+    ('455', 'otherCurrentLiab'),
+    ('461', 'otherCurrentLiab'),
+    ('462', 'otherCurrentAssets'),
+    ('473', 'otherCurrentLiab'),
+    ('4424', 'otherCurrentLiab'),
+    ('4426', 'otherCurrentLiab'),
+    ('4428', 'otherCurrentAssets'),
+    ('5121', 'stDebt'),
+    ('5124', 'stDebt'),
+    ('512', 'stDebt'),
+)
+
+#: trial_balance_parser SIDE_FLIP_TO_LIAB_PREFIXES at the cutover —
+#: the deterministic lane's credit-side re-route families.
+FROZEN_PARSER_SIDE_FLIPS: Tuple[str, ...] = (
+    '418', '451', '452', '455', '461', '467', '425', '1687',
+)
 
 
 def load_reconciliation_checks_module():
@@ -186,59 +472,27 @@ def extract_reconcile_constants(repo: Path = REPO) -> Dict[str, str]:
     return out
 
 
-# ── Parser-layer side-flip table — read from the ACTUAL source text ────
-# trial_balance_parser.accounts_to_assemble_shape re-routes MIXED-SIDE
-# families to otherCurrentLiab whenever the closing balance sits on the
-# CREDIT side (sf_c > sf_d) — BEFORE the assembler's bifunctional layer
-# runs, and only for codes a classification rule matched (rule lookup
-# precedes the flip check). The table (SIDE_FLIP_TO_LIAB_PREFIXES) is a
-# function-local tuple, so it cannot be imported: extract it from the
-# source text with hard-failing patterns — still reading the real code,
-# still a drift alarm when it changes. Found by the shadow-divergence
-# gate on 5 corpus cases (418/451x/4511 credit closings).
+# ── Parser-layer side-flip families (frozen) ───────────────────────────
+# Pre-cutover, trial_balance_parser.accounts_to_assemble_shape re-routed
+# these MIXED-SIDE families to otherCurrentLiab whenever the closing
+# balance sat on the CREDIT side (sf_c > sf_d) — BEFORE the assembler's
+# bifunctional layer ran, and only for codes a classification rule
+# matched (rule lookup preceded the flip check). Post-cutover the pack's
+# side_flip data owns the DESTINATION (the parser reads
+# CompiledPack.target_line(code, 'credit')); the parser keeps only a
+# shaped-row ENCODING tuple for these families (byte-stability of its
+# telemetry output). Found by the shadow-divergence gate on 5 corpus
+# cases (418/451x/4511 credit closings).
 
-_PARSER_FLIP_RE = re.compile(
-    r"SIDE_FLIP_TO_LIAB_PREFIXES\s*=\s*\((.*?)^\s*\)", re.S | re.M
-)
-
-#: The in-code override bucket the parser layer routes to (asserted
-#: against the source below so a retarget cannot go unnoticed).
+#: The override bucket the parser layer routed to at the cutover.
 _PARSER_FLIP_TARGET = "otherCurrentLiab"
-
-_PARSER_FLIPS_CACHE: Optional[Tuple[str, ...]] = None
 
 
 def extract_parser_side_flips(repo: Path = REPO) -> Tuple[str, ...]:
-    """The parser-layer flip prefixes, verbatim from the parser source.
-    Cached for the default repo — _rule_flip consults it per rule."""
-    global _PARSER_FLIPS_CACHE
-    if repo == REPO and _PARSER_FLIPS_CACHE is not None:
-        return _PARSER_FLIPS_CACHE
-    source = (
-        repo / "src" / "engine" / "country_packs" / "ro_romania"
-        / "trial_balance_parser.py"
-    ).read_text(encoding="utf-8")
-    match = _PARSER_FLIP_RE.search(source)
-    if match is None:
-        raise SystemExit(
-            "port_ro_pack: SIDE_FLIP_TO_LIAB_PREFIXES not found in "
-            "trial_balance_parser.py — the parser flip table moved; update "
-            "the port script."
-        )
-    prefixes = tuple(re.findall(r'"(\d+)"', match.group(1)))
-    if not prefixes:
-        raise SystemExit(
-            "port_ro_pack: SIDE_FLIP_TO_LIAB_PREFIXES matched but no digit "
-            "prefixes were extracted — pattern drift; update the port script."
-        )
-    if 'bucket_override = "%s"' % _PARSER_FLIP_TARGET not in source:
-        raise SystemExit(
-            "port_ro_pack: the parser flip override no longer targets %r — "
-            "update _PARSER_FLIP_TARGET." % _PARSER_FLIP_TARGET
-        )
-    if repo == REPO:
-        _PARSER_FLIPS_CACHE = prefixes
-    return prefixes
+    """The frozen parser-layer flip families. The ``repo`` parameter is
+    kept for call-site compatibility (pre-cutover this function read the
+    parser source text); the table is frozen data now."""
+    return FROZEN_PARSER_SIDE_FLIPS
 
 
 # ── YAML emission helpers (hand-built text: deterministic formatting,
@@ -395,17 +649,46 @@ _GENERATED_BANNER = (
     "# 1:1 mechanical port of the in-code OMFP-1802 tables at\n"
     "# MAPPING_VERSION %s (src/engine/country_packs/ro_romania/).\n"
     "# Regenerate: python scripts/port_ro_pack.py   Drift check: --check\n"
-) % coa.MAPPING_VERSION
+) % FROZEN_MAPPING_VERSION
 
 
-# ── Sanity assertions over the imported tables ─────────────────────────
+# ── Frozen-table lookups (the pre-cutover matching semantics) ──────────
+
+#: Longest-prefix-first — the sort chart_of_accounts._RULES_SORTED used.
+_FROZEN_RULES_SORTED = sorted(FROZEN_RULES, key=lambda r: -len(r.prefix))
+
+#: Longest-prefix-first, stable — as _WRONG_SIDE_FLIPS_SORTED was.
+_FROZEN_FLIPS_SORTED = sorted(
+    FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS, key=lambda p: -len(p[0])
+)
+
+
+def frozen_bucket_for(code: str) -> Optional[PortRule]:
+    """chart_of_accounts.bucket_for exactly as it behaved pre-cutover,
+    over the frozen table (longest matching prefix wins)."""
+    for rule in _FROZEN_RULES_SORTED:
+        if code.startswith(rule.prefix):
+            return rule
+    return None
+
+
+def frozen_wrong_side_flip_bucket(code: str) -> Optional[str]:
+    """chart_of_accounts.wrong_side_flip_bucket exactly as it behaved
+    pre-cutover: longest flip prefix matching the CODE, rule-independent."""
+    for prefix, flip_bucket in _FROZEN_FLIPS_SORTED:
+        if code.startswith(prefix):
+            return flip_bucket
+    return None
+
+
+# ── Sanity assertions over the frozen + still-live tables ──────────────
 
 
 def _assert_tables() -> None:
-    prefixes = [r.prefix for r in coa._RULES]
+    prefixes = [r.prefix for r in FROZEN_RULES]
     if len(prefixes) != len(set(prefixes)):
         dupes = sorted({p for p in prefixes if prefixes.count(p) > 1})
-        raise SystemExit("port_ro_pack: duplicate prefixes in _RULES: %s" % dupes)
+        raise SystemExit("port_ro_pack: duplicate prefixes in FROZEN_RULES: %s" % dupes)
     if set(_ASSET_BS_FIELDS) - set(coa._empty_bs().keys()):
         raise SystemExit("port_ro_pack: _ASSET_BS_FIELDS drifted from _empty_bs")
     if set(_FIELD_TO_SECTION.keys()) != set(coa._empty_bs().keys()):
@@ -447,7 +730,7 @@ def _flip_for_rule_prefix(prefix: str) -> Optional[Tuple[str, str]]:
     the rule's own prefix (matching wrong_side_flip_bucket's longest-
     prefix-first semantics)."""
     candidates = [
-        (f, b) for f, b in coa.BIFUNCTIONAL_WRONG_SIDE_FLIPS if prefix.startswith(f)
+        (f, b) for f, b in FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS if prefix.startswith(f)
     ]
     if not candidates:
         return None
@@ -456,8 +739,8 @@ def _flip_for_rule_prefix(prefix: str) -> Optional[Tuple[str, str]]:
 
 def _rule_flip(rule) -> Optional[Tuple[str, str]]:
     """The single (side, line_id) flip a sign=+1 rule carries, folding
-    BOTH in-code layers (parser layer first — it fires first in the
-    legacy engine); None when no flip applies or it would be a no-op
+    BOTH frozen layers (parser layer first — it fired first in the
+    pre-cutover engine); None when no flip applies or it would be a no-op
     (flip target == the rule's own line). The two layers must AGREE
     when both apply — anything else is not representable in pack1 (one
     side_flip per rule) and hard-fails."""
@@ -485,16 +768,16 @@ def synthesized_flip_carriers() -> List[Tuple[str, str, str, str, str]]:
     (flip_prefix, winner_bucket, flip_side, flip_bucket, origin_table)
     tuples needing a synthesized rule.
 
-    A flip prefix needs a carrier rule exactly when the in-code winner
-    for that prefix (bucket_for) is a SHORTER rule — then codes inside
+    A flip prefix needs a carrier rule exactly when the frozen winner
+    for that prefix (frozen_bucket_for) is a SHORTER rule — then codes inside
     the flip family classify via the shorter catchall but flip via this
     entry, which the pack cannot express on the catchall rule without
     over-flipping its other codes (e.g. '512' under the '51' catchall:
     511x/518x must NOT flip; '1687' under the '168' ltDebt rule: other
     168x accruals must NOT flip)."""
     out: List[Tuple[str, str, str, str, str]] = []
-    for flip_prefix, flip_bucket in coa.BIFUNCTIONAL_WRONG_SIDE_FLIPS:
-        winner = coa.bucket_for(flip_prefix)
+    for flip_prefix, flip_bucket in FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS:
+        winner = frozen_bucket_for(flip_prefix)
         if winner is None:
             continue  # unreachable via code routing ('411' family)
         if len(winner.prefix) < len(flip_prefix):
@@ -509,7 +792,7 @@ def synthesized_flip_carriers() -> List[Tuple[str, str, str, str, str]]:
                 "BIFUNCTIONAL_WRONG_SIDE_FLIPS",
             ))
     for flip_prefix in extract_parser_side_flips():
-        winner = coa.bucket_for(flip_prefix)
+        winner = frozen_bucket_for(flip_prefix)
         if winner is None:
             continue  # no rule (467): unmapped before the flip can fire
         if len(winner.prefix) < len(flip_prefix):
@@ -555,9 +838,9 @@ def build_pack_yaml() -> str:
         "stay byte-identical — a diff is the drift alarm between the code tables and "
         "this pack until Phase 3 deletes the code table."
         % (
-            coa.MAPPING_VERSION,
-            len(coa._RULES),
-            len(coa.BIFUNCTIONAL_WRONG_SIDE_FLIPS),
+            FROZEN_MAPPING_VERSION,
+            len(FROZEN_RULES),
+            len(FROZEN_BIFUNCTIONAL_WRONG_SIDE_FLIPS),
             len(extract_parser_side_flips()),
             len(synthesized_flip_carriers()),
         )
@@ -657,7 +940,7 @@ def build_classification_yaml() -> str:
         "# absolute value.",
         "rules:",
     ]
-    for rule in coa._RULES:
+    for rule in FROZEN_RULES:
         flip = _rule_flip(rule)
         description = rule.description
         citation = _RULE_CITATIONS.get(rule.prefix)
@@ -680,7 +963,7 @@ def build_classification_yaml() -> str:
             "  # classification is unchanged; only the side_flip is carried here.",
         ])
         for flip_prefix, winner_bucket, flip_side, flip_bucket, origin in carriers:
-            winner = coa.bucket_for(flip_prefix)
+            winner = frozen_bucket_for(flip_prefix)
             description = (
                 "Flip-carrier for %s (%s -> %s): codes "
                 "%sx classify as %s via the in-code '%s' catchall; a closing "
@@ -809,7 +1092,7 @@ def _bs_leaves_by_section() -> Dict[str, List[str]]:
     """Rule-target BS buckets grouped by canonical section, ordered by
     _BUCKET_TO_BS_FIELD declaration order (the in-code presentation
     order)."""
-    targets = {r.bucket for r in coa._RULES}
+    targets = {r.bucket for r in FROZEN_RULES}
     by_section: Dict[str, List[str]] = {s: [] for s in ca._BS_V2_SECTION_ORDER}
     for bucket, field in coa._BUCKET_TO_BS_FIELD.items():
         if bucket not in targets:
@@ -868,7 +1151,7 @@ def build_statement_map_yaml() -> str:
         lines.append("        - id: %s" % leaf)
         lines.append("          label: %s" % q(_LEAF_LABELS[leaf]))
     lines.append("  profit_loss:")
-    pl_targets = {r.bucket for r in coa._RULES}
+    pl_targets = {r.bucket for r in FROZEN_RULES}
     for group_id, group_label, fields in _PL_GROUPS:
         leaves = [
             bucket for bucket, field in coa._BUCKET_TO_PL_FIELD.items()
@@ -990,19 +1273,24 @@ def check_against(target_dir: Path) -> int:
             sys.stdout.writelines(list(diff)[:80])
     if drift:
         print(
-            "port_ro_pack --check: the checked-in pack no longer matches the "
-            "in-code tables. Regenerate (python scripts/port_ro_pack.py) and "
-            "commit, or revert the table change."
+            "port_ro_pack --check: the checked-in v1 pack no longer matches "
+            "the FROZEN port snapshot (+ the still-live engine constants it "
+            "mirrors). v1 is immutable — revert the YAML edit and cut a NEW "
+            "pack version instead; if a live engine constant changed, that "
+            "change likewise demands a deliberate new pack version."
         )
         return 1
-    print("port_ro_pack --check: clean — pack matches the in-code tables.")
+    print("port_ro_pack --check: clean — pack matches the frozen port snapshot.")
     return 0
 
 
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="port_ro_pack.py",
-        description="Generate packs/ro/omfp1802-v1/ from the in-code OMFP-1802 tables.",
+        description=(
+            "Regenerate packs/ro/omfp1802-v1/ from the FROZEN port snapshot "
+            "(--check: verify the checked-in pack matches it byte-for-byte)."
+        ),
     )
     parser.add_argument(
         "--out", metavar="DIR", default=str(DEFAULT_OUT),

@@ -1,17 +1,24 @@
-"""SHADOW divergence gate — pack classification == legacy classification.
+"""SHADOW consistency gate — classify pass == production composition.
 
-ZERO-BEHAVIOR-CHANGE PHASE. Locks, over the SAME inputs:
+Post-Phase-3: production classification is pack-driven, so both lanes
+read the SAME CompiledPack through two different CODE PATHS; zero
+divergence pins the front-end IR + classify pass against the production
+parser/assembler composition (see engine/passes/shadow.py). Locks, over
+the SAME inputs:
 
-  · every DETERMINISTIC golden-corpus case (15): the pack lane
-    (engine.passes.classify over the front-end IR) reproduces the legacy
-    classification (RomaniaPack.assemble_parsed_tb) with ZERO
+  · every DETERMINISTIC golden-corpus case (15): the pass lane
+    (engine.passes.classify over the front-end IR) reproduces the
+    production classification (RomaniaPack.assemble_parsed_tb) with ZERO
     divergence — per-account line assignment AND per-section subtotals
     in cents (comparable form: engine/passes/shadow.py docstring);
   · the RO LLM-fallback corpus case: the mocked extract rows through
     assemble_statements vs pack rule lookup — zero divergence;
-  · the HU AI-lane corpus case: explicitly SKIPPED-NO-PACK (no HU data
-    pack exists; the HU classification is model-owned) — the skip state
-    itself is asserted so a future HU pack forces a deliberate wiring;
+  · the HU AI-lane corpus case: WIRED at the Phase-4 cutover (the HU
+    pack exists now) — the mocked classify assignments vs the resolved
+    HU pack: every line_id a statement-map leaf, and pack code rules
+    (notable exacts / confirmed overlays) agree with the model output
+    (engine.passes.shadow.shadow_compare_hu_assignments). A pack root
+    WITHOUT an HU pack still yields the explicit skip, asserted too;
   · a PROPERTY-SUITE shadow variant: 50 seeded TBs from the existing
     closing-identity generator (tests/engine/test_identity_property.py
     _generate_tb — contra families, bifunctionals on BOTH sides, the
@@ -146,10 +153,37 @@ def test_corpus_ro_llm_fallback_zero_divergence(case_id, reporter, ro_pack):
 
 
 @pytest.mark.parametrize("case_id", LLM_HU_CASES)
-def test_corpus_hu_ai_lane_skips_without_pack(case_id, reporter):
-    """No HU data pack exists — the shadow must say so EXPLICITLY (a
-    silent pass would hide the day an HU pack lands unwired)."""
+def test_corpus_hu_ai_lane_pack_agreement(case_id, reporter):
+    """Phase 4: the HU pack exists — the shadow COMPARES the case's
+    mocked classify assignments against it: every assigned line_id is a
+    statement-map leaf, and every code a pack rule covers classifies to
+    the SAME line the mock (and with it the golden) pins."""
     outcome = reporter.run_case_shadow(CORPUS / case_id)
+    assert outcome.kind == "compared"
+    assert outcome.report is not None
+    assert outcome.report.lane == "llm_hu_pack"
+    assert outcome.report.green, "\n" + render_result(outcome.report)
+    assert outcome.report.accounts_compared == 14  # every mocked assignment
+
+
+@pytest.mark.parametrize("case_id", LLM_HU_CASES)
+def test_corpus_hu_ai_lane_skips_explicitly_without_pack(case_id, reporter,
+                                                         tmp_path, monkeypatch):
+    """A pack root WITHOUT an HU pack (e.g. a stripped deploy) must
+    still say so EXPLICITLY — never a silent pass."""
+    import shutil as _shutil
+
+    from engine.packs.runtime import invalidate_pack_cache
+
+    root = tmp_path / "packs"
+    _shutil.copytree(REPO / "packs" / "ro", root / "ro")
+    monkeypatch.setenv("ENGINE_PACKS_ROOT", str(root))
+    invalidate_pack_cache()
+    try:
+        outcome = reporter.run_case_shadow(CORPUS / case_id)
+    finally:
+        monkeypatch.delenv("ENGINE_PACKS_ROOT", raising=False)
+        invalidate_pack_cache()
     assert outcome.kind == "skipped_no_pack"
     assert "HU" in outcome.reason
     assert outcome.green  # skip is green-with-note, never a divergence

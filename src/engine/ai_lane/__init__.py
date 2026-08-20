@@ -335,7 +335,7 @@ def build_ai_envelope(
         "scale": fmt.scale,
         "language": fmt.language,
         "model": config.MODEL_ID,
-        "prompt_versions": config.prompt_versions(),
+        "prompt_versions": config.prompt_versions(jurisdiction),
     }
 
     canonical_bs = build_canonical_bs_v2(
@@ -352,7 +352,10 @@ def build_ai_envelope(
         canonical_bs["status"] = "MINOR_DRIFT"
     canonical_bs["classification"] = {
         "method": "llm",
-        "prompt_version": config.CLASSIFY_PROMPT_VERSION,
+        # Pack-derived: 'classify_v1' for the exact v1 pack contents,
+        # 'classify_<jur>@<pack_hash[:12]>' for anything else — see
+        # engine.ai_lane.config.classify_prompt_version.
+        "prompt_version": config.classify_prompt_version(jurisdiction),
         "model": config.MODEL_ID,
         "needs_review": needs_review,
     }
@@ -390,11 +393,17 @@ def _cache_lookup(
     doc: Dict[str, Any],
     content_hash: str,
     admin_factory: Optional[Callable[[], Any]],
+    jurisdiction: str,
 ) -> Optional[Dict[str, Any]]:
     """The persisted envelope IS the cache. Returns a cached parsed
     payload when this document's period already carries an envelope
     whose ai_audit records the SAME content_hash + prompt versions +
-    model, and no force_reextract flag is set. Never raises."""
+    model, and no force_reextract flag is set. The prompt-versions half
+    is jurisdiction-dependent: the classify entry derives from the
+    jurisdiction's pack content hash, so a pack edit (including a new
+    confirmed mapping) misses the cache and re-runs the model. Never
+    raises on Supabase trouble; a missing pack raises loudly (the run
+    could not classify anyway)."""
     if admin_factory is None:
         return None
     if doc.get("force_reextract"):
@@ -437,7 +446,7 @@ def _cache_lookup(
             continue
         if (
             audit.get("content_hash") == content_hash
-            and audit.get("prompt_versions") == config.prompt_versions()
+            and audit.get("prompt_versions") == config.prompt_versions(jurisdiction)
             and audit.get("model") == config.MODEL_ID
         ):
             logger.info(
@@ -480,7 +489,7 @@ def run_ai_lane(
     jurisdiction = str(resolution.get("jurisdiction") or "OTHER")
     content_hash = content_hash_of(file_bytes)
 
-    cached = _cache_lookup(doc, content_hash, admin_factory)
+    cached = _cache_lookup(doc, content_hash, admin_factory, jurisdiction)
     if cached is not None:
         return cached
 
@@ -496,7 +505,8 @@ def run_ai_lane(
         "[ai_lane] run start: doc=%s jurisdiction=%s source=%s conf=%s "
         "model=%s prompt_versions=%s",
         doc.get("id"), jurisdiction, resolution.get("source"),
-        resolution.get("confidence"), config.MODEL_ID, config.prompt_versions(),
+        resolution.get("confidence"), config.MODEL_ID,
+        config.prompt_versions(jurisdiction),
     )
 
     fmt = _format_mod.run_format_detect(
@@ -529,7 +539,7 @@ def run_ai_lane(
     envelope["ai_audit"] = {
         "model": config.MODEL_ID,
         "content_hash": content_hash,
-        "prompt_versions": config.prompt_versions(),
+        "prompt_versions": config.prompt_versions(jurisdiction),
         "jurisdiction": jurisdiction,
         "resolution": dict(resolution),
         "stages": audit_stages,

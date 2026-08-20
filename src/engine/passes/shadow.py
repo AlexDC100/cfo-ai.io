@@ -1,25 +1,37 @@
-"""SHADOW comparator — legacy classification vs pack classification.
+"""SHADOW comparator — production composition vs the classify pass.
 
-ZERO-BEHAVIOR-CHANGE PHASE. For one input this module runs BOTH:
+REPURPOSED AT THE PHASE 3 CUTOVER (documented decision). Pre-cutover
+this compared the LEGACY in-code classification against the pack; the
+cutover made production read the pack, so "pack vs pack" is trivially
+green on classification DATA — but the two lanes remain two different
+CODE PATHS onto that one data source, and the comparator keeps guarding
+exactly that:
 
-  legacy lane   the REAL production classification — the same code
-                objects the pipeline composes, never a mirror:
-                ``RomaniaPack.assemble_parsed_tb`` (deterministic TB
-                lane) / ``RomaniaPack.assemble_statements`` (LLM
-                accounts lane), and projects its outputs (line items,
-                ignored/excluded/unmapped telemetry);
-  pack lane     ``engine.passes.classify`` over the front-end IR
-                (``engine.ir.LedgerDoc``) driven purely by the
-                jurisdiction pack's data (``engine.packs``).
+  production lane  the REAL production composition — the same code
+                   objects the pipeline composes, never a mirror:
+                   ``RomaniaPack.assemble_parsed_tb`` (deterministic TB
+                   lane: parser value-shaping + pre-assembly overrides +
+                   assembler wrong-side flips, all pack-driven now) /
+                   ``RomaniaPack.assemble_statements`` (LLM accounts
+                   lane), projected via its outputs (line items,
+                   ignored/excluded/unmapped telemetry);
+  pass lane        ``engine.passes.classify`` over the front-end IR
+                   (``engine.ir.LedgerDoc``) — the compiler-style pass,
+                   driven by the same CompiledPack.
 
 then maps both onto ONE comparable form and diffs:
 
   per account   {account code -> {statement line (or marker) -> cents}}
   per section   {statement-map section -> subtotal cents}
 
-Empty diff == the pack data reproduces the legacy classification
-EXACTLY. The corpus + property gates
-(tests/engine/test_shadow_divergence.py, scripts/shadow_report.py)
+Empty diff == the IR front-ends + classify pass agree with the
+production parser/assembler composition — a front-end amount-slot bug,
+an effective_closing_side regression, or a flip-application divergence
+between the two paths shows up as a cent-level diff on real corpus
+inputs. Frozen-vintage drift detection (pack YAML vs the pre-cutover
+tables) lives separately in tests/engine/test_ro_pack.py against
+scripts/port_ro_pack.py's FROZEN_* snapshot. The corpus + property
+gates (tests/engine/test_shadow_divergence.py, scripts/shadow_report.py)
 require zero divergence on every deterministic corpus case.
 
 ── THE COMPARABLE FORM ────────────────────────────────────────────────
@@ -80,18 +92,17 @@ zero balance carries no classification signal to compare.
     (``off_balance_class_8`` / ``opening_balance_sheet_account`` /
     ``closing_balance_sheet_account``) -> ignore_offbalance.
 
-── KNOWN LEGACY PATH-DEPENDENCE (recorded, not hidden) ────────────────
+── PATH-DEPENDENCE, RESOLVED AT THE CUTOVER (history) ─────────────────
 
-The legacy engine applies the parser-layer credit-side re-routes
-(trial_balance_parser SIDE_FLIP_TO_LIAB_PREFIXES: 418/451/452/455/461/
-467/425/1687 -> otherCurrentLiab) ONLY on the deterministic TB lane;
-the LLM-accounts lane runs just the assembler's
-BIFUNCTIONAL_WRONG_SIDE_FLIPS (which lacks 418/451/452/1687). The pack
-is ONE table and encodes the deterministic behavior (the port's
-changelog documents the fix). Consequence: an LLM-lane account from
-those families with a wrong-side amount would legitimately diverge —
-none exists in the corpus mocks; if one ever appears the report
-surfaces it and this note is the explanation.
+Pre-cutover, the parser-layer credit-side re-routes (418/451/452/455/
+461/467/425/1687 -> otherCurrentLiab) fired ONLY on the deterministic
+TB lane; the LLM-accounts lane ran just the assembler's bifunctional
+flips (which lacked 418/451/452/1687). The pack is ONE table encoding
+the deterministic behavior, and since the cutover BOTH production lanes
+read it — the assembler's wrong-side re-route now honors the pack's
+418/451/452 flips on the accounts lane too (no corpus mock carries such
+a row, so the goldens were untouched; the unification is the intended
+one-table semantics).
 
 ── LOCATION DECISION ──────────────────────────────────────────────────
 
@@ -107,7 +118,6 @@ opt-in probe.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
@@ -127,6 +137,7 @@ __all__ = [
     "load_ro_pack",
     "shadow_compare_tb",
     "shadow_compare_accounts",
+    "shadow_compare_hu_assignments",
     "render_result",
     "log_shadow_for_tb",
 ]
@@ -215,7 +226,9 @@ def _prune_zeros(form: Dict[str, Dict[str, int]]) -> Dict[str, Dict[str, int]]:
 
 
 def _ro_pack_legacy():
-    """The registered legacy Romania pack (the production seam)."""
+    """The registered RomaniaPack (the production composition seam —
+    'legacy' names the LANE for continuity with the shadow phase; its
+    classification is pack-driven since the Phase 3 cutover)."""
     import engine.country_packs.ro_romania  # noqa: F401 — registers RomaniaPack
     from engine.core.country_pack_registry import get_pack
 
@@ -223,12 +236,13 @@ def _ro_pack_legacy():
 
 
 def default_packs_root() -> Path:
-    """repo/packs, resolved from this file (src/engine/passes/shadow.py
-    -> repo root is parents[3]); SHADOW_PACK_ROOT overrides."""
-    override = os.environ.get("SHADOW_PACK_ROOT")
-    if override:
-        return Path(override)
-    return Path(__file__).resolve().parents[3] / "packs"
+    """The pack root — delegated to the production runtime
+    (engine.packs.runtime), so the comparator and the engine can never
+    disagree about which packs directory governs. ENGINE_PACKS_ROOT /
+    SHADOW_PACK_ROOT override, else repo/packs."""
+    from engine.packs.runtime import default_packs_root as _runtime_root
+
+    return _runtime_root()
 
 
 def load_ro_pack(
@@ -643,6 +657,105 @@ def shadow_compare_accounts(
     pack_form = _pack_form_accounts([dict(a) for a in accounts], pack, placement)
     return _diff(case_id, "llm_accounts", pack, placement,
                  legacy_form, pack_form, notes)
+
+
+def shadow_compare_hu_assignments(
+    assignments: List[Dict[str, Any]],
+    rows: List[Dict[str, Any]],
+    pack: CompiledPack,
+    *,
+    case_id: str = "",
+) -> ShadowResult:
+    """AI-lane (HU/INTL) shadow — wired at the Phase-4 cutover, when the
+    HU pack landed. Classification on this lane is MODEL-OWNED, so there
+    is no full deterministic lane to mirror; what the pack DOES pin, the
+    model output must agree with:
+
+      1. VOCABULARY CONTAINMENT — every assigned line_id must be a
+         statement-map leaf of the pack (the classify prompt's
+         vocabulary renders from those leaves, so a stray line means the
+         two sides of the prompt-from-pack contract diverged);
+      2. RULE AGREEMENT — wherever the pack carries a code rule (the
+         notable-account exact rules; any confirmed_mappings.yaml
+         overlay), the model's line must equal the pack's target line
+         for that code and closing side.
+
+    The 'legacy' column of the diff table holds the MODEL's assignment
+    (the production value — the mocked classify response in corpus
+    replays); the 'pack' column holds the pack's pinned target (or a
+    loud pseudo-line for vocabulary strays). Amounts come from the
+    extract rows for readable diffs; agreement is per LINE."""
+    cents_by_code: Dict[str, int] = {}
+    side_by_code: Dict[str, Optional[str]] = {}
+    for row in rows:
+        code = str(row.get("code") or "").strip()
+        if not code:
+            continue
+        debit = row.get("debit")
+        credit = row.get("credit")
+        signed = _cents(debit) - _cents(credit)
+        if debit is None and credit is None:
+            signed = _cents(row.get("balance"))
+        cents_by_code[code] = signed
+        if debit is not None and credit is None:
+            side_by_code[code] = "debit"
+        elif credit is not None and debit is None:
+            side_by_code[code] = "credit"
+        else:
+            side_by_code[code] = "debit" if signed >= 0 else "credit"
+
+    leaf_ids = set()
+
+    def _walk(nodes: Any) -> None:
+        for node in nodes:
+            if not node.children:
+                leaf_ids.add(node.id)
+            _walk(node.children)
+
+    _walk(pack.balance_sheet)
+    _walk(pack.profit_loss)
+
+    diffs: List[AccountDiff] = []
+    rule_checked = 0
+    compared = 0
+    for a in assignments:
+        code = str(a.get("code") or "").strip()
+        line = str(a.get("line_id") or "").strip()
+        if not code or not line:
+            continue
+        compared += 1
+        cents = cents_by_code.get(code, 0)
+        if line not in leaf_ids:
+            diffs.append(AccountDiff(
+                code=code,
+                legacy={line: cents},
+                pack={"(not-a-statement-map-leaf)": cents},
+            ))
+            continue
+        rule = pack.match(code)
+        if rule is None:
+            continue  # model-owned code: nothing pinned, nothing to diff
+        rule_checked += 1
+        expected = pack.target_line(code, side_by_code.get(code))
+        if expected != line:
+            diffs.append(AccountDiff(
+                code=code, legacy={line: cents}, pack={str(expected): cents},
+            ))
+
+    notes = [
+        "AI-lane shadow: model assignments vs the %s pack — %d assignment(s) "
+        "checked for vocabulary containment, %d covered by a pack code rule"
+        % (pack.identity.jurisdiction, compared, rule_checked),
+    ]
+    return ShadowResult(
+        case_id=case_id,
+        lane="llm_hu_pack",
+        pack_hash=pack.pack_hash,
+        accounts_compared=compared,
+        account_diffs=diffs,
+        section_diffs=[],
+        notes=notes,
+    )
 
 
 # --- rendering + the pipeline probe ---------------------------------------------

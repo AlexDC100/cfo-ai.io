@@ -1,7 +1,14 @@
 """Romanian Chart of Accounts (OMFP-1802) → standardized statements.
 
-Direct port of scandi-desk-main/src/lib/trialBalanceParser.ts mapping table.
-Takes the LLM's extracted accounts and rolls them up into BS / PL buckets.
+Classification source (Phase 3 cutover): the OMFP-1802 rule table lives
+as DATA in packs/ro/omfp1802-v1/ (engine.packs) — ``bucket_for`` /
+``wrong_side_flip_bucket`` below are facades over the resolved
+CompiledPack; this module keeps the ASSEMBLY (bucket → statement-field
+rollup, canonical views) and the F3.10 semantic-name fallback, which are
+engine logic, not jurisdiction data. Historic note: the table was
+originally a direct port of scandi-desk-main/src/lib/trialBalanceParser.ts;
+its frozen pre-cutover copy lives in scripts/port_ro_pack.py.
+Takes the extracted accounts and rolls them up into BS / PL buckets.
 
 Buckets (must match the TS Statements interface so the frontend renders without
 remapping):
@@ -37,16 +44,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-# ── Mapping-rule vintage (canonical_bs v2 contract) ─────────────────────
-# Stamped onto every canonical_bs emission so persisted periods can be
-# tied to the exact rule table that produced them. MUST be bumped on ANY
-# change to _RULES / the side-flip tables / _IGNORE_BUCKETS — a period
-# analyzed under a different vintage is not comparable row-for-row.
-MAPPING_VERSION = "ro_omfp1802_v2"
+from engine.packs import CompiledPack
+from engine.packs.runtime import active_pack
 
 
 @dataclass
 class MappingRule:
+    """The BucketRule surface every classification consumer reads
+    (.prefix / .bucket / .sign / .description). Post-cutover this is a
+    VIEW over the pack's ClassificationRule — no rule data lives here."""
+
     prefix: str
     bucket: str
     sign: int  # 1 or -1
@@ -54,584 +61,138 @@ class MappingRule:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#                       LOCKED CANONICAL OMFP-1802 MAPPING
+#            PHASE 3 CUTOVER — THE PACK IS THE CLASSIFICATION SOURCE
 # ════════════════════════════════════════════════════════════════════════════
 #
-# This is the SOLE specification for routing Romanian OMFP-1802 trial-balance
-# accounts to standardized buckets. Every entry was set deliberately against
-# the surgical-fix prompt + balanta verificare EEI Dec 2025 source-of-truth.
+# The locked OMFP-1802 rule table that used to live here (_RULES, 209
+# prefix rules + BIFUNCTIONAL_WRONG_SIDE_FLIPS + the parser's
+# SIDE_FLIP_TO_LIAB_PREFIXES) now lives as DATA in
+# packs/ro/omfp1802-v1/classification.yaml, loaded through
+# engine.packs.runtime.active_pack("RO"). Equivalence was proven before
+# the cutover by the shadow gate (zero divergence on every deterministic
+# corpus case + 50 property TBs) and stays pinned by the frozen-snapshot
+# parity suite (tests/engine/test_ro_pack.py against the frozen tables in
+# scripts/port_ro_pack.py) plus the byte-identical corpus battery.
 #
-# RULES OF THIS TABLE:
-#   - One canonical rule per account family. NO legacy / NO duplicates.
-#   - Longest prefix wins (see _RULES_SORTED below). Order in this list
-#     does NOT matter — the sort handles specificity.
-#   - DO NOT add a more-specific rule that contradicts an existing one
-#     without also updating scripts/validate_eei_canonical.py and the
-#     fixtures in scandi-desk-main/e2e/fixtures/ground-truth/.
-#   - DO NOT add a less-specific catchall that swallows accounts the
-#     specific rules above handle (e.g. don't add a bare `16 → ltDebt`
-#     catchall: the 16x family is covered by EXPLICIT rules — 161/162x/
-#     164/165/166/167/168 → ltDebt, 169 contra — so any residual 16x code that
-#     falls through is a data problem that must surface as unmapped,
-#     not be silently lumped into debt).
-#   - The canonical numbers this mapping produces for EEI Dec 2025 are
-#     locked in scripts/validate_eei_canonical.py (19 hard assertions,
-#     gated in CI). Any change here must keep that test PASSING.
+# RULE CHANGES ARE PACK CHANGES: edit packs/ (a NEW pack version with its
+# own effective window — never a silent v1 rewrite; scripts/port_ro_pack.py
+# --check enforces v1 immutability), not this module. bucket_for() below
+# is a facade and carries no table of its own.
 #
-# This same logic applies to ALL Romanian trial-balance uploads — every
-# Romanian client gets these mappings, no per-document tuning.
-# ════════════════════════════════════════════════════════════════════════════
+# Resolution: the LATEST RO window (classification runs in stage_extract/
+# stage_map BEFORE the period's end date is final — period_end_hint lands
+# in stage_persist — so an effective-dated per-period resolve would race
+# the period identity; with one open RO window they coincide. When a
+# second RO window ever exists, thread period_end deliberately through
+# the classification seams — engine.packs.runtime.active_pack already
+# accepts it and the N-series tests exercise that seam).
 
-_RULES: List[MappingRule] = [
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 1 — Capital, reserves, long-term liabilities
-    # ──────────────────────────────────────────────────────────────────────
-    MappingRule("1012", "shareCapital",      1, "Capital subscris vărsat"),
-    MappingRule("101",  "shareCapital",      1, "Capital subscris (catchall 101x)"),
-    MappingRule("104",  "otherEquity",       1, "Prime de capital"),
-    MappingRule("105",  "equity_revaluation", 1, "Rezerve din reevaluare — non-cash equity"),
-    MappingRule("1061", "otherEquity",       1, "Rezerve legale"),
-    MappingRule("106",  "otherEquity",       1, "Rezerve (catchall 106x other than 1061)"),
-    MappingRule("1171", "retained_earnings", 1, "Rezultatul reportat — prior-year carry-forward"),
-    # F3.7d: catchall for 117 sub-classes other than 1171. Per OMFP 1802,
-    # account 117 family is "Rezultatul reportat" with sub-classes:
-    #   1171 — profit nerepartizat / pierdere neacoperită
-    #   1172 — IFRS adjustments
-    #   1173 — corectarea politicilor contabile
-    #   1174 — corectarea erorilor contabile (corrections)
-    #   1175 — surplus rezerve din reevaluare (transfer from 105)
-    # All land in the same canonical retained_earnings bucket. Without
-    # this catchall, dotted variants like `117.1` / `117.4` (Carniprod)
-    # and bare `1174` / `1175` (Retail, Carniprod) and `117401`
-    # (Frozen "Rez.rep.erori contabile" = -523K) returned None from
-    # bucket_for() and were silently dropped → equity overstated by
-    # the absolute value of those (typically negative) carry-forward
-    # adjustments. Empirical impact on the 5 new fixtures:
-    #   Carniprod: −14.95M correctly subtracted (117.1=-11.07M +
-    #              117.4=-7.84M + 1175=+3.96M); equity 122M → 107M
-    #              (matches truth 106.9M)
-    #   Frozen:    −523K subtracted (117401); equity 8.28M → 8.01M
-    #              (matches truth 8.00M)
-    #   Retail:    −952K subtracted (1174=-1.79M + 1175=+839K);
-    #              equity 26.18M → 25.22M (matches truth 25.22M)
-    # Byte-identical for EEI / Scandia / Sibiu (their carry-forward
-    # variants all use the 1171 sub-class, which the longer-prefix-
-    # first sort keeps matched to the existing 1171 rule).
-    MappingRule("117",  "retained_earnings", 1, "Rezultatul reportat (catchall 117x other than 1171)"),
-    # 121 — Romanian PROFIT SI PIERDERE control. Derived from Class 6/7
-    # totals; NEVER summed into a real bucket (would double-count).
-    MappingRule("121",  "ignore_control",    1, "Profit si pierdere — CONTROL, never summed"),
-    MappingRule("129",  "retainedEarnings", -1, "Repartizare profit"),
-    # 151 — Provizioane. Per OMFP 1802 bilanț, provisions are their OWN
-    # section between equity and debt — presented NON-current (litigation,
-    # decommissioning, restructuring are >12m obligations). The canonical
-    # layer already routed 151 → provisions_lt; the legacy bucket now
-    # agrees (was otherCurrentLiab — the documented 151 current/non-current
-    # layer conflict, OMFP_GAP_MATRIX row 15). Total liabilities unchanged;
-    # only the current/non-current split moves.
-    MappingRule("151",  "otherNonCurrentLiab", 1, "Provizioane — non-current per OMFP bilanț"),
-    # Long-term borrowings — the FULL 16x family, each prefix explicit
-    # (still NO bare-16 catchall; see table rules above). 161 bonds,
-    # 164/165 non-standard analytics used by some charts for LT loans,
-    # 166 intra-group loans received. Without these, bond/affiliate LT
-    # funding silently dropped → liabilities understated → Assets>E+L
-    # drift (OMFP_GAP_MATRIX rows 6 + 15). Current-portion analytics
-    # (1687-style) keep their side-flip carve-out to otherCurrentLiab
-    # in the parser layer — they stay current.
-    MappingRule("161",  "ltDebt",            1, "Împrumuturi din emisiuni de obligațiuni (bonds)"),
-    MappingRule("164",  "ltDebt",            1, "Credite pe termen lung (non-standard analytic)"),
-    MappingRule("165",  "ltDebt",            1, "Împrumuturi pe termen lung (non-standard analytic)"),
-    MappingRule("166",  "ltDebt",            1, "Datorii către entități afiliate — LT intra-group loans"),
-    # 169 — Prime privind rambursarea obligațiunilor. CONTRA-DEBT: the
-    # OMFP bilanț nets it against bond debt (ct. 161 + 1681 − 169).
-    # Debit-natural balance; sign=-1 subtracts it from ltDebt.
-    MappingRule("169",  "ltDebt",           -1, "Prime rambursare obligațiuni — contra-debt, nets vs 161"),
-    MappingRule("1621", "ltDebt",            1, "Credite bancare pe termen lung"),
-    MappingRule("1622", "ltDebt",            1, "Credite bancare pe termen lung restante"),
-    MappingRule("1623", "ltDebt",            1, "Credite externe garantate de stat"),
-    MappingRule("1625", "ltDebt",            1, "Credite bancare nerambursate la scadență"),
-    # 168 — Dobânzi aferente împrumuturilor și datoriilor asimilate.
-    # This is the BS LIABILITY that carries accrued interest owed on
-    # borrowings (the credit side of the period-end accrual Dr 666 / Cr 168;
-    # the matching Dr 168 / Cr 5121 entry settles it on payment). The
-    # P&L interest expense is account 666 — routed below on this same
-    # mapping list. Routing 168 to `interestExpense` (a P&L bucket) caused
-    # the cumulative-side movements of the BS accrual account to be summed
-    # into the P&L on top of 666, double-counting any interest that was
-    # both accrued and paid within the period. For Scandia FY2025 this
-    # inflated interestExpense by RON 1,666,807 (54% overstatement) and
-    # depressed net income by ~RON 1.4M after tax. Per methodology
-    # Section 3 (CLAUDE.md Appendix A) and archive/calibration_toolkit/financial_analysis.py
-    # line 459, 168 is part of LT debt — it sits with bank loans (162x)
-    # and leasing (167) as the "accrued LT interest" component. Route to
-    # ltDebt accordingly. 1687 sub-accounts retain their existing
-    # side-flip carve-out in _trial_balance_parser.py:625 → otherCurrentLiab
-    # for the current-portion case.
-    MappingRule("168",  "ltDebt",            1, "Dobânzi aferente împrumuturilor — accrued LT interest (BS liability)"),
-    # 167 — Finance-lease obligations. Per OMFP-1802 these sit alongside
-    # bank loans on the LT debt line; oracle's `total_lt_debt` already
-    # includes them. Without this rule Scandia's 3.39M of leasing drops out
-    # of LT debt entirely — single largest cause of liability under-count.
-    MappingRule("167",  "ltDebt",            1, "Datorii din leasing financiar"),
 
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 2 — Fixed assets
-    # ──────────────────────────────────────────────────────────────────────
-    MappingRule("201",  "intangibles", 1, "Cheltuieli de constituire"),
-    MappingRule("203",  "intangibles", 1, "Cheltuieli de dezvoltare"),
-    MappingRule("205",  "intangibles", 1, "Concesiuni, brevete"),
-    MappingRule("207",  "intangibles", 1, "Fond comercial"),
-    MappingRule("208",  "intangibles", 1, "Alte imobilizări necorporale"),
-    MappingRule("211",  "ppe", 1, "Terenuri"),
-    MappingRule("212",  "ppe", 1, "Construcții"),
-    MappingRule("213",  "ppe", 1, "Echipamente"),
-    MappingRule("214",  "ppe", 1, "Mobilier, aparatură birotică"),
-    # 215 — Investment property. CRE detection signal.
-    MappingRule("215",  "ppe_investment", 1, "Investiții imobiliare — CRE signal"),
-    # 231 — Assets under construction (capex pipeline).
-    MappingRule("231",  "ppe_under_construction", 1, "Imobilizări corporale în curs"),
-    MappingRule("232",  "ppe", 1, "Avansuri imobilizări (legacy advance — see 4093)"),
-    # Financial assets (investments)
-    MappingRule("261",  "otherNonCurrentAssets", 1, "Acțiuni entități afiliate"),
-    MappingRule("263",  "otherNonCurrentAssets", 1, "Interese de participare"),
-    MappingRule("265",  "otherNonCurrentAssets", 1, "Alte titluri imobilizate"),
-    MappingRule("2671", "otherNonCurrentAssets", 1, "Creanțe imobilizate"),
-    MappingRule("2678", "otherNonCurrentAssets", 1, "Alte creanțe imobilizate"),
-    # 269 — Vărsăminte de efectuat pentru imobilizări financiare. The OMFP
-    # bilanț nets it against financial fixed assets (ct. 26x − 269 − 296),
-    # so it is a CONTRA on the financial-investments line, not a payable.
-    # Credit-natural balance; sign=-1 subtracts from otherNonCurrentAssets.
-    MappingRule("269",  "otherNonCurrentAssets", -1, "Vărsăminte de efectuat imobilizări financiare — contra to 26x"),
-    # Accumulated depreciation / amortization — contra-assets (sign -1)
-    MappingRule("2801", "intangibles", -1, "Amort. cheltuieli de constituire"),
-    MappingRule("2803", "intangibles", -1, "Amort. cheltuieli de dezvoltare"),
-    MappingRule("2805", "intangibles", -1, "Amort. concesiuni, brevete"),
-    MappingRule("2808", "intangibles", -1, "Amort. alte imob. necorporale"),
-    MappingRule("2811", "ppe",         -1, "Amort. construcții (1)"),
-    MappingRule("2812", "ppe",         -1, "Amort. construcții (2)"),
-    MappingRule("2813", "ppe",         -1, "Amort. instalații / transport"),
-    MappingRule("2814", "ppe",         -1, "Amort. alte imob. corporale"),
-    MappingRule("2815", "ppe",         -1, "Amort. investiții imobiliare"),
-    MappingRule("29",   "ppe",         -1, "Ajustări depreciere imobilizări"),
+def classification_pack() -> CompiledPack:
+    """THE CompiledPack Romanian classification runs off (cached in
+    engine.packs.runtime; loud NoPackFoundError when packs/ is absent —
+    there is deliberately no in-code fallback table anymore)."""
+    return active_pack("RO")
 
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 3 — Inventory
-    # ──────────────────────────────────────────────────────────────────────
-    MappingRule("371",  "inventory", 1, "Mărfuri"),
-    MappingRule("345",  "inventory", 1, "Produse finite"),
-    # 391-398 — Inventory provisions (Ajustări pentru deprecierea stocurilor).
-    # Contra-asset: closes on the credit side, so sign=-1 makes them subtract
-    # from inventory. Without these explicit rules they fell to the "3"
-    # catchall with sign=+1 — for Scandia that overstated inventory by
-    # ~2.71M (provisions added instead of subtracted, a 2× swing).
-    MappingRule("391",  "inventory", -1, "Ajustări depreciere materii prime — contra"),
-    MappingRule("392",  "inventory", -1, "Ajustări depreciere materiale — contra"),
-    MappingRule("393",  "inventory", -1, "Ajustări depreciere producție în curs — contra"),
-    MappingRule("394",  "inventory", -1, "Ajustări depreciere produse finite — contra"),
-    MappingRule("395",  "inventory", -1, "Ajustări depreciere semifabricate — contra"),
-    MappingRule("396",  "inventory", -1, "Ajustări depreciere bunuri expediate — contra"),
-    MappingRule("397",  "inventory", -1, "Ajustări depreciere mărfuri — contra"),
-    MappingRule("398",  "inventory", -1, "Ajustări depreciere ambalaje — contra"),
-    MappingRule("3",    "inventory", 1, "Stocuri (catchall)"),
 
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 4 — Third parties (AR + AP + payables)
-    # ──────────────────────────────────────────────────────────────────────
-    # AP — only true supplier balances. 419 (advances FROM clients) and 462
-    # (creditori diverși) go to otherCurrentLiab; never into AP.
-    MappingRule("401",  "ap", 1, "Furnizori"),
-    MappingRule("403",  "ap", 1, "Efecte de plătit"),
-    MappingRule("404",  "ap", 1, "Furnizori imobilizări"),
-    MappingRule("408",  "ap", 1, "Furnizori facturi nesosite"),
-    # 4093 — Advances given for CAPEX (fixed-asset acquisitions). Routes to
-    # ppe_advances, NOT to working-capital AR.
-    MappingRule("4093", "ppe_advances",       1, "Avansuri pt. imobilizări — capex advance"),
-    MappingRule("4091", "otherCurrentAssets", 1, "Avansuri furnizori stocuri"),
-    MappingRule("4092", "otherCurrentAssets", 1, "Avansuri furnizori servicii"),
-    # F3.7d catchall: 409 family covers all supplier-advance sub-classes.
-    # Specific 4091/4092/4093 above take precedence (longest-prefix-first).
-    # Catches Sibiu's 409401 (Avansuri acordate furnizori prestări) and
-    # any other 409x not covered by the 3 specific rules.
-    MappingRule("409",  "otherCurrentAssets", 1, "Avansuri furnizori (catchall 409x)"),
-    # AR — customer receivables
-    MappingRule("4111", "ar",                1, "Clienți"),
-    MappingRule("4118", "ar_doubtful",       1, "Clienți incerți (gross — see 491 contra)"),
-    # 413 — Effecte de primit / Notes receivable (commercial paper from
-    # customers, normally short-term receivable). Without this rule, 4130x
-    # falls through unmapped — for Scandia 998K silently dropped.
-    MappingRule("4130", "ar",                1, "Efecte de primit (notes receivable)"),
-    # 418 — Clienți facturi de întocmit. Mixed-side: when DEBIT it's an
-    # accrued receivable (services rendered, invoice not yet issued); when
-    # CREDIT it's a customer accrual liability (advance / over-billing).
-    # The side-flip layer in _trial_balance_parser routes the C-side cases
-    # to otherCurrentLiab so the bucket here is the D-side bucket only.
-    MappingRule("418",  "ar",                1, "Clienți facturi de întocmit (D-side)"),
-    MappingRule("419",  "otherCurrentLiab",  1, "Clienți creditori — advances FROM customers"),
-    # Payroll / personnel payables
-    MappingRule("421",  "otherCurrentLiab",  1, "Personal — salarii datorate"),
-    MappingRule("4281", "otherCurrentLiab",  1, "Alte datorii personal"),
-    # 4283 — Alte datorii legate de personal. Missing rule was dropping
-    # Scandia's 3.75M from ST liab. Falls under personnel-payable category.
-    MappingRule("4283", "otherCurrentLiab",  1, "Alte datorii legate de personal"),
-    MappingRule("423",  "otherCurrentLiab",  1, "Personal — ajutoare"),
-    MappingRule("425",  "otherCurrentLiab",  1, "Avansuri salarii"),
-    MappingRule("426",  "otherCurrentLiab",  1, "Drepturi neplătite"),
-    # 427 — Alte drepturi de personal. Same category as 426; was unmapped.
-    MappingRule("427",  "otherCurrentLiab",  1, "Alte drepturi personal"),
-    # Social contributions
-    MappingRule("4315", "otherCurrentLiab",  1, "Contribuții asigurări sociale"),
-    MappingRule("4316", "otherCurrentLiab",  1, "Contribuții asigurări sănătate"),
-    # F3.7d catchall: 431 family covers all social-insurance contributions.
-    # Catches Sibiu's 431101 (CAS unitate), 431301 (CASS angajator), and
-    # any other 431x not covered by 4315/4316.
-    MappingRule("431",  "otherCurrentLiab",  1, "Asigurări sociale (catchall 431x)"),
-    MappingRule("436",  "otherCurrentLiab",  1, "Contribuția asiguratorie de muncă"),
-    MappingRule("4382", "otherCurrentAssets", 1, "Alte creanțe sociale"),
-    # Tax payables / receivables
-    MappingRule("4411", "otherCurrentLiab",  1, "Impozit pe profit DE PLĂTIT — BS liab, NOT P&L"),
-    # F3.7d catchall: 441 family covers all income-tax sub-classes.
-    # Catches Sibiu's 441501 (Impozit specific unități HoReCa) and any
-    # other 441x not covered by 4411. Note: a debit-side 441x (overpaid
-    # tax = receivable) would land negatively in otherCurrentLiab via
-    # the credit-positive sign convention; acceptable for SIBIU's
-    # always-credit usage; SIDE_FLIP could be added later if needed.
-    MappingRule("441",  "otherCurrentLiab",  1, "Impozit pe profit (catchall 441x)"),
-    MappingRule("4424", "otherCurrentAssets", 1, "TVA de recuperat"),
-    # 4426 — TVA deductibilă. Debit-natural ASSET (input VAT awaiting
-    # settlement on monthly TBs). Previously fell to the 442 liability
-    # catchall, so a debit-balance 4426 emitted as a NEGATIVE liability —
-    # both sides of the BS understated by the same amount
-    # (OMFP_GAP_MATRIX row 11). The canonical layer already routed
-    # 4426 → ar_tax_recoverable; the legacy bucket now agrees.
-    MappingRule("4426", "otherCurrentAssets", 1, "TVA deductibilă — input VAT, asset"),
-    # 4428 — TVA neexigibilă. BIFUNCTIONAL by balance side: credit =
-    # deferred output VAT (liability, invoices not yet issued), debit =
-    # deferred input VAT (asset, invoices not received). The rule carries
-    # the credit-natural bucket; a debit-side balance re-routes to
-    # otherCurrentAssets via BIFUNCTIONAL_WRONG_SIDE_FLIPS below.
-    MappingRule("4428", "otherCurrentLiab",  1, "TVA neexigibilă — by balance side (D-side flips to asset)"),
-    MappingRule("442",  "otherCurrentLiab",  1, "TVA (catchall)"),
-    MappingRule("444",  "otherCurrentLiab",  1, "Impozit salarii"),
-    MappingRule("446",  "otherCurrentLiab",  1, "Alte impozite"),
-    MappingRule("4482", "otherCurrentAssets", 1, "Alte creanțe bugetul statului"),
-    MappingRule("448",  "otherCurrentLiab",  1, "Alte datorii fiscale"),
-    # 445 / 447 — Local-budget and special taxes (water, environment,
-    # fund contributions). Same category as 446 / 448. Missing rules were
-    # silently dropping these from ST liab (Scandia: 56K via 447, 18K via 445).
-    MappingRule("445",  "otherCurrentLiab",  1, "Alte impozite locale"),
-    MappingRule("447",  "otherCurrentLiab",  1, "Fonduri speciale (mediu, accize, etc.)"),
-    # Shareholder / inter-company accounts. All mixed-side: the D-side is a
-    # receivable from a group entity, the C-side is a payable to one. The
-    # side-flip layer in _trial_balance_parser routes credit-side cases to
-    # otherCurrentLiab, so the bucket here is the natural debit-side one.
-    MappingRule("451",  "ar_intercompany",   1, "Decontări entități afiliate (D-side)"),
-    MappingRule("452",  "ar_intercompany",   1, "Decontări participanți și acționari (D-side)"),
-    MappingRule("455",  "ar_intercompany",   1, "Asociați conturi curente (D-side)"),
-    MappingRule("456",  "shareCapital",      1, "Decontări acționari"),
-    # 457 — DIVIDENDS PAYABLE. NEVER counted as debt.
-    MappingRule("457",  "ap_dividends",      1, "Dividende de plată — NEVER in total_debt"),
-    # 461 — Related-party / intercompany debtor. Surfaced separately.
-    MappingRule("461",  "ar_intercompany",   1, "Debitori diverși — related-party flag"),
-    MappingRule("462",  "otherCurrentLiab",  1, "Creditori diverși"),
-    # 471 — Prepaid expenses
-    MappingRule("471",  "otherCurrentAssets", 1, "Cheltuieli înregistrate în avans"),
-    # F3.7d: 473 "Decontări din operațiuni în curs de clarificare" is
-    # a clearing account. Typically lands on the debit side (asset:
-    # amount in transit to be allocated). Catches Sibiu's 473201.
-    # Mixed-side in general — credit-side usage would land negatively
-    # in otherCurrentAssets via the debit-positive sign convention.
-    MappingRule("473",  "otherCurrentAssets", 1, "Decontări operațiuni curs clarificare (473x)"),
-    # 472 — Deferred revenue (short-term portion of payments received for
-    # services not yet rendered). C-side, ST liab.
-    MappingRule("472",  "otherCurrentLiab",  1, "Venituri înregistrate în avans (deferred revenue)"),
-    # 475 — Investment subsidies (non-current portion of grants released to
-    # P&L over multiple years). C-side, LT liab. Scandia 4.04M.
-    MappingRule("475",  "otherNonCurrentLiab", 1, "Subvenții pentru investiții (LT)"),
-    # 478 — Other long-term deferred revenue. Same category as 475.
-    MappingRule("478",  "otherNonCurrentLiab", 1, "Venituri în avans LT (grants)"),
-    # 491 — AR allowance (contra to 4118). Sign -1 → reduces AR gross to net.
-    MappingRule("491",  "ar", -1, "Ajustări deprecierea creanțelor — contra-asset"),
-    # 496 — Affiliated-receivable allowance. Same category as 491 (contra
-    # to AR). Missing rule was dropping 3.62M of provisions for Scandia —
-    # the gross trade-rec was right but the net was overstated by that much.
-    MappingRule("496",  "ar", -1, "Ajustări deprecierea creanțe afiliate — contra"),
-    # 495 + the 49 catchall — complete the 49x contra-AR family. Per OMFP
-    # 1802 every 49x account is an "Ajustări pentru deprecierea creanțelor"
-    # allowance (495 group/shareholder settlements; 493/494/497/498 novel
-    # analytics). Without the catchall they dropped silently on the
-    # deterministic path → AR overstated by the missing allowance
-    # (OMFP_GAP_MATRIX row 3). 491/496 above stay matched first
-    # (longest-prefix-first sort).
-    MappingRule("495",  "ar", -1, "Ajustări deprecierea creanțe decontări grup — contra"),
-    MappingRule("49",   "ar", -1, "Ajustări deprecierea creanțelor (catchall 49x) — contra"),
-    # 481 — Internal-unit settlements
-    MappingRule("481",  "otherCurrentAssets", 1, "Decontări în cadrul unității"),
+# ── Mapping-rule vintage (canonical_bs v2 contract) ─────────────────────
+# Stamped onto every canonical_bs emission so persisted periods can be
+# tied to the exact rule vintage that produced them. Post-cutover the
+# vintage DERIVES FROM THE RESOLVED PACK: pack omfp1802@v1 keeps the
+# frozen pre-cutover string (every stored envelope and golden already
+# carries "ro_omfp1802_v2" — byte-stability), and any FUTURE pack version
+# derives mechanically via the "<jur>_<pack_id>_pack_<version>" fallback
+# (deliberately distinct from the legacy "..._v2" spelling so a future
+# omfp1802@v2 can never collide with v1-era emissions). The pack_hash
+# recorded alongside (assembled_canonical_v1.pack_provenance) is the
+# exact-content pin; mapping_version stays the human-readable vintage.
+_PACK_MAPPING_VERSION_ALIASES: Dict[Tuple[str, str, str], str] = {
+    ("RO", "omfp1802", "v1"): "ro_omfp1802_v2",
+}
 
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 5 — Cash, bank, transit
-    # ──────────────────────────────────────────────────────────────────────
-    MappingRule("509",  "stDebt",  1, "Vărsăminte de efectuat"),
-    MappingRule("5121", "cash",    1, "Conturi curente bancă RON"),
-    MappingRule("5124", "cash_fx", 1, "Conturi curente bancă valută"),
-    # 5191 / 5192 — Short-term bank credit
-    MappingRule("5191", "stDebt",  1, "Credite bancare termen scurt"),
-    MappingRule("5192", "stDebt",  1, "Credite bancare termen scurt nerambursate"),
-    MappingRule("5311", "cash",    1, "Casa în lei"),
-    MappingRule("5314", "cash_fx", 1, "Casa în valută"),
-    # F3.7d: 532 "Alte valori" — pre-paid asset-side cash equivalents:
-    # 5321 timbre fiscale (fiscal stamps), 5322 bilete de călătorie,
-    # 5323 tichete de masă (meal vouchers — Sibiu's 532801), 5328 alte
-    # valori. Always asset-side; map to otherCurrentAssets rather than
-    # cash to avoid polluting the cash bucket (these are non-liquid
-    # cash equivalents — meal vouchers can't pay bank loans).
-    MappingRule("532",  "otherCurrentAssets", 1, "Alte valori — tichete masă etc (532x)"),
-    # 581 — TRANSIT / CLEARING. NEVER in cash. The single most common
-    # Romanian-pipeline cash-overstatement bug.
-    MappingRule("581",  "ignore_transit", 1, "Viramente interne — NEVER in cash"),
 
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 8 — Off-balance (extrabilanțiere) — NEVER on the balance sheet
-    # ──────────────────────────────────────────────────────────────────────
-    # Explicit ignore rules so class-8 codes can NEVER classify onto BS/PL:
-    # previously they were excluded only by bucket_for() fall-through, and
-    # on the Claude/direct path the semantic NAME fallback could route them
-    # into assets (e.g. 8034 "Debitori scoși din activ" matched the
-    # "debitori" keyword → ar). Claiming the whole class here means
-    # bucket_for() always resolves, so bucket_for_name() is never consulted
-    # for an 8xx code. 891/892 kept as separate rules so the excluded-list
-    # reasons in canonical_bs can distinguish the opening/closing
-    # balance-sheet control accounts from ordinary memo accounts.
-    MappingRule("891",  "ignore_offbalance", 1, "Bilanț de deschidere — opening BS control, never summed"),
-    MappingRule("892",  "ignore_offbalance", 1, "Bilanț de închidere — closing BS control, never summed"),
-    MappingRule("8",    "ignore_offbalance", 1, "Class 8 extrabilanțiere — off-balance memo, never summed"),
+def mapping_version_for(identity) -> str:
+    """The mapping_version vintage string for a pack identity."""
+    alias = _PACK_MAPPING_VERSION_ALIASES.get(
+        (identity.jurisdiction.upper(), identity.pack_id, identity.version)
+    )
+    if alias is not None:
+        return alias
+    return "%s_%s_pack_%s" % (
+        identity.jurisdiction.lower(), identity.pack_id, identity.version,
+    )
 
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 6 — Expenses
-    # ──────────────────────────────────────────────────────────────────────
-    MappingRule("601",  "cogs",              1, "Cheltuieli cu materii prime"),
-    MappingRule("602",  "cogs",              1, "Materiale consumabile"),
-    MappingRule("607",  "cogs",              1, "Cheltuieli privind mărfurile"),
-    MappingRule("603",  "operatingExpenses", 1, "Obiecte de inventar"),
-    MappingRule("604",  "operatingExpenses", 1, "Materiale nestocate"),
-    MappingRule("605",  "operatingExpenses", 1, "Energia și apa"),
-    MappingRule("6024", "operatingExpenses", 1, "Piese de schimb"),
-    MappingRule("6051", "operatingExpenses", 1, "Consum de energie"),
-    MappingRule("611",  "operatingExpenses", 1, "Întreținerea și reparațiile"),
-    MappingRule("6123", "operatingExpenses", 1, "Chirii"),
-    MappingRule("613",  "operatingExpenses", 1, "Prime de asigurare"),
-    MappingRule("622",  "operatingExpenses", 1, "Comisioane și onorarii"),
-    MappingRule("626",  "operatingExpenses", 1, "Poștă și telecomunicații"),
-    MappingRule("627",  "operatingExpenses", 1, "Servicii bancare (non-financial)"),
-    # 628 — Third-party services. Anomaly-checked separately.
-    MappingRule("628",  "opex_third_party",  1, "Servicii executate de terți — anomaly check"),
-    MappingRule("635",  "operatingExpenses", 1, "Impozite și taxe"),
-    # Class 65 — Alte cheltuieli de exploatare (other operating expenses).
-    # Includes doubtful-receivable provisions (654), donations (655), and
-    # other non-classified op-expenses (658). For Scandia ~RON 12.5M.
-    MappingRule("65",   "operatingExpenses", 1, "Class 65 — alte cheltuieli exploatare (catchall)"),
-    # Class 62 — External services. 622/626/627/628 already explicit; 621
-    # (collaborators), 623 (protocol), 624 (transport), 625 (travel) are
-    # also operating expenses for any manufacturer.
-    MappingRule("62",   "operatingExpenses", 1, "Class 62 — servicii executate de terți (catchall)"),
-    # Class 61 sub-buckets — chirii (612), pregatire personal (615),
-    # other services (618). Scandia 5.5M + 0.9M + 2.6M = 9M unmapped without
-    # these. The longest-prefix sort still lets 611/6123/613 win.
-    MappingRule("612",  "operatingExpenses", 1, "Ch. chirii și redevențe (rent + royalties)"),
-    MappingRule("615",  "operatingExpenses", 1, "Ch. pregătire personal (training)"),
-    MappingRule("618",  "operatingExpenses", 1, "Ch. servicii diverse (subclass)"),
-    # Class 64 personnel sub-buckets missed by 641/645 explicit rules:
-    # 642 (tichete masă/cadou — meal & gift vouchers, ~6.3M) and 646
-    # (contribuții asiguratorie pt. muncă — work-insurance, ~1.6M).
-    MappingRule("642",  "operatingExpenses", 1, "Ch. tichete (meal & gift vouchers)"),
-    MappingRule("646",  "operatingExpenses", 1, "Ch. contribuții asiguratorie muncă"),
-    # 6814 — provisions / impairments on current assets. Companion to 6811
-    # and 6812; close enough to D&A in spirit that we route to the same
-    # bucket so the statutory P&L's "amortizare și provizioane" line matches.
-    MappingRule("6814", "depreciation",      1, "Ch. provizioane active circulante"),
-    # 665 (FX loss catchall) + 668 (other financial expense), 7-class
-    # counterparts: 781 (provision reversals on current assets), 768 (other
-    # financial income). Scandia: 781 = ~RON 8M; without it the briefing's
-    # "Total operating revenue" understates by ~2%.
-    MappingRule("665",  "fx_loss",           1, "Diferențe nefavorabile curs (catchall)"),
-    MappingRule("668",  "financialExpense",  1, "Alte cheltuieli financiare"),
-    MappingRule("781",  "otherIncome",       1, "Venituri din provizioane reluare (operating)"),
-    MappingRule("768",  "financial_income",  1, "Alte venituri financiare"),
-    MappingRule("641",  "operatingExpenses", 1, "Salariile personalului"),
-    MappingRule("645",  "operatingExpenses", 1, "Asigurări sociale (cheltuieli)"),
-    MappingRule("6458", "operatingExpenses", 1, "Alte asigurări sociale"),
-    MappingRule("6461", "operatingExpenses", 1, "Contribuția asiguratorie pt. muncă"),
-    # Financial expenses
-    MappingRule("6651", "fx_loss",           1, "Diferențe nefavorabile de curs valutar"),
-    MappingRule("666",  "interest_expense",  1, "Cheltuieli privind dobânzile"),
-    MappingRule("667",  "financialExpense",  1, "Sconturi acordate"),
-    # D&A
-    MappingRule("6811", "depreciation",      1, "Amortizarea imobilizărilor"),
-    MappingRule("6812", "depreciation",      1, "Provizioane pt. exploatare"),
-    # Income tax (P&L expense, NOT BS payable — 4411 is the BS liability).
-    MappingRule("691",  "taxExpense",        1, "Cheltuieli cu impozitul pe profit"),
 
-    # ──────────────────────────────────────────────────────────────────────
-    # CLASS 7 — Income
-    # ──────────────────────────────────────────────────────────────────────
-    MappingRule("701",  "revenue", 1, "Venituri din vânzarea produselor finite"),
-    MappingRule("704",  "revenue", 1, "Venituri din servicii prestate"),
-    # 706 — Rental / royalty income. CRE detection signal.
-    MappingRule("706",  "revenue", 1, "Venituri din chirii — CRE signal"),
-    MappingRule("707",  "revenue", 1, "Venituri din vânzarea mărfurilor"),
-    MappingRule("708",  "revenue", 1, "Venituri din activități diverse"),
-    # 709 — Reduceri comerciale acordate (commercial discounts given to
-    # customers). Contra-revenue: Claude already returns this as a negative
-    # number (debit-balance class-7 → negative-credit-balance). Sign=+1
-    # passes the negative through so revenue gets reduced. For Scandia
-    # this is ~RON 37M, taking gross 449M → net turnover 412M.
-    MappingRule("709",  "revenue", 1, "Reduceri comerciale acordate — contra-revenue (Claude-signed)"),
-    # 711 — Inventory variation. Non-cash statutory accrual: change in
-    # finished-goods inventory mirrors production volume, NOT income that
-    # contributes to EBITDA cash margin. Routed to its own memo bucket so
-    # the cash-view EBITDA excludes it; the statutory view re-adds it.
-    MappingRule("711",  "inventoryVariationMemo", 1, "Variația stocurilor — non-cash memo"),
-    # 721 / 722 / 725 — CAPITALIZED OWN-WORK. Memo only — NEVER in revenue,
-    # NEVER in EBITDA. The single most common Romanian-pipeline revenue/
-    # EBITDA-overstatement bug.
-    MappingRule("721",  "capitalizedOwnWork", 1, "Capitalized own-work — MEMO, excluded from EBITDA"),
-    MappingRule("722",  "capitalizedOwnWork", 1, "Producția imobilizări corporale — MEMO"),
-    MappingRule("725",  "capitalizedOwnWork", 1, "Producția imobilizări (other) — MEMO"),
-    MappingRule("740",  "otherIncome", 1, "Subvenții — flagged non-recurring"),
-    MappingRule("758",  "otherIncome", 1, "Alte venituri exploatare"),
-    # Financial income — broken out for visibility (briefing reads each)
-    MappingRule("7611", "financial_income", 1, "Venituri dividende — entități afiliate"),
-    MappingRule("7612", "financial_income", 1, "Venituri dividende — entități asociate"),
-    MappingRule("762",  "financial_income", 1, "Venituri din interese de participare"),
-    MappingRule("763",  "financial_income", 1, "Venituri din creanțe imobilizate"),
-    MappingRule("7651", "fx_gain",          1, "Diferențe favorabile de curs valutar"),
-    MappingRule("766",  "interest_income",  1, "Venituri din dobânzi"),
-    MappingRule("767",  "financial_income", 1, "Venituri din sconturi obținute"),
+# Resolved ONCE at import (startup): the engine must fail loudly at boot
+# when packs/ is missing, not mid-upload. Note the derived constant is
+# bound at import — swapping ENGINE_PACKS_ROOT later (tests) re-routes
+# classification but not this vintage stamp; production has one root.
+MAPPING_VERSION = mapping_version_for(classification_pack().identity)
 
-    # ──────────────────────────────────────────────────────────────────────
-    # F3.8 — SYSTEMATIC RAS COVERAGE PASS (2-digit catchalls per OMFP 1802)
-    # ──────────────────────────────────────────────────────────────────────
-    # Goal: route any account from the OMFP 1802 standard chart into a
-    # plausible bucket even when the specific 3-4 digit sub-account has
-    # no explicit rule. This dramatically reduces UNMAPPED on first uploads
-    # from novel industries / chart-of-accounts dialects.
-    #
-    # Sort discipline: `_RULES_SORTED` orders longest-prefix-first, so these
-    # 2-digit catchalls fire ONLY when no longer-prefix rule matches the
-    # incoming code. None of the catchalls below can override an existing
-    # specific rule — F3.1-PARITY on EEI/Scandia/Sibiu/Frozen/RealEstate
-    # is mechanically preserved.
-    #
-    # Bucket conservatism: when a class spans both operating and financial
-    # sides (e.g., class 66 has interest 666, FX 665, but also rare 663/664),
-    # the catchall picks the dominant bucket for the class. Specific rules
-    # for the dominant sub-accounts already exist, so the catchall only
-    # affects truly novel codes.
 
-    # Class 1 — Capital / equity / LT liab catchalls
-    MappingRule("13", "otherNonCurrentLiab", 1, "F3.8: Subvenții pentru investiții (catchall 13x)"),
-    MappingRule("14", "otherEquity",         1, "F3.8: Câștiguri/pierderi instrumente capital (catchall 14x)"),
-
-    # Class 2 — Fixed-asset catchall (concession, lease-related fixed assets)
-    MappingRule("22", "ppe",                 1, "F3.8: Imobilizări în concesiune / leasing (catchall 22x)"),
-
-    # Class 5 — Cash / bank / treasury catchalls
-    # NOTE order: 519 catchall BEFORE 51 catchall (longest-prefix-first sort
-    # makes the order in source irrelevant — readability only).
-    MappingRule("50",  "otherCurrentAssets", 1, "F3.8: Investiții pe termen scurt (catchall 50x; 509 stays stDebt)"),
-    MappingRule("519", "stDebt",             1, "F3.8: Credite bancare termen scurt (catchall 519x other than 5191/5192)"),
-    MappingRule("51",  "cash",               1, "F3.8: Conturi la bănci (catchall 51x; 519/5121/5124 stay specific)"),
-    MappingRule("54",  "cash",               1, "F3.8: Acreditive (letters of credit — catchall 54x)"),
-    MappingRule("59",  "cash",              -1, "F3.8: Ajustări depreciere trezorerie — contra (catchall 59x)"),
-
-    # Class 6 — Expense catchalls. Default bucket per OMFP 1802 sub-class
-    # purpose: 60 (inventory-cost), 61 (services), 63 (taxes/fees), 64
-    # (personnel), 66 (financial), 67 (extraordinary — pre-2015, rare),
-    # 68 (depreciation/provisions), 69 (income tax).
-    MappingRule("60", "operatingExpenses",   1, "F3.8: Class 60 catchall (606/608/609 — packaging, returns, discounts received)"),
-    MappingRule("61", "operatingExpenses",   1, "F3.8: Class 61 catchall (614/616/617 — equipment rent, misc services)"),
-    MappingRule("63", "operatingExpenses",   1, "F3.8: Class 63 catchall (633/634/636/637/638 — other taxes & fees)"),
-    MappingRule("64", "operatingExpenses",   1, "F3.8: Class 64 catchall (643/644/647/648 — deferred personnel, jetoane, social tickets)"),
-    MappingRule("66", "financialExpense",    1, "F3.8: Class 66 catchall (663/664/669 — other financial losses)"),
-    MappingRule("67", "operatingExpenses",   1, "F3.8: Class 67 catchall (pre-2015 extraordinary expenses, rare)"),
-    MappingRule("68", "depreciation",        1, "F3.8: Class 68 catchall (686/687/689 — other depreciation/provisions)"),
-    MappingRule("69", "taxExpense",          1, "F3.8: Class 69 catchall (695/698 — deferred tax, other income tax)"),
-
-    # Class 7 — Revenue / income catchalls. 765 specific for FX gain
-    # (sub-class of class 76 financial income — break out before catchall).
-    MappingRule("765", "fx_gain",            1, "F3.8: Diferențe favorabile curs (catchall 765x; 7651 stays specific)"),
-    MappingRule("70",  "revenue",            1, "F3.8: Class 70 catchall (702/703/705 — semifabricate, reziduale, cercetare)"),
-    MappingRule("71",  "inventoryVariationMemo", 1, "F3.8: Class 71 catchall (712 — variația produselor; same memo as 711)"),
-    MappingRule("72",  "capitalizedOwnWork", 1, "F3.8: Class 72 catchall (723/724 — capitalized prod. of inventory/intangibles)"),
-    MappingRule("74",  "otherIncome",        1, "F3.8: Class 74 catchall (741/745/749 — operating subsidies, other grants)"),
-    MappingRule("75",  "otherIncome",        1, "F3.8: Class 75 catchall (754/755/757 — reactivated receivables, other op income)"),
-    MappingRule("76",  "financial_income",   1, "F3.8: Class 76 catchall (any 76x not specifically mapped above)"),
-    MappingRule("77",  "otherIncome",        1, "F3.8: Class 77 catchall (pre-2015 extraordinary income, rare)"),
-    MappingRule("78",  "otherIncome",        1, "F3.8: Class 78 catchall (786/788 — other reversals; 781 stays specific)"),
-]
-
-# Sort longest-prefix-first so most specific wins.
-_RULES_SORTED = sorted(_RULES, key=lambda r: -len(r.prefix))
+#: Asset-side fields of the legacy BS dict (_empty_bs) — decide a BS
+#: bucket's NATURAL balance side (asset = debit). Used by the wrong-side
+#: flip facade; mirrored by scripts/port_ro_pack.py's _ASSET_BS_FIELDS.
+_ASSET_BS_FIELDS = frozenset({
+    "cash",
+    "accountsReceivable",
+    "inventory",
+    "otherCurrentAssets",
+    "propertyPlantEquipment",
+    "intangibles",
+    "otherNonCurrentAssets",
+})
 
 
 def bucket_for(code: str) -> Optional[MappingRule]:
-    for rule in _RULES_SORTED:
-        if code.startswith(rule.prefix):
-            return rule
-    return None
-
-
-# ── Bifunctional wrong-side flips (canonical_bs v2, OMFP_GAP_MATRIX rows
-#    7 + 8 + 11) ─────────────────────────────────────────────────────────
-# These account families are MIXED-SIDE: the mapping rule above encodes the
-# natural-side bucket, but a closing balance on the OPPOSITE side is a real
-# position on the other side of the balance sheet — not a negative line
-# inside the natural bucket. Amounts arrive pre-signed (parser emits
-# sf_d−sf_c for debit-natural rules, sf_c−sf_d for credit-natural rules),
-# so a NEGATIVE signed value on a sign=+1 rule is exactly the wrong-side
-# case. assemble_statements re-routes it to the bucket below with the
-# absolute value, keeping BOTH sides of the BS from being understated by
-# the same amount (the invisible-to-drift residual class the audit maps).
-#
-# 512x is the headline case: a credit-closing bank account is an OVERDRAFT
-# → short-term bank debt, NEVER negative cash. 117/121 are deliberately
-# ABSENT: their debit-side balances are legitimate negative equity
-# (accumulated losses / current-year loss), not misclassifications.
-# Exported so the parser layer can share the same table instead of
-# growing a second, diverging flip list.
-BIFUNCTIONAL_WRONG_SIDE_FLIPS: List[Tuple[str, str]] = [
-    # (prefix, bucket that receives the balance when it closes on the
-    #  side opposite the natural rule's)
-    ("4111", "otherCurrentLiab"),    # customer credit balances = advances received
-    ("411",  "otherCurrentLiab"),    # 411x catchall, same economics
-    ("401",  "otherCurrentAssets"),  # supplier debit balances = advances/overpayments
-    ("409",  "otherCurrentLiab"),    # supplier-advance credit balances
-    ("419",  "otherCurrentAssets"),  # customer-advance debit balances = refund due
-    ("455",  "otherCurrentLiab"),    # shareholder account credit = payable to associate
-    ("461",  "otherCurrentLiab"),    # sundry debtor credit = payable
-    ("462",  "otherCurrentAssets"),  # sundry creditor debit = receivable
-    ("473",  "otherCurrentLiab"),    # clearing account credit side
-    ("4424", "otherCurrentLiab"),    # VAT-recoverable credit = VAT payable
-    ("4426", "otherCurrentLiab"),    # input-VAT credit side
-    ("4428", "otherCurrentAssets"),  # deferred VAT debit side = asset
-    ("5121", "stDebt"),              # overdraft on RON account → ST bank debt
-    ("5124", "stDebt"),              # overdraft on FX account → ST bank debt
-    ("512",  "stDebt"),              # every other 512x analytic — same rule
-]
-
-# Longest-prefix-first so 4428 wins over 442-family lookups etc. Stable
-# sort keeps equal-length prefixes in declaration order — deterministic.
-_WRONG_SIDE_FLIPS_SORTED = sorted(
-    BIFUNCTIONAL_WRONG_SIDE_FLIPS, key=lambda p: -len(p[0])
-)
+    """The winning classification rule for an account code — a facade
+    over ``CompiledPack.match`` (fixed precedence: exact > longest
+    prefix > range), byte-compatible with the pre-cutover BucketRule
+    surface: .bucket == the pack rule's line_id, .sign == -1 iff the
+    pack rule is contra, .prefix/.description carried from the rule."""
+    rule = classification_pack().match(code)
+    if rule is None:
+        return None
+    return MappingRule(
+        prefix=rule.prefix or rule.exact or rule.range_from or "",
+        bucket=rule.line_id,
+        sign=-1 if rule.contra else 1,
+        description=rule.description,
+    )
 
 
 def wrong_side_flip_bucket(code: str) -> Optional[str]:
-    """Return the opposite-side bucket for a bifunctional account code, or
-    None when the code has no registered wrong-side flip."""
-    for prefix, flip_bucket in _WRONG_SIDE_FLIPS_SORTED:
-        if code.startswith(prefix):
-            return flip_bucket
-    return None
+    """The OPPOSITE-side bucket for a bifunctional account code, or None.
+
+    Pack-backed WRONG-SIDE semantics: returns the winning rule's
+    side_flip target only when the flip fires on the side OPPOSITE the
+    rule's natural one — a closing balance there is a REAL position on
+    the other side of the balance sheet (5121 credit = overdraft ->
+    stDebt, never negative cash; 4111 credit = customer advances). A
+    flip registered on the rule's NATURAL side (1687 under the ltDebt
+    winner — the deterministic parser lane's credit-side re-route,
+    honored pre-assembly via bucket_override) deliberately returns None
+    here: the wrong-side re-route in assemble_statements must not fire
+    it. Contra rules (sign=-1) never flip — their negative signed value
+    IS the intended subtraction.
+
+    vs the pre-cutover table: one unification, documented — the
+    418/451/452 families (parser-lane-only flips before the cutover) now
+    flip on the accounts (LLM) lane too, so both lanes read the ONE pack
+    table. No corpus case carries such a row (the shadow phase verified
+    this); the deterministic lane is byte-identical because its parser
+    re-route still fires first.
+    """
+    rule = classification_pack().match(code)
+    if rule is None or rule.side_flip is None or rule.contra:
+        return None
+    field = _BUCKET_TO_BS_FIELD.get(rule.line_id)
+    if field is None:
+        return None  # flips only exist on BS buckets
+    natural = "debit" if field in _ASSET_BS_FIELDS else "credit"
+    if rule.side_flip.side == natural:
+        return None
+    return rule.side_flip.line_id
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1243,9 +804,8 @@ def assemble_statements(
         override_bucket = raw.get("bucket_override")
         if override_bucket:
             # Replace the rule in-flight so the downstream routing picks
-            # the override bucket. Construct a new MappingRule rather than
-            # mutate the cached one — `_RULES_SORTED` is global state and
-            # mutating it would silently corrupt subsequent calls.
+            # the override bucket (a fresh MappingRule view — the pack's
+            # compiled rules are immutable and never touched).
             rule = MappingRule(
                 prefix=rule.prefix,
                 bucket=str(override_bucket),
@@ -1269,8 +829,8 @@ def assemble_statements(
             # negative=loss) for exactly this purpose. Sum across all
             # 121x sub-accounts (`121.0`, `121101`, etc.) — Romanian
             # analytical sub-accounting splits 121 the same way other
-            # equity accounts split. `rule.sign` is +1 for 121 (set
-            # explicitly in the catalog at line 89).
+            # equity accounts split. `rule.sign` is +1 for 121 (the
+            # pack's ro.121 rule is non-contra).
             if code.startswith("121"):
                 if account_121_anchor is None:
                     account_121_anchor = 0.0
@@ -1289,14 +849,16 @@ def assemble_statements(
         # signed value on a sign=+1 rule means the closing balance sits on
         # the side OPPOSITE the rule's natural bucket (parser emits signed
         # sf math; Claude-path wrong-side balances arrive negative the same
-        # way). For registered bifunctional families the position belongs
-        # on the other side of the BS — 5121 credit is an overdraft (ST
-        # bank debt), never negative cash; 401 debit is a supplier
-        # receivable, never negative AP. Re-route with the absolute value.
-        # sign=-1 contra rules (491, 28x, 169, 269…) are exempt: their
-        # negative signed value IS the intended contra subtraction. Rows
-        # the parser already side-flipped arrive via bucket_override with
-        # positive amounts, so this never double-fires.
+        # way). For families whose pack rule carries a wrong-side
+        # side_flip the position belongs on the other side of the BS —
+        # 5121 credit is an overdraft (ST bank debt), never negative
+        # cash; 401 debit is a supplier receivable, never negative AP.
+        # Re-route with the absolute value. sign=-1 contra rules (491,
+        # 28x, 169, 269…) are exempt: their negative signed value IS the
+        # intended contra subtraction (wrong_side_flip_bucket also skips
+        # them internally). Rows the parser already side-flipped arrive
+        # via bucket_override with positive amounts, so this never
+        # double-fires.
         if not override_bucket and rule.sign == 1 and signed < 0:
             flip_to = wrong_side_flip_bucket(code)
             if flip_to:
@@ -2096,6 +1658,25 @@ def assemble_statements(
     # piggy-backs on the F4.1e DB persistence and read-path plucks.
     canonical_env = result.get("assembled_canonical_v1")
     if isinstance(canonical_env, dict):
+        # ── Pack provenance (Phase 3 cutover — contract addendum) ────────
+        # Pin the envelope to the EXACT pack content that classified it:
+        # resolved id@version plus the content-addressed pack_hash.
+        # Envelope-root, additive: the served canonical_bs payload and the
+        # golden artifacts never carry it (byte-stability), but the
+        # reconcile carry-forward key (engine.api._reconcile) and any
+        # replay/audit reader can hold a stored period to the pack vintage
+        # it was built under. Serving NEVER re-resolves a pack — the serve
+        # path is a pure function of the persisted envelope — so a newer
+        # pack version in packs/ cannot re-classify a stored period
+        # (pinning locked by tests/engine/test_pack_pinning.py).
+        _cls_pack = classification_pack()
+        canonical_env["pack_provenance"] = {
+            "jurisdiction": _cls_pack.identity.jurisdiction,
+            "pack": "%s@%s" % (_cls_pack.identity.pack_id,
+                               _cls_pack.identity.version),
+            "pack_hash": _cls_pack.pack_hash,
+            "mapping_version": MAPPING_VERSION,
+        }
         try:
             from engine.methodology import load_methodology  # type: ignore
             from engine.methodology import evaluate as methodology_evaluate  # type: ignore

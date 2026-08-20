@@ -1,4 +1,4 @@
-"""engine.packs — jurisdiction DATA packs (Part C: loader, shadow phase).
+"""engine.packs — jurisdiction DATA packs (loader + production runtime).
 
 A pack is a pure-data directory (five YAML files: pack.yaml,
 classification.yaml, checks.yaml, statement_map.yaml, reconcile.yaml)
@@ -10,10 +10,12 @@ content-addressed ``pack_hash``, resolves the governing pack for a
 (schema, effective-range tiling, rule shadowing, statement-map
 coverage). CLI: ``scripts/pack_lint.py``.
 
-ZERO-BEHAVIOR-CHANGE: production keeps running the legacy
-classification (``engine.country_packs``); nothing in the pipeline
-imports this package yet. The golden corpus is untouched by
-construction.
+PRODUCTION SOURCE OF TRUTH (Phase 3 cutover): Romanian classification
+runs off the pack resolved by ``engine.packs.runtime.active_pack`` —
+``engine.country_packs.ro_romania.chart_of_accounts`` is a facade over
+it, and the in-code rule tables are gone (their frozen historical copy
+lives in scripts/port_ro_pack.py). The golden corpus replays
+byte-identically across the cutover by construction.
 """
 from .schema import (
     CHECK_IMPLS,
@@ -45,6 +47,11 @@ from .loader import (
     discover_packs,
     load_pack,
     resolve,
+)
+from .runtime import (
+    active_pack,
+    default_packs_root,
+    invalidate_pack_cache,
 )
 from .lint import (
     LintReport,
@@ -86,6 +93,10 @@ __all__ = [
     "discover_packs",
     "resolve",
     "compute_pack_hash",
+    # runtime
+    "active_pack",
+    "default_packs_root",
+    "invalidate_pack_cache",
     # lint
     "LintReport",
     "lint_pack",

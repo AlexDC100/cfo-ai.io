@@ -66,6 +66,7 @@ from .schema import (
 
 __all__ = [
     "PACK_FILES",
+    "OPTIONAL_PACK_FILES",
     "load_pack",
     "discover_packs",
     "resolve",
@@ -80,6 +81,11 @@ PACK_FILES = (
     "statement_map.yaml",
     "reconcile.yaml",
 )
+
+#: Optional pack files (loaded when present, ignored when absent).
+#: confirmed_mappings.yaml — human-confirmed code -> line_id overlay,
+#: compiled into highest-precedence exact rules (see _load_confirmed).
+OPTIONAL_PACK_FILES = ("confirmed_mappings.yaml",)
 
 _SIDES = ("debit", "credit")
 
@@ -351,6 +357,165 @@ def _load_rules(c: _Collector, data: Any) -> Tuple[ClassificationRule, ...]:
     return tuple(rules)
 
 
+# --- classification.yaml: optional prompt_guidance --------------------------
+
+
+def _load_prompt_guidance(c: _Collector, data: Any) -> Optional[Mapping[str, Any]]:
+    """Optional `prompt_guidance` section of classification.yaml — the
+    jurisdiction chart-logic the AI-lane classify prompt renders:
+
+        prompt_guidance:
+          header: "<prose — required>"
+          class_map:            # optional, non-empty when present
+            - digit: "1"
+              name: "<native class name>"
+              guidance: "<routing guidance prose>"
+          footer: "<prose — optional>"
+
+    Returns a deep-frozen mapping (absent keys stay absent so the
+    canonical form — and with it pack_hash — carries exactly what the
+    author wrote), or None when the section is absent."""
+    f = "classification.yaml"
+    if not isinstance(data, dict):
+        return None
+    raw = data.get("prompt_guidance")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        c.error("bad-prompt-guidance", "'prompt_guidance' must be a mapping", f)
+        return None
+    header = _req_str(c, raw, "header", f, "prompt_guidance")
+
+    guidance: Dict[str, Any] = {"header": header}
+    raw_map = raw.get("class_map")
+    if raw_map is not None:
+        if not isinstance(raw_map, list) or not raw_map:
+            c.error("bad-prompt-guidance",
+                    "'class_map' must be a non-empty list when present",
+                    f, "prompt_guidance")
+        else:
+            entries: List[Dict[str, str]] = []
+            seen_digits: Dict[str, int] = {}
+            for i, entry in enumerate(raw_map):
+                where = "prompt_guidance.class_map[%d]" % i
+                if not isinstance(entry, dict):
+                    c.error("bad-type", "class_map entry must be a mapping", f, where)
+                    continue
+                digit = _digit_str(c, entry.get("digit"), "digit", f, where)
+                name = _req_str(c, entry, "name", f, where)
+                entry_guidance = _req_str(c, entry, "guidance", f, where)
+                unknown = set(entry) - {"digit", "name", "guidance"}
+                for k in sorted(unknown):
+                    c.error("unknown-field", "unknown key %r on class_map entry" % k,
+                            f, where)
+                if digit is None or not name or not entry_guidance:
+                    continue
+                if digit in seen_digits:
+                    c.error("duplicate-class-digit",
+                            "class_map digit %r already declared at class_map[%d]"
+                            % (digit, seen_digits[digit]), f, where)
+                seen_digits.setdefault(digit, i)
+                entries.append({"digit": digit, "name": name,
+                                "guidance": entry_guidance})
+            if entries:
+                guidance["class_map"] = entries
+
+    footer = raw.get("footer")
+    if footer is not None:
+        if not isinstance(footer, str) or not footer.strip():
+            c.error("bad-prompt-guidance",
+                    "'footer' must be a non-empty string when present",
+                    f, "prompt_guidance")
+        else:
+            guidance["footer"] = footer
+
+    unknown = set(raw) - {"header", "class_map", "footer"}
+    for k in sorted(unknown):
+        c.error("unknown-field", "unknown key %r in prompt_guidance" % k, f)
+
+    if c.errors():
+        return None
+    return freeze_json(guidance, "prompt_guidance")
+
+
+# --- confirmed_mappings.yaml (optional overlay) ------------------------------
+
+
+def _load_confirmed(c: _Collector, data: Any) -> Tuple[ClassificationRule, ...]:
+    """Optional confirmed_mappings.yaml — human-confirmed account-code ->
+    line_id memoizations:
+
+        confirmed_mappings:
+          - code: "466"
+            line_id: "ar_tax_recoverable"
+            confirmed_by: "<who>"        # optional
+            confirmed_at: "2026-08-20"   # optional ISO date
+            note: "<free text>"          # optional
+
+    Compiled into exact ClassificationRules (rule_id "confirmed.<code>")
+    that are APPENDED AFTER the base rules: the exact index resolves
+    last-wins, so a confirmation overrides any base rule — exact, prefix
+    or range — for that code (the documented highest-precedence
+    semantics; _validate_cross exempts these deliberate shadows).
+    Provenance folds into the rule description deterministically, so
+    pack_hash covers every field."""
+    f = "confirmed_mappings.yaml"
+    if not isinstance(data, dict) or not isinstance(data.get("confirmed_mappings"), list):
+        c.error("bad-file",
+                "confirmed_mappings.yaml must be a mapping with a "
+                "'confirmed_mappings' list", f)
+        return ()
+    unknown_top = set(data) - {"confirmed_mappings"}
+    for k in sorted(unknown_top):
+        c.error("unknown-field", "unknown key %r in confirmed_mappings.yaml" % k, f)
+    rules: List[ClassificationRule] = []
+    seen: Dict[str, int] = {}
+    for i, raw in enumerate(data["confirmed_mappings"]):
+        where = "confirmed_mappings[%d]" % i
+        if not isinstance(raw, dict):
+            c.error("bad-type", "confirmed mapping must be a mapping", f, where)
+            continue
+        code = _digit_str(c, raw.get("code"), "code", f, where)
+        line_id = _req_str(c, raw, "line_id", f, where)
+        confirmed_by = raw.get("confirmed_by")
+        if confirmed_by is not None and (
+            not isinstance(confirmed_by, str) or not confirmed_by.strip()
+        ):
+            c.error("bad-type", "'confirmed_by' must be a non-empty string", f, where)
+            confirmed_by = None
+        confirmed_at: Optional[str] = None
+        if raw.get("confirmed_at") is not None:
+            parsed = _parse_date(c, raw.get("confirmed_at"), "confirmed_at", f)
+            if parsed is not None:
+                confirmed_at = parsed.isoformat()
+        note = raw.get("note")
+        if note is not None and (not isinstance(note, str) or not note.strip()):
+            c.error("bad-type", "'note' must be a non-empty string", f, where)
+            note = None
+        unknown = set(raw) - {"code", "line_id", "confirmed_by", "confirmed_at", "note"}
+        for k in sorted(unknown):
+            c.error("unknown-field", "unknown key %r on confirmed mapping" % k, f, where)
+        if code is None or not line_id:
+            continue
+        if code in seen:
+            c.error("duplicate-confirmed-code",
+                    "code %r already confirmed at confirmed_mappings[%d]"
+                    % (code, seen[code]), f, where)
+            continue
+        seen.setdefault(code, i)
+        provenance = ", ".join(p for p in (confirmed_at, confirmed_by) if p)
+        description = "Human-confirmed mapping"
+        if provenance:
+            description += " (%s)" % provenance
+        if note:
+            description += ": %s" % note
+        rules.append(ClassificationRule(
+            rule_id="confirmed.%s" % code, kind="exact", line_id=line_id,
+            exact=code, description=description,
+        ))
+    return tuple(rules)
+
+
 # --- checks.yaml ------------------------------------------------------------
 
 
@@ -576,10 +741,15 @@ def _validate_cross(
         if r.kind == "exact":
             assert r.exact is not None
             if r.exact in seen_exact:
-                c.error("rule-shadowed-exact",
-                        "exact code %r already claimed by rule %r — this rule "
-                        "is unreachable" % (r.exact, seen_exact[r.exact]),
-                        "classification.yaml", r.rule_id)
+                # A confirmed-overlay rule shadowing a BASE rule is the
+                # documented override semantics (highest precedence), not
+                # ambiguity — duplicates WITHIN the overlay are already
+                # rejected by _load_confirmed.
+                if not r.rule_id.startswith("confirmed."):
+                    c.error("rule-shadowed-exact",
+                            "exact code %r already claimed by rule %r — this rule "
+                            "is unreachable" % (r.exact, seen_exact[r.exact]),
+                            "classification.yaml", r.rule_id)
             seen_exact.setdefault(r.exact, r.rule_id)
         elif r.kind == "prefix":
             assert r.prefix is not None
@@ -643,10 +813,21 @@ def load_pack(pack_dir: Union[str, Path]) -> CompiledPack:
         c.raise_if_errors()
 
     raw = {name: _read_yaml(c, pack_dir, name) for name in PACK_FILES}
+    # Optional overlay: read ONLY when present (absence is the normal case).
+    has_confirmed = (pack_dir / "confirmed_mappings.yaml").is_file()
+    raw_confirmed = (
+        _read_yaml(c, pack_dir, "confirmed_mappings.yaml") if has_confirmed else None
+    )
     c.raise_if_errors()  # missing files / YAML syntax stop here
 
     identity = _load_identity(c, raw["pack.yaml"])
-    rules = _load_rules(c, raw["classification.yaml"])
+    base_rules = _load_rules(c, raw["classification.yaml"])
+    prompt_guidance = _load_prompt_guidance(c, raw["classification.yaml"])
+    confirmed_rules = _load_confirmed(c, raw_confirmed) if has_confirmed else ()
+    # Confirmed overlay APPENDS after the base rules: the exact index is
+    # built last-wins below, which makes a confirmation the highest-
+    # precedence rule for its code.
+    rules = base_rules + confirmed_rules
     checks = _load_checks(c, raw["checks.yaml"])
     bs, pl = _load_statement_map(c, raw["statement_map.yaml"])
     reconcile = _load_reconcile(c, raw["reconcile.yaml"])
@@ -681,6 +862,7 @@ def load_pack(pack_dir: Union[str, Path]) -> CompiledPack:
         exact_index=freeze_json_mapping(exact_index),
         prefix_index=freeze_json_mapping(prefix_index),
         range_rules=tuple(range_rules),
+        prompt_guidance=prompt_guidance,
     )
     pack_hash = compute_pack_hash(unhashed.canonical_form())
     return CompiledPack(
@@ -690,6 +872,7 @@ def load_pack(pack_dir: Union[str, Path]) -> CompiledPack:
         exact_index=unhashed.exact_index,
         prefix_index=unhashed.prefix_index,
         range_rules=unhashed.range_rules,
+        prompt_guidance=prompt_guidance,
     )
 
 

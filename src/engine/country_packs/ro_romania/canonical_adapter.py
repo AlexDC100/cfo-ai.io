@@ -56,9 +56,9 @@ except ImportError:  # standalone module loading (scripts) only
 # ────────────────────────────────────────────────────────────────────────
 # RAS account prefix → canonical bucket name mapping.
 #
-# More specific prefixes win (longest-match-first). The order in this
-# list matches how F3.8's _RULES_SORTED resolution works in
-# `chart_of_accounts.py` — but we apply it post-hoc to the
+# More specific prefixes win (longest-match-first) — the same
+# longest-prefix resolution the classification pack uses (and the
+# pre-cutover _RULES_SORTED used) — but we apply it post-hoc to the
 # already-routed line_items rather than re-doing the engine's mapping.
 #
 # Why post-hoc: line_items already contain the engine's signed amounts
