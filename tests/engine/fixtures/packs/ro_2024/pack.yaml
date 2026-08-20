@@ -1,0 +1,17 @@
+# Test fixture pack — RO, effective window 2024 (N3 seed case: a
+# 2024-dated period must resolve THIS pack even after the 2025 pack
+# exists). Tiny but schema-complete; NOT production rule data.
+schema_version: pack1
+jurisdiction: RO
+pack_id: ro_omfp1802_test
+version: "2024.1"
+effective_from: 2024-01-01
+effective_to: 2025-01-01
+legal_sources:
+  - citation: "OMFP 1802/2014 — Reglementările contabile privind situațiile financiare anuale"
+    url: "https://static.anaf.ro/static/10/Anaf/legislatie/OMFP_1802_2014.pdf"
+  - "Legea contabilității nr. 82/1991"
+changelog:
+  - version: "2024.1"
+    date: 2024-01-15
+    notes: "Initial test pack for the 2024 effective window."

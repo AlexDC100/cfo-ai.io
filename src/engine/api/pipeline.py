@@ -614,6 +614,17 @@ def _deterministic_tb_parsed(
     `getattr` fallbacks keep the builder harmless if a caller ever hands
     plain lists (legacy shape) instead of the metadata-carrying results.
     """
+    if os.environ.get("SHADOW_CLASSIFY") == "1":
+        # SHADOW-CLASSIFY probe (zero-behavior-change phase): compare the
+        # legacy classification with the jurisdiction-pack classification
+        # over this same parse and LOG the outcome. Opt-in via
+        # SHADOW_CLASSIFY=1, default OFF; logs only — never mutates
+        # inputs, never raises, never touches the returned payload.
+        try:
+            from engine.passes.shadow import log_shadow_for_tb
+            log_shadow_for_tb(tb_rows, doc_id=str(doc.get("id") or ""))
+        except Exception:  # noqa: BLE001 — the shadow must never break prod
+            logger.exception("[shadow_classify] probe failed (ignored)")
     return {
         "company_name": (doc.get("original_filename") or "Imported entity").rsplit(".", 1)[0],
         "period_label": "Imported period",

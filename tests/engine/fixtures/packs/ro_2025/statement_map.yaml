@@ -1,0 +1,54 @@
+# Canonical statement-line tree (BS / PL). Leaves are the classifiable
+# targets; every classification line_id (incl. side_flip targets) must
+# be a leaf here.
+statements:
+  balance_sheet:
+    - id: assets
+      label: "Active"
+      children:
+        - id: non_current_assets
+          label: "Active imobilizate"
+          children:
+            - id: ppe
+              label: "Imobilizări corporale"
+        - id: current_assets
+          label: "Active circulante"
+          children:
+            - id: inventory
+              label: "Stocuri"
+            - id: trade_receivables
+              label: "Creanțe comerciale"
+            - id: supplier_advances
+              label: "Avansuri acordate furnizorilor"
+            - id: cash
+              label: "Casa și conturi la bănci"
+    - id: equity_liabilities
+      label: "Capitaluri și datorii"
+      children:
+        - id: equity
+          label: "Capitaluri proprii"
+          children:
+            - id: share_capital
+              label: "Capital social"
+            - id: retained_earnings
+              label: "Rezultatul reportat"
+        - id: current_liabilities
+          label: "Datorii curente"
+          children:
+            - id: trade_payables
+              label: "Furnizori"
+            - id: customer_advances
+              label: "Avansuri primite de la clienți"
+            - id: st_debt
+              label: "Credite bancare pe termen scurt"
+  profit_loss:
+    - id: operating_income
+      label: "Venituri din exploatare"
+      children:
+        - id: revenue
+          label: "Cifra de afaceri netă"
+    - id: operating_expenses
+      label: "Cheltuieli de exploatare"
+      children:
+        - id: raw_materials
+          label: "Cheltuieli cu materiile prime"

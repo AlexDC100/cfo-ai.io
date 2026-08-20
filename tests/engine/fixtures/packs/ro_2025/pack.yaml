@@ -1,0 +1,20 @@
+# Test fixture pack — RO, effective window 2025-open (successor of
+# ro_2024). Same lineage (same pack_id), later version; tiles exactly
+# against ro_2024's [2024-01-01, 2025-01-01) window.
+schema_version: pack1
+jurisdiction: RO
+pack_id: ro_omfp1802_test
+version: "2025.1"
+effective_from: 2025-01-01
+effective_to: null
+legal_sources:
+  - citation: "OMFP 1802/2014 — Reglementările contabile privind situațiile financiare anuale"
+    url: "https://static.anaf.ro/static/10/Anaf/legislatie/OMFP_1802_2014.pdf"
+  - "Legea contabilității nr. 82/1991"
+changelog:
+  - version: "2024.1"
+    date: 2024-01-15
+    notes: "Initial test pack for the 2024 effective window."
+  - version: "2025.1"
+    date: 2025-01-10
+    notes: "2025 window: adds the 5411 letter-of-credit cash rule."

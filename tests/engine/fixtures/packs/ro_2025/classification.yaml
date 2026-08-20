@@ -1,0 +1,94 @@
+# Classification rules — exact | prefix | range matchers, contra flags,
+# balance-side-conditional side_flip re-routes. Precedence is FIXED:
+# exact > longest-prefix > range (ranges in declaration order).
+rules:
+  # -- cash / bank (with the overdraft side-flip) -------------------------
+  - rule_id: ro.cash.5121
+    exact: "5121"
+    line_id: cash
+    side_flip: { side: credit, line_id: st_debt }   # overdraft -> ST bank debt
+    description: "Conturi curente la banci in lei"
+  - rule_id: ro.cash.5311
+    exact: "5311"
+    line_id: cash
+    description: "Casa in lei"
+
+  # -- receivables (the 4111-by-closing-side flip) ------------------------
+  - rule_id: ro.ar.4111
+    exact: "4111"
+    line_id: trade_receivables
+    side_flip: { side: credit, line_id: customer_advances }
+    description: "Clienti — credit closing = advances received"
+  - rule_id: ro.ar.411
+    prefix: "411"
+    line_id: trade_receivables
+    side_flip: { side: credit, line_id: customer_advances }
+    description: "411x family catchall"
+  - rule_id: ro.ar.allowance.491
+    prefix: "491"
+    line_id: trade_receivables
+    contra: true
+    description: "Ajustari pentru deprecierea creantelor — contra-asset"
+
+  # -- payables -----------------------------------------------------------
+  - rule_id: ro.ap.401
+    prefix: "401"
+    line_id: trade_payables
+    side_flip: { side: debit, line_id: supplier_advances }
+    description: "Furnizori — debit closing = advances/overpayments"
+
+  # -- inventory (range = contiguous prefix band; contra provisions) ------
+  - rule_id: ro.inv.provisions.391_398
+    range: { from: "391", to: "398" }
+    line_id: inventory
+    contra: true
+    description: "Ajustari pentru deprecierea stocurilor — contra band"
+  - rule_id: ro.inv.34
+    prefix: "34"
+    line_id: inventory
+    description: "Produse (semifabricate, finite, reziduale)"
+  - rule_id: ro.inv.37
+    prefix: "37"
+    line_id: inventory
+    description: "Marfuri"
+
+  # -- fixed assets -------------------------------------------------------
+  - rule_id: ro.ppe.21
+    prefix: "21"
+    line_id: ppe
+    description: "Imobilizari corporale"
+  - rule_id: ro.ppe.depreciation.28
+    prefix: "28"
+    line_id: ppe
+    contra: true
+    description: "Amortizari — contra-asset"
+
+  # -- equity -------------------------------------------------------------
+  - rule_id: ro.eq.1012
+    exact: "1012"
+    line_id: share_capital
+    description: "Capital subscris varsat"
+  - rule_id: ro.eq.101
+    prefix: "101"
+    line_id: share_capital
+    description: "Capital (catchall 101x)"
+  - rule_id: ro.eq.117
+    prefix: "117"
+    line_id: retained_earnings
+    description: "Rezultatul reportat"
+
+  # -- P&L ----------------------------------------------------------------
+  - rule_id: ro.pl.revenue.70
+    prefix: "70"
+    line_id: revenue
+    description: "Cifra de afaceri neta"
+  - rule_id: ro.pl.materials.60
+    prefix: "60"
+    line_id: raw_materials
+    description: "Cheltuieli cu materiile prime si materialele"
+
+  # -- 2025 window addition ----------------------------------------------
+  - rule_id: ro.cash.5411
+    exact: "5411"
+    line_id: cash
+    description: "Acreditive in lei — added in the 2025 window"

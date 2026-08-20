@@ -1,0 +1,23 @@
+# Declarative check configs. D0-D9 ids are the known declarative
+# vocabulary; any other id is per-jurisdiction and MUST reference an
+# impl registered in the engine-side CHECK_IMPLS registry.
+checks:
+  - check_id: D0_ANCHOR_DIVERGENCE
+    enabled: true
+    params:
+      tolerance_ron: 1.0
+  - check_id: D1_SOURCE_IMBALANCED
+    enabled: true
+  - check_id: D4_BIFUNCTIONAL_SIDE
+    enabled: true
+    params:
+      families: ["4111", "401", "455", "461", "462", "473", "5121", "117", "121", "4428"]
+  - check_id: D6_121_MISMATCH
+    enabled: true
+    params:
+      profit_account: "121"
+  - check_id: RO_IDENTITY_SWEEP
+    enabled: true
+    impl: builtin.reconciliation_identities
+    params:
+      minor_drift_pct: 0.005

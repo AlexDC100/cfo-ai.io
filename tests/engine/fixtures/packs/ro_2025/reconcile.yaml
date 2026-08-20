@@ -1,0 +1,14 @@
+# Auto-reconcile policy: eligibility threshold (|difference| / max(assets,
+# E+L)), placement of the ONE visible adjustment line per diagnosed
+# cause, and the adjustment line's label per language.
+threshold: 0.001
+placement_rules:
+  - cause: default
+    placement: bs
+  - cause: pl_class_6_7_income
+    placement: pl_other_income
+  - cause: pl_class_6_7_expense
+    placement: pl_other_expense
+adjustment_labels:
+  ro: "Diferențe de reconciliere"
+  en: "Reconciliation differences"
