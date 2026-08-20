@@ -638,6 +638,13 @@ def _run_hu_ai_lane(case_id: str, meta: Dict[str, Any], input_path: Path,
     return extraction, classification, envelope, str(parsed.get("currency") or "EUR")
 
 
+def _notice(message: str) -> None:
+    """Non-blocking operator notice — visible on every run, never a
+    failure. Used for capability gaps (a check that cannot run here)
+    rather than for verification results, which fail loudly instead."""
+    print("NOTICE  %s" % message)
+
+
 def run_case(case_dir: Path, update: bool = False) -> List[str]:
     """Run one corpus case end-to-end. Returns [] on success or a list
     of failure lines (per-field diff report included)."""
@@ -649,7 +656,27 @@ def run_case(case_dir: Path, update: bool = False) -> List[str]:
 
         if bool(meta.get("anonymized")):
             import anonymize_tb
-            failures = anonymize_tb.verify_bytes(content)
+            # The anonymization re-derivation is a REPO-HYGIENE check (does
+            # re-running the transform still hold the numeric invariants?),
+            # not an engine-correctness check. It needs the redaction
+            # toolchain — pikepdf for PDF cases — which is a dev extra and
+            # is deliberately NOT shipped in the runtime image. Where the
+            # toolchain is absent (the in-container replay / nightly prod
+            # canary) skip THIS sub-check with a loud notice and keep every
+            # engine artifact comparison strict; where it is present (local
+            # + CI, which installs .[dev]) it runs and must pass. Only a
+            # genuinely missing module skips — a real verification failure
+            # still fails the case.
+            try:
+                failures = anonymize_tb.verify_bytes(content)
+            except ModuleNotFoundError as exc:
+                _notice(
+                    "anonymize --verify SKIPPED for %s: redaction toolchain "
+                    "absent (%s). Engine artifact comparison still strict; "
+                    "this check runs in CI, which installs the dev extras."
+                    % (case_id, exc.name)
+                )
+                failures = []
             if failures:
                 return ["[%s] anonymize --verify failed:" % case_id] + [
                     "    ✗ %s" % f for f in failures
