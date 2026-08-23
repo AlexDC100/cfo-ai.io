@@ -41,6 +41,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from . import _detect
+from . import _journal_routes
 from . import _org
 from . import _reconcile
 from . import _supabase
@@ -61,6 +62,25 @@ from engine.ai_lane import routes as _ai_lane_routes
 # here (scripts/check_import_boundary.py enforces the boundary).
 from engine.serving.facts import FactsGateway as _FactsGateway
 from engine.serving.facts import MissingFactError as _MissingFact
+# RUN JOURNAL (Part A) — event-sourced spine around the pipeline. Every
+# hook below is a COMPLETE NO-OP unless ENGINE_JOURNAL_DIR is set (the
+# corpus replay and determinism gates run without it, so goldens cannot
+# move); hooks never raise and never mutate their arguments. The DB
+# envelope write in stage_persist remains the serving source of truth.
+from engine.journal import hooks as _journal_hooks
+# Model registry (engine/ai/models.yaml) — the single config source for
+# every AI model id + prompt version. Value-identical wiring (red test:
+# tests/engine/test_pipeline_registry_wiring.py); a model bump is a
+# models.yaml edit + recorded eval run, never a code change.
+from engine.ai import registry as _model_registry
+# Advisory pass (AI Decision Engine) — additive-only, env-gated OFF by
+# default (AI_ADVISORY_ENABLED); the hook never raises and can never
+# mutate status/totals (R1/R2, tests/engine/test_ai_advisory.py).
+from engine.ai import advisory as _ai_advisory
+
+#: Registry-resolved model ids (roles per engine/ai/models.yaml).
+_EXTRACT_MODEL = _model_registry.model_for("extract")
+_NARRATIVE_MODEL = _model_registry.model_for("narrative")
 # F4.5 — Hungary pack (SKELETON / UNCALIBRATED). Registered so F4.4 fan-out
 # routing can exercise multi-pack logic. detect_from_content() returns 0.0
 # confidence so the RO pack always wins on RO uploads.
@@ -1163,7 +1183,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         resp = client.messages.create(
-            model="claude-opus-4-7",
+            model=_EXTRACT_MODEL,
             # 2026-07-26 — was 8000, which truncated the JSON mid-string on
             # sales-analysis files (detected_type="sales_analysis" emits every
             # SKU row into `skus`), surfacing as "Claude returned invalid JSON:
@@ -1593,6 +1613,11 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                         period_id,
                     )
                 _auto = _reconcile.auto_reconcile_envelope(canonical)
+                # Advisory AI review (env-gated OFF; additive-only; never
+                # raises; deterministic validator remains the only gate).
+                _ai_advisory.pipeline_hook(canonical)
+                # RUN JOURNAL — RECONCILE_APPLIED / RECONCILE_SKIPPED.
+                _journal_hooks.on_reconcile_outcome(doc, period_id, canonical, _auto)
                 if _auto.get("outcome") not in ("balanced_noop",):
                     logger.info(
                         "[stage_persist] auto-reconcile outcome=%s for "
@@ -1607,6 +1632,12 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                     "(non-fatal) for period %s",
                     period_id,
                 )
+            # RUN JOURNAL — SNAPSHOT_PERSISTED. Ordering rule: the
+            # content-addressed object is written FIRST, then the journal
+            # event commits, and only THEN does serving flip via the DB
+            # write below (crash-safety contract; no-op when the journal
+            # is off, never raises, never mutates `canonical`).
+            _journal_hooks.on_snapshot_persisted(doc, period_id, canonical)
             try:
                 admin_client.update(
                     "financial_periods",
@@ -2892,7 +2923,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
 
     try:
         resp = client.messages.create(
-            model="claude-opus-4-7",
+            model=_NARRATIVE_MODEL,
             max_tokens=4096,
             system=system,
             messages=[{"role": "user", "content": json.dumps(user_payload)}],
@@ -2966,7 +2997,7 @@ def stage_persist_narrative(
                 "org_id": org_id,
                 "body": narrate["briefing"],
                 "language": "en",
-                "model": "claude-opus-4-7",
+                "model": _NARRATIVE_MODEL,
             },
             on_conflict="period_id",
             returning=False,
@@ -3343,7 +3374,7 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
                 "summary": parsed.get("summary") or {},
                 "recommendations": narrative.get("recommendations") or [],
                 "language": "en",
-                "model": "claude-opus-4-7",
+                "model": _NARRATIVE_MODEL,
             },
             on_conflict="document_id",
             returning=False,
@@ -3481,8 +3512,14 @@ def _run_pipeline_sync(document_id: str) -> None:
 
         scope = (doc.get("scope") or "financial").lower()
 
+        # RUN JOURNAL — RUN_STARTED (no-op unless ENGINE_JOURNAL_DIR set).
+        _journal_hooks.on_run_started(doc, industry=org.get("industry_display_name") or org.get("industry_key"))
+
         _admin_set_status(document_id, "extracting", pipeline_started_at=_now_iso())
         parsed = stage_extract(doc)
+        # RUN JOURNAL — FRONTEND_DONE (deterministic parse / ai-lane /
+        # llm-fallback all complete here, whatever lane ran).
+        _journal_hooks.on_frontend_done(doc, parsed)
 
         # ── Public-records short-circuit ────────────────────────────────
         # `stage_extract` returns `detected_type='public_records_summary'`
@@ -3584,6 +3621,8 @@ def _run_pipeline_sync(document_id: str) -> None:
                 return
             _admin_set_status(document_id, "mapping")
             assembled = _ai_info.get("assembled") or {}
+            # RUN JOURNAL — PASS_DONE (ai-lane assembled envelope).
+            _journal_hooks.on_pass_done(doc, assembled)
             period_id = stage_persist(doc, parsed, assembled)
             _admin_set_status(
                 document_id, "analyzed",
@@ -3716,6 +3755,8 @@ def _run_pipeline_sync(document_id: str) -> None:
 
         _admin_set_status(document_id, "mapping")
         assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
+        # RUN JOURNAL — PASS_DONE (assemble stage boundary).
+        _journal_hooks.on_pass_done(doc, assembled)
         period_id = stage_persist(doc, parsed, assembled)
 
         _admin_set_status(document_id, "computing")
@@ -3906,6 +3947,8 @@ def _run_pipeline_sync(document_id: str) -> None:
         logger.info("[pipeline] %s complete in %dms", document_id, int((time.time() - t0) * 1000))
     except Exception as exc:  # noqa: BLE001
         logger.exception("[pipeline] %s failed", document_id)
+        # RUN JOURNAL — RUN_FAILED + dead-letter entry (no-op when off).
+        _journal_hooks.on_run_failed(document_id, exc)
         msg = f"{type(exc).__name__}: {exc}"
         try:
             _admin_set_status(document_id, "failed", error=msg, duration_ms=int((time.time() - t0) * 1000))
@@ -4038,6 +4081,11 @@ def _apply_envelope_truth_to_statements(
             _a_bs["total_current_liabilities"] = round(_cur_l, 2)
             _a_bs["total_non_current_liabilities"] = round(_tl - _cur_l, 2)
         statements["assembled_bs"] = _a_bs
+        # RUN JOURNAL — SERVED (the serve seam). Deduplicated inside the
+        # hook: appends only when the served state differs from the last
+        # recorded one, and self-heals the chain when the persisted
+        # envelope changed out-of-band (e.g. reconcile undo).
+        _journal_hooks.on_served(_env, _cbs if isinstance(_cbs, dict) else None)
     except Exception:  # noqa: BLE001
         logger.exception(
             "[envelope-truth] persisted-envelope override failed (non-fatal)"
@@ -4602,6 +4650,10 @@ def build_router() -> APIRouter:
     # envelope for forced re-extraction (cache bypass) on the next scan.
     # Mounted exactly like the reconcile routes (require_jwt injected).
     _ai_lane_routes.register_routes(router, require_jwt=_require_jwt)
+
+    # RUN JOURNAL: GET /api/period/{id}/asof — read-only as-of endpoint
+    # (auth like the reconcile routes; 404 when no journal coverage).
+    _journal_routes.register_routes(router, require_jwt=_require_jwt)
 
     # ── FX rates endpoint (currency toggle, BNR proxy) ────────────────
     # Returns {base, rates, source, as_of, fetched_at, stale}. Backend
@@ -6905,7 +6957,7 @@ def build_router() -> APIRouter:
                         "org_id": period["org_id"],
                         "body": narrative.get("briefing", ""),
                         "language": "en",
-                        "model": "claude-opus-4-7",
+                        "model": _NARRATIVE_MODEL,
                     },
                     on_conflict="period_id",
                     returning=False,

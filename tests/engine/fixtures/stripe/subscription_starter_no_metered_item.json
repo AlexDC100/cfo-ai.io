@@ -1,0 +1,44 @@
+{
+  "id": "sub_D2TestSub001",
+  "object": "subscription",
+  "customer": "cus_D2TestCustomer001",
+  "status": "active",
+  "cancel_at_period_end": false,
+  "trial_end": null,
+  "livemode": false,
+  "created": 1767225600,
+  "metadata": {
+    "tier": "starter",
+    "billing_cycle": "monthly",
+    "user_id": "00000000-0000-4000-8000-0000000000d2",
+    "org_id": "00000000-0000-4000-8000-00000000006f"
+  },
+  "items": {
+    "object": "list",
+    "has_more": false,
+    "url": "/v1/subscription_items?subscription=sub_D2TestSub001",
+    "data": [
+      {
+        "id": "si_D2Base001",
+        "object": "subscription_item",
+        "subscription": "sub_D2TestSub001",
+        "quantity": 1,
+        "price": {
+          "id": "price_starter_test",
+          "object": "price",
+          "active": true,
+          "currency": "eur",
+          "unit_amount": 1499,
+          "livemode": false,
+          "recurring": {
+            "interval": "month",
+            "interval_count": 1,
+            "usage_type": "licensed"
+          }
+        },
+        "current_period_start": 1767225600,
+        "current_period_end": 1769904000
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "evt_d2_invoice_paid_001",
+  "object": "event",
+  "api_version": "2026-03-25.dahlia",
+  "created": 1769904000,
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_d2_001",
+    "idempotency_key": null
+  },
+  "type": "invoice.payment_succeeded",
+  "data": {
+    "object": {
+      "id": "in_D2Paid001",
+      "object": "invoice",
+      "customer": "cus_D2TestCustomer001",
+      "subscription": "sub_D2TestSub001",
+      "status": "paid",
+      "attempt_count": 1,
+      "amount_due": 1499,
+      "amount_paid": 1499,
+      "currency": "eur",
+      "livemode": false,
+      "metadata": {}
+    }
+  }
+}

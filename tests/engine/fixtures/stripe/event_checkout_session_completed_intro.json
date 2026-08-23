@@ -1,0 +1,32 @@
+{
+  "id": "evt_d2_intro_completed_001",
+  "object": "event",
+  "api_version": "2026-03-25.dahlia",
+  "created": 1767225600,
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_d2_001",
+    "idempotency_key": null
+  },
+  "type": "checkout.session.completed",
+  "data": {
+    "object": {
+      "id": "cs_test_D2Intro001",
+      "object": "checkout.session",
+      "mode": "payment",
+      "status": "complete",
+      "payment_status": "paid",
+      "customer": "cus_D2IntroCust001",
+      "created": 1767225600,
+      "livemode": false,
+      "currency": "eur",
+      "amount_total": 99,
+      "metadata": {
+        "tier": "intro",
+        "user_id": "00000000-0000-4000-8000-0000000000b3",
+        "org_id": "00000000-0000-4000-8000-00000000006f"
+      }
+    }
+  }
+}

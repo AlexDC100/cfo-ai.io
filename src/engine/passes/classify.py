@@ -85,6 +85,15 @@ def _minor_at(money: Optional[Money], scale: int) -> int:
     rescale — scale is always >= the Money's own scale here)."""
     if money is None:
         return 0
+    # A target scale FINER-or-equal keeps the rescale an exact integer
+    # multiply; a coarser target would make 10**(scale-money.scale) a
+    # FLOAT (negative exponent) and silently leak floats onto the exact
+    # value path.
+    assert scale >= money.scale, (
+        "A-020: _minor_at target scale %d must be >= the Money's own "
+        "scale %d — a coarser rescale is lossy and float-producing"
+        % (scale, money.scale)
+    )
     return money.amount_minor * (10 ** (scale - money.scale))
 
 
@@ -99,6 +108,14 @@ def _net_signed_minor(pairs: Tuple[Tuple[Optional[Money], Optional[Money]], ...]
     total = 0
     for debit, credit in pairs:
         total += _minor_at(debit, scale) - _minor_at(credit, scale)
+    # Integrality postcondition: the whole net stayed in exact integer
+    # minor units — any float in the sum means a corrupted Money reached
+    # the effective-closing-side computation.
+    assert isinstance(total, int) and not isinstance(total, bool), (
+        "A-021: _net_signed_minor must produce an exact int, got %s — a "
+        "float here means a corrupted Money leaked into the side "
+        "computation" % type(total).__name__
+    )
     return total
 
 
@@ -141,6 +158,30 @@ class AtomClassification:
     confidence: float
     side_flipped: bool = False
     closing_side: Optional[str] = None  # 'debit' | 'credit' | None
+
+    def __post_init__(self) -> None:
+        # Construction-boundary assertions only (no normalization, no
+        # behavior): the explicit-UNCLASSIFIED marker contract and the
+        # confidence domain, so a malformed assignment can never enter a
+        # ClassificationLayer silently.
+        assert self.method in (METHOD_RULE, METHOD_UNCLASSIFIED), (
+            "A-023: AtomClassification.method must be %r or %r, got %r"
+            % (METHOD_RULE, METHOD_UNCLASSIFIED, self.method)
+        )
+        assert (self.line_id is None) == (self.method == METHOD_UNCLASSIFIED), (
+            "A-022: UNCLASSIFIED marker coherence violated for atom %r — "
+            "line_id is %r while method is %r (line_id None <=> method "
+            "'unclassified', never guessed, never dropped)"
+            % (self.atom_id, self.line_id, self.method)
+        )
+        assert (
+            isinstance(self.confidence, (int, float))
+            and not isinstance(self.confidence, bool)
+            and 0.0 <= float(self.confidence) <= 1.0
+        ), (
+            "A-024: AtomClassification.confidence must be a number in "
+            "[0, 1], got %r" % (self.confidence,)
+        )
 
 
 @dataclass(frozen=True)
@@ -217,4 +258,20 @@ def classify(doc: LedgerDoc, pack: CompiledPack) -> ClassificationLayer:
             side_flipped=flipped,
             closing_side=side,
         ))
+    # Totality postconditions — every atom classified-or-unclassified,
+    # no drops, no inventions, document order preserved. These re-read
+    # doc.atoms so an impure doc (atoms changing under iteration) is
+    # caught here instead of shipping a layer that silently disagrees
+    # with its document.
+    assert len(entries) == len(doc.atoms), (
+        "A-025: classify must emit exactly one entry per atom — %d "
+        "entries for %d atoms (atoms dropped or invented)"
+        % (len(entries), len(doc.atoms))
+    )
+    assert all(
+        e.atom_id == a.atom_id for e, a in zip(entries, doc.atoms)
+    ), (
+        "A-026: classify entries must align 1:1 with doc.atoms in "
+        "document order — atom_id sequence diverged"
+    )
     return ClassificationLayer(pack_hash=pack.pack_hash, entries=tuple(entries))

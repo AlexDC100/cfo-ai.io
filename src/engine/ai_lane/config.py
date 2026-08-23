@@ -27,29 +27,36 @@ from __future__ import annotations
 import os
 from typing import Any, Dict
 
+from engine.ai import registry as _model_registry
 from engine.packs.runtime import active_pack
 from engine.packs.schema import CompiledPack
 
 from .schemas import AiLaneError
 
-# The model this lane calls. Pinned by the operator spec; used verbatim
-# on every stage call and recorded in ai_audit + canonical_bs.extraction.
-MODEL_ID = "claude-opus-4-7"
+# The model this lane records on ai_audit + canonical_bs.extraction and
+# uses as its envelope-level cache-key half. REGISTRY-WIRED (engine.ai/
+# models.yaml, role "extract") with a VALUE-IDENTICAL cutover — the
+# corpus goldens and stored envelopes byte-freeze the string, so a model
+# change is a deliberate registry edit + golden refreeze, never a code
+# edit here. Locked by tests/engine/test_model_registry.py.
+MODEL_ID = _model_registry.model_for("extract")
 
 # Version stamp for the lane's own deterministic post-processing (row
 # shaping, self-check, envelope assembly) — the LLM analog of the RO
 # parser_version. Bump on any lane-logic change.
 AI_LANE_PARSER_VERSION = "ai_lane_v1"
 
-# Per-stage prompt versions. Bump on ANY change to the stage's prompt.
-FORMAT_DETECT_PROMPT_VERSION = "format_detect_v1"
-EXTRACT_PROMPT_VERSION = "extract_v1"
+# Per-stage prompt versions — registry reads (bump them in models.yaml
+# on ANY change to the stage's prompt; values are golden-frozen).
+FORMAT_DETECT_PROMPT_VERSION = _model_registry.params_for("format_detect")["prompt_version"]
+EXTRACT_PROMPT_VERSION = _model_registry.params_for("extract")["prompt_version"]
 
 # The FROZEN classify base version — the alias value the exact v1 pack
-# contents map to (see classify_prompt_version_for). Kept as a module
-# constant because stored envelopes, the golden corpus and the cache
+# contents map to (see classify_prompt_version_for). Registry-supplied
+# BASE version; the pack-hash derivation below composes ON TOP of it
+# exactly as before. Stored envelopes, the golden corpus and the cache
 # rows all carry this string.
-CLASSIFY_PROMPT_VERSION = "classify_v1"
+CLASSIFY_PROMPT_VERSION = _model_registry.params_for("classify")["prompt_version"]
 
 #: pack_hash -> frozen prompt-version alias. Keyed by CONTENT HASH, not
 #: identity: only the byte-exact v1 pack data keeps the frozen name —
@@ -67,10 +74,11 @@ _CLASSIFY_PROMPT_VERSION_ALIASES: Dict[str, str] = {
         CLASSIFY_PROMPT_VERSION,
 }
 
-# Output ceilings per stage (extract carries the account rows).
-FORMAT_DETECT_MAX_TOKENS = 2000
-EXTRACT_MAX_TOKENS = 16000
-CLASSIFY_MAX_TOKENS = 16000
+# Output ceilings per stage (extract carries the account rows) —
+# registry reads, value-identical.
+FORMAT_DETECT_MAX_TOKENS = _model_registry.params_for("format_detect")["max_tokens"]
+EXTRACT_MAX_TOKENS = _model_registry.params_for("extract")["max_tokens"]
+CLASSIFY_MAX_TOKENS = _model_registry.params_for("classify")["max_tokens"]
 
 # Text payload ceiling (chars) fed to the model per stage.
 MAX_DOC_CHARS = 200_000

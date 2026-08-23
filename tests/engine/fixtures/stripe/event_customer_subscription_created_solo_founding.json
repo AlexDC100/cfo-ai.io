@@ -1,0 +1,60 @@
+{
+  "id": "evt_d2_sub_created_solo_001",
+  "object": "event",
+  "api_version": "2026-03-25.dahlia",
+  "created": 1767225600,
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_d2_001",
+    "idempotency_key": null
+  },
+  "type": "customer.subscription.created",
+  "data": {
+    "object": {
+      "id": "sub_D2SoloSub001",
+      "object": "subscription",
+      "customer": "cus_D2SoloCust001",
+      "status": "active",
+      "cancel_at_period_end": false,
+      "trial_end": null,
+      "livemode": false,
+      "created": 1767225600,
+      "metadata": {
+        "tier": "solo",
+        "billing_cycle": "annual",
+        "user_id": "00000000-0000-4000-8000-0000000000a2",
+        "org_id": "00000000-0000-4000-8000-00000000006f",
+        "is_founding_member": "true"
+      },
+      "items": {
+        "object": "list",
+        "has_more": false,
+        "url": "/v1/subscription_items?subscription=sub_D2SoloSub001",
+        "data": [
+          {
+            "id": "si_D2Solo001",
+            "object": "subscription_item",
+            "subscription": "sub_D2TestSub001",
+            "quantity": 1,
+            "price": {
+              "id": "price_solo_test",
+              "object": "price",
+              "active": true,
+              "currency": "eur",
+              "unit_amount": 9900,
+              "livemode": false,
+              "recurring": {
+                "interval": "month",
+                "interval_count": 1,
+                "usage_type": "licensed"
+              }
+            },
+            "current_period_start": 1767225600,
+            "current_period_end": 1769904000
+          }
+        ]
+      }
+    }
+  }
+}

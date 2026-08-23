@@ -64,6 +64,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import Header, HTTPException
 
 from engine import serving as _serving
+from engine.ai import registry as _model_registry
 
 from . import _supabase
 
@@ -71,10 +72,14 @@ logger = logging.getLogger("engine.api.reconcile")
 
 # ── Constants ──────────────────────────────────────────────────────────
 
-#: Recorded on every llm_proposed receipt; bump on ANY prompt change.
-PROMPT_VERSION = "reconcile_v1"
-#: The proposal model (matches the engine's other Claude call sites).
-AI_MODEL = "claude-opus-4-7"
+#: Recorded on every llm_proposed receipt. REGISTRY-WIRED (engine.ai/
+#: models.yaml, role "reconcile_proposal") with value-identical cutover
+#: — stored receipts carry these exact strings; bump the base version
+#: in models.yaml on ANY prompt change. Locked by
+#: tests/engine/test_model_registry.py.
+PROMPT_VERSION = _model_registry.params_for("reconcile_proposal")["prompt_version"]
+#: The proposal model (registry role "reconcile_proposal").
+AI_MODEL = _model_registry.model_for("reconcile_proposal")
 
 #: The reconcile gate: offer / accept only while
 #: |difference| / max(assets, equity_plus_liabilities) <= 0.1%.

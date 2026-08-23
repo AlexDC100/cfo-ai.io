@@ -76,9 +76,36 @@ def _ts_to_iso(ts: Optional[int]) -> Optional[str]:
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
 
 
+# ─── D2 dependency-injection seams (tests/engine/test_billing_stripe.py) ───
+#
+# Two seams, both inert in production:
+#   1. `set_stripe_client_factory` — inject an in-process stand-in for the
+#      stripe module (the fixture-mode harness). Default None = real path.
+#   2. STRIPE_API_BASE / STRIPE_MOCK_URL env — point the REAL SDK at
+#      stripe/stripe-mock. Unset in production = SDK default base.
+# `_stripe_or_none` stays the single chokepoint every billing surface uses.
+
+_STRIPE_CLIENT_FACTORY: Optional[Any] = None
+
+# The SDK's own default API base, captured on first import BEFORE any
+# override is applied — restored whenever the override env is absent so a
+# stale mock base can never leak into a later call in the same process.
+_STRIPE_DEFAULT_API_BASE: Optional[str] = None
+
+
+def set_stripe_client_factory(factory: Optional[Any]) -> None:
+    """Test/DI seam — when set, `_stripe_or_none()` returns `factory()`
+    instead of the real stripe module (no env key consulted). Pass None to
+    restore the env-driven production path."""
+    global _STRIPE_CLIENT_FACTORY
+    _STRIPE_CLIENT_FACTORY = factory
+
+
 def _stripe_or_none():
     """Lazy import + key validation. Returns the configured stripe module or
     None if env isn't set — billing endpoints surface 503 in that case."""
+    if _STRIPE_CLIENT_FACTORY is not None:
+        return _STRIPE_CLIENT_FACTORY()
     key = os.environ.get("STRIPE_SECRET_KEY")
     if not key:
         return None
@@ -88,6 +115,17 @@ def _stripe_or_none():
         logger.warning("[billing] stripe SDK not installed (pip install stripe).")
         return None
     stripe.api_key = key
+    # D2 seam #2 — alternate API base for stripe-mock / test harnesses.
+    global _STRIPE_DEFAULT_API_BASE
+    if _STRIPE_DEFAULT_API_BASE is None:
+        _STRIPE_DEFAULT_API_BASE = getattr(stripe, "api_base", None)
+    api_base_override = (os.environ.get("STRIPE_API_BASE")
+                         or os.environ.get("STRIPE_MOCK_URL"))
+    if api_base_override:
+        stripe.api_base = api_base_override.rstrip("/")
+    elif (_STRIPE_DEFAULT_API_BASE
+          and getattr(stripe, "api_base", None) != _STRIPE_DEFAULT_API_BASE):
+        stripe.api_base = _STRIPE_DEFAULT_API_BASE
     return stripe
 
 

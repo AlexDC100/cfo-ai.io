@@ -314,6 +314,20 @@ class AccountAtom:
             )
         for name in MONEY_FIELDS:
             _opt_money(getattr(self, name), "AccountAtom.%s" % name)
+        # ABSENT-vs-ZERO postcondition: every slot is either genuinely
+        # ABSENT (None) or a Money whose minor units are still an exact
+        # int — a Money corrupted after ITS construction must not be
+        # frozen into an atom, where it would poison every downstream
+        # integer-cents accumulation.
+        assert all(
+            m is None
+            or (isinstance(m.amount_minor, int)
+                and not isinstance(m.amount_minor, bool))
+            for m in (getattr(self, n) for n in MONEY_FIELDS)
+        ), (
+            "A-010: AccountAtom %r amount slots must each be ABSENT (None) "
+            "or Money with exact int minor units" % (self.atom_id,)
+        )
 
 
 @dataclass(frozen=True)
@@ -333,6 +347,17 @@ class DocumentTotals:
     def __post_init__(self) -> None:
         for name in MONEY_FIELDS:
             _opt_money(getattr(self, name), "DocumentTotals.%s" % name)
+        # Same ABSENT-vs-ZERO integrality postcondition as AccountAtom
+        # (A-010): the file's own totals row must carry exact integers.
+        assert all(
+            m is None
+            or (isinstance(m.amount_minor, int)
+                and not isinstance(m.amount_minor, bool))
+            for m in (getattr(self, n) for n in MONEY_FIELDS)
+        ), (
+            "A-011: DocumentTotals amount slots must each be ABSENT (None) "
+            "or Money with exact int minor units"
+        )
 
 
 # --- document ---------------------------------------------------------------
@@ -380,6 +405,14 @@ class DocHeader:
                 % type(self.source_meta).__name__
             )
         object.__setattr__(self, "source_meta", _deep_freeze(self.source_meta))
+        # Deep-immutability postcondition: after the freeze, source_meta
+        # must be a MappingProxyType — a plain dict here would mean a
+        # caller can alias-mutate the "immutable" document.
+        assert isinstance(self.source_meta, MappingProxyType), (
+            "A-012: DocHeader.source_meta must be deep-frozen to a "
+            "MappingProxyType after construction, got %s"
+            % type(self.source_meta).__name__
+        )
         if self.ir_version != IR_VERSION:
             raise LedgerDocError(
                 "DocHeader.ir_version must be %r for this build, got %r"
@@ -425,6 +458,16 @@ class LedgerDoc:
                     % (atom.atom_id, i, seen[atom.atom_id])
                 )
             seen[atom.atom_id] = i
+        # Uniqueness census postcondition: after the loop every atom is
+        # registered under exactly one id. A mismatch means an atom's
+        # reported atom_id changed between the membership check and the
+        # registration (a TOCTOU on an impure/evil atom subclass) — the
+        # uniqueness guarantee downstream code relies on would be void.
+        assert len(seen) == len(atoms), (
+            "A-013: LedgerDoc atom census mismatch — %d unique atom ids "
+            "registered for %d atoms; atom identity must be stable and "
+            "unique" % (len(seen), len(atoms))
+        )
 
 
 # --- provenance queries ------------------------------------------------------

@@ -285,6 +285,21 @@ class Money:
         """Display/export helper, by string math: '1234.56', '-0.05',
         '1250' (scale 0 has no point). Round-trips through
         `from_decimal_str` exactly."""
+        # Rendering with a corrupted amount/scale would silently emit a
+        # wrong-magnitude string (the worst failure mode for a money
+        # type); gate the string math on the constructor's invariants
+        # still holding.
+        assert (
+            isinstance(self.amount_minor, int)
+            and not isinstance(self.amount_minor, bool)
+            and isinstance(self.scale, int)
+            and not isinstance(self.scale, bool)
+            and 0 <= self.scale <= _MAX_SCALE
+        ), (
+            "A-003: to_decimal_str requires int minor units and scale in "
+            "0..%d, got amount_minor=%r scale=%r"
+            % (_MAX_SCALE, self.amount_minor, self.scale)
+        )
         sign = "-" if self.amount_minor < 0 else ""
         digits = str(abs(self.amount_minor))
         if self.scale == 0:
@@ -305,17 +320,53 @@ class Money:
                 "%s across units: %s/scale%d vs %s/scale%d"
                 % (op, self.currency, self.scale, other.currency, other.scale)
             )
+        # Tiger-style integrality gate at the ONE chokepoint every binary
+        # op (add/sub/lt/le/gt/ge) passes through: both operands must
+        # still carry exact int minor units. Construction guarantees it;
+        # this guards against post-construction corruption (a float that
+        # snuck in through object.__setattr__ or a pickle/copy bug) ever
+        # reaching arithmetic.
+        assert (
+            isinstance(self.amount_minor, int)
+            and not isinstance(self.amount_minor, bool)
+            and isinstance(other.amount_minor, int)
+            and not isinstance(other.amount_minor, bool)
+        ), (
+            "A-001: Money %s operands must hold exact int minor units, got "
+            "%s/%s — a non-int amount_minor means the no-float guarantee "
+            "was violated after construction"
+            % (op, type(self.amount_minor).__name__,
+               type(other.amount_minor).__name__)
+        )
         return other
 
     def __add__(self, other: "Money") -> "Money":
         other = self._require_same_unit(other, "add")
-        return Money(self.currency, self.amount_minor + other.amount_minor, self.scale)
+        out = Money(self.currency, self.amount_minor + other.amount_minor, self.scale)
+        assert out.currency == self.currency and out.scale == self.scale, (
+            "A-004: Money.add must be closed over one (currency, scale): "
+            "result %s/scale%d from operands %s/scale%d"
+            % (out.currency, out.scale, self.currency, self.scale)
+        )
+        return out
 
     def __sub__(self, other: "Money") -> "Money":
         other = self._require_same_unit(other, "sub")
-        return Money(self.currency, self.amount_minor - other.amount_minor, self.scale)
+        out = Money(self.currency, self.amount_minor - other.amount_minor, self.scale)
+        assert out.currency == self.currency and out.scale == self.scale, (
+            "A-005: Money.sub must be closed over one (currency, scale): "
+            "result %s/scale%d from operands %s/scale%d"
+            % (out.currency, out.scale, self.currency, self.scale)
+        )
+        return out
 
     def __neg__(self) -> "Money":
+        assert isinstance(self.amount_minor, int) and not isinstance(
+            self.amount_minor, bool
+        ), (
+            "A-002: Money.neg requires an exact int amount_minor, got %s"
+            % type(self.amount_minor).__name__
+        )
         return Money(self.currency, -self.amount_minor, self.scale)
 
     # Ordering raises on mixed units; __eq__/__hash__ stay the

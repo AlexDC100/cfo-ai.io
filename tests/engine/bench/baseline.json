@@ -1,0 +1,81 @@
+{
+  "_meta": {
+    "schema": "perf_baseline_v1",
+    "caveat": "MACHINE-TIED numbers: recorded on the machine described in _meta.machine, single-process, no warm caches beyond a 1-round warmup. Compare only on the same machine class; re-record with scripts/check_perf_budget.py --write-baseline when the hardware, Python build, or an intentional performance-relevant change moves the floor. The nightly deep-trend CI run is the durable cross-machine record; this file is the local/PR tripwire.",
+    "recorded_at": "2026-08-23T04:49:10+00:00",
+    "machine": {
+      "node": "alexs-MacBook-Pro.local",
+      "processor": "arm",
+      "machine": "arm64",
+      "python_compiler": "Clang 21.0.0 (clang-2100.0.123.102)",
+      "python_implementation": "CPython",
+      "python_implementation_version": "3.9.6",
+      "python_version": "3.9.6",
+      "python_build": [
+        "default",
+        "Apr  7 2026 02:38:40"
+      ],
+      "release": "25.3.0",
+      "system": "Darwin",
+      "cpu": {
+        "python_version": "3.9.6.final.0 (64 bit)",
+        "cpuinfo_version": [
+          9,
+          0,
+          0
+        ],
+        "cpuinfo_version_string": "9.0.0",
+        "arch": "ARM_8",
+        "bits": 64,
+        "count": 14,
+        "arch_string_raw": "arm64",
+        "brand_raw": "Apple M4 Pro"
+      }
+    },
+    "tolerance_default": 0.2
+  },
+  "benchmarks": {
+    "test_bench_canonical_build[saga_10_col]": {
+      "median_s": 0.05084489549999982,
+      "mean_s": 0.05108060009999993,
+      "stddev_s": 0.0004958620087284162,
+      "rounds": 10
+    },
+    "test_bench_canonical_build[saga_10_col_agras]": {
+      "median_s": 0.04783174999999984,
+      "mean_s": 0.04795712919999993,
+      "stddev_s": 0.0006017264770908762,
+      "rounds": 10
+    },
+    "test_bench_canonical_build[saga_compact_6_col]": {
+      "median_s": 0.01791816699999993,
+      "mean_s": 0.01795369169999992,
+      "stddev_s": 0.00010599230657836705,
+      "rounds": 10
+    },
+    "test_bench_corpus_replay_end_to_end[hu_ai_lane]": {
+      "median_s": 0.0025753339999994296,
+      "mean_s": 0.00256630040000001,
+      "stddev_s": 6.773555882460542e-05,
+      "rounds": 5
+    },
+    "test_bench_corpus_replay_end_to_end[saga_10_col]": {
+      "median_s": 0.13715091700000048,
+      "mean_s": 0.1422919248000003,
+      "stddev_s": 0.011970508666709338,
+      "rounds": 5
+    },
+    "test_bench_corpus_replay_end_to_end[saga_10_col_agras]": {
+      "median_s": 0.3314244999999998,
+      "mean_s": 0.3417527414,
+      "stddev_s": 0.016625458993083736,
+      "rounds": 5
+    },
+    "test_bench_money_arithmetic_batch": {
+      "median_s": 0.045509229000000095,
+      "mean_s": 0.04529222722727278,
+      "stddev_s": 0.0009414373280029652,
+      "rounds": 22
+    }
+  }
+}

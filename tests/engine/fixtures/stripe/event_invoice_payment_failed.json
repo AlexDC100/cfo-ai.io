@@ -1,0 +1,27 @@
+{
+  "id": "evt_d2_invoice_failed_001",
+  "object": "event",
+  "api_version": "2026-03-25.dahlia",
+  "created": 1769904000,
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_d2_001",
+    "idempotency_key": null
+  },
+  "type": "invoice.payment_failed",
+  "data": {
+    "object": {
+      "id": "in_D2Fail001",
+      "object": "invoice",
+      "customer": "cus_D2TestCustomer001",
+      "subscription": "sub_D2TestSub001",
+      "status": "open",
+      "attempt_count": 1,
+      "amount_due": 1499,
+      "currency": "eur",
+      "livemode": false,
+      "metadata": {}
+    }
+  }
+}

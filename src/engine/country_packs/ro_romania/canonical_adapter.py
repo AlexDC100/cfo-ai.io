@@ -605,6 +605,14 @@ def assemble_canonical(
             continue
 
         magnitude = _sign_adjusted_magnitude(canonical_name, signed_amount)
+        # F3.15 decision 3b: canonical leaves carry ALWAYS-POSITIVE
+        # magnitudes (the sign_meaning metadata says how to compose). A
+        # negative magnitude would corrupt every consumer's composition.
+        assert magnitude >= 0, (
+            "A-033: canonical leaf magnitude must be non-negative, got %r "
+            "for %s (account %s) — magnitudes are always positive; "
+            "direction lives in sign_meaning" % (magnitude, canonical_name, code)
+        )
         entry = leaves.setdefault(canonical_name, {
             "magnitude": 0.0,
             "sign_meaning": bucket.sign_meaning.value,
@@ -921,7 +929,16 @@ def _section_for_leaf(leaf_name: str) -> Optional[str]:
     """Map a canonical BS leaf to its OMFP presentation section. Returns
     None for non-BS leaves (PL / memo / CF)."""
     if leaf_name in _LEAF_SECTION_OVERRIDES:
-        return _LEAF_SECTION_OVERRIDES[leaf_name]
+        section = _LEAF_SECTION_OVERRIDES[leaf_name]
+        # A section id outside the fixed presentation order would KeyError
+        # deep inside the cents accumulation (or worse, silently misplace
+        # value); fail here, at the mapping, with the offending entry named.
+        assert section in _BS_V2_SECTION_ORDER, (
+            "A-030: leaf %r maps to unknown section %r — every "
+            "_LEAF_SECTION_OVERRIDES / _AGGREGATE_TO_SECTION value must be "
+            "one of _BS_V2_SECTION_ORDER" % (leaf_name, section)
+        )
+        return section
     bucket = bucket_by_name(leaf_name)
     if bucket is None or bucket.bucket_type not in (
         BucketType.ASSET, BucketType.LIABILITY, BucketType.EQUITY
@@ -929,6 +946,11 @@ def _section_for_leaf(leaf_name: str) -> Optional[str]:
         return None
     section = _AGGREGATE_TO_SECTION.get(bucket.parent_aggregate)
     if section is not None:
+        assert section in _BS_V2_SECTION_ORDER, (
+            "A-030: leaf %r maps to unknown section %r — every "
+            "_LEAF_SECTION_OVERRIDES / _AGGREGATE_TO_SECTION value must be "
+            "one of _BS_V2_SECTION_ORDER" % (leaf_name, section)
+        )
         return section
     # Defensive fallback for a schema aggregate this map doesn't know yet:
     # side-correct placement beats dropping the leaf from presentation.
@@ -1330,6 +1352,35 @@ def build_canonical_bs_v2(
     sortable_rows.sort(key=lambda t: t[0])
     rows: List[Dict[str, Any]] = [t[1] for t in sortable_rows]
 
+    # Result-row law: the derived current-year result appears as EXACTLY
+    # one row iff result_cents is nonzero, carrying exactly result_cents —
+    # a duplicate (e.g. the kwarg-injected reconstruction leaf ALSO
+    # rendering as a plain row) would double-count the result in equity.
+    _result_rows = [
+        c for _k, r, c in sortable_rows
+        if r["id"] in ("current_year_profit", "current_year_loss")
+    ]
+    assert (
+        len(_result_rows) == (1 if result_cents != 0 else 0)
+        and all(c == result_cents for c in _result_rows)
+    ), (
+        "A-032: current-year result must appear as exactly one row iff "
+        "result_cents != 0 and carry it exactly — result_cents=%d, result "
+        "rows carry %r" % (result_cents, _result_rows)
+    )
+
+    # Serialization conservation at the row boundary: every row's float
+    # `amount` must round-trip to the exact integer cents it was built
+    # from (floats appear ONLY at serialization; a magnitude too large
+    # for exact cent representation must fail loud, not drift silently).
+    assert sum(_cents(r["amount"]) for r in rows) == sum(
+        c for _k, _r, c in sortable_rows
+    ), (
+        "A-034: row amounts no longer round-trip to their integer cents — "
+        "float serialization lost precision (magnitude beyond exact cent "
+        "range?)"
+    )
+
     section_cents: Dict[str, int] = {s: 0 for s in _BS_V2_SECTION_ORDER}
     for _key, row, amount_cents in sortable_rows:
         section_cents[row["section"]] += amount_cents
@@ -1340,6 +1391,19 @@ def build_canonical_bs_v2(
     ]
 
     # ── Totals — sums of the SAME section cents (by construction) ──────
+    # Side-partition sanity first: the asset/equity section sets must be
+    # disjoint and inside the fixed order (liabilities are the complement
+    # — an overlap or an unknown section id would double- or mis-count a
+    # whole section into two sides). Membership tests use `in` on the
+    # list (no iteration), by design.
+    assert not (_BS_V2_ASSET_SECTIONS & _BS_V2_EQUITY_SECTIONS) and all(
+        s in _BS_V2_SECTION_ORDER
+        for s in sorted(_BS_V2_ASSET_SECTIONS | _BS_V2_EQUITY_SECTIONS)
+    ), (
+        "A-031: asset/equity section sets must be disjoint subsets of "
+        "_BS_V2_SECTION_ORDER — overlap or unknown section would "
+        "double-count a side"
+    )
     assets_cents = sum(
         section_cents[s] for s in _BS_V2_SECTION_ORDER if s in _BS_V2_ASSET_SECTIONS
     )
@@ -1403,10 +1467,10 @@ def build_canonical_bs_v2(
     # By construction (rows, subtotals and totals derive from the same
     # cent sums) these can only fail on a builder bug — fail loud.
     assert assets_eq_row_sum, (
-        f"canonical_bs v2: asset rows {asset_row_cents} != totals.assets cents {assets_cents}"
+        f"A-035: canonical_bs v2: asset rows {asset_row_cents} != totals.assets cents {assets_cents}"
     )
     assert el_eq_row_sum, (
-        f"canonical_bs v2: E+L rows {el_row_cents} != equity+liabilities cents "
+        f"A-036: canonical_bs v2: E+L rows {el_row_cents} != equity+liabilities cents "
         f"{equity_cents + liabilities_cents}"
     )
 

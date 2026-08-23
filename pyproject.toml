@@ -51,7 +51,11 @@ dependencies = [
 # admits the interpreter (local venv is 3.9, CI pins 3.11), so both get a
 # compatible build; the suite uses only long-stable APIs (settings
 # profiles, @given, st.composite).
-dev = ["pytest>=8.0", "mypy>=1.7", "httpx>=0.27", "hypothesis>=6.100"]
+# pytest-benchmark: the C4 performance-budget micro-suite
+# (tests/engine/bench/ + scripts/check_perf_budget.py). Tests
+# importorskip it, so environments without the dev extras skip the
+# bench suite instead of erroring.
+dev = ["pytest>=8.0", "mypy>=1.7", "httpx>=0.27", "hypothesis>=6.100", "pytest-benchmark>=4.0"]
 
 [project.scripts]
 engine = "engine.__main__:main"

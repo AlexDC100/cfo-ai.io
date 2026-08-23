@@ -1,0 +1,112 @@
+# engine.ai model registry — models.yaml (config, not code)
+# ---------------------------------------------------------------------------
+# ONE table: role -> {model_id, prompt_version, max_tokens, temperature,
+# breaker caps}. Loaded + schema-validated by engine.ai.registry (cached);
+# every AI call site resolves its model + prompt version here.
+#
+# VALUE-FREEZE (read before editing model_id values):
+#   The corpus goldens byte-freeze "claude-opus-4-7" into
+#   corpus/hu_ai_lane/expected/* (extraction.model, classification.model),
+#   stored prod envelopes carry it in ai_audit (the AI-lane cache key), and
+#   tests/engine/test_ai_lane.py locks "all lane stages call the ONE
+#   MODEL_ID". The registry cutover is therefore VALUE-IDENTICAL: flipping
+#   any of the four wired lane/reconcile model ids below is a deliberate
+#   golden-refreeze event (UPDATE_GOLDEN=1 + a `golden-change:` PR line +
+#   relaxing the one-model invariant in test_ai_lane.py), never a casual
+#   edit. The operator's declared TARGETS once that refreeze is scheduled:
+#     - ai_validator, reconcile_proposal, extract, classify -> the current
+#       Anthropic flagship "claude-fable-5"  (ai_validator already ships
+#       on it — the role is new, no golden pins it)
+#     - format_detect -> the cheaper tier "claude-haiku-4-5-20251001"
+#   DEPLOY CHECK: verify both target model-id strings against the live
+#   Anthropic models endpoint at deploy time (scripts/check_anthropic_probe
+#   .py reports registry + credential state; model ids change with releases).
+#
+# temperature is pinned 0 for every role (registry validation enforces it).
+# NOTE: the existing call sites do not yet PASS temperature on requests —
+# the value documents the contract; wiring it into request kwargs is a
+# separate behavior change (see docs/decisions/ADR-ai-spend-breaker.md).
+#
+# breaker: per-role DAILY spend caps consumed by engine.ai.breaker.
+# Conservative defaults sized for a single-tenant VPS: a tripped role
+# degrades to the honest "advisory unavailable" state and serving proceeds
+# regardless — caps here are cost armor, never a serving gate. 0 means the
+# role is fully closed (used by tests; also an ops kill-switch).
+
+schema: ai_model_registry_v1
+
+defaults:
+  temperature: 0
+  breaker:
+    max_calls_per_day: 200
+    max_tokens_per_day: 2000000
+
+roles:
+  format_detect:
+    # Target after the deliberate refreeze: claude-haiku-4-5-20251001
+    # (cheap tier; blocked today only by the one-model lane invariant).
+    model_id: claude-opus-4-7
+    prompt_version: format_detect_v1
+    max_tokens: 2000
+    temperature: 0
+    breaker:
+      max_calls_per_day: 500
+      max_tokens_per_day: 2000000
+
+  extract:
+    # Target after the deliberate golden refreeze: claude-fable-5.
+    model_id: claude-opus-4-7
+    prompt_version: extract_v1
+    max_tokens: 16000
+    temperature: 0
+    breaker:
+      max_calls_per_day: 200
+      max_tokens_per_day: 5000000
+
+  classify:
+    # Base version only — the pack-hash derivation
+    # (classify_<jur>@<pack_hash[:12]>, frozen alias 'classify_v1' for the
+    # exact v1 pack contents) COMPOSES ON TOP in engine.ai_lane.config.
+    # Target after the deliberate golden refreeze: claude-fable-5.
+    model_id: claude-opus-4-7
+    prompt_version: classify_v1
+    max_tokens: 16000
+    temperature: 0
+    breaker:
+      max_calls_per_day: 200
+      max_tokens_per_day: 5000000
+
+  reconcile_proposal:
+    # engine.api._reconcile AI_MODEL / PROMPT_VERSION — value-identical
+    # wiring (stored receipts record these strings).
+    # Target after the deliberate refreeze: claude-fable-5.
+    model_id: claude-opus-4-7
+    prompt_version: reconcile_v1
+    max_tokens: 1024
+    temperature: 0
+    breaker:
+      max_calls_per_day: 100
+      max_tokens_per_day: 200000
+
+  ai_validator:
+    # THE advisory pass (engine.ai.advisory). New role — no golden pins
+    # it, so it ships on the current Anthropic flagship per the operator
+    # spec. VERIFY THIS STRING AT DEPLOY: "claude-fable-5" is the current
+    # flagship model id; confirm against the live models endpoint before
+    # enabling the pass in production.
+    model_id: claude-fable-5
+    prompt_version: ai_validator_v1
+    max_tokens: 4096
+    temperature: 0
+    breaker:
+      max_calls_per_day: 200
+      max_tokens_per_day: 2000000
+
+  narrative:
+    # pipeline.stage_narrate's briefing model (value-identical to the
+    # literal it uses today). Wiring the pipeline call site to this row
+    # is the coordinator's one-liner — see the REG handoff notes.
+    model_id: claude-opus-4-7
+    prompt_version: narrative_v1
+    max_tokens: 4096
+    temperature: 0

@@ -93,9 +93,24 @@ already fired once, before this record existed.** That is the strongest
 argument for writing the triggers down rather than relying on judgement
 in the moment.
 
-### Document owner — UNRESOLVED
+### Document owner — UNCONFIRMED, conservative default applied
 
-**[OWNER TO CONFIRM: EEI own document | client document]**
+**Owner: UNCONFIRMED — conservatively treated as CLIENT DOCUMENT; all
+review triggers below are BINDING.** (D1 autonomous closure, 2026-08-22:
+zero-owner mode forbids blocking on this answer, and the conservative
+reading is the only safe default — treating a client's document as one's
+own would silently relax live notification duties, while the reverse
+merely keeps prudent hygiene binding.)
+
+To flip when the owner answers, one command from the repo root:
+
+    make adr-confirm OWNER=eei      # EEI's own document — triggers stay
+                                    # prudent hygiene, acted on at will
+    make adr-confirm OWNER=client   # confirmed client document — the
+                                    # "client or legal request" trigger is
+                                    # a live notification duty
+
+The target rewrites only this Owner line (audited in git like any edit).
 
 This is the single unresolved input, and it is not cosmetic: if the
 trial balance is EEI's own document, the residual is self-inflicted and

@@ -17,6 +17,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from engine.ai import registry as _model_registry
+
 from . import config
 from .schemas import AiLaneError
 
@@ -63,9 +65,22 @@ def call_strict_json(
 
     Returns the parsed JSON object. Raises AiLaneError on transport /
     API errors and on a second malformed response. Appends one audit
-    entry per ATTEMPT to `audit_stages` (model id + prompt version +
-    full raw response), fulfilling the persist-everything contract.
+    entry per ATTEMPT to `audit_stages` ({role, model_id, prompt
+    version} + full raw response), fulfilling the persist-everything
+    contract.
+
+    MODEL RESOLUTION (registry-wired): the stage name doubles as the
+    registry ROLE — the per-call model comes from engine.ai/models.yaml
+    (value-identical cutover today: every lane role pins the ONE
+    MODEL_ID, locked by test_ai_lane's all-stages-one-model assertion
+    and the corpus goldens; a per-stage divergence becomes a deliberate
+    registry edit + test/golden refreeze). An unknown stage/role falls
+    back to config.MODEL_ID so ad-hoc callers keep the old behavior.
     """
+    try:
+        model_id = _model_registry.model_for(stage)
+    except _model_registry.RegistryError:
+        model_id = config.MODEL_ID
     messages: List[Dict[str, Any]] = [
         {"role": "user", "content": [{"type": "text", "text": user_text}]},
     ]
@@ -73,7 +88,7 @@ def call_strict_json(
     for attempt in (1, 2):
         try:
             resp = client.messages.create(
-                model=config.MODEL_ID,
+                model=model_id,
                 max_tokens=max_tokens,
                 system=[{"type": "text", "text": system}],
                 messages=messages,
@@ -82,14 +97,16 @@ def call_strict_json(
         except Exception as e:  # noqa: BLE001 — wrap EVERY client failure honestly
             raise AiLaneError(
                 "AI extraction failed at stage '%s' (model %s): %s"
-                % (stage, config.MODEL_ID, e)
+                % (stage, model_id, e)
             )
         text = _response_text(resp)
         if audit_stages is not None:
             audit_stages.append({
                 "stage": stage,
+                "role": stage,
                 "attempt": attempt,
-                "model": config.MODEL_ID,
+                "model": model_id,
+                "model_id": model_id,
                 "prompt_version": prompt_version,
                 "at": _now_iso(),
                 "raw_response": text,
@@ -100,7 +117,7 @@ def call_strict_json(
                 raise json.JSONDecodeError("top-level JSON must be an object", text, 0)
             logger.info(
                 "[ai_lane] stage=%s ok (model=%s prompt=%s attempt=%d)",
-                stage, config.MODEL_ID, prompt_version, attempt,
+                stage, model_id, prompt_version, attempt,
             )
             return data
         except json.JSONDecodeError as e:

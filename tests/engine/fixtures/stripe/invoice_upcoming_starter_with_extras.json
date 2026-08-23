@@ -1,0 +1,57 @@
+{
+  "object": "invoice",
+  "livemode": false,
+  "customer": "cus_D2TestCustomer001",
+  "subscription": "sub_D2TestSub001",
+  "amount_due": 2399,
+  "currency": "eur",
+  "period_start": 1767225600,
+  "period_end": 1769904000,
+  "lines": {
+    "object": "list",
+    "has_more": false,
+    "url": "/v1/invoices/upcoming/lines",
+    "data": [
+      {
+        "id": "il_D2Base001",
+        "object": "line_item",
+        "amount": 1499,
+        "quantity": 1,
+        "currency": "eur",
+        "price": {
+          "id": "price_starter_test",
+          "object": "price",
+          "active": true,
+          "currency": "eur",
+          "unit_amount": 1499,
+          "livemode": false,
+          "recurring": {
+            "interval": "month",
+            "interval_count": 1,
+            "usage_type": "licensed"
+          }
+        }
+      },
+      {
+        "id": "il_D2Extras001",
+        "object": "line_item",
+        "amount": 900,
+        "quantity": 3,
+        "currency": "eur",
+        "price": {
+          "id": "price_starter_extra_test",
+          "object": "price",
+          "active": true,
+          "currency": "eur",
+          "unit_amount": 300,
+          "livemode": false,
+          "recurring": {
+            "interval": "month",
+            "interval_count": 1,
+            "usage_type": "metered"
+          }
+        }
+      }
+    ]
+  }
+}
