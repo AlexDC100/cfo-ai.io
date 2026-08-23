@@ -16,11 +16,20 @@ dependencies = [
     "sqlalchemy>=2.0",
     "fastapi>=0.110",
     "uvicorn>=0.27",
-    "anthropic>=0.30",
+    # PINNED CEILING (2026-08-22 boot-crash incident): anthropic 1.0.0
+    # switched its HTTP stack to httpx2, and openai 3.x dropped httpx too —
+    # the unpinned float removed the transitive httpx our code imports
+    # directly, and the freshly-built container crash-looped on
+    # ModuleNotFoundError. Majors are ceilinged to the tested range and
+    # httpx is declared as the DIRECT dependency it always was (engine.api
+    # imports it in _supabase and beyond). The Wave-2 supply-chain pass
+    # replaces ceilings with a full hash lock.
+    "anthropic>=0.30,<1.0",
+    "httpx>=0.27",
     # OpenAI SDK — used by the ai_orchestrator GPT verifier path
     # (src/engine/api/ai_orchestrator/adapters/gpt_adapter.py). Lazy-imported;
     # orchestrator degrades to Claude-only when OPENAI_API_KEY is unset.
-    "openai>=1.50",
+    "openai>=1.50,<2.0",
     # Stripe Python SDK — used by engine.api._billing for Checkout Sessions,
     # webhooks, and Customer Portal. Lazy-imported via _stripe_or_none(); the
     # billing surface returns 503 gracefully when the SDK or STRIPE_SECRET_KEY
