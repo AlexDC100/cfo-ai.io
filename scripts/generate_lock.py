@@ -74,9 +74,23 @@ PYPROJECT = REPO / "pyproject.toml"
 #:                        extras the image runs with;
 #:   python-multipart   — FastAPI form/file-upload parsing (documents
 #:                        upload surface).
+#:   greenlet           — SQLAlchemy's async/C-extension companion. It is
+#:                        a TRANSITIVE dep of sqlalchemy, but pulled through
+#:                        a `platform_machine in (aarch64, x86_64, ...)`
+#:                        marker that is FALSE on this repo's usual resolve
+#:                        host (macOS arm64 reports 'arm64', not 'aarch64'),
+#:                        so a lock resolved here silently omits it — then
+#:                        the linux/amd64 image build fails under
+#:                        --require-hashes ("greenlet>=1 ... not pinned").
+#:                        Declared here so it is ALWAYS in the closure and
+#:                        pinned with all-artifact hashes (incl. the linux
+#:                        cp311 wheel) regardless of the resolving host's
+#:                        platform. This is the platform-marker analogue of
+#:                        the py-version superset the floor-resolve gives.
 DOCKER_EXTRAS = [
     "uvicorn[standard]>=0.27",
     "python-multipart>=0.0.20",
+    "greenlet>=1",
 ]
 
 #: Build-backend pins (pyproject [build-system].requires) — locked so the
