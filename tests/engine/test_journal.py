@@ -554,3 +554,51 @@ def test_asof_route_mounted_in_pipeline_router():
     router = _pipeline.build_router()
     paths = {getattr(r, "path", "") for r in router.routes}
     assert "/api/period/{period_id}/asof" in paths
+
+
+def test_gc_never_collects_a_crashed_runs_resume_checkpoints(
+    journal_dir, fake_admin
+):
+    """The DST wave's observed sharp edge, locked: a run killed after
+    PASS_DONE (no snapshot yet) has its checkpoint objects — doc_object
+    (RUN_STARTED), ir_hash (FRONTEND_DONE), layer_hash (PASS_DONE) — in
+    the store. ``referenced_digests`` must count them as REFERENCED:
+    a ``gc --delete`` that collected them would destroy exactly the
+    bytes ``resume_run`` needs, turning a recoverable crash into a
+    permanent cannot_resume. After a delete-mode gc, resume must still
+    heal the run through the real stage composition."""
+    from engine.journal.resume import resume_run
+
+    doc, parsed = load_case("csv")
+    _hooks.on_run_started(doc, industry=None)
+    _hooks.on_frontend_done(doc, parsed)
+    assembled = _pipeline.stage_map(doc, copy.deepcopy(parsed), None)
+    _hooks.on_pass_done(doc, assembled)
+    # Process dies HERE — no stage_persist, no SNAPSHOT_PERSISTED.
+    _hooks.set_active_run(None)
+    _hooks.reset_cache()
+
+    journal = Journal(journal_dir)
+    file_hash = doc["content_hash"]
+    by_type = {e["type"]: e for e in journal.chain_events(file_hash)}
+    checkpoints = {
+        str((by_type["RUN_STARTED"].get("payload") or {})["doc_object"]),
+        str((by_type["FRONTEND_DONE"].get("payload") or {})["ir_hash"]),
+        str((by_type["PASS_DONE"].get("payload") or {})["layer_hash"]),
+    }
+    assert len(checkpoints) == 3
+
+    listed = set(journal.gc_orphans(delete=False)["orphans"])
+    assert not (checkpoints & listed), (
+        "gc lists a crashed run's resume checkpoints as collectable "
+        "orphans: %s" % sorted(checkpoints & listed)
+    )
+
+    # The teeth: delete-mode gc, then resume heals byte-faithfully.
+    journal.gc_orphans(delete=True)
+    for digest in checkpoints:
+        journal.store.read_object(digest)  # raises if collected
+    run_id = str(journal.registered_runs(file_hash)[0]["run_id"])
+    resumed = resume_run(journal, run_id)
+    assert resumed.get("period_id")
+    assert fake_admin.envelope() is not None

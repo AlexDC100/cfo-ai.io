@@ -1,0 +1,108 @@
+{
+  "en": {
+    "ops": {
+      "eyebrow": "Engine",
+      "title": "Engine health",
+      "subtitle": "A read-only, one-glance view of the analysis engine: last test battery, deployed versions, AI spend, run journal and drift sentinels.",
+      "refresh": "Refresh",
+      "loading": "Reading engine health…",
+      "error": "Couldn't reach the engine just now.",
+      "retry": "Try again",
+      "generatedAt": "Snapshot from {{when}}",
+      "battery": {
+        "title": "Test battery",
+        "notRecorded": "Not recorded on this deploy yet.",
+        "gatesGreen": "{{passed}} of {{total}} gates green",
+        "ranAt": "ran {{when}}"
+      },
+      "versions": {
+        "title": "Deployed versions",
+        "engine": "Engine",
+        "packs": "Jurisdiction packs",
+        "models": "AI models",
+        "packFrom": "from {{date}}",
+        "hash": "hash"
+      },
+      "spend": {
+        "title": "AI spend vs caps",
+        "day": "today · {{day}}",
+        "calls": "calls",
+        "tokens": "tokens",
+        "none": "No AI calls today."
+      },
+      "journal": {
+        "title": "Run journal",
+        "chains": "document chains",
+        "verified": "hash chain verified ({{checked}} checked)",
+        "failed": "verification failed on {{failed}} of {{checked}}",
+        "noChains": "no chains yet",
+        "disabled": "Journal is off on this deploy — runs are not being recorded.",
+        "dlq": "DLQ depth"
+      },
+      "drift": {
+        "title": "Drift sentinels",
+        "steady": "Steady vs the rolling baseline.",
+        "departures": "{{count}} departure(s) vs the rolling baseline",
+        "noticesLabel": "Notices",
+        "rateUnclassified": "Unclassified",
+        "rateLlmFallback": "LLM fallback",
+        "rateAiProposals": "AI proposals",
+        "rateCacheHits": "Cache hits",
+        "noCoverage": "n/a"
+      }
+    }
+  },
+  "ro": {
+    "ops": {
+      "eyebrow": "Motor",
+      "title": "Starea motorului",
+      "subtitle": "O privire doar-citire, dintr-o singură ochire, asupra motorului de analiză: ultima baterie de teste, versiunile instalate, consumul AI, jurnalul rulărilor și santinelele de drift.",
+      "refresh": "Reîncarcă",
+      "loading": "Citim starea motorului…",
+      "error": "Momentan nu putem contacta motorul.",
+      "retry": "Încearcă din nou",
+      "generatedAt": "Instantaneu din {{when}}",
+      "battery": {
+        "title": "Bateria de teste",
+        "notRecorded": "Încă neînregistrată pe acest deploy.",
+        "gatesGreen": "{{passed}} din {{total}} porți verzi",
+        "ranAt": "rulată {{when}}"
+      },
+      "versions": {
+        "title": "Versiuni instalate",
+        "engine": "Motor",
+        "packs": "Pachete de jurisdicție",
+        "models": "Modele AI",
+        "packFrom": "din {{date}}",
+        "hash": "hash"
+      },
+      "spend": {
+        "title": "Consum AI vs plafoane",
+        "day": "azi · {{day}}",
+        "calls": "apeluri",
+        "tokens": "tokeni",
+        "none": "Niciun apel AI azi."
+      },
+      "journal": {
+        "title": "Jurnalul rulărilor",
+        "chains": "lanțuri de documente",
+        "verified": "lanț de hash verificat ({{checked}} verificate)",
+        "failed": "verificare eșuată la {{failed}} din {{checked}}",
+        "noChains": "niciun lanț încă",
+        "disabled": "Jurnalul e oprit pe acest deploy — rulările nu se înregistrează.",
+        "dlq": "Adâncime DLQ"
+      },
+      "drift": {
+        "title": "Santinele de drift",
+        "steady": "Stabil față de baza de referință.",
+        "departures": "{{count}} abatere/abateri față de baza de referință",
+        "noticesLabel": "Notificări",
+        "rateUnclassified": "Neclasificate",
+        "rateLlmFallback": "Fallback LLM",
+        "rateAiProposals": "Propuneri AI",
+        "rateCacheHits": "Cache",
+        "noCoverage": "n/a"
+      }
+    }
+  }
+}

@@ -807,14 +807,22 @@ class Journal:
 
     # ── orphan collection (list-only by default) ───────────────────
 
+    # Every payload key that addresses a store object. Checkpoint
+    # objects (doc_object / ir_hash / layer_hash) are REFERENCED, not
+    # collectable: a crashed run's resume needs exactly those bytes,
+    # so a gc --delete that collected them would turn a recoverable
+    # crash into a permanent cannot_resume.
+    _DIGEST_PAYLOAD_KEYS = ("content_hash", "doc_object", "ir_hash", "layer_hash")
+
     def referenced_digests(self) -> set:
         referenced = set()
         runs_dir = self.root / "runs"
         if runs_dir.is_dir():
             for path in sorted(runs_dir.glob("*.jsonl")):
                 for event in self._read_jsonl(path):
-                    if event.get("type") == "SNAPSHOT_PERSISTED":
-                        digest = (event.get("payload") or {}).get("content_hash")
+                    payload = event.get("payload") or {}
+                    for key in self._DIGEST_PAYLOAD_KEYS:
+                        digest = payload.get(key)
                         if digest:
                             referenced.add(str(digest))
         return referenced

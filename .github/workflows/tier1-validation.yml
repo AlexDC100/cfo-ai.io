@@ -163,6 +163,46 @@ jobs:
       # this direct step keeps the failure visible as its own CI line.
       - name: Import-boundary check (serving gateway)
         run: python3 scripts/check_import_boundary.py
+      # ── Supply chain (Part E) ──────────────────────────────────────────
+      # --self-test IS the planted-violation proof: it plants a floating
+      # image tag, an unhashed lock pin, the literal `anthropic>=0.30`
+      # incident line, and runtime-concatenated fake credentials, and
+      # asserts every detector catches its plant — a detector regression
+      # fails CI before the live scan runs. The live gate then checks the
+      # lock shape, the lock↔pyproject digest sync (incl. the anthropic
+      # ceiling proof), Dockerfile-installs-from-lock, floating image
+      # tags, and secrets over the tracked tree.
+      - name: Supply-chain gate — detector self-test (planted violations)
+        run: python3 scripts/check_supply_chain.py --self-test
+      - name: Supply-chain gate — live scan (lock/Dockerfile/tags/secrets)
+        run: python3 scripts/check_supply_chain.py
+      # ── Engine Book drift (K8) ─────────────────────────────────────────
+      # Also enforced inside pytest via tests/engine/test_engine_book.py;
+      # this named step keeps a book-drift failure legible as its own line.
+      - name: Engine Book docs gate (K8 — regeneration byte-identical)
+        run: python3 scripts/generate_engine_book.py --check
+      # ── DST fault harness, per-PR profile ─────────────────────────────
+      # 14 configs (~2 s): one fixture × every fault class through the
+      # REAL pipeline composition. Also runs inside pytest (test_dst.py);
+      # kept as its own line for legibility. Deep profile (86 configs)
+      # runs nightly.
+      - name: DST fault harness (per-PR profile)
+        run: python3 scripts/dst_explore.py
+      # ── Mutation kernel, PR profile ───────────────────────────────────
+      # Exits 0 immediately when no kernel file is in the diff; when one
+      # is touched it re-runs mutation testing for that module and gates
+      # at the pinned 100% floor. NOTE for reviewers: editing a kernel
+      # function renumbers that function's mutant ids — a failure here
+      # means re-triage that function (killing tests or EQUIVALENT_MUTANTS
+      # rows, with docs/engine_book/mutation.md rows in lockstep).
+      - name: Mutation kernel (PR profile — changed kernel files only)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" || true
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD | paste -sd, -)"
+          python3 scripts/run_mutation_kernel.py --files "$CHANGED" --check
 
   # ─── Golden-change guard (PR-only) ───────────────────────────────────
   # A diff under corpus/*/expected/ is a pipeline contract change and must

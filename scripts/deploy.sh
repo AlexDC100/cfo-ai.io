@@ -118,6 +118,18 @@ ssh "$VPS" "cd $REMOTE && \
   docker compose build $SERVICES_STR && \
   docker compose up -d --force-recreate $SERVICES_STR"
 
+# Supply-chain artifacts (Part E): SBOM + SLSA provenance describing THIS
+# build, generated from the same checkout the image was built from so
+# commit + inputsDigest describe the actual bytes shipped. Written to the
+# gitignored deploy/artifacts/; best-effort — an artifact failure must not
+# roll back a healthy deploy, so it warns instead of exiting.
+if [ "$BUILD_BACKEND" = "1" ]; then
+  echo
+  echo "→ Supply-chain artifacts (SBOM + provenance) for this build"
+  python3 scripts/generate_sbom.py && python3 scripts/generate_provenance.py \
+    || echo "⚠ supply-chain artifacts FAILED to generate (deploy itself unaffected) — run 'make supply-chain-artifacts' manually"
+fi
+
 echo
 # Retry loop instead of a fixed 6s: the backend's boot_verify (anthropic
 # key check + stripe probe) can take 20-40s, and the old single-shot probe

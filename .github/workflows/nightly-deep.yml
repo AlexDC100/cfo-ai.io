@@ -208,3 +208,123 @@ jobs:
               echo "(no notices emitted)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY" || true
+
+  # ─── DST fault harness, deep profile ──────────────────────────────────
+  # 86 configs: every fault class × every stage boundary × the deterministic
+  # fixtures (+ HU AI-lane where the fault applies), all through the REAL
+  # pipeline composition. Failures minimize and archive to
+  # corpus/quarantine/dst/<sha16>/ — uploaded as an artifact on red so the
+  # seed + config + traceback survive the runner.
+  dst-deep:
+    name: DST fault harness (deep profile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: DST deep exploration (86 configs)
+        env:
+          DST_PROFILE: deep
+        run: python3 scripts/dst_explore.py
+      - name: Upload quarantined failing configs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dst-quarantine
+          path: corpus/quarantine/dst/
+          if-no-files-found: ignore
+
+  # ─── Mutation testing — full kernel, nightly ──────────────────────────
+  # The C1 proof-layer gate: every scoreable mutant in the five kernel
+  # modules must be killed (floors pinned at the measured 100%). ~16 min
+  # on 14-core Apple Silicon; budgeted 90 min for 2-core runners. Only
+  # --fresh full-run numbers are quotable (mutmut regenerates mutants and
+  # resets ALL recorded results each run — docs/engine_book/mutation.md).
+  mutation-kernel:
+    name: Mutation testing (full kernel, 100% floors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps (mutmut is in [dev])
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Full kernel mutation run (--fresh, gate at pinned floors)
+        run: python3 scripts/run_mutation_kernel.py --fresh --check
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: data/mutation/report-latest.json
+          if-no-files-found: ignore
+
+  # ─── Mutation testing — canonical_bs_v2 (dedicated job) ───────────────
+  # Deferred from the default gate per the ~30-min budget rule (projection
+  # 75–90 min, timeout-dominated). The separate --workdir is REQUIRED, not
+  # cosmetic: mutmut resets all recorded results on regeneration, so a
+  # scoped run in the default workdir would wipe the full-kernel job's
+  # results. 85% floor is provisional until the first complete run is
+  # triaged (early signal from the 107-mutant sample: zero survivors).
+  mutation-canonical:
+    name: Mutation testing (canonical_bs_v2, provisional floor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps (mutmut is in [dev])
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: canonical_bs_v2 mutation run (dedicated workdir)
+        run: >
+          python3 scripts/run_mutation_kernel.py
+          --modules canonical_bs_v2 --check
+          --workdir data/mutation/canonical
+      - name: Upload canonical mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-canonical
+          path: data/mutation/canonical/report-latest.json
+          if-no-files-found: ignore
+
+  # ─── Lock resolution drift (informational) ────────────────────────────
+  # Re-resolves the dependency closure against live PyPI and verifies the
+  # guards WITHOUT writing — surfaces upstream drift (a new major, a
+  # yanked wheel) days before anyone regenerates the lock for real. Needs
+  # network to PyPI, so it lives here and NEVER in the blocking PR path;
+  # continue-on-error keeps a PyPI outage from painting the nightly red.
+  lock-drift:
+    name: Lock resolution drift vs live PyPI (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Re-resolve + verify guards (writes nothing)
+        run: python3 scripts/generate_lock.py --check

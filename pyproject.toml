@@ -64,7 +64,24 @@ dependencies = [
 # (tests/engine/bench/ + scripts/check_perf_budget.py). Tests
 # importorskip it, so environments without the dev extras skip the
 # bench suite instead of erroring.
-dev = ["pytest>=8.0", "mypy>=1.7", "httpx>=0.27", "hypothesis>=6.100", "pytest-benchmark>=4.0"]
+# mutmut: C1 kernel mutation testing (scripts/run_mutation_kernel.py +
+# docs/engine_book/mutation.md). Pinned to 3.3.x: the runner monkeypatches
+# mutmut.file_mutation.MutationVisitor._skip_node_and_children (private
+# API) to mutate @dataclass class bodies — verify the patch against any
+# new minor before raising the ceiling. 3.3.1 verified on py3.9.
+dev = ["pytest>=8.0", "mypy>=1.7", "httpx>=0.27", "hypothesis>=6.100", "pytest-benchmark>=4.0", "mutmut>=3.3,<3.4"]
+# obs: OPTIONAL OpenTelemetry bridge for src/engine/obs/tracing.py. The
+# engine (and the whole battery) boots and runs WITHOUT these — every
+# opentelemetry import in engine.obs is guarded, and the in-memory span
+# recorder + /api/ops + drift sentinels are stdlib-only. Install this
+# extra only to EXPORT spans (ENGINE_OBS_TRACE=console|otlp). Majors are
+# ceilinged per the 2026-08-22 supply-chain discipline (unpinned floats
+# removed a transitive dep and crash-looped the container).
+obs = [
+    "opentelemetry-api>=1.30,<2.0",
+    "opentelemetry-sdk>=1.30,<2.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.30,<2.0",
+]
 
 [project.scripts]
 engine = "engine.__main__:main"

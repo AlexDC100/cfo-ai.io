@@ -2,6 +2,21 @@
 # real logic lives in scripts/ so CI and humans run identical code.
 
 ADR := docs/decisions/ADR-corpus-history-sibiu.md
+PY  := .venv/bin/python
+
+.PHONY: supply-chain supply-chain-artifacts
+# Gate: planted-violation self-test first, then the live tree scan
+# (lock shape/sync, Dockerfile-installs-from-lock, image tags, secrets).
+supply-chain:
+	$(PY) scripts/check_supply_chain.py --self-test
+	$(PY) scripts/check_supply_chain.py
+
+# Per-build artifacts: CycloneDX SBOM + SLSA provenance, written to the
+# gitignored deploy/artifacts/. Run on every deploy, ship the directory
+# alongside the image.
+supply-chain-artifacts:
+	$(PY) scripts/generate_sbom.py
+	$(PY) scripts/generate_provenance.py
 
 .PHONY: adr-confirm
 # Usage: make adr-confirm OWNER=eei|client

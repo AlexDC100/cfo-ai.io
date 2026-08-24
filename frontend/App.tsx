@@ -86,6 +86,7 @@ const BenchmarkReport = lazy(() => import("./pages/cfo/BenchmarkReport"));
 const ComprehensiveReport = lazy(() => import("./pages/cfo/ComprehensiveReport"));
 const PeerComparisonReport = lazy(() => import("./pages/cfo/PeerComparisonReport"));
 const MultiYearHistory = lazy(() => import("./pages/cfo/MultiYearHistory"));
+const Ops = lazy(() => import("./pages/cfo/Ops"));
 // Settings without the app shell — reached from the landing account menu.
 const AccountSettings = lazy(() => import("./pages/cfo/AccountSettings"));
 const Chat = lazy(() => import("./pages/cfo/Chat"));
@@ -374,6 +375,7 @@ function AppRoutes() {
             <Route path="/report" element={<ComprehensiveReport />} />
             <Route path="/peer-report" element={<PeerComparisonReport />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/ops" element={<Ops />} />
             {/* Flag-gated: render the page when enabled, else redirect. */}
             <Route
               path="/decisions"

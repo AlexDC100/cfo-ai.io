@@ -64,6 +64,8 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional
 
+from . import access_log  # E1 access-log seam (append-only, never raises)
+
 #: Served-envelope contract version, stamped by the serve path
 #: (engine.api._reconcile.served_canonical_bs) onto every served
 #: canonical_bs as ``envelope_version``. Bump ONLY with a migration
@@ -192,6 +194,7 @@ class FactsGateway(object):
         if not isinstance(envelope, dict):
             return None
         snapshot_id = cls._snapshot_id_of(envelope)
+        access_log.record_access(doc=snapshot_id, accessor="FactsGateway.from_envelope")
         methodology = envelope.get("methodology") or {}
         # Lazy import: engine.serving must stay importable without the
         # API package; the serve path lives with _reconcile (the module

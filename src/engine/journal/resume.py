@@ -51,6 +51,14 @@ class ResumeRefused(RuntimeError):
         self.detail = detail
 
 
+#: The AI extraction lane's detected_type marker. Kept literal so the
+#: journal package never imports the lane at module import time (the
+#: facts.py _RESULT_ROW_IDS precedent); the value is locked against
+#: ``engine.ai_lane.AI_LANE_DETECTED_TYPE`` by
+#: tests/engine/test_dst.py::test_lane_marker_literal_locked.
+_AI_LANE_DETECTED_TYPE = "ai_lane_statement"
+
+
 def _load_object(journal: Journal, digest: Optional[str], what: str) -> Dict[str, Any]:
     if not digest:
         raise ResumeRefused("missing_checkpoint", "%s has no object reference" % what)
@@ -145,6 +153,41 @@ def resume_run(
             journal, (passed.get("payload") or {}).get("layer_hash"), "assembled"
         )
 
+    # Re-assembly honesty (DST finding, 2026-08-23; red tests
+    # tests/engine/test_dst.py::test_k1_lane_resume_uses_recorded_assembled
+    # and ::test_k1_resume_refuses_zero_account_payload): a run crashed
+    # between FRONTEND_DONE and PASS_DONE must be re-assembled the way
+    # PRODUCTION would assemble the recorded payload's lane — never by
+    # blindly feeding it to the RO ``stage_map``:
+    #   * an AI-lane payload carries its own assembled envelope
+    #     (``parsed.ai_lane.assembled``; the pipeline's ai-lane branch
+    #     persists exactly that and never lets the RO mapper consume the
+    #     lane's deliberately empty ``accounts`` — resuming through
+    #     stage_map fabricated an empty BALANCED statement);
+    #   * a payload with ZERO accounts and no lane envelope is refused —
+    #     production fails such runs loudly before assembly; the resume
+    #     must not mint an empty-but-analyzed period.
+    lane_assembled: Optional[Dict[str, Any]] = None
+    if assembled is None:
+        lane_info = parsed.get("ai_lane")
+        lane_info = lane_info if isinstance(lane_info, dict) else {}
+        maybe_lane = lane_info.get("assembled")
+        if isinstance(maybe_lane, dict) and maybe_lane:
+            lane_assembled = maybe_lane
+        elif str(parsed.get("detected_type") or "") == _AI_LANE_DETECTED_TYPE:
+            raise ResumeRefused(
+                "cannot_resume",
+                "ai-lane payload carries no recorded assembled envelope — "
+                "re-run the pipeline for the document instead",
+            )
+        elif not (parsed.get("accounts") or []):
+            raise ResumeRefused(
+                "cannot_resume",
+                "recorded extraction carries zero accounts — production "
+                "fails such runs before assembly; re-run the pipeline for "
+                "the document instead of minting an empty period",
+            )
+
     if stage_map is None or stage_persist is None:
         try:
             from engine.api import pipeline as _pipeline
@@ -169,7 +212,10 @@ def resume_run(
     hooks.set_active_run(handle)
     try:
         if assembled is None:
-            assembled = stage_map(doc, parsed, started_payload.get("industry"))
+            if lane_assembled is not None:
+                assembled = lane_assembled
+            else:
+                assembled = stage_map(doc, parsed, started_payload.get("industry"))
             hooks.on_pass_done(doc, assembled)
         period_id = stage_persist(doc, parsed, assembled)
     except ResumeRefused:

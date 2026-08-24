@@ -29,6 +29,12 @@ dist/
 logs/
 supabase/.temp/
 
+# Per-build supply-chain artifacts (SBOM + SLSA provenance) — derived
+# output regenerated on every build by scripts/generate_sbom.py and
+# scripts/generate_provenance.py; committing one would drift from the
+# lock/commit it describes.
+deploy/artifacts/
+
 .claude/
 
 # LEARN-MOBILE / repo-init (2026-06-16): exclude customer trial-balance

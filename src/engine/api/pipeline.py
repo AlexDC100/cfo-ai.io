@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 
 from . import _detect
 from . import _journal_routes
+from . import _ops_routes
 from . import _org
 from . import _reconcile
 from . import _supabase
@@ -4654,6 +4655,12 @@ def build_router() -> APIRouter:
     # RUN JOURNAL: GET /api/period/{id}/asof — read-only as-of endpoint
     # (auth like the reconcile routes; 404 when no journal coverage).
     _journal_routes.register_routes(router, require_jwt=_require_jwt)
+
+    # OBSERVABILITY: GET /api/ops — read-only engine-health snapshot
+    # (auth like the reconcile routes; also installs the inert tracing
+    # seams over the journal hooks — no behavior change until
+    # ENGINE_OBS_TRACE is set).
+    _ops_routes.register_routes(router, require_jwt=_require_jwt)
 
     # ── FX rates endpoint (currency toggle, BNR proxy) ────────────────
     # Returns {base, rates, source, as_of, fetched_at, stale}. Backend
