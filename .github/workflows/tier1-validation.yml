@@ -163,6 +163,13 @@ jobs:
       # this direct step keeps the failure visible as its own CI line.
       - name: Import-boundary check (serving gateway)
         run: python3 scripts/check_import_boundary.py
+      # ── Error budget (Part E) ─────────────────────────────────────────
+      # Silent-error-rate gate over the labeled corpus (exit 1 on any
+      # SILENT mismatch or a sufficient-N budget breach). files/ fixtures
+      # are absent in CI (gitignored), so the anchor half degrades to a
+      # loud notice by itself; the corpus half stays fully strict.
+      - name: Error budget (silent-error-rate gate)
+        run: python3 scripts/measure_error_budget.py
       # ── Supply chain (Part E) ──────────────────────────────────────────
       # --self-test IS the planted-violation proof: it plants a floating
       # image tag, an unhashed lock pin, the literal `anthropic>=0.30`

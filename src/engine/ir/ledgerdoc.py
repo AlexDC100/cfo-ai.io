@@ -25,9 +25,11 @@ Two invariants this module owns:
 
 Provenance travels with every atom: WHERE the row came from
 (`SourceRef` — spreadsheet cell {sheet,row,col}, PDF {page,bbox}, or a
-synthetic pipeline {stage}), HOW (`method` 'mechanical' | 'llm'), with
-what `confidence` (mechanical reads are exact by definition and MUST
-carry 1.0), and whether a human should look (`needs_review`).
+synthetic pipeline {stage}), HOW (`method` 'mechanical' | 'llm' |
+'mechanical_mapped' — the last is a mechanical read whose coordinates
+came from an AI-interpreted structural map), with what `confidence`
+(the mechanical FAMILY is exact by definition and MUST carry 1.0), and
+whether a human should look (`needs_review`).
 
 This package is a LEAF: nothing imports it yet (Phase 0 is types only),
 and it imports nothing from parsers, pipeline, or serving.
@@ -72,7 +74,17 @@ MONEY_FIELDS: Tuple[str, ...] = (
     "closing_credit",
 )
 
-PROVENANCE_METHODS: Tuple[str, ...] = ("mechanical", "llm")
+PROVENANCE_METHODS: Tuple[str, ...] = ("mechanical", "llm", "mechanical_mapped")
+
+#: The methods that are deterministic cell reads — exact by definition,
+#: so confidence MUST be 1.0. "mechanical_mapped" is a mechanical read
+#: whose COORDINATES came from an AI-interpreted StructuralMap: the
+#: interpretation is a separate, disclosed step (extraction stamp /
+#: source_meta), but the VALUE read itself is exact — widening the
+#: confidence rule to the family keeps that invariant from silently
+#: eroding (the literal-equality check would have let mapped atoms carry
+#: confidence < 1.0).
+_MECHANICAL_FAMILY = frozenset({"mechanical", "mechanical_mapped"})
 
 
 class LedgerDocError(ValueError):
@@ -259,7 +271,7 @@ class Provenance:
             raise LedgerDocError(
                 "Provenance.confidence must be within [0, 1], got %r" % (conf,)
             )
-        if self.method == "mechanical" and conf != 1.0:
+        if self.method in _MECHANICAL_FAMILY and conf != 1.0:
             raise LedgerDocError(
                 "mechanical provenance is exact by definition — confidence "
                 "must be 1.0, got %r" % (conf,)
@@ -274,6 +286,14 @@ class Provenance:
     @classmethod
     def mechanical(cls, source_ref: SourceRef) -> "Provenance":
         return cls(source_ref=source_ref, method="mechanical")
+
+    @classmethod
+    def mechanical_mapped(cls, source_ref: SourceRef) -> "Provenance":
+        """A deterministic cell read whose coordinates came from an
+        AI-interpreted StructuralMap — the read is exact (confidence
+        1.0 enforced via the mechanical family rule); the map's own
+        provenance is disclosed at the document level, not here."""
+        return cls(source_ref=source_ref, method="mechanical_mapped")
 
 
 # --- atoms ------------------------------------------------------------------

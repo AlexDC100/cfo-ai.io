@@ -176,6 +176,61 @@ def _cmd_status(args: argparse.Namespace) -> int:
             _fmt_rate(rates.get("cache_hit_rate")),
         )
     )
+    print(
+        "             consensus agreement %s · interpreter calls %s · "
+        "template hits %s"
+        % (
+            _fmt_rate(rates.get("consensus_agreement_rate")),
+            _fmt_rate(rates.get("interpreter_call_rate")),
+            _fmt_rate(rates.get("template_hit_rate")),
+        )
+    )
+
+    budget = snap.get("error_budget") or {}
+    if budget.get("measured"):
+        for lane, row in sorted((budget.get("per_lane") or {}).items()):
+            if not isinstance(row, dict):
+                continue
+            n = row.get("n") or 0
+            if not n:
+                print("error budget %-16s no measurement source yet" % lane)
+                continue
+            rate = row.get("rate")
+            line = "error budget %-16s %s on %s fields" % (
+                lane,
+                "%.4f%%" % (rate * 100.0) if isinstance(rate, (int, float))
+                else "n/a",
+                n,
+            )
+            ci_low, ci_high = row.get("ci_low"), row.get("ci_high")
+            if isinstance(ci_low, (int, float)) and isinstance(ci_high, (int, float)):
+                line += "  95%% CI [%.4f%%, %.4f%%]" % (
+                    ci_low * 100.0, ci_high * 100.0,
+                )
+            if not row.get("sufficient"):
+                line += "  (N insufficient to certify the budget)"
+            print(line)
+    else:
+        print(
+            "error budget not measured yet (%s) — run "
+            "scripts/measure_error_budget.py" % budget.get("path")
+        )
+    tmpl = snap.get("templates") or {}
+    if tmpl.get("recorded"):
+        print(
+            "templates    %s stored (%s confirmed, %s candidates) — "
+            "hits %s / misses %s, interpreter calls saved %s"
+            % (
+                tmpl.get("template_count", 0), tmpl.get("confirmed", 0),
+                tmpl.get("candidates", 0), tmpl.get("hits", 0),
+                tmpl.get("misses", 0), tmpl.get("interpreter_calls_saved", 0),
+            )
+        )
+    else:
+        print(
+            "templates    no stats recorded yet — run "
+            "scripts/report_promotable_templates.py"
+        )
     return 0
 
 

@@ -472,13 +472,16 @@ def test_has_llm_atoms_flags_single_llm_atom_among_mechanical() -> None:
 def test_registry_ids_and_specs() -> None:
     assert set(FRONT_ENDS) == {
         "saga_10_col", "saga_compact_6_col", "generic_4_col",
-        "csv", "pdf_positional", "llm_extract",
+        "csv", "pdf_positional", "llm_extract", "map_guided",
     }
     specs = front_end_specs()
     for format_id in ("saga_10_col", "saga_compact_6_col", "generic_4_col",
                       "csv", "pdf_positional"):
         assert specs[format_id] == "%s@%s" % (format_id, tbp.PARSER_VERSION)
     assert specs["llm_extract"].startswith("llm_extract@")
+    # map_guided versions independently of the classic parser: its
+    # "parser" is the mechanical map executor, not tb_parser.
+    assert specs["map_guided"] == "map_guided@map_guided_v1"
     for format_id, front_end in FRONT_ENDS.items():
         assert front_end.format_id == format_id
         assert resolve_front_end(format_id) is front_end

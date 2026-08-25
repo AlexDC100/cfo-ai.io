@@ -60,6 +60,7 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
         ("corpus-replay", [PY, "scripts/corpus_replay.py"]),
         ("determinism", [PY, "scripts/verify_determinism.py"]),
         ("bs-drift", [PY, "scripts/measure_bs_drift.py"]),
+        ("error-budget", [PY, "scripts/measure_error_budget.py"]),
         ("import-boundary", [PY, "scripts/check_import_boundary.py"]),
         ("pack-lint", [PY, "scripts/pack_lint.py", "--root", "packs"]),
         ("shadow-report", [PY, "scripts/shadow_report.py", "--all"]),

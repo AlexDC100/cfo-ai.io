@@ -55,7 +55,11 @@ def present_status(served_cbs: Any, surface: str = "api") -> Dict[str, Optional[
 
     Returns ``{machine, display_key, display_en, display_ro,
     micro_caption}`` — deterministic (serving purity: the same served
-    object always yields the same presentation).
+    object always yields the same presentation). When the served object
+    carries an ELIGIBLE consensus block (three green E9 legs) an
+    additive ``trust_disclosure`` key is included (see
+    ``_trust_disclosure`` below); absent everywhere else, so pre-existing
+    servings and goldens are byte-identical.
 
     micro_caption:
       · RECONCILED   → "auto-adjusted {applied delta}" from the served
@@ -90,10 +94,56 @@ def present_status(served_cbs: Any, surface: str = "api") -> Dict[str, Optional[
         micro_caption = "needs review"
 
     display_key, display_en, display_ro = display
-    return {
+    out: Dict[str, Optional[str]] = {
         "machine": machine,
         "display_key": display_key,
         "display_en": display_en,
         "display_ro": display_ro,
         "micro_caption": micro_caption,
     }
+    trust = _trust_disclosure(cbs)
+    if trust is not None:
+        # ADDITIVE key — emitted ONLY when the served object carries an
+        # ELIGIBLE consensus block (three green legs), so every existing
+        # serving (and every corpus golden) is byte-identical without it.
+        out["trust_disclosure"] = trust  # type: ignore[assignment]
+    return out
+
+
+# extraction.method -> (key, en, ro) — emitted only with an eligible
+# (three-green-leg) consensus block alongside. The llm method stays
+# undisclosed here on purpose: its existing "AI-read" badge is the
+# honest surface, and consensus never upgrades an llm read.
+_TRUST_DISCLOSURE = {
+    "deterministic": {
+        "key": "bs.trust.machine_ai_verified_full",
+        "en": "Machine-computed · AI-verified (full)",
+        "ro": "Calculat de mașină · verificat de AI (complet)",
+    },
+    "mechanical_mapped": {
+        "key": "bs.trust.structure_ai_dual_verified",
+        "en": "Structure AI-interpreted · numbers machine-read · dual-verified",
+        "ro": "Structură interpretată de AI · cifre citite mecanic · dublu verificat",
+    },
+}
+
+
+def _trust_disclosure(cbs: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """The consensus trust line for one served canonical_bs, or None.
+
+    Requires BOTH an eligible consensus block (the three-leg verdict,
+    read fail-closed through engine.consensus.verdict — the one E9
+    predicate) and a disclosed extraction method. Deterministic (pure
+    function of the served object; no I/O)."""
+    consensus = cbs.get("consensus")
+    if not isinstance(consensus, dict):
+        return None
+    try:
+        from engine.consensus.verdict import eligible_from_block
+        if not eligible_from_block(consensus):
+            return None
+    except Exception:  # noqa: BLE001 — fail closed: no disclosure
+        return None
+    method = str((cbs.get("extraction") or {}).get("method") or "")
+    entry = _TRUST_DISCLOSURE.get(method)
+    return dict(entry) if entry else None

@@ -23,6 +23,7 @@ import {
   canonicalBsSectionMeta,
   type CanonicalBs,
   type CanonicalBsClassification,
+  type CanonicalBsConsensus,
   type CanonicalBsExtraction,
   type CanonicalBsJurisdiction,
   type CanonicalBsNeedsReviewEntry,
@@ -126,6 +127,9 @@ export interface BSCanonicalMeta {
   /** Resolved jurisdiction, normalized to the structured shape (a bare
    *  engine string becomes `{ resolved }`). */
   jurisdiction?: CanonicalBsJurisdiction;
+  /** Dual-path consensus block (map-guided / C1) — lights the
+   *  MappedReadBadge's dual-verified suffix; null when absent. */
+  consensus?: CanonicalBsConsensus | null;
 }
 
 /** Normalize the served jurisdiction field — the engine (built in
@@ -169,6 +173,7 @@ export function canonicalMetaFromBs(cbs: CanonicalBs): BSCanonicalMeta {
       ? cbs.needs_review
       : cbs.classification?.needs_review ?? [],
     jurisdiction: normalizeJurisdiction(cbs.jurisdiction),
+    consensus: cbs.consensus ?? null,
   };
 }
 

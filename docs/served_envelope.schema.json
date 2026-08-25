@@ -39,7 +39,7 @@
         "extraction": {
           "type": "object",
           "properties": {
-            "method": { "enum": ["deterministic", "llm"] },
+            "method": { "enum": ["deterministic", "llm", "mechanical_mapped"] },
             "parser_version": { "type": "string" },
             "source_format": { "type": "string" },
             "number_locale": { "enum": ["ro", "anglo"] },
@@ -144,7 +144,58 @@
           "description": "boolean true = auto-reconcile could not fix (needs manual mapping); array = AI-lane low-confidence lines.",
           "type": ["boolean", "array", "null"]
         },
-        "jurisdiction": { "type": ["object", "string", "null"] }
+        "jurisdiction": { "type": ["object", "string", "null"] },
+        "consensus": { "$ref": "#/$defs/consensus" }
+      }
+    },
+    "consensus": {
+      "description": "DUAL-PATH CONSENSUS block (engine.consensus) — comparison metadata for two independent readings of one document. Additive and lane-specific (the hu_ai_lane optional-key precedent): absent on periods no consensus lane probed. Served values are NEVER taken from the second reading (E4 — classic/framing-A is always what rows/totals carry); value disagreements are flagged as review atoms, never silently resolved (E3). The three-leg verdict (dual_map_full_consensus AND totals_row_exact AND movement_checks_pass; a null movement leg fails closed) is THE E9 predicate gating BALANCED for extraction.method == 'mechanical_mapped'.",
+      "type": "object",
+      "required": ["schema", "consensus_pct", "atoms_compared", "disagreements", "structural", "totals_match", "legs", "eligible_balanced"],
+      "properties": {
+        "schema": { "const": "consensus_v1" },
+        "mode": { "enum": ["dual_map", "classic_vs_mapped"] },
+        "consensus_pct": { "type": "number" },
+        "atoms_compared": { "type": "integer" },
+        "disagreements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "type": ["string", "null"] },
+              "name": { "type": ["string", "null"] },
+              "field": { "type": ["string", "null"] },
+              "classic_cents": { "type": "integer" },
+              "mapped_cents": { "type": "integer" },
+              "source_ref": { "type": ["object", "null"] }
+            }
+          }
+        },
+        "structural": {
+          "type": "object",
+          "properties": {
+            "row_count_a": { "type": "integer" },
+            "row_count_b": { "type": "integer" },
+            "aligned": { "type": "boolean" }
+          }
+        },
+        "totals_match": { "enum": ["MATCHED", "DIVERGED", "NO_ANCHOR"] },
+        "legs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "leg": { "type": "string" },
+              "pass": { "type": ["boolean", "null"] }
+            }
+          }
+        },
+        "eligible_balanced": { "type": "boolean" },
+        "needs_review": {
+          "description": "Disagreement atoms in the ai_lane needs-review shape (code/name/amount/section/confidence/rationale/reason='consensus_disagreement' + source_ref). Kept INSIDE the consensus block on purpose — the top-level needs_review key keeps its two existing meanings untouched.",
+          "type": ["array", "null"]
+        },
+        "framings": { "type": ["object", "null"] }
       }
     },
     "status_presentation": {
@@ -156,7 +207,16 @@
         "display_key": { "type": "string" },
         "display_en": { "type": "string" },
         "display_ro": { "type": "string" },
-        "micro_caption": { "type": ["string", "null"] }
+        "micro_caption": { "type": ["string", "null"] },
+        "trust_disclosure": {
+          "description": "Optional consensus trust line (engine.serving.status) — present ONLY when the served canonical_bs carries an ELIGIBLE consensus block (all three E9 legs green): deterministic + full consensus => 'Machine-computed · AI-verified (full)'; mechanical_mapped + E9 => 'Structure AI-interpreted · numbers machine-read · dual-verified'. Absent everywhere else (llm included).",
+          "type": ["object", "null"],
+          "properties": {
+            "key": { "type": "string" },
+            "en": { "type": "string" },
+            "ro": { "type": "string" }
+          }
+        }
       }
     },
     "reconciliation_receipt": {

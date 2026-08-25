@@ -149,7 +149,11 @@ export interface CanonicalBsReconciliation {
 }
 
 export interface CanonicalBsExtraction {
-  method: "deterministic" | "llm";
+  /** "mechanical_mapped" = the dual-path consensus lane: structure was
+   *  AI-interpreted, every NUMBER was read mechanically from the grid and
+   *  cross-verified by two independent readings. Distinct from "llm"
+   *  (numbers read by AI) — it must NOT render the "AI-read" badge. */
+  method: "deterministic" | "llm" | "mechanical_mapped";
   parser_version: string;
   source_format: string;
   number_locale: "ro" | "anglo";
@@ -207,6 +211,45 @@ export interface CanonicalBsJurisdiction {
    *  "override" (post-scan re-extraction). */
   source?: string | null;
   pack_version?: string | null;
+}
+
+/** DUAL-PATH CONSENSUS (additive) — comparison metadata for two
+ *  independent readings of the same document. Served values are NEVER
+ *  taken from the second reading (E4); any value disagreement surfaces
+ *  in `disagreements` / `needs_review` (E3). `eligible_balanced` is the
+ *  engine's three-leg E9 verdict — the FE renders it, never re-derives. */
+export interface CanonicalBsConsensusDisagreement {
+  code?: string | null;
+  name?: string | null;
+  field?: string | null;
+  /** The SERVED reading (classic / framing A), integer cents. */
+  classic_cents?: number;
+  /** The second reading (mapped / framing B), integer cents. */
+  mapped_cents?: number;
+  source_ref?: { sheet?: string | null; row?: number | null; col?: number | null } | null;
+}
+
+export interface CanonicalBsConsensusLeg {
+  leg: string;
+  /** null = the leg could not be run — it FAILS the verdict (fail closed). */
+  pass: boolean | null;
+}
+
+export interface CanonicalBsConsensus {
+  schema: "consensus_v1";
+  mode?: "dual_map" | "classic_vs_mapped";
+  consensus_pct: number;
+  atoms_compared: number;
+  disagreements: CanonicalBsConsensusDisagreement[];
+  structural: { row_count_a?: number; row_count_b?: number; aligned?: boolean };
+  totals_match: "MATCHED" | "DIVERGED" | "NO_ANCHOR";
+  legs: CanonicalBsConsensusLeg[];
+  eligible_balanced: boolean;
+  /** Disagreement atoms in the needs-review entry shape (kept INSIDE the
+   *  consensus block — the top-level needs_review key keeps its two
+   *  existing meanings untouched). */
+  needs_review?: CanonicalBsNeedsReviewEntry[] | null;
+  framings?: Record<string, unknown> | null;
 }
 
 export interface CanonicalBsSourceAnchorPair {
@@ -303,6 +346,9 @@ export interface CanonicalBs {
   needs_review?: boolean | CanonicalBsNeedsReviewEntry[] | null;
   /** Resolved jurisdiction — structured object or a bare pack code. */
   jurisdiction?: CanonicalBsJurisdiction | string | null;
+  /** DUAL-PATH CONSENSUS (additive) — absent on periods no consensus
+   *  lane probed; render-only, never re-derived. */
+  consensus?: CanonicalBsConsensus | null;
 }
 
 /** Display geometry for one canonical section id — which side of the

@@ -1,0 +1,111 @@
+{
+  "account_code_col": 0,
+  "analytic_structure": {
+    "separator": ".",
+    "synthetic_digits": null
+  },
+  "anomaly_notes": [
+    "no grand-totals row anywhere in the sheet",
+    "trailing rows with blank account codes carry formula remnants (marker and derived columns populated, no figures)",
+    "column 20 has an empty header and no data"
+  ],
+  "columns": [
+    {
+      "index": 0,
+      "semantic": "account_code"
+    },
+    {
+      "index": 1,
+      "semantic": "account_name"
+    },
+    {
+      "index": 2,
+      "semantic": "opening_debit"
+    },
+    {
+      "index": 3,
+      "semantic": "opening_credit"
+    },
+    {
+      "index": 4,
+      "semantic": "movement_period_debit"
+    },
+    {
+      "index": 5,
+      "semantic": "movement_period_credit"
+    },
+    {
+      "index": 6,
+      "semantic": "movement_cumulative_debit"
+    },
+    {
+      "index": 7,
+      "semantic": "movement_cumulative_credit"
+    },
+    {
+      "index": 8,
+      "semantic": "closing_debit"
+    },
+    {
+      "index": 9,
+      "semantic": "closing_credit"
+    },
+    {
+      "index": 10,
+      "semantic": "marker"
+    },
+    {
+      "index": 11,
+      "semantic": "hint_classification"
+    },
+    {
+      "index": 12,
+      "semantic": "ignore"
+    },
+    {
+      "index": 13,
+      "semantic": "ignore"
+    },
+    {
+      "index": 14,
+      "semantic": "ignore"
+    },
+    {
+      "index": 15,
+      "semantic": "hint_classification"
+    },
+    {
+      "index": 16,
+      "semantic": "hint_classification"
+    },
+    {
+      "index": 17,
+      "semantic": "hint_classification"
+    },
+    {
+      "index": 18,
+      "semantic": "ignore"
+    },
+    {
+      "index": 19,
+      "semantic": "ignore"
+    },
+    {
+      "index": 20,
+      "semantic": "ignore"
+    }
+  ],
+  "currency": "RON",
+  "header_row_index": 0,
+  "map_hash": "a96490be62b8a97f0d7b95bc48edb88d4f2d31eac6c96112b301af24247873c1",
+  "map_version": "smap1",
+  "number_locale": {
+    "decimal_sep": ".",
+    "thousands_sep": null
+  },
+  "repeated_header_rows": [],
+  "scale": 1,
+  "sheet": "Agras Food Factory",
+  "subtotal_row_indexes": [],
+  "totals_row_indexes": []
+}

@@ -28,7 +28,7 @@ the actual repository state:
                     assertions.md / mutation.md / ai_payload_audit.md
                     without touching them).
 
-NOT owned (never written here): assertions.md, mutation.md, ai_payload_audit.md.
+NOT owned (never written here): assertions.md, mutation.md, ai_payload_audit.md, error_budget.md.
 
 Usage:
   python scripts/generate_engine_book.py           # (re)write the book
@@ -78,7 +78,9 @@ OWNED_PAGES = (
     "money_path.md",
     "threat_model.md",
 )
-FOREIGN_PAGES = ("assertions.md", "mutation.md", "ai_payload_audit.md")
+FOREIGN_PAGES = (
+    "assertions.md", "mutation.md", "ai_payload_audit.md", "error_budget.md"
+)
 
 
 class BookError(RuntimeError):
@@ -869,6 +871,9 @@ def render_index() -> str:
     )
     lines.append(
         "| [ai_payload_audit.md](ai_payload_audit.md) | What each AI call site sends off-box, with over-sharing flags | supply-chain agent (hand-maintained) |"
+    )
+    lines.append(
+        "| [error_budget.md](error_budget.md) | Silent-error-rate definition, budgets (DO NOT WIDEN), measurement protocol incl. the weekly production-sampling operator procedure, and the latest measured numbers | error-budget agent (hand-maintained) |"
     )
     lines.append(
         "| [../ADDING_A_JURISDICTION.md](../ADDING_A_JURISDICTION.md) | The pack-authoring runbook (tree-only jurisdiction adds) | hand-maintained runbook |"

@@ -92,7 +92,7 @@ def test_owned_pages_exist_and_carry_generated_header(book):
 
 def test_generator_never_writes_agent_owned_pages(book):
     assert set(book.FOREIGN_PAGES) == {
-        "assertions.md", "mutation.md", "ai_payload_audit.md"
+        "assertions.md", "mutation.md", "ai_payload_audit.md", "error_budget.md"
     }
     pages = book.generate()
     for foreign in book.FOREIGN_PAGES:

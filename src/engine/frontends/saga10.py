@@ -61,7 +61,9 @@ the legacy float bit-exactly anyway:
     which integer Money cannot encode); the atom carries ZERO.
 
 PROVENANCE — method='mechanical', confidence 1.0 (exact by
-definition). The wrapped parser's output rows do NOT carry per-row
+definition; the mechanical FAMILY now also includes 'mechanical_mapped'
+— the map-guided executor in map_guided.py, which DOES carry per-cell
+refs). The wrapped parser's output rows do NOT carry per-row
 sheet/row/col coordinates (TrialBalanceParseResult loses the dataframe
 index), so per-atom cell SourceRefs are unavailable in Phase 1: atoms
 carry a stage ref ('frontend:<format_id>') and the gap is reported as

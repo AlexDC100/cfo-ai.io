@@ -46,14 +46,14 @@ it (bare single-letter markers are file-level attributions).
 | `N3` | Pack pinning + effective-dated resolution (a 2024 period keeps its 2024 pack). | — | `tests/engine/test_pack_loader.py`, `tests/engine/test_pack_pinning.py` |
 | `N5` | ABSENT is not ZERO, end to end through the Phase-1 IR. | — | `tests/engine/test_properties.py` |
 | `N6` | Currency scales HUF(0) / RON(2) / KWD(3) flow through Money and the IR. | — | `tests/engine/test_ir_invariants.py` |
-| `N7` | New-jurisdiction acceptance gate: a jurisdiction lands tree-only (packs + fixtures), never by editing engine code. | — | `tests/engine/test_new_jurisdiction.py` |
+| `N7` | New-jurisdiction acceptance gate: a jurisdiction lands tree-only (packs + fixtures), never by editing engine code. | — | `tests/engine/test_movements.py`, `tests/engine/test_new_jurisdiction.py` |
 
 ## M-family — Metamorphic suite (algebraic relations, no oracles)
 
 | invariant | meaning | defined in | enforced by |
 |---|---|---|---|
-| `M1` | Scale x10^k: every statement figure scales exactly; the reconcile-gate ratio is scale-invariant (exact Fraction). | — | `tests/engine/test_metamorphic.py` |
-| `M2` | Merge: two BALANCED docs concatenated stay BALANCED; totals and section subtotals additive to the cent. | — | `tests/engine/test_metamorphic.py` |
+| `M1` | Scale x10^k: every statement figure scales exactly; the reconcile-gate ratio is scale-invariant (exact Fraction). | — | `tests/engine/test_metamorphic.py`, `tests/engine/test_movements.py` |
+| `M2` | Merge: two BALANCED docs concatenated stay BALANCED; totals and section subtotals additive to the cent. | — | `tests/engine/test_metamorphic.py`, `tests/engine/test_movements.py` |
 | `M3` | Mirror: swapping debit/credit columns flips the sign of difference exactly (scoped side-exchange in M3b). | — | `tests/engine/test_metamorphic.py` |
 | `M4` | Scale-neutrality: same minor units at different Money scales produce byte-identical statements. | — | `tests/engine/test_metamorphic.py` |
 | `M5` | Label immutability: scrambled account labels change no number in the assembled envelope. | — | `tests/engine/test_metamorphic.py` |

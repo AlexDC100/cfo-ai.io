@@ -33,6 +33,17 @@ from engine.core.types import (
 )
 
 
+# Side-effect import: registers the `builtin.movement_identities` check
+# impl in engine.packs.schema.CHECK_IMPLS so packs whose checks.yaml
+# binds it load anywhere this country pack is imported (the pipeline,
+# the N7 gate, the offline scripts). MUST precede the
+# chart_of_accounts import below: that module resolves the RO pack at
+# import time, and pack discovery loads EVERY pack under the root —
+# including packs that bind this impl. The module itself is
+# jurisdiction-blind; only the registration ride-along lives here until
+# schema.py grows the lazy by-path registration (wiring_needed).
+from engine.passes import movements as _movement_checks  # noqa: F401
+
 # F3.1d: data now lives inside the pack folder. The legacy
 # `engine.api._ro_coa` / `_trial_balance_parser` / `_caen_industry_map`
 # modules are F3.1d-vintage shims that re-export from these
@@ -394,9 +405,9 @@ class RomaniaPack:
             try:
                 # PDF rows are a plain list (no anchor metadata) — the
                 # attach helper no-ops on them by design.
-                return self.attach_closing_result(
+                return self.attach_movement_checks(self.attach_closing_result(
                     _pdf.parse_pdf_trial_balance(content, filename)
-                )
+                ))
             except _pdf.PdfIngestError as e:
                 # Surface as ParseError so the existing endpoint's 400
                 # response shape stays unchanged.
@@ -404,23 +415,82 @@ class RomaniaPack:
                     user_message=e.user_message,
                     technical_detail=e.technical_detail,
                 )
-        return self.attach_closing_result(
+        return self.attach_movement_checks(self.attach_closing_result(
             _legacy_tbp.parse_trial_balance_file(content, filename)
-        )
+        ))
 
     def parse_pasted_trial_balance(self, text: str) -> List[Any]:
-        return self.attach_closing_result(
+        return self.attach_movement_checks(self.attach_closing_result(
             _legacy_tbp.parse_pasted_trial_balance(text)
-        )
+        ))
 
     def parse_trial_balance_csv(self, content: bytes, filename: str = "") -> List[Any]:
         """canonical_bs v2 — deterministic CSV path. CSVs previously went
         straight to the LLM extractor (audit item 1c); the parser now
         handles them with the same machinery (and the same
         TrialBalanceParseResult metadata) as XLSX."""
-        return self.attach_closing_result(
+        return self.attach_movement_checks(self.attach_closing_result(
             _legacy_tbp.parse_trial_balance_csv(content, filename)
-        )
+        ))
+
+    def attach_movement_checks(self, tb_rows: Any) -> Any:
+        """MOVEMENT (RULAJE) CHECKS — enrich `source_anchor` with the
+        `movement_checks` block from the jurisdiction-blind pass
+        (engine.passes.movements): the document-wide column-convention
+        probe plus the M1/M2/M3 identity findings, exact integer minor
+        units.
+
+        ENV-GATED, DEFAULT OFF (`MOVEMENT_CHECKS=1`): the golden corpus
+        embeds `source_anchor` byte-for-byte in every
+        expected/extraction.json (and served_envelope.json), so an
+        always-on additive key would move all 17 goldens. This wave the
+        attach is observability-only; flipping the gate on (and
+        refreezing goldens with a `golden-change:` line) is a deliberate
+        later step.
+
+        Same seam discipline as `attach_closing_result`: attached at the
+        pack parse seam so the pipeline and the offline scripts pick it
+        up from one code object; no-ops on parse results without an
+        anchor dict (PDF plain lists). Findings NEVER mutate rows.
+        """
+        import os as _os
+
+        if _os.environ.get("MOVEMENT_CHECKS") != "1":
+            return tb_rows
+        anchor = getattr(tb_rows, "source_anchor", None)
+        if not isinstance(anchor, dict):
+            return tb_rows
+        try:
+            pairs = anchor.get("pairs") or {}
+            pairs_present = {
+                key: (pairs.get(key) is not None)
+                for key in ("si", "rl", "rc", "sf")
+            }
+            sf_entry = pairs.get("sf")
+            extraction = getattr(tb_rows, "extraction", None) or {}
+            layout_hint = {
+                "source_format": extraction.get("source_format"),
+                "synthesized_sf": bool(
+                    isinstance(sf_entry, dict)
+                    and sf_entry.get("synthesized_from_identity")
+                ),
+            }
+            anchor["movement_checks"] = _movement_checks.compute_movement_checks(
+                [r for r in tb_rows if isinstance(r, dict)],
+                pairs_present,
+                layout_hint=layout_hint,
+                # RO knowledge stays in RO pack code: class 8 memo
+                # accounts are single-entry (off-balance) — the same
+                # exclusion compute_source_anchor applies. 1.00 RON
+                # cross-foot slack mirrors _SOURCE_BALANCE_TOLERANCE_RON.
+                params={
+                    "exclude_code_prefixes": ("8",),
+                    "crossfoot_tolerance_minor": 100,
+                },
+            )
+        except Exception:  # noqa: BLE001 — observability may never break parsing
+            pass
+        return tb_rows
 
     def attach_closing_result(self, tb_rows: Any) -> Any:
         """CLOSING-IDENTITY MODE — enrich the parse result's

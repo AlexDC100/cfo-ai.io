@@ -54,6 +54,7 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 from engine.ir import LedgerDoc, Money
 
 from .llm_extractor import LEGACY_SHAPE_AI_EXTRACT
+from .map_guided import LEGACY_SHAPE_MAP_GUIDED
 from .saga10 import (
     LEGACY_SHAPE_TB_ROWS,
     LEGACY_SLOT_FIELDS,
@@ -289,6 +290,9 @@ def derive_legacy(doc: LedgerDoc) -> Union[LegacyTbView, LegacyExtractView]:
         return _derive_tb(doc)
     if shape == LEGACY_SHAPE_AI_EXTRACT:
         return _derive_extract(doc)
+    if shape == LEGACY_SHAPE_MAP_GUIDED:
+        from .map_guided_legacy import derive_map_guided_legacy
+        return derive_map_guided_legacy(doc)
     raise FrontEndError(
         "LedgerDoc carries no known legacy_shape (source_meta[%r] = %r) — "
         "was it built by an engine.frontends adapter?" % (META_LEGACY_SHAPE, shape)

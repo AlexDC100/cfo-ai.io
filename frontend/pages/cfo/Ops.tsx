@@ -19,6 +19,7 @@ import {
   BookOpenCheck,
   CircleDollarSign,
   FlaskConical,
+  Gauge,
   Layers,
   RefreshCw,
   ShieldCheck,
@@ -41,9 +42,25 @@ interface BatteryGate {
   detail?: string | null;
 }
 
+interface ErrorBudgetLane {
+  rate?: number | null;
+  n?: number;
+  ci_low?: number | null;
+  ci_high?: number | null;
+  sufficient?: boolean;
+  silent_mismatches?: number;
+  flagged_mismatches?: number;
+}
+
 interface OpsSnapshot {
   schema?: string;
   generated_at?: string;
+  error_budget?: {
+    measured?: boolean;
+    path?: string;
+    budgets?: { extraction?: number; classification?: number };
+    per_lane?: Record<string, ErrorBudgetLane>;
+  };
   battery?: {
     recorded?: boolean;
     ran_at?: string | null;
@@ -190,6 +207,24 @@ export default function Ops() {
   const notices = snapshot?.sentinels?.notices ?? [];
   const departures = snapshot?.sentinels?.departures ?? [];
   const rates = snapshot?.metrics?.rates ?? {};
+  const errorBudget = snapshot?.error_budget;
+
+  const fmtPct = (v: number | null | undefined, digits = 4) =>
+    typeof v === "number" ? `${(v * 100).toFixed(digits)}%` : "—";
+  const budgetLaneOrder = [
+    "deterministic",
+    "mechanical_mapped",
+    "llm",
+    "classification",
+  ];
+  const budgetLanes = errorBudget?.per_lane
+    ? [
+        ...budgetLaneOrder.filter((l) => errorBudget.per_lane?.[l]),
+        ...Object.keys(errorBudget.per_lane).filter(
+          (l) => !budgetLaneOrder.includes(l),
+        ),
+      ]
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6">
@@ -323,6 +358,9 @@ export default function Ops() {
                     ["rateLlmFallback", "frontend_fallback_rate"],
                     ["rateAiProposals", "ai_proposal_rate"],
                     ["rateCacheHits", "cache_hit_rate"],
+                    ["rateConsensus", "consensus_agreement_rate"],
+                    ["rateInterpreter", "interpreter_call_rate"],
+                    ["rateTemplateHits", "template_hit_rate"],
                   ] as const
                 ).map(([labelKey, rateKey]) => (
                   <div key={rateKey}>
@@ -386,6 +424,65 @@ export default function Ops() {
                 <p className="flex items-center gap-2 text-sm text-ink-soft">
                   <Dot tone="mute" />
                   {t("ops.spend.none")}
+                </p>
+              )}
+            </Card>
+
+            {/* Error budget — silent-error rate per lane, honest about N */}
+            <Card icon={Gauge} title={t("ops.errorBudget.title")}>
+              {errorBudget?.measured && budgetLanes.length ? (
+                <>
+                  <p className="mb-3 text-xs text-ink-mute">
+                    {t("ops.errorBudget.definition")}
+                  </p>
+                  <ul className="space-y-2.5">
+                    {budgetLanes.map((lane) => {
+                      const row = errorBudget.per_lane?.[lane] ?? {};
+                      const n = row.n ?? 0;
+                      const silent = row.silent_mismatches ?? 0;
+                      return (
+                        <li key={lane}>
+                          <div className="flex items-baseline justify-between gap-2 text-[13px]">
+                            <span className="flex items-center gap-2">
+                              <Dot tone={n === 0 ? "mute" : silent > 0 ? "warn" : "ok"} />
+                              <span className="font-mono text-ink-soft">
+                                {t(`ops.errorBudget.lane.${lane}`, {
+                                  defaultValue: lane,
+                                })}
+                              </span>
+                            </span>
+                            <span className="font-mono tabular-nums text-ink">
+                              {n === 0
+                                ? t("ops.errorBudget.noSource")
+                                : t("ops.errorBudget.measured", {
+                                    rate: fmtPct(row.rate),
+                                    n: fmtInt(n),
+                                  })}
+                            </span>
+                          </div>
+                          {n > 0 && (
+                            <p className="mt-0.5 pl-4 text-[11.5px] text-ink-mute">
+                              {t("ops.errorBudget.ci", {
+                                low: fmtPct(row.ci_low),
+                                high: fmtPct(row.ci_high),
+                              })}
+                              {!row.sufficient &&
+                                ` · ${t("ops.errorBudget.insufficient")}`}
+                              {(row.flagged_mismatches ?? 0) > 0 &&
+                                ` · ${t("ops.errorBudget.flagged", {
+                                  count: row.flagged_mismatches,
+                                })}`}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              ) : (
+                <p className="flex items-center gap-2 text-sm text-ink-soft">
+                  <Dot tone="mute" />
+                  {t("ops.errorBudget.notMeasured")}
                 </p>
               )}
             </Card>

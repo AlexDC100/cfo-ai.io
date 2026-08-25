@@ -357,6 +357,60 @@ def _collect_chain(
     if isinstance(envelope.get("ai_review_degraded"), dict):
         registry.inc("ai_review_events", "degraded_marker")
 
+    # Part-E KPIs — derived from the shapes the consensus /
+    # interpretation lanes actually persist (integration-aligned
+    # 2026-08-25). The consensus block lives at canonical_bs.consensus
+    # (attached by engine.consensus.persist / popped there by the
+    # canonical builder); interpreter/template provenance rides the
+    # extraction stamp (interpreter_roles / template_fingerprint / the
+    # consensus mode). Top-level marker dicts are ACCEPTED TOO as a
+    # forward-compat alias. Envelopes without any marker contribute
+    # nothing: the rates stay honest None (never 0.0).
+    cbs_block = envelope.get("canonical_bs")
+    cbs_consensus = (
+        cbs_block.get("consensus") if isinstance(cbs_block, dict) else None
+    )
+    consensus = (
+        cbs_consensus if isinstance(cbs_consensus, dict)
+        else envelope.get("consensus")
+    )
+    if isinstance(consensus, dict):
+        tally["consensus_compared"] += 1
+        agreed = (
+            consensus.get("agreement") is True
+            or consensus.get("consensus_pct") == 100
+            or consensus.get("consensus_pct") == 100.0
+        )
+        if agreed:
+            tally["consensus_agreements"] += 1
+        registry.inc("consensus_compare", "agree" if agreed else "disagree")
+    extraction_block = (
+        cbs_block.get("extraction") if isinstance(cbs_block, dict) else None
+    )
+    interp_marker: Optional[Dict[str, Any]] = None
+    if isinstance(envelope.get("interpretation"), dict):
+        interp_marker = dict(envelope["interpretation"])
+    elif isinstance(extraction_block, dict) and (
+        extraction_block.get("interpreter_roles")
+        or extraction_block.get("template_fingerprint")
+        or str(extraction_block.get("method") or "") == "mechanical_mapped"
+    ):
+        interp_marker = {}
+        if extraction_block.get("template_fingerprint"):
+            interp_marker["template_hit"] = (
+                isinstance(consensus, dict)
+                and consensus.get("mode") == "template"
+            )
+    if interp_marker is not None:
+        tally["interpreter_calls"] += 1
+        registry.inc("interpreter_calls")
+        if "template_hit" in interp_marker:
+            tally["template_lookups"] += 1
+            hit = interp_marker.get("template_hit") is True
+            if hit:
+                tally["template_hits"] += 1
+            registry.inc("template_lookup", "hit" if hit else "miss")
+
     # Cost per doc (token estimates from the audit transcripts).
     tokens = _envelope_token_estimate(envelope)
     if tokens:
@@ -386,6 +440,11 @@ def collect_metrics(
         "reviewed_docs": 0,
         "verified_docs": 0,
         "ai_tokens_est": 0,
+        "consensus_compared": 0,
+        "consensus_agreements": 0,
+        "interpreter_calls": 0,
+        "template_lookups": 0,
+        "template_hits": 0,
     }
     out: Dict[str, Any] = {
         "schema": "obs_metrics_v1",
@@ -452,6 +511,18 @@ def collect_metrics(
         "cache_hit_rate": _rate(tally["ai_lane_cache_hits"], tally["ai_lane_runs"]),
         "verification_coverage": _rate(tally["verified_docs"], tally["llm_docs"]),
         "avg_ai_tokens_per_doc": _rate(tally["ai_tokens_est"], docs),
+        # Part-E KPIs (error-budget wave). consensus/template rates are
+        # None until a consensus run / template lookup ever happens;
+        # interpreter_call_rate is per served doc (0.0 is a real
+        # measurement once any doc exists) and is expected to DECLINE
+        # as the template library grows.
+        "consensus_agreement_rate": _rate(
+            tally["consensus_agreements"], tally["consensus_compared"]
+        ),
+        "interpreter_call_rate": _rate(tally["interpreter_calls"], docs),
+        "template_hit_rate": _rate(
+            tally["template_hits"], tally["template_lookups"]
+        ),
     }
     out["coverage"] = {key: int(value) for key, value in tally.items()}
     out.update(registry.snapshot())

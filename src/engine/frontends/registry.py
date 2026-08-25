@@ -23,6 +23,7 @@ from typing import Any, Dict
 from .csv_fe import CsvFrontEnd
 from .generic4 import Generic4FrontEnd
 from .llm_extractor import LlmExtractFrontEnd
+from .map_guided import MapGuidedFrontEnd
 from .positional_pdf import PositionalPdfFrontEnd
 from .saga10 import FrontEndError, Saga10FrontEnd
 from .saga6 import Saga6FrontEnd
@@ -46,6 +47,10 @@ FRONT_ENDS: Dict[str, Any] = {
     "csv": CsvFrontEnd(),
     "pdf_positional": PositionalPdfFrontEnd(),
     "llm_extract": LlmExtractFrontEnd(),
+    # Like `csv`, `map_guided` is not a detected layout: it is the
+    # caller's routing choice ("execute this StructuralMap mechanically")
+    # — the layout knowledge lives in the map passed via hints.
+    "map_guided": MapGuidedFrontEnd(),
 }
 
 

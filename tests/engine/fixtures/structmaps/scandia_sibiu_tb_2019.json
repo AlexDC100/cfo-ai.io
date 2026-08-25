@@ -1,0 +1,66 @@
+{
+  "account_code_col": 0,
+  "analytic_structure": {
+    "separator": null,
+    "synthetic_digits": 4
+  },
+  "anomaly_notes": [
+    "no grand-totals row anywhere in the sheet",
+    "a few rows carry bare 4-digit synthetic codes with no analytic suffix"
+  ],
+  "columns": [
+    {
+      "index": 0,
+      "semantic": "account_code"
+    },
+    {
+      "index": 1,
+      "semantic": "account_name"
+    },
+    {
+      "index": 2,
+      "semantic": "opening_debit"
+    },
+    {
+      "index": 3,
+      "semantic": "opening_credit"
+    },
+    {
+      "index": 4,
+      "semantic": "movement_period_debit"
+    },
+    {
+      "index": 5,
+      "semantic": "movement_period_credit"
+    },
+    {
+      "index": 6,
+      "semantic": "total_with_opening_debit"
+    },
+    {
+      "index": 7,
+      "semantic": "total_with_opening_credit"
+    },
+    {
+      "index": 8,
+      "semantic": "closing_debit"
+    },
+    {
+      "index": 9,
+      "semantic": "closing_credit"
+    }
+  ],
+  "currency": "RON",
+  "header_row_index": 0,
+  "map_hash": "011ef251f7a4bb000da28a4190b9ee7c24523b45804546f88bd1d1ec88f6ae84",
+  "map_version": "smap1",
+  "number_locale": {
+    "decimal_sep": ".",
+    "thousands_sep": null
+  },
+  "repeated_header_rows": [],
+  "scale": 1,
+  "sheet": "Sheet1",
+  "subtotal_row_indexes": [],
+  "totals_row_indexes": []
+}

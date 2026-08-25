@@ -328,3 +328,27 @@ jobs:
           cache: "pip"
       - name: Re-resolve + verify guards (writes nothing)
         run: python3 scripts/generate_lock.py --check
+
+  # ─── Format-template promotion report (informational) ────────────────
+  # Lists templates meeting the promotion bar (N confirmations across M
+  # distinct companies) with the operator promotion procedure; always
+  # exits 0 and refreshes data/obs/template_stats.json. Report-only —
+  # promotion itself is an operator step (no PR bot by design).
+  template-report:
+    name: Promotable format templates (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install engine + test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Promotable-templates report
+        run: python3 scripts/report_promotable_templates.py

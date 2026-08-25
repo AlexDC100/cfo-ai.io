@@ -127,6 +127,21 @@ VOLATILE_SOURCE_META_KEYS = frozenset(
         # host environment
         "hostname",
         "pid",
+        # AI structural-interpretation run metadata (map_guided lane).
+        # The ONE designated top-level parking spot for everything about
+        # the interpretation RUN that produced a StructuralMap — model
+        # ids, prompt/cache keys, run stamps of the two independent map
+        # framings. Two mechanical reads of the same bytes under the
+        # same map are the same document content even when a different
+        # model run (or a cache hit vs a fresh call) supplied the map.
+        # The map-derived STRUCTURE itself (columns, header row, skip
+        # rows — `structural_map`) and the map identity pins
+        # (`map_hash`, `map_version` inside the extraction stamp) are
+        # content-bearing and deliberately NOT excluded: a different
+        # map over the same bytes is a different reading. Exclusion is
+        # top-level-only, so front-ends must nest ALL run-varying
+        # interpretation metadata under this single key.
+        "structural_interpretation_meta",
     }
 )
 

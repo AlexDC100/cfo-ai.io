@@ -40,19 +40,21 @@ graph LR
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_confidence["confidence (5 modules)"]
+    pkg_consensus["consensus (6 modules)"]
     pkg_core["core (8 modules)"]
     pkg_country_packs["country_packs (14 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
-    pkg_frontends["frontends (9 modules)"]
+    pkg_frontends["frontends (11 modules)"]
     pkg_ingestion["ingestion (2 modules)"]
     pkg_intelligence["intelligence (4 modules)"]
+    pkg_interp["interp (6 modules)"]
     pkg_ir["ir (4 modules)"]
     pkg_journal["journal (6 modules)"]
     pkg_methodology["methodology (3 modules)"]
     pkg_obs["obs (5 modules)"]
     pkg_packs["packs (5 modules)"]
-    pkg_passes["passes (3 modules)"]
+    pkg_passes["passes (5 modules)"]
     pkg_public["public (44 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
@@ -72,9 +74,11 @@ graph LR
     pkg_api -->|6| pkg__root_
     pkg_api -->|2| pkg_ai
     pkg_api -->|1| pkg_ai_lane
+    pkg_api -->|1| pkg_consensus
     pkg_api -->|2| pkg_core
     pkg_api -->|2| pkg_country_packs
     pkg_api -->|1| pkg_detection
+    pkg_api -->|1| pkg_interp
     pkg_api -->|2| pkg_journal
     pkg_api -->|1| pkg_obs
     pkg_api -->|1| pkg_passes
@@ -82,11 +86,17 @@ graph LR
     pkg_api -->|1| pkg_routing
     pkg_api -->|2| pkg_serving
     pkg_api -->|2| pkg_storage
+    pkg_consensus -->|1| pkg_core
+    pkg_consensus -->|1| pkg_frontends
+    pkg_consensus -->|1| pkg_interp
+    pkg_consensus -->|1| pkg_passes
     pkg_country_packs -->|2| pkg_canonical
     pkg_country_packs -->|1| pkg_confidence
+    pkg_country_packs -->|1| pkg_consensus
     pkg_country_packs -->|3| pkg_core
     pkg_country_packs -->|1| pkg_methodology
     pkg_country_packs -->|1| pkg_packs
+    pkg_country_packs -->|1| pkg_passes
     pkg_dst -->|1| pkg_ai_lane
     pkg_dst -->|2| pkg_api
     pkg_dst -->|1| pkg_core
@@ -94,24 +104,29 @@ graph LR
     pkg_dst -->|2| pkg_journal
     pkg_dst -->|1| pkg_serving
     pkg_frontends -->|1| pkg_ai_lane
-    pkg_frontends -->|1| pkg_core
-    pkg_frontends -->|4| pkg_country_packs
-    pkg_frontends -->|5| pkg_ir
+    pkg_frontends -->|2| pkg_core
+    pkg_frontends -->|5| pkg_country_packs
+    pkg_frontends -->|7| pkg_ir
+    pkg_interp -->|2| pkg_ai
+    pkg_interp -->|1| pkg_ai_lane
     pkg_journal -->|1| pkg_api
     pkg_methodology -->|1| pkg_canonical
     pkg_obs -->|3| pkg_ai
     pkg_obs -->|2| pkg_journal
     pkg_obs -->|1| pkg_packs
     pkg_obs -->|1| pkg_serving
+    pkg_passes -->|1| pkg_ai
+    pkg_passes -->|1| pkg_ai_lane
     pkg_passes -->|1| pkg_core
     pkg_passes -->|1| pkg_country_packs
     pkg_passes -->|1| pkg_frontends
     pkg_passes -->|1| pkg_ir
-    pkg_passes -->|2| pkg_packs
+    pkg_passes -->|3| pkg_packs
     pkg_public -->|1| pkg_api
     pkg_public -->|1| pkg_canonical
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api
+    pkg_serving -->|1| pkg_consensus
     pkg_storage -->|1| pkg__root_
 ```
 
@@ -145,6 +160,8 @@ graph LR
         engine_frontends_generic4["generic4"]
         engine_frontends_legacy_adapter["legacy_adapter"]
         engine_frontends_llm_extractor["llm_extractor"]
+        engine_frontends_map_guided["map_guided"]
+        engine_frontends_map_guided_legacy["map_guided_legacy"]
         engine_frontends_positional_pdf["positional_pdf"]
         engine_frontends_registry["registry"]
         engine_frontends_saga10["saga10"]
@@ -167,6 +184,8 @@ graph LR
     subgraph sg_passes["passes"]
         engine_passes["passes"]
         engine_passes_classify["classify"]
+        engine_passes_movement_review["movement_review"]
+        engine_passes_movements["movements"]
         engine_passes_shadow["shadow"]
     end
     subgraph sg_serving["serving"]
@@ -209,15 +228,25 @@ graph LR
     engine_frontends_csv_fe --> engine_frontends_saga10
     engine_frontends_generic4 --> engine_frontends_saga10
     engine_frontends_legacy_adapter --> engine_frontends_llm_extractor
+    engine_frontends_legacy_adapter --> engine_frontends_map_guided
+    engine_frontends_legacy_adapter --> engine_frontends_map_guided_legacy
     engine_frontends_legacy_adapter --> engine_frontends_saga10
     engine_frontends_legacy_adapter --> engine_ir
     engine_frontends_llm_extractor --> engine_frontends_saga10
     engine_frontends_llm_extractor --> engine_ir
+    engine_frontends_map_guided --> engine_frontends_saga10
+    engine_frontends_map_guided --> engine_ir
+    engine_frontends_map_guided_legacy --> engine_frontends
+    engine_frontends_map_guided_legacy --> engine_frontends_legacy_adapter
+    engine_frontends_map_guided_legacy --> engine_frontends_map_guided
+    engine_frontends_map_guided_legacy --> engine_frontends_saga10
+    engine_frontends_map_guided_legacy --> engine_ir
     engine_frontends_positional_pdf --> engine_frontends_saga10
     engine_frontends_positional_pdf --> engine_ir
     engine_frontends_registry --> engine_frontends_csv_fe
     engine_frontends_registry --> engine_frontends_generic4
     engine_frontends_registry --> engine_frontends_llm_extractor
+    engine_frontends_registry --> engine_frontends_map_guided
     engine_frontends_registry --> engine_frontends_positional_pdf
     engine_frontends_registry --> engine_frontends_saga10
     engine_frontends_registry --> engine_frontends_saga6
@@ -245,6 +274,8 @@ graph LR
     engine_journal_store --> engine_journal_events
     engine_passes --> engine_passes_classify
     engine_passes_classify --> engine_ir
+    engine_passes_movement_review --> engine_ai
+    engine_passes_movement_review --> engine_ai_breaker
     engine_passes_shadow --> engine_frontends_registry
     engine_passes_shadow --> engine_frontends_saga10
     engine_passes_shadow --> engine_passes_classify
@@ -269,7 +300,9 @@ declaration is the supply-chain lock's job to reject).
 | `api` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), openai (openai), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), pydantic (pydantic), sqlalchemy (sqlalchemy), stripe (stripe), xlrd (xlrd), yaml (pyyaml) |
 | `briefing` | anthropic (anthropic) |
 | `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas) |
+| `frontends` | pandas (pandas) |
 | `intelligence` | pandas (pandas) |
+| `interp` | openpyxl (openpyxl), pandas (pandas) |
 | `methodology` | yaml (pyyaml) |
 | `packs` | yaml (pyyaml) |
 | `public` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), pydantic (pydantic) |

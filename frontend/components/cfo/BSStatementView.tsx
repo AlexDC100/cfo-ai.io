@@ -14,6 +14,7 @@ import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
 import { canonicalMetaFromBs, type BSCanonicalMeta } from "@/lib/buildBsStatement";
 import type {
   CanonicalBsClassification,
+  CanonicalBsConsensus,
   CanonicalBsExtraction,
   CanonicalBsJurisdiction,
   CanonicalBsNeedsReviewEntry,
@@ -711,8 +712,55 @@ export function AiReadBadge({
   );
 }
 
+/** DUAL-PATH CONSENSUS — distinct badge for `mechanical_mapped` periods.
+ *  Deliberately NOT the AI-read badge: on this lane the STRUCTURE was
+ *  AI-interpreted but every NUMBER was read mechanically from the file
+ *  and cross-verified by two independent readings. Appends the
+ *  "dual-verified" marker when the engine's three-leg consensus verdict
+ *  (eligible_balanced) is green — rendered verbatim, never re-derived. */
+export function MappedReadBadge({
+  extraction,
+  consensus,
+  className,
+}: {
+  extraction?: CanonicalBsExtraction | null;
+  consensus?: CanonicalBsConsensus | null;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  if (extraction?.method !== "mechanical_mapped") return null;
+  const dualVerified = consensus?.eligible_balanced === true;
+  const model = extraction?.model ?? null;
+  const promptVersion = extraction?.prompt_version ?? null;
+  const tooltip = [model, promptVersion, t("bsCanonical.mappedRead.tooltip")]
+    .filter((p): p is string => typeof p === "string" && p.length > 0)
+    .join(" · ");
+  return (
+    <span
+      data-testid="mapped-read-badge"
+      title={tooltip}
+      className={
+        className ??
+        "inline-flex items-center gap-1 rounded-full border border-teal-500/40 bg-teal-500/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-teal-700 dark:text-teal-300"
+      }
+    >
+      <span
+        aria-hidden="true"
+        className="inline-block h-1.5 w-1.5 rounded-full bg-teal-600 dark:bg-teal-400"
+      />
+      {t("bsCanonical.mappedRead.label")}
+      {dualVerified && (
+        <span className="normal-case tracking-normal opacity-80">
+          · {t("bsCanonical.mappedRead.dualVerified")}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** Badge row rendered directly above the canonical status strip: resolved
- *  jurisdiction (with override → re-extraction) + the AI-read badge. */
+ *  jurisdiction (with override → re-extraction) + the AI-read badge (llm)
+ *  or the map-guided badge (mechanical_mapped — never "AI-read"). */
 function BsCanonicalBadgesRow({
   meta,
   periodId,
@@ -723,7 +771,12 @@ function BsCanonicalBadgesRow({
   const hasJurisdiction = !!meta.jurisdiction?.resolved;
   const isLlm =
     meta.extraction?.method === "llm" || meta.classification?.method === "llm";
-  if (!hasJurisdiction && !isLlm) return null;
+  const isMapped = meta.extraction?.method === "mechanical_mapped";
+  if (!hasJurisdiction && !isLlm && !isMapped) return null;
+  // `consensus` reaches the meta once buildBsStatement forwards it
+  // (additive field); the safe cast keeps this render-only either way.
+  const consensus =
+    (meta as { consensus?: CanonicalBsConsensus | null }).consensus ?? null;
   return (
     <div
       className="mb-2 flex flex-wrap items-center gap-2"
@@ -739,6 +792,7 @@ function BsCanonicalBadgesRow({
         extraction={meta.extraction}
         classification={meta.classification}
       />
+      <MappedReadBadge extraction={meta.extraction} consensus={consensus} />
     </div>
   );
 }

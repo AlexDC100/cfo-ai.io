@@ -328,6 +328,50 @@ CHECK_IMPLS["builtin.bs_diagnosis"] = _builtin_bs_diagnosis
 CHECK_IMPLS["builtin.reconciliation_identities"] = _builtin_reconciliation_identities
 
 
+_MOVEMENTS_MODULE_KEY = "engine.packs._movement_checks"
+
+
+def _movements_module() -> Any:
+    """engine/passes/movements.py loaded BY PATH (never through
+    engine.passes.__init__) — the same import-leaf discipline as
+    _reconciliation_checks_module; the target file is stdlib-only at
+    module level, locked by tests/engine/test_movements.py::
+    test_movements_module_top_level_imports_are_stdlib_only."""
+    cached = sys.modules.get(_MOVEMENTS_MODULE_KEY)
+    if cached is not None:
+        return cached
+    source = Path(__file__).resolve().parent.parent / "passes" / "movements.py"
+    spec = importlib.util.spec_from_file_location(
+        _MOVEMENTS_MODULE_KEY, str(source)
+    )
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise PackError(
+            "cannot load the built-in movement check implementation from %s"
+            % source
+        )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_MOVEMENTS_MODULE_KEY] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # pragma: no cover - defensive
+        del sys.modules[_MOVEMENTS_MODULE_KEY]
+        raise
+    return module
+
+
+def _builtin_movement_identities(*args: Any, **kwargs: Any) -> Any:
+    """Built-in impl: movement (rulaje) identity checks — convention
+    probe + M1/M2/M3 findings. Lazy by-path import, see above."""
+    return _movements_module().run_movement_checks(*args, **kwargs)
+
+
+# setdefault, NOT plain assignment: engine/passes/movements.py idempotently
+# self-registers on package import, so either side may win first with
+# identical behavior; the loser's guard then skips. Double-registration is
+# impossible in both orders.
+CHECK_IMPLS.setdefault("builtin.movement_identities", _builtin_movement_identities)
+
+
 # --- identity ---------------------------------------------------------------
 
 

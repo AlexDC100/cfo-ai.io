@@ -110,3 +110,43 @@ roles:
     prompt_version: narrative_v1
     max_tokens: 4096
     temperature: 0
+
+  structural_interpreter_a:
+    # AI-first-reader Part A — column-semantics-first framing of the
+    # StructuralMap interpreter (engine.interp.interpreter). NEW role —
+    # no golden pins it, so it ships on the current Anthropic flagship
+    # (the ai_validator precedent above). The prompt_version participates
+    # in the interp cache key (engine.interp.cache): bumping it
+    # invalidates every cached map for this framing.
+    model_id: claude-fable-5
+    prompt_version: "smap1-a@1"
+    max_tokens: 16000
+    temperature: 0
+    breaker:
+      max_calls_per_day: 200
+      max_tokens_per_day: 2000000
+
+  structural_interpreter_b:
+    # AI-first-reader Part A — row-topology-first framing (independent
+    # second walkthrough of the same document for cross-checking). Same
+    # notes as structural_interpreter_a.
+    model_id: claude-fable-5
+    prompt_version: "smap1-b@1"
+    max_tokens: 16000
+    temperature: 0
+    breaker:
+      max_calls_per_day: 200
+      max_tokens_per_day: 2000000
+
+  movement_review:
+    # Advisory movement (rulaje) review — flags + movement-conditioned
+    # classification proposals (engine.passes.movement_review). New role —
+    # no golden pins it; ships on the current flagship like ai_validator.
+    # VERIFY the model-id string against the live models endpoint at deploy.
+    model_id: claude-fable-5
+    prompt_version: movement_review_v1
+    max_tokens: 4096
+    temperature: 0
+    breaker:
+      max_calls_per_day: 100
+      max_tokens_per_day: 1000000

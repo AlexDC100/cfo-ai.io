@@ -724,6 +724,97 @@ def _maybe_route_ai_lane(
     )
 
 
+def _resolve_consensus_jurisdiction(doc: Dict[str, Any], file_bytes: bytes) -> str:
+    """Jurisdiction for the consensus lanes — the SAME deterministic
+    resolver the AI lane uses (never raises; empty string on failure so
+    the lane degrades to a no-op via the missing-pack path)."""
+    try:
+        resolution = _ai_lane.resolve_jurisdiction(doc, file_bytes)
+        return str(resolution.get("jurisdiction") or "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _maybe_dual_map_lane(
+    doc: Dict[str, Any], file_bytes: bytes, kind: str,
+) -> Optional[Dict[str, Any]]:
+    """C2 — DUAL-MAP STRUCTURAL READER hook (env gate
+    AI_STRUCTURAL_READER=1, default OFF). Runs in the deterministic
+    fast-path's PARSE-FAILURE branch, BEFORE the freeform-LLM fallback:
+    two independent AI structural interpretations + two MECHANICAL
+    map-guided reads + atom-level consensus. Returns a
+    `_deterministic_tb_parsed`-compatible payload with
+    extraction.method == "mechanical_mapped" (consensus block riding
+    extraction, popped to canonical_bs.consensus by the builder), or
+    None → the existing freeform fallback runs exactly as before.
+    Never raises."""
+    if os.environ.get("AI_STRUCTURAL_READER") != "1":
+        return None
+    try:
+        from engine.consensus import lane as _consensus_lane
+
+        jurisdiction = _resolve_consensus_jurisdiction(doc, file_bytes)
+        payload = _consensus_lane.run_dual_map_lane(
+            file_bytes,
+            doc.get("original_filename") or "",
+            jurisdiction,
+        )
+        if payload is not None:
+            logger.info(
+                "[stage_extract] C2 dual-map lane produced a mechanical_mapped "
+                "payload for doc %s (jurisdiction=%s)",
+                doc.get("id"), jurisdiction,
+            )
+        return payload
+    except Exception:  # noqa: BLE001 — the lane must never block extraction
+        logger.exception("[stage_extract] C2 dual-map lane failed (ignored)")
+        return None
+
+
+def _maybe_c1_consensus(
+    doc: Dict[str, Any], file_bytes: bytes, kind: str, tb_rows: Any,
+) -> Optional[Dict[str, Any]]:
+    """C1 — classic-vs-mapped consensus probe on a successfully parsed
+    deterministic document. Two gates (both default OFF; mirrors the
+    SHADOW_CLASSIFY probe discipline — never mutates, never raises):
+
+      CONSENSUS_SHADOW=1   run + LOG only; always returns None;
+      CONSENSUS_ENABLED=1  run + return the block — stage_extract stashes
+                           it on the parsed payload and stage_persist
+                           attaches it ADDITIVELY to canonical_bs
+                           (served values stay classic — E4).
+    """
+    shadow = os.environ.get("CONSENSUS_SHADOW") == "1"
+    enabled = os.environ.get("CONSENSUS_ENABLED") == "1"
+    if not (shadow or enabled):
+        return None
+    try:
+        from engine.consensus import lane as _consensus_lane
+
+        jurisdiction = _resolve_consensus_jurisdiction(doc, file_bytes)
+        block = _consensus_lane.run_c1_consensus(
+            file_bytes,
+            doc.get("original_filename") or "",
+            jurisdiction,
+            tb_rows,
+        )
+        if block is None:
+            return None
+        logger.info(
+            "[consensus_c1] doc=%s consensus_pct=%s atoms=%d disagreements=%d "
+            "totals=%s eligible=%s mode=%s",
+            doc.get("id"), block.get("consensus_pct"),
+            int(block.get("atoms_compared") or 0),
+            len(block.get("disagreements") or []),
+            block.get("totals_match"), block.get("eligible_balanced"),
+            "persist" if enabled else "shadow",
+        )
+        return block if enabled else None
+    except Exception:  # noqa: BLE001 — the probe must never break prod
+        logger.exception("[consensus_c1] probe failed (ignored)")
+        return None
+
+
 def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Format-aware extraction. Sends the document to Claude Opus 4.7 in the
     most appropriate content-block shape for its type, then validates the
@@ -1095,14 +1186,27 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 # canonical_bs v2 — shared payload builder carries the
                 # parse-result metadata (anchor/extraction/unmapped/
                 # excluded/census) through to stage_map.
-                return _deterministic_tb_parsed(
+                parsed_payload = _deterministic_tb_parsed(
                     doc, tb_rows, shaped, statutory_anchor, source_quality,
                 )
+                # C1 consensus probe (env-gated OFF; shadow logs only,
+                # enabled stashes the block for the persist-seam attach).
+                _c1_block = _maybe_c1_consensus(doc, file_bytes, kind, tb_rows)
+                if _c1_block is not None:
+                    parsed_payload["consensus_c1"] = _c1_block
+                return parsed_payload
         except Exception as e:  # noqa: BLE001
             logger.info(
                 "[stage_extract] TB fast-path skipped (%s) — falling back to Claude",
                 type(e).__name__,
             )
+            # C2 — dual-map structural reader (env-gated OFF): a
+            # mechanically-read, consensus-verified payload replaces the
+            # freeform-LLM fallback when the lane succeeds; None falls
+            # through to Claude exactly as before.
+            _c2_parsed = _maybe_dual_map_lane(doc, file_bytes, kind)
+            if _c2_parsed is not None:
+                return _c2_parsed
 
     # canonical_bs v2 — deterministic CSV fast-path (audit item 1c: CSVs
     # previously ALWAYS went to the LLM as raw text, so the same SAGA
@@ -1128,14 +1232,24 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                     float(source_quality.get("raw_imbalance_pct") or 0),
                     "WARN" if source_quality.get("warn") else "ok",
                 )
-                return _deterministic_tb_parsed(
+                parsed_payload = _deterministic_tb_parsed(
                     doc, tb_rows, shaped, statutory_anchor, source_quality,
                 )
+                # C1 consensus probe (env-gated OFF) — see the XLSX branch.
+                _c1_block = _maybe_c1_consensus(doc, file_bytes, kind, tb_rows)
+                if _c1_block is not None:
+                    parsed_payload["consensus_c1"] = _c1_block
+                return parsed_payload
         except Exception as e:  # noqa: BLE001
             logger.info(
                 "[stage_extract] CSV TB fast-path skipped (%s) — falling back to Claude",
                 type(e).__name__,
             )
+            # C2 — dual-map structural reader (env-gated OFF) — see the
+            # XLSX branch.
+            _c2_parsed = _maybe_dual_map_lane(doc, file_bytes, kind)
+            if _c2_parsed is not None:
+                return _c2_parsed
 
     try:
         from anthropic import Anthropic  # type: ignore
@@ -1617,6 +1731,18 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 # Advisory AI review (env-gated OFF; additive-only; never
                 # raises; deterministic validator remains the only gate).
                 _ai_advisory.pipeline_hook(canonical)
+                # C1 CONSENSUS attach (CONSENSUS_ENABLED=1 only — the
+                # block exists on `parsed` only behind that gate):
+                # additive-only onto canonical_bs; served values stay
+                # CLASSIC (E4). Never raises.
+                _c1_consensus = (parsed or {}).get("consensus_c1")
+                if isinstance(_c1_consensus, dict):
+                    from engine.consensus import persist as _consensus_persist
+                    if _consensus_persist.attach_consensus(canonical, _c1_consensus):
+                        logger.info(
+                            "[stage_persist] consensus block attached for "
+                            "period %s", period_id,
+                        )
                 # RUN JOURNAL — RECONCILE_APPLIED / RECONCILE_SKIPPED.
                 _journal_hooks.on_reconcile_outcome(doc, period_id, canonical, _auto)
                 if _auto.get("outcome") not in ("balanced_noop",):
@@ -7103,6 +7229,32 @@ def build_router() -> APIRouter:
             notes=payload.notes,
             propose_as_calibration_rules=payload.propose_as_calibration_rules,
         )
+
+        # Format-learning confirm hook (Part F): a human reviewing and
+        # re-analysing a period whose extraction carries a layout
+        # template_fingerprint counts as a confirmation of that layout's
+        # StructuralMap. Best-effort telemetry for the promotion bar —
+        # it must never fail the review request.
+        try:
+            _env = (period.get("assembled_canonical_v1") or {})
+            _ext = ((_env.get("canonical_bs") or {}).get("extraction") or {})
+            _fp = _ext.get("template_fingerprint")
+            if _fp:
+                from engine.interp.templates import TemplateStore
+                _who = str(jwt.get("email") or jwt.get("sub") or "").strip()
+                _doc_hash = str(
+                    ((_env.get("provenance") or {}).get("content_hash"))
+                    or ""
+                ).strip()
+                _org = str(period.get("org_id") or "").strip()
+                if _who and _doc_hash and _org:
+                    TemplateStore().confirm(
+                        str(_fp), confirmed_by=_who,
+                        doc_content_hash=_doc_hash, company_key=_org,
+                    )
+        except Exception:  # noqa: BLE001 — telemetry only
+            logger.info("[review/reanalyze] template confirm skipped",
+                        exc_info=True)
 
         with _supabase.admin() as ac:
             line_items = ac.select(

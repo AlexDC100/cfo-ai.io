@@ -1022,6 +1022,7 @@ def build_canonical_bs_v2(
     p121_anchor: Optional[float] = None,
     cls7_minus_cls6: Optional[float] = None,
     source_account_census: Optional[int] = None,
+    consensus: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the FULL canonical_bs v2 object per
     docs/CANONICAL_BS_V2_CONTRACT.md from the canonical envelope's leaves.
@@ -1080,6 +1081,18 @@ def build_canonical_bs_v2(
     extraction_block: Dict[str, Any] = {"method": "deterministic"}
     if isinstance(extraction, dict):
         extraction_block.update(extraction)
+    # DUAL-PATH CONSENSUS (Part C) — the consensus block may arrive as
+    # the explicit kwarg or riding the extraction dict (the plumbing-free
+    # path: the C2 lane embeds it and the existing assemble_statements
+    # kwargs carry it here). Either way it is POPPED out of extraction —
+    # it is emitted as canonical_bs's OWN optional top-level key (the
+    # hu_ai_lane optional-key precedent: absent when None, so every
+    # existing path is byte-identical).
+    _smuggled_consensus = extraction_block.pop("consensus", None)
+    consensus_block: Optional[Dict[str, Any]] = (
+        consensus if isinstance(consensus, dict)
+        else (_smuggled_consensus if isinstance(_smuggled_consensus, dict) else None)
+    )
 
     # ── Traceability + identity partition (INTEGER CENTS) ──────────────
     # Re-runs the SAME routing (`_route_line_item`) the envelope used, so
@@ -1439,6 +1452,20 @@ def build_canonical_bs_v2(
         status = "MATERIAL_IMBALANCE"
     if status == "BALANCED" and str(extraction_block.get("method") or "") == "llm":
         status = "MINOR_DRIFT"
+    # E9 — mechanical_mapped may keep BALANCED ONLY behind the three-leg
+    # consensus verdict (full dual-map consensus AND totals-row exact AND
+    # movement checks). Fail closed: no consensus block, a malformed one,
+    # or any missing/failed leg forfeits BALANCED. Decided HERE, at build
+    # time, so every surface inherits the rule by construction (the llm
+    # cap above is untouched).
+    if status == "BALANCED" and str(extraction_block.get("method") or "") == "mechanical_mapped":
+        try:
+            from engine.consensus.verdict import eligible_from_block as _consensus_eligible
+            _e9_ok = _consensus_eligible(consensus_block)
+        except Exception:  # noqa: BLE001 — fail closed
+            _e9_ok = False
+        if not _e9_ok:
+            status = "MINOR_DRIFT"
 
     # ── Transparency blocks — sorted for determinism ───────────────────
     # (`unmapped_out` is built ABOVE, before the rows, because the
@@ -1492,8 +1519,14 @@ def build_canonical_bs_v2(
         ext_d, ext_c = pairs_sf.get("extracted_debit"), pairs_sf.get("extracted_credit")
         if ext_d is not None and ext_c is not None:
             extracted_sf_balanced = abs(float(ext_d) - float(ext_c)) <= 1.0
+    # Premise methods: deterministic AND mechanical_mapped — a map-guided
+    # read is mechanically exact by construction (every figure lifted
+    # from the grid through the exact Money bridge), so a nonzero
+    # difference on a balanced source is an honest identity failure, not
+    # a vacuous truth (the falsifiability the deterministic-only premise
+    # would have lost for the new method).
     identity_premise = (
-        str(extraction_block.get("method") or "") == "deterministic"
+        str(extraction_block.get("method") or "") in ("deterministic", "mechanical_mapped")
         and (
             src_balanced is True
             or (src_balanced is None and extracted_sf_balanced)
@@ -1560,6 +1593,10 @@ def build_canonical_bs_v2(
             "result_basis": result_basis,
         },
     }
+    # DUAL-PATH CONSENSUS — optional additive key (absent when no block
+    # was supplied: every classic path stays byte-identical).
+    if consensus_block is not None:
+        canonical_bs["consensus"] = consensus_block
 
     # ── Diagnosis (D0-D8) — populated when status != BALANCED ──────────
     # The engine lives in engine.confidence.reconciliation_checks so the

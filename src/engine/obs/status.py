@@ -6,6 +6,10 @@ becomes ``{"error": ...}`` there, never a missing response):
 
     battery     last full-battery result per gate, parsed from the
                 conventional record (below) — else ``"not recorded"``
+    error_budget  last silent-error-rate measurement per lane, read
+                from ``data/obs/error_budget_last.json`` (written by
+                ``scripts/measure_error_budget.py``) — else an honest
+                ``{"measured": false}``
     versions    engine version + jurisdiction packs (id/version/window/
                 pack_hash) + the AI model registry (role → model id)
     ai_spend    breaker counters vs daily caps per role
@@ -44,6 +48,9 @@ logger = logging.getLogger("engine.obs.status")
 
 BATTERY_LOG_ENV = "ENGINE_BATTERY_LOG"
 BATTERY_FILENAME = "battery_last.json"
+
+ERROR_BUDGET_LOG_ENV = "ENGINE_ERROR_BUDGET_LOG"
+ERROR_BUDGET_FILENAME = "error_budget_last.json"
 
 
 def _now_iso() -> str:
@@ -124,6 +131,71 @@ def read_battery_record(path: Optional[Any] = None) -> Dict[str, Any]:
     return out
 
 
+TEMPLATE_STATS_FILENAME = "template_stats.json"
+
+
+def template_stats_path() -> Path:
+    return obs_dir() / TEMPLATE_STATS_FILENAME
+
+
+def read_template_stats(path: Optional[Any] = None) -> Dict[str, Any]:
+    """Parse the format-template-library stats (written atomically by
+    scripts/report_promotable_templates.py; live counters also accrue in
+    the template store itself). ``{"recorded": False}`` when absent —
+    honest, never reconstructed. Read-only, never raises."""
+    target = Path(path) if path is not None else template_stats_path()
+    absent: Dict[str, Any] = {"recorded": False, "path": str(target)}
+    try:
+        raw = json.loads(target.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return absent
+    except Exception:  # noqa: BLE001
+        logger.warning("[obs.status] template stats %s unreadable", target)
+        return absent
+    if not isinstance(raw, dict):
+        return absent
+    out: Dict[str, Any] = {"recorded": True, "path": str(target)}
+    for key in (
+        "template_count", "confirmed", "candidates",
+        "hits", "misses", "interpreter_calls_saved",
+    ):
+        if key in raw:
+            out[key] = raw[key]
+    return out
+
+
+def error_budget_record_path() -> Path:
+    env = os.environ.get(ERROR_BUDGET_LOG_ENV)
+    if env:
+        return Path(env)
+    return obs_dir() / ERROR_BUDGET_FILENAME
+
+
+def read_error_budget_record(path: Optional[Any] = None) -> Dict[str, Any]:
+    """Parse the last error-budget measurement (written atomically by
+    scripts/measure_error_budget.py). ``{"measured": False}`` when the
+    record is absent or unreadable — honest "not measured", never a
+    reconstruction. Read-only, never raises."""
+    target = Path(path) if path is not None else error_budget_record_path()
+    absent = {"measured": False, "path": str(target)}
+    try:
+        raw = json.loads(target.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return absent
+    except Exception:  # noqa: BLE001 — unreadable record = not measured
+        logger.warning("[obs.status] error-budget record %s unreadable", target)
+        return absent
+    if not isinstance(raw, dict) or not isinstance(raw.get("per_lane"), dict):
+        return absent
+    return {
+        "measured": True,
+        "path": str(target),
+        "schema": raw.get("schema"),
+        "budgets": raw.get("budgets"),
+        "per_lane": raw.get("per_lane"),
+    }
+
+
 def _engine_version() -> str:
     try:
         from importlib.metadata import version
@@ -189,6 +261,8 @@ def ops_snapshot(
         "schema": "obs_ops_v1",
         "generated_at": _now_iso(),
         "battery": read_battery_record(),
+        "error_budget": read_error_budget_record(),
+        "templates": read_template_stats(),
         "versions": {
             "engine": _engine_version(),
             "packs": _pack_versions(),

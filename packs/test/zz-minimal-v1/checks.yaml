@@ -84,3 +84,27 @@ checks:
       pct_tolerance: 0.00001
       minor_drift_pct: 0.005
       ebitda_rollup_tolerance_pct: 0.01
+  # Movement (rulaje) identity checks — pack-declared CONFIG for the
+  # engine's jurisdiction-blind movement pass (engine.passes.movements):
+  # the document-wide column-convention probe (does the cumulative pair
+  # include the opening balance or not?) plus the M1/M2/M3 identity
+  # findings in exact integer minor units. Every jurisdiction-shaped
+  # datum rides HERE as params — the engine supplies only arithmetic.
+  - check_id: movement_identities
+    impl: builtin.movement_identities
+    params:
+      # A convention must match at least this fraction of testable rows
+      # to win the probe; below it the document is reported "mixed".
+      convention_min_rate: 0.98
+      # Fewer testable rows than this => the probe is "insufficient".
+      min_applicable_rows: 3
+      # M1 lists at most this many violating accounts (total still
+      # reported exactly).
+      violation_cap: 20
+      # Per-row identity slack and document-level cross-foot slack, in
+      # minor units. Exact-zero: the ZZ fixture closes to the cent.
+      identity_tolerance_minor: 0
+      crossfoot_tolerance_minor: 0
+      # ZZ's off-balance memo family (class 9xx, single-entry) — the
+      # jurisdiction datum the engine must never hardcode.
+      exclude_code_prefixes: ["9"]

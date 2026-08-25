@@ -58,6 +58,16 @@ const bsCanonicalEn = {
     tooltip:
       "Numbers were read by AI, not mechanically extracted — review before external use.",
   },
+  // DUAL-PATH CONSENSUS — distinct badge for mechanical_mapped periods.
+  // NOT "AI-read": the structure was AI-interpreted but every NUMBER was
+  // read mechanically from the file and cross-verified by two
+  // independent readings (the engine's three-leg consensus verdict).
+  mappedRead: {
+    label: "Map-guided read",
+    tooltip:
+      "Structure AI-interpreted · numbers machine-read. Every figure was lifted mechanically from the file's own cells; two independent structural readings were compared cell by cell.",
+    dualVerified: "dual-verified",
+  },
   // Jurisdiction (country accounting pack) — pre-scan hint dropdown +
   // post-scan resolved badge with override → re-extraction.
   jurisdiction: {
@@ -120,6 +130,12 @@ const bsCanonicalRo = {
     label: "Citit de AI",
     tooltip:
       "Cifrele au fost citite de AI, nu extrase mecanic — verifică-le înainte de a le folosi în exterior.",
+  },
+  mappedRead: {
+    label: "Citire ghidată de hartă",
+    tooltip:
+      "Structură interpretată de AI · cifre citite mecanic. Fiecare cifră a fost preluată mecanic din celulele fișierului; două interpretări structurale independente au fost comparate celulă cu celulă.",
+    dualVerified: "dublu verificat",
   },
   jurisdiction: {
     badge: "Jurisdicție",

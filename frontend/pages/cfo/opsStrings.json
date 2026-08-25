@@ -48,7 +48,26 @@
         "rateLlmFallback": "LLM fallback",
         "rateAiProposals": "AI proposals",
         "rateCacheHits": "Cache hits",
+        "rateConsensus": "Consensus agreement",
+        "rateInterpreter": "Interpreter calls",
+        "rateTemplateHits": "Template hits",
         "noCoverage": "n/a"
+      },
+      "errorBudget": {
+        "title": "Error budget",
+        "definition": "Silent errors = wrongly served numbers carrying no review flag; a flagged value counts as the system working.",
+        "notMeasured": "Not measured on this deploy yet — the measurement runs with the engine battery.",
+        "measured": "{{rate}} on {{n}} fields",
+        "ci": "95% CI [{{low}}, {{high}}]",
+        "insufficient": "sample too small to certify the budget yet — nothing is claimed until N suffices",
+        "flagged": "{{count}} flagged mismatch(es) — the flag is the system working",
+        "noSource": "no measurement source yet",
+        "lane": {
+          "deterministic": "Deterministic",
+          "mechanical_mapped": "Mechanical mapped",
+          "llm": "LLM",
+          "classification": "Classification"
+        }
       }
     }
   },
@@ -101,7 +120,26 @@
         "rateLlmFallback": "Fallback LLM",
         "rateAiProposals": "Propuneri AI",
         "rateCacheHits": "Cache",
+        "rateConsensus": "Acord consens",
+        "rateInterpreter": "Apeluri interpretor",
+        "rateTemplateHits": "Șabloane găsite",
         "noCoverage": "n/a"
+      },
+      "errorBudget": {
+        "title": "Buget de eroare",
+        "definition": "Erori tăcute = numere servite greșit fără niciun marcaj de verificare; o valoare marcată înseamnă că sistemul funcționează.",
+        "notMeasured": "Încă nemăsurat pe acest deploy — măsurătoarea rulează cu bateria motorului.",
+        "measured": "{{rate}} din {{n}} câmpuri",
+        "ci": "IC 95% [{{low}}, {{high}}]",
+        "insufficient": "eșantion prea mic pentru a certifica bugetul — nu se afirmă nimic până când N e suficient",
+        "flagged": "{{count}} nepotrivire/nepotriviri marcate — marcajul înseamnă că sistemul funcționează",
+        "noSource": "nicio sursă de măsurare încă",
+        "lane": {
+          "deterministic": "Determinist",
+          "mechanical_mapped": "Mapare mecanică",
+          "llm": "LLM",
+          "classification": "Clasificare"
+        }
       }
     }
   }
