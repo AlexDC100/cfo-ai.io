@@ -341,6 +341,7 @@ def run_dual_map_lane(
         # convention probe + M1/M2/M3 findings supersede the lane's
         # minimal per-row identity leg. Best-effort — the minimal leg
         # remains the fallback.
+        probe_ran = False
         try:
             from engine.passes.movements import (
                 compute_movement_checks, movement_checks_pass,
@@ -350,13 +351,19 @@ def run_dual_map_lane(
                 None,
                 layout_hint={"synthesized_sf": _synthesized_sf(doc_a)},
             )
+            probe_ran = isinstance(probe, dict)
             movement = movement_checks_pass(probe)
         except Exception as e:  # noqa: BLE001
             logger.info(
                 "[consensus] movement probe unavailable (%s) — minimal leg",
                 type(e).__name__,
             )
-        if movement is None:
+        # Hardened 2026-08-25: when the full probe RAN, its verdict
+        # stands — None fails closed at the E9 verdict. The weaker
+        # per-row leg is only the fallback for a probe that could not
+        # run at all (import/CHECK_IMPLS failure), never a second
+        # opinion that can overrule an indecisive probe.
+        if movement is None and not probe_ran:
             movement = movement_leg(
                 rows_a,
                 cumulative_semantics=_cumulative_semantics(map_dict_a),

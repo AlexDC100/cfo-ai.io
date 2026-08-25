@@ -5,11 +5,14 @@ INTEGER CENTS over the canonical 10-key rows.
 Totals leg: the anchor block itself is produced by the REAL
 ``compute_source_anchor`` seam (reached through the map_guided legacy
 bridge — never mirrored here); this module only DERIVES the leg verdict
-from it. When the file carries no totals row (``NO_ANCHOR``) the leg
-degrades EXPLICITLY: the extracted closing pair's own D/C balance
-stands in, mirroring the canonical builder's identity-premise
-convention (canonical_adapter's ``extracted_sf_balanced``). DIVERGED
-always fails the leg.
+from it. NO_ANCHOR FAILS the leg (hardened 2026-08-25 after the
+adversarial wave): the E9 totals leg is an EXTERNAL anchor, and the
+old degradation — the extracted closing pair's own D/C balance
+standing in — was self-referential: a correlated column misread in
+both framings self-validated because the anchor is read through the
+same map binding as the extraction. A file with no totals row simply
+cannot reach BALANCED through the mapped lane; that is the honest
+outcome, not a defect. DIVERGED always fails the leg.
 
 Movement leg: the per-row column-pair identity whose FORM depends on
 what the cumulative pair MEANS — the discriminator the StructuralMap
@@ -57,8 +60,9 @@ def totals_leg_from_anchor(
 
       MATCHED   → pass (extracted sums equal the file's own totals row)
       DIVERGED  → fail (the mechanical read does not reproduce the file)
-      NO_ANCHOR → pass ONLY when the extracted closing pair balances —
-                  the explicit degradation for totals-row-less files.
+      NO_ANCHOR → fail (a MISSING external anchor is a missing leg —
+                  the self-referential closing-balance degradation was
+                  removed 2026-08-25; see the module docstring).
     """
     status = ""
     if isinstance(anchor, dict):
@@ -67,8 +71,6 @@ def totals_leg_from_anchor(
         status = "NO_ANCHOR"
     if status == "MATCHED":
         return status, True
-    if status == "NO_ANCHOR":
-        return status, extracted_closing_balanced(rows)
     return status, False
 
 

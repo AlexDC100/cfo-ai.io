@@ -233,11 +233,16 @@ class TestSelfCheck:
     def test_totals_leg_diverged_fails(self):
         assert totals_leg_from_anchor({"anchor_status": "DIVERGED"}, []) == ("DIVERGED", False)
 
-    def test_totals_leg_no_anchor_degrades_to_extracted_balance(self):
+    def test_totals_leg_no_anchor_fails_closed(self):
+        """Hardened 2026-08-25 (adversarial-wave escape): NO_ANCHOR is a
+        MISSING external anchor — the old degradation to the extracted
+        closing pair's own balance was self-referential and let a
+        correlated column misread self-validate. Balanced or not, no
+        totals row => the leg fails."""
         balanced = [_row("5121", sf_d=5.0), _row("401", sf_c=5.0)]
         unbalanced = [_row("5121", sf_d=5.0), _row("401", sf_c=1.0)]
         assert totals_leg_from_anchor({"anchor_status": "NO_ANCHOR"}, balanced) == (
-            "NO_ANCHOR", True,
+            "NO_ANCHOR", False,
         )
         assert totals_leg_from_anchor(None, unbalanced) == ("NO_ANCHOR", False)
 
@@ -557,15 +562,30 @@ def _sibiu_balanced_bytes(repo_root) -> bytes:
     ws = wb.worksheets[0]
     ws.append(["473101", "Decontari in curs (plug)",
                69413.50, 0.0, 0.0, 1392.75, 12253.38, 0.0, 12253.38, 0.0])
+    # A genuine grand-totals row (blank account code), summing every
+    # pair over the data rows incl. the plug: the hardened totals leg
+    # requires a REAL external anchor — NO_ANCHOR now fails closed.
+    sums = [0.0] * 8
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row[0] is None or str(row[0]).strip() == "":
+            continue
+        for i in range(8):
+            sums[i] = round(sums[i] + float(row[2 + i] or 0.0), 2)
+    ws.append(["TOTAL", ""] + sums)
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def _sibiu_map() -> StructuralMap:
+def _sibiu_map(totals_row_index: Optional[int] = None) -> StructuralMap:
     """Sibiu's abbreviated-header layout ('Sold init D' … 'Total sume D'
-    … 'Sold fin C') — classic-parser-unreadable, structurally plain."""
+    … 'Sold fin C') — classic-parser-unreadable, structurally plain.
+    ``totals_row_index`` names the balanced variant's appended TOTAL row
+    (the raw file carries none)."""
     return StructuralMap(
+        totals_row_indexes=(
+            (totals_row_index,) if totals_row_index is not None else ()
+        ),
         header_row_index=0,
         columns=(
             ColumnSpec(0, "account_code"),
@@ -637,8 +657,8 @@ class TestC2SibiuEndToEnd:
 
     def test_raw_sibiu_fails_closed_to_minor_drift(self, repo_root):
         """The RAW sibiu file's closing pair does not balance (−12,253.38
-        RON) — with no totals row to anchor against, the totals leg's
-        explicit degradation fails and E9 fails closed: full dual
+        RON) and it carries no totals row — the hardened totals leg fails
+        closed on NO_ANCHOR and E9 fails closed: full dual
         consensus alone must NOT earn BALANCED on an imbalanced source."""
         from engine.api import pipeline
 
@@ -663,7 +683,13 @@ class TestC2SibiuEndToEnd:
         from engine.api import _reconcile, pipeline
 
         content = _sibiu_balanced_bytes(repo_root)
-        interpret = _scripted_interpret({"a": _sibiu_map(), "b": _sibiu_map()})
+        # The balanced variant appends a genuine TOTAL row (last row);
+        # the hardened totals leg requires a REAL external anchor.
+        import openpyxl as _oxl
+        _ws = _oxl.load_workbook(io.BytesIO(content)).worksheets[0]
+        totals_idx = _ws.max_row - 1  # 0-based workbook row index
+        smap = _sibiu_map(totals_row_index=totals_idx)
+        interpret = _scripted_interpret({"a": smap, "b": smap})
         parsed = consensus_lane.run_dual_map_lane(
             content, "scandia_sibiu_tb_2019.xlsx", "RO",
             interpret_fn=interpret,
@@ -675,7 +701,7 @@ class TestC2SibiuEndToEnd:
         assert block["mode"] == "dual_map"
         assert block["consensus_pct"] == 100.0
         assert block["eligible_balanced"] is True
-        assert block["totals_match"] == "NO_ANCHOR"  # sibiu has no totals row
+        assert block["totals_match"] == "MATCHED"  # the appended TOTAL row anchors
         assert parsed["accounts"], "mapped accounts must reach the mapper"
 
         # stage_map: the REAL assemble path — consensus rides extraction.
@@ -897,3 +923,128 @@ class TestGatesOffInertness:
         # no canonical_bs / malformed → refused, never raises
         assert consensus_persist.attach_consensus({}, {"a": 1}) is False
         assert consensus_persist.attach_consensus(None, {"a": 1}) is False
+
+
+# ── correlated COLUMN-misread family (verifier escape 2026-08-25) ──────
+# The adversarial wave proved the totals third leg is CIRCULAR for
+# column-level misreads: map_guided reads the file's totals row THROUGH
+# the same map binding as the extraction, so two framings sharing a
+# column misread self-validate (MATCHED), and the movement leg was
+# carried by the swap-invariant M2 crossfoot alone. Demonstrated harm:
+# a sign-flipped balance sheet (closing D/C swapped) and an
+# openings-served-as-closings read both reached BALANCED with the
+# dual-verified disclosure. These tests pin the fix:
+#   · a 'mixed' movement-convention verdict FAILS the movement leg;
+#   · movements that move no balance (M5) FAIL it;
+#   · NO_ANCHOR fails the totals leg for E9 (no self-referential
+#     degradation — an external anchor that is absent is a missing leg).
+
+
+def _column_misread_xlsx() -> bytes:
+    """Synthetic 8-col TB with nonzero openings AND movements plus a
+    totals row — the shape on which column misreads are value-visible.
+    True closings: 5121 D900 / 401 C400 / 1012 C500."""
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Cont", "Denumire", "Sold init D", "Sold init C",
+               "Rulaj D", "Rulaj C", "Sold fin D", "Sold fin C"])
+    ws.append(["5121", "Banca", 800.0, 0.0, 100.0, 0.0, 900.0, 0.0])
+    ws.append(["401", "Furnizori", 0.0, 300.0, 0.0, 100.0, 0.0, 400.0])
+    ws.append(["1012", "Capital", 0.0, 500.0, 0.0, 0.0, 0.0, 500.0])
+    ws.append(["TOTAL", "", 800.0, 800.0, 100.0, 100.0, 900.0, 900.0])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _misread_map(*, closing_cols=(6, 7)) -> StructuralMap:
+    return StructuralMap(
+        header_row_index=0,
+        columns=(
+            ColumnSpec(0, "account_code"),
+            ColumnSpec(1, "account_name"),
+            ColumnSpec(2, "opening_debit"),
+            ColumnSpec(3, "opening_credit"),
+            ColumnSpec(4, "movement_period_debit"),
+            ColumnSpec(5, "movement_period_credit"),
+            ColumnSpec(closing_cols[0], "closing_debit"),
+            ColumnSpec(closing_cols[1], "closing_credit"),
+        ),
+        account_code_col=0,
+        totals_row_indexes=(4,),
+        number_locale=NumberLocale(thousands_sep=None, decimal_sep="."),
+        currency="RON",
+    )
+
+
+class TestCorrelatedColumnMisread:
+    def _run(self, smap):
+        return consensus_lane.run_dual_map_lane(
+            _column_misread_xlsx(), "misread.xlsx", "RO",
+            interpret_fn=_scripted_interpret({"a": smap, "b": smap}),
+        )
+
+    def test_control_correct_map_is_eligible(self):
+        parsed = self._run(_misread_map())
+        assert parsed is not None
+        assert parsed["extraction"]["consensus"]["eligible_balanced"] is True
+
+    def test_swapped_closing_pair_is_never_eligible(self):
+        """B3: both framings swap closing D<->C — every served amount
+        sign-flips. The convention probe collapses to 'mixed' (all
+        identity rates 0) and the movement leg must fail."""
+        parsed = self._run(_misread_map(closing_cols=(7, 6)))
+        assert parsed is not None
+        block = parsed["extraction"]["consensus"]
+        assert block["consensus_pct"] == 100.0  # the framings agree...
+        legs = {leg["leg"]: leg["pass"] for leg in block["legs"]}
+        assert legs[LEG_MOVEMENTS] is False, (
+            "a sign-flipped read must fail the movement leg"
+        )
+        assert block["eligible_balanced"] is False
+
+    def test_openings_bound_as_closings_is_never_eligible(self):
+        """C: both framings bind the closing pair to the OPENING columns
+        — a year of movements erased from the served closings. Nonzero
+        movements that move NO balance are impossible bookkeeping (M5)."""
+        parsed = self._run(_misread_map(closing_cols=(2, 3)))
+        assert parsed is not None
+        block = parsed["extraction"]["consensus"]
+        legs = {leg["leg"]: leg["pass"] for leg in block["legs"]}
+        assert legs[LEG_MOVEMENTS] is False, (
+            "movements with zero balance effect must fail the movement leg"
+        )
+        assert block["eligible_balanced"] is False
+
+    def test_no_totals_row_fails_the_totals_leg(self):
+        """NO_ANCHOR is a MISSING external anchor, not a satisfied one:
+        without a totals row the totals leg fails and E9 BALANCED is
+        unreachable — the self-referential closing-balance degradation
+        is gone."""
+        import openpyxl
+
+        wb = openpyxl.load_workbook(io.BytesIO(_column_misread_xlsx()))
+        ws = wb.worksheets[0]
+        ws.delete_rows(5)  # drop the TOTAL row
+        buf = io.BytesIO()
+        wb.save(buf)
+        smap = StructuralMap(
+            header_row_index=0,
+            columns=_misread_map().columns,
+            account_code_col=0,
+            totals_row_indexes=(),
+            number_locale=NumberLocale(thousands_sep=None, decimal_sep="."),
+            currency="RON",
+        )
+        parsed = consensus_lane.run_dual_map_lane(
+            buf.getvalue(), "no_totals.xlsx", "RO",
+            interpret_fn=_scripted_interpret({"a": smap, "b": smap}),
+        )
+        assert parsed is not None
+        block = parsed["extraction"]["consensus"]
+        assert block["totals_match"] == "NO_ANCHOR"
+        legs = {leg["leg"]: leg["pass"] for leg in block["legs"]}
+        assert legs[LEG_TOTALS] is False
+        assert block["eligible_balanced"] is False

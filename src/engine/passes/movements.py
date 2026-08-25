@@ -450,6 +450,46 @@ def compute_movement_checks(
             ),
         })
 
+    # ── M5_MOVEMENT_EFFECT — impossible-bookkeeping detector (added
+    # 2026-08-25 after the adversarial wave's construction C escape:
+    # both AI framings binding the closing pair to the OPENING columns
+    # made every identity check circular, yet the document then claims
+    # nonzero movements that changed NO closing balance — double-entry
+    # movements that move nothing are not bookkeeping). Applicable when
+    # the si, sf AND a movement pair are all present with nonzero
+    # movements; FAILS iff every row's signed closing equals its signed
+    # opening. Exact integer minor units; a finding, never a mutation.
+    if present.get("si") and present.get("sf") and present.get("rl"):
+        total_movement = 0
+        any_effect = False
+        applicable_rows = 0
+        for r in rows:
+            total_movement += abs(r.minor["r_d"]) + abs(r.minor["r_c"])
+            si_signed = r.net("si_d", "si_c")
+            sf_signed = r.net("sf_d", "sf_c")
+            applicable_rows += 1
+            if sf_signed != si_signed:
+                any_effect = True
+        if total_movement > 0 and applicable_rows:
+            findings.append({
+                "code": "M5_MOVEMENT_EFFECT",
+                "status": "pass" if any_effect else "fail",
+                "detail": (
+                    "movements move at least one closing balance"
+                    if any_effect else
+                    "nonzero movements (%d minor units) changed NO closing "
+                    "balance on any of %d rows — impossible double-entry; "
+                    "the closing pair is likely misbound (e.g. to the "
+                    "opening columns)" % (total_movement, applicable_rows)
+                ),
+            })
+        else:
+            findings.append({
+                "code": "M5_MOVEMENT_EFFECT",
+                "status": "not_applicable",
+                "detail": "no nonzero movement pair to test",
+            })
+
     # ── raw class-level signals (neutral: grouped by the code's first
     # character; interpretation is pack territory) ──────────────────
     movement_pair = (
@@ -513,6 +553,15 @@ def movement_checks_pass(result: Optional[Mapping[str, Any]]) -> Optional[bool]:
         f.get("status") for f in findings if isinstance(f, Mapping)
     ]
     if any(s == "fail" for s in statuses):
+        return False
+    # CONVENTION DECISIVENESS (hardened 2026-08-25 after the adversarial
+    # wave): a "mixed" winner means identities were TESTABLE but none
+    # held — e.g. a swapped closing pair drives every identity rate to 0
+    # while the swap-invariant M2 crossfoot still passes. A pass carried
+    # by M2 alone over an indecisive convention is exactly the correlated
+    # column-misread escape; refuse it.
+    convention = result.get("convention")
+    if isinstance(convention, Mapping) and convention.get("winner") == "mixed":
         return False
     if any(s == "pass" for s in statuses):
         return True
