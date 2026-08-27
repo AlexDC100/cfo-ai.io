@@ -264,10 +264,11 @@ const featureLi = (x: string) => `<li style="display:flex;gap:10px"><span style=
 
 type BillingCycle = "monthly" | "yearly";
 
-const SOLO_MONTHLY = 19.99;
-const SOLO_YEARLY = 199;
-const BUSINESS_MONTHLY = 59;
-const BUSINESS_YEARLY = 590;
+// 2026-08 tier restructure: RO Solo / Pro / Multi-Country — must match
+// the in-app /pricing page (backend _pricing_config.py is the source of
+// truth; these are marketing-copy mirrors).
+const SOLO_MONTHLY = 4.99;
+const BUSINESS_MONTHLY = 9.99;
 
 const billingToggle = (cycle: BillingCycle) => `
   <div style="display:flex;justify-content:center;margin-bottom:28px">
@@ -277,15 +278,17 @@ const billingToggle = (cycle: BillingCycle) => `
     </div>
   </div>`;
 
+// Annual billing intentionally NOT offered on the landing grid: checkout
+// carries monthly Stripe prices only — never promise a price that cannot
+// be purchased. (billingToggle kept above for a future annual launch.)
 const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
-  ${billingToggle(cycle)}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;align-items:stretch;max-width:1320px;margin:0 auto">
     <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.solo.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cycle === "monthly" ? `€${SOLO_MONTHLY}` : `€${SOLO_YEARLY}`}</span><span style="font-size:14px;color:var(--ink-soft)">${cycle === "monthly" ? L.pricing.perMonth : "/yr"}</span></div>
-      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${cycle === "monthly" ? L.pricing.solo.yearly : `≈ €${(SOLO_YEARLY / 12).toFixed(2)} / mo billed annually`}</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€${SOLO_MONTHLY}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.solo.yearly}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.solo.blurb}</p>
-      <a href="/signup?plan=solo&cycle=${cycle}" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.solo.cta}</a>
+      <a href="/signup?plan=solo" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.solo.cta}</a>
       <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
         ${L.pricing.solo.features.map(featureLi).join("")}
       </ul>
@@ -293,10 +296,10 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
     <div class="pricing-card" style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(92,211,197,.5)">
       <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:#04110F;background:var(--brand);padding:4px 12px;border-radius:999px">${L.pricing.business.badge}</span>
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">${L.pricing.business.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cycle === "monthly" ? `€${BUSINESS_MONTHLY}` : `€${BUSINESS_YEARLY}`}</span><span style="font-size:14px;color:var(--ink-soft)">${cycle === "monthly" ? L.pricing.perMonth : "/yr"}</span></div>
-      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${cycle === "monthly" ? L.pricing.business.yearly : `≈ €${(BUSINESS_YEARLY / 12).toFixed(2)} / mo billed annually`}</div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€${BUSINESS_MONTHLY}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.business.yearly}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.business.blurb}</p>
-      <a href="/signup?plan=business&cycle=${cycle}" data-act="signup:business" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
+      <a href="/signup?plan=pro" data-act="signup:pro" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
       <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
         ${featureLi(L.pricing.business.lead[0])}
         ${featureLi(`<strong>${L.pricing.business.lead[1]}</strong>`)}
@@ -308,7 +311,7 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
       <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink)">${L.pricing.pro.price}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.pro.priceNote}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.pro.blurb}</p>
-      <button data-act="contact" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">${L.pricing.pro.cta}</button>
+      <a href="/signup?plan=multi" data-act="signup:multi" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.pro.cta}</a>
       <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
         ${featureLi(L.pricing.pro.lead[0])}
         ${featureLi(`<strong>${L.pricing.pro.lead[1]}</strong>`)}

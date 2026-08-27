@@ -26,6 +26,7 @@ import {
   type PlanConfig,
   type PricingPublicConfig,
   formatEur,
+  purchasablePaidPlans,
 } from "@/lib/pricingConfig";
 
 interface Props {
@@ -36,12 +37,12 @@ export function MonthlyBillEstimator({ config }: Props) {
   const [docs, setDocs] = useState(7);
   const [chat, setChat] = useState(40);
 
-  // Recurring plans only — trial/intro never appear in the estimator
-  // because they're acquisition-only and have no "estimated monthly
-  // bill" concept.
+  // Purchasable recurring plans only — trial/intro never appear (they're
+  // acquisition-only, no "estimated monthly bill" concept), and retired
+  // tiers (starter) must not be estimated for a plan nobody can buy.
   const recurring = useMemo(
-    () => config.plans.filter((p) => p.recurring),
-    [config.plans],
+    () => purchasablePaidPlans(config),
+    [config],
   );
 
   return (

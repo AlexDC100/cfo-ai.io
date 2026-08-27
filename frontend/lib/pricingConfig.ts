@@ -20,14 +20,18 @@ const API_URL =
 // Types — mirror the public dict returned by `_pricing_config.to_public_dict`
 // ─────────────────────────────────────────────────────────────────────
 
-export type PlanKey = "trial" | "intro" | "starter" | "pro";
+// 2026-08 tier restructure: `solo` (RO Solo €4.99) and `multi`
+// (Multi-Country €16.99) join; `starter` (€14.99) is RETIRED from
+// purchase but stays in the type because legacy holders still resolve
+// to it on plan-state surfaces until their subscription migrates.
+export type PlanKey = "trial" | "intro" | "starter" | "solo" | "pro" | "multi";
 
 export interface PlanConfig {
   key: PlanKey;
   display_name: string;
   blurb: string;
-  /** Monthly recurring price for starter/pro, one-time price for intro,
-   *  0 for trial. The `recurring` field disambiguates. */
+  /** Monthly recurring price for the paid tiers, one-time price for
+   *  intro, 0 for trial. The `recurring` field disambiguates. */
   price_eur: number;
   recurring: boolean;
   requires_card: boolean;
@@ -38,6 +42,20 @@ export interface PlanConfig {
   chat_monthly_cap: number | null;
   /** Days that the trial/intro one-shot window stays valid. null = recurring. */
   window_days: number | null;
+  // ── 2026-08 additive fields — ALL optional so an old backend that
+  //    hasn't shipped the tier restructure still type-checks. ──────────
+  /** False for retired tiers (starter) that legacy holders keep but new
+   *  users must never be able to buy. Absent = old backend; treat the
+   *  spec-retired keys as non-purchasable regardless. */
+  purchasable?: boolean;
+  /** Workspace cap for the tier (1 for trial/intro/solo, 5 for pro/multi). */
+  max_workspaces?: number;
+  /** Whether non-Romanian (jurisdiction != RO) documents are allowed. */
+  allows_non_ro?: boolean;
+  /** Non-RO docs included per month (multi only). */
+  included_nonro_docs?: number;
+  /** Per-doc charge for non-RO docs above the inclusion (multi only). */
+  extra_nonro_doc_eur?: number | null;
 }
 
 export interface PricingPublicConfig {
@@ -142,6 +160,27 @@ export function formatEur(amount: number, opts?: { dp?: number; trailZero?: bool
 export function planByKey(cfg: PricingPublicConfig | null, key: PlanKey): PlanConfig | null {
   if (!cfg) return null;
   return cfg.plans.find((p) => p.key === key) ?? null;
+}
+
+/** Tier keys retired from purchase (2026-08 restructure). They can still
+ *  appear in the config (for legacy holders' plan-state fallbacks) but
+ *  must NEVER render as a purchasable card, even when talking to an old
+ *  backend that predates the `purchasable` flag. */
+const RETIRED_PLAN_KEYS: ReadonlySet<string> = new Set(["starter"]);
+
+/** The paid tiers a NEW user can buy, price-ascending — what the pricing
+ *  grid renders. Filters: recurring, not explicitly `purchasable: false`,
+ *  and never a spec-retired key (belt for old backends without the flag). */
+export function purchasablePaidPlans(cfg: PricingPublicConfig | null): PlanConfig[] {
+  if (!cfg) return [];
+  return cfg.plans
+    .filter(
+      (p) =>
+        p.recurring &&
+        p.purchasable !== false &&
+        !RETIRED_PLAN_KEYS.has(p.key),
+    )
+    .sort((a, b) => a.price_eur - b.price_eur);
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ExtraDocConfirmDialog } from "@/components/cfo/pricing/ExtraDocConfirmDialog";
+import { NonRoUpgradeDialog } from "@/components/cfo/pricing/NonRoUpgradeDialog";
 import { useToast } from "@/hooks/use-toast";
 import { enqueuePipeline, type EnqueuePipelineResult } from "@/lib/supabase";
 
@@ -39,6 +40,10 @@ export type UploadOutcome =
   | { kind: "queued" }
   | { kind: "extra_doc_cancelled" }    // user dismissed the dialog
   | { kind: "quota_blocked"; message: string; upgradeUrl: string }
+  // 2026-08 — non-RO document on a plan without the Multi-Country
+  // entitlement. The hook shows NonRoUpgradeDialog itself; this outcome
+  // just tells the caller the upload did not queue.
+  | { kind: "non_ro_blocked"; message: string }
   | { kind: "transport_failed"; message: string };
 
 interface PendingExtra {
@@ -52,10 +57,17 @@ interface PendingExtra {
   resolve: (outcome: UploadOutcome) => void;
 }
 
+interface PendingNonRo {
+  serverMessage: string;
+  /** Settled once the user closes the upgrade prompt. */
+  resolve: (outcome: UploadOutcome) => void;
+}
+
 export function useUploadEnqueue() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [pending, setPending] = useState<PendingExtra | null>(null);
+  const [pendingNonRo, setPendingNonRo] = useState<PendingNonRo | null>(null);
 
   /** Enqueue a pipeline run for `documentId`. Returns once the flow
    *  has reached a terminal state (queued, cancelled, blocked, failed). */
@@ -96,6 +108,13 @@ export function useUploadEnqueue() {
           upgradeUrl: result.upgradeUrl ?? "/pricing",
         };
       }
+      if (result.kind === "non_ro_blocked") {
+        // Friendly upgrade prompt, not an error toast — the plan simply
+        // doesn't include non-RO documents. Resolves when dismissed.
+        return new Promise<UploadOutcome>((resolve) => {
+          setPendingNonRo({ serverMessage: result.message, resolve });
+        });
+      }
       // 402 extra_doc_required → modal
       return new Promise<UploadOutcome>((resolve) => {
         setPending({
@@ -130,6 +149,15 @@ export function useUploadEnqueue() {
     settle(await _resolveEnqueueOutcome(retry, docId));
   }, [pending, _resolveEnqueueOutcome]);
 
+  const handleNonRoClose = useCallback(() => {
+    if (!pendingNonRo) return;
+    pendingNonRo.resolve({
+      kind: "non_ro_blocked",
+      message: pendingNonRo.serverMessage,
+    });
+    setPendingNonRo(null);
+  }, [pendingNonRo]);
+
   // ── Dialog element — caller mounts this once in their tree ──
   const dialog = pending ? (
     <ExtraDocConfirmDialog
@@ -141,6 +169,12 @@ export function useUploadEnqueue() {
       docsIncluded={pending.docsIncluded}
       extraDocEur={pending.extraDocEur}
       serverMessage={pending.serverMessage}
+    />
+  ) : pendingNonRo ? (
+    <NonRoUpgradeDialog
+      open
+      onClose={handleNonRoClose}
+      serverMessage={pendingNonRo.serverMessage}
     />
   ) : null;
 

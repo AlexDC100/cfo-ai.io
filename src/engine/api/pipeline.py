@@ -685,6 +685,54 @@ def _deterministic_tb_parsed(
     }
 
 
+def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
+    """2026-08 tiers — plan gate for NON-RO documents, consulted at the
+    exact seam where the jurisdiction resolver routes a document into
+    the AI lane (jurisdiction != RO).
+
+    · USAGE_LIMITS_ENABLED off (prod today) → strictly inert: returns
+      before any plan/state read.
+    · Plan without non-RO entitlement (trial/intro/solo/pro) → raises
+      NonRoNotIncludedError whose message is the TYPED refusal JSON
+      ({"error": "non_ro_not_included", "upgrade_to": "multi", ...}).
+      The generic failure handler persists it into `documents.error`,
+      the generic release path frees the doc-slot reservation, and the
+      FE matches `non_ro_not_included` to render an upgrade prompt
+      instead of a failure card.
+    · multi → reserves the non-RO meter and stamps the documents row
+      (`nonro_doc`, `nonro_metered_extra`) so `_commit_pipeline_quota`
+      can commit/release the meter from the daemon thread.
+    """
+    from . import _usage_gate as _ug
+    if not _ug.enforcement_enabled():
+        return
+    user_id = doc.get("uploaded_by")
+    if not user_id:
+        return
+    decision = _ug.reserve_nonro_document(str(user_id))
+    if decision.kind in ("allowed", "disabled"):
+        if decision.kind == "allowed":
+            try:
+                with _supabase.admin() as ac:
+                    ac.update(
+                        "documents",
+                        {"nonro_doc": True,
+                         "nonro_metered_extra": bool(decision.was_extra)},
+                        filters={"id": f"eq.{doc.get('id')}"},
+                    )
+            except Exception:  # noqa: BLE001 — stamp is best-effort
+                logger.exception(
+                    "[pipeline] non-RO stamp failed for doc %s (meter "
+                    "commit will be skipped)", doc.get("id"),
+                )
+        return
+    # refused (typed upgrade prompt) or blocked (monthly non-RO cap).
+    payload = dict(decision.refusal or {"error": "nonro_quota_exhausted"})
+    payload["plan_key"] = decision.plan_key
+    payload["message"] = decision.message
+    raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
+
+
 def _maybe_route_ai_lane(
     doc: Dict[str, Any], file_bytes: bytes, kind: str,
 ) -> Optional[Dict[str, Any]]:
@@ -709,6 +757,10 @@ def _maybe_route_ai_lane(
         return None
     if jurisdiction == "RO":
         return None
+    # 2026-08 tiers — non-RO documents are a plan entitlement (multi
+    # only). Inert when USAGE_LIMITS_ENABLED is off; raises the typed
+    # refusal (→ documents.error) when the plan doesn't include non-RO.
+    _enforce_nonro_plan_gate(doc)
     logger.info(
         "[stage_extract] AI lane engaged: jurisdiction=%s source=%s "
         "confidence=%s kind=%s doc=%s",
@@ -3580,6 +3632,24 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         if not user_id:
             return
         was_extra = bool(row.get("metered_extra"))
+        # 2026-08 tiers — non-RO meter flags. Columns come from
+        # schema_phase_plan_caps.sql; a second best-effort read keeps the
+        # primary select working on DBs without the migration.
+        nonro_doc = False
+        nonro_extra = False
+        try:
+            with _supabase.admin() as ac:
+                nr = ac.select(
+                    "documents",
+                    filters={"id": f"eq.{document_id}"},
+                    columns="nonro_doc,nonro_metered_extra",
+                    single=True,
+                )
+            if nr:
+                nonro_doc = bool(nr[0].get("nonro_doc"))
+                nonro_extra = bool(nr[0].get("nonro_metered_extra"))
+        except Exception:  # noqa: BLE001 — migration may not be applied
+            pass
         if success:
             _ug.commit_document(user_id, was_extra=was_extra)
             # WS2 — when the doc succeeded AND was flagged as a paid extra,
@@ -3615,8 +3685,33 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                         "this charge. doc=%s user=%s",
                         document_id, user_id,
                     )
+            # Non-RO meter — same success-only commit discipline.
+            if nonro_doc:
+                _ug.commit_nonro_document(user_id, was_extra=nonro_extra)
+                if nonro_extra:
+                    try:
+                        from . import _billing
+                        result = _billing.record_metered_extra_doc(
+                            user_id=user_id,
+                            reservation_id=document_id,
+                            kind="extra_nonro",
+                        )
+                        if not result.get("ok"):
+                            logger.error(
+                                "[pipeline] non-RO metered usage non-ok for "
+                                "doc=%s user=%s: %s",
+                                document_id, user_id, result,
+                            )
+                    except Exception:  # noqa: BLE001
+                        logger.exception(
+                            "[pipeline] non-RO metered usage raised — local "
+                            "tally bumped, Stripe missed this charge. "
+                            "doc=%s user=%s", document_id, user_id,
+                        )
         else:
             _ug.release_document(user_id, was_extra=was_extra)
+            if nonro_doc:
+                _ug.release_nonro_document(user_id, was_extra=nonro_extra)
     except Exception:
         logger.exception(
             "[pipeline] _commit_pipeline_quota(%s, success=%s) failed",

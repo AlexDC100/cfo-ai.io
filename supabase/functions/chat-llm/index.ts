@@ -59,9 +59,19 @@ function json(body: unknown, status: number, cors: Record<string, string>): Resp
   });
 }
 
-// ── Pricing V3 — plan tiers (mirrors _pricing_config.py, chat fields only) ─
+// ── Pricing V4 — plan tiers (mirrors _pricing_config.py, chat fields only) ─
+//
+// TIER SPEC (2026-08-27): trial 3/5 · intro 5/10 · solo 10/50 · pro 25/150 ·
+// multi 40/200 (chat turns day/month). "starter" (14.99) is retired from
+// purchase but stays recognized: it maps to pro, whose caps (25/150) are
+// strictly ABOVE starter's old 10/50 — legacy users never get less.
+// Grandfathering of OLD "pro" (39.99) subscribers onto the multi entitlement
+// set happens BACKEND-SIDE in the subscriptions row's tier value (rewritten
+// to "multi"); this function just reads the tier string. The pre-V2 legacy
+// keys below (business/professional/…) previously resolved to old-pro caps
+// 40/200, so they map to multi — exactly 40/200, never a downgrade.
 
-type PlanKey = "trial" | "intro" | "starter" | "pro";
+type PlanKey = "trial" | "intro" | "solo" | "pro" | "multi";
 
 interface PlanConfig {
   key: PlanKey;
@@ -79,7 +89,7 @@ function envInt(name: string, def: number): number {
 const PLANS: Record<PlanKey, PlanConfig> = {
   trial: {
     key: "trial",
-    display_name: "Free trial",
+    display_name: "Free Trial",
     chat: {
       daily: envInt("PRICING_CHAT_DAILY_CAP_TRIAL", 3),
       monthly: envInt("PRICING_CHAT_MONTHLY_CAP_TRIAL", 5),
@@ -87,37 +97,56 @@ const PLANS: Record<PlanKey, PlanConfig> = {
   },
   intro: {
     key: "intro",
-    display_name: "Intro unlock",
+    display_name: "Intro (7 days)",
     chat: {
       daily: envInt("PRICING_CHAT_DAILY_CAP_INTRO", 5),
       monthly: envInt("PRICING_CHAT_MONTHLY_CAP_INTRO", 10),
     },
   },
-  starter: {
-    key: "starter",
-    display_name: "Starter",
+  solo: {
+    key: "solo",
+    display_name: "RO Solo",
     chat: {
-      daily: envInt("PRICING_CHAT_DAILY_CAP_STARTER", 10),
-      monthly: envInt("PRICING_CHAT_MONTHLY_CAP_STARTER", 50),
+      daily: envInt("PRICING_CHAT_DAILY_CAP_SOLO", 10),
+      monthly: envInt("PRICING_CHAT_MONTHLY_CAP_SOLO", 50),
     },
   },
   pro: {
     key: "pro",
     display_name: "Pro",
     chat: {
-      daily: envInt("PRICING_CHAT_DAILY_CAP_PRO", 40),
-      monthly: envInt("PRICING_CHAT_MONTHLY_CAP_PRO", 200),
+      daily: envInt("PRICING_CHAT_DAILY_CAP_PRO", 25),
+      monthly: envInt("PRICING_CHAT_MONTHLY_CAP_PRO", 150),
+    },
+  },
+  multi: {
+    key: "multi",
+    display_name: "Multi-Country",
+    chat: {
+      daily: envInt("PRICING_CHAT_DAILY_CAP_MULTI", 40),
+      monthly: envInt("PRICING_CHAT_MONTHLY_CAP_MULTI", 200),
     },
   },
 };
 
-// Mirrors _pricing_config.py's legacy_tier_map — pre-V2 subscribers keep
-// working under the new tier keys without a data migration.
+// Mirrors _pricing_config.py's legacy_tier_map — retired/pre-V2 subscribers
+// keep working under the new tier keys without a data migration. Every
+// mapping is >= the caps the key granted before (never-downgrade):
+//   starter (retired, was 10/50)            -> pro   (25/150)
+//   business/professional/… (were pro 40/200) -> multi (40/200)
+// "solo" is a first-class plan now (10/50, same caps its old legacy
+// mapping to starter gave), so it no longer appears here.
 const LEGACY_TIER_MAP: Record<string, PlanKey> = {
-  solo: "starter",
-  business: "pro",
-  professional: "pro",
-  professional_contact: "pro",
+  starter: "pro",
+  business: "multi",
+  professional: "multi",
+  professional_contact: "multi",
+  // Grandfathered 39.99-era Pro subscribers: the backend webhook/cutover
+  // stamps subscriptions.tier = "pro_legacy" (resolved by their OLD Stripe
+  // price id). They keep their old 40/200 chat caps via the Multi-Country
+  // entitlement set — never a downgrade. KEEP IN SYNC with
+  // _pricing_config.py legacy_tier_map.
+  pro_legacy: "multi",
 };
 
 function planFor(rawKey: string | null | undefined): PlanConfig {
@@ -296,6 +325,27 @@ interface LlmChatRequest {
 }
 
 // ── System-prompt builders (verbatim port of cfo_ai.py's) ────────────────
+//
+// CACHE-STABILITY AUDIT (2026-08-27) — the system block below is sent with
+// cache_control: ephemeral; a single volatile byte voids the ~60% saving.
+// Verified: NOTHING server-side is volatile. No Date.now()/new Date(), no
+// request ids, no unordered-object serialization in any builder — todayParts()
+// feeds only the usage RPCs, never the prompt. toFixed(4)/toLocaleString
+// ("en-US") are deterministic. The only fragments that can differ between
+// turns are CLIENT-SUPPLIED: `page` (changes if the user navigates
+// mid-conversation), `fx_context.rate`/`rate_date` (changes at the daily BNR
+// refresh), and `dataset_summary` (changes when the active period changes).
+// Each is byte-stable across turns of a normal same-page, same-day
+// conversation, so the prefix caches; when one changes, a cache re-write is
+// the CORRECT behavior, not a leak. Do not add timestamps, ids, or
+// JSON.stringify of unsorted objects to any builder below.
+// Cache-block geometry: system is a single element, so cache_control sits on
+// the LAST system element (required). Measured (2026-08-27, chars/4): the
+// persona+directives alone are ~550-700 tok, so the block clears Opus's
+// 1024-token caching minimum only when dataset_summary is substantial
+// (>~1.5KB — real workspace snapshots are); dataset-less open-domain chats
+// fall below the minimum and simply don't cache — no cost penalty, just no
+// saving on those.
 
 function buildCurrencyDirective(
   displayCurrency: string | null | undefined,

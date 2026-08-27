@@ -419,6 +419,10 @@ export type EnqueuePipelineResult =
       message: string;
       upgradeUrl?: string;
     }
+  // 2026-08 tier restructure — non-Romanian document on a plan without
+  // the Multi-Country entitlement. Typed refusal, not an error: the FE
+  // renders it as an upgrade prompt (NonRoUpgradeDialog).
+  | { kind: "non_ro_blocked"; upgradeTo: string; message: string }
   | { kind: "transport_failed"; message: string };
 
 export async function enqueuePipeline(documentId: string): Promise<EnqueuePipelineResult> {
@@ -449,59 +453,60 @@ export async function enqueuePipeline(documentId: string): Promise<EnqueuePipeli
     });
     if (res.ok) return { kind: "queued" };
 
+    // The body can only be consumed once — read it as text, then parse.
+    const txt = await res.text().catch(() => "");
+    let body: {
+      detail?: {
+        code?: string;
+        plan_key?: string;
+        docs_used?: number;
+        docs_included?: number;
+        extra_doc_eur?: number | null;
+        message?: string;
+        upgrade_url?: string;
+      };
+    } | null = null;
+    try {
+      body = txt ? JSON.parse(txt) : null;
+    } catch { body = null; }
+
+    // 2026-08 — typed non-RO refusal (jurisdiction != RO on a plan
+    // without the Multi-Country entitlement). Recognized on ANY error
+    // status so the FE doesn't depend on which code the backend chose.
+    const { parseUploadRefusal } = await import("@/lib/uploadRefusals");
+    const nonRo = parseUploadRefusal(body);
+    if (nonRo) {
+      return { kind: "non_ro_blocked", upgradeTo: nonRo.upgradeTo, message: nonRo.message };
+    }
+
     // Pricing V3 surface — 402 = extra-doc confirmation required.
-    if (res.status === 402) {
-      try {
-        const body = (await res.json()) as {
-          detail?: {
-            code?: string;
-            plan_key?: string;
-            docs_used?: number;
-            docs_included?: number;
-            extra_doc_eur?: number | null;
-            message?: string;
-          };
+    if (res.status === 402 && body) {
+      const d = body.detail ?? {};
+      if (d.code === "extra_doc_confirmation_required") {
+        return {
+          kind: "extra_doc_required",
+          planKey: d.plan_key ?? "starter",
+          docsUsed: d.docs_used ?? 0,
+          docsIncluded: d.docs_included ?? 0,
+          extraDocEur: d.extra_doc_eur ?? null,
+          message: d.message ?? "This will be an extra document — confirm to proceed.",
         };
-        const d = body.detail ?? {};
-        if (d.code === "extra_doc_confirmation_required") {
-          return {
-            kind: "extra_doc_required",
-            planKey: d.plan_key ?? "starter",
-            docsUsed: d.docs_used ?? 0,
-            docsIncluded: d.docs_included ?? 0,
-            extraDocEur: d.extra_doc_eur ?? null,
-            message: d.message ?? "This will be an extra document — confirm to proceed.",
-          };
-        }
-      } catch { /* fall through to generic transport_failed below */ }
+      }
     }
 
     // 429 = quota blocked (trial / intro / over-cap with no extras).
-    if (res.status === 429) {
-      try {
-        const body = (await res.json()) as {
-          detail?: {
-            code?: string;
-            plan_key?: string;
-            docs_used?: number;
-            docs_included?: number;
-            message?: string;
-            upgrade_url?: string;
-          };
-        };
-        const d = body.detail ?? {};
-        return {
-          kind: "quota_blocked",
-          planKey: d.plan_key ?? "trial",
-          docsUsed: d.docs_used ?? 0,
-          docsIncluded: d.docs_included ?? 0,
-          message: d.message ?? "You've used all your documents on this plan.",
-          upgradeUrl: d.upgrade_url ?? "/pricing",
-        };
-      } catch { /* fall through */ }
+    if (res.status === 429 && body) {
+      const d = body.detail ?? {};
+      return {
+        kind: "quota_blocked",
+        planKey: d.plan_key ?? "trial",
+        docsUsed: d.docs_used ?? 0,
+        docsIncluded: d.docs_included ?? 0,
+        message: d.message ?? "You've used all your documents on this plan.",
+        upgradeUrl: d.upgrade_url ?? "/pricing",
+      };
     }
 
-    const txt = await res.text();
     console.warn("[pipeline] enqueue failed:", res.status, txt);
     return { kind: "transport_failed", message: `HTTP ${res.status}` };
   } catch (err) {
@@ -596,6 +601,22 @@ export function subscribeToDocumentStatus(
 ): () => void {
   if (!client) return () => {};
   const activeClient = client;
+  // 2026-08 — the pipeline persists typed refusals (non-RO gate) as raw
+  // JSON into documents.error. Humanize at this seam so EVERY consumer
+  // (scan card, toasts, DocumentChip) renders the friendly copy instead
+  // of a JSON blob. Non-refusal errors pass through untouched.
+  const emit = (row: DocumentRow) => {
+    if (row?.error) {
+      try {
+        // Dynamic import keeps this hot module free of a static i18n dep.
+        void import("@/lib/uploadRefusals").then(({ friendlyDocumentError }) => {
+          onChange({ ...row, error: friendlyDocumentError(row.error) ?? row.error });
+        });
+        return;
+      } catch { /* fall through to raw row */ }
+    }
+    onChange(row);
+  };
   const filter = documentId ? `id=eq.${documentId}` : undefined;
   const base = documentId ? `doc-${documentId}` : "docs-all";
   const channelName = `${base}:${++_docChannelSeq}`;
@@ -606,7 +627,7 @@ export function subscribeToDocumentStatus(
       "postgres_changes" as any,
       { event: "UPDATE", schema: "public", table: "documents", filter },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (payload: any) => onChange(payload.new as DocumentRow),
+      (payload: any) => emit(payload.new as DocumentRow),
     )
     .subscribe();
 
@@ -633,7 +654,7 @@ export function subscribeToDocumentStatus(
         const row = data as DocumentRow;
         if (row.status !== lastStatus) {
           lastStatus = row.status;
-          onChange(row);
+          emit(row);
           if (row.status === "analyzed" || row.status === "failed") {
             if (poll) { clearInterval(poll); poll = null; }
           }

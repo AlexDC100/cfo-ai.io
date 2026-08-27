@@ -319,6 +319,35 @@ export async function updateWorkspaceIndustryOrg(
 
 // ── Mutations via RPC ──────────────────────────────────────────────────
 
+// ── 2026-08 tier restructure — plan workspace caps ────────────────────
+// The `create_workspace` RPC now enforces a per-plan workspace cap as a
+// SQL hard floor and raises an exception carrying the marker below when
+// the caller is at their cap. The FE pre-flight (workspaceCapReached in
+// planState.ts) should keep users from ever hitting it, but a stale tab
+// or an old-plan-state cache can still race it — so the create path
+// records whether the LAST failure was the cap, letting the UI render
+// the same upgrade prompt instead of a generic "couldn't create".
+
+// The RPC raises `workspace_cap_reached: your % plan allows % workspace(s)…`
+// (see supabase/schema_phase_plan_caps.sql) — match the prefix, plus the
+// older "workspace limit" phrasings as a belt.
+const WORKSPACE_LIMIT_MARKER =
+  /workspace[\s_-]*cap[\s_-]*reached|workspace[\s_-]*limit[\s_-]*reached|workspace[\s_-]*limit/i;
+
+/** Pure matcher — exported for tests. */
+export function isWorkspaceLimitMessage(msg: string | null | undefined): boolean {
+  return !!msg && WORKSPACE_LIMIT_MARKER.test(msg);
+}
+
+let lastCreateHitWorkspaceLimit = false;
+
+/** True when the most recent `createWorkspaceOrg` failure was the plan's
+ *  workspace cap (SQL hard floor), not a generic error. Reset on every
+ *  create attempt. */
+export function lastWorkspaceCreateHitLimit(): boolean {
+  return lastCreateHitWorkspaceLimit;
+}
+
 export async function createWorkspaceOrg(
   name: string,
   industryKey?: string | null,
@@ -326,12 +355,14 @@ export async function createWorkspaceOrg(
 ): Promise<string | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
+  lastCreateHitWorkspaceLimit = false;
   const { data, error } = await supabase.rpc("create_workspace", {
     p_name: name.trim(),
     p_industry_key: industryKey ?? null,
     p_industry_display: industryDisplay ?? null,
   });
   if (error) {
+    lastCreateHitWorkspaceLimit = isWorkspaceLimitMessage(error.message);
     console.warn("[org] create_workspace failed:", error.message);
     return null;
   }

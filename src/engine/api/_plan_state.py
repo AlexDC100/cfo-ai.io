@@ -96,6 +96,14 @@ class PlanState:
     # call sites that don't pass it keep working — `frozen=True` +
     # required positional args break otherwise.
     extra_docs_pending_this_period: int = 0
+    # 2026-08 tier restructure — non-RO documents consumed this month
+    # (multi tier). Reads `user_usage.nonro_uploads` added by
+    # supabase/schema_phase_plan_caps.sql; 0 when the column is absent.
+    nonro_used_this_period: int = 0
+    #: The tier string as stored on the subscription row BEFORE legacy
+    #: resolution (e.g. 'pro_legacy'); equals plan_key for direct keys.
+    #: Defaulted (end of field list) per the frozen-dataclass discipline.
+    raw_tier: str = ""
 
 
 DocQuotaDecisionKind = Literal["allowed", "extra_doc_bill_prompt", "blocked"]
@@ -143,12 +151,14 @@ def get_plan_state(user_id: str) -> PlanState:
     degrade to the trial tier — better to under-bill than to reject
     a paying user because Supabase hiccupped."""
     plan: Optional[_pricing_config.PlanConfig] = None
+    raw_tier_str = ""
     window_expires_at: Optional[datetime] = None
     docs_used = 0
     extra_docs_billed = 0
     extra_docs_pending = 0
     chat_used_today = 0
     chat_used_month = 0
+    nonro_used = 0
     today = _today()
     month = _month_bucket(today)
 
@@ -163,6 +173,7 @@ def get_plan_state(user_id: str) -> PlanState:
             if sub_rows:
                 row = sub_rows[0]
                 raw_tier = row.get("tier") or row.get("plan") or ""
+                raw_tier_str = str(raw_tier).strip().lower()
                 plan = _pricing_config.plan_for(str(raw_tier))
                 expires_raw = row.get("intro_unlock_expiry")
                 if expires_raw:
@@ -189,6 +200,9 @@ def get_plan_state(user_id: str) -> PlanState:
                 u = usage_rows[0]
                 docs_used = int(u.get("uploads") or 0)
                 chat_used_month = int(u.get("llm_calls") or 0)
+                # Column added by schema_phase_plan_caps.sql; absent on
+                # older DBs → PostgREST simply omits the key.
+                nonro_used = int(u.get("nonro_uploads") or 0)
 
             # plan_chat_daily_usage row — today's chat counter
             try:
@@ -216,11 +230,13 @@ def get_plan_state(user_id: str) -> PlanState:
     return PlanState(
         user_id=user_id,
         plan_key=plan.key,
+        raw_tier=raw_tier_str or plan.key,
         plan=plan,
         window_expires_at=window_expires_at,
         docs_used_this_period=docs_used,
         extra_docs_billed_this_period=extra_docs_billed,
         extra_docs_pending_this_period=extra_docs_pending,
+        nonro_used_this_period=nonro_used,
         chat_used_today=chat_used_today,
         chat_used_this_period=chat_used_month,
         today_iso=today.isoformat(),
@@ -530,4 +546,37 @@ def state_to_public_dict(state: PlanState) -> Dict[str, object]:
         ),
         "today": state.today_iso,
         "period_month": state.period_month_bucket,
+        # 2026-08 tier restructure — the FE renders workspace + non-RO
+        # gates from these without any new endpoint.
+        "max_workspaces": state.plan.max_workspaces,
+        "allows_non_ro": state.plan.allows_non_ro,
+        # Honesty field for grandfathered 39.99-era Pro subscribers
+        # (tier 'pro_legacy' resolves to Multi-Country entitlements while
+        # Stripe keeps billing their original price): the FE shows what
+        # they actually PAY, not the plan-card price. None for everyone
+        # else — the FE falls back to plan_price_eur.
+        "billed_price_eur": (
+            _pricing_config._env_float("PRICING_PRO_LEGACY_BILLED_EUR", 39.99)
+            if state.raw_tier == "pro_legacy" else None
+        ),
+        "nonro_used": state.nonro_used_this_period,
+        "nonro_included": state.plan.included_nonro_docs,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Workspace cap (2026-08) — soft-gate mirror of the SQL hard floor
+# ──────────────────────────────────────────────────────────────────────
+
+def max_workspaces_for(tier: Optional[str]) -> int:
+    """How many concurrent (non-archived) workspaces the tier allows.
+
+    Mirror of the CASE inside `create_workspace()` in
+    supabase/schema_phase_plan_caps.sql — SQL is the hard floor, this
+    helper drives the backend/FE soft gates (friendly pre-check before
+    the RPC's exception). Unknown / absent tier → the trial default (1).
+    """
+    plan = _pricing_config.plan_for(tier or "")
+    if plan is None:
+        return 1
+    return plan.max_workspaces

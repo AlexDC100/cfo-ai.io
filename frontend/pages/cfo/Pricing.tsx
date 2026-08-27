@@ -57,6 +57,9 @@ export default function Pricing() {
   const isAuthed = status === "signed_in";
   const navigate = useNavigate();
   const { config } = usePricingConfig();
+  // 2026-08 — flip the matching tier's CTA to "Current plan" for signed-in
+  // users (legacy keys like starter/old-pro simply match no rendered card).
+  const { state: planState } = usePlanState();
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const { t } = useTranslation();
 
@@ -139,7 +142,7 @@ export default function Pricing() {
         </div>
 
         {/* ── Plan cards ─────────────────────────────────────────── */}
-        <PricingTableV2 currentPlanKey={isAuthed ? undefined : null} />
+        <PricingTableV2 currentPlanKey={isAuthed ? planState?.plan_key ?? null : null} />
 
         {/* ── Monthly bill estimator ─────────────────────────────── */}
         {config && <MonthlyBillEstimator config={config} />}

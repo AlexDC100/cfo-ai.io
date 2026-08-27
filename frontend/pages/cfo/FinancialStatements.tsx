@@ -1095,6 +1095,7 @@ export default function FinancialStatements() {
         if (enq.kind !== "queued") {
           const reason =
             enq.kind === "quota_blocked" ? enq.message
+            : enq.kind === "non_ro_blocked" ? enq.message
             : enq.kind === "transport_failed" ? enq.message
             : t("dash.uploadCancelled");
           patchUpload({ status: "failed", error: reason });

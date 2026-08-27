@@ -1,14 +1,17 @@
 // PricingTableV2.tsx — dark-premium pricing table for /pricing and /landing.
 //
-// LAYOUT (May 2026 redesign spec §6)
-//   ┌─────────────────────────────┐  ┌─────────────────────────────┐
-//   │  STARTER                    │  │  PRO          Most popular │
-//   │  €14.99 / month              │  │  €39.99 / month              │
-//   │  ...features...              │  │  ...features...              │
-//   │  [ Start Starter ]           │  │  [ Start Pro ]               │
-//   └─────────────────────────────┘  └─────────────────────────────┘
-//                          ─ Intro Unlock strip ─
-//                       Or start a 7-day free trial →
+// LAYOUT (2026-08 tier restructure)
+//   ┌──────────────┐  ┌────────────────────┐  ┌────────────────┐
+//   │  RO SOLO     │  │  PRO  Most popular │  │  MULTI-COUNTRY │
+//   │  €4.99 / mo  │  │  €9.99 / mo        │  │  €16.99 / mo   │
+//   │  ...features │  │  ...features       │  │  ...features   │
+//   │  [ Start ]   │  │  [ Start ]         │  │  [ Start ]     │
+//   └──────────────┘  └────────────────────┘  └────────────────┘
+//                    ─ Intro Unlock strip ─
+//                 Or start a 7-day free trial →
+//
+//   Cards are config-driven via `purchasablePaidPlans` — retired tiers
+//   (starter €14.99) never render, whatever the backend returns.
 //
 // READS
 //   GET /api/pricing/config — server is the single source of truth
@@ -28,9 +31,9 @@
 //
 // COPY RULES
 //   · €0.99 intro is a one-time 7-day unlock — never "/month".
-//   · "Most popular" on Pro per spec §6.
-//   · Starter gets "Best for owners" badge.
-//   · Free trial is messaged as a smaller link, not a 4th card.
+//   · "Most popular" on Pro — the hero tier (2026-08 spec).
+//   · The second paid tier is named exactly "Pro" (user directive).
+//   · Free trial is messaged as a smaller link, not an extra card.
 
 import { useState } from "react";
 import { Check, Sparkles, Zap } from "lucide-react";
@@ -42,6 +45,7 @@ import {
   type PlanConfig,
   type PlanKey,
   formatEur,
+  purchasablePaidPlans,
   usePricingConfig,
 } from "@/lib/pricingConfig";
 import { useAuth } from "@/lib/auth";
@@ -164,43 +168,53 @@ export function PricingTableV2({
     );
   }
 
-  const starter = config.plans.find((p) => p.key === "starter");
-  const pro = config.plans.find((p) => p.key === "pro");
+  // 2026-08 restructure: the paid grid is fully config-driven — RO Solo /
+  // Pro / Multi-Country from `purchasablePaidPlans` (price-ascending).
+  // Retired `starter` never renders here even if the backend still lists
+  // it for legacy holders. Pro is the visual hero per spec.
+  const paidPlans = purchasablePaidPlans(config);
   const intro = config.plans.find((p) => p.key === "intro");
+
+  const badgeFor = (key: PlanKey): string => {
+    if (key === "pro") return t("pricing.badgePro");
+    if (key === "multi") return t("pricing.badgeMulti");
+    if (key === "solo") return t("pricing.badgeSolo");
+    if (key === "starter") return t("pricing.badgeStarter");
+    return "";
+  };
+
+  const gridCols =
+    paidPlans.length >= 3 ? "lg:grid-cols-3" : "lg:grid-cols-2";
 
   return (
     <section
       data-testid="pricing-table-v2"
       className="max-w-[1080px] mx-auto px-5 sm:px-8 pt-2 pb-10"
     >
-      {/* Two prominent plan cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {starter && (
+      {/* Paid plan cards — Pro is the hero tier */}
+      <div className={`grid grid-cols-1 ${gridCols} gap-4`}>
+        {paidPlans.map((p) => (
           <PlanCard
-            plan={starter}
-            badge={t("pricing.badgeStarter")}
-            highlight={false}
-            current={currentPlanKey === "starter"}
-            features={planFeaturesFor("starter", i18n.language)}
-            ctaLabel={t("pricing.startStarter")}
-            extraDocCopy={t("pricing.extraDoc", { price: formatEur(starter.extra_doc_eur ?? 0) })}
-            onPick={() => handlePick("starter")}
-            submitting={submitting === "starter"}
+            key={p.key}
+            plan={p}
+            badge={badgeFor(p.key)}
+            highlight={p.key === "pro"}
+            current={currentPlanKey === p.key}
+            features={planFeaturesFor(p.key, i18n.language)}
+            ctaLabel={t("pricing.startPlan", { name: p.display_name })}
+            extraDocCopy={t("pricing.extraDoc", { price: formatEur(p.extra_doc_eur ?? 0) })}
+            extraNonRoCopy={
+              p.allows_non_ro && p.extra_nonro_doc_eur != null
+                ? t("pricing.extraNonRoDoc", {
+                    price: formatEur(p.extra_nonro_doc_eur),
+                    included: p.included_nonro_docs ?? 0,
+                  })
+                : null
+            }
+            onPick={() => handlePick(p.key)}
+            submitting={submitting === p.key}
           />
-        )}
-        {pro && (
-          <PlanCard
-            plan={pro}
-            badge={t("pricing.badgePro")}
-            highlight
-            current={currentPlanKey === "pro"}
-            features={planFeaturesFor("pro", i18n.language)}
-            ctaLabel={t("pricing.startPro")}
-            extraDocCopy={t("pricing.extraDoc", { price: formatEur(pro.extra_doc_eur ?? 0) })}
-            onPick={() => handlePick("pro")}
-            submitting={submitting === "pro"}
-          />
-        )}
+        ))}
       </div>
 
       {/* Intro Unlock — small one-time strip BELOW the main plans.
@@ -252,6 +266,7 @@ function PlanCard({
   features,
   ctaLabel,
   extraDocCopy,
+  extraNonRoCopy = null,
   onPick,
   submitting,
 }: {
@@ -262,9 +277,12 @@ function PlanCard({
   features: string[];
   ctaLabel: string;
   extraDocCopy: string;
+  /** Multi-Country only: the non-RO overage line. */
+  extraNonRoCopy?: string | null;
   onPick: () => void;
   submitting: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <article
       data-testid={`pricing-plan-${plan.key}`}
@@ -323,10 +341,10 @@ function PlanCard({
           >
             {formatEur(plan.price_eur)}
           </span>
-          <span className="text-[13px] text-ink-soft">/ month</span>
+          <span className="text-[13px] text-ink-soft">{t("pricing.perMonth")}</span>
         </div>
         <p className="mt-1 text-[11.5px] text-ink-mute">
-          7-day free trial, then {formatEur(plan.price_eur)} / month
+          {t("pricing.trialThen", { price: formatEur(plan.price_eur) })}
         </p>
 
         <ul className="mt-5 space-y-2 text-[13px] text-ink leading-snug">
@@ -347,7 +365,17 @@ function PlanCard({
           className="mt-5 rounded-xl bg-bg-2/40 border border-rule/60 px-3 py-2.5 text-[11.5px] text-ink-soft leading-snug flex items-start gap-2"
         >
           <Zap size={11} strokeWidth={2} className="text-ink-mute mt-0.5 shrink-0" />
-          <span>Above quota: {extraDocCopy}</span>
+          <span>
+            {t("pricing.aboveQuota", { copy: extraDocCopy })}
+            {extraNonRoCopy && (
+              <>
+                {" "}
+                <span data-testid={`pricing-plan-${plan.key}-extra-nonro`}>
+                  {extraNonRoCopy}
+                </span>
+              </>
+            )}
+          </span>
         </div>
 
         <div className="mt-5">
@@ -358,7 +386,7 @@ function PlanCard({
               data-testid={`pricing-plan-${plan.key}-current`}
               className="inline-flex items-center justify-center w-full h-11 rounded-xl border border-brand/40 bg-brand/10 text-brand-d text-[13.5px] font-medium cursor-default"
             >
-              Current plan
+              {t("pricing.currentPlan")}
             </button>
           ) : (
             <button
@@ -375,7 +403,7 @@ function PlanCard({
                   : "bg-ink text-paper hover:bg-ink/90"}
               `}
             >
-              {submitting ? "Opening checkout…" : ctaLabel}
+              {submitting ? t("pricing.openingCheckout") : ctaLabel}
             </button>
           )}
         </div>

@@ -96,7 +96,10 @@ def test_pricing_config_starter_pro_recurring():
 
 def test_below_cogs_warning_fires_when_extra_under_cogs():
     _ensure_env()
-    os.environ["PRICING_STARTER_EXTRA_DOC_EUR"] = "1.00"
+    # Planted BELOW the COGS anchor. 2026-08: the anchor was re-measured
+    # to €0.90 (RO doc $0.02, non-RO worst $0.97), so the plant moved
+    # from 1.00 to 0.50 to stay under it.
+    os.environ["PRICING_STARTER_EXTRA_DOC_EUR"] = "0.50"
     try:
         from engine.api import _pricing_config
         _pricing_config.reload_for_test()

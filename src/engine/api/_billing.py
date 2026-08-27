@@ -207,27 +207,124 @@ class CheckoutStartResponse(BaseModel):
 #
 # `mode` is the Stripe Checkout Session mode:
 #   · "payment"      — one-off charge (Intro €0.99 unlock)
-#   · "subscription" — recurring (Starter €14.99/mo, Pro €39.99/mo)
+#   · "subscription" — recurring (RO Solo €4.99, Pro €9.99, Multi €16.99)
 #
 # When the env var is unset, the endpoint returns 503 with a clear
 # message naming the missing var. This lets the operator spot
 # configuration drift instantly.
+#
+# 2026-08 restructure: 'starter' is RETIRED from purchase — it has no
+# entry here (checkout returns 410 Gone with an upgrade message; see
+# _RETIRED_PURCHASE_TIERS). The webhook still recognizes existing
+# starter subscriptions.
 _SIMPLE_TIER_CONFIG: Dict[str, Dict[str, str]] = {
-    "intro":   {"env": "STRIPE_PRICE_INTRO",   "mode": "payment"},
-    "starter": {"env": "STRIPE_PRICE_STARTER", "mode": "subscription"},
-    "pro":     {"env": "STRIPE_PRICE_PRO",     "mode": "subscription"},
+    "intro": {"env": "STRIPE_PRICE_INTRO", "mode": "payment"},
+    "solo":  {"env": "STRIPE_PRICE_SOLO",  "mode": "subscription"},
+    "pro":   {"env": "STRIPE_PRICE_PRO",   "mode": "subscription"},
+    "multi": {"env": "STRIPE_PRICE_MULTI", "mode": "subscription"},
+}
+
+# Tiers that USED to be purchasable. Checkout answers 410 Gone (not 400)
+# so the FE can tell "retired plan" from "typo" and render an upgrade CTA.
+_RETIRED_PURCHASE_TIERS: Dict[str, str] = {
+    "starter": (
+        "The Starter plan has been retired. Pick Pro (€9.99/mo, 15 "
+        "documents) — existing Starter subscribers keep their plan and "
+        "already receive the Pro allowance."
+    ),
 }
 
 # WS2 — per-tier metered overage prices (Stripe metered billing).
 # Created in Stripe Dashboard as recurring monthly metered prices with
 # sum aggregation. The base subscription item bills the flat tier; the
 # metered item accumulates `usage_record`s during the cycle and bills at
-# the period_end invoice. Only Starter and Pro have overage prices; Intro
-# is one-time (mode=payment) and Trial caps at 1 doc hard-block.
+# the period_end invoice. Intro is one-time (mode=payment) and Trial caps
+# at 1 doc hard-block. starter/pro_legacy stay here so RETIRED-but-active
+# subscribers keep billing extras on their era's metered price.
 _METERED_EXTRA_DOC_CONFIG: Dict[str, str] = {
-    "starter": "STRIPE_PRICE_STARTER_EXTRA_DOC",
-    "pro":     "STRIPE_PRICE_PRO_EXTRA_DOC",
+    "starter":    "STRIPE_PRICE_STARTER_EXTRA_DOC",
+    "solo":       "STRIPE_PRICE_SOLO_EXTRA_DOC",
+    "pro":        "STRIPE_PRICE_PRO_EXTRA_DOC",
+    "pro_legacy": "STRIPE_PRICE_PRO_EXTRA_DOC",
+    "multi":      "STRIPE_PRICE_MULTI_EXTRA_DOC",
 }
+
+# 2026-08 — the non-RO overage meter (multi entitlement set only; the
+# grandfathered 39.99-era pros share it).
+_METERED_EXTRA_NONRO_CONFIG: Dict[str, str] = {
+    "multi":      "STRIPE_PRICE_MULTI_EXTRA_NONRO",
+    "pro_legacy": "STRIPE_PRICE_MULTI_EXTRA_NONRO",
+}
+
+
+# ─── PRICE-AMOUNT SAFETY GUARD ─────────────────────────────────────────────
+#
+# A stale env var pointing at an old Stripe Price must NEVER charge the
+# old amount against the new page price. Before creating any checkout
+# session we retrieve the env-configured Price and verify amount /
+# currency / recurring-ness against the plan config. Verified pairs are
+# cached for the process lifetime.
+
+_PRICE_GUARD_CACHE: set = set()
+
+
+def _price_field(price: Any, name: str) -> Any:
+    if hasattr(price, "get"):
+        return price.get(name)
+    return getattr(price, name, None)
+
+
+def _verify_checkout_price(stripe: Any, tier: str, env_var: str,
+                           price_id: str) -> None:
+    """Raise 503 unless the Stripe Price at `price_id` matches the plan
+    config for `tier` (unit_amount, currency=eur, recurring-ness).
+
+    Escape hatch: STRIPE_PRICE_GUARD_DISABLED=1 (harnesses like
+    stripe-mock that return canned Price objects) — logged loudly.
+    """
+    if os.environ.get("STRIPE_PRICE_GUARD_DISABLED", "").strip().lower() in (
+            "1", "true", "yes", "on"):
+        logger.warning(
+            "[billing] PRICE GUARD DISABLED via env — checkout amounts are "
+            "NOT being verified against Stripe. Never run prod like this.")
+        return
+    from . import _pricing_config
+    plan = _pricing_config.CONFIG.plans.get(tier)
+    if plan is None:
+        return  # legacy tier with no plan config — nothing to verify against
+    cache_key = (env_var, price_id)
+    if cache_key in _PRICE_GUARD_CACHE:
+        return
+    try:
+        price = stripe.Price.retrieve(price_id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(503, (
+            f"{env_var}={price_id} could not be verified against Stripe "
+            f"({type(exc).__name__}: {str(exc)[:120]}). Refusing to create "
+            f"a checkout session with an unverified price."
+        ))
+    expected_cents = round(plan.price_eur * 100)
+    actual_cents = _price_field(price, "unit_amount")
+    actual_currency = (_price_field(price, "currency") or "").lower()
+    actual_recurring = bool(_price_field(price, "recurring"))
+    problems = []
+    if actual_cents != expected_cents:
+        problems.append(f"unit_amount is {actual_cents}, expected "
+                        f"{expected_cents} cents (€{plan.price_eur:.2f})")
+    if actual_currency != "eur":
+        problems.append(f"currency is '{actual_currency}', expected 'eur'")
+    if actual_recurring != plan.recurring:
+        problems.append(
+            f"price is {'recurring' if actual_recurring else 'one-time'}, "
+            f"plan is {'recurring' if plan.recurring else 'one-time'}")
+    if problems:
+        raise HTTPException(503, (
+            f"Stripe price mismatch for {env_var} ({price_id}): "
+            + "; ".join(problems)
+            + ". A stale env var must never charge the wrong amount — fix "
+              "the env var or the Stripe Price before selling this tier."
+        ))
+    _PRICE_GUARD_CACHE.add(cache_key)
 
 
 def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
@@ -244,6 +341,10 @@ def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
     price = os.environ.get(config["env"])
     if not price:
         raise HTTPException(503, f"{config['env']} not set on the backend.")
+
+    # PRICE-AMOUNT SAFETY GUARD — verify the configured Price actually
+    # bills what the pricing page says before any session is created.
+    _verify_checkout_price(stripe, tier, config["env"], price)
 
     # Reuse Stripe customer per user when available so the billing
     # portal sees prior cards / invoices. Falls back to fresh customer
@@ -323,8 +424,8 @@ def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
     # If the metered env is unset the checkout still succeeds (silent
     # warn) — the upload flow's `_record_metered_extra_doc` lazy-adds
     # the item on first overage, which keeps both paths working.
-    metered_env = _METERED_EXTRA_DOC_CONFIG.get(tier)
-    if metered_env:
+    for metered_env in filter(None, (_METERED_EXTRA_DOC_CONFIG.get(tier),
+                                     _METERED_EXTRA_NONRO_CONFIG.get(tier))):
         metered_price = os.environ.get(metered_env)
         if metered_price:
             # Stripe rejects `quantity` on metered prices; just the price ref.
@@ -364,9 +465,17 @@ def _create_simple_tier_session(stripe: Any, tier: str, user_id: str,
 # ─── WS2: Metered overage billing ──────────────────────────────────────────
 
 
-def record_metered_extra_doc(user_id: str, reservation_id: str) -> Dict[str, Any]:
-    """Charge a Starter/Pro user for one extra-quota document via Stripe
+def record_metered_extra_doc(user_id: str, reservation_id: str, *,
+                             kind: str = "extra_doc") -> Dict[str, Any]:
+    """Charge a subscriber for one extra-quota document via Stripe
     metered billing.
+
+    `kind` selects the meter dimension (2026-08 tiers):
+      · "extra_doc"   — the plain over-quota document meter (default).
+      · "extra_nonro" — the non-RO overage meter (multi entitlement set),
+        env STRIPE_PRICE_MULTI_EXTRA_NONRO. The usage record must land on
+        the item whose price id matches THAT env — never on the plain
+        extra-doc meter (different unit price).
 
     Called from `_commit_pipeline_quota(was_extra=True, success=True)` —
     only fires when a doc successfully processed AND was flagged as a paid
@@ -413,7 +522,9 @@ def record_metered_extra_doc(user_id: str, reservation_id: str) -> Dict[str, Any
         return {"ok": True, "billed": False, "reason": "no_stripe_subscription"}
 
     tier = sub_row.get("tier") or sub_row.get("plan_key") or ""
-    metered_env = _METERED_EXTRA_DOC_CONFIG.get(tier)
+    _config_map = (_METERED_EXTRA_NONRO_CONFIG if kind == "extra_nonro"
+                   else _METERED_EXTRA_DOC_CONFIG)
+    metered_env = _config_map.get(tier)
     if not metered_env:
         # Unknown / unsupported tier (e.g. legacy founder/standard) —
         # they shouldn't hit the extras flow but if they do, skip silently.
@@ -460,11 +571,32 @@ def record_metered_extra_doc(user_id: str, reservation_id: str) -> Dict[str, Any
     # Find an existing metered item on this sub; lazy-create if missing.
     items = (sub.get("items") if isinstance(sub, dict) else sub.items).to_dict()["data"] \
         if not isinstance(sub, dict) else sub["items"]["data"]
+
+    def _is_metered(it: Dict[str, Any]) -> bool:
+        return ((it.get("price") or {}).get("recurring") or {}) \
+            .get("usage_type") == "metered"
+
+    # Prefer the item whose price id matches THIS meter's configured
+    # price — a multi sub carries BOTH the extra-doc and the non-RO
+    # meters, and recording on the wrong one bills the wrong unit price.
     metered_item = next(
         (it for it in items
-         if (it.get("price") or {}).get("recurring", {}).get("usage_type") == "metered"),
+         if _is_metered(it)
+         and (it.get("price") or {}).get("id") == metered_price),
         None,
     )
+    if metered_item is None and kind == "extra_doc":
+        # Legacy fallback (pre-2026-08 behavior): a sub created before a
+        # price rotation may carry an older extra-doc metered price id.
+        # Only the plain extra-doc meter may fall back — and never onto
+        # the non-RO meter's item.
+        nonro_price = os.environ.get(_METERED_EXTRA_NONRO_CONFIG.get(tier, ""))
+        metered_item = next(
+            (it for it in items
+             if _is_metered(it)
+             and (it.get("price") or {}).get("id") != (nonro_price or "__none__")),
+            None,
+        )
 
     if metered_item is None:
         # Legacy sub created before WS2 went live — add the metered item
@@ -492,7 +624,7 @@ def record_metered_extra_doc(user_id: str, reservation_id: str) -> Dict[str, Any
             quantity=1,
             timestamp=int(datetime.now(timezone.utc).timestamp()),
             action="increment",
-            idempotency_key=f"extra_doc:{reservation_id}",
+            idempotency_key=f"{kind}:{reservation_id}",
         )
     except Exception as exc:  # noqa: BLE001
         # Distinguish "already recorded" (safe to continue) from other errors.
@@ -623,6 +755,23 @@ def _upsert_tier_subscription_from_stripe(sub: Dict[str, Any]) -> None:
     if not user_id or not tier:
         logger.warning("[billing] tier subscription missing user_id/tier metadata: %s", sub.get("id"))
         return
+
+    # 2026-08 — the KEY "pro" was re-used at a new price (39.99 → 9.99).
+    # A subscription still billing on the OLD price id must resolve to
+    # the synthetic tier 'pro_legacy' (which _pricing_config maps to the
+    # MULTI entitlement set — grandfathered UP, never downgraded). The
+    # discriminator is the Stripe Price id on the subscription items vs
+    # env STRIPE_PRICE_PRO_LEGACY (the old 39.99 price id, set by the
+    # operator). Metadata alone can't tell the two "pro"s apart.
+    legacy_pro_price = os.environ.get("STRIPE_PRICE_PRO_LEGACY")
+    if tier == "pro" and legacy_pro_price:
+        _items = ((sub.get("items") or {}).get("data") or [])
+        _price_ids = set()
+        for _it in _items:
+            _p = _it.get("price")
+            _price_ids.add(_p.get("id") if isinstance(_p, dict) else _p)
+        if legacy_pro_price in _price_ids:
+            tier = "pro_legacy"
 
     # Stripe statuses → our `subscriptions.status` enum.
     stripe_status = sub.get("status") or "incomplete"
@@ -911,9 +1060,13 @@ def build_router() -> APIRouter:
     @router.post("/api/checkout/start", response_model=CheckoutStartResponse)
     def checkout_start(req: CheckoutStartRequest, authorization: Optional[str] = Header(None)) -> Any:
         plan = req.plan.lower().strip()
-        # STRIPE-1 — fan-out: simple-tier model (intro / starter / pro)
-        # delegates to the shared session builder. Legacy org-scoped
-        # founder/standard preserves the original behavior unchanged.
+        # 2026-08 — retired tiers answer 410 Gone with an upgrade
+        # message (the webhook still recognizes existing subscriptions).
+        if plan in _RETIRED_PURCHASE_TIERS:
+            raise HTTPException(410, _RETIRED_PURCHASE_TIERS[plan])
+        # STRIPE-1 — fan-out: simple-tier model (intro / solo / pro /
+        # multi) delegates to the shared session builder. Legacy
+        # org-scoped founder/standard preserves the original behavior.
         if plan in _SIMPLE_TIER_CONFIG:
             jwt = _require_jwt(authorization)
             user_id = _user_id_from_jwt(jwt)
@@ -933,7 +1086,7 @@ def build_router() -> APIRouter:
         if plan not in ("founder", "standard"):
             raise HTTPException(
                 400,
-                "plan must be one of: 'intro', 'starter', 'pro', "
+                "plan must be one of: 'intro', 'solo', 'pro', 'multi', "
                 "'founder', 'standard'.",
             )
 
@@ -1029,10 +1182,12 @@ def build_router() -> APIRouter:
     # signup flow can complete the checkout after account creation.
     @router.get("/api/checkout/start")
     def checkout_start_get(
-        tier: str = Query(..., description="intro | starter | pro"),
+        tier: str = Query(..., description="intro | solo | pro | multi"),
         auth_token: Optional[str] = Query(None, description="JWT bearer; required for authed checkout"),
     ) -> Any:
         tier = (tier or "").lower().strip()
+        if tier in _RETIRED_PURCHASE_TIERS:
+            raise HTTPException(410, _RETIRED_PURCHASE_TIERS[tier])
         if tier not in _SIMPLE_TIER_CONFIG:
             raise HTTPException(
                 400,

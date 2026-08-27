@@ -1,10 +1,16 @@
-"""Pricing & Plan Limits — single source of truth (V2).
+"""Pricing & Plan Limits — single source of truth (V2; tiers restructured 2026-08).
 
-Implements the validated structure from IMPLEMENT_PRICING_AND_LIMITS.md:
-  · Free trial  — €0,    1 doc total,        no card, very low chat
-  · Intro       — €0.99 one-time 7-day,      +1 doc, low chat (NOT recurring)
-  · Starter     — €14.99/mo, 5 docs/mo,      €3.00 extra,  daily+monthly chat caps
-  · Pro         — €39.99/mo, 15 docs/mo,     €2.50 extra,  daily+monthly chat caps
+Current tier table (THE spec — tests/engine/test_pricing_tiers.py locks it):
+  · Free trial  — €0,    1 doc total, no card, chat 3/day 5/mo, 1 workspace
+  · Intro       — €0.99 one-time 7-day, +1 doc, chat 5/10 (NOT recurring)
+  · RO Solo     — €4.99/mo,  3 docs/mo,  €1.49 extra, chat 10/50,  1 ws
+  · Pro         — €9.99/mo,  15 docs/mo, €0.99 extra, chat 25/150, 5 ws
+  · Multi-Country — €16.99/mo, 15 docs/mo €0.99 extra + 8 non-RO docs/mo
+                    (€1.49 extra non-RO), chat 40/200, 5 ws
+  · Starter     — €14.99 era, RETIRED from purchase (purchasable=False);
+                  legacy subscribers resolve to the Pro entitlement set.
+  Legacy 39.99-era Pro subs (webhook key 'pro_legacy') resolve to the
+  Multi-Country entitlement set — grandfathered UP, never downgraded.
 
 DESIGN RULES (from the spec)
 ============================
@@ -24,7 +30,7 @@ Values can be overridden at runtime via environment variables (without
 a code change), e.g.:
     PRICING_STARTER_MONTHLY_EUR=12.99
     PRICING_STARTER_EXTRA_DOC_EUR=2.99
-    PRICING_CHAT_DAILY_CAP_STARTER=15
+    PRICING_CHAT_DAILY_CAP_PRO=30
     PRICING_COGS_EUR=1.80
 
 The env-override layer is in `_load()` at the bottom of this file. Use
@@ -53,7 +59,7 @@ logger = logging.getLogger(__name__)
 # Types
 # ──────────────────────────────────────────────────────────────────────
 
-PlanKey = Literal["trial", "intro", "starter", "pro"]
+PlanKey = Literal["trial", "intro", "starter", "solo", "pro", "multi"]
 
 
 @dataclass(frozen=True)
@@ -88,6 +94,23 @@ class PlanConfig:
     chat: ChatCaps
     # For intro-style one-shot windows. None for recurring plans.
     window_days: Optional[int] = None
+    # ── 2026-08 tier restructure — all additive, env-overridable ──────
+    # Workspaces (organizations) the user may hold concurrently. The
+    # hard floor is enforced in SQL (create_workspace(), see
+    # supabase/schema_phase_plan_caps.sql); this field drives the
+    # backend/FE soft gates + the plan-state payload.
+    max_workspaces: int = 1
+    # Non-Romanian documents (jurisdiction resolver != RO). ONLY the
+    # multi tier may run them; every other tier gets the typed refusal
+    # {"error": "non_ro_not_included", "upgrade_to": "multi"}.
+    allows_non_ro: bool = False
+    # Monthly included non-RO docs (multi only), then overage at
+    # `extra_nonro_doc_eur` per doc via the Stripe metered meter.
+    included_nonro_docs: int = 0
+    extra_nonro_doc_eur: Optional[float] = None
+    # False = kept as a plan DEF for legacy subscription-state rendering
+    # but REFUSED at checkout (410) — the 'starter' retirement path.
+    purchasable: bool = True
 
 
 @dataclass(frozen=True)
@@ -153,7 +176,13 @@ def _env_int(name: str, default: int) -> int:
 def _load() -> PricingConfig:
     """Build the canonical pricing config. Env vars override defaults so
     prices/limits can change without a redeploy."""
-    cogs = _env_float("PRICING_COGS_EUR", 1.62)
+    # COGS anchor re-measured 2026-08-25: RO doc ≈ $0.02, non-RO doc
+    # $0.43–0.97 worst-case, chat turn ~$0.012–0.03. €0.90 sits at the
+    # worst-case non-RO unit cost, so the import-time below-COGS guard
+    # stays meaningful (a planted €0.01 extra price still fires) without
+    # false-positives on the €0.99 extra-doc price. The previous 1.62
+    # default predated the AI-first reader's cost work.
+    cogs = _env_float("PRICING_COGS_EUR", 0.90)
 
     trial = PlanConfig(
         key="trial",
@@ -196,10 +225,15 @@ def _load() -> PricingConfig:
         window_days=_env_int("PRICING_INTRO_WINDOW_DAYS", 7),
     )
 
+    # ── 2026-08 restructure — RETIRED from purchase, kept for legacy
+    # subscription-state rendering only. Existing 14.99 subscribers keep
+    # billing on their old Stripe price; their ENTITLEMENTS resolve via
+    # legacy_tier_map (starter → pro: 15 docs vs the old 5 — an upgrade,
+    # never a downgrade). Checkout returns 410 for this key.
     starter = PlanConfig(
         key="starter",
         display_name="Starter",
-        blurb="Five analyses per month, with metered extras at €3.00/doc.",
+        blurb="Retired plan — existing subscribers get the Pro allowance.",
         price_eur=_env_float("PRICING_STARTER_MONTHLY_EUR", 14.99),
         recurring=True,
         requires_card=True,
@@ -209,39 +243,95 @@ def _load() -> PricingConfig:
             daily=_env_int("PRICING_CHAT_DAILY_CAP_STARTER", 10),
             monthly=_env_int("PRICING_CHAT_MONTHLY_CAP_STARTER", 50),
         ),
+        max_workspaces=_env_int("PRICING_MAX_WORKSPACES_STARTER", 5),
+        purchasable=False,
     )
 
+    solo = PlanConfig(
+        key="solo",
+        display_name="RO Solo",
+        blurb="Three Romanian analyses per month, extras at €1.49/doc.",
+        price_eur=_env_float("PRICING_SOLO_MONTHLY_EUR", 4.99),
+        recurring=True,
+        requires_card=True,
+        included_docs=_env_int("PRICING_SOLO_INCLUDED_DOCS", 3),
+        extra_doc_eur=_env_float("PRICING_SOLO_EXTRA_DOC_EUR", 1.49),
+        chat=ChatCaps(
+            daily=_env_int("PRICING_CHAT_DAILY_CAP_SOLO", 10),
+            monthly=_env_int("PRICING_CHAT_MONTHLY_CAP_SOLO", 50),
+        ),
+        max_workspaces=_env_int("PRICING_MAX_WORKSPACES_SOLO", 1),
+    )
+
+    # User directive (2026-08): the second paid tier is named exactly
+    # "Pro" — NOT "RO Pro". Re-priced 39.99 → 9.99; the 39.99-era
+    # subscribers are grandfathered UP to the multi entitlement set via
+    # the `pro_legacy` synthetic key (stamped by the webhook from the
+    # STRIPE_PRICE_PRO_LEGACY price id — see _billing.py).
     pro = PlanConfig(
         key="pro",
         display_name="Pro",
-        blurb="Fifteen analyses per month, with metered extras at €2.50/doc.",
-        price_eur=_env_float("PRICING_PRO_MONTHLY_EUR", 39.99),
+        blurb="Fifteen Romanian analyses per month, extras at €0.99/doc.",
+        price_eur=_env_float("PRICING_PRO_MONTHLY_EUR", 9.99),
         recurring=True,
         requires_card=True,
         included_docs=_env_int("PRICING_PRO_INCLUDED_DOCS", 15),
-        extra_doc_eur=_env_float("PRICING_PRO_EXTRA_DOC_EUR", 2.50),
+        extra_doc_eur=_env_float("PRICING_PRO_EXTRA_DOC_EUR", 0.99),
         chat=ChatCaps(
-            daily=_env_int("PRICING_CHAT_DAILY_CAP_PRO", 40),
-            monthly=_env_int("PRICING_CHAT_MONTHLY_CAP_PRO", 200),
+            daily=_env_int("PRICING_CHAT_DAILY_CAP_PRO", 25),
+            monthly=_env_int("PRICING_CHAT_MONTHLY_CAP_PRO", 150),
         ),
+        max_workspaces=_env_int("PRICING_MAX_WORKSPACES_PRO", 5),
+    )
+
+    multi = PlanConfig(
+        key="multi",
+        display_name="Multi-Country",
+        blurb=("Fifteen analyses per month plus eight non-Romanian "
+               "documents included; overages metered."),
+        price_eur=_env_float("PRICING_MULTI_MONTHLY_EUR", 16.99),
+        recurring=True,
+        requires_card=True,
+        included_docs=_env_int("PRICING_MULTI_INCLUDED_DOCS", 15),
+        extra_doc_eur=_env_float("PRICING_MULTI_EXTRA_DOC_EUR", 0.99),
+        chat=ChatCaps(
+            daily=_env_int("PRICING_CHAT_DAILY_CAP_MULTI", 40),
+            monthly=_env_int("PRICING_CHAT_MONTHLY_CAP_MULTI", 200),
+        ),
+        max_workspaces=_env_int("PRICING_MAX_WORKSPACES_MULTI", 5),
+        allows_non_ro=True,
+        included_nonro_docs=_env_int("PRICING_MULTI_INCLUDED_NONRO_DOCS", 8),
+        extra_nonro_doc_eur=_env_float("PRICING_MULTI_EXTRA_NONRO_DOC_EUR", 1.49),
     )
 
     legacy_tier_map: Dict[str, PlanKey] = {
-        # Legacy `solo` / `business` / `professional` subscriptions
-        # continue to work. The map below is the upgrade-path baseline —
-        # everyone who paid for `solo` lands on at least `starter`, paid
-        # `business` lands on `pro`. Customers will be re-charged on
-        # their next renewal at the new rates; for now this is read-only
-        # so the migration is non-destructive.
-        "solo": "starter",
-        "business": "pro",
-        "professional": "pro",
-        "professional_contact": "pro",
+        # 2026-08 restructure. Rule: NEVER downgrade an active
+        # subscriber's entitlements.
+        #   · starter (14.99, retired) → pro (15 docs vs old 5 — up).
+        #   · pro_legacy — synthetic key the webhook stamps for a
+        #     subscription still billing on the OLD 39.99 pro price id
+        #     (env STRIPE_PRICE_PRO_LEGACY). The old-pro entitlement set
+        #     (15 docs, 40/200 chat) now lives at `multi`, so they map
+        #     there — they paid more, they get more (incl. non-RO docs).
+        #   · business/professional were mapped to the OLD pro; mapping
+        #     them to the NEW pro (25/150 chat) would silently downgrade
+        #     their chat caps → they follow the old-pro set to multi.
+        # NOTE: the pre-restructure alias "solo" → starter was REMOVED
+        # because "solo" is now a first-class plan key (CONFIG.plans is
+        # checked before this map in plan_for(), so the alias was
+        # unreachable anyway). Any pre-V2 legacy `solo` rows resolve to
+        # the new RO Solo plan.
+        "pro_legacy": "multi",
+        "business": "multi",
+        "professional": "multi",
+        "professional_contact": "multi",
+        "starter": "pro",
     }
 
     return PricingConfig(
         cogs_estimate_per_doc_eur=cogs,
-        plans={"trial": trial, "intro": intro, "starter": starter, "pro": pro},
+        plans={"trial": trial, "intro": intro, "starter": starter,
+               "solo": solo, "pro": pro, "multi": multi},
         # Billing scope is fixed at "user" per gap B of the refined spec.
         # Kept as a field so the data model + every reserve/commit call
         # site reads from one source, instead of hardcoding the choice
@@ -275,15 +365,17 @@ def below_cogs_warnings(cfg: Optional[PricingConfig] = None) -> List[str]:
     cfg = cfg or CONFIG
     out: List[str] = []
     for plan in cfg.plans.values():
-        if plan.extra_doc_eur is None:
-            continue
-        if plan.extra_doc_eur < cfg.cogs_estimate_per_doc_eur:
-            out.append(
-                f"Extra-doc price €{plan.extra_doc_eur:.2f} for tier "
-                f"'{plan.display_name}' is below estimated COGS "
-                f"€{cfg.cogs_estimate_per_doc_eur:.2f} — margin-negative "
-                f"until prompt caching ships."
-            )
+        for label, price in (("Extra-doc", plan.extra_doc_eur),
+                             ("Extra-non-RO-doc", plan.extra_nonro_doc_eur)):
+            if price is None:
+                continue
+            if price < cfg.cogs_estimate_per_doc_eur:
+                out.append(
+                    f"{label} price €{price:.2f} for tier "
+                    f"'{plan.display_name}' is below estimated COGS "
+                    f"€{cfg.cogs_estimate_per_doc_eur:.2f} — margin-negative "
+                    f"until prompt caching ships."
+                )
     return out
 
 
@@ -322,7 +414,16 @@ def plan_for(key: str) -> Optional[PlanConfig]:
         return None
     k = key.strip().lower()
     if k in CONFIG.plans:
-        return CONFIG.plans[k]  # type: ignore[index]
+        plan = CONFIG.plans[k]  # type: ignore[index]
+        # A retired (non-purchasable) plan resolves through the legacy
+        # map for ENTITLEMENTS — e.g. a 14.99 'starter' subscriber gets
+        # the Pro allowance (grandfathered up, never down). The plan DEF
+        # itself stays in CONFIG.plans for state/pricing-page rendering.
+        if not plan.purchasable:
+            mapped = CONFIG.legacy_tier_map.get(k)
+            if mapped:
+                return CONFIG.plans[mapped]
+        return plan
     legacy = CONFIG.legacy_tier_map.get(k)
     if legacy:
         return CONFIG.plans[legacy]
@@ -355,6 +456,12 @@ def to_public_dict(cfg: Optional[PricingConfig] = None) -> Dict[str, object]:
                 "chat_daily_cap": p.chat.daily,
                 "chat_monthly_cap": p.chat.monthly,
                 "window_days": p.window_days,
+                # 2026-08 tier restructure — additive fields.
+                "max_workspaces": p.max_workspaces,
+                "allows_non_ro": p.allows_non_ro,
+                "included_nonro_docs": p.included_nonro_docs,
+                "extra_nonro_doc_eur": p.extra_nonro_doc_eur,
+                "purchasable": p.purchasable,
             }
             for p in cfg.plans.values()
         ],

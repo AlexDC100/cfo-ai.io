@@ -98,6 +98,39 @@ class DocReserveDecision:
     was_extra: bool = False
 
 
+NonRoReserveKind = Literal["allowed", "refused", "blocked", "disabled"]
+
+# The typed refusal contract (2026-08 tiers): the FE matches
+# `non_ro_not_included` and renders an upgrade-to-Multi-Country prompt.
+NON_RO_REFUSAL: Dict[str, str] = {
+    "error": "non_ro_not_included",
+    "upgrade_to": "multi",
+}
+
+
+class NonRoNotIncludedError(RuntimeError):
+    """Raised by the pipeline's non-RO gate hook when the uploader's plan
+    doesn't include non-Romanian documents. The message is a compact JSON
+    payload that lands verbatim in `documents.error` (via the pipeline's
+    generic failure handler), so the FE can match `non_ro_not_included`
+    and render the upgrade prompt instead of a generic failure."""
+
+
+@dataclass(frozen=True)
+class NonRoReserveDecision:
+    kind: NonRoReserveKind
+    plan_key: str
+    used: int
+    cap: int
+    extra_nonro_doc_eur: Optional[float]
+    # True when the reservation landed ABOVE included_nonro_docs — the
+    # terminal commit then bills one unit on the non-RO overage meter.
+    was_extra: bool
+    # The typed refusal payload (kind == "refused"), else None.
+    refusal: Optional[Dict[str, str]]
+    message: str
+
+
 ChatReserveKind = Literal[
     "allowed", "daily_cap_reached", "monthly_cap_reached", "disabled"
 ]
@@ -338,6 +371,127 @@ def release_document(user_id: str, *, was_extra: bool) -> None:
     if not enforcement_enabled():
         return
     _rpc("release_user_upload", {
+        "p_user_id":   user_id,
+        "p_month":     _month_bucket(),
+        "p_was_extra": was_extra,
+    })
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Non-RO documents — reserve / commit / release (2026-08 tiers)
+# ──────────────────────────────────────────────────────────────────────
+
+def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
+    """Gate + atomic reserve for ONE non-Romanian document.
+
+    · Plan without `allows_non_ro` (trial/intro/solo/pro) → the TYPED
+      refusal — no RPC touched, no state mutated. The caller (pipeline
+      gate hook) surfaces it so the FE renders an upgrade prompt.
+    · multi (and pro_legacy via the multi entitlement map) → atomic
+      reserve against `included_nonro_docs`; above the cap the
+      reservation still lands but `was_extra=True` so the terminal
+      commit meters one unit at `extra_nonro_doc_eur`.
+    · RPC missing/unreachable (migration not applied yet) → degrade OPEN
+      to allowed-unmetered with a loud log: better to under-bill a
+      paying multi user than to block their upload.
+
+    NOTE: this reserve happens mid-pipeline (the jurisdiction is only
+    known after the resolver runs), IN ADDITION to the generic document
+    reservation made at /api/pipeline/run. The generic slot covers the
+    doc count; this one covers the non-RO dimension.
+    """
+    if not enforcement_enabled():
+        return NonRoReserveDecision(
+            kind="disabled", plan_key="trial", used=0, cap=0,
+            extra_nonro_doc_eur=None, was_extra=False, refusal=None,
+            message="",
+        )
+
+    state = _plan_state.get_plan_state(user_id)
+    plan = state.plan
+
+    if not plan.allows_non_ro:
+        return NonRoReserveDecision(
+            kind="refused",
+            plan_key=plan.key,
+            used=state.nonro_used_this_period,
+            cap=0,
+            extra_nonro_doc_eur=None,
+            was_extra=False,
+            refusal=dict(NON_RO_REFUSAL),
+            message=(
+                "Non-Romanian documents aren't included in the "
+                f"{plan.display_name} plan. Upgrade to Multi-Country to "
+                "analyze documents from other jurisdictions."
+            ),
+        )
+
+    body = _rpc("reserve_user_nonro_upload", {
+        "p_user_id":     user_id,
+        "p_month":       _month_bucket(),
+        "p_base_cap":    plan.included_nonro_docs,
+        "p_allow_extra": plan.extra_nonro_doc_eur is not None,
+    })
+    if body is None:
+        logger.warning(
+            "[usage-gate] reserve_user_nonro_upload unavailable (migration "
+            "schema_phase_plan_caps.sql not applied?) — degrading OPEN, "
+            "non-RO doc unmetered for user=%s", user_id,
+        )
+        return NonRoReserveDecision(
+            kind="allowed", plan_key=plan.key,
+            used=state.nonro_used_this_period,
+            cap=plan.included_nonro_docs,
+            extra_nonro_doc_eur=plan.extra_nonro_doc_eur,
+            was_extra=False, refusal=None, message="",
+        )
+
+    kind = body.get("kind", "blocked")
+    if kind == "allowed":
+        return NonRoReserveDecision(
+            kind="allowed",
+            plan_key=plan.key,
+            used=int(body.get("used") or 0),
+            cap=plan.included_nonro_docs,
+            extra_nonro_doc_eur=plan.extra_nonro_doc_eur,
+            was_extra=bool(body.get("extra")),
+            refusal=None,
+            message="",
+        )
+
+    return NonRoReserveDecision(
+        kind="blocked",
+        plan_key=plan.key,
+        used=int(body.get("used") or 0),
+        cap=plan.included_nonro_docs,
+        extra_nonro_doc_eur=None,
+        was_extra=False,
+        refusal=None,
+        message=(
+            f"You've used all {plan.included_nonro_docs} non-Romanian "
+            f"documents included in the {plan.display_name} plan this month."
+        ),
+    )
+
+
+def commit_nonro_document(user_id: str, *, was_extra: bool) -> None:
+    """Analysis of a non-RO doc SUCCEEDED — reservation → consumed; when
+    `was_extra`, the billed-extras tally bumps too (the Stripe metered
+    usage record is the caller's job, mirroring commit_document)."""
+    if not enforcement_enabled():
+        return
+    _rpc("commit_user_nonro_upload", {
+        "p_user_id":   user_id,
+        "p_month":     _month_bucket(),
+        "p_was_extra": was_extra,
+    })
+
+
+def release_nonro_document(user_id: str, *, was_extra: bool) -> None:
+    """Analysis of a non-RO doc FAILED — drop the reservation, no bill."""
+    if not enforcement_enabled():
+        return
+    _rpc("release_user_nonro_upload", {
         "p_user_id":   user_id,
         "p_month":     _month_bucket(),
         "p_was_extra": was_extra,

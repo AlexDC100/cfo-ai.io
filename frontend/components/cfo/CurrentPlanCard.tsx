@@ -26,7 +26,7 @@
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { usePlanState } from "@/lib/planState";
+import { planUsagePct, usePlanState, type PlanState } from "@/lib/planState";
 import {
   formatEur,
   usePricingConfig,
@@ -41,7 +41,7 @@ import { formatDateOnly } from "@/lib/locale";
 export function CurrentPlanCard() {
   const { state, loading: planLoading } = usePlanState();
   const { config, loading: configLoading } = usePricingConfig();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   if (planLoading || configLoading) {
     return (
@@ -61,7 +61,8 @@ export function CurrentPlanCard() {
     config?.plans.find((p) => p.key === key) ?? {
       display_name: state?.plan_display_name ?? "Free trial",
       blurb: "",
-      price_eur: state?.plan_price_eur ?? 0,
+      // Grandfathered legacy subscribers see what they actually pay.
+      price_eur: state?.billed_price_eur ?? state?.plan_price_eur ?? 0,
       recurring: state?.plan_recurring ?? false,
     };
 
@@ -131,6 +132,19 @@ export function CurrentPlanCard() {
           )}
         </div>
 
+        {state && (
+          <PlanUsageColumn
+            state={state}
+            labels={{
+              docs: t("pricing.usageDocs"),
+              chat: t("pricing.usageChat"),
+              nonRo: t("pricing.usageNonRo"),
+              today: t("pricing.usageToday"),
+              thisMonth: t("pricing.usageThisMonth"),
+            }}
+          />
+        )}
+
         {features.length > 0 && (
           // Vertical rule separates the identity/price column from the
           // feature list. `self-stretch` isn't available on the <ul> in a
@@ -147,5 +161,81 @@ export function CurrentPlanCard() {
         )}
       </div>
     </article>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PlanUsageColumn — 2026-08 tier restructure: the current-plan card now
+// shows live usage vs caps from /api/plan/state. Rows:
+//   · Documents  — docs_used / included_docs
+//   · Ask CFO AI — chat_used_today / daily cap + chat_used_this_period /
+//                  monthly cap
+//   · Non-RO     — only when the plan allows non-RO uploads (multi, and
+//                  grandfathered legacy-pro holders mapped to the multi
+//                  entitlement set). Tolerates old backends: rows whose
+//                  fields are absent simply don't render.
+// ─────────────────────────────────────────────────────────────────────
+
+function PlanUsageColumn({
+  state,
+  labels,
+}: {
+  state: PlanState;
+  labels: { docs: string; chat: string; nonRo: string; today: string; thisMonth: string };
+}) {
+  const rows: { key: string; label: string; primary: string; pct: number }[] = [
+    {
+      key: "docs",
+      label: labels.docs,
+      primary: `${state.docs_used} / ${state.included_docs}`,
+      pct: planUsagePct(state.docs_used, state.included_docs),
+    },
+  ];
+  if (state.chat_daily_cap != null || state.chat_monthly_cap != null) {
+    const parts: string[] = [];
+    if (state.chat_daily_cap != null) {
+      parts.push(`${state.chat_used_today} / ${state.chat_daily_cap} ${labels.today}`);
+    }
+    if (state.chat_monthly_cap != null) {
+      parts.push(`${state.chat_used_this_period} / ${state.chat_monthly_cap} ${labels.thisMonth}`);
+    }
+    rows.push({
+      key: "chat",
+      label: labels.chat,
+      primary: parts.join(" · "),
+      pct: planUsagePct(state.chat_used_this_period, state.chat_monthly_cap),
+    });
+  }
+  if (state.allows_non_ro && typeof state.nonro_included === "number") {
+    rows.push({
+      key: "nonro",
+      label: labels.nonRo,
+      primary: `${state.nonro_used ?? 0} / ${state.nonro_included}`,
+      pct: planUsagePct(state.nonro_used ?? 0, state.nonro_included),
+    });
+  }
+
+  return (
+    <div
+      data-testid="current-plan-usage"
+      className="min-w-[200px] flex flex-col gap-3 border-t sm:border-t-0 sm:border-l border-rule pt-6 sm:pt-0 sm:pl-10"
+    >
+      {rows.map((r) => (
+        <div key={r.key} data-testid={`current-plan-usage-${r.key}`}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[11px] uppercase tracking-[0.1em] text-ink-mute">
+              {r.label}
+            </span>
+            <span className="text-[12.5px] text-ink tabular-nums">{r.primary}</span>
+          </div>
+          <div className="mt-1 h-1 rounded-full bg-bg-2 overflow-hidden">
+            <div
+              className={`h-full rounded-full ${r.pct >= 100 ? "bg-red-500/70" : "bg-brand"}`}
+              style={{ width: `${Math.min(100, r.pct)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

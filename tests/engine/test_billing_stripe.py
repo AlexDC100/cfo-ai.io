@@ -218,6 +218,18 @@ class FakeStripe:
         self.usage_total = 0
         self.upcoming_invoice: Optional[SObj] = None
         self._seq = itertools.count(1)
+        # Price registry — the PRICE-AMOUNT SAFETY GUARD retrieves the
+        # env-configured Price before every checkout session and verifies
+        # unit_amount / currency / recurring-ness against the plan config.
+        # Seed the well-known harness price ids with SPEC-CORRECT values
+        # so the guard passes by default; tests that exercise the guard
+        # re-seed with a mismatch via `seed_price`.
+        self.prices: Dict[str, SObj] = {}
+        self.seed_price("price_intro_test", 99, recurring=False)
+        self.seed_price("price_solo_test", 499)
+        self.seed_price("price_pro_test", 999)
+        self.seed_price("price_multi_test", 1699)
+        self.seed_price("price_starter_test", 1499)
 
         def _rec(path: str, kw: Dict[str, Any]) -> None:
             fs.calls.append((path, copy.deepcopy(kw)))
@@ -321,6 +333,14 @@ class FakeStripe:
                 sched.update(sobj(kw))
                 return sched
 
+        class Price:
+            @staticmethod
+            def retrieve(price_id: str, **kw: Any) -> SObj:
+                _rec("Price.retrieve", {"id": price_id, **kw})
+                if price_id not in fs.prices:
+                    raise FakeStripeError("No such price: '%s'" % price_id)
+                return fs.prices[price_id]
+
         class Invoice:
             @staticmethod
             def upcoming(**kw: Any) -> SObj:
@@ -367,6 +387,7 @@ class FakeStripe:
                              "url": "https://billing.stripe.com/p/session/test_D2Fake%03d" % n})
 
         self.Customer = Customer
+        self.Price = Price
         self.Subscription = Subscription
         self.SubscriptionItem = SubscriptionItem
         self.SubscriptionSchedule = SubscriptionSchedule
@@ -391,6 +412,17 @@ class FakeStripe:
         c = sobj({"id": cid, "object": "customer", **fields})
         self.customers[cid] = c
         return c
+
+    def seed_price(self, price_id: str, unit_amount: Optional[int],
+                   currency: str = "eur", recurring: bool = True) -> SObj:
+        p = sobj({
+            "id": price_id, "object": "price", "active": True,
+            "currency": currency, "unit_amount": unit_amount,
+            "recurring": ({"interval": "month", "interval_count": 1,
+                           "usage_type": "licensed"} if recurring else None),
+        })
+        self.prices[price_id] = p
+        return p
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -620,7 +652,12 @@ def _env_hygiene(monkeypatch):
     for var in ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
                 "STRIPE_API_BASE", "STRIPE_PRICE_INTRO",
                 "STRIPE_PRICE_STARTER", "STRIPE_PRICE_PRO",
+                "STRIPE_PRICE_SOLO", "STRIPE_PRICE_MULTI",
+                "STRIPE_PRICE_PRO_LEGACY",
                 "STRIPE_PRICE_STARTER_EXTRA_DOC", "STRIPE_PRICE_PRO_EXTRA_DOC",
+                "STRIPE_PRICE_SOLO_EXTRA_DOC", "STRIPE_PRICE_MULTI_EXTRA_DOC",
+                "STRIPE_PRICE_MULTI_EXTRA_NONRO",
+                "STRIPE_PRICE_GUARD_DISABLED",
                 "STRIPE_PRICE_FOUNDER_Q1", "STRIPE_PRICE_FOUNDER_RENEWAL",
                 "STRIPE_PRICE_STANDARD", "PUBLIC_TEST_MODE",
                 "ENGINE_API_TOKEN", "USAGE_LIMITS_ENABLED"):
@@ -632,6 +669,11 @@ def _env_hygiene(monkeypatch):
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "fake-service-key")
     monkeypatch.setenv("APP_URL", APP_URL)
     real_stripe.api_base = _ORIG_API_BASE
+    # Price-guard verifications are cached for the process lifetime in
+    # prod; tests must start clean so a mismatch test can't be masked by
+    # a prior test's successful verification of the same (env, id) pair.
+    if hasattr(_billing, "_PRICE_GUARD_CACHE"):
+        _billing._PRICE_GUARD_CACHE.clear()
     yield
     if hasattr(_billing, "set_stripe_client_factory"):
         _billing.set_stripe_client_factory(None)
@@ -666,9 +708,16 @@ def billing_env(monkeypatch):
     monkeypatch.setenv("STRIPE_PRICE_INTRO", "price_intro_test")
     monkeypatch.setenv("STRIPE_PRICE_STARTER", "price_starter_test")
     monkeypatch.setenv("STRIPE_PRICE_PRO", "price_pro_test")
+    monkeypatch.setenv("STRIPE_PRICE_SOLO", "price_solo_test")
+    monkeypatch.setenv("STRIPE_PRICE_MULTI", "price_multi_test")
+    monkeypatch.setenv("STRIPE_PRICE_PRO_LEGACY", "price_pro_legacy_test")
     monkeypatch.setenv("STRIPE_PRICE_STARTER_EXTRA_DOC",
                        "price_starter_extra_test")
     monkeypatch.setenv("STRIPE_PRICE_PRO_EXTRA_DOC", "price_pro_extra_test")
+    monkeypatch.setenv("STRIPE_PRICE_SOLO_EXTRA_DOC", "price_solo_extra_test")
+    monkeypatch.setenv("STRIPE_PRICE_MULTI_EXTRA_DOC", "price_multi_extra_test")
+    monkeypatch.setenv("STRIPE_PRICE_MULTI_EXTRA_NONRO",
+                       "price_multi_extra_nonro_test")
     monkeypatch.setenv("STRIPE_PRICE_FOUNDER_Q1", "price_founder_q1_test")
     monkeypatch.setenv("STRIPE_PRICE_FOUNDER_RENEWAL",
                        "price_founder_renewal_test")
@@ -745,10 +794,10 @@ def test_seam_api_base_env_override_and_restore(monkeypatch):
 # ══════════════════════════════════════════════════════════════════════
 
 
-def test_checkout_start_starter_session_price_and_metadata(client, fake_admin,
-                                                           fake_stripe):
+def test_checkout_start_solo_session_price_and_metadata(client, fake_admin,
+                                                        fake_stripe):
     seed_identity(fake_admin)
-    r = client.post("/api/checkout/start", json={"plan": "starter"},
+    r = client.post("/api/checkout/start", json={"plan": "solo"},
                     headers=auth_header(USER_ID))
     assert r.status_code == 200, r.text
 
@@ -756,15 +805,15 @@ def test_checkout_start_starter_session_price_and_metadata(client, fake_admin,
     assert len(creates) == 1
     kw = creates[0]
     assert kw["mode"] == "subscription"
-    assert kw["line_items"][0] == {"price": "price_starter_test",
+    assert kw["line_items"][0] == {"price": "price_solo_test",
                                    "quantity": 1}
     # WS2 — metered overage item attached at checkout, no quantity.
-    assert kw["line_items"][1] == {"price": "price_starter_extra_test"}
+    assert kw["line_items"][1] == {"price": "price_solo_extra_test"}
     assert kw["payment_method_collection"] == "always"
-    assert kw["success_url"] == APP_URL + "/dashboard?welcome=1&tier=starter"
+    assert kw["success_url"] == APP_URL + "/dashboard?welcome=1&tier=solo"
     assert kw["cancel_url"] == APP_URL + "/pricing?canceled=1"
     md = kw["subscription_data"]["metadata"]
-    assert md["tier"] == "starter"
+    assert md["tier"] == "solo"
     assert md["user_id"] == USER_ID
     assert md["org_id"] == ORG_ID
 
@@ -797,10 +846,10 @@ def test_checkout_start_reuses_existing_stripe_customer(client, fake_admin,
     seed_identity(fake_admin)
     fake_stripe.seed_customer("cus_D2TestCustomer001")
     fake_admin.seed("subscriptions", {
-        "user_id": USER_ID, "tier": "starter", "status": "active",
+        "user_id": USER_ID, "tier": "solo", "status": "active",
         "stripe_customer_id": "cus_D2TestCustomer001",
     })
-    r = client.post("/api/checkout/start", json={"plan": "starter"},
+    r = client.post("/api/checkout/start", json={"plan": "solo"},
                     headers=auth_header(USER_ID))
     assert r.status_code == 200
     assert fake_stripe.calls_for("Customer.create") == []
@@ -815,11 +864,11 @@ def test_checkout_start_stale_customer_self_heal(client, fake_admin,
     continues with a FRESH customer."""
     seed_identity(fake_admin)
     fake_admin.seed("subscriptions", {
-        "user_id": USER_ID, "tier": "starter", "status": "active",
+        "user_id": USER_ID, "tier": "solo", "status": "active",
         "stripe_customer_id": "cus_D2StaleGone001",
         "stripe_subscription_id": "sub_D2StaleGone001",
     })
-    r = client.post("/api/checkout/start", json={"plan": "starter"},
+    r = client.post("/api/checkout/start", json={"plan": "solo"},
                     headers=auth_header(USER_ID))
     assert r.status_code == 200
     assert len(fake_stripe.calls_for("Customer.create")) == 1
@@ -831,11 +880,11 @@ def test_checkout_start_stale_customer_self_heal(client, fake_admin,
 def test_checkout_start_missing_price_env_503_names_var(client, fake_admin,
                                                         monkeypatch):
     seed_identity(fake_admin)
-    monkeypatch.delenv("STRIPE_PRICE_STARTER")
-    r = client.post("/api/checkout/start", json={"plan": "starter"},
+    monkeypatch.delenv("STRIPE_PRICE_SOLO")
+    r = client.post("/api/checkout/start", json={"plan": "solo"},
                     headers=auth_header(USER_ID))
     assert r.status_code == 503
-    assert "STRIPE_PRICE_STARTER" in r.json()["detail"]
+    assert "STRIPE_PRICE_SOLO" in r.json()["detail"]
 
 
 def test_checkout_start_unknown_plan_400(client, fake_admin):
@@ -854,7 +903,7 @@ def test_checkout_start_stripe_unconfigured_503(fake_admin, billing_env,
     _billing.set_stripe_client_factory(None)
     app = FastAPI()
     app.include_router(_billing.build_router())
-    r = TestClient(app).post("/api/checkout/start", json={"plan": "starter"},
+    r = TestClient(app).post("/api/checkout/start", json={"plan": "solo"},
                              headers=auth_header(USER_ID))
     assert r.status_code == 503
     assert "not configured" in r.json()["detail"]
@@ -867,7 +916,7 @@ def test_checkout_start_get_anonymous_redirects_to_signup(client):
 
 
 def test_checkout_start_get_bad_token_redirects_to_signup(client):
-    r = client.get("/api/checkout/start?tier=starter&auth_token=not-a-jwt",
+    r = client.get("/api/checkout/start?tier=solo&auth_token=not-a-jwt",
                    follow_redirects=False)
     assert r.status_code == 303
     assert "signup" in r.headers["location"]
@@ -876,12 +925,12 @@ def test_checkout_start_get_bad_token_redirects_to_signup(client):
 def test_checkout_start_get_authed_redirects_to_stripe(client, fake_admin,
                                                        fake_stripe):
     seed_identity(fake_admin)
-    r = client.get("/api/checkout/start?tier=starter&auth_token=%s"
+    r = client.get("/api/checkout/start?tier=solo&auth_token=%s"
                    % make_jwt(USER_ID), follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"].startswith("https://checkout.stripe.com/")
     kw = fake_stripe.calls_for("checkout.Session.create")[0]
-    assert kw["line_items"][0]["price"] == "price_starter_test"
+    assert kw["line_items"][0]["price"] == "price_solo_test"
 
 
 def test_checkout_start_founder_legacy_org_flow(client, fake_admin,
@@ -923,6 +972,204 @@ def test_checkout_start_legacy_plan_without_org_403(client, fake_admin):
     r = client.post("/api/checkout/start", json={"plan": "founder"},
                     headers=auth_header(USER_ID))
     assert r.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════
+# [1b] New tiers (2026-08) — solo/multi checkout, starter retirement,
+#      PRICE-AMOUNT SAFETY GUARD, legacy-pro price-id webhook resolution
+# ══════════════════════════════════════════════════════════════════════
+
+
+def test_checkout_start_multi_attaches_both_metered_items(client, fake_admin,
+                                                          fake_stripe):
+    seed_identity(fake_admin)
+    r = client.post("/api/checkout/start", json={"plan": "multi"},
+                    headers=auth_header(USER_ID))
+    assert r.status_code == 200, r.text
+    kw = fake_stripe.calls_for("checkout.Session.create")[0]
+    assert kw["mode"] == "subscription"
+    assert kw["line_items"][0] == {"price": "price_multi_test", "quantity": 1}
+    # Extra-doc AND non-RO overage meters ride along, no quantity.
+    metered = [li["price"] for li in kw["line_items"][1:]]
+    assert metered == ["price_multi_extra_test", "price_multi_extra_nonro_test"]
+    assert kw["subscription_data"]["metadata"]["tier"] == "multi"
+
+
+def test_checkout_start_starter_retired_410_post(client, fake_admin):
+    seed_identity(fake_admin)
+    r = client.post("/api/checkout/start", json={"plan": "starter"},
+                    headers=auth_header(USER_ID))
+    assert r.status_code == 410
+    assert "pro" in r.json()["detail"].lower()
+
+
+def test_checkout_start_starter_retired_410_get(client):
+    r = client.get("/api/checkout/start?tier=starter",
+                   follow_redirects=False)
+    assert r.status_code == 410
+
+
+def test_checkout_price_guard_amount_mismatch_503(client, fake_admin,
+                                                  fake_stripe):
+    """RED-FIRST for the PRICE-AMOUNT SAFETY GUARD: a stale env pointing
+    at the OLD 14.99-era price id must never charge the old amount
+    against the new page price. 503 names the env var + both amounts."""
+    seed_identity(fake_admin)
+    fake_stripe.seed_price("price_solo_test", 1499)  # stale amount
+    r = client.post("/api/checkout/start", json={"plan": "solo"},
+                    headers=auth_header(USER_ID))
+    assert r.status_code == 503
+    detail = r.json()["detail"]
+    assert "STRIPE_PRICE_SOLO" in detail
+    assert "499" in detail       # expected (cents)
+    assert "1499" in detail      # actual (cents)
+    # No session was created with the wrong price.
+    assert fake_stripe.calls_for("checkout.Session.create") == []
+
+
+def test_checkout_price_guard_recurring_mismatch_503(client, fake_admin,
+                                                     fake_stripe):
+    """A one-time price wired into a subscription tier (or vice versa)
+    is refused — the €0.99 intro must never become recurring."""
+    seed_identity(fake_admin)
+    fake_stripe.seed_price("price_intro_test", 99, recurring=True)
+    r = client.post("/api/checkout/start", json={"plan": "intro"},
+                    headers=auth_header(USER_ID))
+    assert r.status_code == 503
+    assert "STRIPE_PRICE_INTRO" in r.json()["detail"]
+
+
+def test_checkout_price_guard_unretrievable_price_503(client, fake_admin,
+                                                      fake_stripe):
+    seed_identity(fake_admin)
+    del fake_stripe.prices["price_solo_test"]
+    r = client.post("/api/checkout/start", json={"plan": "solo"},
+                    headers=auth_header(USER_ID))
+    assert r.status_code == 503
+    assert "STRIPE_PRICE_SOLO" in r.json()["detail"]
+
+
+def test_checkout_price_guard_matched_creates_session_and_caches(
+        client, fake_admin, fake_stripe):
+    seed_identity(fake_admin)
+    r = client.post("/api/checkout/start", json={"plan": "solo"},
+                    headers=auth_header(USER_ID))
+    assert r.status_code == 200
+    assert len(fake_stripe.calls_for("Price.retrieve")) == 1
+    # Verification is cached per (env, price_id) for the process
+    # lifetime — the second checkout does not re-retrieve.
+    r2 = client.post("/api/checkout/start", json={"plan": "solo"},
+                     headers=auth_header(USER_ID))
+    assert r2.status_code == 200
+    assert len(fake_stripe.calls_for("Price.retrieve")) == 1
+
+
+def _legacy_pro_event(price_id: str, event_id: str) -> Dict[str, Any]:
+    event = load_fixture("event_customer_subscription_created_starter.json")
+    event = copy.deepcopy(event)
+    event["id"] = event_id
+    obj = event["data"]["object"]
+    obj["metadata"]["tier"] = "pro"
+    obj["items"]["data"][0]["price"]["id"] = price_id
+    # Drop the metered second item so the base item is unambiguous.
+    obj["items"]["data"] = obj["items"]["data"][:1]
+    return event
+
+
+def test_webhook_legacy_pro_price_resolves_to_pro_legacy(client, fake_admin,
+                                                         monkeypatch):
+    """A subscription on the OLD 39.99 price id (STRIPE_PRICE_PRO_LEGACY)
+    must be stamped tier='pro_legacy' — which the config maps to the
+    MULTI entitlement set. They paid more; they get more."""
+    event = _legacy_pro_event("price_pro_legacy_test",
+                              "evt_d2_sub_pro_legacy_001")
+    r = deliver_event(client, event)
+    assert r.status_code == 200
+    row = fake_admin.rows("subscriptions")[0]
+    assert row["tier"] == "pro_legacy"
+    ps = _plan_state.get_plan_state(USER_ID)
+    assert ps.plan.key == "multi"
+    assert ps.plan.allows_non_ro is True
+
+
+def test_webhook_new_pro_price_keeps_pro_tier(client, fake_admin):
+    event = _legacy_pro_event("price_pro_test", "evt_d2_sub_pro_new_001")
+    r = deliver_event(client, event)
+    assert r.status_code == 200
+    row = fake_admin.rows("subscriptions")[0]
+    assert row["tier"] == "pro"
+    ps = _plan_state.get_plan_state(USER_ID)
+    assert ps.plan.key == "pro"
+
+
+def _seed_multi_sub(fake_admin, fake_stripe, *, with_nonro_item: bool):
+    fake_admin.seed("subscriptions", {
+        "user_id": USER_ID, "tier": "multi", "status": "active",
+        "stripe_customer_id": "cus_D2TestCustomer001",
+        "stripe_subscription_id": "sub_D2MultiSub001",
+    })
+    items = [{
+        "id": "si_D2MultiBase001", "object": "subscription_item",
+        "subscription": "sub_D2MultiSub001", "quantity": 1,
+        "price": {"id": "price_multi_test", "object": "price",
+                  "currency": "eur", "unit_amount": 1699,
+                  "recurring": {"interval": "month",
+                                "usage_type": "licensed"}},
+    }, {
+        # The plain extra-doc meter is ALWAYS present — the non-RO
+        # meter must never record onto it.
+        "id": "si_D2MultiExtraDoc001", "object": "subscription_item",
+        "subscription": "sub_D2MultiSub001", "quantity": 1,
+        "price": {"id": "price_multi_extra_test", "object": "price",
+                  "currency": "eur", "unit_amount": 99,
+                  "recurring": {"interval": "month",
+                                "usage_type": "metered"}},
+    }]
+    if with_nonro_item:
+        items.append({
+            "id": "si_D2MultiNonRo001", "object": "subscription_item",
+            "subscription": "sub_D2MultiSub001", "quantity": 1,
+            "price": {"id": "price_multi_extra_nonro_test",
+                      "object": "price", "currency": "eur",
+                      "unit_amount": 149,
+                      "recurring": {"interval": "month",
+                                    "usage_type": "metered"}},
+        })
+    fake_stripe.seed_subscription({
+        "id": "sub_D2MultiSub001", "object": "subscription",
+        "status": "active",
+        "items": {"object": "list", "data": items},
+    })
+
+
+def test_metered_nonro_records_on_nonro_item_with_prefix(fake_admin,
+                                                         fake_stripe,
+                                                         billing_env):
+    _seed_multi_sub(fake_admin, fake_stripe, with_nonro_item=True)
+    out = _billing.record_metered_extra_doc(USER_ID, "res-n1",
+                                            kind="extra_nonro")
+    assert out["ok"] is True and out["billed"] is True
+    assert out["subscription_item_id"] == "si_D2MultiNonRo001"
+    kw = fake_stripe.calls_for("SubscriptionItem.create_usage_record")[0]
+    assert kw["id"] == "si_D2MultiNonRo001"
+    assert kw["idempotency_key"] == "extra_nonro:res-n1"
+
+
+def test_metered_nonro_never_records_on_extra_doc_item(fake_admin,
+                                                       fake_stripe,
+                                                       billing_env):
+    """Sub predates the non-RO meter: it has ONLY the extra-doc metered
+    item. The non-RO path must lazy-add its own item, not bill the
+    extra-doc meter at the wrong price."""
+    _seed_multi_sub(fake_admin, fake_stripe, with_nonro_item=False)
+    out = _billing.record_metered_extra_doc(USER_ID, "res-n2",
+                                            kind="extra_nonro")
+    assert out["ok"] is True and out["billed"] is True
+    lazy = fake_stripe.calls_for("SubscriptionItem.create")[0]
+    assert lazy["price"] == "price_multi_extra_nonro_test"
+    kw = fake_stripe.calls_for("SubscriptionItem.create_usage_record")[0]
+    assert kw["id"] != "si_D2MultiExtraDoc001"
+    assert kw["idempotency_key"] == "extra_nonro:res-n2"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1007,9 +1254,11 @@ def test_subscription_created_active_materializes_row_and_plan_state(
     assert sub["status"] == "active"
     assert sub["plan_key"] == "starter"
 
-    # …and so does the quota/entitlement lane.
+    # …and so does the quota/entitlement lane. 2026-08: the retired
+    # 'starter' tier resolves to the PRO entitlement set (grandfathered
+    # up — 15 docs vs the old 5) while the row keeps tier='starter'.
     ps = _plan_state.get_plan_state(USER_ID)
-    assert ps.plan_key == "starter"
+    assert ps.plan_key == "pro"
 
     # The event was journaled for idempotency.
     events = fake_admin.rows("billing_events")
@@ -1183,7 +1432,9 @@ def test_dunning_past_due_recorded_but_no_entitlement_downgrade(client,
     assert sub["status"] == "past_due"
 
     ps = _plan_state.get_plan_state(USER_ID)
-    assert ps.plan_key == "starter"  # ← paid plan survives past_due
+    # ← paid entitlements survive past_due (2026-08: starter resolves
+    #   to the Pro entitlement set, so the plan key reads "pro").
+    assert ps.plan_key == "pro"
 
 
 def test_stripe_unpaid_and_paused_map_to_past_due(client, fake_admin):
@@ -1660,16 +1911,22 @@ def test_transport_checkout_start_roundtrip(transport_env, fake_admin,
         HARNESS_MODE == "LIVE"
 
     price = real_stripe.Price.create(
-        unit_amount=1499, currency="eur",
+        unit_amount=499, currency="eur",
         recurring={"interval": "month"},
-        product_data={"name": "D2 harness starter"},
+        product_data={"name": "D2 harness solo"},
     )
-    monkeypatch.setenv("STRIPE_PRICE_STARTER", price["id"])
+    monkeypatch.setenv("STRIPE_PRICE_SOLO", price["id"])
+    if HARNESS_MODE == "STRIPE_MOCK":
+        # stripe-mock returns canned Price objects whose unit_amount is
+        # unrelated to what was just created — the price guard would
+        # spuriously 503. The operator bypass exists exactly for
+        # harnesses like this; LIVE mode verifies for real.
+        monkeypatch.setenv("STRIPE_PRICE_GUARD_DISABLED", "1")
 
     app = FastAPI()
     app.include_router(_billing.build_router())
     r = TestClient(app).post("/api/checkout/start",
-                             json={"plan": "starter"},
+                             json={"plan": "solo"},
                              headers=auth_header(USER_ID))
     assert r.status_code == 200, r.text
     assert r.json()["url"].startswith("http")

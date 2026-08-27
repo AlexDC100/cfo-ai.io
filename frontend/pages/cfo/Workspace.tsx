@@ -81,7 +81,8 @@ import {
   writeDecisionRules,
 } from "@/lib/decisionRulesStore";
 import type { DecisionRulesState } from "@/lib/decisionRules";
-import { updateActiveOrg } from "@/lib/org";
+import { lastWorkspaceCreateHitLimit, updateActiveOrg } from "@/lib/org";
+import { usePlanState, workspaceCapReached } from "@/lib/planState";
 import { readWorkspaceName, writeWorkspaceName } from "@/lib/workspaceName";
 import { setPref, usePrefSync } from "@/lib/prefs";
 import { useWorkspaces, type Workspace } from "@/lib/workspaces";
@@ -105,6 +106,7 @@ function writeDone(v: boolean) {
 
 export default function Workspace() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [done, setDone] = useState<boolean>(readDone);
   // Tracks whether the current onboarding run is creating a NEW workspace
   // (→ add a fresh entry on finish) vs. restarting the current one
@@ -118,9 +120,31 @@ export default function Workspace() {
   const period = useActivePeriod();
   const editingWorkspace = editingId ? ws.workspaces.find((w) => w.id === editingId) ?? null : null;
 
+  // 2026-08 tier restructure — plan workspace cap. Pre-flight check from
+  // plan state; FAILS OPEN (no plan state ⇒ never blocks) because the
+  // `create_workspace` RPC's SQL hard floor is the real enforcement.
+  const { state: planState } = usePlanState();
+  const atWorkspaceCap = workspaceCapReached(planState, ws.workspaces.length);
+
+  function showWorkspaceLimitToast() {
+    toast.error(t("pricing.workspaceLimitTitle"), {
+      description: t("pricing.workspaceLimitDesc", {
+        max: planState?.max_workspaces ?? ws.workspaces.length,
+      }),
+      action: {
+        label: t("pricing.workspaceLimitCta"),
+        onClick: () => navigate("/pricing"),
+      },
+    });
+  }
+
   // Start a brand-new workspace: clear the name and re-enter onboarding. The
   // new entry is only committed to the list on finish (in onDone below).
   function startNewWorkspace() {
+    if (atWorkspaceCap) {
+      showWorkspaceLimitToast();
+      return;
+    }
     setCreatingNew(true);
     writeWorkspaceName("");
     writeDone(false);
@@ -139,7 +163,12 @@ export default function Workspace() {
     if (creatingNew || !ws.current) {
       // create_workspace() stores the industry on the new organizations row,
       // so AuthGuard doesn't bounce the fresh workspace to /onboarding.
-      void ws.create(name, industry);
+      // The RPC enforces the plan's workspace cap as a SQL hard floor —
+      // if a stale tab slips past the pre-flight gate, surface the same
+      // upgrade prompt instead of failing silently.
+      void ws.create(name, industry).then((id) => {
+        if (!id && lastWorkspaceCreateHitLimit()) showWorkspaceLimitToast();
+      });
     } else {
       void ws.upsertCurrentName(name);
       // Restart run on the current workspace — persist a changed industry the
@@ -488,7 +517,7 @@ function Onboarding({
     const enq = await uploadEnqueue.enqueue(row.id);
     if (enq.kind !== "queued") {
       const reason =
-        enq.kind === "quota_blocked" || enq.kind === "transport_failed"
+        enq.kind === "quota_blocked" || enq.kind === "non_ro_blocked" || enq.kind === "transport_failed"
           ? enq.message
           : t("dash.uploadCancelled");
       patchUpload({ status: "failed", error: reason });
@@ -999,6 +1028,10 @@ function WorkspaceHub({
   const { workspaces, archived, currentId, select, setPeriod, restore, purge } = useWorkspaces();
   // Which archived workspace the permanent-delete dialog is open for.
   const [purgeTarget, setPurgeTarget] = useState<Workspace | null>(null);
+  // 2026-08 — plan workspace cap. Fails OPEN without plan state; the
+  // create_workspace RPC's SQL hard floor is the real enforcement.
+  const { state: planState } = usePlanState();
+  const atWorkspaceCap = workspaceCapReached(planState, workspaces.length);
 
   // Keep the current workspace's remembered period in sync with what's loaded,
   // so switching back to it later restores the same analysis.
@@ -1084,12 +1117,16 @@ function WorkspaceHub({
               or the create flow. */}
           <button
             type="button"
-            onClick={onCreate}
+            onClick={atWorkspaceCap ? undefined : onCreate}
+            disabled={atWorkspaceCap}
             data-testid="workspace-create"
             data-active={createActive ? "true" : "false"}
+            data-at-cap={atWorkspaceCap ? "true" : "false"}
             aria-current={createActive ? "step" : undefined}
             className={`group relative w-full flex flex-row items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-center transition-colors ${
-              createActive
+              atWorkspaceCap
+                ? "border-rule text-ink-mute opacity-50 cursor-not-allowed"
+                : createActive
                 ? "ask-ai-anim-fill [animation-duration:14s] border-brand/50 text-ink"
                 : "border-rule text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40"
             }`}
@@ -1111,6 +1148,25 @@ function WorkspaceHub({
             </span>
             <span className="text-[12.5px] font-medium leading-tight">{t("ws.createWorkspace")}</span>
           </button>
+          {/* At the plan's workspace cap — inline upgrade CTA replaces the
+              dead click. Only renders when plan state actually carries a
+              cap (fail-open otherwise). */}
+          {atWorkspaceCap && (
+            <p
+              data-testid="workspace-cap-upgrade"
+              className="mt-2 px-1 text-[11.5px] leading-snug text-ink-soft"
+            >
+              {t("pricing.workspaceLimitDesc", {
+                max: planState?.max_workspaces ?? workspaces.length,
+              })}{" "}
+              <NavLink
+                to="/pricing"
+                className="font-medium text-brand-d hover:text-brand underline-offset-2 hover:underline"
+              >
+                {t("pricing.workspaceLimitCta")}
+              </NavLink>
+            </p>
+          )}
         </li>
         {orderedWorkspaces.map((w) => {
           // Exactly one selected item in the rail (2026-07-26 per operator).

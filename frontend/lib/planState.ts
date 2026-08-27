@@ -24,7 +24,9 @@ const API_URL =
 // Types — mirror the backend `state_to_public_dict` shape
 // ─────────────────────────────────────────────────────────────────────
 
-export type PlanKey = "trial" | "intro" | "starter" | "pro";
+// Mirrors pricingConfig.ts — solo/multi added in the 2026-08 tier
+// restructure; starter stays for legacy holders.
+export type PlanKey = "trial" | "intro" | "starter" | "solo" | "pro" | "multi";
 
 export interface PlanState {
   plan_key: PlanKey;
@@ -47,6 +49,21 @@ export interface PlanState {
   window_expires_at: string | null;
   today: string;
   period_month: string;
+  // ── 2026-08 tier restructure — ALL optional so plan state from an old
+  //    backend still parses. UI-side gates fail OPEN when these are
+  //    absent; the server remains the enforcement floor. ────────────────
+  /** Workspace cap for the plan (1 solo, 5 pro/multi). */
+  max_workspaces?: number;
+  /** What a grandfathered legacy subscriber actually PAYS (e.g. the
+   *  39.99-era Pro on Multi-Country entitlements). Null/absent for
+   *  everyone else — fall back to plan_price_eur. */
+  billed_price_eur?: number | null;
+  /** Whether non-Romanian documents are allowed on this plan (multi only). */
+  allows_non_ro?: boolean;
+  /** Non-RO docs consumed this period (multi only). */
+  nonro_used?: number;
+  /** Non-RO docs included per month (multi only). */
+  nonro_included?: number;
 }
 
 export type DocQuotaKind = "allowed" | "extra_doc_bill_prompt" | "blocked";
@@ -219,6 +236,20 @@ export async function confirmExtraDoc(): Promise<{
 // ─────────────────────────────────────────────────────────────────────
 // Helpers for UI formatting
 // ─────────────────────────────────────────────────────────────────────
+
+/** True when creating one more workspace would exceed the plan's cap.
+ *  FAILS OPEN by design: no plan state (old backend, fetch error, signed
+ *  out) or no `max_workspaces` field ⇒ false, so the UI never blocks a
+ *  user the server would allow. The SQL-side hard floor in
+ *  `create_workspace` is the actual enforcement. */
+export function workspaceCapReached(
+  state: Pick<PlanState, "max_workspaces"> | null | undefined,
+  currentWorkspaceCount: number,
+): boolean {
+  const cap = state?.max_workspaces;
+  if (typeof cap !== "number" || cap <= 0) return false;
+  return currentWorkspaceCount >= cap;
+}
 
 export function planUsagePct(used: number, cap: number | null): number {
   if (!cap || cap <= 0) return 0;
