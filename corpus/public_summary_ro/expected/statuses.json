@@ -1,0 +1,14 @@
+{
+  "auto_reconcile_outcome": "public_summary_refused",
+  "needs_review": null,
+  "persisted_difference": null,
+  "persisted_status": null,
+  "public_summary_status": "PUBLIC_SUMMARY",
+  "reconcile_offer": null,
+  "reconciliation": null,
+  "reconciliation_auto": null,
+  "served_canonical_bs_is_none": true,
+  "served_difference": null,
+  "served_status": null,
+  "status_presentation": null
+}

@@ -68,6 +68,21 @@
           "llm": "LLM",
           "classification": "Classification"
         }
+      },
+      "funnel": {
+        "title": "Public funnel",
+        "notRecorded": "Not recorded yet — run scripts/public_funnel.py.",
+        "window": "trailing {{days}}-day window",
+        "traffic": "Page views",
+        "trafficBrowser": "Browser views",
+        "searches": "Searches",
+        "reportOpens": "Report opens",
+        "lockedTaps": "Locked taps",
+        "ctaClicks": "CTA clicks",
+        "signupsAttributed": "Signups attr.",
+        "uploadsAttributed": "Uploads attr.",
+        "publicToSignup": "Public → signup",
+        "signupToUpload": "Signup → upload"
       }
     }
   },
@@ -140,6 +155,21 @@
           "llm": "LLM",
           "classification": "Clasificare"
         }
+      },
+      "funnel": {
+        "title": "Funnel public",
+        "notRecorded": "Încă neînregistrat — rulează scripts/public_funnel.py.",
+        "window": "fereastră de {{days}} zile",
+        "traffic": "Afișări de pagină",
+        "trafficBrowser": "Afișări browser",
+        "searches": "Căutări",
+        "reportOpens": "Rapoarte deschise",
+        "lockedTaps": "Atingeri blocate",
+        "ctaClicks": "Clickuri CTA",
+        "signupsAttributed": "Înscrieri atrib.",
+        "uploadsAttributed": "Încărcări atrib.",
+        "publicToSignup": "Public → înscriere",
+        "signupToUpload": "Înscriere → încărcare"
       }
     }
   }

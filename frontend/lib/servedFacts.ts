@@ -100,6 +100,14 @@ export const SERVED_ENVELOPE_FIELDS_READ: readonly string[] = [
   "assembled_bs.total_current_liabilities",
   "assembled_bs.total_non_current_assets",
   "assembled_bs.total_non_current_liabilities",
+  // public_summary path (ps1) — reduced open-data tier: whole-RON
+  // integer indicators (data.gov.ro I1..I20) + ingest-precomputed
+  // derived block. Never coexists with a served canonical_bs.
+  "public_summary.version",
+  "public_summary.status",
+  "public_summary.indicators",
+  "public_summary.derived.total_assets",
+  "public_summary.derived.net_result",
 ];
 
 // ─── Minor-unit plumbing ────────────────────────────────────────────────
@@ -117,7 +125,20 @@ export function toDisplay(cents: number): number {
 
 // ─── Facts shape ────────────────────────────────────────────────────────
 
-export type ServedSource = "canonical" | "legacy";
+export type ServedSource = "canonical" | "legacy" | "public_summary";
+
+/** ps1 public_summary block as served under `statements.public_summary`
+ *  (reduced open-data filing — data.gov.ro bilant indicators). The
+ *  `Statements` type does not carry it (public periods never flow
+ *  through the upload pipeline); `factsFrom` probes it structurally. */
+export interface ServedPublicSummary {
+  version?: string;
+  status?: string;
+  /** Whole-RON INTEGER indicators (I1..I20, per-year layout resolved at
+   *  ingest). Empty string / missing = not reported. */
+  indicators?: Record<string, number | null | undefined>;
+  derived?: { total_assets?: number; net_result?: number } & Record<string, unknown>;
+}
 
 /** Reconciliation receipt as served (verbatim) + the placement the strip
  *  consumes. Only presentation reads it; arithmetic never re-applies it —
@@ -227,7 +248,16 @@ export function canonicalStatusCore(cbs: CanonicalBs): {
 
 export function factsFrom(statements: Statements): ServedFacts {
   const cbs = statements.canonical_bs;
-  const cents = cbs && cbs.totals ? centsFromCanonical(cbs) : centsFromLegacy(statements);
+  // ps1 probe — the engine never serves canonical_bs and public_summary
+  // together; a served canonical_bs (if ever present) stays the authority.
+  const ps = (statements as Statements & { public_summary?: ServedPublicSummary })
+    .public_summary;
+  const cents =
+    cbs && cbs.totals
+      ? centsFromCanonical(cbs)
+      : ps && typeof ps === "object" && ps.indicators && typeof ps.indicators === "object"
+        ? centsFromSummary(ps)
+        : centsFromLegacy(statements);
   const rec: ServedReconciliation | null = cbs
     ? ((cbs as { reconciliation?: ServedReconciliation | null }).reconciliation ?? null)
     : null;
@@ -351,6 +381,56 @@ function centsFromLegacy(statements: Statements): ServedBsFactsCents {
     nonCurrentAssetsCents: nonCurrentAssets,
     nonCurrentLiabilitiesCents: nonCurrentLiabilities,
     differenceCents: difference,
+  };
+}
+
+/** Whole-RON INTEGER (ps1 indicator) → cents. Strict: anything that is
+ *  not a finite integer stays null — never a swallowed 0 (the engine
+ *  gateway refuses the same way, MissingFactError). */
+function summaryRonCents(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) && Number.isInteger(v)
+    ? v * 100
+    : null;
+}
+
+/** ps1 public_summary lane. Status stays in the NULL family (the legacy
+ *  precedent: "Legacy periods carry no engine verdict — the FE must not
+ *  claim one") so `presentStatus` resolves to UNVERIFIED — it must NEVER
+ *  fall into the `case "MATERIAL_IMBALANCE": default:` arm.
+ *  Verified FY2019-FY2025 layout: I2 = Active circulante (current
+ *  assets), I7 = DATORII total (NO maturity split), I10 = CAPITALURI
+ *  TOTAL, derived.total_assets = I1+I2+I6 (ingest-precomputed). */
+function centsFromSummary(ps: ServedPublicSummary): ServedBsFactsCents {
+  const ind = ps.indicators ?? {};
+  const assets =
+    summaryRonCents(ps.derived?.total_assets) ??
+    (summaryRonCents(ind.I1) ?? 0) +
+      (summaryRonCents(ind.I2) ?? 0) +
+      (summaryRonCents(ind.I6) ?? 0);
+  const equity = summaryRonCents(ind.I10) ?? 0;
+  const liabilities = summaryRonCents(ind.I7) ?? 0;
+  const currentAssets = summaryRonCents(ind.I2) ?? 0;
+  return {
+    source: "public_summary",
+    // Open-data summaries carry no engine verdict — null family, so the
+    // presenter's UNVERIFIED arm handles it (never red imbalance copy).
+    status: null,
+    needsReview: false,
+    mappingVersion: null,
+    totalAssetsCents: assets,
+    totalEquityCents: equity,
+    totalLiabilitiesCents: liabilities,
+    equityPlusLiabilitiesCents: equity + liabilities,
+    currentAssetsCents: currentAssets,
+    // I7 has no maturity split — 0 here is "no detail", and no surface
+    // words a drift or a split on the null-status lane.
+    currentLiabilitiesCents: 0,
+    nonCurrentAssetsCents: assets - currentAssets,
+    nonCurrentLiabilitiesCents: liabilities,
+    // No drift concept exists on this lane: I10+I7 deliberately omits
+    // I8/I9 (venituri in avans / provizioane), so assets−(E+L) would be
+    // a fake imbalance. Status is null — nothing renders a difference.
+    differenceCents: 0,
   };
 }
 

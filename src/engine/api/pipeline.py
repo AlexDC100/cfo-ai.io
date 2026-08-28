@@ -1780,15 +1780,25 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                         period_id,
                     )
                 _auto = _reconcile.auto_reconcile_envelope(canonical)
+                # PS1 STRUCTURAL GUARD — public_summary envelopes never
+                # reach the AI-advisory or consensus seams. The env gates
+                # (AI_ADVISORY_ENABLED / CONSENSUS_ENABLED) are
+                # operational, not structural: they can be turned on.
+                # Document-class check, shared predicate with the
+                # reconcile refusals.
+                _is_public_summary = _reconcile.is_public_summary_envelope(canonical)
                 # Advisory AI review (env-gated OFF; additive-only; never
                 # raises; deterministic validator remains the only gate).
-                _ai_advisory.pipeline_hook(canonical)
+                if not _is_public_summary:
+                    _ai_advisory.pipeline_hook(canonical)
                 # C1 CONSENSUS attach (CONSENSUS_ENABLED=1 only — the
                 # block exists on `parsed` only behind that gate):
                 # additive-only onto canonical_bs; served values stay
-                # CLASSIC (E4). Never raises.
+                # CLASSIC (E4). Never raises. Skipped structurally for
+                # public_summary (a consensus block would feed the
+                # "AI-verified" trust line onto a document no AI touched).
                 _c1_consensus = (parsed or {}).get("consensus_c1")
-                if isinstance(_c1_consensus, dict):
+                if isinstance(_c1_consensus, dict) and not _is_public_summary:
                     from engine.consensus import persist as _consensus_persist
                     if _consensus_persist.attach_consensus(canonical, _c1_consensus):
                         logger.info(
@@ -4235,6 +4245,15 @@ def _apply_envelope_truth_to_statements(
         if _gateway is None:
             # Nothing persisted to override with (pre-F4.1e row) — the
             # recomputed canonical_bs (if any) is a round-trip artifact.
+            if isinstance(_served_env, dict):
+                _served_env.pop("canonical_bs", None)
+            return
+        if _gateway.tier == _FactsGateway.TIER_SUMMARY:
+            # PS1 GUARD — a public_summary envelope (reduced open-data
+            # filing) must never be served as BS truth on this hook: no
+            # canonical_bs, no assembled_bs total overrides. The public
+            # storefront serves summaries through its own routes
+            # (engine.public_ro), never through /api/period statements.
             if isinstance(_served_env, dict):
                 _served_env.pop("canonical_bs", None)
             return

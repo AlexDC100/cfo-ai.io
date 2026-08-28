@@ -150,8 +150,52 @@ def cmd_dlq_list(args: argparse.Namespace) -> int:
     return 0
 
 
+#: run_kinds whose checkpoints ARE the pipeline stage entry points
+#: (engine.api.pipeline.stage_map / stage_persist). Every other kind
+#: (e.g. ``public_ingest``) records checkpoints that mean something
+#: else entirely — replaying them through the pipeline stages would
+#: drive the WRONG code, so both replay paths refuse up front.
+_RESUMABLE_RUN_KINDS = ("pipeline", "resume")
+
+
+def _run_kind_of(journal: Journal, run_id: str) -> str | None:
+    """Resolve a run's run_kind from its RUN_STARTED payload, falling
+    back to the DLQ entry (which records it too). None = unknown."""
+    try:
+        for event in journal.read_run(run_id):
+            if event.get("type") == "RUN_STARTED":
+                kind = (event.get("payload") or {}).get("run_kind")
+                if kind:
+                    return str(kind)
+    except Exception:  # noqa: BLE001 — fall through to the DLQ entry
+        pass
+    for entry in journal.dlq_entries():
+        if entry.get("run_id") == run_id and entry.get("run_kind"):
+            return str(entry["run_kind"])
+    return None
+
+
+def _refuse_wrong_run_kind(journal: Journal, run_id: str, verb: str) -> int | None:
+    """Return exit code 4 (after printing the typed refusal) when the
+    run's kind is not pipeline-shaped; None when replay may proceed.
+    Unknown kinds proceed — resume_run's own typed refusals apply."""
+    kind = _run_kind_of(journal, run_id)
+    if kind is not None and kind not in _RESUMABLE_RUN_KINDS:
+        print(
+            "%s REFUSED (wrong_run_kind): run %s has run_kind '%s' — the "
+            "pipeline-shaped resume (stage_map/stage_persist) does not "
+            "apply; re-run the owning job instead (public_ingest: "
+            "scripts/public_ingest.py)" % (verb, run_id, kind)
+        )
+        return 4
+    return None
+
+
 def cmd_dlq_replay(args: argparse.Namespace) -> int:
     journal = _journal(args)
+    refused_code = _refuse_wrong_run_kind(journal, args.run_id, "dlq replay")
+    if refused_code is not None:
+        return refused_code
     try:
         result = replay_dlq(journal, args.run_id)
     except ResumeRefused as refused:
@@ -163,6 +207,9 @@ def cmd_dlq_replay(args: argparse.Namespace) -> int:
 
 def cmd_resume(args: argparse.Namespace) -> int:
     journal = _journal(args)
+    refused_code = _refuse_wrong_run_kind(journal, args.run_id, "resume")
+    if refused_code is not None:
+        return refused_code
     try:
         result = resume_run(journal, args.run_id)
     except ResumeRefused as refused:

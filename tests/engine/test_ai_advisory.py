@@ -45,7 +45,7 @@ import json
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 import yaml
@@ -233,25 +233,45 @@ def _llm_envelope() -> Dict[str, Any]:
     }
 
 
-def _corpus_envelopes() -> List[Any]:
-    cases = []
+def _provenance_for(case_id: str) -> Dict[str, Any]:
+    return {
+        "source_document_id": "doc-%s" % case_id,
+        "original_filename": "%s.xlsx" % case_id,
+        "content_hash": "sha256-corpus-%s" % case_id,
+        "written_at": "2026-08-23T00:00:00+00:00",
+    }
+
+
+def _corpus_envelopes() -> Tuple[List[Any], List[Any]]:
+    """Split the corpus by served-envelope SHAPE.
+
+    Trial-balance cases freeze a canonical_bs payload (it always carries
+    a ``status``), so this suite wraps it in a pipeline envelope. The
+    public-summary case freezes a different envelope kind entirely — no
+    canonical_bs, no status, no cents. Wrapping THAT as canonical_bs
+    would build a nonsense envelope and make served_canonical_bs return
+    None; it is returned unwrapped instead and asserted against the
+    stronger public-engine invariant (whole-envelope byte identity, AI
+    never consulted) in test_v1_non_bs_envelopes_untouched_by_advisory.
+    """
+    bs_cases: List[Any] = []
+    other_cases: List[Any] = []
     for case_dir in sorted(CORPUS.iterdir()):
         expected = case_dir / "expected" / "served_envelope.json"
-        if expected.is_file():
-            cbs = json.loads(expected.read_text(encoding="utf-8"))
-            cases.append((case_dir.name, {
-                "canonical_bs": cbs,
-                "provenance": {
-                    "source_document_id": "doc-%s" % case_dir.name,
-                    "original_filename": "%s.xlsx" % case_dir.name,
-                    "content_hash": "sha256-corpus-%s" % case_dir.name,
-                    "written_at": "2026-08-23T00:00:00+00:00",
-                },
+        if not expected.is_file():
+            continue
+        payload = json.loads(expected.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and "status" in payload:
+            bs_cases.append((case_dir.name, {
+                "canonical_bs": payload,
+                "provenance": _provenance_for(case_dir.name),
             }))
-    return cases
+        else:
+            other_cases.append((case_dir.name, payload))
+    return bs_cases, other_cases
 
 
-CORPUS_ENVELOPES = _corpus_envelopes()
+CORPUS_ENVELOPES, NON_BS_ENVELOPES = _corpus_envelopes()
 
 
 def _gateway_fact_bytes(envelope: Dict[str, Any]) -> str:
@@ -278,7 +298,11 @@ def _gateway_fact_bytes(envelope: Dict[str, Any]) -> str:
 
 
 def test_corpus_envelopes_discovered():
+    """18 frozen served envelopes: 17 canonical_bs payloads plus the
+    public-summary envelope, which has a different shape. Both branches
+    are asserted below — neither can grow silently."""
     assert len(CORPUS_ENVELOPES) == 17
+    assert [c for c, _ in NON_BS_ENVELOPES] == ["public_summary_ro"]
 
 
 @pytest.mark.parametrize("case_id,envelope", CORPUS_ENVELOPES,
@@ -298,6 +322,35 @@ def test_v1_status_invariance_on_off(case_id, envelope):
     assert _dumps(served_on) == _dumps(served_off)
     # The persisted deterministic truth is untouched.
     assert _dumps(env_on["canonical_bs"]) == _dumps(envelope["canonical_bs"])
+
+
+@pytest.mark.parametrize("case_id,envelope", NON_BS_ENVELOPES,
+                         ids=[c[0] for c in NON_BS_ENVELOPES])
+def test_v1_non_bs_envelopes_untouched_by_advisory(case_id, envelope):
+    """Envelopes with no canonical_bs — today the public-summary kind —
+    must come out of the advisory hook BYTE-IDENTICAL, with the AI
+    client never even constructed.
+
+    This is stronger than the canonical_bs invariance above (which only
+    pins the served surface) and it is the public engine's load-bearing
+    property: a public company page is built from open filing data and
+    must carry nothing an AI produced, advisory content included. A
+    client_factory that raises on construction turns 'the hook decided
+    to look at this envelope' into a hard failure rather than a silent
+    behavior change.
+    """
+    def _exploding_factory(*_a, **_kw):
+        raise AssertionError(
+            "advisory constructed an AI client for a non-canonical_bs "
+            "envelope (%s) — public surfaces must never carry AI output"
+            % case_id)
+
+    env_on = copy.deepcopy(envelope)
+    before = _dumps(envelope)
+    advisory.pipeline_hook(env_on, enabled=True,
+                           client_factory=_exploding_factory)
+    assert "ai_review" not in env_on
+    assert _dumps(env_on) == before
 
 
 @pytest.mark.parametrize("case_id,envelope", CORPUS_ENVELOPES,

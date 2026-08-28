@@ -164,6 +164,44 @@ def read_template_stats(path: Optional[Any] = None) -> Dict[str, Any]:
     return out
 
 
+FUNNEL_FILENAME = "funnel_last.json"
+
+
+def funnel_path() -> Path:
+    return obs_dir() / FUNNEL_FILENAME
+
+
+def read_funnel_record(path: Optional[Any] = None) -> Dict[str, Any]:
+    """Parse the public-funnel rollup (written atomically by
+    scripts/public_funnel.py from the funnel_events table in
+    data/public_ro.db). ``{"recorded": False}`` when absent — honest,
+    never reconstructed; rate fields stay None when their denominator
+    was zero or the attribution source was unreachable. Read-only,
+    never raises."""
+    target = Path(path) if path is not None else funnel_path()
+    absent: Dict[str, Any] = {"recorded": False, "path": str(target)}
+    try:
+        raw = json.loads(target.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return absent
+    except Exception:  # noqa: BLE001
+        logger.warning("[obs.status] funnel record %s unreadable", target)
+        return absent
+    if not isinstance(raw, dict):
+        return absent
+    out: Dict[str, Any] = {"recorded": True, "path": str(target)}
+    for key in (
+        "schema", "generated_at", "window_days",
+        "traffic", "traffic_browser", "searches", "report_opens",
+        "locked_ratio_taps", "cta_clicks", "teardown_exports",
+        "signups_attributed", "uploads_attributed",
+        "public_to_signup_rate", "signup_to_upload_rate",
+    ):
+        if key in raw:
+            out[key] = raw[key]
+    return out
+
+
 def error_budget_record_path() -> Path:
     env = os.environ.get(ERROR_BUDGET_LOG_ENV)
     if env:
@@ -263,6 +301,7 @@ def ops_snapshot(
         "battery": read_battery_record(),
         "error_budget": read_error_budget_record(),
         "templates": read_template_stats(),
+        "funnel": read_funnel_record(),
         "versions": {
             "engine": _engine_version(),
             "packs": _pack_versions(),

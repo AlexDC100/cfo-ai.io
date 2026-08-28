@@ -1,0 +1,89 @@
+{
+  "presentation": {
+    "license_line": "Conține informații publice · data.gov.ro / Ministerul Finanțelor · licența CC BY 4.0",
+    "source_line": "data.gov.ro/mfp · situatii_financiare_2024 · CUI 90000021 · 2024",
+    "status": "PUBLIC_SUMMARY",
+    "trust_en": "Public filing data · summary level · data.gov.ro 2024",
+    "trust_ro": "Date din raportări publice · nivel sumar · data.gov.ro 2024"
+  },
+  "prior_year_public_summary": {
+    "cui": 90000021,
+    "dataset_version": "situatii_financiare2023",
+    "derived": {
+      "net_result": 290000,
+      "total_assets": 3040000
+    },
+    "indicators": {
+      "I1": 900000,
+      "I10": 1850000,
+      "I11": 200,
+      "I13": 4800000,
+      "I14": 4950000,
+      "I15": 4600000,
+      "I16": 350000,
+      "I17": 0,
+      "I18": 290000,
+      "I19": 0,
+      "I2": 2100000,
+      "I20": 33,
+      "I3": 350000,
+      "I4": 800000,
+      "I5": 600000,
+      "I6": 40000,
+      "I7": 1150000,
+      "I8": 25000,
+      "I9": 15000
+    },
+    "provenance": {
+      "content_hash": "sha256-807d7c150cc7d24ca36916bbb3bae1bcbcce6474acae9664e7d498717b717031",
+      "cui": 90000021,
+      "dataset_version": "situatii_financiare2023",
+      "fetch_date": "2026-08-01",
+      "source": "data.gov.ro/mfp",
+      "year": 2023
+    },
+    "status": "PUBLIC_SUMMARY",
+    "version": "ps1",
+    "year": 2023
+  },
+  "public_summary": {
+    "cui": 90000021,
+    "dataset_version": "situatii_financiare_2024",
+    "derived": {
+      "net_result": 420000,
+      "total_assets": 3550000
+    },
+    "indicators": {
+      "I1": 1000000,
+      "I10": 2300000,
+      "I11": 200,
+      "I13": 5400000,
+      "I14": 5600000,
+      "I15": 5100000,
+      "I16": 500000,
+      "I17": 0,
+      "I18": 420000,
+      "I19": 0,
+      "I2": 2500000,
+      "I20": 37,
+      "I3": 400000,
+      "I4": 900000,
+      "I5": 700000,
+      "I6": 50000,
+      "I7": 1200000,
+      "I8": 30000,
+      "I9": 20000
+    },
+    "provenance": {
+      "content_hash": "sha256-be0bbdea5cfe45f39afe0164f773662a2ba6fdd0cf4e12fe5ae0834fd1e378c8",
+      "cui": 90000021,
+      "dataset_version": "situatii_financiare_2024",
+      "fetch_date": "2026-08-01",
+      "source": "data.gov.ro/mfp",
+      "year": 2024
+    },
+    "status": "PUBLIC_SUMMARY",
+    "version": "ps1",
+    "year": 2024
+  }
+}

@@ -62,7 +62,8 @@ synthetic reconciliation row may be inserted mid-list); dicts recurse.
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union
 
 from . import access_log  # E1 access-log seam (append-only, never raises)
 
@@ -77,7 +78,7 @@ ENVELOPE_VERSION = "sv1"
 #: reads this list via AST and greps the whole engine + frontend for the
 #: names — any reference outside src/engine/serving/ (and the allowlist)
 #: fails CI.
-PRIVATE_SNAPSHOT_FIELDS = ["_raw_totals", "_adjusted_totals"]
+PRIVATE_SNAPSHOT_FIELDS = ["_raw_totals", "_adjusted_totals", "_summary_indicators"]
 
 #: The two result-row ids of the served balance sheet (kept literal so
 #: the gateway never imports the serve module at import time; the value
@@ -104,6 +105,35 @@ class MissingFactError(KeyError):
 class AdditiveServeViolation(AssertionError):
     """A serve-stage mutation removed or retyped a pipeline-produced
     field — forbidden by the sv1 additive-only serve contract."""
+
+
+@dataclass(frozen=True)
+class LockedRatio:
+    """PS5 — a typed PAYWALL refusal, distinct from :class:`MissingFactError`.
+
+    Returned (never raised) by account-level accessors on the
+    public-summary tier: the underlying value EXISTS in principle but a
+    reduced open-data filing (data.gov.ro I1..I20 indicators) cannot
+    carry the account-level detail needed to compute it — a trial
+    balance can. MissingFactError stays "the served envelope does not
+    carry the concept" (callers degrade); LockedRatio is "upload the
+    trial balance to unlock" (callers render the upsell). NEVER carries
+    any numeric value — a locked ratio has no number to leak."""
+
+    ratio_id: str
+    upsell_key: str
+    locked: bool = True
+    reason: str = "needs_trial_balance"
+
+
+#: The account-level ratios a public summary can never compute
+#: (ratio_id -> upsell_key), in render order for ``locked_ratios()``.
+_SUMMARY_LOCKED_RATIOS = (
+    ("dso", "upsell.public_summary.dso"),
+    ("dio", "upsell.public_summary.dio"),
+    ("ccc", "upsell.public_summary.ccc"),
+    ("working_capital", "upsell.public_summary.working_capital"),
+)
 
 
 def _cents(value: Any) -> int:
@@ -161,25 +191,40 @@ class FactsGateway(object):
 
     TIER_CANONICAL = "canonical_bs"
     TIER_METHODOLOGY = "methodology"
+    #: Third tier — reduced open-data filings (data.gov.ro bilant
+    #: indicators) served from ``envelope["public_summary"]`` (ps1).
+    #: Never enters the canonical status ladder / reconcile / consensus.
+    TIER_SUMMARY = "public_summary"
 
     def __init__(self, *, tier: str, served: Optional[Dict[str, Any]],
                  raw_cbs: Optional[Dict[str, Any]],
                  methodology: Dict[str, Any],
-                 snapshot_id: Optional[str], currency: str) -> None:
+                 snapshot_id: Optional[str], currency: str,
+                 summary: Optional[Dict[str, Any]] = None) -> None:
         self.tier = tier
         self._served = served
         self._raw_cbs = raw_cbs
         self._methodology = methodology or {}
         self._snapshot_id = snapshot_id
         self._currency = currency
-        # Concept -> Optional[int] cents, resolved once at construction.
-        self._raw_totals = self._totals_cents(raw_cbs, methodology, tier)
-        self._adjusted_totals = (
-            self._totals_cents(served, methodology, tier)
-            if tier == self.TIER_CANONICAL
-            # Legacy tier has no reconciliation machinery: raw == adjusted.
-            else dict(self._raw_totals)
+        self._summary = summary if isinstance(summary, dict) else None
+        self._summary_indicators = dict(
+            (self._summary or {}).get("indicators") or {}
         )
+        # Concept -> Optional[int] cents, resolved once at construction.
+        if tier == self.TIER_SUMMARY:
+            # No reconciliation machinery exists for public summaries:
+            # raw == adjusted by construction.
+            self._raw_totals = self._summary_totals_cents(self._summary or {})
+            self._adjusted_totals = dict(self._raw_totals)
+        else:
+            self._raw_totals = self._totals_cents(raw_cbs, methodology, tier)
+            self._adjusted_totals = (
+                self._totals_cents(served, methodology, tier)
+                if tier == self.TIER_CANONICAL
+                # Legacy tier has no reconciliation machinery: raw == adjusted.
+                else dict(self._raw_totals)
+            )
 
     # ── Construction ───────────────────────────────────────────────────
 
@@ -195,6 +240,22 @@ class FactsGateway(object):
             return None
         snapshot_id = cls._snapshot_id_of(envelope)
         access_log.record_access(doc=snapshot_id, accessor="FactsGateway.from_envelope")
+        # SUMMARY probe FIRST (PS): a public_summary envelope resolves to
+        # the summary tier even if a canonical_bs-shaped block was ever
+        # attached for convenience — public open data must never be
+        # dressed up as a served balance sheet. This branch never touches
+        # the serve path (no engine.api import, no reconcile machinery).
+        summary = envelope.get("public_summary")
+        if isinstance(summary, dict) and isinstance(summary.get("indicators"), dict):
+            return cls(
+                tier=cls.TIER_SUMMARY,
+                served=None,
+                raw_cbs=None,
+                methodology={},
+                snapshot_id=snapshot_id or cls._summary_snapshot_id_of(summary),
+                currency=currency,
+                summary=summary,
+            )
         methodology = envelope.get("methodology") or {}
         # Lazy import: engine.serving must stay importable without the
         # API package; the serve path lives with _reconcile (the module
@@ -234,6 +295,14 @@ class FactsGateway(object):
                 return str(value)
         return None
 
+    @staticmethod
+    def _summary_snapshot_id_of(summary: Dict[str, Any]) -> Optional[str]:
+        """ps1 envelopes carry provenance INSIDE the public_summary block
+        (provenance.content_hash — the ingest-time IR hash)."""
+        provenance = summary.get("provenance") or {}
+        value = provenance.get("content_hash") if isinstance(provenance, dict) else None
+        return str(value) if value else None
+
     @classmethod
     def _totals_cents(cls, cbs: Optional[Dict[str, Any]],
                       methodology: Dict[str, Any],
@@ -247,7 +316,7 @@ class FactsGateway(object):
                 out["equity"] is not None and out["liabilities"] is not None
             ):
                 out["equity_plus_liabilities"] = out["equity"] + out["liabilities"]
-        else:
+        elif tier == cls.TIER_METHODOLOGY:
             totals = (methodology or {}).get("totals") or {}
             out["assets"] = _opt_cents(totals.get("total_assets"))
             out["equity"] = _opt_cents(totals.get("total_equity"))
@@ -256,6 +325,68 @@ class FactsGateway(object):
                 out["equity_plus_liabilities"] = out["equity"] + out["liabilities"]
             out["current_assets"] = _opt_cents(totals.get("current_assets"))
             out["current_liabilities"] = _opt_cents(totals.get("current_liabilities"))
+        else:
+            # EXPLICIT tier dispatch — a new tier must never silently fall
+            # into the methodology branch and read None-filled totals.
+            # (The summary tier resolves via _summary_totals_cents in
+            # __init__ and never reaches this method.)
+            raise ValueError("unknown FactsGateway tier %r" % tier)
+        return out
+
+    @staticmethod
+    def _summary_ron_cents(value: Any, what: str) -> Optional[int]:
+        """STRICT whole-RON int -> cents. None (absent in the source
+        file) stays None; anything that is not an exact int is REFUSED —
+        never the ``_cents()`` swallow-to-0 (a data.gov.ro string like
+        "1.234.567" must fail loudly at ingest, not read as 0 here)."""
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise MissingFactError(
+                "public_summary %s must be an exact whole-RON int, got %s"
+                % (what, type(value).__name__)
+            )
+        return value * 100
+
+    @classmethod
+    def _summary_totals_cents(cls, summary: Dict[str, Any]) -> Dict[str, Optional[int]]:
+        """Totals of the ps1 indicator layout (VERIFIED FY2019-FY2025):
+        assets = derived.total_assets (I1+I2+I6, precomputed at build
+        time; recomputed here as fallback), equity = I10 CAPITALURI
+        TOTAL (NOT capitaluri proprii — the mass file has no separate
+        own-equity column; label honestly), liabilities = I7 DATORII.
+
+        equity_plus_liabilities stays None ON PURPOSE: I10 + I7 omits I8
+        (venituri in avans) and I9 (provizioane), so summing them would
+        mint a fake balance identity and a fake ``difference()``. The
+        current_* splits also stay None — I7 has no maturity split (the
+        working-capital detail is exactly what LockedRatio gates)."""
+        indicators = summary.get("indicators") or {}
+        derived = summary.get("derived") if isinstance(summary.get("derived"), dict) else {}
+        out: Dict[str, Optional[int]] = {k: None for k in _TOTAL_CONCEPTS}
+
+        def _tolerant(value: Any, what: str) -> Optional[int]:
+            # Construction never raises (from_envelope's contract is
+            # Optional-gateway, never an exception): a malformed value
+            # resolves to None here, which every accessor REFUSES with
+            # MissingFactError at access time — never a fabricated zero.
+            try:
+                return cls._summary_ron_cents(value, what)
+            except MissingFactError:
+                return None
+
+        assets = _tolerant(derived.get("total_assets"), "derived.total_assets")
+        if assets is None:
+            components = [
+                _tolerant(indicators.get(code), code)
+                for code in ("I1", "I2", "I6")
+            ]
+            present = [c for c in components if c is not None]
+            if present:
+                assets = sum(present)
+        out["assets"] = assets
+        out["equity"] = _tolerant(indicators.get("I10"), "I10")
+        out["liabilities"] = _tolerant(indicators.get("I7"), "I7")
         return out
 
     # ── The served canonical_bs object (verbatim serve payload) ────────
@@ -344,7 +475,14 @@ class FactsGateway(object):
     def current_liabilities(self) -> Fact:
         return self._total("current_liabilities", self._adjusted_totals)
 
-    def working_capital(self) -> Fact:
+    def working_capital(self) -> Union[Fact, "LockedRatio"]:
+        """Canonical/methodology tiers: current assets − current
+        liabilities (Fact), exactly as before. Summary tier: a
+        :class:`LockedRatio` — the mass bilant file's I7 DATORII has no
+        maturity split, so the detail genuinely exists only in a trial
+        balance (PS5 paywall refusal, never a fabricated number)."""
+        if self.tier == self.TIER_SUMMARY:
+            return self._locked("working_capital")
         ca = self._total("current_assets", self._adjusted_totals)
         cl = self._total("current_liabilities", self._adjusted_totals)
         return self._fact(ca.amount_minor - cl.amount_minor)
@@ -364,7 +502,30 @@ class FactsGateway(object):
         adjusted on a pnl-placed reconciliation), or — when the
         statement has no result row — the pnl-placed delta alone (the
         serve path parks it as a synthetic equity row in that case).
-        0 when neither exists on a canonical-tier envelope."""
+        0 when neither exists on a canonical-tier envelope.
+
+        Summary tier: ``derived.net_result`` (ingest-precomputed) or
+        I18 − I19 (Profit net − Pierdere neta, both non-negative
+        columns); REFUSES when both result columns are absent."""
+        if self.tier == self.TIER_SUMMARY:
+            cents = self._summary_ron_cents(
+                ((self._summary or {}).get("derived") or {}).get("net_result")
+                if isinstance((self._summary or {}).get("derived"), dict)
+                else None,
+                "derived.net_result",
+            )
+            if cents is not None:
+                return self._fact(cents, line_id="derived.net_result")
+            profit = self._summary_ron_cents(
+                self._summary_indicators.get("I18"), "I18")
+            loss = self._summary_ron_cents(
+                self._summary_indicators.get("I19"), "I19")
+            if profit is None and loss is None:
+                raise MissingFactError(
+                    "public_summary carries neither I18 nor I19 — the "
+                    "gateway never fabricates a zero result"
+                )
+            return self._fact((profit or 0) - (loss or 0), line_id="I18-I19")
         if self.tier != self.TIER_CANONICAL:
             raise MissingFactError(
                 "net_result requires a canonical_bs serving (tier=%s)" % self.tier
@@ -376,7 +537,15 @@ class FactsGateway(object):
 
     def revenue(self) -> Fact:
         """Net revenue (methodology ``totals.revenue_net``) plus a
-        ``pl_other_income``-placed reconciliation delta."""
+        ``pl_other_income``-placed reconciliation delta. Summary tier:
+        I13 (Cifra de afaceri neta) — its own resolution, deliberately
+        NOT the methodology path's asymmetric positive-delta rule."""
+        if self.tier == self.TIER_SUMMARY:
+            cents = self._summary_ron_cents(
+                self._summary_indicators.get("I13"), "I13")
+            if cents is None:
+                raise MissingFactError("public_summary carries no I13 (net turnover)")
+            return self._fact(cents, line_id="I13")
         base = self._methodology_cents("totals.revenue_net")
         if base is None:
             raise MissingFactError("envelope carries no methodology revenue_net")
@@ -387,10 +556,83 @@ class FactsGateway(object):
         """Total expense burden implied by the served statement:
         revenue − net_result. Absorbs a ``pl_other_expense``-placed
         reconciliation delta by construction (revenue is unchanged,
-        net_result shrinks)."""
+        net_result shrinks). Summary tier: I15 (Cheltuieli totale) —
+        the file's own column, not an implied figure."""
+        if self.tier == self.TIER_SUMMARY:
+            cents = self._summary_ron_cents(
+                self._summary_indicators.get("I15"), "I15")
+            if cents is None:
+                raise MissingFactError("public_summary carries no I15 (total expenses)")
+            return self._fact(cents, line_id="I15")
         rev = self.revenue()
         result = self.net_result()
         return self._fact(rev.amount_minor - result.amount_minor)
+
+    # ── Summary-tier accessors (PS: public_summary envelopes only) ─────
+
+    def employees(self) -> int:
+        """Average employee headcount (I20) as a PLAIN int — a count is
+        not Money; serving it as Fact cents (3700 meaning 37 people)
+        would be a trap. Summary tier only."""
+        if self.tier != self.TIER_SUMMARY:
+            raise MissingFactError(
+                "employees requires a public_summary envelope (tier=%s)" % self.tier
+            )
+        value = self._summary_indicators.get("I20")
+        if value is None:
+            raise MissingFactError("public_summary carries no I20 (employees)")
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise MissingFactError(
+                "public_summary I20 must be an exact int, got %s"
+                % type(value).__name__
+            )
+        return value
+
+    def summary_derived(self) -> Dict[str, Any]:
+        """The ps1 ``derived`` block (margins / growth / precomputed
+        totals, built at ingest time) — a defensive copy. Empty dict on
+        non-summary tiers."""
+        if self.tier != self.TIER_SUMMARY:
+            return {}
+        derived = (self._summary or {}).get("derived")
+        return copy.deepcopy(derived) if isinstance(derived, dict) else {}
+
+    def _locked(self, ratio_id: str) -> "LockedRatio":
+        for rid, upsell_key in _SUMMARY_LOCKED_RATIOS:
+            if rid == ratio_id:
+                return LockedRatio(ratio_id=rid, upsell_key=upsell_key)
+        raise MissingFactError("unknown locked ratio %r" % ratio_id)
+
+    def dso(self) -> "LockedRatio":
+        """Days sales outstanding needs receivables detail — summary
+        tier returns the PS5 :class:`LockedRatio`; every other tier
+        refuses with MissingFactError (the gateway has never carried
+        this concept — a paywall must not appear where the value is
+        simply absent)."""
+        if self.tier == self.TIER_SUMMARY:
+            return self._locked("dso")
+        raise MissingFactError("dso is not a served concept (tier=%s)" % self.tier)
+
+    def dio(self) -> "LockedRatio":
+        """Days inventory outstanding — see :meth:`dso`."""
+        if self.tier == self.TIER_SUMMARY:
+            return self._locked("dio")
+        raise MissingFactError("dio is not a served concept (tier=%s)" % self.tier)
+
+    def ccc(self) -> "LockedRatio":
+        """Cash conversion cycle — see :meth:`dso`."""
+        if self.tier == self.TIER_SUMMARY:
+            return self._locked("ccc")
+        raise MissingFactError("ccc is not a served concept (tier=%s)" % self.tier)
+
+    def locked_ratios(self) -> List["LockedRatio"]:
+        """Every PS5 locked refusal of this tier, in render order — the
+        public page renderer iterates this to draw the upsell cards.
+        Empty on non-summary tiers (nothing is paywalled there)."""
+        if self.tier != self.TIER_SUMMARY:
+            return []
+        return [LockedRatio(ratio_id=rid, upsell_key=key)
+                for rid, key in _SUMMARY_LOCKED_RATIOS]
 
     def ebitda(self) -> Fact:
         """Reported EBITDA (methodology ``ebitda.reported``) plus a

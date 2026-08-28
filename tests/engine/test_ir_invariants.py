@@ -79,6 +79,17 @@ def _discover() -> List[Tuple[str, str]]:
 
 
 ALL_CASES = _discover()
+
+# Corpus cases that produce no LedgerDoc IR at all. The public-summary
+# lane reads summary-level PUBLISHED FILINGS (revenue/net result/
+# employees), not a trial balance: it has no front-end, no IR, and no
+# cents to sweep, so it is out of scope for both the N2 equivalence
+# sweep and the N1 round-trip suite. Named explicitly — per the census
+# doctrine, a new expected_parser must be wired deliberately here rather
+# than fall through silently.
+NON_IR_PARSERS = {"public_summary"}
+TB_CASES = [(c, p) for c, p in ALL_CASES if p not in NON_IR_PARSERS]
+
 DET_CASES = [(c, p) for c, p in ALL_CASES if p in DETERMINISTIC_PARSERS]
 
 
@@ -117,17 +128,20 @@ def _hu_mock_case() -> Tuple[bytes, dict]:
 # ── N2 coverage closure ────────────────────────────────────────────────
 
 
-def test_n2_and_n1_cover_all_seventeen_corpus_cases() -> None:
-    """The corpus census: 17 cases, every one exercised by BOTH suites —
-    the deterministic sweep (15), the AI-lane extract case, and the
-    scanned-PDF failure case. Growing the corpus (or introducing a new
-    expected_parser value) must extend the suites deliberately; it can
-    never fall through silently."""
-    assert len(ALL_CASES) == 17, "corpus changed size — extend the IR suites"
-    parsers = {p for _, p in ALL_CASES}
-    assert parsers == set(DETERMINISTIC_PARSERS) | {"hu_ai_lane", "ro_llm_fallback"}
+def test_n2_and_n1_cover_all_corpus_cases() -> None:
+    """The corpus census: 18 cases. 17 carry a LedgerDoc IR and are
+    exercised by BOTH suites — the deterministic sweep (15), the AI-lane
+    extract case, and the scanned-PDF failure case. The 18th
+    (public-summary) has no IR at all and is excluded by name. Growing
+    the corpus (or introducing a new expected_parser value) must extend
+    the suites deliberately; it can never fall through silently."""
+    assert len(ALL_CASES) == 18, "corpus changed size — extend the IR suites"
+    assert len(TB_CASES) == 17, "trial-balance corpus changed size"
+    assert {p for _, p in TB_CASES} == (set(DETERMINISTIC_PARSERS)
+                                        | {"hu_ai_lane", "ro_llm_fallback"})
+    assert {p for _, p in ALL_CASES} - {p for _, p in TB_CASES} == NON_IR_PARSERS
     assert len(DET_CASES) == 15
-    non_det = {c for c, p in ALL_CASES if p not in DETERMINISTIC_PARSERS}
+    non_det = {c for c, p in TB_CASES if p not in DETERMINISTIC_PARSERS}
     assert non_det == {"hu_ai_lane", "llm_fallback_scanned_pdf"}
 
 

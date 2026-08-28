@@ -106,15 +106,29 @@ def _discover() -> List[Tuple[str, str]]:
 ALL_CASES = _discover()
 DET_CASES = [(c, p) for c, p in ALL_CASES if p in DETERMINISTIC_PARSERS]
 
+# Corpus cases that produce no LedgerDoc IR at all. The public-summary
+# lane reads summary-level PUBLISHED FILINGS (revenue/net result/
+# employees), not a trial balance: it has no front-end, no IR, and no
+# cents to sweep, so it is out of scope for both the N2 equivalence
+# sweep and the N1 round-trip suite. Named explicitly — per the census
+# doctrine, a new expected_parser must be wired deliberately here rather
+# than fall through silently.
+NON_IR_PARSERS = {"public_summary"}
+TB_CASES = [(c, p) for c, p in ALL_CASES if p not in NON_IR_PARSERS]
+
 
 def test_corpus_is_fully_covered():
-    """Every corpus case is exercised by exactly one branch of this
-    suite — the deterministic N2 sweep, the AI-lane extract case, or
-    the scanned-PDF failure-equivalence case. A new expected_parser
-    value must be wired here deliberately, never skipped silently."""
-    assert len(ALL_CASES) == 17, "corpus changed size — extend this suite"
-    covered = set(DETERMINISTIC_PARSERS) | {"hu_ai_lane", "ro_llm_fallback"}
+    """Every corpus case is accounted for by exactly one branch — the
+    deterministic N2 sweep, the AI-lane extract case, the scanned-PDF
+    failure-equivalence case, or the explicit no-IR exclusion. A new
+    expected_parser value must be wired here deliberately, never
+    skipped silently."""
+    assert len(ALL_CASES) == 18, "corpus changed size — extend this suite"
+    assert len(TB_CASES) == 17, "trial-balance corpus changed size"
+    covered = (set(DETERMINISTIC_PARSERS) | {"hu_ai_lane", "ro_llm_fallback"}
+               | NON_IR_PARSERS)
     assert {p for _, p in ALL_CASES} <= covered
+    assert {p for _, p in TB_CASES} <= covered - NON_IR_PARSERS
 
 
 def _input_path(case_id: str) -> Path:

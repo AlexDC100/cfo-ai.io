@@ -23,6 +23,7 @@ import {
   Layers,
   RefreshCw,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { getSupabase } from "@/lib/supabase";
@@ -109,6 +110,23 @@ interface OpsSnapshot {
     departures?: Array<{ sentinel?: string }>;
   };
   metrics?: { rates?: Record<string, number | null> };
+  funnel?: {
+    recorded?: boolean;
+    path?: string;
+    generated_at?: string;
+    window_days?: number;
+    traffic?: number;
+    traffic_browser?: number;
+    searches?: number;
+    report_opens?: number;
+    locked_ratio_taps?: number;
+    cta_clicks?: number;
+    teardown_exports?: number;
+    signups_attributed?: number | null;
+    uploads_attributed?: number | null;
+    public_to_signup_rate?: number | null;
+    signup_to_upload_rate?: number | null;
+  };
 }
 
 // ── tiny presentation helpers ──────────────────────────────────────────
@@ -208,6 +226,9 @@ export default function Ops() {
   const departures = snapshot?.sentinels?.departures ?? [];
   const rates = snapshot?.metrics?.rates ?? {};
   const errorBudget = snapshot?.error_budget;
+  const funnel = snapshot?.funnel;
+  const fmtMaybeInt = (n: number | null | undefined) =>
+    typeof n === "number" ? n.toLocaleString(locale) : t("ops.drift.noCoverage");
 
   const fmtPct = (v: number | null | undefined, digits = 4) =>
     typeof v === "number" ? `${(v * 100).toFixed(digits)}%` : "—";
@@ -483,6 +504,64 @@ export default function Ops() {
                 <p className="flex items-center gap-2 text-sm text-ink-soft">
                   <Dot tone="mute" />
                   {t("ops.errorBudget.notMeasured")}
+                </p>
+              )}
+            </Card>
+
+            {/* Public funnel — read from data/obs/funnel_last.json
+                (scripts/public_funnel.py rollup); honest n/a on unknown
+                denominators, never a fabricated zero */}
+            <Card icon={Users} title={t("ops.funnel.title")}>
+              {funnel?.recorded ? (
+                <>
+                  <p className="mb-3 text-xs text-ink-mute">
+                    {t("ops.funnel.window", { days: funnel.window_days ?? 0 })}
+                  </p>
+                  <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-4">
+                    {(
+                      [
+                        ["traffic", funnel.traffic],
+                        ["trafficBrowser", funnel.traffic_browser],
+                        ["searches", funnel.searches],
+                        ["reportOpens", funnel.report_opens],
+                        ["lockedTaps", funnel.locked_ratio_taps],
+                        ["ctaClicks", funnel.cta_clicks],
+                        ["signupsAttributed", funnel.signups_attributed],
+                        ["uploadsAttributed", funnel.uploads_attributed],
+                      ] as const
+                    ).map(([labelKey, value]) => (
+                      <div key={labelKey}>
+                        <dt className="text-[11px] uppercase tracking-wide text-ink-mute">
+                          {t(`ops.funnel.${labelKey}`)}
+                        </dt>
+                        <dd className="font-mono tabular-nums text-ink">
+                          {fmtMaybeInt(value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[13px]">
+                    {(
+                      [
+                        ["publicToSignup", funnel.public_to_signup_rate],
+                        ["signupToUpload", funnel.signup_to_upload_rate],
+                      ] as const
+                    ).map(([labelKey, value]) => (
+                      <div key={labelKey}>
+                        <dt className="text-[11px] uppercase tracking-wide text-ink-mute">
+                          {t(`ops.funnel.${labelKey}`)}
+                        </dt>
+                        <dd className="font-mono tabular-nums text-ink">
+                          {fmtRate(value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              ) : (
+                <p className="flex items-center gap-2 text-sm text-ink-soft">
+                  <Dot tone="mute" />
+                  {t("ops.funnel.notRecorded")}
                 </p>
               )}
             </Card>

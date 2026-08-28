@@ -113,6 +113,15 @@ def _discover_cases():
             llm_ro.append(case_dir.name)
         elif parser == "hu_ai_lane":
             llm_hu.append(case_dir.name)
+        elif parser == "public_summary":
+            # DELIBERATELY NOT SHADOWED. A public_summary case carries
+            # ~20 statement-level indicators from the Ministry of Finance
+            # open data — it has no account atoms, never enters a
+            # classification pack, and never produces a canonical_bs
+            # (PS1). There are therefore two lanes to compare, and the
+            # cross-path shadow is structurally inapplicable rather than
+            # merely unimplemented.
+            continue
         else:  # pragma: no cover — new lane must be wired deliberately
             raise AssertionError("unknown expected_parser %r in %s" % (parser, case_dir))
     return det, llm_ro, llm_hu

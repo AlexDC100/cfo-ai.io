@@ -1,0 +1,24 @@
+# GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+case_id: "public_summary_ro"
+jurisdiction: "RO"
+expected_parser: "public_summary"
+period: "FY2024 (public filing summary; prior FY2023)"
+period_end: "2024-12-31"
+synthetic: true
+anonymized: false
+expect_ai_never_consulted: true
+source_notes: >
+  Fully SYNTHETIC PJ company mirroring the VERIFIED data.gov.ro mass
+  bilant schema (WEB_UU_AN<yr>, stable I1..I20 layout FY2019-FY2025:
+  I1 Active imobilizate, I2 Active circulante, I6 Cheltuieli in avans,
+  I7 DATORII, I10 CAPITALURI TOTAL, I13 Cifra de afaceri neta,
+  I18/I19 Profit/Pierdere neta, I20 Numar mediu salariati; whole-RON
+  integers, empty = missing). Two filing years (FY2023 + FY2024) so the
+  summary tier's prior-year read is exercised. No real party data — the
+  CUI is a synthetic placeholder, TIP_CONTRIB is PJ (PS7: only PJ
+  companies are ever publishable). The case locks the ps1 envelope
+  shape, the FactsGateway summary tier (equity I10 / total_assets
+  derived / net_result I18-I19 as integer cents), the LockedRatio PS5
+  refusals, the present_public_summary trust lines, and the PS1
+  auto-reconcile refusal outcome ("public_summary_refused") — with
+  expect_ai_never_consulted enforcing the PS2 no-AI tripwire per run.

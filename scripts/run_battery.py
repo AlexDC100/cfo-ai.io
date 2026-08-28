@@ -72,6 +72,10 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
         ("supply-chain", [PY, "scripts/check_supply_chain.py"]),
         ("engine-book", [PY, "scripts/generate_engine_book.py", "--check"]),
         ("dst-explore", [PY, "scripts/dst_explore.py"]),
+        # PS6 — every sitemapped public company URL must serve 200 with
+        # real content; thin/unpublishable/taken-down CUIs must be absent.
+        # Passes with a NOTICE on a host that has ingested no public data.
+        ("public-sitemaps", [PY, "scripts/check_public_sitemaps.py"]),
     ]
     if not engine_only:
         gates += [

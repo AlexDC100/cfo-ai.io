@@ -231,6 +231,43 @@ def _cmd_status(args: argparse.Namespace) -> int:
             "templates    no stats recorded yet — run "
             "scripts/report_promotable_templates.py"
         )
+
+    funnel = snap.get("funnel") or {}
+    if funnel.get("recorded"):
+        print(
+            "funnel       %sd window · page views %s (%s browser) · "
+            "searches %s · report opens %s"
+            % (
+                funnel.get("window_days", "?"),
+                funnel.get("traffic", 0),
+                funnel.get("traffic_browser", 0),
+                funnel.get("searches", 0),
+                funnel.get("report_opens", 0),
+            )
+        )
+        print(
+            "             locked taps %s · CTA clicks %s · signups attr %s · "
+            "uploads attr %s"
+            % (
+                funnel.get("locked_ratio_taps", 0),
+                funnel.get("cta_clicks", 0),
+                "n/a" if funnel.get("signups_attributed") is None
+                else funnel.get("signups_attributed"),
+                "n/a" if funnel.get("uploads_attributed") is None
+                else funnel.get("uploads_attributed"),
+            )
+        )
+        print(
+            "             public→signup %s · signup→upload %s"
+            % (
+                _fmt_rate(funnel.get("public_to_signup_rate")),
+                _fmt_rate(funnel.get("signup_to_upload_rate")),
+            )
+        )
+    else:
+        print(
+            "funnel       not recorded yet — run scripts/public_funnel.py"
+        )
     return 0
 
 

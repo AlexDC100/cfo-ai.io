@@ -200,6 +200,19 @@ def create_app(
     # AI Intelligence layer — risk radar, exposure, scoring, signals,
     # market-read narrative. /api/public/intelligence/*.
     app.include_router(create_intelligence_router())
+    # PUBLIC RO STOREFRONT — server-rendered company pages built from the
+    # Ministry of Finance open datasets (public_summary class: summary
+    # level, never a trial-balance analysis, no AI on the default path).
+    # Serves BOTH the clean paths (/companii/…, /sitemap.xml, /og/…) and
+    # the /api/public/ro/* twins, so every route works through the
+    # EXISTING Caddy /api/* matcher before the operator adds a clean-path
+    # matcher. Import is guarded: a partially-provisioned deployment
+    # (no public_ro.db yet) must never take the whole API down.
+    try:
+        from engine.public_ro.pages.router import build_router as _public_ro_router
+        app.include_router(_public_ro_router())
+    except Exception:  # noqa: BLE001 — storefront is additive, never fatal
+        logger.exception("[server] public RO storefront not mounted")
     # WS4 — deep diagnostic endpoint. /health stays as the simple
     # liveness probe (Caddy / docker healthcheck); /api/health pings DB
     # + Stripe + FX, returns 503 if DB is down so deploy.sh fails the

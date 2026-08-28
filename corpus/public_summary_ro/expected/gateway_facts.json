@@ -1,0 +1,72 @@
+{
+  "currency": "RON",
+  "employees": 37,
+  "equity_cents": 230000000,
+  "expenses_cents": 510000000,
+  "locked_ratios": [
+    {
+      "locked": true,
+      "ratio_id": "dso",
+      "reason": "needs_trial_balance",
+      "upsell_key": "upsell.public_summary.dso"
+    },
+    {
+      "locked": true,
+      "ratio_id": "dio",
+      "reason": "needs_trial_balance",
+      "upsell_key": "upsell.public_summary.dio"
+    },
+    {
+      "locked": true,
+      "ratio_id": "ccc",
+      "reason": "needs_trial_balance",
+      "upsell_key": "upsell.public_summary.ccc"
+    },
+    {
+      "locked": true,
+      "ratio_id": "working_capital",
+      "reason": "needs_trial_balance",
+      "upsell_key": "upsell.public_summary.working_capital"
+    }
+  ],
+  "net_result_cents": 42000000,
+  "prior_year": {
+    "currency": "RON",
+    "employees": 33,
+    "equity_cents": 185000000,
+    "expenses_cents": 460000000,
+    "locked_ratios": [
+      {
+        "locked": true,
+        "ratio_id": "dso",
+        "reason": "needs_trial_balance",
+        "upsell_key": "upsell.public_summary.dso"
+      },
+      {
+        "locked": true,
+        "ratio_id": "dio",
+        "reason": "needs_trial_balance",
+        "upsell_key": "upsell.public_summary.dio"
+      },
+      {
+        "locked": true,
+        "ratio_id": "ccc",
+        "reason": "needs_trial_balance",
+        "upsell_key": "upsell.public_summary.ccc"
+      },
+      {
+        "locked": true,
+        "ratio_id": "working_capital",
+        "reason": "needs_trial_balance",
+        "upsell_key": "upsell.public_summary.working_capital"
+      }
+    ],
+    "net_result_cents": 29000000,
+    "revenue_cents": 480000000,
+    "tier": "public_summary",
+    "total_assets_cents": 304000000
+  },
+  "revenue_cents": 540000000,
+  "tier": "public_summary",
+  "total_assets_cents": 355000000
+}

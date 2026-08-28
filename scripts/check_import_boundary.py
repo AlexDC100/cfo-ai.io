@@ -82,7 +82,11 @@ FE_GATEWAY = FE_ROOT / "lib" / "servedFacts.ts"
 ALLOWLIST_FILE = REPO / "scripts" / "import_boundary_allowlist.txt"
 
 # Public gateway API — the ONLY engine.serving modules importable from outside.
-ALLOWED_SERVING_IMPORTS = {"engine.serving", "engine.serving.facts"}
+ALLOWED_SERVING_IMPORTS = {
+    "engine.serving",
+    "engine.serving.facts",
+    "engine.serving.public_summary",
+}
 
 TOTAL_FIELD_KEYS = {
     "assets",

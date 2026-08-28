@@ -108,7 +108,7 @@ import engine.ai_lane as _lane  # noqa: E402
 from engine.api import _reconcile  # noqa: E402
 from engine.api import pipeline as _pipeline  # noqa: E402
 from engine.core.country_pack_registry import get_pack  # noqa: E402
-from engine.serving import FactsGateway  # noqa: E402
+from engine.serving import FactsGateway, present_public_summary  # noqa: E402
 
 DEFAULT_CORPUS = REPO / "corpus"
 PLACEHOLDER = "<volatile:stripped>"
@@ -639,6 +639,173 @@ def _run_hu_ai_lane(case_id: str, meta: Dict[str, Any], input_path: Path,
     return extraction, classification, envelope, str(parsed.get("currency") or "EUR")
 
 
+def _ps1_derived(indicators: Dict[str, int]) -> Dict[str, int]:
+    """Ingest-time derived block per the verified FY2019-FY2025 layout:
+    Active totale = I1 + I2 + I6 (computed — the file has no total
+    column); net result = I18 − I19 (both non-negative columns)."""
+    derived: Dict[str, int] = {}
+    components = [indicators[c] for c in ("I1", "I2", "I6") if c in indicators]
+    if components:
+        derived["total_assets"] = sum(components)
+    if "I18" in indicators or "I19" in indicators:
+        derived["net_result"] = int(indicators.get("I18", 0)) - int(
+            indicators.get("I19", 0))
+    return derived
+
+
+def _local_ps1_envelope(record: Dict[str, Any], year: int) -> Dict[str, Any]:
+    """Deterministic ps1 envelope from the synthetic fixture record —
+    the documented public_summary envelope shape (version ps1, whole-RON
+    integer indicators, derived block, provenance with content_hash).
+
+    CONTRACT SEAM: the public-data ingest lane owns the production
+    builder (engine.public_ro.snapshot). This local builder exists so
+    the golden stays byte-stable regardless of which lanes have landed;
+    when the real builder ships, switch this branch to it and refreeze
+    with the golden-change PR discipline (a run-time notice below flags
+    the moment that module appears)."""
+    year_block = record["years"][str(year)]
+    indicators = {k: int(v) for k, v in (year_block.get("indicators") or {}).items()}
+    dataset_version = str(year_block.get("dataset_version") or "")
+    hash_payload = {
+        "cui": record["cui"],
+        "year": year,
+        "dataset_version": dataset_version,
+        "indicators": indicators,
+    }
+    content_hash = "sha256-%s" % hashlib.sha256(
+        json.dumps(hash_payload, sort_keys=True, separators=(",", ":"),
+                   ensure_ascii=True).encode("ascii")
+    ).hexdigest()
+    return {
+        "public_summary": {
+            "version": "ps1",
+            "cui": int(record["cui"]),
+            "year": int(year),
+            "dataset_version": dataset_version,
+            "status": "PUBLIC_SUMMARY",
+            "indicators": indicators,
+            "derived": _ps1_derived(indicators),
+            "provenance": {
+                "source": str(record.get("source") or "data.gov.ro"),
+                "dataset_version": dataset_version,
+                "fetch_date": str(record.get("fetch_date") or ""),
+                "cui": int(record["cui"]),
+                "year": int(year),
+                "content_hash": content_hash,
+            },
+        }
+    }
+
+
+def _summary_gateway_facts(envelope: Dict[str, Any]) -> Dict[str, Any]:
+    """The standard gateway_facts contract (tier/equity/total_assets/
+    net_result — _gateway_facts calls those three unconditionally on
+    every case) plus the summary-tier surface: revenue/expenses,
+    employees (plain int), and the PS5 LockedRatio refusals."""
+    facts = _gateway_facts(envelope, "RON")
+    gw = FactsGateway.from_envelope(envelope, currency="RON")
+    assert gw is not None  # _gateway_facts already raised otherwise
+    facts.update({
+        "revenue_cents": gw.revenue().amount_minor,
+        "expenses_cents": gw.expenses().amount_minor,
+        "employees": gw.employees(),
+        "locked_ratios": [
+            {
+                "ratio_id": r.ratio_id,
+                "locked": r.locked,
+                "reason": r.reason,
+                "upsell_key": r.upsell_key,
+            }
+            for r in gw.locked_ratios()
+        ],
+    })
+    return facts
+
+
+def _run_public_summary_case(case_id: str, meta: Dict[str, Any],
+                             input_path: Path,
+                             content: bytes) -> Dict[str, Any]:
+    """The public_summary lane: build ps1 envelopes for every fixture
+    year, serve the latest through present_public_summary + the
+    FactsGateway summary tier, and PROVE the PS1 refusals in the golden
+    (auto_reconcile outcome + no canonical serving). Nothing here runs
+    the upload pipeline — public summaries are API-ingested, never
+    uploaded documents."""
+    record = json.loads(content.decode("utf-8"))
+    if str(record.get("tip_contrib") or "") != "PJ":
+        raise CaseFailure(
+            "public_summary fixture must be a PJ company (PS7 gate)")
+    try:  # contract import — the public-data ingest lane's builder
+        import engine.public_ro.snapshot  # noqa: F401
+        _notice(
+            "engine.public_ro.snapshot has landed — switch "
+            "_local_ps1_envelope to the real builder and refreeze this "
+            "case (golden-change PR discipline)."
+        )
+    except ImportError:
+        pass
+    years = sorted(int(y) for y in (record.get("years") or {}))
+    if not years:
+        raise CaseFailure("public_summary fixture carries no years")
+    latest, prior = years[-1], (years[-2] if len(years) > 1 else None)
+    envelope = _local_ps1_envelope(record, latest)
+    prior_envelope = _local_ps1_envelope(record, prior) if prior else None
+
+    # PS1 — the status gates never see a public_summary: no canonical
+    # serving exists, and auto-reconcile refuses by document class.
+    served = _reconcile.served_canonical_bs(envelope)
+    if served is not None:
+        raise CaseFailure("public_summary envelope must never serve a canonical_bs")
+    auto = _reconcile.auto_reconcile_envelope(copy.deepcopy(envelope))
+
+    presentation = present_public_summary(envelope)
+    if not isinstance(presentation, dict):
+        raise CaseFailure("present_public_summary returned no presentation")
+
+    extraction = {"method": "public_summary_ingest", "record": record}
+    classification = {
+        "method": "public_summary_indicators",
+        "tip_contrib": record.get("tip_contrib"),
+        "years": {
+            str(y): dict(record["years"][str(y)].get("indicators") or {})
+            for y in years
+        },
+    }
+    statuses = {
+        # Canonical-ladder slots stay null BY CONSTRUCTION on this lane.
+        "persisted_status": None,
+        "persisted_difference": None,
+        "served_status": None,
+        "served_difference": None,
+        "needs_review": None,
+        "reconcile_offer": None,
+        "status_presentation": None,
+        "reconciliation": None,
+        "reconciliation_auto": None,
+        # The public_summary lane's own verdicts.
+        "public_summary_status": envelope["public_summary"]["status"],
+        "auto_reconcile_outcome": auto.get("outcome"),
+        "served_canonical_bs_is_none": served is None,
+    }
+    served_artifact = {
+        "public_summary": envelope["public_summary"],
+        "presentation": presentation,
+    }
+    gateway_facts = _summary_gateway_facts(envelope)
+    if prior_envelope is not None:
+        served_artifact["prior_year_public_summary"] = (
+            prior_envelope["public_summary"])
+        gateway_facts["prior_year"] = _summary_gateway_facts(prior_envelope)
+    return {
+        "extraction.json": extraction,
+        "classification.json": classification,
+        "statuses.json": statuses,
+        "served_envelope.json": served_artifact,
+        "gateway_facts.json": gateway_facts,
+    }
+
+
 def _missing_redaction_toolchain(content: bytes, anonymize_tb: Any) -> Optional[str]:
     """Name of the redaction dependency this input would need and that is
     not importable here, else None.
@@ -662,6 +829,43 @@ def _notice(message: str) -> None:
     failure. Used for capability gaps (a check that cannot run here)
     rather than for verification results, which fail loudly instead."""
     print("NOTICE  %s" % message)
+
+
+def _compare_or_freeze(case_dir: Path, case_id: str,
+                       artifacts: Dict[str, Any],
+                       update: bool) -> List[str]:
+    """Freeze (UPDATE_GOLDEN=1) or byte-compare the five artifacts.
+
+    Shared by every lane INCLUDING public_summary, whose runner builds
+    the artifact dict itself (no canonical_bs to serve).
+    """
+    expected_dir = case_dir / "expected"
+    failures: List[str] = []
+    if update:
+        expected_dir.mkdir(exist_ok=True)
+        for name in EXPECTED_ARTIFACTS:
+            (expected_dir / name).write_text(canonical_json(artifacts[name]),
+                                             encoding="utf-8")
+        return []
+
+    for name in EXPECTED_ARTIFACTS:
+        expected_path = expected_dir / name
+        if not expected_path.is_file():
+            failures.append("[%s] expected/%s missing — freeze with "
+                            "UPDATE_GOLDEN=1" % (case_id, name))
+            continue
+        actual_text = canonical_json(artifacts[name])
+        expected_text = expected_path.read_text(encoding="utf-8")
+        if actual_text != expected_text:
+            failures.append("[%s] expected/%s DIFFERS:" % (case_id, name))
+            try:
+                expected_obj = json.loads(expected_text)
+                for line in _diff_paths(expected_obj,
+                                        json.loads(actual_text)):
+                    failures.append("    ✗ %s" % line)
+            except Exception:  # noqa: BLE001 — corrupt golden
+                failures.append("    ✗ stored golden is not valid JSON")
+    return failures
 
 
 def run_case(case_dir: Path, update: bool = False) -> List[str]:
@@ -708,6 +912,23 @@ def run_case(case_dir: Path, update: bool = False) -> List[str]:
 
         expected_parser = str(meta["expected_parser"])
         with no_live_api_guard() as recorder:
+            # PUBLIC SUMMARY lane — a public_summary envelope never carries a
+            # canonical_bs, so it cannot flow through the shared
+            # served_canonical_bs + _statuses + _gateway_facts collection
+            # below (that path RAISES on a null served object). The runner
+            # therefore produces the full artifact dict itself and this
+            # branch short-circuits to the AI tripwire + comparison.
+            if expected_parser == "public_summary":
+                artifacts = _run_public_summary_case(
+                    case_id, meta, input_path, content
+                )
+                if bool(meta.get("expect_ai_never_consulted")) and recorder.calls:
+                    raise CaseFailure(
+                        "AI proposal path was consulted %d time(s) on a case "
+                        "declaring expect_ai_never_consulted"
+                        % len(recorder.calls)
+                    )
+                return _compare_or_freeze(case_dir, case_id, artifacts, update)
             if expected_parser in DETERMINISTIC_PARSERS:
                 extraction, classification, envelope, currency = _run_deterministic(
                     case_id, meta, input_path, content
@@ -745,33 +966,7 @@ def run_case(case_dir: Path, update: bool = False) -> List[str]:
         return ["[%s] crashed: %s: %s" % (case_id, type(exc).__name__, exc),
                 "    " + traceback.format_exc().splitlines()[-2].strip()]
 
-    expected_dir = case_dir / "expected"
-    failures: List[str] = []
-    if update:
-        expected_dir.mkdir(exist_ok=True)
-        for name in EXPECTED_ARTIFACTS:
-            (expected_dir / name).write_text(canonical_json(artifacts[name]),
-                                             encoding="utf-8")
-        return []
-
-    for name in EXPECTED_ARTIFACTS:
-        expected_path = expected_dir / name
-        if not expected_path.is_file():
-            failures.append("[%s] expected/%s missing — freeze with "
-                            "UPDATE_GOLDEN=1" % (case_id, name))
-            continue
-        actual_text = canonical_json(artifacts[name])
-        expected_text = expected_path.read_text(encoding="utf-8")
-        if actual_text != expected_text:
-            failures.append("[%s] expected/%s DIFFERS:" % (case_id, name))
-            try:
-                expected_obj = json.loads(expected_text)
-                for line in _diff_paths(expected_obj,
-                                        json.loads(actual_text)):
-                    failures.append("    ✗ %s" % line)
-            except Exception:  # noqa: BLE001 — corrupt golden
-                failures.append("    ✗ stored golden is not valid JSON")
-    return failures
+    return _compare_or_freeze(case_dir, case_id, artifacts, update)
 
 
 def discover_cases(corpus_root: Path) -> List[Path]:

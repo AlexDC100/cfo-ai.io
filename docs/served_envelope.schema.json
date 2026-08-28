@@ -19,7 +19,8 @@
       "properties": {
         "canonical_bs": { "$ref": "#/$defs/canonical_bs" },
         "assembled_bs": { "$ref": "#/$defs/assembled_bs_serve" },
-        "assembled_pl": { "$ref": "#/$defs/assembled_pl_serve" }
+        "assembled_pl": { "$ref": "#/$defs/assembled_pl_serve" },
+        "public_summary": { "$ref": "#/$defs/public_summary" }
       }
     }
   },
@@ -257,6 +258,43 @@
         "total_non_current_liabilities": { "type": "number" }
       },
       "additionalProperties": true
+    },
+    "public_summary": {
+      "description": "ps1 — reduced open-data tier (data.gov.ro mass bilant indicators, VERIFIED stable layout FY2019-FY2025: I1 Active imobilizate, I2 Active circulante, I6 Cheltuieli in avans, I7 DATORII, I10 CAPITALURI TOTAL — no separate capitaluri proprii, I13 Cifra de afaceri neta, I18 Profit net, I19 Pierdere neta, I20 Numar mediu salariati). A NEW top-level envelope kind: NEVER served through canonical_bs, never enters MACHINE_STATUSES / reconcile / consensus (PS1 structural refusals). Status is the parallel presentation token PUBLIC_SUMMARY; the FE gateway treats it as the null-verdict family (UNVERIFIED presentation). Indicators are EXACT whole-RON integers; absent = not reported (never 0). ADDITIVE to sv1 — no envelope_version bump required (additions need only a snapshot regen).",
+      "type": "object",
+      "required": ["version", "cui", "year", "status", "indicators"],
+      "properties": {
+        "version": { "const": "ps1" },
+        "cui": { "type": "integer" },
+        "year": { "type": "integer" },
+        "dataset_version": { "type": "string" },
+        "status": { "const": "PUBLIC_SUMMARY" },
+        "indicators": {
+          "description": "i-code -> whole-RON integer (can be negative); key absent when the source cell is empty. i-codes resolved per (year, file family) from the companion spec CSV — positional drift trap, never hard-coded.",
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        },
+        "derived": {
+          "description": "Ingest-precomputed derived figures (whole RON ints; ratios may be numbers). total_assets = I1 + I2 + I6; net_result = I18 - I19.",
+          "type": "object",
+          "properties": {
+            "total_assets": { "type": "integer" },
+            "net_result": { "type": "integer" }
+          },
+          "additionalProperties": true
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "source": { "type": "string" },
+            "dataset_version": { "type": "string" },
+            "fetch_date": { "type": "string" },
+            "cui": { "type": "integer" },
+            "year": { "type": "integer" },
+            "content_hash": { "type": "string" }
+          }
+        }
+      }
     },
     "assembled_pl_serve": {
       "description": "P&L serve additions. reconciliation_adjustment is present iff the period is RECONCILED with placement 'pnl' — the visible \"Diferențe de reconciliere\" line (signed effect on the result; extracted P&L cents never altered).",

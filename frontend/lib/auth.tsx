@@ -34,6 +34,14 @@ import {
   TEST_DISPLAY_NAME,
   TEST_WORKSPACE_LABEL,
 } from "@/lib/testMode";
+import { captureFirstTouch, getFirstTouch } from "@/lib/attribution";
+
+// First-touch attribution (public funnel, Lane 5) — capture utm_*/ft_cui
+// off the URL at app boot, BEFORE any router redirect rewrites the
+// querystring. Module scope so it runs exactly once per page load;
+// captureFirstTouch is a guarded no-op without a window or when a
+// record already exists.
+captureFirstTouch();
 
 type AuthStatus = "loading" | "signed_out" | "signed_in" | "disabled";
 
@@ -266,7 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Bootstrap trigger (handle_new_user_v2 in supabase/schema_phase3.sql)
     // reads these `pending_*` keys from raw_user_meta_data to seed the user's
     // first organization + membership atomically with the auth.users insert.
-    const meta: Record<string, string> = {};
+    const meta: Record<string, unknown> = {};
     if (displayName) meta.display_name = displayName;
     if (companyName) {
       meta.company_name = companyName;
@@ -274,6 +282,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (industryKey) meta.pending_industry_key = industryKey;
     if (industryDisplayName) meta.pending_industry_display = industryDisplayName;
+    // First-touch attribution (public funnel): lifted into
+    // profiles.first_touch by the on_auth_user_created_public_funnel
+    // trigger (supabase/schema_phase_public_funnel.sql).
+    const firstTouch = getFirstTouch();
+    if (firstTouch) meta.first_touch = firstTouch;
     // emailRedirectTo MUST match a route that:
     //   (a) is reachable on the deployed origin (whitelisted under Supabase
     //       → Auth → URL Configuration → Redirect URLs), and

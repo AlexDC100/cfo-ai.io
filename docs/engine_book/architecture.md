@@ -56,9 +56,10 @@ graph LR
     pkg_packs["packs (5 modules)"]
     pkg_passes["passes (5 modules)"]
     pkg_public["public (44 modules)"]
+    pkg_public_ro["public_ro (24 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
-    pkg_serving["serving (5 modules)"]
+    pkg_serving["serving (6 modules)"]
     pkg_storage["storage (3 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
@@ -83,6 +84,7 @@ graph LR
     pkg_api -->|1| pkg_obs
     pkg_api -->|1| pkg_passes
     pkg_api -->|1| pkg_public
+    pkg_api -->|1| pkg_public_ro
     pkg_api -->|1| pkg_routing
     pkg_api -->|2| pkg_serving
     pkg_api -->|2| pkg_storage
@@ -124,6 +126,9 @@ graph LR
     pkg_passes -->|3| pkg_packs
     pkg_public -->|1| pkg_api
     pkg_public -->|1| pkg_canonical
+    pkg_public_ro -->|3| pkg_api
+    pkg_public_ro -->|1| pkg_journal
+    pkg_public_ro -->|1| pkg_obs
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api
     pkg_serving -->|1| pkg_consensus
@@ -193,6 +198,7 @@ graph LR
         engine_serving__internal_guard["_internal_guard"]
         engine_serving_access_log["access_log"]
         engine_serving_facts["facts"]
+        engine_serving_public_summary["public_summary"]
         engine_serving_status["status"]
     end
     engine_ai --> engine_ai_registry
@@ -280,6 +286,7 @@ graph LR
     engine_passes_shadow --> engine_frontends_saga10
     engine_passes_shadow --> engine_passes_classify
     engine_serving --> engine_serving_facts
+    engine_serving --> engine_serving_public_summary
     engine_serving --> engine_serving_status
     engine_serving_facts --> engine_api__reconcile
     engine_serving_facts --> engine_serving
@@ -306,4 +313,5 @@ declaration is the supply-chain lock's job to reject).
 | `methodology` | yaml (pyyaml) |
 | `packs` | yaml (pyyaml) |
 | `public` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), pydantic (pydantic) |
+| `public_ro` | fastapi (fastapi), pydantic (pydantic) |
 | `storage` | pandas (pandas), sqlalchemy (sqlalchemy) |

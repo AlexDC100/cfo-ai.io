@@ -46,3 +46,19 @@ src/engine/public/cache.py | site_location_short | Three-letter collision with a
 src/engine/api/benchmarks_deep_seed.json | site_location | Collides with a retail-centre name quoted from NEPI Rockcastle's public 2024 annual report in the listed-REIT benchmark seed. Public issuer disclosure, not sourced from a client document.
 
 scripts/measure_bs_drift.py | company_legal_name | Reviewed provenance reference: the F3.7c fixture-registration docstring and the display label the drift gate hands to assemble_statements. Deliberately retained and registered as an accepted residual in the ADR; the numeric baseline it produces is unaffected.
+
+# ── public_summary corpus case (2026-08-28) ────────────────────────────
+# The public-data storefront's golden case. Its subject identifier is a
+# SYNTHETIC number in a reserved range (no such company is registered),
+# on a fully synthetic record whose every figure was authored for the
+# fixture. The gate's identifier rule exists to stop CLIENT-document
+# identifiers reaching tracked files; a company identifier is also the
+# PRIMARY KEY of this entire feature — public filing indicators are
+# published per identifier by the Ministry of Finance under CC-BY-4.0 —
+# so the golden cannot express the case without one. Exempted per file,
+# per literal, with the synthetic provenance recorded here. A REAL
+# company's identifier in a tracked file remains a hard failure.
+corpus/public_summary_ro/input.json | CUI 90000021 | Synthetic reserved-range subject identifier of the fully synthetic public-summary golden; not a registered company and not sourced from any client document.
+corpus/public_summary_ro/expected/extraction.json | CUI 90000021 | Same synthetic identifier, echoed into the frozen golden artifact.
+corpus/public_summary_ro/expected/classification.json | CUI 90000021 | Same synthetic identifier, echoed into the frozen golden artifact.
+corpus/public_summary_ro/expected/served_envelope.json | CUI 90000021 | Same synthetic identifier, echoed into the frozen golden artifact.

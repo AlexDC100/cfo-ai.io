@@ -100,7 +100,7 @@ class CaseOutcome:
     """One case's shadow outcome: a comparison, or an explicit skip."""
 
     case_id: str
-    kind: str  # 'compared' | 'skipped_no_pack'
+    kind: str  # 'compared' | 'skipped_no_pack' | 'skipped_not_applicable'
     report: Optional[ShadowResult] = None
     reason: str = ""
     notes: List[str] = field(default_factory=list)
@@ -199,6 +199,21 @@ def run_case_shadow(
         )
         return CaseOutcome(case_id=case_id, kind="compared", report=report)
 
+    if parser == "public_summary":
+        # Structurally inapplicable, not unimplemented: a public_summary
+        # case carries statement-level indicators from the Ministry of
+        # Finance open data — no account atoms, no classification pack,
+        # no canonical_bs (PS1). There is no second path to shadow.
+        return CaseOutcome(
+            case_id=case_id,
+            kind="skipped_not_applicable",
+            reason=(
+                "public_summary is summary-level (no account atoms, no "
+                "pack classification) — the cross-path shadow does not "
+                "apply"
+            ),
+        )
+
     raise RuntimeError("%s: unknown expected_parser %r" % (case_id, parser))
 
 
@@ -242,7 +257,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     diverged = 0
     for case_dir in cases:
         outcome = run_case_shadow(case_dir, pack=pack)
-        if outcome.kind == "skipped_no_pack":
+        if outcome.kind.startswith("skipped"):
             print("SKIP    %-28s %s" % (outcome.case_id, outcome.reason))
             continue
         report = outcome.report

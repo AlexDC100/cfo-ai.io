@@ -1002,6 +1002,21 @@ def _store_receipt(updated: Dict[str, Any], receipt: Dict[str, Any]) -> None:
     updated.pop("reconciliation_auto", None)
 
 
+def is_public_summary_envelope(envelope: Any) -> bool:
+    """PS1 document-class predicate: True when the envelope is a
+    reduced open-data filing (``envelope["public_summary"]`` with a
+    dict ``indicators`` — the ps1 shape the summary tier of
+    engine.serving.FactsGateway probes). ONE predicate shared by every
+    structural refusal seam — auto_reconcile_envelope,
+    perform_reconcile, and pipeline.stage_persist's AI-advisory /
+    consensus-attach guards — so the refusals can never drift apart.
+    Never raises."""
+    if not isinstance(envelope, dict):
+        return False
+    summary = envelope.get("public_summary")
+    return isinstance(summary, dict) and isinstance(summary.get("indicators"), dict)
+
+
 def _serve_mismatch() -> ReconcileRejected:
     return ReconcileRejected(
         {
@@ -1030,6 +1045,25 @@ def perform_reconcile(
     choice deliberately). Raises ReconcileRejected for every refusal
     (gate, balanced, validator, AI unavailable/inconclusive).
     """
+    # PS1 STRUCTURAL REFUSAL — document-class check FIRST, before any
+    # canonical_bs probe: a public_summary envelope (reduced open-data
+    # filing) is NEVER reconcilable, even if a canonical_bs-shaped block
+    # was ever attached for convenience. Named, not incidental — the
+    # NO_CANONICAL_BS refusal below would silently vanish the moment
+    # such a block appeared.
+    if is_public_summary_envelope(envelope):
+        raise ReconcileRejected(
+            {
+                "status": "rejected",
+                "diagnosis": [
+                    {
+                        "code": "PUBLIC_SUMMARY",
+                        "detail": "public_summary envelopes are summary-level "
+                        "open data — reconciliation requires a trial balance",
+                    }
+                ],
+            }
+        )
     cbs = envelope.get("canonical_bs") if isinstance(envelope, dict) else None
     if not isinstance(cbs, dict) or not isinstance(cbs.get("totals"), dict):
         raise ReconcileRejected(
@@ -1219,11 +1253,22 @@ def auto_reconcile_envelope(envelope: Dict[str, Any]) -> Dict[str, Any]:
       · "already_reconciled" — carried-forward receipt for this source.
       · "suppressed"         — an explicit undo suppressed auto for this
                                content_hash + versions.
+      · "public_summary_refused" — PS1 structural refusal: the envelope
+                               is a reduced open-data filing
+                               (public_summary); reconciliation (and
+                               its AI proposal path) never engages,
+                               checked FIRST on the document class so
+                               the refusal survives any canonical_bs-
+                               shaped block attached for convenience.
       · "not_minor_drift" / "llm_extraction" / "no_canonical_bs" /
         "no_provenance"      — out of scope for the auto stage.
     Never raises (a reconcile bug must not break the pipeline persist).
     """
     try:
+        # PS1 — document-class refusal FIRST (a return, never a raise:
+        # this function's whole body is a never-raises try).
+        if is_public_summary_envelope(envelope):
+            return {"outcome": "public_summary_refused"}
         cbs = envelope.get("canonical_bs") if isinstance(envelope, dict) else None
         if not isinstance(cbs, dict) or not isinstance(cbs.get("totals"), dict):
             return {"outcome": "no_canonical_bs"}
