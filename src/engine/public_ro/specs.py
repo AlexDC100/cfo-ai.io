@@ -107,13 +107,30 @@ _DIACRITIC_MAP = str.maketrans(
 )
 
 
+#: Trailing qualifiers that decorate a TOTAL line without changing which
+#: indicator it is. "din care" is Romanian for "of which" and merely
+#: introduces the breakdown rows underneath a total, so
+#: "ACTIVE CIRCULANTE - TOTAL, din care:" and "ACTIVE CIRCULANTE - TOTAL"
+#: are the same concept. The real data.gov.ro specs use the qualified
+#: form; every hand-written fixture used the bare one, so the spine
+#: refused every real file until this was added (found in production,
+#: 2026-08-29). Stripped only at the END of a label — a label that
+#: merely CONTAINS the words keeps them.
+_TRAILING_QUALIFIERS = ("din care",)
+
+
 def normalize_label(label: str) -> str:
     """Lowercase, strip Romanian diacritics (both comma- and
-    cedilla-form), drop punctuation, collapse whitespace."""
+    cedilla-form), drop punctuation, collapse whitespace, then drop a
+    trailing "of which" qualifier (see _TRAILING_QUALIFIERS)."""
     text = unicodedata.normalize("NFC", label or "").translate(_DIACRITIC_MAP)
     text = text.lower()
     text = re.sub(r"[^a-z0-9 ]+", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    for qualifier in _TRAILING_QUALIFIERS:
+        if text.endswith(" " + qualifier):
+            text = text[: -(len(qualifier) + 1)].strip()
+    return text
 
 
 def parse_spec(text: str) -> List[Tuple[str, str]]:

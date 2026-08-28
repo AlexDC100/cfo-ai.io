@@ -693,3 +693,41 @@ def test_public_ingest_cli_local_ingest_and_status(tmp_path, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "REFUSED (license)" in out
+
+
+# ── real-world spec regression (data.gov.ro, fetched 2026-08-29) ───────
+
+def test_real_data_gov_ro_2024_spec_resolves():
+    """The REAL FY2024 UU companion spec, byte-for-byte as data.gov.ro
+    serves it, must resolve.
+
+    Found in production 2026-08-29: every hand-written fixture used
+    idealized labels ("ACTIVE CIRCULANTE - TOTAL"), but the real file
+    decorates its total lines with the Romanian "of which" qualifier
+    ("ACTIVE CIRCULANTE - TOTAL, din care:") and ships without
+    diacritics. The spine refused the real file outright — correctly
+    fail-closed, but it meant the engine could not ingest ANY real
+    year. Synthetic fixtures could never have caught this; only the
+    real bytes can, which is why they are committed here.
+    """
+    from engine.public_ro.specs import resolve_spec
+
+    raw = (FIXTURES / "spec_2024_uu_REAL_data_gov_ro.csv").read_text(
+        encoding="utf-8")
+    resolved = resolve_spec(raw, year=2024, family="UU")
+    codes = set(resolved.values())
+    for required in ("i1", "i2", "i7", "i10", "i13", "i14", "i15",
+                     "i18", "i19", "i20"):
+        assert required in codes, (required, sorted(codes))
+
+
+def test_din_care_qualifier_is_not_part_of_indicator_identity():
+    """"X - TOTAL" and "X - TOTAL, din care:" are the same indicator —
+    "din care" means "of which" and only introduces the breakdown rows
+    beneath a total."""
+    from engine.public_ro.specs import normalize_label
+
+    assert (normalize_label("ACTIVE CIRCULANTE - TOTAL, din care:")
+            == normalize_label("ACTIVE CIRCULANTE - TOTAL"))
+    assert (normalize_label("CAPITALURI - TOTAL, din care:")
+            == normalize_label("CAPITALURI - TOTAL"))
