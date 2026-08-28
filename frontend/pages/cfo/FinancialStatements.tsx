@@ -2973,10 +2973,14 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
   // WATCH: either signal between 0.5% and 2%
   // PROBLEM: either signal above 2% (would noticeably affect headline numbers)
   const worstPct = Math.max(bsDriftPct ?? 0, sourceImbalancePct ?? 0);
+  // Clean-band threshold tightened 0.5% -> 0.1% (operator directive
+  // 2026-08-27) — MUST match the "target: under 0.1%" copy in
+  // dash.accClean*/accUnknownBody (en+ro); the two drifting apart makes
+  // the banner claim a target it does not enforce.
   const band: "clean" | "watch" | "problem" | "unknown" =
     bsDriftPct === null && sourceImbalancePct === null
       ? "unknown"
-      : worstPct < 0.5
+      : worstPct < 0.1
       ? "clean"
       : worstPct < 2
       ? "watch"
