@@ -157,10 +157,12 @@ const WORKFLOW_ALL: WorkflowItem[] = [
   // benchmarking + AI interpretation panels.
   { to: "/public-companies", labelKey: "sidebar.publicCompanies", icon: Globe, testId: "sidebar-public-companies", group: "intelligence" },
   // Analysis — datasets + comparative lenses + actionable lists.
-  { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analysis" },
-  { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analysis" },
+  // Order per operator directive (2026-08-28): Scenarios leads the group,
+  // Benchmark second; Products and Variance keep their relative order.
   // F6.0.5 — Scenario planning / what-if. Always reachable (no registry gate).
   { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analysis" },
+  { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analysis" },
+  { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analysis" },
   // Budget vs Actual vs Last-Year variance — restored as a rail item (2026-07-25)
   // per operator directive; the /dashboard/variance route was already registered.
   { to: "/dashboard/variance", labelKey: "sidebar.variance", icon: Scale, testId: "sidebar-variance", group: "analysis" },
