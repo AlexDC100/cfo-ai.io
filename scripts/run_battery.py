@@ -76,6 +76,11 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
         # real content; thin/unpublishable/taken-down CUIs must be absent.
         # Passes with a NOTICE on a host that has ingested no public data.
         ("public-sitemaps", [PY, "scripts/check_public_sitemaps.py"]),
+    # End-to-end against the REAL PublicRoStore. The unit suites drive a
+    # FakeStore that "mirrors" it; the mirror drifted and hid two total
+    # outages (every hub page 500, every funnel event dropped) behind
+    # 244 green tests. This gate fakes nothing.
+    ("public-e2e", [PY, "scripts/check_public_e2e.py"]),
     ]
     if not engine_only:
         gates += [
