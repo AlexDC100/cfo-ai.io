@@ -100,6 +100,24 @@ const SHADOW_ALLOWED = new Set([
   "frontend/components/cfo/command/CommandCenter.tsx", // command palette (floats)
   "frontend/components/cfo/SearchDialog.tsx", // ⌘K search dialog (floats)
   "frontend/components/instrument/Amount.tsx", // provenance tooltip is a floating layer
+  "frontend/components/instrument/Term.tsx", // glossary TooltipContent — floating layer
+  // Metric ⓘ tip: its only shadow class styles Radix Tooltip/Popover CONTENT,
+  // which portals above the page — a floating layer, same case as Amount's
+  // provenance tooltip. The card itself carries no shadow.
+  "frontend/components/dashboard/MetricInfoTip.tsx",
+  "frontend/components/cfo/DatasetsPanel.tsx", // fixed right slide-over panel (z-50 overlay)
+  "frontend/components/cfo/DocsPanel.tsx", // fixed right slide-over panel (z-50 overlay)
+  "frontend/components/cfo/DocumentChip.tsx", // absolute dropdown popover (role=dialog, z-50)
+  "frontend/components/cfo/DocumentSwitcher.tsx", // dropdown menu (z-40) + delete-confirm modal overlay (z-50)
+  "frontend/components/cfo/SkuDetailDrawer.tsx", // floating rounded Sheet drawer (Command-Center shell, shadow-4)
+  "frontend/components/cfo/UploadDialog.tsx", // modal DialogContent (portal overlay)
+  "frontend/components/cfo/chat/CFOChatPanel.tsx", // fixed chat slide-over (z-50)
+  "frontend/components/cfo/chat/CFOMessageList.tsx", // floating sticky search-match pill over the scroller
+  "frontend/components/cfo/industry/IndustryPicker.tsx", // fixed right slide-over sheet (z-50 overlay)
+  "frontend/components/comparison/LastYearSourcePicker.tsx", // absolute dropdown menu (z-40)
+  "frontend/components/learning/MetricGlossaryDrawer.tsx", // floating rounded Sheet drawer (Command-Center shell)
+  "frontend/components/public-companies/GeographicMapPanel.tsx", // fixed cursor-follow map tooltip (z-50)
+  "frontend/components/public-companies/StockDetailDrawer.tsx", // floating rounded Sheet drawer (Command-Center shell)
 ]);
 const SHADOW_ALLOWED_DIRS = [
   "frontend/components/instrument/shell/", // shell floating chrome (palette etc.)
@@ -116,6 +134,16 @@ const SERIF_SCOPES = ["frontend/pages/cfo/", "frontend/components/cfo/"];
 // Marketing pages — serif display is the marketing voice.
 const SERIF_MARKETING = new Set([
   "frontend/pages/cfo/Landing.tsx", // marketing landing
+  // Pricing marketing surfaces — the editorial serif voice lives on
+  // public marketing pages by design; these components render the
+  // public pricing page's hero/FAQ/estimator.
+  "frontend/components/cfo/PricingTableV2.tsx",
+  "frontend/components/cfo/pricing/MonthlyBillEstimator.tsx",
+  "frontend/components/cfo/pricing/PricingFaq.tsx",
+  // First-run surfaces — the brief keeps serif for first-run moments.
+  "frontend/pages/cfo/AuthCallback.tsx",
+  "frontend/pages/cfo/Onboarding.tsx",
+  "frontend/components/cfo/AuthCard.tsx", // login/signup card — first-run
   "frontend/pages/cfo/Pricing.tsx", // marketing pricing page
   "frontend/pages/cfo/RoadmapPage.tsx", // marketing roadmap
   "frontend/pages/cfo/ContactSalesPage.tsx", // marketing contact
@@ -127,7 +155,10 @@ const SERIF_EMPTY_STATES = new Set([
   "frontend/components/cfo/RouteErrorBoundary.tsx", // route error / empty state
 ]);
 
-const SERIF_RE = /(?<![\w/-])(?:[\w-]+:)*font-serif(?![\w-])/g;
+// font-serif utilities AND the legacy display-numeral classes — the
+// pre-Instrument system aliased serif heroes as num-hero/hero-number/
+// section-hero, so a lint on font-serif alone misses most real usage.
+const SERIF_RE = /(?<![\w/-])(?:(?:[\w-]+:)*font-serif|num-hero|hero-number|section-hero)(?![\w-])/g;
 
 // ── scan ───────────────────────────────────────────────────────────────
 
@@ -173,8 +204,16 @@ for (const abs of walk(FE)) {
       }
     }
     if (serifScoped) {
-      for (const hit of findAll(SERIF_RE, line)) {
-        violations.serif.push({ file, line: i + 1, match: hit });
+      // Empty states and first-run moments legitimately keep ONE serif
+      // line (the instrument voice). A justified escape on the same or
+      // previous line exempts exactly that line, nothing else.
+      const serifEscaped =
+        /design-lint-allow-serif/.test(line) ||
+        /design-lint-allow-serif/.test(lines[i - 1] ?? "");
+      if (!serifEscaped) {
+        for (const hit of findAll(SERIF_RE, line)) {
+          violations.serif.push({ file, line: i + 1, match: hit });
+        }
       }
     }
   });

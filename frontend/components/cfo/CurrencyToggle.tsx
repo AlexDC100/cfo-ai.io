@@ -88,7 +88,7 @@ export function CurrencyToggle() {
           title={`Exchange rates from ${rates.as_of} (offline fallback). Refresh in Settings.`}
           className="
             absolute -top-0.5 -right-0.5
-            h-2 w-2 rounded-full bg-[#5CD3C5]
+            h-2 w-2 rounded-full bg-caution
             ring-1 ring-[hsl(var(--surface))]
           "
         />

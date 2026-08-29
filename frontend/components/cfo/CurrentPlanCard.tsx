@@ -10,7 +10,7 @@
 //   radius   20px                            → rounded-[20px]
 //   padding  30px                            → p-[30px]
 //   shadow   0 24px 60px -30px rgba(92,211,197,.5)
-//   badge    absolute top:-11px left:30px, mono 10px, brand fill, #04110F text
+//   badge    absolute top:-11px left:30px, mono 10px, brand fill, on-brand text
 //   name     mono 11px uppercase, letter-spacing .16em, brand
 //   price    serif 52px, ink   ·   suffix 14px ink-soft
 //   note     12.5px ink-mute
@@ -91,7 +91,7 @@ export function CurrentPlanCard() {
       {/* Badge carries the tier name itself, matching the landing cards
           where the badge slot names the plan. "Current plan" was redundant
           with the section it sits in. */}
-      <span className="absolute -top-[11px] left-[30px] rounded-full bg-brand px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#04110F]">
+      <span className="absolute -top-[11px] left-[30px] rounded-full bg-brand px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-foreground">
         {plan.display_name}
       </span>
 
@@ -105,7 +105,7 @@ export function CurrentPlanCard() {
               badge hanging off the card's top edge already names the tier,
               so it appeared twice within 40px. */}
           <div className="flex items-baseline gap-1.5">
-            <span className="font-serif text-[52px] leading-none text-ink">
+            <span className="font-mono tabular-nums text-[44px] leading-none text-ink">
               {formatEur(plan.price_eur)}
             </span>
             {priceSuffix && (

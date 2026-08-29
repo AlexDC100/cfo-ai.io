@@ -85,7 +85,7 @@ function FailedTurnPanel({ kind, onRetry }: { kind: NonNullable<ChatMessage["fai
           <details className="min-w-0">
             <summary
               data-testid="chat-ai-degraded-details"
-              className="cursor-pointer list-none leading-7 text-[11.5px] text-ink-mute hover:text-ink-soft select-none [&::-webkit-details-marker]:hidden"
+              className="cursor-pointer list-none leading-7 text-[11.5px] text-ink-soft hover:text-ink-soft select-none [&::-webkit-details-marker]:hidden"
             >
               {t("chatDegraded.details")}
             </summary>
@@ -104,7 +104,7 @@ function InterruptedMarker() {
   const { t } = useTranslation();
   return (
     <motion.div className="mb-6 max-w-[1000px]" data-role="assistant" data-testid="chat-interrupted">
-      <div className="text-[13.5px] leading-[1.65] italic text-ink-mute select-none">
+      <div className="text-[13.5px] leading-[1.65] italic text-ink-soft select-none">
         {t("chatX.interrupted")}
       </div>
     </motion.div>
@@ -160,7 +160,7 @@ function UserBubble({ message }: Props) {
                 key={a.id}
                 className="inline-flex items-center gap-1.5 rounded-sm border border-rule bg-surface px-2 py-0.5 text-[11px] text-ink-soft"
               >
-                <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] font-mono">{ext(a.name)}</span>
+                <span className="text-ink-soft uppercase tracking-[0.06em] text-[10px] font-mono">{ext(a.name)}</span>
                 <span className="truncate max-w-[140px]">{a.name}</span>
               </span>
             ))}
@@ -250,7 +250,7 @@ function MiniMarkdown({ text }: { text: string }) {
         if (b.kind === "h3") return <h3 key={i} className="font-semibold text-[16.5px] text-ink mt-1 first:mt-0">{renderInline(b.text)}</h3>;
         if (b.kind === "h4") return <h4 key={i} className="font-semibold text-[14.5px] text-ink mt-0.5 first:mt-0">{renderInline(b.text)}</h4>;
         if (b.kind === "ul") return (
-          <ul key={i} className="space-y-1 pl-4 list-disc marker:text-ink-mute/70">
+          <ul key={i} className="space-y-1 pl-4 list-disc marker:text-ink-soft/70">
             {b.items.map((it, j) => <li key={j} className="text-[14px] leading-relaxed">{renderInline(it)}</li>)}
           </ul>
         );

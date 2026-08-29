@@ -53,8 +53,11 @@ const TRIGGER_CLASS =
   // relative + after:-inset expands the hit area to ~44px without layout shift
   "relative shrink-0 grid place-items-center h-5 w-5 rounded-full text-ink-mute hover:text-ink transition-colors duration-150 after:absolute after:-inset-2.5 after:content-['']";
 
+// shadow-3 is legitimate here: Tooltip/Popover content renders in a Radix
+// portal ABOVE the page — a floating layer, the one place real shadow is
+// allowed (file is on the design-lint floating-layer allowlist for this).
 const CONTENT_CLASS =
-  "max-w-[260px] rounded-lg border-rule bg-surface px-3 py-2 text-[12px] leading-snug text-ink-soft shadow-lg";
+  "max-w-[260px] rounded-md border-rule bg-surface px-3 py-2 text-[12px] leading-snug text-ink-soft shadow-3";
 
 export function MetricInfoTip({ text, conceptKey }: Props) {
   const { t } = useTranslation();

@@ -16,7 +16,19 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, BarChart3, Info, Layers as LayersIcon, LineChart, Loader2, ShieldAlert } from "lucide-react";
 
-import { Money } from "@/components/ui/Money";
+// Instrument kit (2026-08): every figure renders through <Amount> (via
+// the MoneyAmount currency bridge so the RON⇄EUR⇄USD toggle still
+// converts), chips/panels come from the one chip/panel system, and the
+// serif hero is evicted from the loaded report (it survives only on the
+// pre-upload empty states below).
+import { Chip, PageHeader as InstrumentPageHeader, Panel, type ChipTone } from "@/components/instrument/Panel";
+import {
+  MoneyAmount,
+  MoneyAmountGroup,
+  PercentLevel,
+  PpDelta,
+  CappedMultiple,
+} from "@/components/comparison/MoneyAmount";
 // 2026-05-24 — first-time `caen_not_set` gate now opens IndustryPicker too
 // (not the legacy IndustryConfirmModal). Operator feedback: the legacy
 // modal's bare <select> dropdown was hard to use, didn't surface
@@ -236,26 +248,17 @@ async function fetchReport(periodId: string): Promise<Report | ApiError | null> 
 }
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
-// Money formatting now flows through the canonical <Money> component so the
-// global RON/EUR/USD toggle converts benchmark + headline tiles uniformly.
-// Sector benchmark percentiles are stored as Romanian-sector RON values,
-// so the source currency is always RON here.
-
-function formatPct(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return `${value.toFixed(1)}%`;
-}
-
-function formatRatio(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return `${value.toFixed(2)}×`;
-}
+// Every figure flows through the instrument (<Amount> via the MoneyAmount
+// bridge) so the global RON/EUR/USD toggle converts benchmark + headline
+// tiles uniformly. Sector benchmark percentiles are stored as
+// Romanian-sector RON values, so the source currency is always RON here.
+// pct values arrive in percent units (12.3 = 12.3%); ratios in × units.
 
 function formatValue(value: number | null | undefined, unit: string | null | undefined): React.ReactNode {
-  if (value === null || value === undefined) return "—";
-  if (unit === "pct") return formatPct(value);
-  if (unit === "ratio") return formatRatio(value);
-  return <Money value={value} fromCurrency="RON" compact />;
+  if (value === null || value === undefined) return <span className="text-ink-mute">—</span>;
+  if (unit === "pct") return <PercentLevel value={value} />;
+  if (unit === "ratio") return <CappedMultiple value={value} />;
+  return <MoneyAmount value={value} fromCurrency="RON" />;
 }
 
 // ─── Sanity check: detect obvious CAEN mismatches ──────────────────────────
@@ -450,8 +453,13 @@ export default function BenchmarkReportPage() {
     // Viewing the client-side sample/demo company. Benchmarking needs a real
     // uploaded period (backend percentiles for the company's CAEN code), so
     // we show an honest unlock state instead of a 500 + a dead-end picker.
+    // NOTE: this branch used to wrap in <AppShell> — a leftover from before
+    // AppLayout mounted the shell once for every authed route. The symbol was
+    // never imported here, so the whole page CRASHED ("AppShell is not
+    // defined") the moment a sample/demo period was active. Fragment now,
+    // like every other branch on this page.
     return (
-      <AppShell>
+      <>
         <div className="max-w-[1080px] mx-auto py-8 sm:py-10">
           <PageHeader
             eyebrow="Benchmark"
@@ -473,7 +481,7 @@ export default function BenchmarkReportPage() {
             testid="benchmark-sample-empty"
           />
         </div>
-      </AppShell>
+      </>
     );
   }
 
@@ -651,61 +659,68 @@ export default function BenchmarkReportPage() {
             same column-stacking bug as the PublicCompanyIntelligence
             hero (right cluster wins the width battle, left col gets
             ~150px, 34-40px heading wraps to 4-5 lines). */}
-        <header data-testid="benchmark-header" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-          <div className="min-w-0">
-            <div className="label-eyebrow">Industry benchmark · your company</div>
-            <h1 className="mt-2 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
-              {r.caen_label}
-            </h1>
-            <p className="mt-1 text-[12.5px] text-ink-mute inline-flex items-center gap-2 flex-wrap">
-              <span>
-                CAEN {r.caen_code} · {r.industry_category}
-              </span>
-              {/* Phase E — new per-period IndustryBadge sits next to the
-                  legacy CAEN strip during the dual-write window. The badge
-                  reflects company_industry_assignments (preferred); the
-                  CAEN strip still reflects organizations.caen_code. They
-                  agree until the user re-classifies via the picker. */}
-              {periodId && (
-                <IndustryBadge
-                  periodId={periodId}
-                  variant="compact"
-                  onClickChange={() => setShowPicker(true)}
-                />
-              )}
-              {r.cached && r.generated_at ? (
-                <span> · cached {new Date(r.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</span>
-              ) : null}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap sm:shrink-0">
-            <GuideMeButton pageId="benchmark" title="Benchmark" steps={BENCHMARK_GUIDE} />
-            <button
-              type="button"
-              data-testid="benchmark-header-change-caen"
-              onClick={() => setShowPicker(true)}
-              className="h-9 px-3.5 rounded-md border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-bg-2 transition-colors"
-            >
-              Change industry
-            </button>
-            {/* Peer memo entry point removed — the /peer-report page
-                wasn't functioning correctly (industry classification was
-                misrouted; peer financial data was sparse / inconsistent).
-                The route remains on disk and reachable directly so the
-                page can be repaired without losing work, but the visible
-                CTA is gone until the experience is reliable. To restore:
-                re-add the <a href="/peer-report?period={periodId}">…</a>
-                button here. */}
-            <button
-              type="button"
-              data-testid="benchmark-header-print"
-              onClick={() => window.print()}
-              className="h-9 px-3.5 rounded-md bg-ink text-paper text-[13px] font-medium hover:bg-ink/90 transition-colors"
-            >
-              Export PDF
-            </button>
-          </div>
-        </header>
+        {/* A3 hero eviction — the 56px serif CAEN headline becomes the
+            compact instrument header; industry identity moves into the
+            context line. */}
+        <div data-testid="benchmark-header">
+          <InstrumentPageHeader
+            eyebrow="Industry benchmark · your company"
+            title={r.caen_label}
+            context={
+              <>
+                <span>
+                  CAEN {r.caen_code} · {r.industry_category}
+                </span>
+                {/* Phase E — new per-period IndustryBadge sits next to the
+                    legacy CAEN strip during the dual-write window. The badge
+                    reflects company_industry_assignments (preferred); the
+                    CAEN strip still reflects organizations.caen_code. They
+                    agree until the user re-classifies via the picker. */}
+                {periodId && (
+                  <IndustryBadge
+                    periodId={periodId}
+                    variant="compact"
+                    onClickChange={() => setShowPicker(true)}
+                  />
+                )}
+                {r.cached && r.generated_at ? (
+                  <span className="text-ink-mute">
+                    cached {new Date(r.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                  </span>
+                ) : null}
+              </>
+            }
+            actions={
+              <>
+                <GuideMeButton pageId="benchmark" title="Benchmark" steps={BENCHMARK_GUIDE} />
+                <button
+                  type="button"
+                  data-testid="benchmark-header-change-caen"
+                  onClick={() => setShowPicker(true)}
+                  className="h-8 px-3 rounded-md border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors duration-micro"
+                >
+                  Change industry
+                </button>
+                {/* Peer memo entry point removed — the /peer-report page
+                    wasn't functioning correctly (industry classification was
+                    misrouted; peer financial data was sparse / inconsistent).
+                    The route remains on disk and reachable directly so the
+                    page can be repaired without losing work, but the visible
+                    CTA is gone until the experience is reliable. To restore:
+                    re-add the <a href="/peer-report?period={periodId}">…</a>
+                    button here. */}
+                <button
+                  type="button"
+                  data-testid="benchmark-header-print"
+                  onClick={() => window.print()}
+                  className="h-8 px-3 rounded-md bg-ink text-paper text-[12.5px] font-medium hover:bg-ink/90 transition-colors duration-micro"
+                >
+                  Export PDF
+                </button>
+              </>
+            }
+          />
+        </div>
 
         {/* Mandatory disclosure — appears prominently on every report so a
             sophisticated CFO can never confuse this with licensed
@@ -719,12 +734,14 @@ export default function BenchmarkReportPage() {
         {(() => {
           const m = detectClassificationMismatch(r);
           if (!m.mismatch) return null;
+          // Caution, not brand — a probable misclassification is a true
+          // warning state, so it earns the amber tokens.
           return (
             <div
               data-testid="benchmark-mismatch-warning"
-              className="flex items-start gap-3 rounded-lg border border-[#8FE3D9]/60 bg-[#E6F7F4]/60 dark:bg-[#5CD3C5]/[0.08] px-4 py-3"
+              className="flex items-start gap-3 rounded-md border border-rule border-l-[3px] border-l-caution bg-caution-tint px-4 py-3"
             >
-              <AlertTriangle size={18} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
+              <AlertTriangle size={16} strokeWidth={1.75} className="text-caution mt-0.5 shrink-0" />
               <div className="flex-1 text-[12.5px] leading-relaxed text-ink-soft">
                 <strong className="text-ink">Possible industry misclassification.</strong>
                 <p className="mt-1">{m.reason}</p>
@@ -732,7 +749,7 @@ export default function BenchmarkReportPage() {
                   type="button"
                   data-testid="benchmark-mismatch-cta"
                   onClick={() => setShowPicker(true)}
-                  className="mt-1.5 inline-flex items-center text-[12.5px] font-semibold text-[#1B7268] hover:text-[#1B7268] underline-offset-2 hover:underline"
+                  className="mt-1.5 inline-flex items-center text-[12.5px] font-semibold text-ink underline-offset-2 hover:underline"
                 >
                   Change industry →
                 </button>
@@ -815,63 +832,71 @@ export default function BenchmarkReportPage() {
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
 function DisclosureBox({ text }: { text: string }) {
+  // Quiet methodology note — informational, not a warning: inset panel
+  // on the slate info rule, no accent spent.
   return (
-    <div
+    <Panel
+      inset
       data-testid="benchmark-disclosure"
-      className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3"
+      className="border-l-[3px] border-l-info px-4 py-3"
     >
       <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
-        <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
+        <Info size={13} strokeWidth={1.75} className="text-info mt-0.5 shrink-0" />
         <div>
           <strong className="text-ink">Estimated typical · methodology note.</strong> {text}
         </div>
       </div>
-    </div>
+    </Panel>
   );
 }
 
 function HeadlineGrid({ section }: { section: HeadlineSection }) {
+  // ONE AmountGroup for the whole KPI row — the four cards share a scale
+  // by construction, so "295,1 M" can never sit beside "41.944,6".
+  const groupValues = section.metrics.map((m) => section.company_values[m] ?? null);
   return (
     <section data-testid="benchmark-headline" data-guide="benchmark-headline" className="space-y-3">
-      <h2 className="font-serif text-[18px] text-ink">{section.title_en}</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {section.metrics.map((m) => {
-          const value = section.company_values[m] ?? 0;
-          const label = section.display[m]?.en ?? m;
-          const conceptKey = benchmarkMetricToConcept(m);
-          // When the metric maps to a concept, render the premium
-          // LearnableMetricCard primitive — the whole tile becomes a
-          // tap-target. When it doesn't map, fall back to the plain
-          // card so we don't regress the visual.
-          if (conceptKey) {
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+        {section.title_en}
+      </h2>
+      <MoneyAmountGroup values={groupValues} fromCurrency="RON">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {section.metrics.map((m) => {
+            const value = section.company_values[m] ?? 0;
+            const label = section.display[m]?.en ?? m;
+            const conceptKey = benchmarkMetricToConcept(m);
+            const figure =
+              section.company_values[m] != null ? (
+                <MoneyAmount value={value} fromCurrency="RON" />
+              ) : (
+                <span className="text-ink-mute">—</span>
+              );
+            // When the metric maps to a concept, render the premium
+            // LearnableMetricCard primitive — the whole tile becomes a
+            // tap-target. When it doesn't map, fall back to the plain
+            // card so we don't regress the visual.
+            if (conceptKey) {
+              return (
+                <LearnableMetricCard
+                  key={m}
+                  label={label}
+                  conceptKey={conceptKey}
+                  value={value}
+                  display={figure}
+                  tone="default"
+                  data-testid={`benchmark-headline-${m}`}
+                />
+              );
+            }
             return (
-              <LearnableMetricCard
-                key={m}
-                label={label}
-                conceptKey={conceptKey}
-                value={value}
-                display={
-                  section.company_values[m] != null ? (
-                    <Money value={value} fromCurrency="RON" compact />
-                  ) : (
-                    "—"
-                  )
-                }
-                tone="default"
-                data-testid={`benchmark-headline-${m}`}
-              />
+              <Panel key={m} className="p-4">
+                <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">{label}</div>
+                <div className="mt-2 text-[22px] font-semibold text-ink">{figure}</div>
+              </Panel>
             );
-          }
-          return (
-            <div key={m} className="rounded-2xl border border-rule bg-surface p-4">
-              <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">{label}</div>
-              <div className="mt-2 font-serif text-[24px] text-ink tabular-nums">
-                {section.company_values[m] != null ? <Money value={section.company_values[m] ?? 0} fromCurrency="RON" compact /> : "—"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+          })}
+        </div>
+      </MoneyAmountGroup>
     </section>
   );
 }
@@ -880,73 +905,83 @@ function ComparisonSection({ section, testId }: { section: ComparisonSection; te
   if (section.comparisons.length === 0) {
     return null;
   }
+  // Shared scale across every currency cell of this table.
+  const groupValues = section.comparisons.flatMap((c) =>
+    c.benchmark.unit === "pct" || c.benchmark.unit === "ratio"
+      ? []
+      : [c.company_value, c.benchmark.p25, c.benchmark.p50, c.benchmark.p75],
+  );
   return (
-    <section data-testid={testId} className="space-y-3">
-      <h2 className="font-serif text-[18px] text-ink">{section.title_en}</h2>
-      <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
-          <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
-            <tr>
-              <th className="text-left px-4 py-2.5">Metric</th>
-              <th className="text-right px-3 py-2.5">Your company</th>
-              <th className="text-right px-3 py-2.5">P25</th>
-              <th className="text-right px-3 py-2.5">Median</th>
-              <th className="text-right px-3 py-2.5">P75</th>
-              <th className="text-left px-3 py-2.5">Verdict</th>
-              <th className="text-left px-3 py-2.5">Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {section.comparisons.map((c) => {
-              const conceptKey = benchmarkMetricToConcept(c.metric_name);
-              return (
-              <tr
-                key={c.metric_name}
-                data-testid={`benchmark-row-${c.metric_name}`}
-                className="border-t border-rule/60"
-              >
-                <td className="px-4 py-2.5 text-ink">
-                  {conceptKey ? (
-                    <LearnableRowLabel
-                      conceptKey={conceptKey}
-                      value={c.company_value ?? 0}
-                      data-testid={`benchmark-label-${c.metric_name}`}
-                    >
-                      {c.display.en}
-                    </LearnableRowLabel>
-                  ) : (
-                    c.display.en
-                  )}
-                </td>
-                <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                  {formatValue(c.company_value, c.benchmark.unit)}
-                </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-ink-mute">
-                  {formatValue(c.benchmark.p25, c.benchmark.unit)}
-                </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-ink-soft">
-                  {formatValue(c.benchmark.p50, c.benchmark.unit)}
-                </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-ink-mute">
-                  {formatValue(c.benchmark.p75, c.benchmark.unit)}
-                </td>
-                <td className="px-3 py-2.5">
-                  <VerdictBadge verdict={c.verdict} />
-                </td>
-                <td className="px-3 py-2.5">
-                  <SourceChip
-                    source={c.benchmark.source}
-                    year={c.benchmark.source_year ?? null}
-                    confidence={c.benchmark.confidence ?? null}
-                    notes={c.benchmark.notes}
-                  />
-                </td>
+    <section data-testid={testId} className="space-y-2">
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+        {section.title_en}
+      </h2>
+      <Panel className="overflow-x-auto lg:overflow-x-visible">
+        <MoneyAmountGroup values={groupValues} fromCurrency="RON">
+          <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
+            <thead className="lg:sticky lg:top-14 z-10 bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+              <tr className="border-b border-rule">
+                <th className="text-left px-4 h-8 font-medium">Metric</th>
+                <th className="text-right px-3 h-8 font-medium">Your company</th>
+                <th className="text-right px-3 h-8 font-medium">P25</th>
+                <th className="text-right px-3 h-8 font-medium">Median</th>
+                <th className="text-right px-3 h-8 font-medium">P75</th>
+                <th className="text-left px-3 h-8 font-medium">Verdict</th>
+                <th className="text-left px-3 h-8 font-medium">Source</th>
               </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {section.comparisons.map((c) => {
+                const conceptKey = benchmarkMetricToConcept(c.metric_name);
+                return (
+                <tr
+                  key={c.metric_name}
+                  data-testid={`benchmark-row-${c.metric_name}`}
+                  className="border-t border-rule-soft first:border-t-0 h-8"
+                >
+                  <td className="px-4 py-1 text-ink">
+                    {conceptKey ? (
+                      <LearnableRowLabel
+                        conceptKey={conceptKey}
+                        value={c.company_value ?? 0}
+                        data-testid={`benchmark-label-${c.metric_name}`}
+                      >
+                        {c.display.en}
+                      </LearnableRowLabel>
+                    ) : (
+                      c.display.en
+                    )}
+                  </td>
+                  <td className="px-3 py-1 text-right font-medium">
+                    {formatValue(c.company_value, c.benchmark.unit)}
+                  </td>
+                  <td className="px-3 py-1 text-right text-ink-mute">
+                    {formatValue(c.benchmark.p25, c.benchmark.unit)}
+                  </td>
+                  <td className="px-3 py-1 text-right text-ink-soft">
+                    {formatValue(c.benchmark.p50, c.benchmark.unit)}
+                  </td>
+                  <td className="px-3 py-1 text-right text-ink-mute">
+                    {formatValue(c.benchmark.p75, c.benchmark.unit)}
+                  </td>
+                  <td className="px-3 py-1">
+                    <VerdictBadge verdict={c.verdict} />
+                  </td>
+                  <td className="px-3 py-1">
+                    <SourceChip
+                      source={c.benchmark.source}
+                      year={c.benchmark.source_year ?? null}
+                      confidence={c.benchmark.confidence ?? null}
+                      notes={c.benchmark.notes}
+                    />
+                  </td>
+                </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </MoneyAmountGroup>
+      </Panel>
     </section>
   );
 }
@@ -964,16 +999,13 @@ function SourceChip({
   confidence: string | null;
   notes: string | null;
 }) {
-  // Tier → label + colour. `verified` is the only tier that should look
-  // authoritative; everything else gets a neutral / cautionary tone so
-  // we don't pretend a directional range is an audited figure.
+  // Tier → tone. `verified` is the only tier allowed to look
+  // authoritative (success = verified in the instrument semantics);
+  // `estimated` gets the amber caution tone, `directional` sits neutral —
+  // we never pretend a directional range is an audited figure.
   const tier = (confidence ?? "directional").toLowerCase();
-  const tierStyle =
-    tier === "verified"
-      ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/60 text-[#1B7268] dark:bg-[#5CD3C5]/[0.10] dark:text-[#8FE3D9]"
-      : tier === "estimated"
-      ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/50 text-[#1B7268] dark:bg-[#5CD3C5]/[0.10] dark:text-[#8FE3D9]"
-      : "border-[#8FE3D9]/60 bg-[#E6F7F4]/40 text-[#1B7268] dark:bg-[#5CD3C5]/[0.08] dark:text-[#8FE3D9]";
+  const tone: ChipTone =
+    tier === "verified" ? "success" : tier === "estimated" ? "caution" : "neutral";
   const tierLabel =
     tier === "verified" ? "Verified"
     : tier === "estimated" ? "Estimated"
@@ -988,31 +1020,36 @@ function SourceChip({
   const tooltip = tooltipLines.join("\n");
 
   return (
-    <span
+    <Chip
+      tone={tone}
       title={tooltip}
-      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${tierStyle}`}
       data-testid="benchmark-source-chip"
       data-confidence={tier}
+      className="whitespace-nowrap"
     >
       {tierLabel}
-      {year && <span className="opacity-70">· {year}</span>}
-    </span>
+      {year && <span className="font-mono tabular-nums opacity-70">· {year}</span>}
+    </Chip>
   );
 }
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
-  const meta: Record<Verdict, { label: string; cls: string }> = {
-    top_quartile: { label: "Top 25%", cls: "bg-[#E6F7F4] text-[#1B7268] border-[#8FE3D9]" },
-    above_median: { label: "Peste median", cls: "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]" },
-    below_median: { label: "Sub median", cls: "bg-[#E6F7F4] text-[#1B7268] border-[#8FE3D9]" },
-    bottom_quartile: { label: "Sub 25%", cls: "bg-red-50 text-red-800 border-red-200" },
-    not_available: { label: "N/A", cls: "bg-stone-100 text-ink-mute border-rule" },
+  // Semantic ladder: accent for the top quartile, quiet success above the
+  // median, caution below it, alert for the bottom quartile — the one
+  // danger verdict this table can issue (matching the red the pre-
+  // instrument design already gave it).
+  const meta: Record<Verdict, { label: string; tone: ChipTone }> = {
+    top_quartile: { label: "Top 25%", tone: "accent" },
+    above_median: { label: "Peste median", tone: "success" },
+    below_median: { label: "Sub median", tone: "caution" },
+    bottom_quartile: { label: "Sub 25%", tone: "alert" },
+    not_available: { label: "N/A", tone: "neutral" },
   };
   const m = meta[verdict];
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10.5px] uppercase tracking-[0.06em] font-semibold ${m.cls}`}>
+    <Chip tone={m.tone} className="uppercase tracking-[0.06em] whitespace-nowrap">
       {m.label}
-    </span>
+    </Chip>
   );
 }
 
@@ -1022,127 +1059,130 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
 // reads first: who's in the industry, why the leader wins, where my
 // numbers sit vs the leader, what targets are realistic.
 
-// TIER_META holds the visual class per tier. The user-facing label is
+// TIER_META maps each tier to a Chip tone. The user-facing label is
 // translated at render time via t('benchmarkPage.peersTable.tiers.<tier>'),
 // not baked in here, so EN→RO/DE/FR/ES toggle re-paints the badge text.
-const TIER_META: Record<DeepPeer["tier"], { cls: string }> = {
-  leader:       { cls: "bg-[#2AA89B] text-white" },
-  strong:       { cls: "bg-[#2AA89B] text-white" },
-  median:       { cls: "bg-stone-500 text-white" },
-  thin_margin:  { cls: "bg-[#5CD3C5] text-white" },
-  distressed:   { cls: "bg-red-700 text-white" },
-  self:         { cls: "bg-ink text-paper" },
+// Tones per the instrument semantics: LEADER earns the accent, STRONG /
+// MEDIAN sit neutral, THIN MARGIN is the amber caution, DISTRESSED is the
+// one allowed red on this table (reported losses / distress), and the
+// self row reads as informational slate.
+const TIER_META: Record<DeepPeer["tier"], { tone: ChipTone }> = {
+  leader:       { tone: "accent" },
+  strong:       { tone: "neutral" },
+  median:       { tone: "neutral" },
+  thin_margin:  { tone: "caution" },
+  distressed:   { tone: "alert" },
+  self:         { tone: "info" },
 };
-
-function fmtM(value: number | null): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  const sign = value < 0 ? "−" : value > 0 ? "+" : "";
-  return `${sign}${Math.abs(value).toFixed(1)}`;
-}
-
-function fmtPct1(value: number | null): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return `${value.toFixed(1)}%`;
-}
-
-function fmtRatio2(value: number | null): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return `${value.toFixed(2)}×`;
-}
 
 function DeepPeerSection({ deep }: { deep: DeepReport }) {
   const { t } = useTranslation();
 
   // Backend ships `revenue_mlei` + `net_profit_mlei` in millions of RON.
-  // Convert to raw RON (×1e6) so <Money fromCurrency="RON" compact /> can
+  // Convert to raw RON (×1e6) so <MoneyAmount fromCurrency="RON" /> can
   // re-display in whatever currency the top-bar toggle is set to — flips
-  // RON → EUR → USD live without a page refresh. fmtM is kept as a tiny
-  // signed-number helper for things that aren't currency (margins, etc.).
+  // RON → EUR → USD live without a page refresh. Non-currency figures
+  // (margins) go through PercentLevel instead.
   const moneyFromMlei = (mlei: number | null) => {
     if (mlei === null || mlei === undefined || Number.isNaN(mlei)) return null;
     return mlei * 1_000_000;
   };
 
+  // One scale across every money cell of the peers table.
+  const groupValues = deep.peers.flatMap((p) => [
+    moneyFromMlei(p.revenue_mlei),
+    moneyFromMlei(p.net_profit_mlei),
+  ]);
+
   return (
     <section data-testid="benchmark-deep-peers" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">{t("benchmarkPage.peersTable.heading")}</h2>
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+        {t("benchmarkPage.peersTable.heading")}
+      </h2>
       {deep.leader_company && (
-        <div className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
-          <strong className="text-ink">{t("benchmarkPage.peersTable.leaderIntro")}</strong>{" "}
-          {deep.leader_company}
-          {deep.leader_year ? (
-            <> ({deep.leader_year},{" "}
-              <Money
-                value={moneyFromMlei(deep.leader_revenue_mlei)}
-                fromCurrency="RON"
-                compact
-              />
-              {" "}{t("benchmarkPage.peersTable.leaderRevenue")},{" "}
-              {fmtPct1(deep.leader_net_margin_pct)} {t("benchmarkPage.peersTable.leaderMargin")})
-            </>
-          ) : null}.{" "}
+        // The "industry leader identified" panel — the accent left rule +
+        // the accent chip mark the one company the section is about.
+        <Panel className="border-l-[3px] border-l-brand px-4 py-3" data-testid="benchmark-leader-panel">
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip tone="accent" dot>{t("benchmarkPage.peersTable.leaderIntro")}</Chip>
+            <span className="text-[13.5px] font-semibold text-ink">{deep.leader_company}</span>
+            {deep.leader_year ? (
+              <span className="text-[12.5px] text-ink-soft">
+                {deep.leader_year} ·{" "}
+                <MoneyAmount value={moneyFromMlei(deep.leader_revenue_mlei)} fromCurrency="RON" />{" "}
+                {t("benchmarkPage.peersTable.leaderRevenue")} ·{" "}
+                <PercentLevel value={deep.leader_net_margin_pct} />{" "}
+                {t("benchmarkPage.peersTable.leaderMargin")}
+              </span>
+            ) : null}
+          </div>
           {deep.leader_specialization && (
-            <>
-              <strong>{t("benchmarkPage.peersTable.leaderSpec")}:</strong> {deep.leader_specialization}.
-            </>
+            <p className="mt-1.5 text-[12.5px] text-ink-soft leading-relaxed">
+              <strong className="text-ink">{t("benchmarkPage.peersTable.leaderSpec")}:</strong>{" "}
+              {deep.leader_specialization}.
+            </p>
           )}
-        </div>
+        </Panel>
       )}
-      <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
-        <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
-          <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
-            <tr>
-              <th className="text-left px-4 py-2.5">{t("benchmarkPage.peersTable.cols.company")}</th>
-              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.year")}</th>
-              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.revenue")}</th>
-              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.netProfit")}</th>
-              <th className="text-right px-3 py-2.5">{t("benchmarkPage.peersTable.cols.netMargin")}</th>
-              <th className="text-left px-3 py-2.5">{t("benchmarkPage.peersTable.cols.specialization")}</th>
-              <th className="text-center px-3 py-2.5">{t("benchmarkPage.peersTable.cols.verdict")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {deep.peers.map((p, idx) => {
-              const positive = (p.net_margin_pct ?? 0) >= 0;
-              const profitColor = positive ? "text-[#2AA89B]" : "text-red-700";
-              const isSelf = p.tier === "self";
-              const isLeader = p.tier === "leader";
-              // Self-row specialization is set by backend to a localized
-              // sentinel ("Compania ta" / "Your company"). Re-derive on
-              // FE so the cell follows the active language regardless of
-              // what the backend baked in.
-              const specCell = isSelf
-                ? t("benchmarkPage.yourCompany")
-                : (p.specialization ?? "—");
-              return (
-                <tr
-                  key={`${p.company_name}-${p.fiscal_year}-${idx}`}
-                  data-testid={`peer-row-${p.tier}`}
-                  className={`border-t border-rule/60 ${isLeader ? "bg-[#E6F7F4]/30" : isSelf ? "bg-ink/[0.03] font-medium" : ""}`}
-                >
-                  <td className="px-4 py-2.5">{p.company_name}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-ink-mute">{p.fiscal_year ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">
-                    <Money value={moneyFromMlei(p.revenue_mlei)} fromCurrency="RON" compact />
-                  </td>
-                  <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitColor}`}>
-                    <Money value={moneyFromMlei(p.net_profit_mlei)} fromCurrency="RON" compact signed />
-                  </td>
-                  <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitColor}`}>
-                    {fmtPct1(p.net_margin_pct)}
-                  </td>
-                  <td className="px-3 py-2.5 text-ink-soft">{specCell}</td>
-                  <td className="px-3 py-2.5 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-[0.06em] ${TIER_META[p.tier].cls}`}>
-                      {t(`benchmarkPage.peersTable.tiers.${p.tier}`)}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Panel className="overflow-x-auto lg:overflow-x-visible">
+        <MoneyAmountGroup values={groupValues} fromCurrency="RON">
+          <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
+            <thead className="lg:sticky lg:top-14 z-10 bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+              <tr className="border-b border-rule">
+                <th className="text-left px-4 h-8 font-medium">{t("benchmarkPage.peersTable.cols.company")}</th>
+                <th className="text-right px-3 h-8 font-medium">{t("benchmarkPage.peersTable.cols.year")}</th>
+                <th className="text-right px-3 h-8 font-medium">{t("benchmarkPage.peersTable.cols.revenue")}</th>
+                <th className="text-right px-3 h-8 font-medium">{t("benchmarkPage.peersTable.cols.netProfit")}</th>
+                <th className="text-right px-3 h-8 font-medium">{t("benchmarkPage.peersTable.cols.netMargin")}</th>
+                <th className="text-left px-3 h-8 font-medium">{t("benchmarkPage.peersTable.cols.specialization")}</th>
+                <th className="text-center px-3 h-8 font-medium">{t("benchmarkPage.peersTable.cols.verdict")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deep.peers.map((p, idx) => {
+                // Red only for actual reported losses — a positive margin
+                // renders in plain ink, not celebratory green on every row.
+                const loss = (p.net_margin_pct ?? 0) < 0;
+                const profitColor = loss ? "text-alert" : "text-ink";
+                const isSelf = p.tier === "self";
+                const isLeader = p.tier === "leader";
+                // Self-row specialization is set by backend to a localized
+                // sentinel ("Compania ta" / "Your company"). Re-derive on
+                // FE so the cell follows the active language regardless of
+                // what the backend baked in.
+                const specCell = isSelf
+                  ? t("benchmarkPage.yourCompany")
+                  : (p.specialization ?? "—");
+                return (
+                  <tr
+                    key={`${p.company_name}-${p.fiscal_year}-${idx}`}
+                    data-testid={`peer-row-${p.tier}`}
+                    className={`border-t border-rule-soft h-8 ${isLeader ? "bg-brand-tint/40" : isSelf ? "bg-bg-2/60 font-medium" : ""}`}
+                  >
+                    <td className="px-4 py-1">{p.company_name}</td>
+                    <td className="px-3 py-1 text-right font-mono tabular-nums text-ink-mute">{p.fiscal_year ?? "—"}</td>
+                    <td className="px-3 py-1 text-right">
+                      <MoneyAmount value={moneyFromMlei(p.revenue_mlei)} fromCurrency="RON" unit={false} />
+                    </td>
+                    <td className={`px-3 py-1 text-right font-medium ${profitColor}`}>
+                      <MoneyAmount value={moneyFromMlei(p.net_profit_mlei)} fromCurrency="RON" unit={false} signed />
+                    </td>
+                    <td className={`px-3 py-1 text-right font-medium ${profitColor}`}>
+                      <PercentLevel value={p.net_margin_pct} />
+                    </td>
+                    <td className="px-3 py-1 text-ink-soft">{specCell}</td>
+                    <td className="px-3 py-1 text-center">
+                      <Chip tone={TIER_META[p.tier].tone} className="uppercase tracking-[0.06em]">
+                        {t(`benchmarkPage.peersTable.tiers.${p.tier}`)}
+                      </Chip>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </MoneyAmountGroup>
+      </Panel>
     </section>
   );
 }
@@ -1150,34 +1190,36 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
 function DeepLeaderWhySection({ deep }: { deep: DeepReport }) {
   return (
     <section data-testid="benchmark-deep-why" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
         2. Why the leader ({deep.leader_company}) dominates — {deep.leader_reasons.length} structural reasons
       </h2>
       <p className="text-[13px] text-ink-soft leading-relaxed">
         Cumulative impact is approximately{" "}
-        <strong>+{deep.leader_total_impact_pp.toFixed(1)}pp margin</strong> above the industry average.
-        These are structural advantages (not cyclical) — competitors would have to replicate them
-        simultaneously to close the gap.
+        <strong className="text-ink">
+          <PpDelta value={deep.leader_total_impact_pp / 100} /> margin
+        </strong>{" "}
+        above the industry average. These are structural advantages (not cyclical) —
+        competitors would have to replicate them simultaneously to close the gap.
       </p>
       <div className="space-y-2.5">
         {deep.leader_reasons.map((reason) => (
-          <div
+          <Panel
             key={reason.rank}
             data-testid={`leader-reason-${reason.rank}`}
-            className="rounded-xl border-l-[3px] border-[#5CD3C5] bg-surface px-4 py-3.5"
+            className="px-4 py-3"
           >
             <div className="flex items-start justify-between gap-3 flex-wrap">
-              <strong className="text-[13.5px] text-ink leading-tight">
+              <strong className="text-[13px] text-ink leading-tight">
                 {reason.rank}. {reason.title}
               </strong>
               {reason.margin_impact_pp !== null && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded bg-ink text-paper text-[11px] font-semibold whitespace-nowrap">
-                  +{reason.margin_impact_pp.toFixed(1)}pp margin impact
-                </span>
+                <Chip tone="neutral" className="whitespace-nowrap">
+                  <PpDelta value={reason.margin_impact_pp / 100} /> margin impact
+                </Chip>
               )}
             </div>
             <p className="mt-1.5 text-[12.5px] text-ink-soft leading-relaxed">{reason.description}</p>
-          </div>
+          </Panel>
         ))}
       </div>
     </section>
@@ -1186,40 +1228,42 @@ function DeepLeaderWhySection({ deep }: { deep: DeepReport }) {
 
 function DeepGapSection({ deep }: { deep: DeepReport }) {
   return (
-    <section data-testid="benchmark-deep-gap" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">
+    <section data-testid="benchmark-deep-gap" className="space-y-2">
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
         3. Your company vs the leader ({deep.leader_company}) — Gap analysis
       </h2>
-      <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
+      <Panel className="overflow-x-auto lg:overflow-x-visible">
         <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
-          <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
-            <tr>
-              <th className="text-left px-4 py-2.5">Metric</th>
-              <th className="text-right px-3 py-2.5">Your company</th>
-              <th className="text-right px-3 py-2.5">{deep.leader_company ?? "Leader"}</th>
-              <th className="text-right px-3 py-2.5">Gap</th>
+          <thead className="lg:sticky lg:top-14 z-10 bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+            <tr className="border-b border-rule">
+              <th className="text-left px-4 h-8 font-medium">Metric</th>
+              <th className="text-right px-3 h-8 font-medium">Your company</th>
+              <th className="text-right px-3 h-8 font-medium">{deep.leader_company ?? "Leader"}</th>
+              <th className="text-right px-3 h-8 font-medium">Gap</th>
             </tr>
           </thead>
           <tbody>
             {deep.gap_vs_leader.map((row) => {
-              const fmt = (v: number): string =>
-                row.unit === "pct" ? fmtPct1(v) : fmtRatio2(v);
+              const fmt = (v: number) =>
+                row.unit === "pct" ? <PercentLevel value={v} /> : <CappedMultiple value={v} />;
               const arrow = row.gap >= 0 ? "↑" : "↓";
-              const gapColor = row.favorable ? "text-[#2AA89B]" : "text-red-700";
+              // Favorable / unfavorable vs the leader is the semantic
+              // verdict of this column — the only colored cells here.
+              const gapColor = row.favorable ? "text-success" : "text-alert";
               return (
-                <tr key={row.key} className="border-t border-rule/60">
-                  <td className="px-4 py-2.5 text-ink">{row.label}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{fmt(row.company_value)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{fmt(row.leader_value)}</td>
-                  <td className={`px-3 py-2.5 text-right tabular-nums font-bold ${gapColor}`}>
-                    {arrow} {fmt(Math.abs(row.gap))}
+                <tr key={row.key} className="border-t border-rule-soft first:border-t-0 h-8">
+                  <td className="px-4 py-1 text-ink">{row.label}</td>
+                  <td className="px-3 py-1 text-right">{fmt(row.company_value)}</td>
+                  <td className="px-3 py-1 text-right">{fmt(row.leader_value)}</td>
+                  <td className={`px-3 py-1 text-right font-semibold ${gapColor}`}>
+                    <span aria-hidden>{arrow}</span> {fmt(Math.abs(row.gap))}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-      </div>
+      </Panel>
     </section>
   );
 }
@@ -1227,46 +1271,49 @@ function DeepGapSection({ deep }: { deep: DeepReport }) {
 function DeepTargetTiersSection({ deep }: { deep: DeepReport }) {
   const t = deep.target_tiers;
   if (!t) return null;
-  const rows: Array<{ tier: TargetTier; bg: string; icon: string }> = [];
-  if (t.aspirational) rows.push({ tier: t.aspirational, bg: "bg-[#E6F7F4]/60", icon: "🎯" });
-  if (t.realistic) rows.push({ tier: t.realistic, bg: "bg-[#E6F7F4]/60", icon: "✓" });
-  if (t.minimum_viable) rows.push({ tier: t.minimum_viable, bg: "bg-red-50/40", icon: "⚠" });
+  // No emoji glyphs — the tier's ambition level is carried by a chip tone
+  // (accent stretch target / neutral realistic / caution floor).
+  const rows: Array<{ tier: TargetTier; tone: ChipTone }> = [];
+  if (t.aspirational) rows.push({ tier: t.aspirational, tone: "accent" });
+  if (t.realistic) rows.push({ tier: t.realistic, tone: "neutral" });
+  if (t.minimum_viable) rows.push({ tier: t.minimum_viable, tone: "caution" });
   return (
-    <section data-testid="benchmark-deep-tiers" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">4. Target margin tiers for this industry</h2>
-      <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
+    <section data-testid="benchmark-deep-tiers" className="space-y-2">
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+        4. Target margin tiers for this industry
+      </h2>
+      <Panel className="overflow-x-auto lg:overflow-x-visible">
         <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
-          <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
-            <tr>
-              <th className="text-left px-4 py-2.5">Tier</th>
-              <th className="text-right px-3 py-2.5">Net margin</th>
-              <th className="text-right px-3 py-2.5">EBITDA margin</th>
-              <th className="text-left px-3 py-2.5">Comment</th>
+          <thead className="lg:sticky lg:top-14 z-10 bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+            <tr className="border-b border-rule">
+              <th className="text-left px-4 h-8 font-medium">Tier</th>
+              <th className="text-right px-3 h-8 font-medium">Net margin</th>
+              <th className="text-right px-3 h-8 font-medium">EBITDA margin</th>
+              <th className="text-left px-3 h-8 font-medium">Comment</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className={`border-t border-rule/60 ${r.bg}`}>
-                <td className="px-4 py-2.5 font-medium">
-                  <span className="mr-1.5">{r.icon}</span>
-                  {r.tier.label}
+              <tr key={i} className="border-t border-rule-soft first:border-t-0 h-8">
+                <td className="px-4 py-1">
+                  <Chip tone={r.tone}>{r.tier.label}</Chip>
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums font-medium">{fmtPct1(r.tier.net_margin_pct)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums font-medium">{fmtPct1(r.tier.ebitda_margin_pct)}</td>
-                <td className="px-3 py-2.5 text-ink-soft">{r.tier.comment}</td>
+                <td className="px-3 py-1 text-right font-medium"><PercentLevel value={r.tier.net_margin_pct} /></td>
+                <td className="px-3 py-1 text-right font-medium"><PercentLevel value={r.tier.ebitda_margin_pct} /></td>
+                <td className="px-3 py-1 text-ink-soft">{r.tier.comment}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
-      <div className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/30 dark:bg-[#5CD3C5]/[0.06] px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
+      </Panel>
+      <Panel inset className="border-l-[3px] border-l-info px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed">
         <strong className="text-ink">How to read the table:</strong>{" "}
         Aspirational is the top-quartile threshold (10-15% of the industry); it requires the kind of
         structural advantages described above plus 5-10+ years of execution. Realistic is the
         reasonable target for a well-run company without extreme structural advantages. Minimum
         viable is the threshold below which operations become fragile (capex inability, refinancing
         pressure).
-      </div>
+      </Panel>
     </section>
   );
 }
@@ -1281,28 +1328,30 @@ function DeepDynamicsSection({ deep }: { deep: DeepReport }) {
     barriers: "Entry barriers",
   };
   return (
-    <section data-testid="benchmark-deep-dynamics" className="space-y-3">
-      <h2 className="font-serif text-[20px] text-ink">5. Industry dynamics</h2>
-      <div className="rounded-2xl border border-rule bg-surface overflow-x-auto">
+    <section data-testid="benchmark-deep-dynamics" className="space-y-2">
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+        5. Industry dynamics
+      </h2>
+      <Panel className="overflow-x-auto lg:overflow-x-visible">
         <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">
-          <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
-            <tr>
-              <th className="text-left px-4 py-2.5">Aspect</th>
-              <th className="text-left px-3 py-2.5">Verdict</th>
-              <th className="text-left px-3 py-2.5">Detail</th>
+          <thead className="lg:sticky lg:top-14 z-10 bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+            <tr className="border-b border-rule">
+              <th className="text-left px-4 h-8 font-medium">Aspect</th>
+              <th className="text-left px-3 h-8 font-medium">Verdict</th>
+              <th className="text-left px-3 h-8 font-medium">Detail</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(d).map(([key, val]) => (
-              <tr key={key} className="border-t border-rule/60">
-                <td className="px-4 py-2.5 font-medium">{labels[key] ?? key}</td>
-                <td className="px-3 py-2.5 text-ink-soft">{val.verdict}</td>
-                <td className="px-3 py-2.5 text-ink-soft">{val.detail}</td>
+              <tr key={key} className="border-t border-rule-soft first:border-t-0 h-8">
+                <td className="px-4 py-1 font-medium">{labels[key] ?? key}</td>
+                <td className="px-3 py-1 text-ink-soft">{val.verdict}</td>
+                <td className="px-3 py-1 text-ink-soft">{val.detail}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Panel>
     </section>
   );
 }
@@ -1312,7 +1361,7 @@ function DeepPatternsFailuresSection({ deep }: { deep: DeepReport }) {
     <section data-testid="benchmark-deep-patterns" className="space-y-4">
       {deep.success_patterns.length > 0 && (
         <div>
-          <h2 className="font-serif text-[20px] text-ink mb-2">6. Success patterns in this industry</h2>
+          <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-2">6. Success patterns in this industry</h2>
           <ul className="list-disc pl-5 text-[12.5px] text-ink-soft leading-relaxed space-y-1">
             {deep.success_patterns.map((p, i) => (
               <li key={i}>{p}</li>
@@ -1322,7 +1371,7 @@ function DeepPatternsFailuresSection({ deep }: { deep: DeepReport }) {
       )}
       {deep.failure_modes.length > 0 && (
         <div>
-          <h2 className="font-serif text-[20px] text-ink mb-2">7. Typical failure modes</h2>
+          <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-2">7. Typical failure modes</h2>
           <ul className="list-disc pl-5 text-[12.5px] text-ink-soft leading-relaxed space-y-1">
             {deep.failure_modes.map((p, i) => (
               <li key={i}>{p}</li>
@@ -1337,10 +1386,12 @@ function DeepPatternsFailuresSection({ deep }: { deep: DeepReport }) {
 function DeepMarketContextSection({ text }: { text: string }) {
   return (
     <section data-testid="benchmark-deep-market" className="space-y-2">
-      <h2 className="font-serif text-[20px] text-ink">8. Romania market context</h2>
-      <div className="rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
+      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+        8. Romania market context
+      </h2>
+      <Panel inset className="border-l-[3px] border-l-info px-4 py-3 text-[13px] text-ink-soft leading-relaxed">
         {text}
-      </div>
+      </Panel>
     </section>
   );
 }
@@ -1380,18 +1431,18 @@ function BenchmarkPreviewStrip() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-8" data-testid="benchmark-preview-strip">
       {items.map((it) => (
-        <div
+        <Panel
           key={it.title}
-          className="rounded-lg border border-rule border-l-[3px] border-l-brand bg-surface p-3 text-left"
+          className="border-l-[3px] border-l-brand p-3 text-left"
         >
           <div className="flex items-start justify-between gap-2 mb-1">
             <div className="text-[12.5px] font-medium text-ink leading-tight">{it.title}</div>
-            <span className="shrink-0 text-[9px] uppercase tracking-[0.06em] font-semibold px-1.5 py-0.5 rounded bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]">
+            <Chip tone="accent" className="shrink-0 text-[10px] uppercase tracking-[0.06em]">
               {it.eyebrow}
-            </span>
+            </Chip>
           </div>
           <p className="text-[11.5px] text-ink-soft leading-relaxed">{it.body}</p>
-        </div>
+        </Panel>
       ))}
     </div>
   );

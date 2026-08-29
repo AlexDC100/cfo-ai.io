@@ -1,0 +1,7 @@
+# CHAT lane — critique r3, FINAL (shots: chat-r3, chat-r3-states, chat-r3-convo)
+
+- **Hierarchy** — thread order reads instantly: user tint-panels right, assistant surface-panels left, degraded panel calm and subordinate to the conversation (headline → Retry → quiet details). Empty state keeps its single serif display line (permitted exception); everything else on the screen is sans.
+- **Density** — 2-line composer, one hairline history panel, pill rows only where there is room (sm+). Mobile conversation now scrolls fully clear of the fixed composer; nothing important hides under it at rest.
+- **Contrast** — both themes verified by pixel sampling; chips (accent grounding, caution no-workspace) hold AA on their tints; disabled pills/cards at 50% still legible as "present but locked", tooltip carries the why.
+- **Soul** — flat at rest everywhere (no resting shadows, no glass blur, no animated gradients on send/new-chat: solid brand fill, paper glyph). Red appears only for delete/error. The degraded state never shows JSON, status codes, or request ids — enforced by the D8 test (8/8 green), verified live against the real failing backend.
+- **Consistency** — radii on the 6/10/12 scale, colors token-only in every lane file, duration-micro on interactive transitions, mono reserved for the ⌘↵ hint and file-type tags. Existing behaviors preserved: Enter-to-send, drafts per conversation, lazy thread creation, keyboard inset, find-in-conversation, stop/interrupt, cap-lockout banner (now caution-toned). PASS.

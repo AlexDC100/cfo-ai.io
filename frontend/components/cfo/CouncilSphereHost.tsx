@@ -148,7 +148,7 @@ export function CouncilSphereHost({
       data-testid="council-sphere-host"
       aria-hidden={!visible}
       className={`fixed inset-x-0 z-30 pointer-events-none transition-opacity duration-700 ease-out ${
-        sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"
+        sidebarCollapsed ? "lg:pl-[64px]" : "lg:pl-[232px]"
       }`}
       style={{
         top: SPHERE_TOP_OFFSET,

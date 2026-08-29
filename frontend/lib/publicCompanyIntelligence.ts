@@ -396,9 +396,9 @@ export function fetchUniverseRiskScores(): Promise<UniverseRiskScoresResponse> {
 export function severityToTextClass(s: Severity): string {
   switch (s) {
     case "critical": return "text-alert";
-    case "high":     return "text-[#5CD3C5]";
-    case "medium":   return "text-[#5CD3C5]";
-    case "low":      return "text-[#5CD3C5]";
+    case "high":     return "text-brand";
+    case "medium":   return "text-brand";
+    case "low":      return "text-brand";
   }
 }
 
@@ -406,9 +406,9 @@ export function severityToTextClass(s: Severity): string {
 export function severityToBgClass(s: Severity): string {
   switch (s) {
     case "critical": return "bg-alert/10 border-alert/30";
-    case "high":     return "bg-[#5CD3C5]/10 border-[#5CD3C5]/30";
-    case "medium":   return "bg-[#5CD3C5]/10 border-[#5CD3C5]/30";
-    case "low":      return "bg-[#5CD3C5]/10 border-[#5CD3C5]/30";
+    case "high":     return "bg-brand/10 border-brand/30";
+    case "medium":   return "bg-brand/10 border-brand/30";
+    case "low":      return "bg-brand/10 border-brand/30";
   }
 }
 

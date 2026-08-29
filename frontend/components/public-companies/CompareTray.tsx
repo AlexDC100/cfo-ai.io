@@ -136,7 +136,7 @@ export function CompareTray({ rows, workspace, onRemove, onClear, atLimit }: Pro
           data-testid="compare-sheet"
         >
           <SheetHeader className="text-left">
-            <SheetTitle className="font-serif text-[20px] tracking-[-0.005em]">
+            <SheetTitle className="text-[15px] font-semibold tracking-[-0.005em]">
               {t("pci.compare.title")}
             </SheetTitle>
             <SheetDescription className="text-[12px]">
@@ -150,7 +150,7 @@ export function CompareTray({ rows, workspace, onRemove, onClear, atLimit }: Pro
                 type="checkbox"
                 checked={includeYou}
                 onChange={(e) => setIncludeYou(e.target.checked)}
-                className="h-4 w-4 accent-[#5CD3C5]"
+                className="h-4 w-4 accent-brand"
                 data-testid="compare-include-you"
               />
               {t("pci.compare.includeYou")}

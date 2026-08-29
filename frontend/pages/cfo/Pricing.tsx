@@ -124,7 +124,7 @@ export default function Pricing() {
         {!isAuthed && (
           <section className="max-w-[860px] mx-auto px-5 sm:px-8 pt-16 sm:pt-24 pb-2 text-center">
             <div className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
-              <span aria-hidden className="inline-block h-[7px] w-[7px] bg-[hsl(var(--brand))]" />
+              <span aria-hidden className="inline-block h-[7px] w-[7px] bg-brand" />
               {t("pricingX.plans_billing_eyebrow")}
             </div>
             <h2 className="mt-3 font-serif text-[28px] sm:text-[36px] leading-[1.04] tracking-[-0.02em] text-ink">
@@ -199,7 +199,7 @@ function ZeroFrictionHero() {
         {/* Eyebrow — frames the page as a trial offer, not pricing.
             2026-05-24 rev2: copy aligned to free-trial-only hero. */}
         <div className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
-          <span aria-hidden className="inline-block h-[7px] w-[7px] bg-[hsl(var(--brand))]" />
+          <span aria-hidden className="inline-block h-[7px] w-[7px] bg-brand" />
           {t("pricingX.hero_eyebrow")}
         </div>
 
@@ -226,10 +226,9 @@ function ZeroFrictionHero() {
             className="
               inline-flex items-center gap-2.5
               h-14 px-8 rounded-full
-              bg-gradient-cfo text-white
+              bg-gradient-cfo text-primary-foreground
               text-[16px] font-medium
-              shadow-2 hover:shadow-3
-              transition-all hover:-translate-y-0.5
+              transition-transform duration-micro hover:-translate-y-0.5
             "
           >
             {t("pricingX.hero_cta")}
@@ -336,7 +335,7 @@ function CurrentPlanStrip() {
       data-plan-key={state.plan_key}
       className="max-w-[760px] mx-auto px-5 sm:px-8 mt-2"
     >
-      <div className="rounded-2xl border border-brand/25 bg-gradient-to-br from-brand/12 via-bg-2/40 to-brand/8 backdrop-blur-sm p-5 sm:p-6">
+      <div className="rounded-md border border-brand/30 bg-brand-tint/30 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
@@ -353,7 +352,7 @@ function CurrentPlanStrip() {
               <span
                 data-testid="current-plan-status"
                 className={`text-[11px] uppercase tracking-[0.08em] font-semibold ${
-                  cancelling ? "text-[#2AA89B]" : "text-brand-d"
+                  cancelling ? "text-caution" : "text-brand-d"
                 }`}
               >
                 {statusLabel}
@@ -382,7 +381,7 @@ function CurrentPlanStrip() {
               className="
                 shrink-0 inline-flex items-center h-8 px-3 rounded-md
                 text-[12px] font-medium text-ink-soft
-                hover:text-red-700 hover:bg-red-500/10
+                hover:text-alert hover:bg-alert/10
                 transition-colors
               "
             >

@@ -339,17 +339,17 @@ export function sourceTone(source: DetectionSource): {
 } {
   switch (source) {
     case "user_override":
-      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
+      return { text: "text-brand-d dark:text-brand-l", bg: "bg-brand-tint", border: "border-brand-l/50" };
     case "auto_caen":
-      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
+      return { text: "text-brand-d dark:text-brand-l", bg: "bg-brand-tint", border: "border-brand-l/50" };
     case "auto_keyword":
     case "auto_activity_text":
-      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
+      return { text: "text-brand-d dark:text-brand-l", bg: "bg-brand-tint", border: "border-brand-l/50" };
     case "auto_account_structure":
-      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
+      return { text: "text-brand-d dark:text-brand-l", bg: "bg-brand-tint", border: "border-brand-l/50" };
     case "fallback":
     default:
-      return { text: "text-[#2AA89B]", bg: "bg-[#E6F7F4]", border: "border-[#8FE3D9]" };
+      return { text: "text-brand-d dark:text-brand-l", bg: "bg-brand-tint", border: "border-brand-l/50" };
   }
 }
 

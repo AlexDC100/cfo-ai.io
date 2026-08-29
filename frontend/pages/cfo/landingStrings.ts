@@ -40,7 +40,13 @@ export interface LandingStrings {
   defensible: {
     eyebrow: string; title: string; body: string;
     bullets: { strong: string; rest: string }[];
-    cardLabel: string; yourCo: string; cardNote: string;
+    /** Engine proof strip — REAL measured stats (values mirror the claims
+     *  in `body`), replacing the former decorative peer-bar numbers. */
+    proof: {
+      label: string;
+      stats: { value: string; caption: string }[];
+      note: string;
+    };
   };
   audiences: {
     eyebrow: string; t1: string; thl: string;
@@ -129,8 +135,15 @@ const en: LandingStrings = {
       { strong: "Traceable.", rest: "Every number links back to the source line it came from." },
       { strong: "Honest about uncertainty.", rest: "Approximations are marked, never buried." },
     ],
-    cardLabel: "Peer benchmark · EBITDA margin", yourCo: "Your Co.",
-    cardNote: "You sit in the top quartile of your matched peer set on operating profitability.",
+    proof: {
+      label: "Engine proof · latest battery",
+      stats: [
+        { value: "0.00%", caption: "balance-sheet drift — five of eight calibration fixtures exact, all eight within 1%" },
+        { value: "17/17", caption: "determinism gates green on the deployed engine" },
+        { value: "byte-identical", caption: "reruns — the same trial balance always produces the same output" },
+      ],
+      note: "Measured on the engine's calibration fixtures, re-run on every deploy.",
+    },
   },
   audiences: {
     eyebrow: "Who it's for", t1: "Built for whoever reads the ", thl: "numbers.",
@@ -268,8 +281,15 @@ const ro: LandingStrings = {
       { strong: "Trasabil.", rest: "Fiecare cifră trimite înapoi la linia-sursă din care provine." },
       { strong: "Onest cu incertitudinea.", rest: "Aproximările sunt marcate, niciodată ascunse." },
     ],
-    cardLabel: "Benchmark comparabil · Marjă EBITDA", yourCo: "Compania ta",
-    cardNote: "Te afli în quartila superioară a setului tău de companii comparabile la profitabilitatea operațională.",
+    proof: {
+      label: "Proba motorului · ultima baterie de teste",
+      stats: [
+        { value: "0,00%", caption: "abatere de bilanț — cinci din opt cazuri de calibrare exact, toate opt sub 1%" },
+        { value: "17/17", caption: "porți de determinism verzi pe motorul instalat" },
+        { value: "byte-identic", caption: "rerulări — aceeași balanță de verificare produce întotdeauna același rezultat" },
+      ],
+      note: "Măsurat pe cazurile de calibrare ale motorului, re-rulat la fiecare instalare.",
+    },
   },
   audiences: {
     eyebrow: "Pentru cine este", t1: "Creat pentru oricine citește ", thl: "cifrele.",

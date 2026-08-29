@@ -501,7 +501,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
   function renderStatusChip(p: OrgPeriod) {
     const count = (p.documents ?? []).length;
     return count === 0 ? (
-      <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-500/80 px-1.5 py-px text-[10px] font-medium">
+      <span className="inline-flex items-center rounded-full bg-caution-tint text-caution px-1.5 py-px text-[10px] font-medium">
         {t("wsSet.periods.noFiles")}
       </span>
     ) : (
@@ -563,7 +563,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
           <DropdownMenuItem
             onSelect={() => requestDelete(p)}
             data-testid={`workspace-month-delete-${p.period_id}`}
-            className="text-red-500 focus:text-red-500 gap-2"
+            className="text-alert focus:text-alert gap-2"
           >
             <Trash2 size={14} strokeWidth={1.75} />
             {t("ws.deletePeriod")}
@@ -753,13 +753,13 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
         data-testid={`wsset-period-row-${p.period_id}`}
         className="flex items-center gap-3 px-4 py-3"
       >
-        <CalendarDays size={16} strokeWidth={1.5} className="shrink-0 text-amber-500" />
+        <CalendarDays size={16} strokeWidth={1.5} className="shrink-0 text-caution" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[13px] font-medium tabular-nums text-ink">{label(p)}</span>
             <span
               data-testid={`wsset-period-baddate-${p.period_id}`}
-              className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-500 px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.06em]"
+              className="inline-flex items-center rounded-full bg-caution-tint text-caution px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.06em]"
             >
               {t("ws.badDate")}
             </span>
@@ -785,7 +785,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
           type="button"
           onClick={() => setAddOpen(true)}
           data-testid="workspace-add-month"
-          className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+          className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-sm bg-brand text-paper text-[12.5px] font-medium hover:bg-brand-dark transition-colors duration-micro"
         >
           <Plus size={14} strokeWidth={2.25} />
           {t("ws.addPeriod")}
@@ -799,7 +799,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
             type="button"
             onClick={() => setAddOpen(true)}
             data-testid="wsset-period-empty-cta"
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-4 rounded-sm bg-brand text-paper text-[12.5px] font-medium hover:bg-brand-dark transition-colors duration-micro"
           >
             <Plus size={14} strokeWidth={2.25} />
             {t("wsSet.periods.emptyCta")}
@@ -819,7 +819,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
                     <motion.div {...rowMotion} key={g.key} data-testid={`wsset-period-group-${g.key}`}>
                       <div className="px-4 pt-3 pb-2 bg-bg-2/30">
                         <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden />
+                          <span className="h-1.5 w-1.5 rounded-full bg-caution shrink-0" aria-hidden />
                           <span data-testid={`wsset-period-duplicate-${g.key}`}>
                             {t("wsSet.periods.dupTitle", { month: lbl, count: g.periods.length })}
                           </span>
@@ -843,17 +843,17 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
           {quarantine.length > 0 && (
             <div
               data-testid="wsset-period-quarantine"
-              className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] overflow-hidden"
+              className="mt-4 rounded-xl border border-caution/30 bg-caution-tint overflow-hidden"
             >
-              <div className="px-4 pt-3 pb-2 border-b border-amber-500/20">
-                <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-amber-500">
+              <div className="px-4 pt-3 pb-2 border-b border-caution/20">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-caution">
                   {t("wsSet.periods.needsAttention")}
                 </div>
                 <p className="mt-0.5 text-[11px] text-ink-mute leading-relaxed">
                   {t("wsSet.periods.needsAttentionHint")}
                 </p>
               </div>
-              <div className="divide-y divide-amber-500/15">
+              <div className="divide-y divide-caution/15">
                 <AnimatePresence initial={false}>
                   {quarantine.map((p) => renderQuarantineRow(p))}
                 </AnimatePresence>
@@ -899,7 +899,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
               type="button"
               onClick={() => void confirmDelete()}
               data-testid="workspace-period-delete-confirm"
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-alert/30 bg-alert-tint text-[12.5px] font-medium text-alert hover:border-alert/50 transition-colors duration-micro"
             >
               <Trash2 size={14} strokeWidth={1.75} />
               {t("ws.deletePeriod")}
@@ -1032,15 +1032,15 @@ function RenamePeriodDialog({
                 if (e.key === "Enter" && canSubmit) void submit();
               }}
               data-testid="wsset-period-rename-month"
-              className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+              className="w-full h-8 px-3 rounded-sm border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50"
             />
             {!monthValid && month !== "" && (
-              <p className="mt-1.5 text-[11.5px] text-amber-600">
+              <p className="mt-1.5 text-[11.5px] text-caution">
                 {t("wsSet.addPeriod.range", { year: maxYear })}
               </p>
             )}
             {occupied && (
-              <p className="mt-1.5 text-[11.5px] text-amber-600" data-testid="wsset-period-rename-occupied">
+              <p className="mt-1.5 text-[11.5px] text-caution" data-testid="wsset-period-rename-occupied">
                 {t("wsSet.addPeriod.duplicateBlocked", { month: monthLabelOf(month) })}
               </p>
             )}
@@ -1052,7 +1052,7 @@ function RenamePeriodDialog({
             type="button"
             onClick={() => (mergePrompt ? setMergePrompt(false) : onClose())}
             disabled={busy}
-            className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center h-8 px-3.5 rounded-sm border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors duration-micro"
           >
             {t("common.cancel")}
           </button>
@@ -1061,7 +1061,7 @@ function RenamePeriodDialog({
             onClick={() => void submit()}
             disabled={!canSubmit}
             data-testid={mergePrompt ? "wsset-period-merge-confirm" : "wsset-period-rename-confirm"}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-4 rounded-sm bg-brand text-paper text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
             {mergePrompt
@@ -1237,15 +1237,15 @@ function AddPeriodDialogV2({
                     if (e.key === "Enter" && canSubmit) void submit();
                   }}
                   data-testid="workspace-add-period-month"
-                  className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+                  className="w-full h-8 px-3 rounded-sm border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50"
                 />
                 {!monthValid && month !== "" && (
-                  <p className="mt-1.5 text-[11.5px] text-amber-600" data-testid="wsset-add-period-range">
+                  <p className="mt-1.5 text-[11.5px] text-caution" data-testid="wsset-add-period-range">
                     {t("wsSet.addPeriod.range", { year: maxYear })}
                   </p>
                 )}
                 {duplicate && (
-                  <p className="mt-1.5 text-[11.5px] text-amber-600" data-testid="workspace-add-period-duplicate">
+                  <p className="mt-1.5 text-[11.5px] text-caution" data-testid="workspace-add-period-duplicate">
                     {t("wsSet.addPeriod.duplicateBlocked", { month: monthLabel })}
                   </p>
                 )}
@@ -1308,7 +1308,7 @@ function AddPeriodDialogV2({
               type="button"
               onClick={() => onOpenChange(false)}
               disabled={busy}
-              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center h-8 px-3.5 rounded-sm border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-50 transition-colors duration-micro"
             >
               {t("common.cancel")}
             </button>
@@ -1317,7 +1317,7 @@ function AddPeriodDialogV2({
               onClick={() => void submit()}
               disabled={!canSubmit}
               data-testid="workspace-add-period-confirm"
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-4 rounded-sm bg-brand text-paper text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
               {busy

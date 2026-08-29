@@ -86,7 +86,7 @@ export function DocumentChip() {
   const toneClasses = isFailed
     ? "border-alert/40 bg-alert/10 text-alert"
     : isAnalyzed
-    ? "border-[#5CD3C5]/40 bg-[#5CD3C5]/10 text-[#2AA89B] dark:text-[#8FE3D9]"
+    ? "border-success/40 bg-success/10 text-success"
     : "border-brand/40 bg-brand/10 text-ink";
 
   return (

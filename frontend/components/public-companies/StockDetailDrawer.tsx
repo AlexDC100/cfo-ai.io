@@ -339,7 +339,7 @@ export function StockDetailDrawer({
               <div
                 data-testid="stock-drawer-delta"
                 className={`text-[13px] font-medium tabular-nums ${
-                  positiveDelta ? "text-[#2AA89B]" : "text-red-700"
+                  positiveDelta ? "text-success" : "text-alert"
                 }`}
               >
                 {positiveDelta ? "+" : ""}
@@ -446,22 +446,21 @@ export function StockDetailDrawer({
           bg-bg-2/30
         ">
           {/* "Open full analysis" removed 2026-07-26 per operator. Ask CFO AI
-              carries the header pill's exact treatment (animated gradient
-              fill, brand border, pill radius) so the same action looks the
-              same wherever it appears. */}
+              follows the TopHeader's quiet accent treatment (THE INSTRUMENT:
+              the animated gradient fill retired app-wide) so the same action
+              still looks the same wherever it appears. */}
           <button
             type="button"
             onClick={handleAskCfoAi}
             data-testid="stock-drawer-ask-cfo-ai"
             aria-label="Ask CFO AI"
             className="
-              ask-ai-anim-fill
               inline-flex items-center justify-center gap-1.5
-              h-9 px-3.5 rounded-full
-              border border-brand/40 text-ink
-              hover:border-brand/60
+              h-8 px-3 rounded-sm
+              text-brand-dark dark:text-brand-light
+              hover:bg-brand-tint
               text-[12.5px] font-medium
-              transition-colors
+              transition-colors duration-micro
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
             "
           >

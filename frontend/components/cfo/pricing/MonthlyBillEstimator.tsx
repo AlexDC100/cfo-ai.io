@@ -217,7 +217,7 @@ function PlanEstimate({
         </li>
         <li
           data-testid={`estimator-${plan.key}-chat-verdict`}
-          className={`flex justify-between pt-1 ${chatOver ? "text-[#2AA89B]" : ""}`}
+          className={`flex justify-between pt-1 ${chatOver ? "text-caution" : ""}`}
         >
           <span>
             Ask CFO AI: {chat} / {plan.chat_monthly_cap ?? "—"} per month

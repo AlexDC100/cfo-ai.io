@@ -131,7 +131,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
             <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
               <button
                 onClick={this.reload}
-                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand text-[#05070A] text-[13px] font-medium hover:bg-brand/90 transition-colors"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand text-primary-foreground text-[13px] font-medium hover:bg-brand/90 transition-colors"
               >
                 <RotateCw size={14} strokeWidth={2} />
                 Reload

@@ -24,22 +24,14 @@ interface Props {
 export function DataDepthBanner({ depth, subject, compact }: Props) {
   const [open, setOpen] = useState(false);
 
-  const accent = depth.level >= 3 ? "#2AA89B" : depth.level === 2 ? "#2AA89B" : "#2AA89B";
-  const accentBg =
-    depth.level >= 3 ? "rgba(42,168,155,0.08)" :
-    depth.level === 2 ? "rgba(42,168,155,0.08)" :
-    "rgba(92,211,197,0.10)";
-  const accentBorder =
-    depth.level >= 3 ? "rgba(42,168,155,0.30)" :
-    depth.level === 2 ? "rgba(42,168,155,0.30)" :
-    "rgba(92,211,197,0.40)";
+  // All depth levels share the single product accent — depth is a fact,
+  // not an alarm. Tokens only; the raw-hex inline styles are gone.
 
   if (compact) {
     return (
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 text-[11px] font-medium rounded-md px-2 py-0.5"
-        style={{ color: accent, background: accentBg, border: `1px solid ${accentBorder}` }}
+        className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-brand-tint px-2 py-0.5 text-[11px] font-medium text-brand-d dark:text-brand-l"
         title={`Data depth: ${depth.label}`}
       >
         <Info className="h-3 w-3" />
@@ -49,18 +41,15 @@ export function DataDepthBanner({ depth, subject, compact }: Props) {
   }
 
   return (
-    <div
-      className="rounded-lg overflow-hidden mb-4"
-      style={{ background: accentBg, border: `1px solid ${accentBorder}` }}
-    >
+    <div className="mb-4 overflow-hidden rounded-md border border-rule bg-bg-2">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <Info className="h-4 w-4 shrink-0" style={{ color: accent }} />
-          <span className="text-[12px] font-semibold" style={{ color: accent }}>
+          <Info className="h-4 w-4 shrink-0 text-brand-d dark:text-brand-l" />
+          <span className="text-[12px] font-semibold text-brand-d dark:text-brand-l">
             Data depth: {depth.label}
           </span>
           {subject && (
@@ -70,24 +59,20 @@ export function DataDepthBanner({ depth, subject, compact }: Props) {
           )}
         </div>
         <ChevronDown
-          className="h-4 w-4 shrink-0 transition-transform"
-          style={{
-            color: accent,
-            transform: open ? "rotate(180deg)" : "rotate(0)",
-          }}
+          className={`h-4 w-4 shrink-0 text-brand-d transition-transform dark:text-brand-l ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && (
         <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.06em] font-semibold mb-1.5" style={{ color: accent }}>
+            <div className="text-[11px] uppercase tracking-[0.06em] font-semibold mb-1.5 text-brand-d dark:text-brand-l">
               Available at this depth
             </div>
             <ul className="space-y-1">
               {depth.available.map((a) => (
                 <li key={a} className="flex items-start gap-1.5 text-[12px] text-ink">
-                  <Check className="h-3 w-3 mt-0.5 shrink-0" style={{ color: accent }} />
+                  <Check className="h-3 w-3 mt-0.5 shrink-0 text-brand-d dark:text-brand-l" />
                   <span>{a}</span>
                 </li>
               ))}
@@ -109,9 +94,8 @@ export function DataDepthBanner({ depth, subject, compact }: Props) {
             </div>
           )}
           {depth.upgradeHint && (
-            <div className="md:col-span-2 mt-2 pt-2 text-[12px] text-ink-soft"
-                 style={{ borderTop: `1px solid ${accentBorder}` }}>
-              <span className="font-medium" style={{ color: accent }}>To unlock:&nbsp;</span>
+            <div className="md:col-span-2 mt-2 border-t border-rule-soft pt-2 text-[12px] text-ink-soft">
+              <span className="font-medium text-brand-d dark:text-brand-l">To unlock:&nbsp;</span>
               {depth.upgradeHint}
             </div>
           )}

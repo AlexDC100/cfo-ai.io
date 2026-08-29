@@ -72,7 +72,7 @@ interface Props {
 function sentimentClasses(s: DeltaSentiment): string {
   if (s === "positive") return "bg-success-tint text-success";
   if (s === "negative") return "bg-alert-tint text-alert";
-  return "bg-bg-2 text-ink-mute";
+  return "bg-bg-2 text-ink-soft";
 }
 
 function BadgeShell({
@@ -109,7 +109,7 @@ function MultipleDeltaBadge({
   scen: number | null;
   higherIsBetter: boolean;
 }) {
-  if (base === null || scen === null) return <span className="text-ink-mute text-[10px]">—</span>;
+  if (base === null || scen === null) return <span className="text-ink-soft text-[10px]">—</span>;
   // Non-finite scenario (EBITDA/equity wiped out → +Infinity worst-case):
   // the direction is unambiguously "worse" for a lower-is-better ratio.
   const bothFinite = Number.isFinite(base) && Number.isFinite(scen);
@@ -147,7 +147,7 @@ function RowDelta({
   scen: number | null;
 }) {
   if (base === null || scen === null)
-    return <span className="text-ink-mute text-[10px]">—</span>;
+    return <span className="text-ink-soft text-[10px]">—</span>;
 
   if (row.kind === "ratio") {
     return (
@@ -185,7 +185,7 @@ function ValueCell({
   emphasis?: boolean;
 }) {
   const cls = emphasis ? "text-ink font-semibold" : "text-ink-soft";
-  if (value === null) return <span className="text-ink-mute">—</span>;
+  if (value === null) return <span className="text-ink-soft">—</span>;
   if (kind === "currency") {
     return (
       <MoneyAmount value={value} fromCurrency={currency as Currency} unit={false} className={cls} />
@@ -206,20 +206,24 @@ export function ScenarioComparison({ baseline, scenario, currency, active }: Pro
     return [resolveRowValue(row.conceptKey, baseline), resolveRowValue(row.conceptKey, scenario)];
   });
   return (
-    <Panel data-testid="scenario-comparison" className="overflow-hidden">
+    // NO overflow-hidden here: any overflow value except visible would make
+    // the Panel the sticky header's scrollport and pin it 56px INTO the
+    // panel at rest (observed live). The header bg matches the panel bg,
+    // so the un-clipped rounded corners are invisible.
+    <Panel data-testid="scenario-comparison">
       <MoneyAmountGroup values={groupValues} fromCurrency={currency as Currency}>
         {/* Header row */}
         <div className="grid grid-cols-[1.4fr_1fr_1fr_auto] gap-2 items-center px-4 h-8 border-b border-rule bg-surface sticky top-14 z-10">
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium">
             Metric · {display}
           </div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium text-right">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium text-right">
             Baseline
           </div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium text-right">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium text-right">
             Scenario
           </div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium text-right min-w-[68px]">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium text-right min-w-[68px]">
             Change
           </div>
         </div>
@@ -231,7 +235,7 @@ export function ScenarioComparison({ baseline, scenario, currency, active }: Pro
           return (
             <div key={row.conceptKey}>
               {isRatiosGroup && (
-                <div className="px-4 pt-2.5 pb-1 text-[10px] uppercase tracking-[0.14em] text-ink-mute font-medium border-t border-rule">
+                <div className="px-4 pt-2.5 pb-1 text-[10px] uppercase tracking-[0.14em] text-ink-soft font-medium border-t border-rule">
                   Ratios &amp; leverage
                 </div>
               )}
@@ -247,7 +251,7 @@ export function ScenarioComparison({ baseline, scenario, currency, active }: Pro
                   {active ? (
                     <ValueCell value={scen} kind={row.kind} currency={currency} emphasis />
                   ) : (
-                    <span className="text-ink-mute text-[12px]">—</span>
+                    <span className="text-ink-soft text-[12px]">—</span>
                   )}
                 </div>
                 <div className="text-right min-w-[68px]">

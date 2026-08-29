@@ -101,7 +101,7 @@ export function MarketPulseStrip({ rows, onSelectTicker }: Props) {
           fractionDigits={2}
           className="text-[12px] text-ink"
         />
-        <span className="font-mono text-[10.5px] tabular-nums text-ink-mute">
+        <span className="font-mono text-[10.5px] tabular-nums text-ink-soft">
           {t("pci.pulse.n", { n: pulse.n })}
         </span>
       </span>
@@ -113,7 +113,7 @@ export function MarketPulseStrip({ rows, onSelectTicker }: Props) {
         data-testid="pulse-top-mover"
         className="inline-flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity duration-micro"
       >
-        <span className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+        <span className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">
           {t("pci.pulse.topMover")}
         </span>
         {moverUp ? (

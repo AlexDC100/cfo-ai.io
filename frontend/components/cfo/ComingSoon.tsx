@@ -27,6 +27,11 @@ export function ComingSoon({
     <div className="relative" data-testid={testid}>
       <div
         aria-hidden
+        // `inert` removes the wrapped content from the tab order — without it
+        // the aria-hidden subtree still contains focusable controls, which is
+        // an axe serious (aria-hidden-focus). React 18 has no first-class
+        // `inert` prop, so it's spread as a raw attribute (present = inert).
+        {...({ inert: "" } as Record<string, string>)}
         className="blur-[3px] opacity-45 pointer-events-none select-none"
       >
         {children}

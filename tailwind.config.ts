@@ -49,6 +49,11 @@ export default {
           dark: "hsl(var(--brand-d))",
           light: "hsl(var(--brand-l))",
           tint: "hsl(var(--brand-tint))",
+          // Short aliases — half the codebase writes text-brand-d /
+          // text-brand-l (matching the token names); without these the
+          // classes silently no-op.
+          d: "hsl(var(--brand-d))",
+          l: "hsl(var(--brand-l))",
         },
         teal: {
           DEFAULT: "hsl(var(--brand))",

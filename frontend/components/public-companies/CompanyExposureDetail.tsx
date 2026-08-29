@@ -42,9 +42,9 @@ const SOURCE_LABEL: Record<ExposureSource, string> = {
 
 const SOURCE_TINT: Record<ExposureSource, string> = {
   sector_model: "bg-bg-2/60 text-ink-mute border-rule/60",
-  sec_filing: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
-  operator_curated: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
-  bvb_override: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
+  sec_filing: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
+  operator_curated: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
+  bvb_override: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
 };
 
 export function CompanyExposureDetail({ ticker, category, onClose }: Props) {
@@ -217,9 +217,9 @@ function FactorBreakdown({ profile, category, confidence }: FactorBreakdownProps
                   className={`
                     inline-block w-1 h-1 rounded-full mt-1.5 shrink-0
                     ${r.severity === "critical" ? "bg-alert"
-                      : r.severity === "high"    ? "bg-[#5CD3C5]"
-                      : r.severity === "medium"  ? "bg-[#5CD3C5]"
-                                                 : "bg-[#5CD3C5]"}
+                      : r.severity === "high"    ? "bg-brand"
+                      : r.severity === "medium"  ? "bg-brand"
+                                                 : "bg-brand"}
                   `}
                 />
                 <span className="min-w-0">{r.label}</span>
@@ -272,8 +272,8 @@ export function ExposureBar({
   const pct = Math.max(2, Math.min(100, score * 100));
   const tint =
     score > 0.7 ? "bg-alert"
-    : score >= 0.5 ? "bg-[#5CD3C5]"
-                   : "bg-[#5CD3C5]";
+    : score >= 0.5 ? "bg-brand"
+                   : "bg-brand";
   return (
     <div
       className={`

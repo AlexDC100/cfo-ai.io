@@ -8,7 +8,9 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Upload, Sparkles } from "lucide-react";
-import { PageHeader } from "@/components/cfo/ui/PageHeader";
+// A3 hero eviction — the compact instrument header replaces the serif
+// hero on this always-authenticated surface.
+import { PageHeader as InstrumentPageHeader } from "@/components/instrument/Panel";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
@@ -129,11 +131,9 @@ function VarianceInner({
             onClick={() => window.dispatchEvent(new CustomEvent("cfo:request-budget-upload"))}
             data-testid="variance-replace-budget"
             title="Replace budget file"
-            className="group inline-flex items-center gap-1.5 h-8 pl-1.5 pr-3.5 rounded-full border border-brand/50 bg-brand/10 text-brand-d text-[12px] font-semibold shadow-[0_2px_10px_-4px_rgba(92,211,197,0.5)] hover:bg-brand/20 hover:border-brand/70 transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-rule bg-surface text-[12px] font-medium text-ink hover:bg-bg-2 transition-colors duration-micro"
           >
-            <span className="grid place-items-center h-5 w-5 rounded-full bg-brand text-bg shadow-[0_0_8px_rgba(92,211,197,0.5)]">
-              <Upload size={12} strokeWidth={2.5} />
-            </span>
+            <Upload size={12} strokeWidth={2} className="text-brand-dark dark:text-brand-light" />
             Replace budget
           </button>
         </div>
@@ -143,44 +143,42 @@ function VarianceInner({
           the right (2026-07-25 per operator, mirroring the dashboard/products
           hero). The full-width dropzone sits beneath both. */}
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] items-start">
-        <div>
-          <PageHeader
-            hero
+        <div className="space-y-3">
+          {/* "Budget vs Actual vs LY" (2026-08-02 per operator) — matches
+              the sidebar item's label exactly. */}
+          <InstrumentPageHeader
             eyebrow="Management reporting"
-            title={
-              /* "Budget vs Actual vs LY" (2026-08-02 per operator) — matches
-                 the sidebar item's label exactly. */
-              <>
-                Budget vs Actual vs <span className="text-grad">LY</span>.
-              </>
+            title="Budget vs Actual vs LY"
+            context={
+              <span>
+                {periodLabel ?? "The loaded period"} · board-pack view
+              </span>
             }
-            subtitle={
-              <>
-                Every P&amp;L line of{" "}
-                <span className="text-ink">{periodLabel ?? "the loaded period"}</span> set
-                side-by-side against your budget and prior year — each gap shown in both
-                value and %, and flagged <span className="text-ink">favorable</span> or{" "}
-                <span className="text-ink">unfavorable</span>, so you can see at a glance where
-                you beat plan and where you fell short. The board-pack view, generated
-                automatically from the figures you upload below.
-              </>
+            actions={
+              /* Ask CFO AI — header action, same entry point as before.
+                  The Import button that used to lead this row was removed
+                  (2026-07-26 per operator); the upload card below is the one
+                  import path. */
+              <button
+                type="button"
+                onClick={() => openAskCfoAi("Help me read my Budget vs Actual vs Last-Year variance — which lines are favorable or unfavorable, and what's driving the biggest gaps?")}
+                data-testid="variance-ask-cfo-ai"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 hover:border-rule-strong transition-colors duration-micro"
+              >
+                <Sparkles size={14} strokeWidth={2} className="text-brand-dark dark:text-brand-light" />
+                Ask CFO AI
+              </button>
             }
           />
-          {/* Ask CFO AI — under the header, mirroring the products hero.
-              The Import button that used to lead this row was removed
-              (2026-07-26 per operator); the upload card below is the one
-              import path. */}
-          <div className="-mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => openAskCfoAi("Help me read my Budget vs Actual vs Last-Year variance — which lines are favorable or unfavorable, and what's driving the biggest gaps?")}
-              data-testid="variance-ask-cfo-ai"
-              className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-rule bg-surface/70 backdrop-blur text-[13px] font-medium text-ink hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
-            >
-              <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
-              Ask CFO AI
-            </button>
-          </div>
+          <p className="text-[12.5px] leading-relaxed text-ink-soft max-w-[64ch]">
+            Every P&amp;L line of{" "}
+            <span className="text-ink">{periodLabel ?? "the loaded period"}</span> set
+            side-by-side against your budget and prior year — each gap shown in both
+            value and %, and flagged <span className="text-ink">favorable</span> or{" "}
+            <span className="text-ink">unfavorable</span>, so you can see at a glance where
+            you beat plan and where you fell short. Generated automatically from the
+            figures you upload below.
+          </p>
         </div>
         <BudgetTemplateCard />
       </div>
@@ -215,7 +213,7 @@ function VarianceInner({
               <KpiVarianceStrip rows={rows} currency={currency} />
 
               {/* View toggle */}
-              <div className="flex items-center gap-1 rounded-lg border border-rule bg-surface p-1 w-fit" data-testid="variance-view-toggle">
+              <div className="flex items-center gap-1 rounded-md border border-rule bg-surface p-1 w-fit" data-testid="variance-view-toggle">
                 {VIEWS.map((v) => (
                   <button
                     key={v.key}
@@ -223,9 +221,9 @@ function VarianceInner({
                     onClick={() => setView(v.key)}
                     data-testid={`variance-view-${v.key}`}
                     className={cn(
-                      "px-3 min-h-[34px] rounded-md text-[12px] font-medium transition-colors",
+                      "px-3 min-h-[30px] rounded-sm text-[12px] font-medium transition-colors duration-micro",
                       view === v.key
-                        ? "bg-brand/12 text-brand-d"
+                        ? "bg-brand-tint text-brand-dark dark:text-brand-light"
                         : "text-ink-soft hover:text-ink hover:bg-bg-2",
                     )}
                   >
@@ -245,14 +243,14 @@ function VarianceInner({
           />
 
           {convertedFrom && (
-            <p className="text-[11px] text-ink-mute px-1 italic" data-testid="variance-fx-note">
+            <p className="text-[11px] text-ink-soft px-1 italic" data-testid="variance-fx-note">
               Budget converted from {convertedFrom} to {currency} at the current FX rate so the
               comparison is in one currency.
             </p>
           )}
 
           {isDemo && (
-            <p className="text-[11px] text-ink-mute px-1 italic">
+            <p className="text-[11px] text-ink-soft px-1 italic">
               Budget &amp; last-year figures shown are illustrative demo data on the test workspace,
               derived from the actuals — not real plan numbers. Upload your budget to replace them.
             </p>

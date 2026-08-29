@@ -26,7 +26,8 @@ export function previewBackButtonHtml(fallbackHref = "/dashboard"): string {
     "<style>body{padding-top:64px !important}</style>" +
     `<button type="button" aria-label="Back to CFO AI" onclick="${onclick.replace(/"/g, "&quot;")}" ` +
     'style="position:fixed;top:14px;left:14px;z-index:99;display:inline-flex;align-items:center;gap:6px;' +
-    "height:36px;padding:0 14px;border-radius:999px;border:1px solid #d6dde6;background:#ffffff;color:#0f172a;" +
+    // Standalone document.write preview — cannot read app CSS vars; Paper palette baked in.
+    "height:36px;padding:0 14px;border-radius:999px;border:1px solid #E3E3DC;background:#FAFAF7;color:#0B0E0D;" + // design-lint-allow-hex standalone document.write preview
     'font:600 13px system-ui,Segoe UI,Arial,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:pointer">' +
     "&#8592; Back</button>"
   );

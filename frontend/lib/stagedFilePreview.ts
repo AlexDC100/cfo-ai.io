@@ -32,22 +32,24 @@ function previewDocument(title: string, body: string): string {
 <title>${escapeHtml(title)} — preview</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
+  /* Standalone document.write preview — cannot read app CSS vars, so the
+     Terminal (dark) palette is baked in as literals below. */
   :root { color-scheme: dark light; }
-  body { margin: 0; padding: 24px; background: #0e1116; color: #e6e9ef;
+  body { margin: 0; padding: 24px; background: #080D0B; color: #E9EDEB; /* design-lint-allow-hex standalone preview doc */
          font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   h1 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
-  .sub { font-size: 12px; color: #8a93a3; margin: 0 0 20px; }
+  .sub { font-size: 12px; color: #9EA9A4; margin: 0 0 20px; } /* design-lint-allow-hex standalone preview doc */
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
-       color: #5CD3C5; margin: 28px 0 8px; }
-  .scroll { overflow-x: auto; border: 1px solid #232a35; border-radius: 8px; }
+       color: #4EBCA6; margin: 28px 0 8px; } /* design-lint-allow-hex standalone preview doc */
+  .scroll { overflow-x: auto; border: 1px solid #222A27; border-radius: 8px; } /* design-lint-allow-hex standalone preview doc */
   table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
-  td, th { border: 1px solid #232a35; padding: 5px 9px; white-space: nowrap;
+  td, th { border: 1px solid #222A27; padding: 5px 9px; white-space: nowrap; /* design-lint-allow-hex standalone preview doc */
            text-align: left; }
-  tr:nth-child(even) td { background: #141922; }
-  pre { white-space: pre-wrap; word-break: break-word; background: #141922;
-        border: 1px solid #232a35; border-radius: 8px; padding: 16px;
+  tr:nth-child(even) td { background: #141A18; } /* design-lint-allow-hex standalone preview doc */
+  pre { white-space: pre-wrap; word-break: break-word; background: #141A18; /* design-lint-allow-hex standalone preview doc */
+        border: 1px solid #222A27; border-radius: 8px; padding: 16px; /* design-lint-allow-hex standalone preview doc */
         font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .err { color: #ff8a8a; }
+  .err { color: #E0655C; } /* design-lint-allow-hex standalone preview doc */
 </style></head>
 <body>${previewBackButtonHtml()}<h1>${escapeHtml(title)}</h1><p class="sub">${escapeHtml(subLabel(title))}</p>${body}</body></html>`;
 }

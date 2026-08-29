@@ -1,0 +1,7 @@
+# Analysis lane — round 3 critique (final) — benchmark / scenarios / variance
+
+- Hierarchy: compact instrument headers on all three loaded surfaces; scenario page reads template row → drivers → results → covenants top-to-bottom; variance page's double-hairline totals give the P&L statement structure at a glance. PASS.
+- Density: 32px hairline rows across every table; KPI cards share one AmountGroup scale ("295.1 M / 33.0 M / 9.4 M" — no mixed magnitudes); driver cards and results column balance at 1440 and 1280. PASS.
+- Contrast: dark theme verified — mono figures on green-black hold AA, chips tinted not filled; sticky-header-inside-scrollport bug from r1 confirmed fixed (header at table top at rest, sticks under the 56px app bar on scroll). PASS.
+- Soul: every figure is mono tabular via <Amount>; ≥99× discipline live (covenant stress: "1.52× → ≥99×", "off scale" badge); red appears only on unfavorable variance, losses, breaches, bottom-quartile; the one accent marks leader/top-quartile/selected template. PASS.
+- Consistency: chips/panels/hairlines all from the kit on all four files (PeerComparisonReport included); mobile 390 lock-chip no longer wraps; benchmark sample-period empty state (serif allowed) renders instead of the r0 crash. Loaded benchmark report unverifiable visually in test mode (needs a real backend period) — code-reviewed only, flagged in the lane report. PASS.

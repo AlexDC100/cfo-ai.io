@@ -145,7 +145,7 @@ export function UsageWarningBanner() {
       className="
         sticky top-14 z-30
         mx-4 sm:mx-8 lg:mx-10 mb-4
-        rounded-xl border border-[#8FE3D9]/70 bg-[#E6F7F4] dark:bg-[#1B7268]/30 dark:border-[#1B7268]/50
+        rounded-xl border border-caution/40 bg-caution-tint
         px-4 py-2.5
         flex items-center gap-3
       "
@@ -153,10 +153,10 @@ export function UsageWarningBanner() {
       <AlertTriangle
         size={14}
         strokeWidth={2}
-        className="text-[#2AA89B] dark:text-[#8FE3D9] shrink-0"
+        className="text-caution shrink-0"
         aria-hidden
       />
-      <p className="text-[13px] text-[#1B7268] dark:text-[#E6F7F4] flex-1">
+      <p className="text-[13px] text-caution flex-1">
         {message}
       </p>
       <button
@@ -165,9 +165,8 @@ export function UsageWarningBanner() {
         data-testid="usage-warning-banner-cta"
         className="
           inline-flex items-center h-7 px-3 rounded-md
-          bg-[#2AA89B] text-white text-[12px] font-medium
-          hover:bg-[#1B7268] transition-colors
-          dark:bg-[#8FE3D9] dark:text-[#1B7268] dark:hover:bg-[#E6F7F4]
+          bg-caution text-caution-tint text-[12px] font-medium
+          hover:bg-caution/85 transition-colors
         "
       >
         {ctaLabel}
@@ -177,7 +176,7 @@ export function UsageWarningBanner() {
         onClick={handleDismiss}
         aria-label={tr("productsX.inflight.dismiss")}
         data-testid="usage-warning-banner-dismiss"
-        className="text-[#2AA89B]/70 hover:text-[#1B7268] dark:text-[#8FE3D9]/70 dark:hover:text-[#E6F7F4] shrink-0"
+        className="text-caution/70 hover:text-caution shrink-0"
       >
         <X size={14} strokeWidth={2} />
       </button>

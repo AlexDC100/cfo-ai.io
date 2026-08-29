@@ -36,9 +36,9 @@ const SEVERITY_FROM_PRIORITY: Record<RecommendationPriority, Severity> = {
 };
 
 const SEVERITY_TONE: Record<Severity, string> = {
-  critical: "bg-red-50 text-red-700 border-red-200",
-  high:     "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
-  medium:   "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
+  critical: "bg-alert-tint text-alert border-alert/30",
+  high:     "bg-brand-tint text-brand border-brand-l/50",
+  medium:   "bg-brand-tint text-brand border-brand-l/50",
   low:      "bg-bg-2 text-ink-soft border-rule",
   info:     "bg-bg-2 text-ink-soft border-rule",
 };
@@ -76,7 +76,8 @@ function AlertsEmptyState() {
       <div className="mx-auto h-14 w-14 rounded-2xl bg-bg-2 text-ink-mute flex items-center justify-center mb-4">
         <FileText size={22} strokeWidth={1.5} />
       </div>
-      <h1 className="font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
+      {/* design-lint-allow-serif: empty-state voice — one serif line per the brief */}
+        <h1 className="font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
         No alerts yet
       </h1>
       <p className="mt-4 text-[15px] text-ink-soft max-w-[480px] mx-auto">
@@ -172,7 +173,7 @@ function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeo
     <div className="space-y-7" data-testid="alerts-body">
       <header>
         <div className="label-eyebrow">Alerts</div>
-        <h1 className="mt-2 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em]">
+        <h1 className="mt-2 text-[22px] font-semibold leading-tight tracking-tight text-ink">
           {visible.length} active alert{visible.length === 1 ? "" : "s"}
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[640px]">
@@ -204,7 +205,7 @@ function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeo
 
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-rule bg-surface px-6 py-16 text-center">
-          <ShieldCheck size={28} className="mx-auto text-[#2AA89B] mb-3" strokeWidth={1.5} />
+          <ShieldCheck size={28} className="mx-auto text-brand mb-3" strokeWidth={1.5} />
           <h3 className="text-[15px] font-medium text-ink">No alerts in this severity</h3>
           <p className="mt-1 text-[13px] text-ink-soft">
             Either nothing crossed the threshold, or every flagged item has been resolved or dismissed.
@@ -279,7 +280,7 @@ function AlertCard({
             live when the user toggles EUR/USD in TopHeader. Without this,
             titles like "Refinance window: ... RON 14M debt" stayed in RON
             forever even after the toggle flipped. */}
-        <h3 className={`font-serif text-[17px] text-ink leading-tight ${isResolved ? "line-through" : ""}`}>
+        <h3 className={`text-[15px] font-semibold text-ink leading-tight ${isResolved ? "line-through" : ""}`}>
           {linkifyAlertBody(rec.title, factsBacking?.facts)}
         </h3>
       </div>
@@ -287,7 +288,7 @@ function AlertCard({
         {linkifyAlertBody(rec.rationale, factsBacking?.facts)}
       </p>
       {rec.estimatedImpact && (
-        <div className="mt-2 inline-flex items-center text-[11.5px] font-medium text-[#2AA89B] bg-[#E6F7F4] px-3 py-1 rounded-md">
+        <div className="mt-2 inline-flex items-center text-[11.5px] font-medium text-brand bg-brand-tint px-3 py-1 rounded-md">
           Estimated impact: ~<Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / year
         </div>
       )}
@@ -328,7 +329,7 @@ function AlertCard({
           onClick={onResolve}
           className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
             isResolved
-              ? "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]"
+              ? "bg-success-tint text-success border-success/30"
               : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
           }`}
         >

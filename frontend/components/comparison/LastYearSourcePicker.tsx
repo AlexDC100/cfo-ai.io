@@ -223,7 +223,7 @@ export function LastYearSourcePicker({
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="text-[12.5px] font-medium text-ink">Compare against last year</div>
-          <div className="mt-0.5 text-[11.5px] text-ink-mute">
+          <div className="mt-0.5 text-[11.5px] text-ink-soft">
             {allCands.length === 0 && !hasBudgetLastYear ? (
               <>Upload last year’s trial balance on the dashboard, then pick it here.</>
             ) : (
@@ -240,12 +240,12 @@ export function LastYearSourcePicker({
             className="inline-flex items-center gap-2 rounded-lg border border-rule bg-bg-2/40 hover:bg-bg-2 px-3 min-h-[40px] text-[12.5px] font-medium text-ink transition-colors"
           >
             {isFetching && selectedBackendId ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-ink-mute" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-ink-soft" />
             ) : (
-              <CalendarClock className="w-3.5 h-3.5 text-ink-mute" />
+              <CalendarClock className="w-3.5 h-3.5 text-ink-soft" />
             )}
             <span className="truncate max-w-[180px]">{triggerLabel}</span>
-            <ChevronDown className={cn("w-3.5 h-3.5 text-ink-mute transition-transform", open && "rotate-180")} />
+            <ChevronDown className={cn("w-3.5 h-3.5 text-ink-soft transition-transform", open && "rotate-180")} />
           </button>
 
           {open && (
@@ -315,7 +315,7 @@ export function LastYearSourcePicker({
 function MenuGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="py-0.5">
-      <div className="px-3 py-1 text-[9.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+      <div className="px-3 py-1 text-[9.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold">
         {label}
       </div>
       {children}
@@ -347,17 +347,17 @@ function MenuRow({
       onClick={onClick}
       className={cn(
         "w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-bg-2/60 transition-colors min-h-[40px]",
-        active && "bg-[hsl(173,57%,55%)]/[0.10]",
+        active && "bg-brand-tint/60",
       )}
     >
-      <span className="mt-0.5 text-ink-mute shrink-0">
-        {active ? <Check className="w-3.5 h-3.5 text-[hsl(173,57%,34%)]" /> : icon}
+      <span className="mt-0.5 text-ink-soft shrink-0">
+        {active ? <Check className="w-3.5 h-3.5 text-brand-dark dark:text-brand-light" /> : icon}
       </span>
       <span className="min-w-0">
         <span className={cn("block text-[12.5px] truncate", active ? "text-ink font-semibold" : "text-ink-soft")}>
           {title}
         </span>
-        {sub && <span className="block text-[10.5px] text-ink-mute truncate">{sub}</span>}
+        {sub && <span className="block text-[10.5px] text-ink-soft truncate">{sub}</span>}
       </span>
     </button>
   );

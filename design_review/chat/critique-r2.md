@@ -1,0 +1,7 @@
+# CHAT lane — critique r2 (shots: chat-r2, chat-r2-panel, chat-r2b)
+
+- **Hierarchy** — assistant answers now sit in flat hairline panels on surface: the markdown scale (h3 → bullets → code chip for `605`) reads cleanly inside them, figures stay plain text (no fake provenance). User turns stay visually lighter than answers — correct weighting for a Q→A surface.
+- **Density** — desktop conversation column comfortable at ~800px panels; mobile was the problem: two quick-pill rows ate half the space above the fixed composer and conversation text bled through the gaps. Fixed: pills hidden below sm, message list gets pb-44 clearance below lg, empty state pb-48.
+- **Contrast** — ⌘↵ hint bumped ink-faint → ink-mute; dark-theme pixel sampling confirmed chrome and chat column share the same canvas (earlier "mixed theme" read was a downscale illusion).
+- **Soul** — degraded state verified LIVE against the real failing Edge Function: calm headline, Retry, "Details → Service temporarily unavailable." — and the wrapped HTTP-200 upstream error (the actual prod leak path) is now intercepted too, not just thrown errors.
+- **Consistency** — found and removed the last off-token bits in lane files: raw hex + red-600 in CFOFilePreview → success/alert tokens; the search pill's raw shadow → shadow-lg (a floating layer, so a real shadow is legitimate). Header "Ask CFO AI" entry routes to the page and inherits everything.

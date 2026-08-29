@@ -412,7 +412,7 @@ export default function PublicCompanyIntelligence() {
             loaded (2026-07-26 per operator), not a fixed roadmap sentence.
             The counts come from the same payload the tables render, so a
             demo-mode session or a partial universe says so plainly. */}
-        <div className="mt-10 pt-6 border-t border-rule/60 text-[11px] text-ink-mute text-center">
+        <div className="mt-10 pt-6 border-t border-rule/60 text-[11px] text-ink-soft text-center">
           {/* The universe fetch chokepoint filters to BVB-only rows
               (publicCompanyUniverse.fetchUniverse), so the count here is
               always the BVB listing count this page actually renders. */}

@@ -25,7 +25,7 @@ export default function Login() {
       className="min-h-screen text-ink flex flex-col"
       style={{
         background:
-          "radial-gradient(ellipse 70% 60% at 50% 0%, rgba(92,211,197,.10), transparent 60%), #060a12",
+          "radial-gradient(ellipse 70% 60% at 50% 0%, hsl(var(--brand) / 0.10), transparent 60%), hsl(var(--bg))",
       }}
     >
       <MarketingHeader />

@@ -25,9 +25,14 @@
 //   wind_down; GM% < 5% → watch; etc.).
 // · CSV export with category column — deferred.
 
-import { useMemo } from "react";
-import { ArrowLeft, ChevronRight, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
+import { ArrowLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { categoryHint } from "@/lib/categoryHints";
+// THE INSTRUMENT — every figure on these cards renders mono through
+// <Amount>/<MoneyAmount> (FX-aware, magnitude-grouped per card).
+import { Amount } from "@/components/instrument/Amount";
+import { MoneyAmount, MoneyAmountGroup, PercentLevel } from "@/components/comparison/MoneyAmount";
+import type { Currency } from "@/lib/rates";
 
 // Display the category name in English (2026-07-26 per operator). The raw
 // Romanian code (e.g. LEGUME CONSERVATE) is looked up in the shared
@@ -65,6 +70,10 @@ interface Props {
    *  uses on the backend so the figures reconcile. */
   costOfFinancingPct?: number;
   bankSpreadPct?: number;
+  /** Source currency the kRON aggregates are denominated in — threaded
+   *  from the page's period so the global RON⇄EUR⇄USD toggle re-renders
+   *  every card figure live. Defaults to RON (the SKU-upload default). */
+  currency?: Currency;
 }
 
 interface CategoryAggregate {
@@ -143,6 +152,7 @@ export function CategoriesOverview({
   onSelectCategory,
   costOfFinancingPct = 7,
   bankSpreadPct = 2,
+  currency = "RON",
 }: Props) {
   const categories = useMemo<CategoryAggregate[]>(() => {
     const carryPct = (costOfFinancingPct + bankSpreadPct) / 100;
@@ -250,6 +260,7 @@ export function CategoriesOverview({
           <CategoryCard
             key={c.category}
             cat={c}
+            currency={currency}
             onClick={() => onSelectCategory(c.display)}
           />
         ))}
@@ -262,9 +273,11 @@ export function CategoriesOverview({
 
 function CategoryCard({
   cat,
+  currency,
   onClick,
 }: {
   cat: CategoryAggregate;
+  currency: Currency;
   onClick: () => void;
 }) {
   const dioOverYear = cat.dioDays != null && cat.dioDays > 365;
@@ -276,12 +289,12 @@ function CategoryCard({
         onClick={onClick}
         data-testid={`category-card-${cat.category.toLowerCase().replace(/\s+/g, "-")}`}
         className={`
-          group flex h-full w-full flex-col text-left rounded-2xl border bg-surface p-5
+          group flex h-full w-full flex-col text-left rounded-lg border bg-surface p-5
           transition-colors duration-150
-          hover:shadow-sm hover:bg-bg-2/30
+          hover:bg-bg-2/30 hover:border-rule-strong
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
           ${dioOverYear
-            ? "border-[#8FE3D9]/60 dark:border-[#5CD3C5]/30"
+            ? "border-alert/40"
             : "border-rule"
           }
         `}
@@ -309,44 +322,47 @@ function CategoryCard({
             operator). Borders on the top-left cell's right/bottom edges + the
             bottom-left cell's right edge + the top-right cell's bottom edge
             form a clean + separator; padding keeps values off the rules. */}
-        <div className="mt-4 grid grid-cols-2">
-          <KpiCell
-            label="Volume"
-            value={fmtCompactKg(cat.totalVolumeKg)}
-            className="border-r border-b border-rule/60 pr-4 pb-3"
-          />
-          <KpiCell
-            label="NIV"
-            value={fmtCompactRon(cat.totalNiv)}
-            className="border-b border-rule/60 pl-4 pb-3"
-          />
-          <KpiCell
-            label="GM"
-            value={fmtCompactRon(cat.totalGm)}
-            sub={cat.gmPct != null ? `${(cat.gmPct * 100).toFixed(1)}%` : null}
-            className="border-r border-rule/60 pr-4 pt-3"
-          />
-          <KpiCell
-            label="DIO"
-            value={cat.dioDays != null
-              ? `${Math.round(cat.dioDays).toLocaleString("en-US")}d`
-              : "—"
-            }
-            tone={
-              cat.dioDays == null ? null
-              : cat.dioDays > 365 ? "danger"
-              : cat.dioDays > 180 ? "warning"
-              : "positive"
-            }
-            className="pl-4 pt-3"
-          />
-        </div>
+        <MoneyAmountGroup values={[cat.totalNiv * 1000, cat.totalGm * 1000]} fromCurrency={currency}>
+          <div className="mt-4 grid grid-cols-2">
+            <KpiCell
+              label="Volume"
+              value={fmtCompactKg(cat.totalVolumeKg)}
+              className="border-r border-b border-rule-soft pr-4 pb-3"
+            />
+            <KpiCell
+              label="NIV"
+              value={<MoneyAmount value={cat.totalNiv * 1000} fromCurrency={currency} />}
+              className="border-b border-rule-soft pl-4 pb-3"
+            />
+            <KpiCell
+              label="GM"
+              value={<MoneyAmount value={cat.totalGm * 1000} fromCurrency={currency} />}
+              sub={cat.gmPct != null ? <PercentLevel value={cat.gmPct * 100} /> : null}
+              className="border-r border-rule-soft pr-4 pt-3"
+            />
+            <KpiCell
+              label="DIO"
+              value={cat.dioDays != null
+                ? <><Amount kind="count" value={Math.round(cat.dioDays)} />d</>
+                : "—"
+              }
+              tone={
+                cat.dioDays == null ? null
+                : cat.dioDays > 365 ? "danger"
+                : cat.dioDays > 180 ? "warning"
+                : "positive"
+              }
+              className="pl-4 pt-3"
+            />
+          </div>
+        </MoneyAmountGroup>
 
-        {/* DIO > 365 warning callout */}
+        {/* DIO > 365 warning callout — a danger signal, so it speaks in
+            the alert token (red is reserved for exactly this). */}
         {dioOverYear && (
           <div
             data-testid="category-card-dio-warning"
-            className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] text-[#2AA89B] dark:text-[#8FE3D9]"
+            className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] text-alert"
           >
             <AlertTriangle size={12} strokeWidth={2} />
             DIO &gt; 365 days · capital trapped &gt; 1 year
@@ -364,26 +380,26 @@ function CategoryCard({
             the left and the drill chevron ">" moved into this sleeve on the
             right. Negative margins cancel the card's p-5 padding so it spans
             edge-to-edge; rounded-b-2xl matches the card corners. */}
-        <div className="-mx-5 -mb-5 px-5 py-2.5 bg-bg-2/50 border-t border-rule/60 rounded-b-2xl flex items-center justify-between gap-3">
+        <div className="-mx-5 -mb-5 px-5 py-2.5 bg-bg-2/50 border-t border-rule-soft rounded-b-lg flex items-center justify-between gap-3">
           <div className="text-[12px] text-ink-soft min-w-0">
             {cat.financingCost != null && cat.adjustedGm != null && (
               <>
                 Adjusted GM:{" "}
                 <span
-                  className={`font-medium tabular-nums ${
+                  className={`font-medium ${
                     adjustedGmNegative
-                      ? "text-red-700 dark:text-red-300"
+                      ? "text-alert"
                       : "text-ink"
                   }`}
                 >
                   {cat.adjustedGmPct != null
-                    ? `${(cat.adjustedGmPct * 100).toFixed(1)}%`
+                    ? <PercentLevel value={cat.adjustedGmPct * 100} />
                     : "—"
                   }
                 </span>
                 {" "}
                 <span className="text-ink-mute">
-                  (after {fmtCompactRon(cat.financingCost)} financing cost)
+                  (after <MoneyAmount value={cat.financingCost * 1000} fromCurrency={currency} /> financing cost)
                 </span>
               </>
             )}
@@ -399,38 +415,9 @@ function CategoryCard({
   );
 }
 
-// ── Bucket badge ───────────────────────────────────────────────────────
-
-function BucketBadge({ bucket }: { bucket: "protect" | "watch" | "wind_down" }) {
-  const map = {
-    protect: {
-      label: "PROTECT",
-      cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-      Icon: TrendingUp,
-    },
-    watch: {
-      label: "WATCH",
-      cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-      Icon: AlertTriangle,
-    },
-    wind_down: {
-      label: "WIND DOWN",
-      cls: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200",
-      Icon: TrendingDown,
-    },
-  };
-  const { label, cls, Icon } = map[bucket];
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-[0.06em] ${cls}`}
-    >
-      <Icon size={10} strokeWidth={2.5} />
-      {label}
-    </span>
-  );
-}
-
 // ── KPI cell ───────────────────────────────────────────────────────────
+// (The legacy top-right BucketBadge was removed with the card redesign;
+// its dead component went with the Instrument migration.)
 
 function KpiCell({
   label,
@@ -440,22 +427,24 @@ function KpiCell({
   className,
 }: {
   label: string;
-  value: string;
-  sub?: string | null;
+  value: ReactNode;
+  sub?: ReactNode | null;
   tone?: "positive" | "warning" | "danger" | null;
   className?: string;
 }) {
+  // Semantic tokens only: danger = alert (red reserved for danger),
+  // borderline = caution, healthy = success.
   const valueClass =
-    tone === "danger" ? "text-red-700 dark:text-red-300"
-    : tone === "warning" ? "text-[#2AA89B] dark:text-[#8FE3D9]"
-    : tone === "positive" ? "text-[#2AA89B] dark:text-[#8FE3D9]"
+    tone === "danger" ? "text-alert"
+    : tone === "warning" ? "text-caution"
+    : tone === "positive" ? "text-success"
     : "text-ink";
   return (
     <div className={`space-y-0.5 ${className ?? ""}`}>
       <div className="text-[10px] uppercase tracking-[0.08em] text-ink-mute font-medium">
         {label}
       </div>
-      <div className={`text-[19px] font-semibold tabular-nums leading-tight ${valueClass}`}>
+      <div className={`text-[17px] font-mono font-medium tabular-nums leading-tight ${valueClass}`}>
         {value}
       </div>
       {sub && (
@@ -491,28 +480,15 @@ export function BackToCategoriesPill({
         Back to categories
       </button>
       <div className="flex items-center gap-2">
-        <span className="font-serif text-[18px] text-ink">{toEnglishLabel(categoryLabel)}</span>
+        <span className="text-[15px] font-semibold tracking-tight text-ink">{toEnglishLabel(categoryLabel)}</span>
       </div>
     </div>
   );
 }
 
 // ── Format helpers ─────────────────────────────────────────────────────
-
-function fmtCompactRon(value: number | null): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  // Source data is in kRON (thousand RON). Convert to raw RON for Intl.
-  const raw = value * 1000;
-  try {
-    return new Intl.NumberFormat("en-US", {
-      notation: "compact",
-      compactDisplay: "short",
-      maximumFractionDigits: 1,
-    }).format(raw) + " RON";
-  } catch {
-    return `${raw.toLocaleString("en-US", { maximumFractionDigits: 0 })} RON`;
-  }
-}
+// (fmtCompactRon retired — money figures now flow through <MoneyAmount>,
+// which is FX-aware and locale-correct.)
 
 function fmtCompactKg(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "—";

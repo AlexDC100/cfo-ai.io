@@ -338,7 +338,7 @@ export function DatasetsPanel() {
         <header className="flex items-center justify-between px-4 py-3 border-b border-rule">
           <div>
             <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">{t("panels.datasetsLabel")}</div>
-            <h2 className="font-serif text-[17px] text-ink leading-tight mt-0.5">{t("panels.salesAnalyses")}</h2>
+            <h2 className="text-[15px] font-semibold text-ink leading-tight mt-0.5">{t("panels.salesAnalyses")}</h2>
           </div>
           <button
             type="button"
@@ -622,10 +622,10 @@ function DatasetCard({
                   if (e.key === "Escape") { setRenaming(false); setDraft(ds.label); }
                 }}
                 onBlur={() => void commitRename()}
-                className="font-serif text-[14px] text-ink leading-tight bg-bg-2 border border-rule rounded px-1.5 py-0.5 outline-none focus:border-brand min-w-0 flex-1"
+                className="text-[13.5px] font-medium text-ink leading-tight bg-bg-2 border border-rule rounded px-1.5 py-0.5 outline-none focus:border-brand min-w-0 flex-1"
               />
             ) : (
-              <span className="font-serif text-[14px] text-ink leading-tight truncate">{ds.label}</span>
+              <span className="text-[13.5px] font-medium text-ink leading-tight truncate">{ds.label}</span>
             )}
             {isCurrent && (
               <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.06em] font-semibold text-brand-d px-1.5 py-0.5 rounded-full bg-brand-tint shrink-0">
@@ -643,7 +643,7 @@ function DatasetCard({
             {formatDateTime(ds.uploaded_at, { dateStyle: "medium" })}
           </div>
           {ds.document_status && ds.document_status !== "analyzed" && (
-            <div className="text-[10px] uppercase tracking-[0.06em] font-medium text-[#2AA89B] mt-1">
+            <div className="text-[10px] uppercase tracking-[0.06em] font-medium text-brand mt-1">
               · {ds.document_status}
             </div>
           )}

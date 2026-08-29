@@ -223,7 +223,7 @@ export default function AuthCallback() {
             <div className="mt-5 flex flex-col gap-2 w-full">
               <Link
                 to="/signup"
-                className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full bg-brand text-[#05070A] text-[14px] font-medium hover:bg-brand/90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full bg-brand text-primary-foreground text-[14px] font-medium hover:bg-brand/90 transition-colors"
               >
                 <Mail size={14} strokeWidth={2} />
                 {t("authCallback.retrySignup", "Request a new link")}

@@ -39,6 +39,8 @@ import {
 import { DEMO_WATCHLIST, type WatchlistRow } from "@/lib/publicCompanyWatchlist";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
 import { useBenchmarkPeers } from "@/lib/benchmarkPeersStore";
+import { Amount } from "@/components/instrument/Amount";
+import { Chip as StateChip } from "@/components/instrument/Panel";
 import { CompanyLogo } from "./CompanyLogo";
 import {
   buildBenchGroups,
@@ -117,11 +119,13 @@ export function BenchmarkingPanel({
 
   return (
     <section data-testid="public-companies-benchmark-panel">
+      {/* Section header — the panel-header voice (13px caps), no serif on
+          authenticated screens. */}
       <div className="mb-4">
-        <h2 className="font-serif text-[22px] text-ink leading-tight tracking-[-0.005em]">
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
           {t("pci.bench.title")}
         </h2>
-        <p className="text-[12.5px] text-ink-soft mt-1.5 max-w-[640px]">
+        <p className="text-[12px] text-ink-soft mt-1 max-w-[640px]">
           {t("pci.bench.subtitle")}
         </p>
       </div>
@@ -147,14 +151,18 @@ export function BenchmarkingPanel({
             data-testid={`benchmark-group-${g.key}`}
             className={`
               shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border
-              text-[11.5px] font-medium transition-colors duration-150 cursor-pointer
+              text-[11.5px] font-medium transition-colors duration-micro cursor-pointer
               ${g.key === active.key
-                ? "border-brand/60 bg-brand/15 text-ink"
+                ? "border-brand/50 bg-brand-tint text-brand-dark dark:text-brand-light"
                 : "border-rule bg-surface text-ink hover:bg-bg-2 hover:border-rule-strong"}
             `}
           >
             {groupLabel(g)}
-            <span className="text-[10px] text-ink-mute tabular-nums">
+            <span
+              className={`font-mono text-[10px] tabular-nums ${
+                g.key === active.key ? "" : "text-ink-soft"
+              }`}
+            >
               {t("pci.bench.n", { n: g.rows.length })}
             </span>
           </button>
@@ -218,7 +226,6 @@ function BenchmarkTile({
   const worst = pairs.reduce((acc, cur) =>
     (metric.goodHigh ? cur[1] < acc[1] : cur[1] > acc[1]) ? cur : acc,
   );
-  const Icon = metric.icon;
 
   return (
     <button
@@ -227,59 +234,52 @@ function BenchmarkTile({
       aria-pressed={active}
       data-testid={`public-companies-benchmark-${metric.key}`}
       className={`
-        card-2026 relative flex flex-col overflow-hidden text-left cursor-pointer
-        ${active ? "!border-brand/60" : ""}
+        relative flex flex-col rounded-md border bg-surface text-left cursor-pointer
+        transition-colors duration-micro
+        ${active ? "border-brand/60" : "border-rule hover:border-rule-strong"}
       `}
     >
-      {/* Oversized glyph — decorative, bottom-left, clipped by the card. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-16 -left-10 text-brand opacity-[0.08]"
-      >
-        <Icon size={220} strokeWidth={1} />
-      </div>
-
-      <div className="relative p-4 w-full">
-        <div className="flex justify-end">
-          <span className="
-            inline-flex items-center h-6 px-2.5 rounded-full
-            ask-ai-anim-fill [animation-duration:10s]
-            border border-brand/40
-            text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink
-          ">
+      <div className="p-4 w-full">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[11px] uppercase tracking-[0.1em] font-medium text-ink-soft">
             {t(metric.shortKey)}
+          </span>
+          <span
+            className="font-mono text-[10px] tabular-nums text-ink-soft"
+            data-testid={`benchmark-n-${metric.key}`}
+          >
+            {t("pci.bench.n", { n: pairs.length })}
           </span>
         </div>
 
-        <div className="mt-3">
-          <div className="text-[11px] text-ink-mute">
-            {t("pci.bench.median")}{" "}
-            <span className="tabular-nums" data-testid={`benchmark-n-${metric.key}`}>
-              {t("pci.bench.n", { n: pairs.length })}
-            </span>
-          </div>
-          <div className="font-serif text-[34px] text-ink leading-tight tabular-nums tracking-[-0.01em]">
-            {formatMetric(med, metric.unit)}
-          </div>
-          <div className="mt-1 text-[10.5px] text-ink-mute tabular-nums">
-            P25 {formatMetric(p25, metric.unit)} · P75 {formatMetric(p75, metric.unit)}
+        <div className="mt-2.5">
+          <div className="text-[10.5px] text-ink-soft">{t("pci.bench.median")}</div>
+          <MetricAmount
+            value={med}
+            unit={metric.unit}
+            className="text-[24px] font-medium leading-tight text-ink"
+          />
+          <div className="mt-1 flex items-baseline gap-1 text-[10.5px] text-ink-soft">
+            P25 <MetricAmount value={p25} unit={metric.unit} className="text-[10.5px]" />
+            <span aria-hidden>·</span>
+            P75 <MetricAmount value={p75} unit={metric.unit} className="text-[10.5px]" />
           </div>
         </div>
       </div>
 
       {/* Bottom sleeve — leader + laggard within THIS group. */}
-      <div className="relative mt-auto w-full border-t border-rule/60 bg-bg-2/60 px-4 py-2.5 space-y-1">
+      <div className="mt-auto w-full border-t border-rule-soft bg-bg-2 px-4 py-2.5 space-y-1 rounded-b-md">
         <LeaderRow
-          icon={<ArrowUp size={11} className="text-[#2AA89B] dark:text-[#8FE3D9]" />}
+          icon={<ArrowUp size={11} className="text-success" />}
           label={t("pci.bench.leader")}
           ticker={best[0].ticker}
-          value={formatMetric(best[1], metric.unit)}
+          value={<MetricAmount value={best[1]} unit={metric.unit} className="text-[11px] text-ink-soft" />}
         />
         <LeaderRow
-          icon={<ArrowDown size={11} className="text-[#2AA89B] dark:text-[#8FE3D9]" />}
+          icon={<ArrowDown size={11} className="text-ink-soft" />}
           label={t("pci.bench.laggard")}
           ticker={worst[0].ticker}
-          value={formatMetric(worst[1], metric.unit)}
+          value={<MetricAmount value={worst[1]} unit={metric.unit} className="text-[11px] text-ink-soft" />}
         />
       </div>
     </button>
@@ -288,15 +288,15 @@ function BenchmarkTile({
 
 function LeaderRow({
   icon, label, ticker, value,
-}: { icon: React.ReactNode; label: string; ticker: string; value: string }) {
+}: { icon: React.ReactNode; label: string; ticker: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 text-[11.5px]">
-      <span className="inline-flex items-center gap-1 text-ink-mute">
+      <span className="inline-flex items-center gap-1 text-ink-soft">
         {icon} {label}
       </span>
-      <span className="text-ink tabular-nums">
-        <span className="font-mono font-semibold">{ticker}</span>
-        <span className="text-ink-mute ml-1.5">{value}</span>
+      <span className="inline-flex items-baseline gap-1.5 text-ink">
+        <span className="font-mono font-medium">{ticker}</span>
+        {value}
       </span>
     </div>
   );
@@ -349,14 +349,14 @@ function DrillDownPanel({
   return (
     <div
       data-testid={`benchmark-drill-${metric.key}`}
-      className="card-2026 mt-3 p-4 animate-in fade-in slide-in-from-top-1 duration-200"
+      className="mt-3 rounded-md border border-rule bg-surface p-4 animate-in fade-in slide-in-from-top-1 duration-overlay"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[13px] font-medium text-ink">
             {t("pci.bench.drillTitle", { metric: t(metric.labelKey), group: groupLabel })}
           </div>
-          <div className="text-[10.5px] text-ink-mute tabular-nums mt-0.5">
+          <div className="font-mono text-[10.5px] text-ink-soft tabular-nums mt-0.5">
             {t("pci.bench.n", { n: bars.filter((b) => !b.you).length })}
           </div>
         </div>
@@ -364,7 +364,7 @@ function DrillDownPanel({
           type="button"
           onClick={onClose}
           aria-label={t("pci.bench.close")}
-          className="h-11 w-11 -m-2 flex items-center justify-center text-ink-mute hover:text-ink transition-colors"
+          className="h-11 w-11 -m-2 flex items-center justify-center text-ink-soft hover:text-ink transition-colors"
         >
           <X size={14} strokeWidth={2} />
         </button>
@@ -379,33 +379,28 @@ function DrillDownPanel({
           >
             <span className="w-[92px] shrink-0 flex items-center gap-1.5 min-w-0">
               {b.you ? (
-                <span
-                  className="
-                    inline-flex items-center rounded-full border border-brand/50 bg-brand/15
-                    px-1.5 py-0.5 text-[9.5px] font-semibold text-ink truncate
-                  "
-                >
+                <StateChip tone="accent" className="truncate text-[9.5px]">
                   {t("pci.bench.you")}
-                </span>
+                </StateChip>
               ) : (
                 <>
-                  <CompanyLogo ticker={b.ticker} variant="monogram" size={16} className="rounded" />
-                  <span className="font-mono text-[10.5px] font-semibold text-ink tabular-nums truncate">
+                  <CompanyLogo ticker={b.ticker} variant="monogram" size={16} className="rounded-sm" />
+                  <span className="font-mono text-[10.5px] font-medium text-ink tabular-nums truncate">
                     {b.ticker}
                   </span>
                 </>
               )}
             </span>
-            <div className="flex-1 min-w-0 h-4 rounded bg-bg-2/60 overflow-hidden">
+            <div className="flex-1 min-w-0 h-4 rounded-sm bg-bg-2 overflow-hidden">
               <div
-                className={`h-full rounded transition-[width] duration-200 ${
-                  b.you ? "bg-brand" : "bg-brand/35"
+                className={`h-full rounded-sm transition-[width] duration-overlay ${
+                  b.you ? "bg-brand" : "bg-brand/30"
                 }`}
                 style={{ width: `${widthPct(b.value)}%` }}
               />
             </div>
-            <span className="w-[64px] shrink-0 text-right text-[11px] text-ink tabular-nums">
-              {formatMetric(b.value, metric.unit)}
+            <span className="w-[64px] shrink-0 text-right">
+              <MetricAmount value={b.value} unit={metric.unit} className="text-[11px] text-ink" />
             </span>
           </div>
         ))}
@@ -415,7 +410,7 @@ function DrillDownPanel({
           not for the private workspace (market-linked, or missing from
           the loaded period). */}
       {workspace && (!youSupported || youValue == null) && (
-        <div className="mt-3 text-[10.5px] text-ink-mute italic">
+        <div className="mt-3 text-[10.5px] text-ink-soft italic">
           {t("pci.bench.noOverlay")}
         </div>
       )}
@@ -435,7 +430,20 @@ function quantile(sorted: number[], q: number): number {
   return sorted[base];
 }
 
-function formatMetric(value: number, unit: "pct" | "x"): string {
-  if (!Number.isFinite(value)) return "—";
-  return unit === "pct" ? `${value.toFixed(1)}%` : `${value.toFixed(2)}×`;
+/** The one way a benchmark figure renders — through <Amount>, so mono
+ *  tabular + locale come for free. Percent values arrive in percentage
+ *  POINTS from the watchlist rows; <Amount kind="percent"> takes ratios. */
+function MetricAmount({
+  value,
+  unit,
+  className,
+}: {
+  value: number;
+  unit: "pct" | "x";
+  className?: string;
+}) {
+  if (unit === "pct") {
+    return <Amount kind="percent" value={value / 100} fractionDigits={1} className={className} />;
+  }
+  return <Amount kind="multiple" value={value} className={className} />;
 }

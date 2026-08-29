@@ -169,7 +169,7 @@ describe("JurisdictionSelect — the pre-scan dropdown", () => {
       "Auto-detect",
       "Romania",
       "Hungary",
-      "Other (international)",
+      "International (IFRS-style reading)",
     ]);
   });
 

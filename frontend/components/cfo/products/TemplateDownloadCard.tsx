@@ -31,6 +31,8 @@ import { Download, FileSpreadsheet, ExternalLink, Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 
+import { Panel, PanelBody, PanelHeader } from "@/components/instrument/Panel";
+
 // Module-level i18n instance — previewWorkbookInNewTab runs outside the React
 // tree (it writes into a raw window.open tab), so it can't use the hook.
 import i18n from "@/i18n";
@@ -90,13 +92,21 @@ async function previewWorkbookInNewTab(
     const sections = wb.SheetNames
       .map((name) => `<h2>${name}</h2>${XLSX.utils.sheet_to_html(wb.Sheets[name])}`)
       .join("");
+    // Standalone generated HTML document written into a raw tab — the app's
+    // CSS variables do not exist there, so this document carries literal
+    // colors by necessity (sanctioned design-lint escape, per entry below).
     const doc =
       `<!doctype html><html><head><meta charset="utf-8"><title>${filename}</title><style>` +
+      /* design-lint-allow-hex — generated standalone document, no CSS vars */
       "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
+      /* design-lint-allow-hex — generated standalone document, no CSS vars */
       "h1{font-size:15px;margin:0 0 4px;color:#1B7268}" +
+      /* design-lint-allow-hex — generated standalone document, no CSS vars */
       "h2{font-size:13px;margin:20px 0 8px;color:#1B7268}" +
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:8px}" +
+      /* design-lint-allow-hex — generated standalone document, no CSS vars */
       "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
+      /* design-lint-allow-hex — generated standalone document, no CSS vars */
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
       `</style></head><body>${previewBackButtonHtml()}<h1>${filename} — ${subtitle}</h1>${sections}</body></html>`;
     if (tab) {
@@ -109,6 +119,7 @@ async function previewWorkbookInNewTab(
     if (tab) {
       tab.document.open();
       tab.document.write(
+        /* design-lint-allow-hex — generated standalone document, no CSS vars */
         `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">${previewBackButtonHtml()}${i18n.t("tmpl.previewError", { msg })}</body>`,
       );
       tab.document.close();
@@ -134,128 +145,58 @@ export function TemplateDownloadCard({
   const [showFormat, setShowFormat] = useState(false);
 
   if (variant === "prominent") {
+    // THE INSTRUMENT — a resting Panel (hairline border, no glow, no
+    // animated gradient, no shadow) with a standard header row and one
+    // file-affordance row per artifact: spreadsheet mark, name + meta on
+    // the left, View / Download on the right.
     return (
-      <motion.div
-        data-testid="template-download-card-prominent"
-        className="
-          relative overflow-hidden rounded-2xl
-          ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.47px] [animation-duration:28.8s] [--af-a1:0.14] [--af-a2:0.06]
-          border border-brand/40
-          px-5 py-4 sm:px-6 sm:py-5
-        "
-      >
-        {/* Soft glow blob — Apple-style background accent */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-brand/10 blur-3xl"
-        />
+      <Panel data-testid="template-download-card-prominent">
+        <PanelHeader title={t("upload.template.title")} />
+        <PanelBody className="space-y-3">
+          <p className="text-[12.5px] text-ink-soft leading-relaxed">
+            {t("upload.template.description")}
+          </p>
 
-        {/* Oversized decorative mark — pinned to the bottom-left corner
-            and clipped by the card's overflow-hidden, same treatment as
-            the dropzones' upload mark. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-20 -left-12 text-ink opacity-[0.08]"
-        >
-          <FileSpreadsheet size={300} strokeWidth={1} />
-        </div>
+          {/* Default action — one file row per artifact. Callers can still
+              override via `actions` (the dashboard renders its example
+              trial balances here instead). */}
+          {actions ?? (
+            <div className="space-y-2">
+              <FileAffordanceRow
+                name={t("tmpl.officialTemplate")}
+                meta={t("tmpl.officialTemplateDesc")}
+                onView={() => void previewTemplateInNewTab()}
+                viewTestid="template-view"
+                href={TEMPLATE_HREF}
+                downloadName={TEMPLATE_FILENAME}
+                downloadTestid="template-download-link"
+                onDownload={onDownload}
+              />
+              {/* Sales-analysis example — relocated here from the
+                  "Expected format" card (2026-07-24). */}
+              <FileAffordanceRow
+                name={t("tmpl.salesExample")}
+                meta={t("expectedFormat.exampleCaption")}
+                onView={() =>
+                  void previewWorkbookInNewTab(
+                    "/examples/example_products_trading.xlsx",
+                    "example_products_trading.xlsx",
+                    t("tmpl.previewSalesSubtitle"),
+                  )
+                }
+                viewTestid="view-sales-template"
+                href="/examples/example_products_trading.xlsx"
+                downloadName="example_products_trading.xlsx"
+                downloadTestid="download-sales-template"
+              />
+            </div>
+          )}
 
-        <div className="relative flex items-start gap-4">
-
-          <div className="flex-1 min-w-0">
-            <h3 className="font-serif text-[24px] text-ink leading-tight tracking-[-0.01em]">
-              {t("upload.template.title")}
-            </h3>
-            <p className="mt-1.5 text-[12.5px] text-ink-soft leading-relaxed">
-              {t("upload.template.description")}
-            </p>
-
-            {/* Default action — the template as a LIST-ITEM row (same
-                style as the dashboard's example-trial-balance rows;
-                replaced the plain Download/View button pair 2026-07-24).
-                Callers can still override via `actions`. */}
-            {actions ?? (
-              <div className="mt-3.5 space-y-2">
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="text-[12.5px] font-medium text-ink truncate">
-                      {t("tmpl.officialTemplate")}{" "}
-                      <span className="text-ink-mute font-normal">(XLSX)</span>
-                    </div>
-                    <div className="text-[10.5px] text-ink-mute">
-                      {t("tmpl.officialTemplateDesc")}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => void previewTemplateInNewTab()}
-                      data-testid="template-view"
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                    >
-                      <ExternalLink size={12} strokeWidth={2} />
-                      {t("tmpl.view")}
-                    </button>
-                    <a
-                      href={TEMPLATE_HREF}
-                      download={TEMPLATE_FILENAME}
-                      onClick={onDownload}
-                      data-testid="template-download-link"
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                    >
-                      <Download size={12} strokeWidth={2} />
-                      {t("common.download")}
-                    </a>
-                  </div>
-                </div>
-                {/* Sales-analysis example — relocated here from the
-                    "Expected format" card (2026-07-24). */}
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-bg-2/40 px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="text-[12.5px] font-medium text-ink truncate">
-                      {t("tmpl.salesExample")}{" "}
-                      <span className="text-ink-mute font-normal">(XLSX)</span>
-                    </div>
-                    <div className="text-[10.5px] text-ink-mute">
-                      {t("expectedFormat.exampleCaption")}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void previewWorkbookInNewTab(
-                          "/examples/example_products_trading.xlsx",
-                          "example_products_trading.xlsx",
-                          t("tmpl.previewSalesSubtitle"),
-                        )
-                      }
-                      data-testid="view-sales-template"
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                    >
-                      <ExternalLink size={12} strokeWidth={2} />
-                      {t("tmpl.view")}
-                    </button>
-                    <a
-                      href="/examples/example_products_trading.xlsx"
-                      download="example_products_trading.xlsx"
-                      data-testid="download-sales-template"
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors"
-                    >
-                      <Download size={12} strokeWidth={2} />
-                      {t("common.download")}
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* "What's inside" — always shown now (no longer behind a toggle). */}
-            <FormatSummary context={context} />
-            {extra}
-          </div>
-        </div>
-      </motion.div>
+          {/* "What's inside" — always shown now (no longer behind a toggle). */}
+          <FormatSummary context={context} />
+          {extra}
+        </PanelBody>
+      </Panel>
     );
   }
 
@@ -303,7 +244,7 @@ export function TemplateDownloadCard({
               onClick={() => setShowFormat((v) => !v)}
               aria-expanded={showFormat}
               className="
-                text-[11.5px] text-ink-mute hover:text-ink
+                text-[11.5px] text-ink-soft hover:text-ink
                 transition-colors
               "
             >
@@ -323,6 +264,72 @@ export function TemplateDownloadCard({
             </motion.div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// FileAffordanceRow — one downloadable artifact as a proper file row:
+// spreadsheet mark, name + meta, View / Download actions. The prominent
+// template Panel renders one per file.
+// ──────────────────────────────────────────────────────────────────────
+
+function FileAffordanceRow({
+  name,
+  meta,
+  onView,
+  viewTestid,
+  href,
+  downloadName,
+  downloadTestid,
+  onDownload,
+}: {
+  name: string;
+  meta: string;
+  onView: () => void;
+  viewTestid: string;
+  href: string;
+  downloadName: string;
+  downloadTestid: string;
+  onDownload?: () => void;
+}) {
+  const { t } = useTranslation();
+  const actionCls =
+    "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors";
+  return (
+    // flex-wrap: at phone widths the action pair drops below the name
+    // instead of crushing it to a few characters.
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md border border-rule bg-bg-2/40 px-3 py-2">
+      <div className="flex items-center gap-2.5 min-w-[200px] flex-1">
+        <span className="shrink-0 grid place-items-center h-8 w-8 rounded border border-rule bg-surface text-ink-soft">
+          <FileSpreadsheet size={14} strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[12.5px] font-medium text-ink truncate">
+            {name} <span className="font-mono text-[10.5px] text-ink-soft font-normal">XLSX</span>
+          </div>
+          {/* No truncate here — a nowrap meta line inflates the max-content
+              of implicit grid columns hosting this card and clips whole
+              heroes at phone widths (caught by the 390px sweep). */}
+          <div className="text-[10.5px] text-ink-soft">{meta}</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button type="button" onClick={onView} data-testid={viewTestid} className={actionCls}>
+          <ExternalLink size={12} strokeWidth={2} />
+          {t("tmpl.view")}
+        </button>
+        <a
+          href={href}
+          download={downloadName}
+          onClick={onDownload}
+          data-testid={downloadTestid}
+          className={actionCls}
+        >
+          <Download size={12} strokeWidth={2} />
+          {t("common.download")}
+        </a>
       </div>
     </div>
   );
@@ -383,7 +390,7 @@ function FormatSummary({
 
   return (
     <div className={`${padClass} border-t border-rule/60 space-y-2`}>
-      <div className={`flex items-center gap-1.5 ${labelClass} uppercase tracking-wide text-ink-mute font-medium`}>
+      <div className={`flex items-center gap-1.5 ${labelClass} uppercase tracking-wide text-ink-soft font-medium`}>
         <Info size={compact ? 10 : 11} strokeWidth={2} />
         {context === "dashboard"
           ? t("upload.template.insideExamples", "Inside the example files")
@@ -406,7 +413,7 @@ function FormatSummary({
                     className={
                       s.required
                         ? "text-brand-d font-medium"
-                        : "text-ink-mute italic"
+                        : "text-ink-soft italic"
                     }
                   >
                     {s.required
@@ -421,7 +428,7 @@ function FormatSummary({
           </li>
         ))}
       </ul>
-      <p className={`${textClass} text-ink-mute pt-1 leading-snug`}>
+      <p className={`${textClass} text-ink-soft pt-1 leading-snug`}>
         {context === "dashboard"
           ? t(
               "upload.template.fallbackNoteDashboard",

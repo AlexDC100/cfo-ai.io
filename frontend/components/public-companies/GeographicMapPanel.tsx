@@ -86,11 +86,15 @@ const METRICS: Record<string, MetricDef> = {
 const METRIC_ORDER = ["count", "mktcap", "revenue", "growth", "margin"] as const;
 
 // ── Map colors (fixed light ramp — reads as "map" in both themes) ────────
-const EMPTY_FILL = "#e6eae9";
+// Constraint: these are DATA-scale literals painted into SVG `fill`
+// attributes; a CSS-var token cannot be interpolated in JS, so the ramp
+// endpoints are pinned here — to the Paper accent (verified green-teal),
+// replacing the retired bright teal.
+const EMPTY_FILL = "hsl(var(--bg-2))";
 const rampAt = (t: number): string => {
-  // #E7F7F4 → #5CD3C5
-  const a = [0xe7, 0xf7, 0xf4];
-  const b = [0x5c, 0xd3, 0xc5];
+  // E7F5F2 → 0E7C6B (brand ramp, light stop → accent)
+  const a = [0xe7, 0xf5, 0xf2];
+  const b = [0x0e, 0x7c, 0x6b];
   const c = a.map((av, i) => Math.round(av + (b[i] - av) * t));
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 };
@@ -299,7 +303,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                 onClick={() => toggleMetric(k)}
                 className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12.5px] font-medium transition-colors ${
                   on
-                    ? "bg-brand border-brand text-[#0b3b36] font-semibold"
+                    ? "bg-brand border-brand text-paper font-semibold"
                     : "border-rule bg-surface text-ink-soft hover:text-ink hover:border-ink-mute/50"
                 }`}
               >
@@ -322,7 +326,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
-            <i className="inline-block w-[13px] h-[13px] rounded-[3px] border" style={{ background: EMPTY_FILL, borderColor: "#d5dad8" }} />
+            <i className="inline-block w-[13px] h-[13px] rounded-[3px] border" style={{ background: EMPTY_FILL, borderColor: "hsl(var(--rule))" }} />
             No coverage
           </div>
         </div>
@@ -332,7 +336,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
       <div className="flex gap-4 flex-col lg:flex-row min-h-[560px]">
         <div
           ref={wrapRef}
-          className="card-2026 relative flex-1 min-w-0 min-h-[480px] overflow-hidden"
+          className="relative flex-1 min-w-0 min-h-[480px] overflow-hidden rounded-md border border-rule bg-surface"
         >
           {!counties ? (
             <div className="absolute inset-0 flex items-center justify-center text-ink-mute text-[13px]">
@@ -358,8 +362,8 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                     <path
                       key={`n${i}`}
                       d={pathFor(f as GeoPermissibleObjects) ?? undefined}
-                      fill="#dcdedd"
-                      stroke="#fff"
+                      fill="hsl(var(--bg-2))"
+                      stroke="hsl(var(--surface))"
                       strokeWidth={0.5}
                       style={{ vectorEffect: "non-scaling-stroke" }}
                       pointerEvents="none"
@@ -375,7 +379,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                         data-county={f.ckey}
                         d={pathFor(f as GeoPermissibleObjects) ?? undefined}
                         fill={fillFor(f.ckey)}
-                        stroke={isSel ? "var(--tw-ring-color, #1a1a1a)" : "#fff"}
+                        stroke={isSel ? "hsl(var(--ink))" : "hsl(var(--surface))"}
                         strokeWidth={isSel ? 1.6 : 0.5}
                         className={has ? "cursor-pointer hover:stroke-brand-dark" : ""}
                         style={{ vectorEffect: "non-scaling-stroke", transition: "fill .3s ease" }}
@@ -398,14 +402,14 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
         </div>
 
         {/* ── Side panel ── */}
-        <aside className="card-2026 w-full lg:w-[372px] shrink-0 flex flex-col overflow-hidden max-h-[720px]">
+        <aside className="w-full lg:w-[372px] shrink-0 flex flex-col overflow-hidden max-h-[720px] rounded-md border border-rule bg-surface">
           {!selected ? (
             <>
               <div className="px-4 pt-4 pb-3.5 border-b border-rule-soft">
                 <div className="text-[10.5px] uppercase tracking-[0.1em] font-semibold text-ink-mute">
                   Romania · {counties?.length ?? "—"} județe · {covered.length} with listings
                 </div>
-                <div className="font-serif text-[20px] mt-0.5 text-ink">
+                <div className="text-[15px] font-semibold mt-0.5 text-ink">
                   Ranked by {active.length > 1 ? "composite score" : METRICS[active[0]].label}
                 </div>
               </div>
@@ -462,13 +466,13 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                     <MapPin size={18} strokeWidth={2} />
                   </span>
                   <div>
-                    <div className="font-serif text-[23px] leading-tight text-ink">{displayOf(selected)}</div>
+                    <div className="text-[16px] font-semibold leading-tight text-ink">{displayOf(selected)}</div>
                     <div className="text-[11.5px] text-ink-mute">
                       Județ · {selCos.length} listed compan{selCos.length > 1 ? "ies" : "y"}
                     </div>
                   </div>
                   <div className="ml-auto text-right">
-                    <div className="font-serif text-[26px] leading-none text-brand-dark">
+                    <div className="font-mono text-[22px] font-medium tabular-nums leading-none text-brand-dark">
                       {Math.round((scores.get(selected) ?? 0) * 100)}
                     </div>
                     <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-mute">

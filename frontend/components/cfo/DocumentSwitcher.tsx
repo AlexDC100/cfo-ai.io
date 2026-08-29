@@ -468,7 +468,7 @@ export function DocumentSwitcher({ className, compact }: Props) {
                 <AlertCircle className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-serif text-[18px] text-ink leading-tight">
+                <h3 className="text-[16px] font-semibold text-ink leading-tight">
                   Remove this analysis?
                 </h3>
                 <p className="text-[12.5px] text-ink-soft mt-1">

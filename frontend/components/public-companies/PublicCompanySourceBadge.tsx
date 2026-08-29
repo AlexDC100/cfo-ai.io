@@ -45,7 +45,7 @@ export function PublicCompanySourceBadge({ variant, label, className = "" }: Pro
     demo: {
       icon: Sparkles,
       label: label ?? "Demo",
-      tone: "bg-[#5CD3C5]/10 text-[#2AA89B] dark:text-[#8FE3D9] border-[#5CD3C5]/20",
+      tone: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
     },
     nasdaq: {
       icon: Database,
@@ -60,13 +60,13 @@ export function PublicCompanySourceBadge({ variant, label, className = "" }: Pro
     bvb: {
       icon: Landmark,
       label: label ?? "BVB · FY2024",
-      tone: "bg-[#5CD3C5]/10 text-[#2AA89B] dark:text-[#8FE3D9] border-[#5CD3C5]/20",
+      tone: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
     },
     // Kept for type-completeness — never reached after normalization.
     seed_bvb: {
       icon: Landmark,
       label: label ?? "BVB · FY2024",
-      tone: "bg-[#5CD3C5]/10 text-[#2AA89B] dark:text-[#8FE3D9] border-[#5CD3C5]/20",
+      tone: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
     },
   }[normalized];
   const Icon = config.icon;

@@ -59,7 +59,7 @@ export function SegmentedControl<T extends string>({
               <span
                 className={cn(
                   "font-mono text-[10px] tracking-[0.08em]",
-                  active ? "text-brand-d" : "text-ink-mute",
+                  active ? "text-brand-d" : "text-ink-soft",
                 )}
               >
                 {opt.badge}

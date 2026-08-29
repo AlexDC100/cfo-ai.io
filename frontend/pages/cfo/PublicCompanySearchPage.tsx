@@ -9,9 +9,10 @@
 // NASDAQ-9 — not yet shipped; placeholder route works, page lands on
 // "loading" state until NASDAQ-9 lands).
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, AlertTriangle, Search as SearchIcon } from "lucide-react";
+import { PageHeader } from "@/components/instrument/Panel";
 import { PublicCompanySearchInput } from "@/components/cfo/PublicCompanySearchInput";
 import { PublicCompanyResultCard } from "@/components/cfo/PublicCompanyResultCard";
 import {
@@ -89,12 +90,14 @@ export default function PublicCompanySearchPage() {
           Back to dashboard
         </Link>
 
-        {/* Hero */}
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-[34px] sm:text-[40px] text-ink leading-tight tracking-[-0.012em]">
-            Search public companies
-          </h1>
-          <p className="text-[14px] text-ink-soft mt-3 max-w-xl mx-auto leading-relaxed">
+        {/* A3 hero eviction — compact instrument header instead of the
+            centered serif display. */}
+        <div className="mb-6 pb-4 border-b border-rule">
+          <PageHeader
+            eyebrow="Public companies"
+            title="Search public companies"
+          />
+          <p className="text-[13px] text-ink-soft mt-1 max-w-xl leading-relaxed">
             Search by ticker (<span className="font-mono">AAPL</span>) or company name
             (<span className="italic">Apple Inc</span>). Analyse any of the 16,000+ US-listed
             tickers in Sharadar Equities with the same dashboard as your private
@@ -130,7 +133,7 @@ export default function PublicCompanySearchPage() {
           {showEmptyState && (
             <div className="
               text-center py-12 text-ink-mute text-[13px]
-              border border-dashed border-rule rounded-xl
+              border border-dashed border-rule rounded-md
             ">
               <SearchIcon size={20} strokeWidth={1.5} className="mx-auto mb-3 text-ink-mute/70" />
               No matching public company found.<br />
@@ -161,22 +164,20 @@ export default function PublicCompanySearchPage() {
 // ── §24 empty-state panels ─────────────────────────────────────────────
 
 function KeyMissingPanel() {
+  // Operator-config blocked state — caution semantics, never brand teal.
   return (
     <div
       data-testid="public-company-key-missing"
-      className="
-        rounded-2xl border border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.08]
-        px-5 py-4
-      "
+      className="rounded-md border border-l-[3px] border-rule border-l-caution bg-surface px-5 py-4"
     >
       <div className="flex items-start gap-3">
-        <AlertTriangle size={18} className="text-[#2AA89B] dark:text-[#8FE3D9] shrink-0 mt-0.5" />
+        <AlertTriangle size={18} className="text-caution shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold text-[#1B7268] dark:text-[#E6F7F4]">
+          <div className="text-[13px] font-semibold text-ink">
             Nasdaq API key is not configured
           </div>
-          <p className="text-[12.5px] text-[#1B7268]/85 dark:text-[#E6F7F4]/85 mt-1 leading-relaxed">
-            The operator needs to set <code className="font-mono text-[11.5px] px-1 py-0.5 rounded bg-[#E6F7F4]/50 dark:bg-[#5CD3C5]/10">NASDAQ_API_KEY</code>
+          <p className="text-[12.5px] text-ink-soft mt-1 leading-relaxed">
+            The operator needs to set <code className="font-mono text-[11.5px] px-1 py-0.5 rounded-sm bg-bg-2">NASDAQ_API_KEY</code>
             {" "}on the backend host before public-company search becomes available.
           </p>
         </div>
@@ -200,7 +201,7 @@ function ErrorPanel({ error }: { error: NasdaqErrorEnvelope["error"] }) {
     <div
       data-testid="public-company-search-error"
       className="
-        rounded-xl border border-rule bg-bg-2/40 px-4 py-3
+        rounded-md border border-rule bg-bg-2/40 px-4 py-3
       "
     >
       <div className="text-[13px] text-ink">{message}</div>

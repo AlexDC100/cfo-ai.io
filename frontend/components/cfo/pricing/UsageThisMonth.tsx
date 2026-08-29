@@ -53,7 +53,7 @@ export function UsageThisMonth({ compact = false }: {
           <div className="text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
             This month's usage
           </div>
-          <h2 className="mt-2 font-serif text-[26px] sm:text-[32px] leading-[1.1] text-ink">
+          <h2 className="mt-2 text-[20px] font-semibold leading-tight tracking-tight text-ink">
             Where you stand right now.
           </h2>
         </header>
@@ -190,7 +190,7 @@ function UsageCard({
       {pct !== null && (
         <div className="mt-3 h-1.5 rounded-full bg-rule overflow-hidden">
           <div
-            className={`h-full rounded-full transition-[width] ${pct >= 100 ? "bg-[#5CD3C5]" : "bg-brand"}`}
+            className={`h-full rounded-full transition-[width] ${pct >= 100 ? "bg-caution" : "bg-brand"}`}
             style={{ width: `${pct}%` }}
             role="progressbar"
             aria-valuenow={pct}

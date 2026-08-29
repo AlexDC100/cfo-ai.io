@@ -95,7 +95,7 @@ export function AppearanceSection() {
   return (
     <div className="space-y-5">
       <div>
-        <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink-mute">
+        <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink-soft">
           {t("settingsX.appearance.theme_label")}
         </div>
         {mounted ? (
@@ -119,13 +119,13 @@ export function AppearanceSection() {
         ) : (
           <div className="h-9 sm:h-8" aria-hidden />
         )}
-        <p className="mt-1.5 text-[11px] text-ink-mute">
+        <p className="mt-1.5 text-[11px] text-ink-soft">
           {t("settingsX.appearance.theme_hint")}
         </p>
       </div>
 
       <div>
-        <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink-mute">
+        <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink-soft">
           {t("settingsX.appearance.density_label")}
         </div>
         <SegmentedControl
@@ -145,7 +145,7 @@ export function AppearanceSection() {
             },
           ]}
         />
-        <p className="mt-1.5 text-[11px] text-ink-mute">
+        <p className="mt-1.5 text-[11px] text-ink-soft">
           {t("settingsX.appearance.density_hint")}
         </p>
       </div>

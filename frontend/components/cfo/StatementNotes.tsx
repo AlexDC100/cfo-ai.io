@@ -221,10 +221,10 @@ function FilterPill({
   tone?: "critical" | "watch" | "info" | "rec";
 }) {
   const toneStyles =
-    tone === "critical" ? "data-[active=true]:bg-red-100 data-[active=true]:text-red-800 dark:data-[active=true]:bg-red-500/[0.18] dark:data-[active=true]:text-red-300"
-    : tone === "watch"  ? "data-[active=true]:bg-[#E6F7F4] data-[active=true]:text-[#1B7268] dark:data-[active=true]:bg-[#5CD3C5]/[0.18] dark:data-[active=true]:text-[#8FE3D9]"
-    : tone === "info"   ? "data-[active=true]:bg-[#E6F7F4] data-[active=true]:text-[#1B7268] dark:data-[active=true]:bg-[#5CD3C5]/[0.18] dark:data-[active=true]:text-[#8FE3D9]"
-    : tone === "rec"    ? "data-[active=true]:bg-[#E6F7F4] data-[active=true]:text-[#1B7268] dark:data-[active=true]:bg-[#5CD3C5]/[0.18] dark:data-[active=true]:text-[#8FE3D9]"
+    tone === "critical" ? "data-[active=true]:bg-alert-tint data-[active=true]:text-alert"
+    : tone === "watch"  ? "data-[active=true]:bg-brand-tint data-[active=true]:text-brand-d dark:data-[active=true]:text-brand-l"
+    : tone === "info"   ? "data-[active=true]:bg-brand-tint data-[active=true]:text-brand-d dark:data-[active=true]:text-brand-l"
+    : tone === "rec"    ? "data-[active=true]:bg-brand-tint data-[active=true]:text-brand-d dark:data-[active=true]:text-brand-l"
     :                     "data-[active=true]:bg-ink/[0.08] data-[active=true]:text-ink";
 
   return (
@@ -310,16 +310,16 @@ function RecCard({ deduped }: { deduped: DedupedRecommendation }) {
   return (
     <li
       className="
-        relative rounded-lg border border-rule border-l-[3px] border-l-[#5CD3C5]
-        bg-[#5CD3C5]/[0.06]
+        relative rounded-lg border border-rule border-l-[3px] border-l-brand
+        bg-brand/[0.06]
         px-3.5 py-2.5
       "
     >
       <div className="flex items-start gap-2.5">
-        <Icon size={14} className="flex-shrink-0 mt-[3px] text-[#2AA89B]" />
+        <Icon size={14} className="flex-shrink-0 mt-[3px] text-brand" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-[10px] uppercase tracking-[0.1em] text-[#2AA89B] dark:text-[#5CD3C5] font-semibold">
+            <span className="text-[10px] uppercase tracking-[0.1em] text-brand font-semibold">
               {t("tablesV2.notes.recommendation", "Recommendation")}
             </span>
             <span className="text-[13px] text-ink font-medium leading-snug">

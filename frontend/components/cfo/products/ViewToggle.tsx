@@ -57,7 +57,7 @@ export function ViewToggle({ value, onChange }: Props) {
               text-[12.5px] font-medium
               transition-colors
               ${active
-                ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
+                ? "bg-surface text-ink ring-1 ring-inset ring-rule"
                 : "text-ink-soft hover:text-ink"}
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
             `}

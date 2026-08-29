@@ -80,11 +80,11 @@ const STATUS_META: Record<Classification, { label: string; tone: string; dot: st
 const OVERRIDE_META: Record<string, { label: string; tone: string }> = {
   eliminate_approved: {
     label: "ELIMINATION APPROVED",
-    tone: "bg-red-50 text-red-800 border-red-200",
+    tone: "bg-alert-tint text-alert border-alert/30",
   },
   strategic_override: {
     label: "MARKED STRATEGIC (override)",
-    tone: "bg-[#E6F7F4] text-[#1B7268] border-[#8FE3D9]",
+    tone: "bg-brand-tint text-brand-d dark:text-brand-l border-brand-l/50",
   },
 };
 
@@ -286,7 +286,7 @@ export function SkuDetailDrawer({
             </div>
             <h2
               id="sku-drawer-title"
-              className="font-serif text-[22px] text-ink leading-tight mt-1 break-words"
+              className="text-[18px] font-semibold text-ink leading-tight mt-1 break-words"
             >
               {sku.product_name}
             </h2>
@@ -340,7 +340,7 @@ export function SkuDetailDrawer({
               </LearnableRowLabel>
             </div>
             <div
-              className={`mt-2 font-serif num-hero-fluid-lg leading-none tabular-nums break-words ${
+              className={`mt-2 font-mono text-[28px] leading-none tabular-nums break-words ${
                 (sku.real_margin_krn ?? 0) < 0 ? "text-red-700" : "text-ink"
               }`}
             >
@@ -588,7 +588,7 @@ function KpiTile({
         {labelEl}
       </div>
       <div
-        className={`mt-1.5 font-serif num-hero-fluid-sm tabular-nums leading-none break-words ${
+        className={`mt-1.5 font-mono text-[20px] tabular-nums leading-none break-words ${
           tone === "negative" ? "text-red-700" : "text-ink"
         }`}
       >

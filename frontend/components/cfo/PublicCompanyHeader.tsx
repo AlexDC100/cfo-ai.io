@@ -42,16 +42,16 @@ export function PublicCompanyHeader({ ticker, info, syncedAt, onRefresh, refresh
         bg-[hsl(var(--bg)/0.72)] backdrop-blur-[18px]
         border-b border-rule-soft
         px-4 sm:px-6 py-3 sm:py-4
-        flex items-center gap-3 sm:gap-4
+        flex flex-wrap items-center gap-3 sm:gap-4
       "
     >
       <Link
         to="/public-companies"
         className="
           flex items-center gap-1.5
-          h-9 px-2.5 rounded-lg
+          h-8 px-2.5 rounded-md
           text-[12.5px] text-ink-soft
-          hover:bg-bg-2/60 hover:text-ink transition-colors
+          hover:bg-bg-2/60 hover:text-ink transition-colors duration-micro
         "
       >
         <ChevronLeft size={14} strokeWidth={1.75} />
@@ -60,12 +60,14 @@ export function PublicCompanyHeader({ ticker, info, syncedAt, onRefresh, refresh
 
       <div className="
         flex h-9 w-9 shrink-0 items-center justify-center
-        rounded-lg bg-bg-2 text-ink-soft
+        rounded-md bg-bg-2 text-ink-soft
       ">
         <Building2 size={16} strokeWidth={1.75} />
       </div>
 
-      <div className="flex-1 min-w-0">
+      {/* basis floor forces the button cluster onto its own row on phone
+          widths instead of overlapping the meta column. */}
+      <div className="flex-1 min-w-0 basis-[220px]">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="font-mono text-[16px] sm:text-[18px] font-semibold text-ink tabular-nums tracking-tight">
             {ticker}
@@ -100,13 +102,12 @@ export function PublicCompanyHeader({ ticker, info, syncedAt, onRefresh, refresh
           aria-pressed={alreadyPeer}
           className={`
             inline-flex items-center gap-1.5
-            h-9 px-3 rounded-lg
+            h-8 px-3 rounded-md
             text-[12.5px] font-medium
-            ring-1 ring-inset
-            transition-all
+            transition-colors duration-micro
             ${alreadyPeer
-              ? "bg-brand/10 text-brand-d ring-brand/30 hover:bg-brand/15"
-              : "bg-gradient-to-b from-brand to-brand-d text-paper ring-white/15 shadow-[0_6px_18px_-8px_rgba(92,211,197,0.55)] hover:shadow-[0_8px_22px_-8px_rgba(92,211,197,0.7)]"
+              ? "bg-brand-tint text-brand-d dark:text-brand-l ring-1 ring-inset ring-brand/30 hover:bg-brand-tint/70"
+              : "bg-ink text-paper hover:bg-ink/90"
             }
           `}
         >
@@ -119,12 +120,12 @@ export function PublicCompanyHeader({ ticker, info, syncedAt, onRefresh, refresh
           data-testid="public-company-refresh"
           className="
             inline-flex items-center gap-1.5
-            h-9 px-3 rounded-lg
+            h-8 px-3 rounded-md
             border border-rule bg-surface
             text-[12.5px] text-ink
             hover:bg-bg-2/60 hover:border-brand/30
             disabled:opacity-50 disabled:cursor-not-allowed
-            transition-all
+            transition-colors duration-micro
           "
         >
           <RefreshCw

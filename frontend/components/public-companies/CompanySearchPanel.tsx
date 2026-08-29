@@ -139,7 +139,9 @@ export function CompanySearchPanel({
           used to duplicate that framing (rounded-3xl border + gradient
           bg) was removed 2026-07-24, so there's one selection style, not
           two nested ones. */}
-      <div className="flex flex-col sm:flex-row items-stretch gap-2.5">
+      {/* One row at every width — the info button rides beside the field
+          rather than floating centered under it on mobile. */}
+      <div className="flex flex-row items-center gap-2.5">
         <div className="
           flex-1 min-w-0
           flex items-center gap-3 h-11 px-4
@@ -175,7 +177,7 @@ export function CompanySearchPanel({
 
         {/* Data-sources "i" — relocated from the company grid's header
             (2026-07-24) to sit beside the search field. */}
-        <div className="shrink-0 self-center">
+        <div className="shrink-0">
           <DataSourcesInfoButton />
         </div>
       </div>

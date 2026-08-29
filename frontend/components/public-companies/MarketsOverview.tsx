@@ -330,7 +330,7 @@ export function MarketsOverview({
         onToggleCompare={toggleCompare}
         filters={
           <div data-testid="markets-explore">
-            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft mb-2">
               {t("pci.filters.title")}
             </div>
             {/* One horizontal chip rail — scrolls inside its own overflow
@@ -393,7 +393,7 @@ export function DataSourcesInfoButton() {
         </button>
       </PopoverTrigger>
       <PopoverContent side="right" align="start" className="w-[320px] p-4">
-        <div className="text-[11px] uppercase tracking-[0.08em] text-ink-mute font-semibold mb-2">
+        <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-semibold mb-2">
           Data sources
         </div>
         <ul className="space-y-2.5 text-[12px] text-ink-soft leading-relaxed">
@@ -622,7 +622,7 @@ function CompanyGrid({
         </button>
       </div>
       {/* Range readout — centred beneath the grid. */}
-      <div className="mt-3 text-center text-[11px] text-ink-mute tabular-nums">
+      <div className="mt-3 text-center text-[11px] text-ink-soft tabular-nums">
         {t("pci.grid.range", {
           from: start + 1,
           to: Math.min(start + COMPANIES_PER_PAGE, rows.length),
@@ -671,23 +671,23 @@ function CompanyCard({
     : true;
 
   return (
+    // D1 axe (nested-interactive): the tile is a PLAIN div — the open action
+    // is a stretched sibling <button> at z-0, so the compare checkbox is no
+    // longer a button nested inside an interactive wrapper.
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
       data-testid={`company-grid-tile-${r.ticker}`}
       className="
         group relative flex flex-col gap-2 rounded-md border border-rule bg-surface p-3 min-w-0
-        text-left cursor-pointer select-none
+        text-left select-none
         transition-colors duration-micro hover:border-rule-strong
       "
     >
+      <button
+        type="button"
+        aria-label={`${displayTicker} — ${r.companyName}`}
+        onClick={onSelect}
+        className="absolute inset-0 z-0 rounded-md cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+      />
       {/* Header — monogram + ticker/name + compare checkbox. */}
       <div className="flex items-start gap-2.5 min-w-0">
         <CompanyLogo
@@ -710,7 +710,8 @@ function CompanyCard({
           </div>
           <div className="text-[11px] text-ink-soft truncate">{r.companyName}</div>
         </div>
-        {/* Compare checkbox — 44px touch target, 20px visual circle. */}
+        {/* Compare checkbox — 44px touch target, 20px visual circle.
+            z-[1] lifts it above the stretched open-trigger. */}
         <button
           type="button"
           aria-pressed={compareSelected}
@@ -720,7 +721,7 @@ function CompanyCard({
             e.stopPropagation();
             onToggleCompare();
           }}
-          className="-m-2.5 h-11 w-11 shrink-0 flex items-center justify-center"
+          className="relative z-[1] -m-2.5 h-11 w-11 shrink-0 flex items-center justify-center"
         >
           <span
             className={`
@@ -779,7 +780,7 @@ function CompanyCard({
                 <span
                   data-testid={`company-card-standout-${r.ticker}`}
                   className="
-                    inline-flex max-w-full items-center gap-1.5 self-start rounded-full
+                    relative z-[1] inline-flex max-w-full items-center gap-1.5 self-start rounded-full
                     bg-brand-tint px-2 py-0.5
                     text-[10.5px] font-medium text-brand-dark dark:text-brand-light truncate
                   "
@@ -788,7 +789,9 @@ function CompanyCard({
                   <span className="font-mono tabular-nums">
                     {fmtStandoutValue(standout.key, standout.value)}
                   </span>
-                  <span className="opacity-70">
+                  {/* D1 axe: no opacity de-emphasis — 70% brand-dark lands
+                      ~3.4:1 on the tint; full strength clears AA. */}
+                  <span>
                     {t("pci.card.rank", { rank: standout.rank, n: standout.n })}
                   </span>
                 </span>
@@ -822,30 +825,31 @@ function CompanyCard({
               )}
             </>
           ) : (
-            <span className="text-ink-mute">—</span>
+            <span className="text-ink-soft">—</span>
           )}
         </div>
         <div className="text-right shrink-0">
           {r.marketCap != null && Number.isFinite(r.marketCap) ? (
             <>
-              <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-mute">
+              <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-soft">
                 {t("pci.card.mktCap")}
               </div>
+              {/* No inline currency on magnitude-scaled figures — "40,00
+                  BRON" reads as a fake currency; the page declares RON
+                  once in the header chips. */}
               <Amount
                 value={r.marketCap}
-                currency={r.currency}
                 magnitude={pickMagnitude([r.marketCap])}
                 className="text-[11px] text-ink"
               />
             </>
           ) : r.revenue != null && Number.isFinite(r.revenue) ? (
             <>
-              <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-mute">
+              <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-soft">
                 {t("pci.compare.row.revenue")}
               </div>
               <Amount
                 value={r.revenue}
-                currency={r.currency}
                 magnitude={pickMagnitude([r.revenue])}
                 className="text-[11px] text-ink"
               />
@@ -895,7 +899,7 @@ function Chip({
       </span>
       <span
         className={`font-mono text-[10px] tabular-nums shrink-0 ${
-          selected ? "opacity-70" : "text-ink-mute"
+          selected ? "" : "text-ink-soft"
         }`}
       >
         {count}

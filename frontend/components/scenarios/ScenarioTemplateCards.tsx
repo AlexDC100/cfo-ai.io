@@ -35,7 +35,7 @@ export function ScenarioTemplateCards({ headerRight }: { headerRight?: ReactNode
     <div data-testid="scenario-templates">
       <div className="flex items-center justify-between gap-4 mb-2">
         <div className="flex items-center gap-4 min-w-0 flex-wrap">
-          <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium shrink-0">
+          <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium shrink-0">
             Start from a template
           </div>
           {/* Live scenario impact summary — sits to the right of the label
@@ -47,7 +47,7 @@ export function ScenarioTemplateCards({ headerRight }: { headerRight?: ReactNode
             type="button"
             onClick={reset}
             data-testid="scenario-reset"
-            className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink min-h-[28px] px-1.5 rounded-sm shrink-0"
+            className="inline-flex items-center gap-1 text-[11.5px] text-ink-soft hover:text-ink min-h-[28px] px-1.5 rounded-sm shrink-0"
           >
             <RotateCcw className="w-3 h-3" />
             Reset
@@ -79,7 +79,7 @@ export function ScenarioTemplateCards({ headerRight }: { headerRight?: ReactNode
                 <Icon
                   size={16}
                   strokeWidth={1.75}
-                  className={cn("shrink-0", isActive ? "text-brand-dark dark:text-brand-light" : "text-ink-mute")}
+                  className={cn("shrink-0", isActive ? "text-brand-dark dark:text-brand-light" : "text-ink-soft")}
                 />
                 <span className="text-[12.5px] font-medium text-ink leading-tight">{tpl.name}</span>
               </div>

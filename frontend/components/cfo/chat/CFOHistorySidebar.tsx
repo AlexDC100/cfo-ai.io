@@ -23,7 +23,8 @@ interface Props {
    *  close itself when the user picks an item. The full-page mount
    *  passes `undefined` so picks just switch focus. */
   onAfterPick?: () => void;
-  /** Tighter spacing for the slide-over variant. */
+  /** Tighter spacing for the slide-over variant. Accepted for interface
+   *  stability; the panel treatment renders identically in both mounts. */
   compact?: boolean;
   /** Controlled search term. The shell owns it so the open conversation can
    *  highlight the same matches (find-in-conversation). */
@@ -32,7 +33,7 @@ interface Props {
 }
 
 export function CFOHistorySidebar({
-  store, onAfterPick, compact = false, query: queryProp, onQueryChange,
+  store, onAfterPick, query: queryProp, onQueryChange,
 }: Props) {
   const { t } = useTranslation();
   // Uncontrolled fallback keeps the slide-over panel working unchanged.
@@ -54,11 +55,14 @@ export function CFOHistorySidebar({
   }, [store.conversations, query]);
 
   return (
+    // THE INSTRUMENT — the history column is a flat hairline panel: one
+    // rule around search + list, no resting shadow. The outer left gutter
+    // keeps it clear of the app nav rail.
     <aside
-      className={`
-        h-full flex flex-col pl-7 pr-2
-        ${compact ? "w-[280px]" : "w-[280px]"}
-      `}
+      className="
+        flex flex-col ml-6 mr-1 h-[calc(100%-0.75rem)] px-2 pt-2
+        rounded-md border border-rule bg-surface
+      "
       data-testid="chat-history-sidebar"
       aria-label={t("chatX.historyAria")}
     >
@@ -69,7 +73,7 @@ export function CFOHistorySidebar({
           <Search
             size={12}
             strokeWidth={2}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-mute pointer-events-none"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-soft pointer-events-none"
           />
           <input
             type="text"
@@ -80,7 +84,7 @@ export function CFOHistorySidebar({
             className="
               w-full h-8 pl-7 pr-7 rounded-md
               bg-bg-2/50 border border-rule
-              text-[12.5px] text-ink placeholder:text-ink-mute
+              text-[12.5px] text-ink placeholder:text-ink-soft
               focus:outline-none focus:bg-surface focus:border-rule
               transition-colors
             "
@@ -90,24 +94,22 @@ export function CFOHistorySidebar({
               type="button"
               onClick={() => setQuery("")}
               aria-label={t("productsX.clearSearch")}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded text-ink-mute hover:text-ink"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded text-ink-soft hover:text-ink"
             >
               <X size={11} />
             </button>
           )}
         </div>
 
-        {/* Icon-only New chat button — animated gradient accent (same
-            treatment as the "Ask CFO AI" pill). */}
+        {/* Icon-only New chat button — flat accent fill, calm at rest. */}
         <button
           type="button"
           onClick={() => { store.createNew(); onAfterPick?.(); }}
           aria-label={t("chatX.newChat")}
           title={t("chatX.newChat")}
           className="
-            shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md
-            ask-ai-anim-fill [animation-duration:10s]
-            border border-brand/40 text-ink
+            shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-sm
+            bg-brand text-paper hover:bg-brand/90 transition-colors duration-micro
           "
           data-testid="chat-new-conversation"
         >
@@ -155,9 +157,9 @@ function ConversationRow({
   return (
     <li
       className={`
-        group relative rounded-md
-        ${active ? "bg-surface border border-rule" : "hover:bg-bg-2/60 border border-transparent"}
-        transition-colors
+        group relative rounded-sm
+        ${active ? "bg-bg-2 border border-rule" : "hover:bg-bg-2/60 border border-transparent"}
+        transition-colors duration-micro
       `}
     >
       <button
@@ -171,7 +173,7 @@ function ConversationRow({
           <span className={`block text-[12.5px] truncate ${active ? "text-ink font-medium" : "text-ink-soft"}`}>
             {conv.title}
           </span>
-          <span className="block text-[10.5px] text-ink-mute mt-px">
+          <span className="block text-[10.5px] text-ink-soft mt-px">
             {relativeTime(conv.updatedAt)} · {t("chatX.msgCount", { count: conv.messages.filter((m) => m.role === "user").length || 0 })}
           </span>
         </span>
@@ -185,7 +187,7 @@ function ConversationRow({
         aria-label={t("chatX.deleteConversation")}
         className={`
           absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded
-          text-ink-mute hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10
+          text-ink-soft hover:text-alert hover:bg-alert-tint
           transition-opacity
           opacity-0 group-hover:opacity-100
           focus-visible:opacity-100
@@ -203,7 +205,7 @@ function EmptyHistory() {
   return (
     <div className="px-3 py-6 text-center" data-testid="chat-history-empty">
       <p className="text-[12.5px] text-ink-soft">{t("chatX.noConversations")}</p>
-      <p className="text-[11px] text-ink-mute mt-1 leading-snug">
+      <p className="text-[11px] text-ink-soft mt-1 leading-snug">
         {t("chatX.noConversationsHint")}
       </p>
     </div>

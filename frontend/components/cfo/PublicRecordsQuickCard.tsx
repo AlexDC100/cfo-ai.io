@@ -122,10 +122,10 @@ export function PublicRecordsQuickCard() {
         <div className="flex items-start justify-between gap-4 mb-5">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.06em] font-semibold text-ink-soft mb-1">
-              <span style={{ color: "#5CD3C5" }}>●</span>
+              <span className="text-brand">●</span>
               Latest public-records analysis
             </div>
-            <h2 className="font-serif text-[22px] text-ink leading-tight truncate">
+            <h2 className="text-[17px] font-semibold text-ink leading-tight truncate">
               {extract.company_name || "Romanian company"}
             </h2>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-[12px] text-ink-soft">
@@ -184,10 +184,10 @@ interface KPIProps {
 }
 function KPI({ label, value, trend, isProfit }: KPIProps) {
   const trendColor =
-    !trend || trend.dir === "flat" ? "#5a6577" :
+    !trend || trend.dir === "flat" ? "hsl(var(--ink-mute))" :
     // For profit: up = green; for other metrics: up = neutral / context-dependent
-    isProfit && trend.dir === "down" ? "#c62828" :
-    trend.dir === "up" ? "#2AA89B" : "#c62828";
+    isProfit && trend.dir === "down" ? "hsl(var(--alert))" :
+    trend.dir === "up" ? "hsl(var(--success))" : "hsl(var(--alert))";
   const TrendIcon = trend?.dir === "up" ? TrendingUp : trend?.dir === "down" ? TrendingDown : null;
   return (
     <div className="rounded-lg border border-rule bg-bg-2/30 p-3">

@@ -23,10 +23,8 @@ import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  ArrowUp,
   Check,
   Clock,
-  Cloud,
   FileSpreadsheet,
   FolderOpen,
   Loader2,
@@ -44,7 +42,7 @@ import { SourceFilesRow } from "@/components/cfo/SourceFilesRow";
 import { startWorkspaceSwitch } from "@/lib/periodSwitch";
 import { setUnsavedGuard } from "@/lib/unsavedGuard";
 
-import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { Chip, PageHeader } from "@/components/instrument/Panel";
 import {
   Dialog,
   DialogContent,
@@ -224,19 +222,24 @@ export default function Workspace() {
             />
           </div>
 
-          <div className="w-full flex-1 min-w-0 space-y-8">
-            <PageHeader
-              hero
-              eyebrow={t("ws.settingsEyebrow")}
-              title={
-                <Trans
-                  i18nKey="ws.manageTitle"
-                  values={{ name: editingWorkspace.name || t("ws.thisWorkspace") }}
-                  components={{ grad: <span className="text-grad" /> }}
-                />
-              }
-              subtitle={t("ws.settingsSubtitleEdit")}
-            />
+          <div className="w-full flex-1 min-w-0 space-y-6">
+            {/* Compact instrument header: "Workspace settings · <name>". */}
+            <div>
+              <PageHeader
+                eyebrow={t("sidebar.workspace")}
+                title={t("ws.settingsEyebrow")}
+                context={
+                  <Chip className="max-w-[240px]">
+                    <span className="truncate">
+                      {editingWorkspace.name || t("ws.thisWorkspace")}
+                    </span>
+                  </Chip>
+                }
+              />
+              <p className="mt-1.5 max-w-[640px] text-[12.5px] leading-relaxed text-ink-soft">
+                {t("ws.settingsSubtitleEdit")}
+              </p>
+            </div>
             <WorkspaceSettingsV2
               workspace={editingWorkspace}
               canDelete={ws.canDelete}
@@ -319,7 +322,7 @@ export default function Workspace() {
             type="button"
             onClick={() => void ws.refresh()}
             data-testid="workspace-load-retry"
-            className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
+            className="inline-flex items-center justify-center h-8 px-4 rounded-sm border border-rule text-ink text-[12.5px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
           >
             {t("common.retry")}
           </button>
@@ -402,13 +405,18 @@ export default function Workspace() {
             </div>
           )}
 
-          <div className="flex-1 min-w-0 space-y-8">
-            <PageHeader
-              hero
-              eyebrow={t("sidebar.workspace")}
-              title={<Trans i18nKey="ws.setupTitle" components={{ grad: <span className="text-grad" /> }} />}
-              subtitle={t("ws.setupSubtitle")}
-            />
+          <div className="flex-1 min-w-0 space-y-6">
+            {/* Compact instrument header — the serif hero is retired on
+                authenticated screens; the gradient accent renders plain. */}
+            <div>
+              <PageHeader
+                eyebrow={t("sidebar.workspace")}
+                title={<Trans i18nKey="ws.setupTitle" components={{ grad: <span /> }} />}
+              />
+              <p className="mt-1.5 max-w-[640px] text-[12.5px] leading-relaxed text-ink-soft">
+                {t("ws.setupSubtitle")}
+              </p>
+            </div>
             <Onboarding
               onDone={finishOnboarding}
               // A restart on the current workspace prefills its industry; a
@@ -615,7 +623,7 @@ function Onboarding({
             type="button"
             onClick={back}
             data-testid="onboarding-back"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors duration-micro"
           >
             <ArrowLeft size={14} strokeWidth={2} />
             {t("common.back")}
@@ -630,7 +638,7 @@ function Onboarding({
               type="button"
               onClick={finish}
               data-testid="onboarding-skip"
-              className="text-[12.5px] text-ink-mute hover:text-ink transition-colors"
+              className="text-[12.5px] text-ink-soft hover:text-ink transition-colors"
             >
               {t("ws.uploadLater")}
             </button>
@@ -649,7 +657,7 @@ function Onboarding({
                   navigate("/dashboard");
                 }}
                 data-testid="onboarding-skip-early"
-                className="text-[12.5px] text-ink-mute hover:text-ink transition-colors"
+                className="text-[12.5px] text-ink-soft hover:text-ink transition-colors"
               >
                 {t("ws.skipForNow")}
               </button>
@@ -658,7 +666,7 @@ function Onboarding({
                 onClick={next}
                 disabled={step === 0 && name.trim().length === 0}
                 data-testid="onboarding-next"
-                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1.5 h-8 px-4 rounded-sm bg-brand text-paper text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
               >
                 {t("common.continue")}
               </button>
@@ -672,6 +680,8 @@ function Onboarding({
 
 function Stepper({ step }: { step: number }) {
   const { t } = useTranslation();
+  // Instrument stepper: mono step numbers, hairline circles, the accent
+  // reserved for the active step — no glow, no animated fill.
   return (
     <ol className="flex items-center gap-2" data-testid="onboarding-stepper">
       {STEP_KEYS.map((key, i) => {
@@ -681,17 +691,17 @@ function Stepper({ step }: { step: number }) {
         return (
           <li key={key} className="flex items-center gap-2 flex-1 last:flex-none">
             <span
-              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums transition-all ${
+              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-[12px] font-medium tabular-nums transition-colors duration-micro ${
                 isDone
-                  ? "ask-ai-anim-fill [animation-duration:10s] border border-brand/50 text-ink shadow-[0_0_12px_rgba(92,211,197,0.55)]"
+                  ? "bg-brand-tint text-brand-dark dark:text-brand-light"
                   : isActive
-                  ? "bg-brand/15 text-brand-d ring-2 ring-brand/30"
-                  : "bg-bg-2 text-ink-mute border border-rule"
+                  ? "bg-brand text-paper"
+                  : "border border-rule bg-bg-2 text-ink-soft"
               }`}
             >
-              {isDone ? <Check size={18} strokeWidth={2.5} /> : String(i + 1).padStart(2, "0")}
+              {isDone ? <Check size={15} strokeWidth={2.5} /> : String(i + 1).padStart(2, "0")}
             </span>
-            <span className={`text-[12.5px] font-medium ${isActive ? "text-ink" : "text-ink-mute"}`}>
+            <span className={`text-[12.5px] font-medium ${isActive ? "text-ink" : "text-ink-soft"}`}>
               {label}
             </span>
             {i < STEP_KEYS.length - 1 && (
@@ -707,7 +717,7 @@ function Stepper({ step }: { step: number }) {
 function StepHeading({ title, body }: { title: string; body: string }) {
   return (
     <div className="mb-4">
-      <h2 className="font-serif text-[20px] text-ink leading-tight">{title}</h2>
+      <h2 className="text-[15px] font-semibold text-ink leading-tight">{title}</h2>
       <p className="mt-1 text-[13px] text-ink-soft leading-relaxed">{body}</p>
     </div>
   );
@@ -732,7 +742,7 @@ function StepName({
         body={t("ws.stepNameBody")}
       />
       <label className="block">
-        <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
+        <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-soft font-semibold mb-1.5">
           {t("settings.workspace_name")}
         </span>
         <input
@@ -742,18 +752,18 @@ function StepName({
           placeholder={t("ws.namePlaceholder")}
           autoFocus
           data-testid="onboarding-name-input"
-          className="w-full h-11 px-3.5 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+          className="w-full max-w-[480px] h-8 px-3 rounded-sm border border-rule bg-surface text-[13px] text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50"
         />
       </label>
 
       {/* Same catalog + pills as /onboarding — the pick lands on this
           workspace's organization row and drives its benchmarks. */}
       <div className="mt-5">
-        <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
+        <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-soft font-semibold mb-2">
           {t("onboarding.industry")}
         </span>
         <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
-        <p className="mt-2 text-[11.5px] text-ink-mute leading-snug">
+        <p className="mt-2 text-[11.5px] text-ink-soft leading-snug">
           {t("ws.industryHint")}
         </p>
       </div>
@@ -804,45 +814,37 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
         className="hidden"
         onChange={(e) => pick(e.target.files)}
       />
-      {/* Same premium dropzone as the dashboard's upload surface: glass card,
-          oversized decorative cloud + up-arrow mark, brand glow, ring-glow on
-          drag-over, animated-gradient Import button. */}
+      {/* Quiet instrument dropzone: dashed hairline panel, accent only on
+          drag-over — the atmospheric glow / oversized cloud mark retired
+          with the identity rebuild. */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); pick(e.dataTransfer.files); }}
         data-testid="onboarding-dropzone"
-        className={`relative overflow-hidden rounded-2xl border-2 border-dashed backdrop-blur-sm p-6 sm:p-7 flex flex-col items-center justify-center text-center min-h-[240px] transition-all duration-150 ${
+        className={`rounded-md border border-dashed p-6 sm:p-7 flex flex-col items-center justify-center text-center min-h-[200px] transition-colors duration-micro ${
           dragOver
-            ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
-            : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"
+            ? "border-brand bg-brand-tint"
+            : "border-rule bg-bg-2 hover:border-rule-strong"
         }`}
       >
-        {/* Atmospheric brand glow */}
-        <div aria-hidden className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-brand/8 blur-3xl" />
-        {/* Oversized upload mark — cloud + up-arrow, pinned bottom-left and
-            clipped by overflow-hidden. */}
-        <div aria-hidden className="pointer-events-none absolute -bottom-32 -left-16 text-ink opacity-[0.08]">
-          <Cloud size={440} strokeWidth={1} />
-          <ArrowUp size={160} strokeWidth={2.5} className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2" />
-        </div>
-
         {busy ? (
-          <div className="relative flex items-center justify-center gap-3 text-ink-soft">
-            <Loader2 size={18} strokeWidth={2} className="animate-spin text-brand-d" />
+          <div className="flex items-center justify-center gap-3 text-ink-soft">
+            <Loader2 size={18} strokeWidth={2} className="animate-spin text-brand-dark dark:text-brand-light" />
             <span className="text-[13.5px]">{t("ws.importing")}</span>
           </div>
         ) : (
-          <div className="relative flex flex-col items-center">
-            <h3 className="text-[16px] font-semibold text-ink">
+          <div className="flex flex-col items-center">
+            <UploadCloud size={22} strokeWidth={1.5} className="mb-2 text-ink-soft" aria-hidden />
+            <h3 className="text-[14px] font-semibold text-ink">
               {dragOver ? t("files.dropToUpload") : t("ws.dropWorkbook")}
             </h3>
-            <p className="text-[12.5px] text-ink-soft mt-1">{t("ws.uploadFormats")}</p>
+            <p className="text-[12px] text-ink-soft mt-1">{t("ws.uploadFormats")}</p>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
               data-testid="onboarding-choose-file"
-              className="mt-4 inline-flex items-center justify-center h-9 px-3.5 rounded-lg border border-brand/40 ask-ai-anim-fill [animation-duration:10s] text-ink text-[12.5px] font-medium hover:border-brand/60 transition-colors"
+              className="mt-4 inline-flex items-center justify-center h-8 px-3.5 rounded-sm bg-brand text-paper text-[12.5px] font-medium hover:bg-brand-dark transition-colors duration-micro"
             >
               {t("files.import")}
             </button>
@@ -892,18 +894,21 @@ function SelectedWorkspacePanel({
   // already separates it from the workspace list above.
   return (
     <div className="space-y-6" data-testid="selected-workspace-panel">
-      <PageHeader
-        hero
-        eyebrow={t("ws.settingsEyebrow")}
-        title={
-          <Trans
-            i18nKey="ws.manageTitle"
-            values={{ name: workspace.name || t("ws.thisWorkspace") }}
-            components={{ grad: <span className="text-grad" /> }}
-          />
-        }
-        subtitle={t("ws.settingsSubtitle")}
-      />
+      {/* Compact instrument header: "Workspace settings · <name>". */}
+      <div>
+        <PageHeader
+          eyebrow={t("sidebar.workspace")}
+          title={t("ws.settingsEyebrow")}
+          context={
+            <Chip className="max-w-[240px]">
+              <span className="truncate">{workspace.name || t("ws.thisWorkspace")}</span>
+            </Chip>
+          }
+        />
+        <p className="mt-1.5 max-w-[640px] text-[12.5px] leading-relaxed text-ink-soft">
+          {t("ws.settingsSubtitle")}
+        </p>
+      </div>
       {/* The blur-the-content-and-overlay-a-spinner treatment was removed
           2026-07-26 per operator: switching workspace now shows the app-wide
           fullscreen cover (startWorkspaceSwitch → PeriodSwitchOverlay), which
@@ -966,7 +971,7 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
         const hiddenCount = periods.length - clean.slice(0, 3).length;
         if (clean.length === 0) {
           return (
-            <span className="inline-flex items-center h-6 px-2 rounded-full border border-dashed border-rule text-[11px] font-medium text-ink-mute">
+            <span className="inline-flex items-center h-6 px-2 rounded-sm border border-dashed border-rule font-mono text-[10.5px] font-medium text-ink-soft">
               {t("ws.noPeriods")}
             </span>
           );
@@ -976,7 +981,7 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
             {clean.slice(0, 3).map(({ p, label }) => (
               <span
                 key={p.period_id}
-                className="inline-flex items-center h-6 px-2 rounded-full border border-rule bg-surface/60 text-[11px] font-medium text-ink-soft tabular-nums"
+                className="inline-flex items-center h-6 px-2 rounded-sm border border-rule bg-bg-2 font-mono text-[10.5px] font-medium text-ink-2 tabular-nums"
               >
                 {label}
               </span>
@@ -985,7 +990,7 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
               <span
                 data-testid="workspace-card-months-more"
                 title={t("ws.morePeriodsTitle")}
-                className="inline-flex items-center h-6 px-2 rounded-full border border-rule/60 text-[11px] font-medium text-ink-mute tabular-nums"
+                className="inline-flex items-center h-6 px-2 rounded-sm border border-rule-soft font-mono text-[10.5px] font-medium text-ink-soft tabular-nums"
               >
                 +{hiddenCount}
               </span>
@@ -1091,7 +1096,7 @@ function WorkspaceHub({
       {!noneSelected ? null : workspaces.length > 0 ? (
         <div
           data-testid="workspace-none-selected"
-          className="rounded-2xl border border-dashed border-rule bg-bg-2/30 px-5 py-4 text-[13px] text-ink-soft"
+          className="rounded-md border border-dashed border-rule bg-bg-2 px-5 py-4 text-[13px] text-ink-soft"
         >
           {t("ws.noneSelected")}
         </div>
@@ -1111,10 +1116,10 @@ function WorkspaceHub({
         data-testid="workspace-list"
       >
         <li>
-          {/* Selected state mirrors the workspace cards below exactly — the
-              animated teal fill, brand border and corner dot — so "what the
-              rail is currently on" reads the same whether that's a workspace
-              or the create flow. */}
+          {/* Create = dashed quiet panel. The selected state mirrors the
+              workspace cards below — accent border + corner dot — so "what
+              the rail is currently on" reads the same whether that's a
+              workspace or the create flow. */}
           <button
             type="button"
             onClick={atWorkspaceCap ? undefined : onCreate}
@@ -1123,29 +1128,23 @@ function WorkspaceHub({
             data-active={createActive ? "true" : "false"}
             data-at-cap={atWorkspaceCap ? "true" : "false"}
             aria-current={createActive ? "step" : undefined}
-            className={`group relative w-full flex flex-row items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-center transition-colors ${
+            className={`group relative w-full flex flex-row items-center justify-center gap-2 rounded-md border border-dashed px-3 py-3 text-center transition-colors duration-micro ${
               atWorkspaceCap
-                ? "border-rule text-ink-mute opacity-50 cursor-not-allowed"
+                ? "border-rule text-ink-soft opacity-50 cursor-not-allowed"
                 : createActive
-                ? "ask-ai-anim-fill [animation-duration:14s] border-brand/50 text-ink"
-                : "border-rule text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/40"
+                ? "border-brand/60 bg-brand-tint text-ink"
+                : "border-rule text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2"
             }`}
           >
             {createActive && (
               <span
-                className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
+                className="absolute right-3 top-3 h-2 w-2 rounded-full bg-brand"
                 title={t("ws.creatingWorkspace")}
               >
                 <span className="sr-only">{t("ws.creatingWorkspace")}</span>
               </span>
             )}
-            <span
-              className={`grid place-items-center h-7 w-7 shrink-0 rounded-full border transition-colors ${
-                createActive ? "border-brand/50" : "border-rule group-hover:border-rule-strong"
-              }`}
-            >
-              <Plus size={16} strokeWidth={2.25} />
-            </span>
+            <Plus size={15} strokeWidth={2.25} className="shrink-0" />
             <span className="text-[12.5px] font-medium leading-tight">{t("ws.createWorkspace")}</span>
           </button>
           {/* At the plan's workspace cap — inline upgrade CTA replaces the
@@ -1186,15 +1185,13 @@ function WorkspaceHub({
                 }}
                 aria-pressed={isActive}
                 aria-label={t("ws.selectWorkspaceAria", { name: w.name || t("ws.workspaceFallback") })}
-                // Selected card carries the animated teal gradient
-                // (2026-07-26 per operator) — the same `.ask-ai-anim-fill`
-                // treatment as the selected industry card and the Ask CFO AI
-                // pill, so "chosen" reads identically everywhere. The long
-                // duration keeps a grid of cards calm.
-                className={`group relative h-full rounded-2xl border px-4 py-3 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+                // Selected card = accent hairline + corner dot; the animated
+                // teal fill retired with the identity rebuild (Panels rest
+                // flat — state is a border, never a wash).
+                className={`group relative h-full rounded-md border px-4 py-3 transition-colors duration-micro cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                   isActive
-                    ? "ask-ai-anim-fill [animation-duration:14s] border-brand/50"
-                    : "border-rule bg-surface hover:border-rule-strong hover:bg-bg-2/40"
+                    ? "border-brand/60 bg-surface"
+                    : "border-rule bg-surface hover:border-rule-strong hover:bg-bg-2"
                 }`}
               >
                 {/* Active marker — a brand-accent dot pinned to the card's
@@ -1202,7 +1199,7 @@ function WorkspaceHub({
                     sr-only label since a colored circle says nothing aloud. */}
                 {isActive && (
                   <span
-                    className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_8px_rgba(92,211,197,0.6)]"
+                    className="absolute right-3 top-3 h-2 w-2 rounded-full bg-brand"
                     title={t("ws.activeWorkspace")}
                   >
                     <span className="sr-only">{t("ws.activeWorkspace")}</span>
@@ -1210,12 +1207,12 @@ function WorkspaceHub({
                 )}
 
                 <div className="pr-8">
-                  <span className="block font-serif text-[16px] text-ink leading-tight truncate">
+                  <span className="block text-[13.5px] font-medium text-ink leading-tight truncate">
                     {w.name || t("ws.untitledWorkspace")}
                   </span>
                   {/* Firm / industry — shown on every card (fallback when the
                       setup wizard hasn't set one yet). */}
-                  <div className="mt-0.5 text-[12px] text-ink-mute">
+                  <div className="mt-0.5 text-[12px] text-ink-soft">
                     {w.industryKey ? orgIndustryDisplayLabel(w.industryKey) : t("ws.noIndustrySet")}
                   </div>
                   {/* Month pills — the periods this workspace holds (carry the
@@ -1239,12 +1236,12 @@ function WorkspaceHub({
           <li key={w.id} className="w-full">
             <div
               data-testid="workspace-archived-item"
-              className="relative flex h-full flex-col rounded-2xl border border-dashed border-rule bg-bg-2/30 px-4 py-2.5"
+              className="relative flex h-full flex-col rounded-md border border-dashed border-rule bg-bg-2 px-4 py-2.5"
             >
-              <div className="font-serif text-[15px] text-ink-soft leading-tight truncate pr-2">
+              <div className="text-[13px] font-medium text-ink-soft leading-tight truncate pr-2">
                 {w.name || t("ws.untitledWorkspace")}
               </div>
-              <div className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-rule bg-surface/60 px-2 py-0.5 text-[11px] font-medium text-ink-mute tabular-nums">
+              <div className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-sm border border-rule bg-surface px-2 py-0.5 font-mono text-[10.5px] font-medium text-ink-soft tabular-nums">
                 <Clock size={11} strokeWidth={2} />
                 {w.daysLeft && w.daysLeft > 0
                   ? t("ws.deletesInDays", { count: w.daysLeft })
@@ -1257,7 +1254,7 @@ function WorkspaceHub({
                   onClick={() => void restoreWorkspace(w.id, w.name)}
                   data-testid="workspace-restore"
                   title={t("panels.restore")}
-                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-rule text-[11.5px] font-medium text-ink hover:bg-bg-2/70 transition-colors"
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-sm border border-rule text-[11.5px] font-medium text-ink hover:bg-surface transition-colors duration-micro"
                 >
                   <RotateCcw size={12} strokeWidth={1.75} />
                   {t("panels.restore")}
@@ -1267,7 +1264,7 @@ function WorkspaceHub({
                   onClick={() => setPurgeTarget(w)}
                   data-testid="workspace-purge"
                   title={t("panels.deleteForever")}
-                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-red-500/30 bg-red-500/10 text-[11.5px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-sm border border-alert/30 bg-alert-tint text-[11.5px] font-medium text-alert hover:border-alert/50 transition-colors duration-micro"
                 >
                   <Trash2 size={12} strokeWidth={1.75} />
                   {t("common.delete")}
@@ -1343,7 +1340,7 @@ function PurgeWorkspaceDialog({
         </DialogHeader>
 
         <label className="block">
-          <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
+          <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-soft font-semibold mb-1.5">
             <Trans
               i18nKey="ws.typeToConfirm"
               values={{ name }}
@@ -1359,7 +1356,7 @@ function PurgeWorkspaceDialog({
             autoComplete="off"
             spellCheck={false}
             data-testid="workspace-purge-input"
-            className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500/40"
+            className="w-full h-8 px-3 rounded-sm border border-rule bg-surface text-[13px] text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-alert/30 focus:border-alert/40"
           />
         </label>
 
@@ -1368,7 +1365,7 @@ function PurgeWorkspaceDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/70 disabled:opacity-40 transition-colors"
+            className="inline-flex items-center h-8 px-3.5 rounded-sm border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 disabled:opacity-40 transition-colors duration-micro"
           >
             {t("common.cancel")}
           </button>
@@ -1377,7 +1374,7 @@ function PurgeWorkspaceDialog({
             onClick={() => void confirm()}
             disabled={!match || busy}
             data-testid="workspace-purge-confirm"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 text-white text-[13px] font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-sm bg-alert text-white text-[12.5px] font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
           >
             <Trash2 size={14} strokeWidth={1.75} />
             {busy ? t("productsX.wipe.deleting") : t("ws.purgeConfirm")}

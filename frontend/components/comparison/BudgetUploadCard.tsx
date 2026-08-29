@@ -69,13 +69,15 @@ function viewTemplate() {
     .join("");
   const doc =
     `<!doctype html><html><head><meta charset="utf-8"><title>cfo_ai_budget_template.csv</title><style>` +
-    "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
-    "h1{font-size:15px;margin:0 0 12px;color:#1B7268}" +
+    // Standalone document.write preview — a new tab cannot read the app's
+    // CSS vars, so the Paper palette is baked in as literals here.
+    "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0B0E0D;background:#FAFAF7}" + // design-lint-allow-hex standalone document.write preview
+    "h1{font-size:15px;margin:0 0 12px;color:#0E7C6B}" + // design-lint-allow-hex standalone document.write preview
     "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
-    "td,th{border:1px solid #d6dde6;padding:4px 10px;white-space:nowrap;text-align:right}" +
-    "th{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
+    "td,th{border:1px solid #E3E3DC;padding:4px 10px;white-space:nowrap;text-align:right}" + // design-lint-allow-hex standalone document.write preview
+    "th{background:#0E7C6B;color:#FAFAF7;font-weight:600;text-align:left}" + // design-lint-allow-hex standalone document.write preview
     "td.l{text-align:left}" +
-    "p{margin-top:12px;color:#6B7280;font-size:12px}" +
+    "p{margin-top:12px;color:#5C6560;font-size:12px}" + // design-lint-allow-hex standalone document.write preview
     `</style></head><body>${previewBackButtonHtml()}<h1>cfo_ai_budget_template.csv — budget template</h1>` +
     `<table><thead><tr><th>Line</th><th>Budget</th><th>Last year</th></tr></thead><tbody>${rows}</tbody></table>` +
     `<p>Fill in the Budget column (required) and optionally Last year, then re-upload. Fictional/blank template.</p>` +
@@ -182,7 +184,7 @@ export function BudgetUploadCard({ uploaded, onSave, onClear }: Props) {
       ) : uploaded ? (
         <div className="relative flex flex-col items-center">
           <div className="inline-flex items-center gap-2 rounded-lg border border-rule bg-surface px-3 py-1.5" data-testid="budget-source-uploaded">
-            <FileSpreadsheet className="w-4 h-4 text-[#2AA89B]" />
+            <FileSpreadsheet className="w-4 h-4 text-brand-dark dark:text-brand-light" />
             <span className="text-[13px] font-medium text-ink truncate max-w-[220px]">
               {uploaded.label ?? t("budgetX.budgetFile")}
             </span>
@@ -290,7 +292,9 @@ export function BudgetTemplateCard() {
 
       <div className="relative flex items-start gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="font-serif text-[24px] text-ink leading-tight tracking-[-0.01em]">
+          {/* Sans, not serif — this card sits on an authenticated screen,
+              where the display serif is retired (instrument identity). */}
+          <h3 className="text-[16px] font-semibold text-ink leading-tight tracking-tight">
             {t("upload.template.title")}
           </h3>
           <p className="mt-1.5 text-[12.5px] text-ink-soft leading-relaxed">

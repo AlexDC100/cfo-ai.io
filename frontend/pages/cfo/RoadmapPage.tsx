@@ -80,9 +80,9 @@ const BACKLOG: RoadmapEntry[] = [
 ];
 
 const STATUS_COLORS: Record<RoadmapStatus, string> = {
-  research: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
-  "in-design": "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
-  planning: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
+  research: "bg-brand/10 text-brand border-brand/30",
+  "in-design": "bg-brand/10 text-brand border-brand/30",
+  planning: "bg-brand/10 text-brand border-brand/30",
   backlog: "bg-ink-soft/10 text-ink-soft border-ink-soft/30",
 };
 

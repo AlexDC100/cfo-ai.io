@@ -182,7 +182,8 @@ export function CFOMessageList({
       className="sticky top-2 z-20 flex justify-center pointer-events-none"
       data-testid="chat-search-pill"
     >
-      <div className="pointer-events-auto inline-flex items-center gap-1 h-8 pl-3 pr-1.5 rounded-full border border-rule bg-surface/95 backdrop-blur shadow-[0_8px_24px_-16px_rgba(0,0,0,0.5)]">
+      {/* Floating layer — the one place a real shadow belongs (token 3). */}
+      <div className="pointer-events-auto inline-flex items-center gap-1 h-8 pl-3 pr-1.5 rounded-full border border-rule bg-surface/95 backdrop-blur shadow-lg">
         <span className="text-[11.5px] tabular-nums text-ink-soft">
           {search.count === 0
             ? t("chatX.search.noMatches")
@@ -194,7 +195,7 @@ export function CFOMessageList({
           disabled={search.count === 0}
           aria-label={t("chatX.search.prevMatch")}
           data-testid="chat-search-prev"
-          className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="grid place-items-center h-6 w-6 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronUp size={13} strokeWidth={2} />
         </button>
@@ -204,7 +205,7 @@ export function CFOMessageList({
           disabled={search.count === 0}
           aria-label={t("chatX.search.nextMatch")}
           data-testid="chat-search-next"
-          className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="grid place-items-center h-6 w-6 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronDown size={13} strokeWidth={2} />
         </button>
@@ -214,7 +215,7 @@ export function CFOMessageList({
             onClick={onClearSearch}
             aria-label={t("productsX.clearSearch")}
             data-testid="chat-search-clear"
-            className="grid place-items-center h-6 w-6 rounded-md text-ink-mute hover:text-ink hover:bg-bg-2 transition-colors"
+            className="grid place-items-center h-6 w-6 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors"
           >
             <X size={13} strokeWidth={2} />
           </button>
@@ -229,7 +230,10 @@ export function CFOMessageList({
   if (documentScroll) {
     return (
       <div
-        className={`${wideContent ? "px-5 sm:px-8 lg:px-11" : "px-4 sm:px-6"} pt-1 ${bottomInset ? "pb-8" : "pb-6"}`}
+        // bottomInset below lg: the page composer is FIXED there (out of
+        // flow), so the last message needs ~the composer block's height to
+        // scroll clear of it. On lg+ the sticky composer sits in flow.
+        className={`${wideContent ? "px-5 sm:px-8 lg:px-11" : "px-4 sm:px-6"} pt-1 ${bottomInset ? "pb-44 lg:pb-8" : "pb-6"}`}
         role="log"
         aria-live="polite"
         data-testid="chat-messages"

@@ -78,9 +78,9 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
       <div
         className="rounded-md mb-3 inline-flex items-center gap-2 px-3 py-1.5 text-[11px]"
         style={{
-          background: "rgba(42,168,155,0.06)",
-          border: "1px solid rgba(42,168,155,0.20)",
-          color: "#2AA89B",
+          background: "hsl(var(--brand) / 0.06)",
+          border: "1px solid hsl(var(--brand) / 0.20)",
+          color: "hsl(var(--brand))",
         }}
         data-testid="source-quality-na-pill"
         role="note"
@@ -93,7 +93,7 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
           <a
             href="#recommendations"
             className="underline font-semibold"
-            style={{ color: "#2AA89B" }}
+            style={{ color: "hsl(var(--brand))" }}
           >
             BS reconciliation
           </a>
@@ -116,9 +116,9 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
 
   // Amber accent palette — matches existing DataDepthBanner level-1
   // amber so the dashboard's warning vocabulary stays consistent.
-  const accent = "#2AA89B";
-  const accentBg = "rgba(92,211,197,0.10)";
-  const accentBorder = "rgba(92,211,197,0.40)";
+  const accent = "hsl(var(--caution))";
+  const accentBg = "hsl(var(--caution) / 0.10)";
+  const accentBorder = "hsl(var(--caution) / 0.40)";
 
   return (
     <div
@@ -151,7 +151,7 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
       </button>
 
       {open && (
-        <div className="px-4 pb-3 pt-1 text-[12px] leading-relaxed" style={{ color: "#1a1a1a" }}>
+        <div className="px-4 pb-3 pt-1 text-[12px] leading-relaxed" style={{ color: "hsl(var(--ink))" }}>
           <p className="mb-2">
             Every Romanian trial balance should satisfy Σ closing-debit = Σ closing-credit.
             This file violates that by{" "}

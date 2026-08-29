@@ -1,20 +1,25 @@
 // F6.0.4 (2026-06-20) — Configurable dashboard metric card.
-// Redesigned 2026-08-04 (metrics v2): uniform card system on the shared
-// `.card-2026` chrome, a plain-language ⓘ tooltip on every tile
-// (MetricInfoTip — hover tooltip on desktop, tap popover on touch), and a
-// per-card ⋯ overflow menu (Rearrange / Size / Remove) replacing the old
-// header-level Customize entry point. All user-visible strings via t().
+// Redesigned 2026-08-04 (metrics v2): plain-language ⓘ tooltip on every
+// tile (MetricInfoTip — hover tooltip on desktop, tap popover on touch),
+// and a per-card ⋯ overflow menu (Rearrange / Size / Remove) replacing the
+// old header-level Customize entry point. All user-visible strings via t().
 //
-// Renders ONE card: concept name + live value (resolved from the active
-// period ReportingMetrics) + optional trend badge (Trend view only, when
-// the multi-year series exists). Rendered numbers are untouched by the
-// redesign — same resolver, same formatting, same overrides.
+// THE INSTRUMENT (2026-08-29) — the last serif holdout on the flagship,
+// migrated: stat-panel chrome (hairline border, radius token, NO resting
+// shadow — the `.card-2026` shadowed card is gone), 11px caps label, and
+// every figure through <Amount> in the mono ledger voice. Money values
+// obey the ONE MoneyAmountGroup the parent grid mounts, so magnitudes
+// unify across the row ("295,1 M RON" beside "17,7 M RON", never beside
+// "17.703.055"). Percent levels render via PercentLevel (unsigned level,
+// not a signed delta), ratios via CappedMultiple. Red is reserved for
+// imbalance/danger, so the trend badge is a NEUTRAL chip whose signed
+// figure carries direction — same convention as the key-metric row above.
 //
 // In edit mode ("Rearrange") the card grows a drag handle (dnd-kit) +
 // remove button, and tapping the body cycles its size. Drag stays armed
 // only in edit mode (distance/long-press sensors live in the parent).
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -29,12 +34,16 @@ import { useTranslation } from "react-i18next";
 import { lookupConcept } from "@/lib/learning/concepts";
 import { useReportingMetrics } from "@/components/learning/ReportingContextProvider";
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
-import { Money } from "@/components/ui/Money";
-import { useDashboard } from "@/stores/dashboard";
+import { Amount } from "@/components/instrument/Amount";
+import { Chip } from "@/components/instrument/Panel";
 import {
-  resolveConceptValue,
-  formatCardValue,
-} from "@/lib/dashboard/resolveConceptValue";
+  MoneyAmount,
+  PercentLevel,
+  CappedMultiple,
+} from "@/components/comparison/MoneyAmount";
+import { pickMagnitude } from "@/lib/amountFormat";
+import { useDashboard } from "@/stores/dashboard";
+import { resolveConceptValue } from "@/lib/dashboard/resolveConceptValue";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,26 +82,16 @@ interface Props {
 }
 
 interface TrendBadge {
-  text: string;
+  /** Rendered figure (an <Amount> — mono, locale-aware, signed). */
+  node: ReactNode;
   /** Direction of change: true = rose over the window, false = fell. Drives
-   *  the up/down arrow + color. Purely directional — not a good/bad verdict. */
+   *  the up/down arrow only. Purely directional — not a good/bad verdict,
+   *  which is exactly why the badge stays a NEUTRAL chip. */
   positive: boolean;
 }
 
-/** Compact signed magnitude for a currency delta when CAGR can't be computed
- *  (a series endpoint ≤ 0 — e.g. a metric that's negative every year). No
- *  currency symbol: the headline above already carries the unit, so the badge
- *  reads as "moved by ~X" in the same unit. Avoids calling the currency
- *  formatter, which returns null (it defers to <Money>) and would print
- *  the literal string "null". */
-function compactDelta(d: number): string {
-  const sign = d >= 0 ? "+" : "−";
-  const a = Math.abs(d);
-  if (a >= 1e9) return `${sign}${(a / 1e9).toFixed(1)}B`;
-  if (a >= 1e6) return `${sign}${(a / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `${sign}${(a / 1e3).toFixed(0)}k`;
-  return `${sign}${Math.round(a)}`;
-}
+// Narrow no-break space — the instrument's joint between figure and unit.
+const NNBSP = " ";
 
 /** Responsive grid footprint per card size. The grid is
  *  grid-cols-1 sm:grid-cols-2 xl:grid-cols-4, so a 2-col span must
@@ -164,7 +163,6 @@ export function MetricCard({
   });
 
   const resolved = resolveConceptValue(card.conceptKey, metrics, overrides);
-  const display = formatCardValue(resolved.value, resolved.format);
 
   // F6.1 — Trend view: the multi-year series for THIS concept (oldest →
   // newest). Only when the user toggled Trend AND the period has ≥2 years.
@@ -176,7 +174,8 @@ export function MetricCard({
 
   // The little badge under the sparkline: CAGR for currency levels,
   // percentage-point delta for margins/ratios stored as decimals, absolute
-  // delta otherwise. Direction (arrow + color) is factual, not a verdict.
+  // delta otherwise. Direction (the arrow) is factual, not a verdict — the
+  // chip stays neutral, and every figure renders through <Amount>.
   const trendBadge = useMemo<TrendBadge | null>(() => {
     if (!trendSeries) return null;
     const first = trendSeries[0].value;
@@ -187,21 +186,51 @@ export function MetricCard({
       const cagr = computeCAGR(first, last, years);
       if (cagr === null) {
         // Endpoint ≤ 0 → CAGR undefined; show a compact signed magnitude
-        // delta instead (never the literal "null" the currency formatter
-        // would yield, since it defers rendering to <Money>).
-        return { text: compactDelta(last - first), positive: rose };
+        // delta instead. No currency symbol: the headline above already
+        // carries the unit, so the badge reads "moved by ~X" in-unit.
+        const d = last - first;
+        return {
+          node: <Amount value={d} signed magnitude={pickMagnitude([d])} />,
+          positive: rose,
+        };
       }
-      return { text: `${cagr >= 0 ? "+" : ""}${(cagr * 100).toFixed(1)}%/yr`, positive: cagr >= 0 };
+      return {
+        // ONE span so the chip's flex gap can never split figure from unit.
+        node: (
+          <span className="font-mono tabular-nums whitespace-nowrap">
+            <Amount kind="percent" value={cagr} fractionDigits={1} />
+            /yr
+          </span>
+        ),
+        positive: cagr >= 0,
+      };
     }
     if (resolved.format === "percentage") {
-      const pp = (last - first) * 100;
-      return { text: `${pp >= 0 ? "+" : ""}${pp.toFixed(1)}pp`, positive: pp >= 0 };
+      const pp = last - first; // ratio units — Amount renders ×100 as pp
+      return {
+        node: (
+          <span className="font-mono tabular-nums whitespace-nowrap">
+            <Amount kind="count" value={pp * 100} fractionDigits={1} signed />
+            {NNBSP}pp
+          </span>
+        ),
+        positive: pp >= 0,
+      };
     }
-    // ratio / days / score → absolute delta in native unit
+    // ratio / days / score → absolute delta in native unit. Ratios keep two
+    // decimals (the level shows "1,85×" — a "+0,0×" delta beside it would
+    // claim less precision than the instrument actually has).
     const d = last - first;
-    const suffix = resolved.format === "days" ? "d" : resolved.format === "ratio" ? "×" : "";
+    const suffix = resolved.format === "days" ? `${NNBSP}d` : resolved.format === "ratio" ? "×" : "";
+    const digits =
+      resolved.format === "ratio" ? 2 : Number.isInteger(d) ? 0 : 1;
     return {
-      text: `${d >= 0 ? "+" : ""}${Number.isInteger(d) ? d : d.toFixed(1)}${suffix}`,
+      node: (
+        <span className="font-mono tabular-nums whitespace-nowrap">
+          <Amount kind="count" value={d} fractionDigits={digits} signed />
+          {suffix}
+        </span>
+      ),
       positive: rose,
     };
   }, [trendSeries, resolved.format]);
@@ -220,8 +249,14 @@ export function MetricCard({
   // mode (that's for drag/resize) and when there's no value to explain.
   // Count cards (risks / opportunities tallies) have no concept-registry
   // entry, so there's nothing to explain — don't open the popover for them.
+  //
+  // D1 axe (nested-interactive): the wrapper used to be role="button", which
+  // nested the ⋯ / drag / remove <button>s inside an interactive control. The
+  // wrapper is now a PLAIN div; the accessible learn trigger is a stretched
+  // sibling <button> (absolute inset-0) rendered below the corner controls,
+  // so keyboard/AT reach one real button and nothing interactive is nested.
   const canExplain = !editMode && resolved.value !== null && resolved.format !== "count";
-  const openConcept = (e: React.MouseEvent<HTMLDivElement>) => {
+  const openConcept = (e: React.MouseEvent<HTMLElement>) => {
     if (!canExplain) return;
     push({
       conceptKey: card.conceptKey,
@@ -233,14 +268,10 @@ export function MetricCard({
   };
 
   // Tap-to-grow (2026-07-25): in EDIT mode tapping anywhere on the card
-  // cycles its size sm → md → lg → sm. In view mode the tap opens the
-  // concept explanation. Corner controls stopPropagation.
-  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (editMode) {
-      resizeCard(card.id, NEXT_SIZE[card.size]);
-      return;
-    }
-    if (canExplain) openConcept(e);
+  // cycles its size sm → md → lg → sm (mouse convenience — the accessible
+  // path is the ⋯ menu's Size entries). Corner controls stopPropagation.
+  const handleCardClick = () => {
+    if (editMode) resizeCard(card.id, NEXT_SIZE[card.size]);
   };
 
   const sizeItems: Array<{ size: CardSize; label: string }> = [
@@ -253,39 +284,34 @@ export function MetricCard({
     <div
       ref={setNodeRef}
       style={style}
-      onClick={editMode || canExplain ? handleCardClick : undefined}
-      role={editMode || canExplain ? "button" : undefined}
-      tabIndex={canExplain ? 0 : undefined}
+      onClick={editMode ? handleCardClick : undefined}
       title={editMode ? t("metricsV2.tapToResize") : undefined}
-      onKeyDown={
-        canExplain
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                push({
-                  conceptKey: card.conceptKey,
-                  value: resolved.value as number,
-                  triggerRect: e.currentTarget.getBoundingClientRect(),
-                  presentation: "sheet",
-                });
-              }
-            }
-          : undefined
-      }
-      aria-label={canExplain ? title : undefined}
       data-testid={`metric-card-${card.conceptKey}`}
-      // Metrics v2 chrome: the shared `.card-2026` editorial card (hairline
-      // border, soft large-blur shadow, calm hover lift) — one chrome for
-      // every tile. Edit mode adds a teal ring so "rearrange" reads clearly.
+      // Instrument stat-panel chrome: hairline border, 10px radius token,
+      // flat at rest — NO shadow, no hover lift. One chrome for every tile.
+      // Edit mode adds a brand ring so "rearrange" reads clearly.
       className={cn(
-        "card-2026 relative px-4 py-3 min-w-0",
+        "relative rounded-md border border-rule bg-surface px-4 py-3 min-w-0",
         SIZE_GRID[card.size],
-        editMode
-          ? "ring-1 ring-[hsl(173,57%,55%)]/25 cursor-pointer"
-          : "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30",
-        canExplain && "cursor-pointer",
+        editMode && "ring-1 ring-brand/25 cursor-pointer",
       )}
     >
+      {/* Stretched learn trigger — the ONE interactive element for the card
+          body. A positioned sibling of the corner controls (never their
+          ancestor), it covers the tile at z-0 while the controls sit at
+          z-10, so clicks on chrome open the concept and the a11y tree sees
+          a flat set of buttons (no nested-interactive). */}
+      {canExplain && (
+        <button
+          type="button"
+          aria-label={title}
+          onClick={(e) => {
+            e.stopPropagation();
+            openConcept(e);
+          }}
+          className="absolute inset-0 z-0 rounded-md cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+        />
+      )}
       {/* Edit-mode controls — drag handle (left) + remove (right). Each
           control keeps a 44×44 hit area (WCAG 2.5.5). */}
       {editMode && (
@@ -306,7 +332,7 @@ export function MetricCard({
             onClick={(e) => { e.stopPropagation(); removeCard(card.id); }}
             aria-label={t("metricsV2.removeCard")}
             data-testid={`card-remove-${card.conceptKey}`}
-            className="text-ink-mute hover:text-[hsl(0,75%,55%)] min-w-[44px] min-h-[44px] grid place-items-center rounded hover:bg-bg-2"
+            className="text-ink-mute hover:text-alert min-w-[44px] min-h-[44px] grid place-items-center rounded-sm hover:bg-bg-2"
           >
             <X className="w-4 h-4" />
           </button>
@@ -326,7 +352,7 @@ export function MetricCard({
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
-              className="absolute top-0 right-0 z-10 h-11 w-11 grid place-items-center rounded-2xl text-ink-mute/60 hover:text-ink transition-colors duration-150"
+              className="absolute top-0 right-0 z-10 h-11 w-11 grid place-items-center rounded-md text-ink-mute/60 hover:text-ink transition-colors duration-150"
             >
               <MoreHorizontal className="w-4 h-4" />
             </button>
@@ -366,7 +392,7 @@ export function MetricCard({
             <DropdownMenuItem
               onClick={() => removeCard(card.id)}
               data-testid={`card-menu-remove-${card.conceptKey}`}
-              className="min-h-[44px] gap-2 text-[hsl(0,70%,52%)] focus:text-[hsl(0,70%,52%)]"
+              className="min-h-[44px] gap-2 text-alert focus:text-alert"
             >
               <X className="w-4 h-4" />
               {t("metricsV2.menu.remove")}
@@ -377,33 +403,50 @@ export function MetricCard({
 
       {/* Label row — name + ⓘ plain-language tip. pr clears the ⋯ corner
           control; nudged down in edit mode to clear the control row. */}
+      {/* Lifted above the stretched trigger (z-[1]) so the ⓘ tip stays
+          clickable; pointer-events-none on the row lets label clicks fall
+          through to the trigger, re-enabled just on the tip itself. */}
       <div
         className={cn(
-          "flex items-center gap-1.5 pr-8 min-w-0",
+          "relative z-[1] pointer-events-none flex items-center gap-1.5 pr-8 min-w-0",
           editMode && "mt-11",
         )}
       >
-        <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">
+        <span className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium truncate">
           {title}
         </span>
         {!editMode && tipText && (
-          <MetricInfoTip text={tipText} conceptKey={card.conceptKey} />
+          <span className="pointer-events-auto inline-flex">
+            <MetricInfoTip text={tipText} conceptKey={card.conceptKey} />
+          </span>
         )}
       </div>
 
-      {/* Value — currency renders <Money>; others render the formatted
-          string. Same resolver + formatting as before the redesign. */}
-      <div className="mt-1 num-hero num-hero-fluid text-ink leading-none tabular-nums">
+      {/* Value — every figure through <Amount> (mono, tabular, locale-aware).
+          Money obeys the ONE MoneyAmountGroup the parent grid mounts, so all
+          currency tiles share a single magnitude. Same resolver as before. */}
+      <div className="mt-2 text-[22px] font-medium text-ink leading-none tracking-[-0.01em] [overflow-wrap:anywhere]">
         {resolved.value === null ? (
-          <span className="text-ink-mute">—</span>
+          <span className="font-mono tabular-nums text-ink-soft">—</span>
         ) : resolved.format === "currency" ? (
-          <Money
-            value={resolved.value}
-            fromCurrency={currency as Currency}
-            compact
-          />
+          <MoneyAmount value={resolved.value} fromCurrency={currency as Currency} />
+        ) : resolved.format === "percentage" ? (
+          // Resolver stores percentages as DECIMALS (0.132) — PercentLevel
+          // takes percent units, and renders an unsigned LEVEL ("13,2%"),
+          // not a signed delta.
+          <PercentLevel value={resolved.value * 100} />
+        ) : resolved.format === "ratio" ? (
+          <CappedMultiple value={resolved.value} />
+        ) : resolved.format === "days" ? (
+          <span className="font-mono tabular-nums">
+            <Amount kind="count" value={Math.round(resolved.value)} />
+            {NNBSP}d
+          </span>
+        ) : resolved.format === "count" ? (
+          <Amount kind="count" value={Math.round(resolved.value)} />
         ) : (
-          <span className="tabular-nums">{display}</span>
+          // score — raw figure, two decimals (Altman Z″ etc.)
+          <Amount kind="count" value={resolved.value} fractionDigits={2} />
         )}
       </div>
 
@@ -412,31 +455,30 @@ export function MetricCard({
           The headline value above stays identical in both views. */}
       {showTrend && trendSeries ? (
         <div className="mt-2" data-testid={`metric-trend-${card.conceptKey}`}>
+          {/* One calm accent for the line in both directions — red is
+              reserved for imbalance/danger on this surface; direction
+              lives in the line's shape and the badge's signed figure. */}
           <Sparkline
             data={trendSeries}
             idKey={card.conceptKey}
-            positive={trendBadge?.positive ?? true}
+            toneClass="text-brand-d dark:text-brand-l"
           />
           <div className="mt-1 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-ink-mute tabular-nums truncate">
+            <span className="font-mono text-[10px] text-ink-soft tabular-nums truncate">
               {trendSeries[0].label} → {trendSeries[trendSeries.length - 1].label}
             </span>
             {trendBadge && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 text-[10.5px] font-semibold tabular-nums whitespace-nowrap",
-                  trendBadge.positive
-                    ? "text-[hsl(173,57%,32%)]"
-                    : "text-[hsl(0,70%,46%)]",
-                )}
+              <Chip
+                tone="neutral"
+                className="shrink-0 gap-1 whitespace-nowrap px-2 text-[10.5px]"
               >
                 {trendBadge.positive ? (
-                  <TrendingUp className="w-3 h-3" />
+                  <TrendingUp className="w-3 h-3 text-ink-soft" />
                 ) : (
-                  <TrendingDown className="w-3 h-3" />
+                  <TrendingDown className="w-3 h-3 text-ink-soft" />
                 )}
-                {trendBadge.text}
-              </span>
+                {trendBadge.node}
+              </Chip>
             )}
           </div>
         </div>

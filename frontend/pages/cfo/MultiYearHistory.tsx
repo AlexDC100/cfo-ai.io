@@ -14,6 +14,16 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Loader2, TrendingUp, TrendingDown, Building2, Hash, MapPin, Globe } from "lucide-react";
+// Instrument pass (2026-08): PageHeader replaces the gradient hero,
+// panels/chips from the kit, every figure mono via the Amount family.
+import { PageHeader, Panel, PanelHeader } from "@/components/instrument/Panel";
+import { Amount } from "@/components/instrument/Amount";
+import {
+  MoneyAmount,
+  MoneyAmountGroup,
+  PercentLevel,
+  useDisplayMoney,
+} from "@/components/comparison/MoneyAmount";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { DataDepthBanner } from "@/components/cfo/DataDepthBanner";
@@ -62,6 +72,9 @@ export default function MultiYearHistory() {
   // CUR-FIX — every fmtRON(...) call below this point should use `fmtCur(...)`
   // instead. RON-source ANAF data converts to the user's TopHeader currency.
   const fmtCur = useFmtCur();
+  // Display-currency code for table captions (the cells drop per-cell
+  // units to keep the ledger quiet; the caption carries the unit once).
+  const { display } = useDisplayMoney();
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +116,7 @@ export default function MultiYearHistory() {
     <>
       <div className="max-w-[640px] mx-auto py-24 text-center">
         <Building2 size={28} className="mx-auto text-ink-mute mb-3" />
-        <h1 className="font-serif text-[28px] text-ink">No public-records data yet</h1>
+        <h1 className="text-[22px] font-semibold tracking-[-0.005em] text-ink">No public-records data yet</h1>
         <p className="mt-2 text-[14px] text-ink-soft">
           Upload a listafirme.ro / termene.ro company-summary PDF and the parser
           extracts the 6-aggregate × N-year history into this view.
@@ -133,84 +146,83 @@ export default function MultiYearHistory() {
             visits, but always discoverable. */}
         <DataDepthBanner depth={DEPTH_PUBLIC_SUMMARY} subject={extract.company_name} />
 
-        {/* Header card matching the institutional-memo pattern */}
-        <header className="rounded-2xl px-6 py-6 mb-6 text-white"
-                style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}>
-          {/* 2026-05-26 (mobile fix): stack vertically on mobile so
-              the 32px serif company name doesn't get column-stacked
-              by the Print/Save PDF button cluster on iPhone widths. */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.14em] opacity-80">
-                Multi-year financial history
+        {/* A3 hero eviction — the gradient banner becomes the compact
+            instrument header; the memo identity survives in the eyebrow. */}
+        <div className="mb-6 pb-4 border-b border-rule">
+          <PageHeader
+            eyebrow="Multi-year financial history"
+            title={extract.company_name ?? "Public records summary"}
+            actions={
+              <div className="flex items-center gap-2 flex-wrap print:hidden">
+                <GuideMeButton pageId="multi-year-history" title="Multi-year history" steps={MULTIYEAR_GUIDE} />
+                <button
+                  onClick={() => window.print()}
+                  data-testid="multiyear-print"
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-rule bg-surface text-ink text-[12.5px] font-medium hover:bg-bg-2 transition-colors duration-micro"
+                >
+                  Print / Save PDF
+                </button>
               </div>
-              <h1 className="mt-1 font-serif text-[26px] sm:text-[32px] leading-tight">
-                {extract.company_name ?? "Public records summary"}
-              </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] opacity-90">
-                {extract.cui && <span><Hash size={11} className="inline mr-1" />CUI {extract.cui}</span>}
-                {extract.reg_com && <span><Building2 size={11} className="inline mr-1" />{extract.reg_com}</span>}
-                {extract.caen_code && <span><MapPin size={11} className="inline mr-1" />CAEN {extract.caen_code}{extract.caen_description ? ` — ${extract.caen_description}` : ""}</span>}
-                {extract.source_site && <span><Globe size={11} className="inline mr-1" />{extract.source_site}</span>}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap sm:shrink-0 print:hidden">
-              <GuideMeButton pageId="multi-year-history" title="Multi-year history" steps={MULTIYEAR_GUIDE} />
-              <button
-                onClick={() => window.print()}
-                data-testid="multiyear-print"
-                className="inline-flex items-center gap-1.5 rounded-md bg-rule-soft/60 hover:bg-rule-soft px-3 py-1.5 text-[12.5px] font-medium transition-colors"
-              >
-                Print / Save PDF
-              </button>
-            </div>
+            }
+          />
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-soft">
+            {extract.cui && <span><Hash size={11} className="inline mr-1 text-ink-mute" />CUI <span className="font-mono tabular-nums">{extract.cui}</span></span>}
+            {extract.reg_com && <span><Building2 size={11} className="inline mr-1 text-ink-mute" />{extract.reg_com}</span>}
+            {extract.caen_code && <span><MapPin size={11} className="inline mr-1 text-ink-mute" />CAEN <span className="font-mono tabular-nums">{extract.caen_code}</span>{extract.caen_description ? ` — ${extract.caen_description}` : ""}</span>}
+            {extract.source_site && <span><Globe size={11} className="inline mr-1 text-ink-mute" />{extract.source_site}</span>}
           </div>
-        </header>
+        </div>
 
-        {/* Latest-year KPI row — quick read of "where is this company now" */}
+        {/* Latest-year KPI row — quick read of "where is this company now".
+            ONE AmountGroup: the three money tiles share a scale. */}
         {latest && (
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <KpiTile
-              label={`Revenue ${latest.year}`}
-              value={<LearnableNumber conceptKey="operating_revenue" value={latest.cifra_afaceri}>{fmtCur(latest.cifra_afaceri)}</LearnableNumber>}
-              sub={(() => {
-                const prev = years[1];
-                if (!prev || prev.cifra_afaceri <= 0) return "";
-                const yoy = (latest.cifra_afaceri / prev.cifra_afaceri - 1) * 100;
-                return `${yoy >= 0 ? "+" : ""}${yoy.toFixed(1)}% YoY`;
-              })()}
-              positive={(() => {
-                const prev = years[1];
-                if (!prev) return true;
-                return latest.cifra_afaceri >= prev.cifra_afaceri;
-              })()}
-            />
-            <KpiTile
-              label="Net profit"
-              value={<LearnableNumber conceptKey="net_profit" value={latest.profit_net}>{fmtCur(latest.profit_net)}</LearnableNumber>}
-              sub={latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}% net margin` : ""}
-              positive={latest.profit_net > 0}
-            />
-            <KpiTile
-              label="Total debt"
-              value={<LearnableNumber conceptKey="total_debt" value={latest.datorii_totale}>{fmtCur(latest.datorii_totale)}</LearnableNumber>}
-              sub={latest.capitaluri_proprii > 0 ? `D/E ${(latest.datorii_totale/latest.capitaluri_proprii).toFixed(2)}×` : ""}
-              positive={true}
-              neutral
-            />
-            <KpiTile
-              label="Employees"
-              value={(latest.salariati ?? 0).toLocaleString()}
-              sub={(() => {
-                const prev = years[1];
-                if (!prev || !prev.salariati || !latest.salariati) return "";
-                const delta = latest.salariati - prev.salariati;
-                return `${delta >= 0 ? "+" : ""}${delta} vs ${prev.year}`;
-              })()}
-              positive
-              neutral
-            />
-          </section>
+          <MoneyAmountGroup
+            values={[latest.cifra_afaceri, latest.profit_net, latest.datorii_totale]}
+            fromCurrency="RON"
+          >
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <KpiTile
+                label={`Revenue ${latest.year}`}
+                value={<LearnableNumber conceptKey="operating_revenue" value={latest.cifra_afaceri}><MoneyAmount value={latest.cifra_afaceri} fromCurrency="RON" /></LearnableNumber>}
+                sub={(() => {
+                  const prev = years[1];
+                  if (!prev || prev.cifra_afaceri <= 0) return "";
+                  const yoy = (latest.cifra_afaceri / prev.cifra_afaceri - 1) * 100;
+                  return `${yoy >= 0 ? "+" : ""}${yoy.toFixed(1)}% YoY`;
+                })()}
+                positive={(() => {
+                  const prev = years[1];
+                  if (!prev) return true;
+                  return latest.cifra_afaceri >= prev.cifra_afaceri;
+                })()}
+              />
+              <KpiTile
+                label="Net profit"
+                value={<LearnableNumber conceptKey="net_profit" value={latest.profit_net}><MoneyAmount value={latest.profit_net} fromCurrency="RON" /></LearnableNumber>}
+                sub={latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}% net margin` : ""}
+                positive={latest.profit_net > 0}
+              />
+              <KpiTile
+                label="Total debt"
+                value={<LearnableNumber conceptKey="total_debt" value={latest.datorii_totale}><MoneyAmount value={latest.datorii_totale} fromCurrency="RON" /></LearnableNumber>}
+                sub={latest.capitaluri_proprii > 0 ? `D/E ${(latest.datorii_totale/latest.capitaluri_proprii).toFixed(2)}×` : ""}
+                positive={true}
+                neutral
+              />
+              <KpiTile
+                label="Employees"
+                value={<Amount kind="count" value={latest.salariati ?? 0} />}
+                sub={(() => {
+                  const prev = years[1];
+                  if (!prev || !prev.salariati || !latest.salariati) return "";
+                  const delta = latest.salariati - prev.salariati;
+                  return `${delta >= 0 ? "+" : ""}${delta} vs ${prev.year}`;
+                })()}
+                positive
+                neutral
+              />
+            </section>
+          </MoneyAmountGroup>
         )}
 
         {/* ── INSIGHTS — deterministic context paragraph ────────────────
@@ -221,53 +233,69 @@ export default function MultiYearHistory() {
             is reproducible and audit-able.                                */}
         {years.length >= 2 && <InsightsSection years={years} company={extract.company_name ?? "The company"} />}
 
-        {/* Multi-year table — newest → oldest */}
-        <section className="rounded-2xl border border-rule bg-surface overflow-x-auto mb-6">
-          <table className="w-full text-[12.5px]">
-            <thead className="bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
-              <tr>
-                <th className="text-left px-3 py-2.5">Year</th>
-                <th className="text-right px-3 py-2.5">Revenue (cifra afaceri)</th>
-                <th className="text-right px-3 py-2.5">Net profit</th>
-                <th className="text-right px-3 py-2.5">Net margin</th>
-                <th className="text-right px-3 py-2.5">Total assets</th>
-                <th className="text-right px-3 py-2.5">Total debt</th>
-                <th className="text-right px-3 py-2.5">Equity</th>
-                <th className="text-right px-3 py-2.5">Employees</th>
-              </tr>
-            </thead>
-            <tbody>
-              {years.map((y, i) => {
-                const prev = years[i + 1];
-                const revGrowth = prev && prev.cifra_afaceri > 0 ? (y.cifra_afaceri / prev.cifra_afaceri - 1) * 100 : null;
-                const lossYear = y.profit_net < 0;
-                return (
-                  <tr key={y.year} className={`border-t border-rule/40 ${lossYear ? "bg-red-50/30 dark:bg-red-500/[0.04]" : ""}`}>
-                    <td className="px-3 py-2 font-medium text-ink tabular-nums">{y.year}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {fmtCur(y.cifra_afaceri)}
-                      {revGrowth != null && (
-                        <span className={`ml-1 text-[10px] ${revGrowth >= 0 ? "text-[#2AA89B]" : "text-red-600"}`}>
-                          {revGrowth >= 0 ? "+" : ""}{revGrowth.toFixed(0)}%
-                        </span>
-                      )}
-                    </td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${lossYear ? "text-red-700" : ""}`}>
-                      {fmtCur(y.profit_net)}
-                    </td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${lossYear ? "text-red-700" : "text-ink-soft"}`}>
-                      {y.net_margin_pct != null ? `${y.net_margin_pct.toFixed(1)}%` : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-ink-soft">{fmtCur(y.total_assets)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-ink-soft">{fmtCur(y.datorii_totale)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmtCur(y.capitaluri_proprii)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-ink-mute">{y.salariati ?? "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
+        {/* Multi-year table — newest → oldest. ONE AmountGroup over every
+            money cell so the whole ledger reads on a single scale. */}
+        <Panel className="mb-6">
+          <PanelHeader
+            title="Reported aggregates"
+            actions={
+              <span className="text-[11px] text-ink-mute">
+                figures in <span className="font-mono">{display}</span>
+              </span>
+            }
+          />
+          <div className="overflow-x-auto">
+          <MoneyAmountGroup
+            values={years.flatMap((y) => [y.cifra_afaceri, y.profit_net, y.total_assets, y.datorii_totale, y.capitaluri_proprii])}
+            fromCurrency="RON"
+          >
+            <table className="w-full text-[12.5px] min-w-[720px]">
+              <thead className="bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+                <tr className="border-b border-rule">
+                  <th className="text-left px-4 h-8 font-medium">Year</th>
+                  <th className="text-right px-3 h-8 font-medium">Revenue (cifra afaceri)</th>
+                  <th className="text-right px-3 h-8 font-medium">Net profit</th>
+                  <th className="text-right px-3 h-8 font-medium">Net margin</th>
+                  <th className="text-right px-3 h-8 font-medium">Total assets</th>
+                  <th className="text-right px-3 h-8 font-medium">Total debt</th>
+                  <th className="text-right px-3 h-8 font-medium">Equity</th>
+                  <th className="text-right px-3 h-8 font-medium">Employees</th>
+                </tr>
+              </thead>
+              <tbody>
+                {years.map((y, i) => {
+                  const prev = years[i + 1];
+                  const revGrowth = prev && prev.cifra_afaceri > 0 ? (y.cifra_afaceri / prev.cifra_afaceri - 1) * 100 : null;
+                  const lossYear = y.profit_net < 0;
+                  return (
+                    <tr key={y.year} className={`border-t border-rule-soft first:border-t-0 h-8 ${lossYear ? "bg-alert-tint/40" : ""}`}>
+                      <td className="px-4 py-1 font-mono font-medium text-ink tabular-nums">{y.year}</td>
+                      <td className="px-3 py-1 text-right">
+                        <MoneyAmount value={y.cifra_afaceri} fromCurrency="RON" unit={false} />
+                        {revGrowth != null && (
+                          <span className={`ml-1 font-mono tabular-nums text-[10px] ${revGrowth >= 0 ? "text-success" : "text-alert"}`}>
+                            {revGrowth >= 0 ? "+" : ""}{revGrowth.toFixed(0)}%
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-3 py-1 text-right ${lossYear ? "text-alert" : ""}`}>
+                        <MoneyAmount value={y.profit_net} fromCurrency="RON" unit={false} />
+                      </td>
+                      <td className={`px-3 py-1 text-right ${lossYear ? "text-alert" : "text-ink-soft"}`}>
+                        <PercentLevel value={y.net_margin_pct} />
+                      </td>
+                      <td className="px-3 py-1 text-right text-ink-soft"><MoneyAmount value={y.total_assets} fromCurrency="RON" unit={false} /></td>
+                      <td className="px-3 py-1 text-right text-ink-soft"><MoneyAmount value={y.datorii_totale} fromCurrency="RON" unit={false} /></td>
+                      <td className="px-3 py-1 text-right"><MoneyAmount value={y.capitaluri_proprii} fromCurrency="RON" unit={false} /></td>
+                      <td className="px-3 py-1 text-right text-ink-mute"><Amount kind="count" value={y.salariati} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </MoneyAmountGroup>
+          </div>
+        </Panel>
 
         {/* Simple sparkline-style revenue + profit chart in pure SVG */}
         <TrendChart years={years.slice().reverse()} />
@@ -314,21 +342,23 @@ function useFmtCur() {
 }
 
 function KpiTile({ label, value, sub, positive, neutral }: {
-  label: string; value: string; sub: string; positive: boolean; neutral?: boolean;
+  label: string; value: React.ReactNode; sub: string; positive: boolean; neutral?: boolean;
 }) {
-  const Color = neutral ? "text-ink" : (positive ? "text-[#2AA89B] dark:text-[#5CD3C5]" : "text-red-700 dark:text-red-400");
+  // Sentiment carries through the SEMANTIC pair only: success for gains,
+  // alert for losses; neutral figures stay ink.
+  const Color = neutral ? "text-ink" : (positive ? "text-success" : "text-alert");
   const Trend = neutral ? null : (positive ? TrendingUp : TrendingDown);
   return (
-    <div className="rounded-xl border border-rule bg-surface p-4">
+    <Panel className="p-4">
       <div className="text-[10px] uppercase tracking-[0.12em] text-ink-mute font-medium">{label}</div>
-      <div className={`mt-1 font-serif text-[26px] leading-tight tabular-nums ${Color}`}>{value}</div>
+      <div className={`mt-1 text-[21px] leading-tight ${Color}`}>{value}</div>
       {sub && (
         <div className="mt-1 text-[11.5px] text-ink-mute flex items-center gap-1">
           {Trend && <Trend size={11} className={Color} />}
           <span>{sub}</span>
         </div>
       )}
-    </div>
+    </Panel>
   );
 }
 
@@ -396,10 +426,12 @@ function InsightsSection({ years, company }: { years: YearRow[]; company: string
     if (recentNetMargin != null && recentNetMargin >= 0) return { tone: "warn" as const, text: `Thin margins — ${recentNetMargin.toFixed(1)}% net margin over the last ${recentWindow} years.` };
     return { tone: "warn" as const, text: `Margins compressed — review the cost structure.` };
   })();
-  const verdictColor =
-    verdict.tone === "ok" ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
-    : verdict.tone === "warn" ? "border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
-    : "border-red-300/50 bg-red-50/40 dark:bg-red-500/[0.06]";
+  // Verdict tone → the semantic ladder: success / caution / alert (the
+  // one allowed red — a majority-loss distress profile).
+  const verdictRule =
+    verdict.tone === "ok" ? "border-l-success"
+    : verdict.tone === "warn" ? "border-l-caution"
+    : "border-l-alert";
 
   // Bullets — pick the meaningful ones; never invent.
   const bullets: string[] = [];
@@ -429,17 +461,17 @@ function InsightsSection({ years, company }: { years: YearRow[]; company: string
 
   return (
     <section data-testid="multiyear-insights" className="mb-6 space-y-3">
-      <div className={`rounded-2xl border-l-[3px] ${verdictColor} border border-rule bg-surface px-5 py-4`}>
+      <Panel className={`border-l-[3px] ${verdictRule} px-5 py-4`}>
         <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium mb-1">
           CFO read · 20-year context
         </div>
-        <p className="font-serif text-[17px] text-ink leading-snug">{verdict.text}</p>
+        <p className="text-[15px] font-semibold tracking-[-0.005em] text-ink leading-snug">{verdict.text}</p>
         <p className="mt-2 text-[12.5px] text-ink-soft">
           {company} reports {n} years of public financial data ({first.year} – {latest.year}).
           The observations below are computed directly from the source — no LLM
           interpretation, every number is in the table.
         </p>
-      </div>
+      </Panel>
       <ul className="space-y-1.5 text-[13px] text-ink-soft leading-relaxed pl-5">
         {bullets.map((b, i) => (
           <li key={i} className="list-disc marker:text-ink-mute">{b}</li>
@@ -450,11 +482,13 @@ function InsightsSection({ years, company }: { years: YearRow[]; company: string
 }
 
 function TrendChart({ years }: { years: YearRow[] }) {
-  // Pure-SVG dual-line chart: revenue (blue) + net profit (emerald).
+  // Pure-SVG dual-line chart: revenue (brand) + net profit (success).
   // We don't import recharts because the rest of the app uses inline SVG
   // for trend renders and we want this page to feel consistent.
   //
-  // Y-axis labels are currency-converted (formerly hardcoded `fmtRON`) so
+  // Colors flow through Tailwind stroke-*/fill-* token utilities so the
+  // chart re-themes with Paper/Terminal like every other surface. Y-axis
+  // labels are currency-converted (formerly hardcoded `fmtRON`) so
   // toggling EUR/USD in the top bar repaints the chart axis too. SVG
   // <text> can't host a React component — we use the same `useFmtCur()`
   // helper as the rest of this file.
@@ -477,34 +511,38 @@ function TrendChart({ years }: { years: YearRow[] }) {
   // Zero baseline
   const zeroY = yScale(0);
   return (
-    <section className="rounded-2xl border border-rule bg-surface p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-serif text-[15px] text-ink">Revenue + net profit · {xs[0]} → {xs[xs.length-1]}</h3>
-        <div className="flex items-center gap-3 text-[11.5px]">
-          <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-[#2AA89B]"></span>Revenue</span>
-          <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-[#2AA89B]"></span>Net profit</span>
-        </div>
-      </div>
+    <Panel>
+      <PanelHeader
+        title={<>Revenue + net profit · <span className="font-mono tabular-nums normal-case">{xs[0]} → {xs[xs.length - 1]}</span></>}
+        actions={
+          <div className="flex items-center gap-3 text-[11.5px] text-ink-soft">
+            <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-brand"></span>Revenue</span>
+            <span className="inline-flex items-center gap-1"><span className="w-3 h-0.5 bg-success"></span>Net profit</span>
+          </div>
+        }
+      />
+      <div className="p-4">
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="xMidYMid meet">
         {/* Zero baseline */}
         {yMin < 0 && (
-          <line x1={padL} y1={zeroY} x2={w - padR} y2={zeroY} stroke="#d1d5db" strokeDasharray="2 3" />
+          <line x1={padL} y1={zeroY} x2={w - padR} y2={zeroY} className="stroke-rule" strokeDasharray="2 3" />
         )}
-        {/* Revenue area + line */}
-        <path d={revPath} fill="none" stroke="#5CD3C5" strokeWidth="2" />
+        {/* Revenue line */}
+        <path d={revPath} fill="none" className="stroke-brand" strokeWidth="2" />
         {/* Profit line */}
-        <path d={profPath} fill="none" stroke="#2AA89B" strokeWidth="2" />
+        <path d={profPath} fill="none" className="stroke-success" strokeWidth="2" />
         {/* X-axis labels — every other year to keep it readable */}
         {xs.map((y, i) => (
           (i % 2 === 0 || i === xs.length - 1) && (
-            <text key={y} x={xScale(i)} y={h - padB + 16} textAnchor="middle" fontSize="10" fill="#6b7280">{y}</text>
+            <text key={y} x={xScale(i)} y={h - padB + 16} textAnchor="middle" fontSize="10" className="fill-ink-mute font-mono tabular-nums">{y}</text>
           )
         ))}
         {/* Y-axis ticks — min, 0, max */}
-        <text x={padL - 6} y={yScale(yMax) + 4} textAnchor="end" fontSize="10" fill="#6b7280">{fmtCur(yMax)}</text>
-        {yMin < 0 && <text x={padL - 6} y={zeroY + 4} textAnchor="end" fontSize="10" fill="#6b7280">0</text>}
-        <text x={padL - 6} y={yScale(yMin) + 4} textAnchor="end" fontSize="10" fill="#6b7280">{fmtCur(yMin)}</text>
+        <text x={padL - 6} y={yScale(yMax) + 4} textAnchor="end" fontSize="10" className="fill-ink-mute font-mono tabular-nums">{fmtCur(yMax)}</text>
+        {yMin < 0 && <text x={padL - 6} y={zeroY + 4} textAnchor="end" fontSize="10" className="fill-ink-mute font-mono tabular-nums">0</text>}
+        <text x={padL - 6} y={yScale(yMin) + 4} textAnchor="end" fontSize="10" className="fill-ink-mute font-mono tabular-nums">{fmtCur(yMin)}</text>
       </svg>
-    </section>
+      </div>
+    </Panel>
   );
 }

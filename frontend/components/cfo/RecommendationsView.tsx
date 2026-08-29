@@ -32,6 +32,7 @@ export function RecommendationsView({ facts }: Props) {
   if (conditions.length === 0) {
     return (
       <div className="rounded-2xl border border-rule bg-surface p-8 text-center text-ink-soft">
+        {/* design-lint-allow-serif: empty-state voice — one serif line per the brief */}
         <p className="font-serif text-[20px] text-ink mb-2">No conditions flagged</p>
         <p className="text-[13.5px]">
           The detection rules examined ratios, cash flow, and balance-sheet flags — nothing triggered.
@@ -43,7 +44,7 @@ export function RecommendationsView({ facts }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-[22px] text-ink">Recommendations</h2>
+        <h2 className="text-[17px] font-semibold text-ink">Recommendations</h2>
         <p className="text-[12px] text-ink-mute font-mono uppercase tracking-[0.14em]">
           {conditions.length} condition{conditions.length === 1 ? "" : "s"} detected
         </p>

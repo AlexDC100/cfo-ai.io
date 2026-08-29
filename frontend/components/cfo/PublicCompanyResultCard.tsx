@@ -21,11 +21,11 @@ interface Props {
 export function PublicCompanyResultCard({ hit, onSelect }: Props) {
   const cardClassName = `
     group block
-    rounded-xl border border-rule
+    rounded-md border border-rule
     bg-surface hover:bg-bg-2/40
     p-4
-    transition-all
-    hover:border-brand/40 hover:-translate-y-[1px]
+    transition-colors duration-micro
+    hover:border-brand/40
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50
   `;
   const body = (
@@ -46,7 +46,7 @@ export function PublicCompanyResultCard({ hit, onSelect }: Props) {
           </span>
           <span className="text-[13px] text-ink truncate">{hit.name}</span>
           {!hit.is_active && (
-            <span className="text-[10px] uppercase tracking-[0.08em] font-semibold text-[#2AA89B]">
+            <span className="text-[10px] uppercase tracking-[0.08em] font-semibold text-caution">
               Delisted
             </span>
           )}

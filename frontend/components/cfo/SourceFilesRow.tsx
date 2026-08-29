@@ -195,7 +195,7 @@ export function AddFileTile({
               flex flex-col items-center justify-center text-center
               transition-all duration-150
               ${drag
-                ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
+                ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30"
                 : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
             `
             : `

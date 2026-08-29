@@ -2,6 +2,9 @@
 // read CSS variables (canvas drawing, SVG generation, server-rendered emails).
 // For runtime UI styling, prefer Tailwind classes that resolve through the
 // CSS vars in index.css; this file is the escape hatch.
+//
+// Values mirror the token sheet (index.css): Paper (light) / Terminal (dark),
+// hand-converted from the HSL tokens. If a token changes there, re-derive here.
 
 export type ThemeName = "light" | "dark" | "system";
 
@@ -25,44 +28,46 @@ export interface ThemePalette {
   info: string;
 }
 
+// Paper — mirrors :root in index.css.
 export const lightTheme: ThemePalette = {
-  bg:           "#F7F7F7",
-  surface:      "#FFFFFF",
-  surfaceSoft:  "#F2F2F2",
-  surfaceHover: "#ECECEC",
-  border:       "#E0E0E0",
-  borderStrong: "#CCCCCC",
-  text:         "#151515",
-  textMuted:    "#6A6A6A",
-  textSoft:     "#979797",
-  primary:      "#5CD3C5",
-  primaryHover: "#2AA89B",
-  gold:         "#5CD3C5",
-  goldSoft:     "#8FE3D9",
-  danger:       "#B83A2A",
-  warning:      "#5CD3C5",
-  success:      "#2AA89B",
-  info:         "#2AA89B",
+  bg:           "#FAFAF7", // --bg
+  surface:      "#FDFDFB", // --surface
+  surfaceSoft:  "#F4F4F0", // --surface-soft
+  surfaceHover: "#F4F4F0", // --surface-hover
+  border:       "#E1E2DF", // --rule
+  borderStrong: "#D4D5D2", // --rule-strong
+  text:         "#0B0E0D", // --ink
+  textMuted:    "#5C6662", // --ink-soft
+  textSoft:     "#808A85", // --ink-mute
+  primary:      "#0E7C6B", // --brand
+  primaryHover: "#0B6B5C", // --primary-hover
+  gold:         "#0E7C6B", // --brand-2 (aliases brand)
+  goldSoft:     "#3D8F83", // --brand-l
+  danger:       "#AF261D", // --alert
+  warning:      "#915F08", // --caution
+  success:      "#107061", // --success
+  info:         "#5A6672", // --info
 };
 
+// Terminal — mirrors .dark in index.css.
 export const darkTheme: ThemePalette = {
-  bg:           "#0A0A0A",
-  surface:      "#141414",
-  surfaceSoft:  "#1B1B1B",
-  surfaceHover: "#242424",
-  border:       "rgba(255,255,255,0.08)",
-  borderStrong: "rgba(255,255,255,0.14)",
-  text:         "#F5F5F5",
-  textMuted:    "#ABABAB",
-  textSoft:     "#8A8A8A",
-  primary:      "#5CD3C5",
-  primaryHover: "#2AA89B",
-  gold:         "#5CD3C5",
-  goldSoft:     "#8FE3D9",
-  danger:       "#FF5A5A",
-  warning:      "#5CD3C5",
-  success:      "#5CD3C5",
-  info:         "#78DCD0",
+  bg:           "#080D0B", // --bg
+  surface:      "#0F1513", // --surface
+  surfaceSoft:  "#141A18", // --surface-soft
+  surfaceHover: "#1B2220", // --surface-hover
+  border:       "#222A27", // --rule
+  borderStrong: "#343D39", // --rule-strong
+  text:         "#E9EDEB", // --ink
+  textMuted:    "#9EA9A4", // --ink-soft
+  textSoft:     "#798680", // --ink-mute
+  primary:      "#4EBCA6", // --brand
+  primaryHover: "#60C7B3", // --primary-hover
+  gold:         "#4EBCA6", // --brand-2 (aliases brand)
+  goldSoft:     "#81CFBD", // --brand-l
+  danger:       "#E0655C", // --alert
+  warning:      "#DAAB4E", // --caution
+  success:      "#4EBCA6", // --success
+  info:         "#90A1AD", // --info
 };
 
 export function paletteFor(theme: Exclude<ThemeName, "system">): ThemePalette {

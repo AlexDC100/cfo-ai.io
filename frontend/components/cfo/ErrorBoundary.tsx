@@ -50,7 +50,8 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="mx-auto h-12 w-12 rounded-full bg-alert/10 text-alert flex items-center justify-center mb-4">
               <AlertTriangle size={22} strokeWidth={1.75} />
             </div>
-            <h1 className="font-serif text-[26px] text-ink leading-tight">Something went wrong</h1>
+            {/* design-lint-allow-serif: empty-state voice — one serif line per the brief */}
+          <h1 className="font-serif text-[26px] text-ink leading-tight">Something went wrong</h1>
             <p className="text-[13.5px] text-ink-soft mt-2">
               The page hit an unexpected error. Your data is safe — try
               reloading, or head back to the dashboard.

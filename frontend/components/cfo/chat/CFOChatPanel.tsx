@@ -119,7 +119,7 @@ export function CFOChatPanel({
               type="button"
               onClick={onClose}
               aria-label="Close Ask CFO AI"
-              className="absolute top-2 right-2 sm:top-2.5 sm:right-3 z-10 inline-flex h-11 w-11 sm:h-7 sm:w-7 items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2/60 active:bg-bg-2/40 transition-colors"
+              className="absolute top-2 right-2 sm:top-2.5 sm:right-3 z-10 inline-flex h-11 w-11 sm:h-7 sm:w-7 items-center justify-center rounded-md text-ink-soft hover:text-ink hover:bg-bg-2/60 active:bg-bg-2/40 transition-colors"
               style={{ top: "calc(env(safe-area-inset-top) + 0.5rem)" }}
             >
               <X size={18} className="sm:hidden" strokeWidth={1.75} />

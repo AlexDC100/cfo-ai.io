@@ -120,7 +120,7 @@ export function ExtraDocConfirmDialog({
         className="max-w-[440px]"
       >
         <DialogHeader>
-          <DialogTitle className="text-[18px] font-serif text-ink">
+          <DialogTitle className="text-[16px] font-semibold text-ink">
             Extra document analysis
           </DialogTitle>
           <DialogDescription className="text-[13px] text-ink-soft leading-relaxed pt-1">
@@ -161,7 +161,7 @@ export function ExtraDocConfirmDialog({
           <CheckCircle2
             size={14}
             strokeWidth={1.75}
-            className="text-[#2AA89B] shrink-0 mt-0.5"
+            className="text-success shrink-0 mt-0.5"
           />
           <span>
             You're only charged if the analysis completes successfully. If it
@@ -183,7 +183,7 @@ export function ExtraDocConfirmDialog({
         {error && (
           <div
             data-testid="extra-doc-confirm-error"
-            className="rounded-md border border-[#8FE3D9]/60 bg-[#E6F7F4]/40 px-3 py-2 text-[12px] text-[#1B7268] inline-flex items-center gap-2"
+            className="rounded-md border border-brand-l/50 bg-brand-tint/40 px-3 py-2 text-[12px] text-brand-d dark:text-brand-l inline-flex items-center gap-2"
           >
             <AlertCircle size={13} strokeWidth={1.75} />
             {error}

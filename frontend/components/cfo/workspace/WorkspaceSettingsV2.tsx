@@ -60,6 +60,7 @@ import {
   useDecisionRules,
 } from "@/lib/decisionRulesStore";
 import type { Workspace } from "@/lib/workspaces";
+import { Amount } from "@/components/instrument/Amount";
 import { PeriodsSection } from "./PeriodsSection";
 import "./wsSetI18n";
 
@@ -109,13 +110,17 @@ function SectionShell({
     <section id={id} className="scroll-mt-24" data-testid={id}>
       <h2
         className={`max-lg:sticky max-lg:top-16 max-lg:z-10 max-lg:bg-bg/90 max-lg:backdrop-blur-sm max-lg:-mx-1 max-lg:px-1 py-2 text-[11px] uppercase tracking-[0.14em] font-semibold ${
-          danger ? "text-red-500/80" : "text-ink-mute"
+          danger ? "text-alert" : "text-ink-mute"
         }`}
       >
         {title}
       </h2>
+      {/* Panel chrome — hairline border, flat at rest; the danger section
+          is the one place the alert tone touches the frame. */}
       <div
-        className={`card-2026 p-5 sm:p-6 ${danger ? "!border-red-500/25" : ""}`}
+        className={`rounded-md border bg-surface p-5 sm:p-6 ${
+          danger ? "border-alert/25" : "border-rule"
+        }`}
       >
         {children}
       </div>
@@ -189,7 +194,9 @@ export function WorkspaceSettingsV2({
           aria-label={t("ws.settingsEyebrow")}
           data-testid="wsset-nav"
         >
-          <ul className="space-y-0.5">
+          {/* Mini-nav on a continuous hairline; the active item overlays a
+              2px accent rule (-ml-px) — no fills, no rounded pills. */}
+          <ul className="border-l border-rule">
             {SECTIONS.map((s) => {
               const active = activeSection === s.id;
               const danger = s.id === "wsset-danger";
@@ -200,10 +207,10 @@ export function WorkspaceSettingsV2({
                     onClick={() => scrollToSection(s.id)}
                     data-testid={`wsset-nav-${s.id.replace("wsset-", "")}`}
                     aria-current={active ? "true" : undefined}
-                    className={`w-full text-left rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors border-l-2 ${
+                    className={`w-full text-left -ml-px border-l-2 px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-micro ${
                       active
-                        ? `border-brand bg-bg-2/60 ${danger ? "text-red-500" : "text-ink"}`
-                        : `border-transparent ${danger ? "text-red-500/60 hover:text-red-500" : "text-ink-mute hover:text-ink"} hover:bg-bg-2/40`
+                        ? `border-brand ${danger ? "text-alert" : "text-ink"}`
+                        : `border-transparent ${danger ? "text-alert/60 hover:text-alert" : "text-ink-mute hover:text-ink"}`
                     }`}
                   >
                     {t(s.labelKey)}
@@ -342,7 +349,7 @@ function GeneralSection({
                 if (e.key === "Escape") cancel();
               }}
               data-testid="workspace-settings-name"
-              className="w-full max-w-[420px] h-10 px-3.5 rounded-lg border border-rule bg-surface text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+              className="w-full max-w-[420px] h-8 px-3 rounded-sm border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50"
             />
             <button
               type="button"
@@ -350,9 +357,9 @@ function GeneralSection({
               aria-label={t("wsSet.general.saveName")}
               title={t("wsSet.general.saveName")}
               data-testid="wsset-name-save"
-              className="shrink-0 grid place-items-center h-10 w-10 rounded-lg border border-brand/40 text-brand-d hover:border-brand/60 hover:bg-brand/10 transition-colors"
+              className="shrink-0 grid place-items-center h-8 w-8 rounded-sm border border-brand/40 text-brand-dark dark:text-brand-light hover:border-brand/60 hover:bg-brand-tint transition-colors duration-micro"
             >
-              <Check size={16} strokeWidth={2} />
+              <Check size={15} strokeWidth={2} />
             </button>
             <button
               type="button"
@@ -360,9 +367,9 @@ function GeneralSection({
               aria-label={t("wsSet.general.cancelEdit")}
               title={t("wsSet.general.cancelEdit")}
               data-testid="wsset-name-cancel"
-              className="shrink-0 grid place-items-center h-10 w-10 rounded-lg border border-rule text-ink-mute hover:text-ink hover:bg-bg-2/60 transition-colors"
+              className="shrink-0 grid place-items-center h-8 w-8 rounded-sm border border-rule text-ink-mute hover:text-ink hover:bg-bg-2 transition-colors duration-micro"
             >
-              <X size={16} strokeWidth={2} />
+              <X size={15} strokeWidth={2} />
             </button>
           </div>
         ) : (
@@ -391,10 +398,10 @@ function GeneralSection({
         </span>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div
-            className="flex items-center gap-3 flex-1 min-w-0 rounded-xl border border-rule bg-bg-2/40 px-3.5 py-3"
+            className="flex items-center gap-3 flex-1 min-w-0 rounded-md border border-rule bg-bg-2 px-3.5 py-3"
             data-testid="wsset-industry-current"
           >
-            <span className="grid place-items-center h-9 w-9 shrink-0 rounded-lg bg-brand/10 text-brand-d">
+            <span className="grid place-items-center h-9 w-9 shrink-0 rounded-sm bg-brand-tint text-brand-dark dark:text-brand-light">
               <CurrentIcon size={18} strokeWidth={1.75} />
             </span>
             <div className="min-w-0">
@@ -415,7 +422,7 @@ function GeneralSection({
               <button
                 type="button"
                 data-testid="wsset-industry-change"
-                className="shrink-0 inline-flex items-center gap-1.5 h-10 px-3.5 rounded-lg border border-brand/40 text-[13px] font-medium text-ink hover:border-brand/60 hover:bg-brand/10 transition-colors"
+                className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-rule text-[12.5px] font-medium text-ink hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
               >
                 {t("wsSet.general.changeIndustry")}
                 <ChevronDown size={14} strokeWidth={2} />
@@ -423,7 +430,7 @@ function GeneralSection({
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="w-[320px] p-0 rounded-xl border-rule bg-surface"
+              className="w-[320px] p-0 rounded-md border-rule bg-surface"
               data-testid="wsset-industry-popover"
             >
               <div className="flex items-center gap-2 border-b border-rule/60 px-3 py-2">
@@ -454,11 +461,11 @@ function GeneralSection({
                         onClick={() => pickIndustry(i.key)}
                         data-testid={`wsset-industry-option-${i.key}`}
                         aria-pressed={selected}
-                        className={`w-full flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                          selected ? "bg-brand/10" : "hover:bg-bg-2/70"
+                        className={`w-full flex items-start gap-2.5 rounded-sm px-2.5 py-2 text-left transition-colors duration-micro ${
+                          selected ? "bg-brand-tint" : "hover:bg-bg-2"
                         }`}
                       >
-                        <span className="grid place-items-center h-7 w-7 shrink-0 rounded-md bg-bg-2/70 text-ink-soft mt-0.5">
+                        <span className="grid place-items-center h-7 w-7 shrink-0 rounded-sm bg-bg-2 text-ink-soft mt-0.5">
                           <Icon size={14} strokeWidth={1.75} />
                         </span>
                         <span className="min-w-0 flex-1">
@@ -470,7 +477,7 @@ function GeneralSection({
                           </span>
                         </span>
                         {selected && (
-                          <Check size={14} strokeWidth={2} className="shrink-0 text-brand-d mt-1" />
+                          <Check size={14} strokeWidth={2} className="shrink-0 text-brand-dark dark:text-brand-light mt-1" />
                         )}
                       </button>
                     );
@@ -556,7 +563,7 @@ function FinancingSection() {
                 if (Number.isFinite(v)) setFinancing({ costOfFinancing: Math.max(0, Math.min(20, v)) });
               }}
               data-testid="financing-cost-of-financing"
-              className="w-[120px] h-10 pl-3 pr-8 rounded-lg border border-rule bg-surface text-[13px] tabular-nums text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+              className="w-[120px] h-8 pl-3 pr-8 rounded-sm border border-rule bg-surface font-mono text-[12.5px] tabular-nums text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-ink-mute">%</span>
           </div>
@@ -580,7 +587,7 @@ function FinancingSection() {
                 if (Number.isFinite(v)) setFinancing({ bankSpread: Math.max(0, Math.min(10, v)) });
               }}
               data-testid="financing-bank-spread"
-              className="w-[120px] h-10 pl-3 pr-8 rounded-lg border border-rule bg-surface text-[13px] tabular-nums text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
+              className="w-[120px] h-8 pl-3 pr-8 rounded-sm border border-rule bg-surface font-mono text-[12.5px] tabular-nums text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-ink-mute">%</span>
           </div>
@@ -589,15 +596,18 @@ function FinancingSection() {
         <span className="pb-2.5 text-[14px] text-ink-mute">=</span>
 
         <div
-          className="inline-flex items-center gap-2 h-10 px-3.5 rounded-lg bg-brand/10 border border-brand/30"
+          className="inline-flex items-center gap-2 h-8 px-3 rounded-sm bg-brand-tint"
           data-testid="wsset-financing-total"
         >
           <span className="text-[11px] uppercase tracking-[0.1em] font-semibold text-ink-soft">
             {t("decision_rules.financing.total_rate")}
           </span>
-          <span className="font-mono text-[14px] tabular-nums font-semibold text-brand-d">
-            {totalRate.toFixed(1)}%
-          </span>
+          <Amount
+            kind="percent"
+            value={totalRate / 100}
+            fractionDigits={1}
+            className="text-[13px] font-medium text-brand-dark dark:text-brand-light"
+          />
         </div>
       </div>
     </div>
@@ -643,14 +653,14 @@ function DangerZone({
             toast.success(t("ws.rulesReset"));
           }}
           data-testid="workspace-settings-reset"
-          className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+          className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors duration-micro"
         >
           <RotateCcw size={14} strokeWidth={1.75} />
           {t("ws.resetToDefault")}
         </button>
       </div>
 
-      <div className="border-t border-red-500/15" />
+      <div className="border-t border-rule-soft" />
 
       {/* Delete workspace */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
@@ -665,7 +675,7 @@ function DangerZone({
           onClick={() => setDeleteOpen(true)}
           disabled={!canDelete}
           data-testid="workspace-settings-delete"
-          className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-alert/30 bg-alert-tint text-[12.5px] font-medium text-alert hover:border-alert/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
         >
           <Trash2 size={14} strokeWidth={1.75} />
           {t("ws.deleteWorkspace")}
@@ -708,7 +718,7 @@ function DangerZone({
               autoComplete="off"
               spellCheck={false}
               data-testid="wsset-delete-confirm-input"
-              className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500/40"
+              className="w-full h-8 px-3 rounded-sm border border-rule bg-surface text-[13px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-alert/30 focus:border-alert/40"
             />
           </label>
 
@@ -717,7 +727,7 @@ function DangerZone({
               type="button"
               onClick={() => setDeleteOpen(false)}
               data-testid="workspace-settings-delete-cancel"
-              className="inline-flex items-center h-9 px-3.5 rounded-lg border border-rule text-[13px] font-medium text-ink hover:bg-bg-2/60 transition-colors"
+              className="inline-flex items-center h-8 px-3.5 rounded-sm border border-rule text-[12.5px] font-medium text-ink hover:bg-bg-2 transition-colors duration-micro"
             >
               {t("common.cancel")}
             </button>
@@ -726,7 +736,7 @@ function DangerZone({
               onClick={() => { setDeleteOpen(false); onDelete(); }}
               disabled={!match}
               data-testid="workspace-settings-delete-confirm"
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-sm border border-alert/30 bg-alert-tint text-[12.5px] font-medium text-alert hover:border-alert/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
             >
               <Trash2 size={14} strokeWidth={1.75} />
               {t("ws.deleteWorkspace")}

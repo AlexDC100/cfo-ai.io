@@ -45,7 +45,7 @@ export function RiskInventory({ allAlerts, hideHeader = false }: Props) {
     <section data-testid="risk-inventory" className="space-y-3">
       {!hideHeader && (
         <header>
-          <h2 className="font-serif text-[20px] text-ink">Risk inventory</h2>
+          <h2 className="text-[16px] font-semibold tracking-[-0.005em] text-ink">Risk inventory</h2>
           <p className="mt-1 text-[12.5px] text-ink-soft max-w-[680px]">
             Structural risks the deterministic engine identified from the
             financial statements. Each risk fires from a rule with cited
@@ -55,7 +55,7 @@ export function RiskInventory({ allAlerts, hideHeader = false }: Props) {
         </header>
       )}
       {risks.length === 0 ? (
-        <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
+        <div className="rounded-md border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
           No structural risks fired. This doesn't mean the company is risk-free
           — it means the standard 7 rules (receivables quality, liquidity,
           raw-material exposure, affiliate dependency, asset maturity,
@@ -75,16 +75,18 @@ export function RiskInventory({ allAlerts, hideHeader = false }: Props) {
 
 function RiskRow({ risk, ordinal }: { risk: RiskInventoryItem; ordinal: number }) {
   const sev = risk.severity;
+  // Severity is SEMANTIC, not brand: red only for critical (danger),
+  // amber caution for high/medium, slate info for the rest.
   const sevColor =
-    sev === "critical" ? "border-red-300 bg-red-50/60 dark:bg-red-500/[0.08]"
-    : sev === "high"   ? "border-[#8FE3D9] bg-[#E6F7F4]/60 dark:bg-[#5CD3C5]/[0.08]"
-    : sev === "medium" ? "border-[#8FE3D9] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
-    : "border-[#8FE3D9] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]";
+    sev === "critical" ? "border-alert/40 bg-alert-tint/60"
+    : sev === "high"   ? "border-caution/40 bg-caution-tint/60"
+    : sev === "medium" ? "border-caution/30 bg-caution-tint/40"
+    : "border-rule bg-bg-2/60";
   const sevText =
-    sev === "critical" ? "text-red-800 dark:text-red-300"
-    : sev === "high"   ? "text-[#1B7268] dark:text-[#8FE3D9]"
-    : sev === "medium" ? "text-[#1B7268] dark:text-[#8FE3D9]"
-    : "text-[#1B7268] dark:text-[#8FE3D9]";
+    sev === "critical" ? "text-alert"
+    : sev === "high"   ? "text-caution"
+    : sev === "medium" ? "text-caution"
+    : "text-info";
   const SevIcon = sev === "critical" || sev === "high" ? AlertTriangle
     : sev === "medium" ? AlertCircle
     : Info;
@@ -95,10 +97,10 @@ function RiskRow({ risk, ordinal }: { risk: RiskInventoryItem; ordinal: number }
       data-testid="risk-inventory-row"
       data-rule-key={risk.rule_key}
       data-severity={sev}
-      className={`rounded-xl border px-4 py-3 ${sevColor}`}
+      className={`rounded-md border px-4 py-3 ${sevColor}`}
     >
       <div className="flex items-start gap-3">
-        <span className="font-serif text-[15px] text-ink-mute tabular-nums shrink-0 w-6">{ordinal}.</span>
+        <span className="font-mono text-[13px] text-ink-mute tabular-nums shrink-0 w-6">{ordinal}.</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <SevIcon size={13} strokeWidth={2} className={sevText} />

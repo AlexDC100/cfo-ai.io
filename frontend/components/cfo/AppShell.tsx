@@ -35,7 +35,12 @@ import { CommandCenter } from "./command";
 // and a right-anchored slide-over panel (CFOChatPanel) mounted here so
 // every other route can summon "Ask CFO AI" without losing context.
 // ChatCopilot.tsx was removed in the 2026-07 dead-code cleanup (git history has it).
-import { SearchDialog } from "./SearchDialog";
+// SearchDialog was the pre-Instrument ⌘K surface; the CommandPalette
+// (instrument/shell) replaces it — same search domains plus pages,
+// actions, recent periods and companies. The old file stays for git
+// archaeology but is no longer mounted.
+import { CommandPalette } from "@/components/instrument/shell/CommandPalette";
+import { SIDEBAR_TOGGLE_EVENT } from "./Sidebar";
 import { DocsPanel } from "./DocsPanel";
 import { CouncilSphereHost } from "./CouncilSphereHost";
 import { DatasetsPanel } from "./DatasetsPanel";
@@ -240,17 +245,28 @@ export function AppShell({ children }: Props) {
   const [datasetsOpen] = useDatasetsPanelOpen();
   const anySlideoutOpen = docsOpen || datasetsOpen;
 
-  // Cmd/Ctrl+K opens the search palette anywhere
+  // Global command-deck shortcuts:
+  //   ⌘K — command palette · ⌘J — Ask CFO AI · ⌘. — toggle the rail.
+  // ⌘D (docs) and ⌘⇧D (datasets) are registered by their own panel hooks;
+  // nothing else in the app binds K / J / period with the modifier.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "k") {
         e.preventDefault();
         setSearchOpen(true);
+      } else if (key === "j" && !e.shiftKey) {
+        e.preventDefault();
+        openAskCfoAi();
+      } else if (e.key === ".") {
+        e.preventDefault();
+        try { window.dispatchEvent(new Event(SIDEBAR_TOGGLE_EVENT)); } catch { /* SSR */ }
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [openAskCfoAi]);
 
   // Sidebar handlers. `onOpenCommandCenter` is the relocated CC trigger
   // (System group below Settings). `onSignOut` USED to drive a Sidebar
@@ -314,6 +330,7 @@ export function AppShell({ children }: Props) {
         <TopHeader
           onOpenAi={openAskCfoAi}
           onOpenSidebar={() => setSidebarOpen(true)}
+          onOpenPalette={() => setSearchOpen(true)}
           // onOpenAccount removed 2026-08-04 (header redesign): the avatar
           // opens the AccountMenu dropdown again — it now hosts the
           // Learning-mode picker, Billing, Settings and sign-out. The
@@ -384,7 +401,9 @@ export function AppShell({ children }: Props) {
           slide-out is open on wide screens (≥1280px) the content shifts
           left by the panel's width so nothing is hidden. */}
       <main
-        className={`${inNativeShell ? "" : "pt-14"} ${sidebarCollapsed ? "lg:pl-[80px]" : "lg:pl-[268px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}
+        // Rail widths (THE INSTRUMENT): 232px expanded / 64px collapsed,
+        // flush left — keep in sync with Sidebar's widthClass.
+        className={`${inNativeShell ? "" : "pt-14"} ${sidebarCollapsed ? "lg:pl-[64px]" : "lg:pl-[232px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}
         // Notch devices: keep content clear of the home indicator.
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
@@ -448,7 +467,11 @@ export function AppShell({ children }: Props) {
           navigate(period ? `/dashboard?period=${encodeURIComponent(period)}` : "/dashboard");
         }}
       />
-      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      <CommandPalette
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        onOpenAi={openAskCfoAi}
+      />
     </div>
   );
 }

@@ -48,7 +48,7 @@ export function IndustryAuditTrail({ periodId, limit = 50, title }: Props) {
   return (
     <section data-testid="industry-audit-trail" className="space-y-3">
       <header className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="font-serif text-[18px] text-ink inline-flex items-center gap-2">
+        <h3 className="text-[15px] font-semibold text-ink inline-flex items-center gap-2">
           <History size={14} strokeWidth={1.75} className="text-ink-mute" />
           {title ?? "Classification history"}
         </h3>
@@ -68,7 +68,7 @@ export function IndustryAuditTrail({ periodId, limit = 50, title }: Props) {
       {error && (
         <div
           data-testid="industry-audit-trail-error"
-          className="rounded-md border border-[#8FE3D9]/60 bg-[#E6F7F4]/60 px-3 py-2.5 text-[12.5px] text-[#1B7268] inline-flex items-center gap-2"
+          className="rounded-md border border-brand-l/50 bg-brand-tint/60 px-3 py-2.5 text-[12.5px] text-brand-d dark:text-brand-l inline-flex items-center gap-2"
         >
           <ShieldAlert size={13} strokeWidth={1.75} />
           {error.status === 403

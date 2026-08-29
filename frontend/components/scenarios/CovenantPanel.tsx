@@ -100,7 +100,7 @@ export function CovenantPanel({ baseline, scenario, covenants, active }: Props) 
                   <div className="text-[12.5px] font-medium text-ink truncate">
                     {cov.name}
                   </div>
-                  <div className="text-[11px] text-ink-mute mt-0.5">
+                  <div className="text-[11px] text-ink-soft mt-0.5">
                     {METRIC_LABEL[cov.metric]} {opGlyph(cov.operator)}{" "}
                     <span className="font-mono tabular-nums">{cov.threshold.toFixed(2)}×</span>
                   </div>
@@ -109,12 +109,12 @@ export function CovenantPanel({ baseline, scenario, covenants, active }: Props) 
               </div>
 
               <div className="mt-2 flex items-center gap-4 text-[11.5px]">
-                <span className="text-ink-mute">
+                <span className="text-ink-soft">
                   Baseline{" "}
                   <MetricValue v={baseVal} className="text-ink-soft" />
                 </span>
                 {active && (
-                  <span className="text-ink-mute">
+                  <span className="text-ink-soft">
                     Scenario{" "}
                     <MetricValue
                       v={scenVal}

@@ -31,12 +31,11 @@ export function PublicCompanySearchInput({
   return (
     <div className="
       relative flex items-center gap-3
-      h-14 px-5
-      rounded-2xl border border-rule
+      h-12 px-4
+      rounded-md border border-rule
       bg-surface
-      shadow-[0_2px_12px_-6px_rgba(0,0,0,0.08)]
       focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/20
-      transition-all
+      transition-all duration-micro
     ">
       <Search size={20} strokeWidth={1.75} className="text-ink-mute shrink-0" />
       <input

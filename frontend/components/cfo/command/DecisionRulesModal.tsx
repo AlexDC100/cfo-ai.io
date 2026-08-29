@@ -689,7 +689,7 @@ function RuleCard({
             )}
           </div>
           {availability.status === "partial" && (
-            <div className="mt-1 text-[11px] text-[#2AA89B] dark:text-[#5CD3C5]">
+            <div className="mt-1 text-[11px] text-brand">
               {t("decision_rules.partial_coverage", "Available for {{covered}} of {{total}} SKUs", {
                 covered: availability.coveredCount.toLocaleString("en-GB"),
                 total:   availability.totalCount.toLocaleString("en-GB"),
@@ -783,9 +783,9 @@ function RuleCard({
               />
             </div>
             <div className="flex items-baseline gap-4 flex-wrap text-[11.5px] text-ink-soft tabular-nums">
-              <span><span className="inline-block w-2 h-2 rounded-full bg-[#5CD3C5] mr-1.5 align-baseline" />{t("buckets.wind_down","Wind down")}: <span className="text-ink font-medium">{perRule.wind_down}</span></span>
-              <span><span className="inline-block w-2 h-2 rounded-full bg-[#5CD3C5] mr-1.5 align-baseline" />{t("buckets.watch","Watch")}: <span className="text-ink font-medium">{perRule.watch}</span></span>
-              <span><span className="inline-block w-2 h-2 rounded-full bg-[#5CD3C5] mr-1.5 align-baseline" />{t("buckets.protect","Protect")}: <span className="text-ink font-medium">{perRule.protect}</span></span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-brand mr-1.5 align-baseline" />{t("buckets.wind_down","Wind down")}: <span className="text-ink font-medium">{perRule.wind_down}</span></span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-brand mr-1.5 align-baseline" />{t("buckets.watch","Watch")}: <span className="text-ink font-medium">{perRule.watch}</span></span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-brand mr-1.5 align-baseline" />{t("buckets.protect","Protect")}: <span className="text-ink font-medium">{perRule.protect}</span></span>
               <span className="ml-auto text-[10.5px] text-ink-mute">
                 {t("decision_rules.range_hint", "Range")}: {formatVal(bounds.min, unit)} – {formatVal(bounds.max, unit)}
               </span>
@@ -959,7 +959,7 @@ function PresetPicker({ skus }: { skus: readonly SkuLite[] }) {
         </h3>
         {activePresetLabel && (
           <span
-            className={`text-[11px] tabular-nums ${drifted ? "text-[#2AA89B] dark:text-[#5CD3C5]" : "text-ink-mute"}`}
+            className={`text-[11px] tabular-nums ${drifted ? "text-brand" : "text-ink-mute"}`}
             data-testid="preset-active-label"
           >
             {t("decision_rules.preset.active", "Active")}: <span className="font-medium">{activePresetLabel}</span>

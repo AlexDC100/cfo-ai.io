@@ -35,9 +35,9 @@ const PRIORITY_LABEL: Record<RecommendationPriority, string> = {
   info: "Info",
 };
 const PRIORITY_TONE: Record<RecommendationPriority, string> = {
-  critical: "bg-red-50 text-red-700 border-red-200",
-  high:     "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
-  medium:   "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]",
+  critical: "bg-alert-tint text-alert border-alert/30",
+  high:     "bg-brand-tint text-brand border-brand-l/50",
+  medium:   "bg-brand-tint text-brand border-brand-l/50",
   info:     "bg-bg-2 text-ink-soft border-rule",
 };
 
@@ -81,7 +81,8 @@ function DecisionsEmptyState() {
       <div className="mx-auto h-14 w-14 rounded-2xl bg-bg-2 text-ink-mute flex items-center justify-center mb-4">
         <FileText size={22} strokeWidth={1.5} />
       </div>
-      <h1 className="font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
+      {/* design-lint-allow-serif: empty-state voice — one serif line per the brief */}
+        <h1 className="font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink">
         No decisions yet
       </h1>
       <p className="mt-4 text-[15px] text-ink-soft max-w-[480px] mx-auto">
@@ -160,7 +161,7 @@ function DecisionsLoaded({ statements }: { statements: NonNullable<ReturnType<ty
     <div className="space-y-7" data-testid="decisions-body">
       <header>
         <div className="label-eyebrow">Decisions</div>
-        <h1 className="mt-2 font-serif text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em]">
+        <h1 className="mt-2 text-[22px] font-semibold leading-tight tracking-tight text-ink">
           {visible.length} prioritized action{visible.length === 1 ? "" : "s"}
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[640px]">
@@ -239,7 +240,7 @@ function DecisionCard({
             toggles the global currency. `rec.factsCited` carries the raw
             facts the rule emitted; linkify matches them to RON figures in
             the prose and replaces with currency-aware <TraceableNumber>s. */}
-        <h3 className={`font-serif text-[17px] text-ink leading-tight ${done ? "line-through" : ""}`}>
+        <h3 className={`text-[15px] font-semibold text-ink leading-tight ${done ? "line-through" : ""}`}>
           {linkifyAlertBody(rec.title, rec.factsCited as Record<string, number> | undefined)}
         </h3>
       </div>
@@ -252,7 +253,7 @@ function DecisionCard({
         {linkifyAlertBody(rec.action, rec.factsCited as Record<string, number> | undefined)}
       </p>
       {rec.estimatedImpact && (
-        <div className="mt-3 inline-flex items-center text-[11.5px] font-medium text-[#2AA89B] bg-[#E6F7F4] px-3 py-1 rounded-md">
+        <div className="mt-3 inline-flex items-center text-[11.5px] font-medium text-brand bg-brand-tint px-3 py-1 rounded-md">
           Estimated impact: ~<Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact /> / year
         </div>
       )}
@@ -261,7 +262,7 @@ function DecisionCard({
           onClick={() => onStatusChange(inProgress ? "open" : "in_progress")}
           data-testid="rec-action-progress"
           className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
-            inProgress ? "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+            inProgress ? "bg-brand-tint text-brand border-brand-l/50" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
           }`}
         >
           <Clock size={12} strokeWidth={2} />
@@ -271,7 +272,7 @@ function DecisionCard({
           onClick={() => onStatusChange(done ? "open" : "done")}
           data-testid="rec-action-done"
           className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12px] font-medium border transition-colors ${
-            done ? "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
+            done ? "bg-success-tint text-success border-success/30" : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong"
           }`}
         >
           <Check size={12} strokeWidth={2} />

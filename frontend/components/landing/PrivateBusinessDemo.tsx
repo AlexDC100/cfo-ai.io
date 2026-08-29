@@ -124,8 +124,8 @@ export function PrivateBusinessDemo() {
           <div className="flex items-center gap-3 px-4 py-2.5 border-b border-rule/60 bg-bg-2/80 backdrop-blur">
             <div className="flex gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-red-400/40" aria-hidden />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#5CD3C5]/40" aria-hidden />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#5CD3C5]/40" aria-hidden />
+              <span className="w-2.5 h-2.5 rounded-full bg-brand/40" aria-hidden />
+              <span className="w-2.5 h-2.5 rounded-full bg-brand/40" aria-hidden />
             </div>
             <div className="flex-1 text-center text-[11px] text-ink-mute font-mono truncate">
               cfo-ai.io / demo · {t("landing.demo.frameLabel", "This is what you'll see")}

@@ -113,7 +113,8 @@ export function CFOBriefingCard({
       cancelled = true;
       clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps — activeLang/langMismatch drive the same debounce
+    // activeLang/langMismatch drive the same debounce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [display, periodId, activeLang, langMismatch]);
 
   // Chrome-less: the briefing IS the header's subtitle — plain prose under

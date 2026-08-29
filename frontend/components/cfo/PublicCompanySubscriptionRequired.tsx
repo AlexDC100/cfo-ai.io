@@ -3,8 +3,9 @@
 // Rendered on the public-company dashboard when the API responds with
 // `subscription_required: true` (Nasdaq returned 200 + empty data + the
 // SF1 column schema — the free-tier indicator that the operator needs to
-// add Sharadar Equities). Apple-clean: no traceback, single CTA, hint
-// about what changes when activated.
+// add Sharadar Equities). No traceback, single CTA, hint about what
+// changes when activated. Instrument pass (2026-08): tokens only, no
+// resting glow, sans headline.
 
 import { Lock, ArrowRight } from "lucide-react";
 
@@ -18,21 +19,19 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
       data-testid="public-company-subscription-required"
       className="
         max-w-2xl mx-auto my-12
-        rounded-2xl border border-[#8FE3D9]/40
-        bg-gradient-to-br from-[#E6F7F4]/40 to-surface
-        dark:from-[#5CD3C5]/[0.06] dark:to-surface
+        rounded-md border border-rule bg-surface
         p-7 sm:p-9
       "
     >
       <div className="
         flex h-12 w-12 items-center justify-center
-        rounded-2xl bg-[#5CD3C5]/15 text-[#2AA89B] dark:text-[#8FE3D9]
+        rounded-md bg-brand-tint text-brand-d dark:text-brand-l
         mb-4
       ">
         <Lock size={22} strokeWidth={1.75} />
       </div>
 
-      <h2 className="font-serif text-[24px] text-ink tracking-[-0.005em]">
+      <h2 className="text-[20px] font-semibold text-ink tracking-[-0.005em] leading-snug">
         Sharadar SF1 subscription required to load {ticker} financials
       </h2>
       <p className="text-[13.5px] text-ink-soft mt-3 leading-relaxed max-w-[480px]">
@@ -45,7 +44,7 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
         mt-6 grid sm:grid-cols-2 gap-3
       ">
         <div className="
-          rounded-xl border border-rule bg-surface p-4
+          rounded-md border border-rule bg-bg-2 p-4
         ">
           <div className="text-[11px] uppercase tracking-[0.1em] font-semibold text-ink-mute">
             Available now (free tier)
@@ -57,11 +56,10 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
           </ul>
         </div>
         <div className="
-          rounded-xl border border-[#8FE3D9]/40 bg-[#E6F7F4]/40
-          dark:bg-[#5CD3C5]/[0.06]
+          rounded-md border border-brand/30 bg-brand-tint/60
           p-4
         ">
-          <div className="text-[11px] uppercase tracking-[0.1em] font-semibold text-[#1B7268] dark:text-[#8FE3D9]">
+          <div className="text-[11px] uppercase tracking-[0.1em] font-semibold text-brand-d dark:text-brand-l">
             Unlocked with SF1 (~$49/mo)
           </div>
           <ul className="mt-2 text-[12.5px] text-ink-soft space-y-1">
@@ -79,13 +77,11 @@ export function PublicCompanySubscriptionRequired({ ticker }: Props) {
         rel="noopener noreferrer"
         className="
           mt-6 inline-flex items-center gap-1.5
-          h-10 px-5 rounded-lg
-          bg-gradient-to-b from-brand to-brand-d text-paper
+          h-10 px-5 rounded-md
+          bg-ink text-paper
           text-[13px] font-medium
-          shadow-[0_8px_22px_-8px_rgba(92,211,197,0.6)]
-          hover:shadow-[0_10px_26px_-8px_rgba(92,211,197,0.75)]
-          ring-1 ring-inset ring-white/15
-          transition-all
+          hover:bg-ink/90
+          transition-colors duration-micro
         "
       >
         Subscribe to Sharadar Equities

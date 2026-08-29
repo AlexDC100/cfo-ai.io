@@ -353,7 +353,7 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
             <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
               Industry classification
             </div>
-            <h2 id="industry-picker-title" className="font-serif text-[22px] text-ink leading-tight mt-1">
+            <h2 id="industry-picker-title" className="text-[17px] font-semibold text-ink leading-tight mt-1">
               {assignment ? "Change industry" : "Set industry"}
             </h2>
             <p className="text-[12px] text-ink-mute mt-1">
@@ -511,7 +511,7 @@ export function IndustryPicker({ periodId, open, onClose, onChanged }: Props) {
           {error && (
             <div
               data-testid="industry-picker-error"
-              className="rounded-md border border-[#8FE3D9]/60 bg-[#E6F7F4]/60 px-3 py-2 text-[12px] text-[#1B7268]"
+              className="rounded-md border border-brand-l/50 bg-brand-tint/60 px-3 py-2 text-[12px] text-brand-d dark:text-brand-l"
             >
               {humanizeError(error)}
             </div>
@@ -595,10 +595,10 @@ function StaleUrlBanner({
   return (
     <section
       data-testid="industry-picker-stale-url"
-      className="rounded-xl border border-[#8FE3D9]/60 bg-[#E6F7F4]/50 p-4 space-y-3"
+      className="rounded-xl border border-brand-l/50 bg-brand-tint/50 p-4 space-y-3"
     >
       <div>
-        <div className="text-[10.5px] uppercase tracking-[0.1em] text-[#2AA89B] font-medium">
+        <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand font-medium">
           Analysis no longer exists
         </div>
         <h3 className="mt-1 text-[15px] font-medium text-ink">
@@ -685,7 +685,7 @@ function PendingIndustryContext({ detail }: { detail: IndustryProfileDetail }) {
       {internalBrands.length > 0 && (
         <div
           data-testid="industry-internal-brand-note"
-          className="rounded-lg border border-[#8FE3D9] bg-[#E6F7F4]/60 px-3 py-2 text-[12px] text-[#1B7268]"
+          className="rounded-lg border border-brand-l/60 bg-brand-tint/60 px-3 py-2 text-[12px] text-brand-d dark:text-brand-l"
         >
           <strong className="font-semibold">
             {internalBrands.map((b) => b.company_name).join(", ")}

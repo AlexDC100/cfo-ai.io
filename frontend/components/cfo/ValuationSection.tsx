@@ -59,9 +59,9 @@ function fmtMultiple(n: number | null | undefined): string {
 }
 
 function confidenceTone(c: PeriodValuation["confidence"]) {
-  if (c === "high") return { dot: "bg-[#5CD3C5]", text: "text-[#2AA89B]", label: "High confidence" };
-  if (c === "medium") return { dot: "bg-[#5CD3C5]", text: "text-[#2AA89B]", label: "Medium confidence" };
-  return { dot: "bg-slate-400", text: "text-slate-600", label: "Low confidence" };
+  if (c === "high") return { dot: "bg-brand", text: "text-brand", label: "High confidence" };
+  if (c === "medium") return { dot: "bg-brand", text: "text-brand", label: "Medium confidence" };
+  return { dot: "bg-ink-faint", text: "text-ink-soft", label: "Low confidence" };
 }
 
 async function saveAssumptions(periodId: string, body: Record<string, number | null>): Promise<boolean> {
@@ -196,7 +196,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
     >
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="font-serif text-[22px] text-ink leading-tight" data-testid="valuation-heading">
+          <h2 className="text-[17px] font-semibold text-ink leading-tight" data-testid="valuation-heading">
             Company valuation
           </h2>
           <p className="text-[13px] text-ink-soft mt-1">
@@ -244,7 +244,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
                 ? "Net asset value (book equity + RE markup)"
                 : "EV / EBITDA (peer multiple)"))}
             </div>
-            <div className="font-serif text-[36px] text-ink leading-tight mt-1" data-testid="valuation-equity-p50">
+            <div className="font-mono tabular-nums text-[30px] text-ink leading-tight mt-1" data-testid="valuation-equity-p50">
               {fmtMoney(
                 valuation.primary_method === "asset_based"
                   ? (valuation.primary_equity_value ?? null)
@@ -319,7 +319,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
                 onChange={(e) => setMultiple(Number(e.target.value))}
                 className="flex-1 accent-brand"
               />
-              <div className="font-serif text-[18px] text-ink tabular-nums w-16 text-right">
+              <div className="font-mono text-[15px] text-ink tabular-nums w-16 text-right">
                 {fmtMultiple(multiple)}
               </div>
             </div>
@@ -350,7 +350,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
         <div data-testid="valuation-football-field" className="rounded-2xl border border-rule bg-surface p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h3 className="font-serif text-[16px] text-ink">Valuation range across methods</h3>
+              <h3 className="text-[14px] font-semibold text-ink">Valuation range across methods</h3>
               <p className="text-[12px] text-ink-soft">
                 Each bar spans low → high for its method. Wider bars = more sensitivity. The primary method is highlighted.
               </p>

@@ -126,9 +126,10 @@ export function PeerSuggestRail({ rows, onSelectTicker }: Props) {
                     <span className="uppercase tracking-[0.08em] text-[9.5px] text-ink-mute">
                       {t("pci.compare.row.revenue")}
                     </span>
+                    {/* No inline currency on magnitude-scaled figures — the
+                        page header's RON chip declares the unit once. */}
                     <Amount
                       value={r.revenue}
-                      currency={r.currency}
                       magnitude={pickMagnitude([r.revenue])}
                       className="text-[11.5px] text-ink"
                     />

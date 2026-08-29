@@ -92,7 +92,8 @@ export function StockPriceChart({ data, range, isLoading, isError, unavailable }
   }
 
   // ── Chart ──
-  const lineColor = delta && delta.abs >= 0 ? "#1B7268" : "#c62828";
+  // Movement colors from the token sheet: success up, alert down.
+  const lineColor = delta && delta.abs >= 0 ? "hsl(var(--success))" : "hsl(var(--alert))";
   const areaGradientId = `area-grad-${data?.ticker ?? "x"}-${range}`;
 
   return (
@@ -122,7 +123,7 @@ export function StockPriceChart({ data, range, isLoading, isError, unavailable }
               <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e6ed" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--rule-soft))" vertical={false} />
           <XAxis
             dataKey="date"
             tickFormatter={(v) => {
@@ -135,7 +136,7 @@ export function StockPriceChart({ data, range, isLoading, isError, unavailable }
               }
               return d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
             }}
-            tick={{ fontSize: 10, fill: "#6b7280" }}
+            tick={{ fontSize: 10, fill: "hsl(var(--ink-mute))" }}
             tickLine={false}
             axisLine={false}
             minTickGap={32}
@@ -143,14 +144,14 @@ export function StockPriceChart({ data, range, isLoading, isError, unavailable }
           <YAxis
             domain={["auto", "auto"]}
             tickFormatter={(v) => `${display === "USD" ? "$" : ""}${Math.round(v).toLocaleString()}${display === "USD" ? "" : ` ${display}`}`}
-            tick={{ fontSize: 10, fill: "#6b7280" }}
+            tick={{ fontSize: 10, fill: "hsl(var(--ink-mute))" }}
             tickLine={false}
             axisLine={false}
             width={60}
             orientation="right"
           />
           <Tooltip
-            cursor={{ stroke: "#9ca3af", strokeDasharray: "3 3" }}
+            cursor={{ stroke: "hsl(var(--ink-faint))", strokeDasharray: "3 3" }}
             content={({ active, payload, label }) => {
               if (!active || !payload?.length) return null;
               const v = payload[0]?.value as number;

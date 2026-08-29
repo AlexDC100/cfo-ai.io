@@ -100,9 +100,9 @@ export const BUCKET3_META: Record<
   Bucket3,
   { label: string; dot: string; tone: "strong" | "warn" | "danger" }
 > = {
-  protect:   { label: "Protect",   dot: "bg-[#5CD3C5]", tone: "strong" },
-  watch:     { label: "Watch",     dot: "bg-[#5CD3C5]",   tone: "warn" },
-  wind_down: { label: "Wind down", dot: "bg-[#5CD3C5]",  tone: "danger" },
+  protect:   { label: "Protect",   dot: "bg-success", tone: "strong" },
+  watch:     { label: "Watch",     dot: "bg-caution", tone: "warn" },
+  wind_down: { label: "Wind down", dot: "bg-alert",   tone: "danger" },
 };
 
 export const BUCKET3_ORDER: Bucket3[] = ["protect", "watch", "wind_down"];

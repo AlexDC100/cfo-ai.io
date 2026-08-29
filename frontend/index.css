@@ -394,7 +394,9 @@
     --success-tint: 168 35% 11%;
     --caution:      40 65% 58%;
     --caution-tint: 42 40% 13%;
-    --alert:        4 65% 58%;
+    /* L 62% not 58: on the 13% tint the red must clear AA (D2 found
+       4.41:1 at 58%). */
+    --alert:        4 68% 62%;
     --alert-tint:   4 45% 13%;
     --info:         205 15% 62%;
     --info-tint:    208 18% 13%;

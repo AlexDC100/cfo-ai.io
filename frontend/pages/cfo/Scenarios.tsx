@@ -61,10 +61,10 @@ function ImpactSummary({
       className="flex flex-wrap items-center gap-x-5 gap-y-2 py-1"
     >
       <div className="flex items-center gap-2">
-        <span className="text-[12px] text-ink-mute">Net debt / EBITDA</span>
+        <span className="text-[12px] text-ink-soft">Net debt / EBITDA</span>
         <span className="text-[13px] font-semibold text-ink inline-flex items-center gap-1.5">
           <CappedMultiple value={leverageBase} className="text-ink-soft" />
-          <MoveRight size={13} strokeWidth={1.75} className="text-ink-mute" aria-hidden />
+          <MoveRight size={13} strokeWidth={1.75} className="text-ink-soft" aria-hidden />
           <CappedMultiple
             value={leverageScen}
             className={worsened ? "text-alert" : "text-ink"}
@@ -72,7 +72,7 @@ function ImpactSummary({
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[12px] text-ink-mute">Covenants</span>
+        <span className="text-[12px] text-ink-soft">Covenants</span>
         {breachCount > 0 ? (
           <Chip tone="alert" dot>
             {breachCount} breached
@@ -126,17 +126,24 @@ function ScenariosInner({
 
   return (
     <div className="max-w-[1560px] space-y-5">
-      {/* Header — dashboard-style hero */}
-      <PageHeader
-        hero
-        eyebrow="Scenario planning"
-        title={<>Stress-test your numbers <span className="text-grad">before they happen</span>.</>}
-        subtitle={
+      {/* Header — compact instrument header (A3 hero eviction). The old
+          hero's promise survives in the context line; the "actuals are
+          never changed" guarantee becomes the locked-source chip. */}
+      <InstrumentPageHeader
+        eyebrow="Analysis"
+        title="Scenario planning"
+        context={
           <>
-            Model a change — rent or revenue drops, costs rise, payments slow — and see
-            instantly what it does to EBITDA, leverage, and your bank covenants. Built on{" "}
-            <span className="text-ink">{periodLabel ?? "the loaded period"}</span>; your
-            actuals are never changed.
+            <span>
+              What-if on <span className="text-ink">{periodLabel ?? "the loaded period"}</span> —
+              EBITDA, leverage and covenants react live.
+            </span>
+            {/* nowrap: at 390px the pill must drop below the sentence as
+                one piece, never wrap into a three-line lozenge. */}
+            <Chip tone="neutral" className="whitespace-nowrap">
+              <Lock size={11} strokeWidth={2} aria-hidden />
+              Actuals never change
+            </Chip>
           </>
         }
       />
@@ -176,7 +183,7 @@ function ScenariosInner({
             active={active}
           />
           {!active && (
-            <p className="text-[12px] text-ink-mute px-1">
+            <p className="text-[12px] text-ink-soft px-1">
               Pick a template or drag a driver to see the scenario column fill
               in. Net debt / EBITDA, current ratio and your covenants update
               live as you move the sliders.

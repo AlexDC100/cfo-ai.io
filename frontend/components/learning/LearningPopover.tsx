@@ -1115,7 +1115,7 @@ function SourceTraceBlock({
             className="
               inline-flex items-center px-1.5 py-0.5 rounded
               text-[10px] font-semibold uppercase tracking-[0.1em]
-              bg-[#5CD3C5]/20 text-[#8FE3D9] border border-[#5CD3C5]/30
+              bg-brand/25 text-brand-l border border-brand/40
             "
           >
             Demo

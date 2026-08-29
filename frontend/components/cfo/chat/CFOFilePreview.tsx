@@ -33,7 +33,7 @@ export function CFOFilePreview({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[12px] text-ink truncate">{attachment.name}</span>
-        <span className="block text-[10.5px] text-ink-mute mt-px">
+        <span className="block text-[10.5px] text-ink-soft mt-px">
           {statusCaption(attachment)} · {formatBytes(attachment.size)}
         </span>
       </span>
@@ -42,7 +42,7 @@ export function CFOFilePreview({
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${attachment.name}`}
-        className="inline-flex items-center justify-center h-6 w-6 rounded text-ink-mute hover:text-ink hover:bg-bg-2 transition-colors shrink-0"
+        className="inline-flex items-center justify-center h-6 w-6 rounded text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors shrink-0"
       >
         <X size={12} strokeWidth={1.75} />
       </button>
@@ -51,10 +51,11 @@ export function CFOFilePreview({
 }
 
 function StatusGlyph({ status }: { status: ChatAttachment["status"] }) {
-  if (status === "ready") return <CheckCircle2 size={12} className="text-[#2AA89B] shrink-0" />;
-  if (status === "error") return <AlertCircle size={12} className="text-red-600 shrink-0" />;
+  // success = verified (accent family); alert red is reserved for failure.
+  if (status === "ready") return <CheckCircle2 size={12} className="text-success shrink-0" />;
+  if (status === "error") return <AlertCircle size={12} className="text-alert shrink-0" />;
   if (status === "queued") return null;
-  return <Loader2 size={12} className="animate-spin text-ink-mute shrink-0" />;
+  return <Loader2 size={12} className="animate-spin text-ink-soft shrink-0" />;
 }
 
 function statusCaption(a: ChatAttachment): string {

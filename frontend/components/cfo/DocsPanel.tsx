@@ -386,7 +386,7 @@ export function DocsPanel() {
         <header className="flex items-center justify-between px-4 py-3 border-b border-rule">
           <div>
             <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">{t("panels.documents")}</div>
-            <h2 className="font-serif text-[17px] text-ink leading-tight mt-0.5">{t("panels.allYourUploads")}</h2>
+            <h2 className="text-[15px] font-semibold text-ink leading-tight mt-0.5">{t("panels.allYourUploads")}</h2>
           </div>
           <button
             type="button"
@@ -661,7 +661,7 @@ function PeriodCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="font-serif text-[14px] text-ink leading-tight">{label}</span>
+            <span className="text-[13.5px] font-medium text-ink leading-tight">{label}</span>
             {isCurrent && (
               <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.06em] font-semibold text-brand-d px-1.5 py-0.5 rounded-full bg-brand-tint">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand" /> {t("panels.viewing")}
@@ -751,7 +751,7 @@ function OtherPeriodRow({
         className="w-full text-left px-3.5 py-2.5"
       >
         <div className="flex items-center gap-2">
-          <span className="font-serif text-[13.5px] text-ink leading-tight">{label}</span>
+          <span className="text-[13px] font-medium text-ink leading-tight">{label}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-1.5 text-[11px] text-ink-mute">
@@ -879,7 +879,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
         <span className="truncate flex-1 min-w-0">{doc.display_name}</span>
       )}
       {!renaming && doc.status !== "analyzed" && (
-        <span className={`text-[9.5px] uppercase tracking-[0.06em] font-medium shrink-0 ${doc.status === "failed" ? "text-red-700" : "text-[#2AA89B]"}`}>
+        <span className={`text-[9.5px] uppercase tracking-[0.06em] font-medium shrink-0 ${doc.status === "failed" ? "text-alert" : "text-brand"}`}>
           · {doc.status}
         </span>
       )}

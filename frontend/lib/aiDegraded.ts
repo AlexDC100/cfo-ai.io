@@ -46,6 +46,27 @@ export function classifyAiFailure(err: unknown): AiFailureKind {
   return "service";
 }
 
+// The chat-llm Edge Function catches upstream Anthropic errors and
+// returns them as an HTTP 200 whose `answer` is this sentinel string —
+// raw status + JSON body included (supabase/functions/chat-llm/index.ts,
+// the two `Couldn't reach Claude:` branches). The frontend boundary must
+// intercept it or the raw payload walks straight into the conversation
+// as a "successful" answer. Sentinel-matching a backend literal is
+// brittle by nature; flagged for a structured error contract, but the
+// Edge Function is out of this lane's scope.
+const UPSTREAM_FAILURE_PREFIX = "Couldn't reach Claude:";
+
+/** Classify an ANSWER string that may actually be the Edge Function's
+ *  wrapped upstream failure. Returns null for a genuine answer. */
+export function classifyUpstreamAnswer(answer: string): AiFailureKind | null {
+  if (!answer.startsWith(UPSTREAM_FAILURE_PREFIX)) return null;
+  const status = /^Couldn't reach Claude:\s*(\d{3})\b/.exec(answer)?.[1];
+  if (status === "429") return "usage";
+  if (status) return "service";
+  // No status = the fetch itself threw inside the function (network path).
+  return "network";
+}
+
 /** Classify AND log. The single entry point the send pipeline calls:
  *  the raw payload (message, status, detail, request ids) is preserved
  *  for debugging via console.debug and goes nowhere else. */

@@ -1317,16 +1317,18 @@ export function formatRatio(r: Ratio): string {
   }
 }
 
+// Palette literals feed the GENERATED standalone report document (its own
+// <style> sheet — it cannot read the app's CSS vars), tuned to Paper.
 export function verdictColor(v: RatioVerdict): { bg: string; text: string } {
   switch (v) {
     case "strong":
-      return { bg: "#E6F7F4", text: "#1B7268" };
+      return { bg: "#E7F3F1", text: "#0A6154" }; // design-lint-allow-hex standalone generated report doc
     case "healthy":
-      return { bg: "#E6F7F4", text: "#2AA89B" };
+      return { bg: "#E7F3F1", text: "#0E7C6B" }; // design-lint-allow-hex standalone generated report doc
     case "watch":
-      return { bg: "#E6F7F4", text: "#1B7268" };
+      return { bg: "#E7F3F1", text: "#0A6154" }; // design-lint-allow-hex standalone generated report doc
     case "critical":
-      return { bg: "#fee2e2", text: "#991b1b" };
+      return { bg: "#fee2e2", text: "#991b1b" }; // design-lint-allow-hex standalone generated report doc
   }
 }
 
@@ -1384,23 +1386,25 @@ export function renderReportHtml(s: Statements): string {
         content: "Financial Analysis · Page " counter(page) " of " counter(pages);
         font-family: 'Inter', -apple-system, sans-serif;
         font-size: 8.5pt;
-        color: #6b7280;
+        color: #6b7280; /* design-lint-allow-hex standalone generated report doc */
         letter-spacing: 0.04em;
       }
     }
 
     :root {
-      /* Primary + secondary text are near-black / dark-grey (2026-07-25) —
-         they were teal (#1B7268), which made the whole report read green.
-         The teal --accent below is kept for accents (borders, labels). */
-      --ink: #16181d;
-      --ink-soft: #454b56;
-      --ink-mute: #6B7280;
-      --accent: #2AA89B;
-      --rule: #C9CDD2;
-      --rule-soft: #E5E7EB;
-      --paper: #FFFFFF;
-      --bg-soft: #F7F8FA;
+      /* Standalone generated document — cannot read the app token sheet;
+         Paper palette baked in below (design-lint-allow-hex, whole block).
+         Primary + secondary text are near-black / dark-grey (2026-07-25) —
+         they were teal, which made the whole report read green.
+         The --accent below is kept for accents (borders, labels). */
+      --ink: #0B0E0D; /* design-lint-allow-hex standalone generated report doc */
+      --ink-soft: #454b56; /* design-lint-allow-hex standalone generated report doc */
+      --ink-mute: #6B7280; /* design-lint-allow-hex standalone generated report doc */
+      --accent: #0E7C6B; /* design-lint-allow-hex standalone generated report doc */
+      --rule: #C9CDD2; /* design-lint-allow-hex standalone generated report doc */
+      --rule-soft: #E5E7EB; /* design-lint-allow-hex standalone generated report doc */
+      --paper: #FFFFFF; /* design-lint-allow-hex standalone generated report doc (A4 print stays true white) */
+      --bg-soft: #F7F8FA; /* design-lint-allow-hex standalone generated report doc */
       --serif: 'Source Serif Pro', 'Source Serif 4', 'Source Serif', Charter, 'Iowan Old Style', 'Hoefler Text', Georgia, 'Times New Roman', serif;
       --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Helvetica Neue', Arial, sans-serif;
     }
@@ -1559,10 +1563,10 @@ export function renderReportHtml(s: Statements): string {
       border: 1px solid;
       vertical-align: 1px;
     }
-    .badge.v-strong   { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
-    .badge.v-healthy  { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
-    .badge.v-watch    { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
-    .badge.v-critical { background: #F4E8E8; color: #7A1F1F; border-color: #C7A6A6; }
+    .badge.v-strong   { background: #E7F3F1; color: #0A6154; border-color: #B9DBD4; } /* design-lint-allow-hex standalone generated report doc */
+    .badge.v-healthy  { background: #E7F3F1; color: #0A6154; border-color: #B9DBD4; } /* design-lint-allow-hex standalone generated report doc */
+    .badge.v-watch    { background: #E7F3F1; color: #0A6154; border-color: #B9DBD4; } /* design-lint-allow-hex standalone generated report doc */
+    .badge.v-critical { background: #F4E8E8; color: #7A1F1F; border-color: #C7A6A6; } /* design-lint-allow-hex standalone generated report doc */
 
     /* Callouts — minimal hairline, no fill */
     .commentary, .risk, .action {
@@ -1575,9 +1579,9 @@ export function renderReportHtml(s: Statements): string {
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .commentary { border-left-color: #2AA89B; }
-    .risk       { border-left-color: #8B1A1A; }
-    .action     { border-left-color: #1B7268; }
+    .commentary { border-left-color: #0E7C6B; } /* design-lint-allow-hex standalone generated report doc */
+    .risk       { border-left-color: #8B1A1A; } /* design-lint-allow-hex standalone generated report doc */
+    .action     { border-left-color: #0A6154; } /* design-lint-allow-hex standalone generated report doc */
     .commentary strong, .risk strong, .action strong { color: var(--ink); font-weight: 600; }
 
     /* Executive verdict band — rule-bracketed, not a coloured block */
@@ -1696,10 +1700,10 @@ export function renderReportHtml(s: Statements): string {
       vertical-align: 2px;
       border: 1px solid;
     }
-    .priority-critical { background: #FAF1F1; color: #7A1F1F; border-color: #C7A6A6; }
-    .priority-high     { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
-    .priority-medium   { background: #E6F7F4; color: #1B7268; border-color: #8FE3D9; }
-    .priority-info     { background: #F1F2F4; color: #4B5563; border-color: #C7CCD3; }
+    .priority-critical { background: #FAF1F1; color: #7A1F1F; border-color: #C7A6A6; } /* design-lint-allow-hex standalone generated report doc */
+    .priority-high     { background: #E7F3F1; color: #0A6154; border-color: #B9DBD4; } /* design-lint-allow-hex standalone generated report doc */
+    .priority-medium   { background: #E7F3F1; color: #0A6154; border-color: #B9DBD4; } /* design-lint-allow-hex standalone generated report doc */
+    .priority-info     { background: #F1F2F4; color: #4B5563; border-color: #C7CCD3; } /* design-lint-allow-hex standalone generated report doc */
 
     /* Recommendations — hairline-separated, no card boxes */
     .rec {

@@ -23,7 +23,7 @@ function sentimentText(s: DeltaSentiment | null): string {
   // success green and alert red are earned here, not decoration.
   if (s === "positive") return "text-success";
   if (s === "negative") return "text-alert";
-  return "text-ink-mute";
+  return "text-ink-soft";
 }
 
 function DeltaLine({
@@ -39,7 +39,7 @@ function DeltaLine({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[11px] text-ink-mute">{label}</span>
+      <span className="text-[11px] text-ink-soft">{label}</span>
       {d ? (
         <span className={cn("text-[12px] font-medium", sentimentText(sentiment))}>
           <MoneyAmount
@@ -49,13 +49,13 @@ function DeltaLine({
             signed
           />
           {d.pct !== null && (
-            <span className="ml-1.5 opacity-80">
+            <span className="ml-1.5">
               <Amount kind="percent" value={d.pct} />
             </span>
           )}
         </span>
       ) : (
-        <span className="text-ink-mute text-[12px]">—</span>
+        <span className="text-ink-soft text-[12px]">—</span>
       )}
     </div>
   );
@@ -86,10 +86,10 @@ export function KpiVarianceStrip({
         {kpis.map((r) => (
           <Panel key={r.key} data-testid={`kpi-variance-${r.key}`} className="px-4 py-3">
             <div className="flex items-baseline justify-between gap-2">
-              <div className="text-[11px] uppercase tracking-[0.1em] text-ink-mute font-medium">
+              <div className="text-[11px] uppercase tracking-[0.1em] text-ink-soft font-medium">
                 {r.label}
               </div>
-              <span className="font-mono text-[10.5px] text-ink-mute">{display}</span>
+              <span className="font-mono text-[10.5px] text-ink-soft">{display}</span>
             </div>
             <div className="mt-1.5 text-[22px] font-semibold leading-none text-ink">
               <MoneyAmount

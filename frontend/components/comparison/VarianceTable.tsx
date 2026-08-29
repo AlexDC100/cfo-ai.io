@@ -38,7 +38,7 @@ function sentimentText(s: DeltaSentiment | null): string {
   // these are the only colored cells in the table.
   if (s === "positive") return "text-success";
   if (s === "negative") return "text-alert";
-  return "text-ink-mute";
+  return "text-ink-soft";
 }
 
 function DeltaCell({
@@ -50,14 +50,14 @@ function DeltaCell({
   sentiment: DeltaSentiment | null;
   currency: string;
 }) {
-  if (!d) return <span className="text-ink-mute">—</span>;
+  if (!d) return <span className="text-ink-soft">—</span>;
   return (
     <span className={cn("inline-flex flex-col items-end leading-tight", sentimentText(sentiment))}>
       <span className="text-[12px] font-medium">
         <MoneyAmount value={d.absolute} fromCurrency={currency as Currency} unit={false} signed />
       </span>
       {d.pct !== null && (
-        <span className="text-[10.5px] opacity-80">
+        <span className="text-[10.5px]">
           <Amount kind="percent" value={d.pct} />
         </span>
       )}
@@ -66,7 +66,7 @@ function DeltaCell({
 }
 
 function Val({ v, currency, emphasis }: { v: number | null; currency: string; emphasis?: boolean }) {
-  if (v === null) return <span className="text-ink-mute">—</span>;
+  if (v === null) return <span className="text-ink-soft">—</span>;
   return (
     <MoneyAmount
       value={v}
@@ -98,11 +98,12 @@ export function VarianceTable({ rows, currency, view, hasBudget, hasLastYear }: 
   ]);
 
   const Header = () => (
-    // Sticky under the 56px app header. Solid bg so scrolled rows never
-    // show through; sticking is inert on small screens where the wrapper
-    // scrolls horizontally (overflow ancestors defeat sticky) — accepted.
+    // Sticky under the 56px app header — lg only: below lg the wrapper is
+    // a horizontal scroller, which would become the sticky scrollport and
+    // pin the header 56px INTO the panel at rest. Solid bg so scrolled
+    // rows never show through.
     <div
-      className="sticky top-14 z-10 grid gap-2 px-4 h-8 items-center border-b border-rule bg-surface text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium"
+      className="lg:sticky lg:top-14 z-10 grid gap-2 px-4 h-8 items-center border-b border-rule bg-surface text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium"
       style={{ gridTemplateColumns: gridTemplate }}
     >
       <div>P&amp;L line · {display}</div>

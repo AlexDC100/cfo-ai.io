@@ -110,7 +110,7 @@ export function AccountTab({ onClose }: Props) {
                   <div className="mt-1.5 h-1.5 rounded-full bg-rule overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-[width] ${
-                        tokens.remaining === 0 ? "bg-[#5CD3C5]" : "bg-brand"
+                        tokens.remaining === 0 ? "bg-caution" : "bg-brand"
                       }`}
                       style={{ width: `${tokens.pct}%` }}
                       role="progressbar"

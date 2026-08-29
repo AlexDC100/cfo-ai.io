@@ -116,32 +116,34 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
   const grade = compositeToGrade(data.composite);
   const zone = altmanZone(data.altmanZ);
 
+  // Semantic band color from tokens only — red stays reserved for the
+  // genuinely distressed band.
   const gradeColor =
-    data.composite >= 70 ? "text-[#2AA89B] dark:text-[#5CD3C5]"
-    : data.composite >= 50 ? "text-[#2AA89B] dark:text-[#5CD3C5]"
-    : "text-red-700 dark:text-red-400";
+    data.composite >= 70 ? "text-success"
+    : data.composite >= 50 ? "text-caution"
+    : "text-alert";
 
   const zoneLabel = zone === "safe" ? "Safe" : zone === "grey" ? "Grey" : "Distress";
   const zoneClass =
-    zone === "safe" ? "bg-success-tint text-[hsl(var(--success))] border-[hsl(var(--success)/0.3)]"
-    : zone === "grey" ? "bg-[hsl(var(--warning-2-tint))] text-[hsl(var(--warning-2))] border-[hsl(var(--warning-2)/0.3)]"
-    : "bg-alert-tint text-[hsl(var(--alert))] border-[hsl(var(--alert)/0.3)]";
+    zone === "safe" ? "bg-success-tint text-success border-transparent"
+    : zone === "grey" ? "bg-caution-tint text-caution border-transparent"
+    : "bg-alert-tint text-alert border-transparent";
 
   if (variant === "compact") {
     return (
       <div
         data-testid="credit-score-compact"
-        className="inline-flex items-center gap-3 rounded-xl border border-rule bg-surface px-4 py-2.5"
+        className="inline-flex items-center gap-3 rounded-md border border-rule bg-surface px-4 py-2.5"
       >
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em] text-ink-mute font-medium">
             Credit score
           </div>
-          <div className={`font-serif text-[22px] leading-none ${gradeColor}`}>
+          <div className={`font-mono tabular-nums text-[20px] font-medium leading-none ${gradeColor}`}>
             <LearnableNumber conceptKey="composite_credit_score" value={data.composite}>
               {Math.round(data.composite)}
             </LearnableNumber>
-            <span className="text-[14px] text-ink-mute"> / 100</span>
+            <span className="text-[13px] text-ink-mute"> / 100</span>
           </div>
         </div>
         <div className="h-8 w-px bg-rule/60" />
@@ -149,7 +151,7 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
           <div className="text-[10px] uppercase tracking-[0.1em] text-ink-mute font-medium">
             Grade
           </div>
-          <div className={`font-serif text-[22px] leading-none ${gradeColor}`}>
+          <div className={`font-mono tabular-nums text-[20px] font-medium leading-none ${gradeColor}`}>
             <LearnableNumber conceptKey="credit_grade" value={data.composite}>{grade}</LearnableNumber>
           </div>
         </div>
@@ -158,7 +160,7 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
           <div className="text-[10px] uppercase tracking-[0.1em] text-ink-mute font-medium">
             Altman Z″
           </div>
-          <div className="font-serif text-[18px] leading-none text-ink">
+          <div className="font-mono tabular-nums text-[17px] font-medium leading-none text-ink">
             <LearnableNumber conceptKey="altman_z_score" value={data.altmanZ}>{data.altmanZ.toFixed(2)}</LearnableNumber>
           </div>
         </div>
@@ -170,20 +172,20 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
   }
 
   return (
-    <section data-testid="credit-score-card" className="rounded-2xl border border-rule bg-surface p-6">
+    <section data-testid="credit-score-card" className="rounded-md border border-rule bg-surface p-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
             Credit score
           </div>
           <div className="mt-2 flex items-baseline gap-2 sm:gap-3 flex-wrap">
-            <span className={`font-serif text-[clamp(36px,9vw,56px)] leading-none ${gradeColor}`}>
+            <span className={`font-mono tabular-nums text-[clamp(30px,7vw,44px)] font-medium leading-none ${gradeColor}`}>
               <LearnableNumber conceptKey="composite_credit_score" value={data.composite}>
                 {Math.round(data.composite)}
               </LearnableNumber>
             </span>
             <span className="text-[16px] sm:text-[20px] text-ink-mute">/ 100</span>
-            <span className={`font-serif text-[clamp(26px,6.5vw,40px)] leading-none ${gradeColor}`}>
+            <span className={`font-mono tabular-nums text-[clamp(22px,5vw,32px)] font-medium leading-none ${gradeColor}`}>
               <LearnableNumber conceptKey="credit_grade" value={data.composite}>{grade}</LearnableNumber>
             </span>
           </div>
@@ -191,12 +193,12 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
             Composite score · weighted average of 7 risk dimensions
           </div>
         </div>
-        <div className="rounded-xl border border-rule bg-bg-2/40 p-4 min-w-[220px]">
+        <div className="rounded-md border border-rule bg-bg-2/40 p-4 min-w-[220px]">
           <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
             Altman Z″ score
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-serif text-[32px] text-ink">
+            <span className="font-mono tabular-nums text-[26px] font-medium text-ink">
               <LearnableNumber conceptKey="altman_z_score" value={data.altmanZ}>{data.altmanZ.toFixed(2)}</LearnableNumber>
             </span>
             <span className={`text-[11px] uppercase tracking-[0.08em] font-medium px-2 py-0.5 rounded-md border ${zoneClass}`}>
@@ -238,9 +240,9 @@ export function CreditScoreCard({ data, variant = "full" }: Props) {
 function ScoreBar({ label, value, weight }: { label: string; value: number; weight: number }) {
   const pct = Math.max(0, Math.min(100, value));
   const color =
-    value >= 70 ? "bg-[#5CD3C5]"
-    : value >= 50 ? "bg-[#5CD3C5]"
-    : "bg-red-500";
+    value >= 70 ? "bg-success"
+    : value >= 50 ? "bg-caution"
+    : "bg-alert";
   return (
     <div className="grid grid-cols-[140px_1fr_56px_44px] items-center gap-3 text-[12px]">
       <div className="text-ink">{label}</div>

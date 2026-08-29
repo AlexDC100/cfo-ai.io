@@ -19,16 +19,14 @@
 /* ── Header ─────────────────────────────────────────────────────────── */
 .cf-header {
   margin: 0 0 4px 0;
-  padding-bottom: 14px;
-  border-bottom: 1px solid hsl(var(--brand) / 0.55);
+  padding-bottom: 12px;
+  border-bottom: 1px solid hsl(var(--rule));
 }
 
 .cf-header h2 {
-  font-family: "Instrument Serif", "Fraunces", ui-serif, Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 24px;
-  letter-spacing: -0.005em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   text-align: left;
   border: none;
   padding: 0;
@@ -64,7 +62,7 @@
   color: hsl(var(--ink-mute));
   margin: 0 0 10px 0;
   position: sticky;
-  top: 64px;
+  top: 56px;
   z-index: 2;
   background: hsl(var(--surface));
   padding: 4px 0;
@@ -85,7 +83,7 @@
   grid-template-columns: 1fr 180px;
   align-items: baseline;
   gap: 14px;
-  padding: 3px 0;
+  padding: 5.5px 0;
   transition: background-color 150ms ease, color 150ms ease;
 }
 
@@ -170,7 +168,7 @@
 .cf-reconciliation {
   margin: 28px 0 8px 0;
   padding-top: 14px;
-  border-top: 1.5px solid hsl(var(--ink));
+  border-top: 3px double hsl(var(--ink));
 }
 
 /* The original CSS rendered a double rule for visual emphasis. We keep

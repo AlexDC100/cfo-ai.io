@@ -11,8 +11,8 @@
 // Color rules:
 //   · The C is always teal (--brand). It's the brand-primary signal —
 //     never themed away.
-//   · The A inherits `currentColor`, so it flips to ink (#14141A) in
-//     light mode and ivory (#F4F6F8) in dark mode automatically.
+//   · The A inherits `currentColor`, so it flips to ink in light mode
+//     and ivory in dark mode automatically.
 //   · `monochrome=true` collapses both shapes to currentColor — used by
 //     the favicon SVG and any single-ink contexts.
 //

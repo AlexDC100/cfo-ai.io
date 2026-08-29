@@ -20,16 +20,14 @@
 
 /* ── Header ─────────────────────────────────────────────────────────── */
 .bs-header {
-  font-family: "Instrument Serif", "Fraunces", ui-serif, Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 24px;
-  letter-spacing: -0.005em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   text-align: left;
   border: none;
-  padding: 0 0 14px 0;
-  margin: 0 0 32px 0;
-  border-bottom: 1px solid hsl(var(--brand) / 0.55);
+  padding: 0 0 12px 0;
+  margin: 0 0 28px 0;
+  border-bottom: 1px solid hsl(var(--rule));
   color: hsl(var(--ink));
 }
 
@@ -71,7 +69,7 @@
   border-top: 1px solid hsl(var(--rule-soft));
   color: hsl(var(--ink));
   position: sticky;
-  top: 64px;
+  top: 56px;
   z-index: 3;
   background: hsl(var(--surface));
 }
@@ -96,7 +94,7 @@
   color: hsl(var(--ink-mute));
   margin: 12px 0 6px 0;
   position: sticky;
-  top: 92px;
+  top: 84px;
   z-index: 2;
   background: hsl(var(--surface));
   padding: 3px 0;
@@ -104,7 +102,7 @@
 
 /* ── Rows ───────────────────────────────────────────────────────────── */
 .bs-row {
-  padding: 3px 0;
+  padding: 5.5px 0;
   transition: background-color 150ms ease, color 150ms ease;
 }
 
@@ -128,7 +126,7 @@
 }
 .bs-row[data-learnable-row="true"]:hover,
 .bs-total-row[data-learnable-row="true"]:hover {
-  background: hsl(173 57% 55% / 0.04);
+  background: hsl(var(--brand) / 0.04);
 }
 :root[data-learning-mode="off"] .bs-row[data-learnable-row="true"]:hover,
 :root[data-learning-mode="off"] .bs-total-row[data-learnable-row="true"]:hover {
@@ -183,7 +181,7 @@
   font-size: 14px;
   padding: 10px 0 4px;
   margin: 14px 0 6px;
-  border-top: 1.5px solid hsl(var(--ink));
+  border-top: 3px double hsl(var(--ink));
   border-bottom: none;
 }
 

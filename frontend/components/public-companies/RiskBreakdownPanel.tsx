@@ -88,7 +88,7 @@ function HeadlineCard({ score }: { score: PublicCompanyRiskScore }) {
         </span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className={`font-serif text-[44px] leading-none ${sevText}`}>
+        <span className={`font-mono text-[34px] font-medium tabular-nums leading-none ${sevText}`}>
           {score.overall_risk_score}
         </span>
         <span className="text-[12px] text-ink-mute">/ 100</span>
@@ -149,9 +149,9 @@ function CategoryGrid({ categories }: { categories: RiskCategoryScores }) {
                   <div
                     className={`h-full rounded-full ${
                       level === "critical" ? "bg-alert" :
-                      level === "high"     ? "bg-[#5CD3C5]" :
-                      level === "medium"   ? "bg-[#5CD3C5]" :
-                                             "bg-[#5CD3C5]"
+                      level === "high"     ? "bg-brand" :
+                      level === "medium"   ? "bg-brand" :
+                                             "bg-brand"
                     }`}
                     style={{ width: `${Math.max(2, Math.min(100, score))}%` }}
                   />
@@ -227,7 +227,7 @@ function TopOpportunitiesList({ score }: { score: PublicCompanyRiskScore }) {
             data-testid={`top-opportunity-${o.key}`}
             className="flex items-start gap-3 p-3 rounded-lg border border-rule/60 bg-bg-2/30"
           >
-            <div className="mt-0.5 inline-flex items-center justify-center h-6 w-6 rounded-md border bg-[#5CD3C5]/15 border-[#5CD3C5]/30 text-[#5CD3C5] shrink-0">
+            <div className="mt-0.5 inline-flex items-center justify-center h-6 w-6 rounded-md border bg-brand-tint border-transparent text-brand-dark dark:text-brand-light shrink-0">
               <TrendingUp size={12} strokeWidth={2} />
             </div>
             <div className="flex-1 min-w-0">
@@ -235,7 +235,7 @@ function TopOpportunitiesList({ score }: { score: PublicCompanyRiskScore }) {
                 <span className="text-[13px] font-medium text-ink leading-snug">
                   {o.label}
                 </span>
-                <span className="text-[10.5px] uppercase tracking-[0.06em] text-[#5CD3C5]">
+                <span className="text-[10.5px] uppercase tracking-[0.06em] text-brand-dark dark:text-brand-light">
                   {o.strength}
                 </span>
               </div>

@@ -475,7 +475,7 @@ function SidebarLink({
               {trailing}
             </span>
           ) : shortcutKey ? (
-            <kbd className="ml-auto shrink-0 rounded-sm border border-rule bg-bg-2 px-1 py-px font-mono text-[10px] text-ink-mute opacity-0 transition-opacity duration-micro group-hover:opacity-100 group-focus-visible:opacity-100">
+            <kbd className="ml-auto shrink-0 rounded-sm border border-rule bg-bg-2 px-1 py-px font-mono text-[10px] text-ink-soft opacity-0 transition-opacity duration-micro group-hover:opacity-100 group-focus-visible:opacity-100">
               {modKeyLabel()}{shortcutKey}
             </kbd>
           ) : null)}
@@ -552,7 +552,9 @@ function Section({
             collapsed ? "opacity-0" : "opacity-100"
           }`}
         >
-          <span className="shrink-0 whitespace-nowrap text-[10px] uppercase tracking-[0.16em] text-ink-mute font-medium">
+          {/* D1 axe: ink-mute is ~3.4:1 on Paper at this size — ink-soft
+              keeps the quiet caps look while clearing WCAG AA 4.5:1. */}
+          <span className="shrink-0 whitespace-nowrap text-[10px] uppercase tracking-[0.16em] text-ink-soft font-medium">
             {label}
           </span>
         </div>

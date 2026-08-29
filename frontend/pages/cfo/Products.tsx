@@ -10,7 +10,6 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, ty
 import { useSearchParams } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { SourceText } from "@/components/ui/SourceText";
-import { Money } from "@/components/ui/Money";
 import { useCurrency } from "@/stores/currency";
 import { formatMoneyFrom } from "@/lib/money";
 import { openStagedFile, openUploadedFilePreview } from "@/lib/stagedFilePreview";
@@ -26,17 +25,12 @@ import {
   Boxes,
   Check,
   CheckCircle2,
-  ChevronDown,
   Cloud,
   FileSpreadsheet,
   Info,
   Loader2,
   Search,
   Sparkles,
-  TableProperties,
-  Layers,
-  Cpu,
-  FileText,
   Trash2,
   X,
 } from "lucide-react";
@@ -91,7 +85,23 @@ import {
 } from "@/lib/uploadStore";
 import { ScanProgressView, SCAN_TEXT_KEYS, SKU_DATASET_STEPS, SKU_STATUS_ORDINAL, SKU_STATUS_MESSAGES } from "@/components/cfo/ScanProgressView";
 import { isScanSpherePaused } from "@/components/cfo/CouncilSphereHost";
-import { PageHeader } from "@/components/cfo/ui/PageHeader";
+// THE INSTRUMENT — compact page header, resting-surface panels, the one
+// chip system, and <Amount>/<MoneyAmount> for every figure on this page.
+import {
+  Chip as InstrumentChip,
+  PageHeader as InstrumentPageHeader,
+  Panel,
+  PanelBody,
+  PanelHeader,
+  type ChipTone,
+} from "@/components/instrument/Panel";
+import { Amount } from "@/components/instrument/Amount";
+import {
+  MoneyAmount,
+  MoneyAmountGroup,
+  PercentLevel,
+  useDisplayMoney,
+} from "@/components/comparison/MoneyAmount";
 import { AddFileTile, SourceFilesRow } from "@/components/cfo/SourceFilesRow";
 import { FilterDropdown } from "@/components/ui/FilterDropdown";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
@@ -271,26 +281,17 @@ async function fetchInflight(): Promise<InflightDoc | null> {
 }
 
 // ─── Bucket meta ────────────────────────────────────────────────────────────
+// (The legacy 6-classification BUCKET_META / FILTER_ORDER tables were dead
+// code — the Signal column, chips and KPI tiles all run on the 3-bucket
+// model — and were removed in the Instrument migration.)
 
-const BUCKET_META: Record<Classification, { label: string; dot: string; rowTint: string }> = {
-  eliminate:    { label: "Eliminate",    dot: "bg-red-500",     rowTint: "" },
-  wind_down:    { label: "Wind down",    dot: "bg-[#5CD3C5]",  rowTint: "" },
-  watch:        { label: "Watch",        dot: "bg-[#5CD3C5]",   rowTint: "" },
-  keep:         { label: "Keep",         dot: "bg-ink-mute",    rowTint: "" },
-  anchor_alert: { label: "Anchor alert", dot: "bg-[#5CD3C5]",   rowTint: "" },
-  scale:        { label: "Scale",        dot: "bg-[#5CD3C5]",    rowTint: "" },
-  anchor:       { label: "Anchor",       dot: "bg-[#5CD3C5]", rowTint: "" },
-};
-
-const FILTER_ORDER: Classification[] = ["eliminate", "wind_down", "watch", "anchor_alert", "scale", "anchor", "keep"];
-
-// Display metadata for the 3-bucket filter chips. Kept in this file (not in
-// bucket3.ts) so the chip-specific Tailwind tokens (`bg-[#5CD3C5]` etc.)
-// stay co-located with the other Products-page UI tokens.
+// Display metadata for the 3-bucket filter chips and row signals. Semantic
+// tokens only: protect = success, watch = caution, wind down = alert (red
+// is reserved for danger/imbalance across the product).
 const BUCKET3_FILTER_META: Record<Bucket3, { label: string; dot: string }> = {
-  protect:   { label: "Protect",   dot: "bg-[#5CD3C5]" },
-  watch:     { label: "Watch",     dot: "bg-[#5CD3C5]" },
-  wind_down: { label: "Wind down", dot: "bg-[#5CD3C5]" },
+  protect:   { label: "Protect",   dot: "bg-success" },
+  watch:     { label: "Watch",     dot: "bg-caution" },
+  wind_down: { label: "Wind down", dot: "bg-alert" },
 };
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -856,7 +857,7 @@ export default function Products() {
     return (
       <>
         <div className="max-w-[680px] mx-auto py-16 text-center">
-          <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
+          <Loader2 size={20} className="animate-spin mx-auto text-ink-soft mb-3" />
           <p className="text-[13px] text-ink-soft">{t("products.loading.datasets")}</p>
         </div>
       </>
@@ -888,7 +889,7 @@ export default function Products() {
     return (
       <>
         <div className="max-w-[680px] mx-auto py-16 text-center">
-          <Loader2 size={20} className="animate-spin mx-auto text-ink-mute mb-3" />
+          <Loader2 size={20} className="animate-spin mx-auto text-ink-soft mb-3" />
           <p className="text-[13px] text-ink-soft">{t("products.loading.skus")}</p>
         </div>
       </>
@@ -930,37 +931,44 @@ export default function Products() {
           onUpload={(f) => void handlePageUploadFile(f)}
         />
 
-        {/* Header — dashboard/scenarios-style hero (2026-07-26 per operator):
-            Sparkles eyebrow, big serif headline with a text-grad phrase, and
-            a relaxed subtitle carrying the dataset facts that used to BE the
-            headline. No actions slot — Guide me rides the pills row above. */}
-        <PageHeader
-          hero
-          testid="portfolio-header"
-          eyebrow={t("products.title")}
-          title={
-            <Trans
-              i18nKey="productsX.heroTitle"
-              components={{ grad: <span className="text-grad" /> }}
-            />
-          }
-          subtitle={
-            <>
-              <Trans
-                i18nKey="products.subtitle"
-                values={{
-                  rows: dataset.row_count?.toLocaleString("en-GB") ?? "—",
-                  count: totals.sku_count.toLocaleString("en-GB"),
-                  categories: totals.category_count,
-                }}
-              />
-              {" — "}
-              {dataset.label} · <SourceText lang="ro">{dataset.source_filename}</SourceText> ·{" "}
-              {new Date(dataset.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.{" "}
-              {t("productsX.sourceNeverAltered")}
-            </>
-          }
-        />
+        {/* Header — compact instrument header (serif hero retired). The
+            dataset facts that used to be the subtitle live in the context
+            line; the source file rides as a neutral chip so provenance is
+            one glance away. Guide me moved into the actions slot. */}
+        <div data-testid="portfolio-header">
+          <InstrumentPageHeader
+            eyebrow={t("products.title")}
+            title="Product intelligence"
+            context={
+              <>
+                <span className="min-w-0">
+                  <Trans
+                    i18nKey="products.subtitle"
+                    values={{
+                      rows: dataset.row_count?.toLocaleString("en-GB") ?? "—",
+                      count: totals.sku_count.toLocaleString("en-GB"),
+                      categories: totals.category_count,
+                    }}
+                  />
+                </span>
+                <InstrumentChip tone="neutral" className="whitespace-nowrap max-w-[280px]">
+                  <FileSpreadsheet size={11} strokeWidth={2} aria-hidden className="shrink-0" />
+                  <span className="truncate">
+                    <SourceText lang="ro">{dataset.source_filename ?? dataset.label}</SourceText>
+                  </span>
+                </InstrumentChip>
+              </>
+            }
+            actions={
+              <GuideMeButton pageId="products" title={t("productsX.guideTitle")} steps={PRODUCTS_GUIDE} />
+            }
+          />
+          <p className="mt-1 text-[11.5px] text-ink-soft">
+            {dataset.label} ·{" "}
+            {new Date(dataset.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} ·{" "}
+            {t("productsX.sourceNeverAltered")}
+          </p>
+        </div>
 
         {/* Reconciliation chip — moved directly under the header description
             (2026-07-26 per operator). Surfaces accuracy issues the moment
@@ -969,14 +977,11 @@ export default function Products() {
             the source; amber ⚠ with the absolute delta otherwise.
             Click-through reveals the per-SKU breakdown. */}
         <header data-testid="portfolio-kpis">
-          {/* One row above the KPI tiles (2026-07-26 per operator): the
-              quality/reconciliation chip on the left, width-capped so its
-              paragraph can't run the full page, and Guide me on the right. */}
-          <div className="flex items-end justify-between gap-3 mb-2">
-            <div className="min-w-0 max-w-[840px]">
-              <ReconciliationChip dsPayload={dsPayload} currency={sourceCurrency} />
-            </div>
-            <GuideMeButton pageId="products" title={t("productsX.guideTitle")} steps={PRODUCTS_GUIDE} />
+          {/* Quality/reconciliation verdict above the KPI tiles, width-capped
+              so its paragraph can't run the full page. (Guide me moved into
+              the page header's actions slot.) */}
+          <div className="min-w-0 max-w-[840px] mb-2">
+            <ReconciliationChip dsPayload={dsPayload} currency={sourceCurrency} />
           </div>
           {/* 4-tile KPI grid: SKUs total + the three threshold-reactive
               buckets. `counts3` recomputes via useMemo on every threshold
@@ -988,10 +993,10 @@ export default function Products() {
                 bucket = Protect / Watch / Wind Down). The SKU count
                 tile stays a raw count with no learning hook since
                 "how many SKUs you have" doesn't need explanation. */}
-            <KpiCard data-testid="kpi-sku-count" label={t("products.kpi.skus")} value={totals.sku_count.toLocaleString("en-GB")} sub={t("products.kpi.skusSub", { cats: totals.category_count, brands: totals.brand_count })} />
-            <KpiCard conceptKey="protect_bucket_count"   data-testid="kpi-protect"   label={t("products.kpi.protect")}  value={counts3.protect.toLocaleString("en-GB")}   sub={t("products.kpi.protectSub")} tone="strong" />
-            <KpiCard conceptKey="watch_bucket_count"     data-testid="kpi-watch"     label={t("products.kpi.watch")}    value={counts3.watch.toLocaleString("en-GB")}     sub={t("products.kpi.watchSub")} tone="warn" />
-            <KpiCard conceptKey="wind_down_bucket_count" data-testid="kpi-wind-down" label={t("products.kpi.windDown")} value={counts3.wind_down.toLocaleString("en-GB")} sub={t("products.kpi.windDownSub")} tone="critical" />
+            <KpiCard data-testid="kpi-sku-count" label={t("products.kpi.skus")} value={totals.sku_count} sub={t("products.kpi.skusSub", { cats: totals.category_count, brands: totals.brand_count })} />
+            <KpiCard conceptKey="protect_bucket_count"   data-testid="kpi-protect"   label={t("products.kpi.protect")}  value={counts3.protect}   sub={t("products.kpi.protectSub")} tone="strong" />
+            <KpiCard conceptKey="watch_bucket_count"     data-testid="kpi-watch"     label={t("products.kpi.watch")}    value={counts3.watch}     sub={t("products.kpi.watchSub")} tone="warn" />
+            <KpiCard conceptKey="wind_down_bucket_count" data-testid="kpi-wind-down" label={t("products.kpi.windDown")} value={counts3.wind_down} sub={t("products.kpi.windDownSub")} tone="critical" />
           </div>
         </header>
 
@@ -1028,7 +1033,7 @@ export default function Products() {
               rounded-xl border border-rule bg-surface
               transition-colors
             ">
-              <Search size={18} strokeWidth={1.75} className="text-ink-mute shrink-0" />
+              <Search size={18} strokeWidth={1.75} className="text-ink-soft shrink-0" />
               <input
                 value={search}
                 onChange={(e) => {
@@ -1043,14 +1048,14 @@ export default function Products() {
                 placeholder={t("products.searchPlaceholder")}
                 spellCheck={false}
                 data-testid="products-search-input"
-                className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-ink placeholder:text-ink-mute tracking-[-0.005em]"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-ink placeholder:text-ink-soft tracking-[-0.005em]"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
                   aria-label={t("productsX.clearSearch")}
-                  className="shrink-0 text-ink-mute hover:text-ink transition-colors"
+                  className="shrink-0 text-ink-soft hover:text-ink transition-colors"
                 >
                   <X size={14} strokeWidth={2} />
                 </button>
@@ -1064,7 +1069,7 @@ export default function Products() {
               threshold change) so they stay in lock-step with the KPI tiles. */}
           {(params.get("view") ?? "categories") === "all" && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Chip testid="chip-all" label={t("products.buckets.all")} count={totals.sku_count} active={activeFilters.size === 0} onClick={() => setStateFilter(null)} />
+            <FilterChip testid="chip-all" label={t("products.buckets.all")} count={totals.sku_count} active={activeFilters.size === 0} onClick={() => setStateFilter(null)} />
             {(["protect", "watch", "wind_down"] as Bucket3[]).map((b) => {
               const n = counts3[b];
               const meta = BUCKET3_FILTER_META[b];
@@ -1072,7 +1077,7 @@ export default function Products() {
               const i18nKey =
                 b === "wind_down" ? "products.buckets.windDown" : `products.buckets.${b}`;
               return (
-                <Chip
+                <FilterChip
                   key={b}
                   testid={`chip-${b}`}
                   label={t(i18nKey)}
@@ -1147,7 +1152,7 @@ export default function Products() {
           )}
 
           {(params.get("view") ?? "categories") === "all" && (
-          <div data-testid="sku-table-summary" className="text-[11.5px] text-ink-mute">
+          <div data-testid="sku-table-summary" className="text-[11.5px] text-ink-soft">
             {t("products.showing", {
               visible: filtered.length.toLocaleString("en-GB"),
               total: totals.sku_count.toLocaleString("en-GB"),
@@ -1209,6 +1214,7 @@ export default function Products() {
           return (
             <CategoriesOverview
               skus={dsPayload.skus}
+              currency={sourceCurrency}
               onSelectCategory={(cat) => setUrlParam("category", cat)}
               costOfFinancingPct={(rulesState.financing ?? DEFAULT_FINANCING).costOfFinancing}
               bankSpreadPct={(rulesState.financing ?? DEFAULT_FINANCING).bankSpread}
@@ -1243,8 +1249,8 @@ export default function Products() {
                 <FileSpreadsheet size={230} strokeWidth={1} />
               </div>
               <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("productsX.export.title")}</h3>
-                <p className="text-[13.5px] text-ink-soft mt-1">
+                <h3 className="text-[17px] font-semibold tracking-tight leading-tight text-ink">{t("productsX.export.title")}</h3>
+                <p className="text-[13px] text-ink-soft mt-1">
                   {t("productsX.export.body")}
                 </p>
               </div>
@@ -1277,10 +1283,10 @@ export default function Products() {
             className="mt-2 pt-5 border-t border-dashed border-rule flex items-center justify-between gap-3 flex-wrap"
           >
             <div>
-              <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-red-600/90">
+              <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-alert/90">
                 {t("productsX.danger.title")}
               </div>
-              <p className="text-[12px] text-ink-mute mt-0.5 max-w-[560px]">
+              <p className="text-[12px] text-ink-soft mt-0.5 max-w-[560px]">
                 {t("productsX.danger.body")}
               </p>
             </div>
@@ -1365,8 +1371,8 @@ function ReconciliationChip({
       data-clean={recon.isClean ? "true" : "false"}
       className={`mt-3 flex items-start gap-2.5 rounded-lg border-l-[3px] px-4 py-3 text-[12.5px] leading-relaxed text-ink-soft ${
         recon.isClean
-          ? "border-[#8FE3D9]/40 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]"
-          : "border-alert/50 bg-alert/[0.06] dark:bg-alert/[0.08]"
+          ? "border-success/50 bg-success-tint/60"
+          : "border-alert/50 bg-alert-tint/60"
       }`}
       title={t("productsX.recon.tooltip", {
         expected: fmtKron(recon.expectedKrn),
@@ -1374,7 +1380,7 @@ function ReconciliationChip({
       })}
     >
       {recon.isClean ? (
-        <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
+        <CheckCircle2 size={13} strokeWidth={1.75} className="text-success mt-0.5 shrink-0" />
       ) : (
         <AlertCircle size={13} strokeWidth={1.75} className="text-alert mt-0.5 shrink-0" />
       )}
@@ -1388,7 +1394,7 @@ function ReconciliationChip({
               total,
             }}
             components={{
-              b1: <strong className="text-[#2AA89B] dark:text-[#5CD3C5]" />,
+              b1: <strong className="text-success" />,
               b: <strong />,
             }}
           />
@@ -1422,39 +1428,22 @@ function KpiCard({
   label, value, sub, tone, conceptKey, ...rest
 }: {
   label: string;
-  value: string;
+  value: number;
   sub?: string;
   tone?: "critical" | "warn" | "strong";
   conceptKey?: string;
 } & React.HTMLAttributes<HTMLDivElement>) {
-  // Styled like the Benchmark preview cards (2026-07-26 per operator): a
-  // compact bordered card with a colored left rail, the value on the left,
-  // a small uppercase badge top-right, and a dense description below. Each
-  // tile carries a UNIQUE colour (2026-07-26 per operator) so SKUs / Protect /
-  // Watch / Wind down read distinctly at a glance:
-  //   · default (SKUs)  → brand teal
-  //   · strong (Protect) → emerald green
-  //   · warn (Watch)     → amber
-  //   · critical (Wind down) → red
-  const TONE_STYLES: Record<string, { rail: string; badge: string }> = {
-    strong: {
-      rail: "border-l-emerald-400 dark:border-l-emerald-500/60",
-      badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/[0.18] dark:text-emerald-200",
-    },
-    warn: {
-      rail: "border-l-amber-400 dark:border-l-amber-500/60",
-      badge: "bg-amber-100 text-amber-800 dark:bg-amber-500/[0.18] dark:text-amber-200",
-    },
-    critical: {
-      rail: "border-l-red-400 dark:border-l-red-500/60",
-      badge: "bg-red-100 text-red-800 dark:bg-red-500/[0.18] dark:text-red-200",
-    },
-    default: {
-      rail: "border-l-brand",
-      badge: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]",
-    },
+  // Instrument KPI tile: hairline card with a semantic left rail, the count
+  // rendered mono via <Amount>, and the bucket label as a Chip top-right.
+  // Semantic tokens only — protect = success, watch = caution, wind down =
+  // alert (red is reserved for danger), SKUs = brand:
+  const TONE_STYLES: Record<string, { rail: string; chip: ChipTone }> = {
+    strong:   { rail: "border-l-success", chip: "success" },
+    warn:     { rail: "border-l-caution", chip: "caution" },
+    critical: { rail: "border-l-alert",   chip: "alert" },
+    default:  { rail: "border-l-brand",   chip: "accent" },
   };
-  const { rail, badge: badgeCls } = TONE_STYLES[tone ?? "default"] ?? TONE_STYLES.default;
+  const { rail, chip: chipTone } = TONE_STYLES[tone ?? "default"] ?? TONE_STYLES.default;
   // The learning popover click moved OFF the label pill and ONTO the WHOLE
   // card (2026-07-26 per operator). The badge is now plain text (no hover / no
   // click); clicking anywhere on a card with a conceptKey opens its concept
@@ -1485,15 +1474,15 @@ function KpiCard({
           : undefined
       }
       data-testid={conceptKey ? `products-kpi-${conceptKey}` : undefined}
-      className={`rounded-lg border border-rule border-l-[3px] ${rail} bg-surface p-[18px] text-left min-w-0 overflow-hidden transition-colors ${clickable ? "cursor-pointer hover:bg-bg-2/40 hover:border-rule-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40" : ""}`}
+      className={`rounded-md border border-rule border-l-[3px] ${rail} bg-surface p-4 text-left min-w-0 overflow-hidden transition-colors ${clickable ? "cursor-pointer hover:bg-bg-2/40 hover:border-rule-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40" : ""}`}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <div className="num-hero num-hero-fluid text-ink leading-none">{value}</div>
-        <span className={`-mt-1 -mr-1 shrink-0 text-[10px] uppercase tracking-[0.06em] font-semibold px-2 py-0.5 rounded ${badgeCls}`}>
+        <Amount kind="count" value={value} className="text-[26px] font-medium text-ink leading-none" />
+        <InstrumentChip tone={chipTone} className="-mt-0.5 -mr-0.5 shrink-0 uppercase tracking-[0.06em] text-[10px] font-semibold">
           {label}
-        </span>
+        </InstrumentChip>
       </div>
-      {sub && <p className="text-[12.5px] text-ink-soft leading-relaxed break-words">{sub}</p>}
+      {sub && <p className="text-[12px] text-ink-soft leading-relaxed break-words">{sub}</p>}
     </div>
   );
 }
@@ -1790,7 +1779,7 @@ function DevWipeDataButton() {
         onClick={() => setOpen(true)}
         data-testid="dev-wipe-data"
         title={t("productsX.wipe.buttonTitle")}
-        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-dashed border-red-500/40 bg-red-500/[0.06] text-[11px] font-mono uppercase tracking-[0.08em] text-red-600 hover:bg-red-500/15 transition-colors"
+        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-dashed border-alert/40 bg-alert/[0.06] text-[11px] font-mono uppercase tracking-[0.08em] text-alert hover:bg-alert/15 transition-colors"
       >
         <Trash2 size={12} strokeWidth={2} />
         {t("productsX.wipe.button")}
@@ -1821,7 +1810,7 @@ function DevWipeDataButton() {
               onClick={() => void wipe()}
               disabled={busy}
               data-testid="dev-wipe-confirm"
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[13px] font-medium text-red-600 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-alert/30 bg-alert/10 text-[13px] font-medium text-alert hover:bg-alert/20 disabled:opacity-50 transition-colors"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} strokeWidth={1.75} />}
               {busy ? t("productsX.wipe.deleting") : t("productsX.wipe.deleteAll")}
@@ -1946,7 +1935,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           eyebrow was dropped — the title now leads; top gap tightened via the
           section's -mt-3. */}
       <div className="flex items-baseline gap-3 mb-1.5 min-w-0">
-        <h4 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold shrink-0">
+        <h4 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold shrink-0">
           {t("productsX.wc.heading")}
         </h4>
         <p className="text-[12px] text-ink-soft min-w-0 truncate">
@@ -1958,7 +1947,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           data-testid="wc-info-btn"
           aria-label={t("productsX.wc.infoAria")}
           title={t("productsX.wc.infoTitle")}
-          className="ml-auto shrink-0 self-center grid place-items-center h-6 w-6 rounded-full border border-rule text-ink-mute hover:text-ink hover:border-rule-strong hover:bg-bg-2/60 transition-colors"
+          className="ml-auto shrink-0 self-center grid place-items-center h-6 w-6 rounded-full border border-rule text-ink-soft hover:text-ink hover:border-rule-strong hover:bg-bg-2/60 transition-colors"
         >
           <Info size={13} strokeWidth={2} />
         </button>
@@ -1982,7 +1971,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           }
           formula={companyDioFormulaNote}
           missingHint={t("productsX.wc.dioMissingHint")}
-          tone="teal"
+          tone="brand"
           testid="wc-dio"
         />
         <WcCard
@@ -1991,7 +1980,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           unit={t("common.unit.days")}
           source={dso != null ? `${t("productsX.wc.fromTrialBalance")}${periodContextNote ? ` · ${periodContextNote}` : ""}` : t("productsX.wc.noTrialBalance")}
           missingHint={t("productsX.wc.dsoMissingHint")}
-          tone="blue"
+          tone="info"
           testid="wc-dso"
         />
         <WcCard
@@ -2000,7 +1989,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           unit={t("common.unit.days")}
           source={dpo != null ? `${t("productsX.wc.fromTrialBalance")}${periodContextNote ? ` · ${periodContextNote}` : ""}` : t("productsX.wc.noTrialBalance")}
           missingHint={t("productsX.wc.dpoMissingHint")}
-          tone="violet"
+          tone="neutral"
           testid="wc-dpo"
         />
         <WcCard
@@ -2017,7 +2006,7 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
               ? t("productsX.wc.cccHint")
               : undefined
           }
-          tone="amber"
+          tone="caution"
           testid="wc-ccc"
         />
       </div>
@@ -2036,31 +2025,12 @@ function WcInfoModal({
   onOpenChange: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const items: { label: string; tone: string; title: string; body: string }[] = [
-    {
-      label: "DIO",
-      tone: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]",
-      title: t("productsX.wc.dioTitle"),
-      body: t("productsX.wc.dioBody"),
-    },
-    {
-      label: "DSO",
-      tone: "bg-blue-100 text-blue-800 dark:bg-blue-500/[0.18] dark:text-blue-200",
-      title: t("productsX.wc.dsoTitle"),
-      body: t("productsX.wc.dsoBody"),
-    },
-    {
-      label: "DPO",
-      tone: "bg-violet-100 text-violet-800 dark:bg-violet-500/[0.18] dark:text-violet-200",
-      title: t("productsX.wc.dpoTitle"),
-      body: t("productsX.wc.dpoBody"),
-    },
-    {
-      label: "CCC",
-      tone: "bg-amber-100 text-amber-800 dark:bg-amber-500/[0.18] dark:text-amber-200",
-      title: t("productsX.wc.cccTitle"),
-      body: t("productsX.wc.cccBody"),
-    },
+  // Same semantic tones as the WcCard badges — one chip system app-wide.
+  const items: { label: string; tone: ChipTone; title: string; body: string }[] = [
+    { label: "DIO", tone: "accent",  title: t("productsX.wc.dioTitle"), body: t("productsX.wc.dioBody") },
+    { label: "DSO", tone: "info",    title: t("productsX.wc.dsoTitle"), body: t("productsX.wc.dsoBody") },
+    { label: "DPO", tone: "neutral", title: t("productsX.wc.dpoTitle"), body: t("productsX.wc.dpoBody") },
+    { label: "CCC", tone: "caution", title: t("productsX.wc.cccTitle"), body: t("productsX.wc.cccBody") },
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2074,9 +2044,9 @@ function WcInfoModal({
         <div className="mt-2 space-y-3">
           {items.map((it) => (
             <div key={it.label} className="flex gap-3">
-              <span className={`shrink-0 h-fit whitespace-nowrap text-[10px] uppercase tracking-[0.06em] font-semibold px-2 py-0.5 rounded ${it.tone}`}>
+              <InstrumentChip tone={it.tone} className="shrink-0 h-fit whitespace-nowrap uppercase tracking-[0.06em] text-[10px] font-semibold">
                 {it.label}
-              </span>
+              </InstrumentChip>
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold text-ink leading-tight">{it.title}</div>
                 <p className="text-[12.5px] text-ink-soft leading-relaxed mt-0.5">{it.body}</p>
@@ -2090,7 +2060,7 @@ function WcInfoModal({
 }
 
 function WcCard({
-  label, value, unit, source, formula, missingHint, tone = "teal", testid,
+  label, value, unit, source, formula, missingHint, tone = "brand", testid,
 }: {
   label: string;
   value: number | null;
@@ -2098,70 +2068,55 @@ function WcCard({
   source: string;
   formula?: string;
   missingHint?: string;
-  tone?: "teal" | "blue" | "violet" | "amber";
+  tone?: "brand" | "info" | "neutral" | "caution";
   testid?: string;
 }) {
   const { t } = useTranslation();
   const available = value != null && Number.isFinite(value);
-  // Styled like the Products KPI / Benchmark preview cards (2026-07-26 per
-  // operator): colored left rail, big value + small unit on the left, uppercase
-  // label badge top-right, source/formula as the dense body. Each working-
-  // capital card carries a UNIQUE colour so DIO / DSO / DPO / CCC read
-  // distinctly at a glance.
-  const WC_TONES: Record<string, { rail: string; badge: string }> = {
-    teal: {
-      rail: "border-l-brand",
-      badge: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]",
-    },
-    blue: {
-      rail: "border-l-blue-400 dark:border-l-blue-500/60",
-      badge: "bg-blue-100 text-blue-800 dark:bg-blue-500/[0.18] dark:text-blue-200",
-    },
-    violet: {
-      rail: "border-l-violet-400 dark:border-l-violet-500/60",
-      badge: "bg-violet-100 text-violet-800 dark:bg-violet-500/[0.18] dark:text-violet-200",
-    },
-    amber: {
-      rail: "border-l-amber-400 dark:border-l-amber-500/60",
-      badge: "bg-amber-100 text-amber-800 dark:bg-amber-500/[0.18] dark:text-amber-200",
-    },
+  // Instrument working-capital tile: semantic left rail, the day-count mono
+  // via <Amount>, the metric label as a Chip top-right, source/formula as
+  // the dense body. Semantic tokens only — DIO = brand (the page's own
+  // metric), DSO = info, DPO = neutral, CCC = caution (the tension metric).
+  const WC_TONES: Record<string, { rail: string; chip: ChipTone }> = {
+    brand:   { rail: "border-l-brand",       chip: "accent" },
+    info:    { rail: "border-l-info",        chip: "info" },
+    neutral: { rail: "border-l-rule-strong", chip: "neutral" },
+    caution: { rail: "border-l-caution",     chip: "caution" },
   };
-  const { rail, badge: badgeCls } = WC_TONES[tone] ?? WC_TONES.teal;
+  const { rail, chip: chipTone } = WC_TONES[tone] ?? WC_TONES.brand;
   return (
     <div
       data-testid={testid}
       data-available={available ? "true" : "false"}
-      className={`rounded-lg border border-rule border-l-[3px] ${rail} bg-surface p-[18px] text-left min-w-0 overflow-hidden transition-colors hover:bg-bg-2/40 hover:border-rule-strong`}
+      className={`rounded-md border border-rule border-l-[3px] ${rail} bg-surface p-4 text-left min-w-0 overflow-hidden transition-colors hover:bg-bg-2/40 hover:border-rule-strong`}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex items-baseline gap-1.5 min-w-0">
           {available ? (
             <>
-              <span className="num-hero num-hero-fluid text-ink leading-none">
-                {Math.round(value).toLocaleString("en-GB")}
-              </span>
+              <Amount kind="count" value={Math.round(value)} className="text-[26px] font-medium text-ink leading-none" />
               <span className="text-[12.5px] text-ink-soft shrink-0">{unit}</span>
             </>
           ) : (
-            <span className="text-[15px] text-ink-mute italic">{t("common.notAvailable")}</span>
+            <span className="text-[15px] text-ink-soft italic">{t("common.notAvailable")}</span>
           )}
         </div>
-        <span className={`-mt-1 -mr-1 shrink-0 whitespace-nowrap text-[10px] uppercase tracking-[0.06em] font-semibold px-2 py-0.5 rounded ${badgeCls}`}>
+        <InstrumentChip tone={chipTone} className="-mt-0.5 -mr-0.5 shrink-0 whitespace-nowrap uppercase tracking-[0.06em] text-[10px] font-semibold">
           {label}
-        </span>
+        </InstrumentChip>
       </div>
       <p className="text-[12.5px] text-ink-soft leading-relaxed break-words">{source}</p>
       {formula && available && (
-        <p className="mt-0.5 text-[11px] text-ink-mute leading-snug break-words">{formula}</p>
+        <p className="mt-0.5 text-[11px] text-ink-soft leading-snug break-words">{formula}</p>
       )}
       {!available && missingHint && (
-        <p className="mt-0.5 text-[11px] text-ink-mute leading-snug break-words">{missingHint}</p>
+        <p className="mt-0.5 text-[11px] text-ink-soft leading-snug break-words">{missingHint}</p>
       )}
     </div>
   );
 }
 
-function Chip({
+function FilterChip({
   testid, label, count, active, onClick, dotClass, empty,
 }: { testid: string; label: string; count: number; active: boolean; onClick: () => void; dotClass?: string; empty?: boolean }) {
   // Styled like the Public Companies Explore pills (2026-07-26 per operator):
@@ -2172,7 +2127,7 @@ function Chip({
   const baseTone = active
     ? "border-brand/60 bg-brand/15 text-ink hover:bg-brand/25"
     : empty
-      ? "border-rule/60 bg-surface text-ink-mute/70 hover:text-ink-soft hover:border-rule"
+      ? "border-rule/60 bg-surface text-ink-soft/70 hover:text-ink-soft hover:border-rule"
       : "border-rule bg-surface text-ink hover:bg-bg-2 hover:border-rule-strong";
   return (
     <button
@@ -2188,7 +2143,7 @@ function Chip({
         />
       )}
       {label}
-      <span className="text-[11px] text-ink-mute tabular-nums shrink-0">{count}</span>
+      <span className="text-[11px] text-ink-soft tabular-nums shrink-0">{count}</span>
     </button>
   );
 }
@@ -2233,12 +2188,12 @@ function ComparisonSection({
   return (
     <section
       data-testid="comparison-section"
-      className="rounded-2xl border border-brand/25 bg-brand-tint/30 p-5 space-y-4"
+      className="rounded-lg border border-brand/25 bg-brand-tint/30 p-5 space-y-4"
     >
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">{t("products.comparison")}</div>
-          <h3 className="mt-1 font-serif text-[20px] text-ink leading-tight">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand-d dark:text-brand-l font-medium">{t("products.comparison")}</div>
+          <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-ink leading-tight">
             <span>{active.label}</span>
             <span className="text-ink-soft font-normal mx-2">{t("productsX.compare.vs")}</span>
             <span>{compared.label}</span>
@@ -2257,33 +2212,37 @@ function ComparisonSection({
             onClick={onClose}
             data-testid="comparison-close"
             aria-label={t("productsX.compare.closeAria")}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-ink-mute hover:text-ink hover:bg-bg-2"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-ink-soft hover:text-ink hover:bg-bg-2"
           >
             ✕
           </button>
         </div>
       </header>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat
-          label={t("productsX.compare.skusIn", { label: active.label })}
-          value={totals.sku_count_a.toLocaleString("en-GB")}
-        />
-        <Stat
-          label={t("productsX.compare.skusIn", { label: compared.label })}
-          value={totals.sku_count_b.toLocaleString("en-GB")}
-        />
-        <Stat
-          label={t("productsX.compare.nivDelta")}
-          value={fmtKron(nivDelta)}
-          tone={nivDelta < 0 ? "alert" : undefined}
-        />
-        <Stat
-          label={t("productsX.compare.gmDelta")}
-          value={fmtKron(gmDelta)}
-          tone={gmDelta < 0 ? "alert" : undefined}
-        />
-      </div>
+      {/* One magnitude for both deltas so "−1,2 M RON" beside "+0,3 M RON"
+          reads as one instrument. Counts render mono via <Amount>. */}
+      <MoneyAmountGroup values={[nivDelta * 1000, gmDelta * 1000]} fromCurrency={currency}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Stat
+            label={t("productsX.compare.skusIn", { label: active.label })}
+            value={<Amount kind="count" value={totals.sku_count_a} />}
+          />
+          <Stat
+            label={t("productsX.compare.skusIn", { label: compared.label })}
+            value={<Amount kind="count" value={totals.sku_count_b} />}
+          />
+          <Stat
+            label={t("productsX.compare.nivDelta")}
+            value={<MoneyAmount value={nivDelta * 1000} fromCurrency={currency} signed />}
+            tone={nivDelta < 0 ? "alert" : undefined}
+          />
+          <Stat
+            label={t("productsX.compare.gmDelta")}
+            value={<MoneyAmount value={gmDelta * 1000} fromCurrency={currency} signed />}
+            tone={gmDelta < 0 ? "alert" : undefined}
+          />
+        </div>
+      </MoneyAmountGroup>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MoversList title={t("productsX.compare.topWinners")} rows={winners} dir="up" currency={currency} />
@@ -2292,13 +2251,13 @@ function ComparisonSection({
 
       {new_in_active.length > 0 && (
         <div>
-          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
+          <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-1.5">
             {t("productsX.compare.newIn", { label: active.label, count: totals.new_in_active })}
           </div>
           <ul className="text-[12px] text-ink-soft space-y-0.5 max-h-32 overflow-y-auto">
             {new_in_active.slice(0, 12).map((r) => (
               <li key={r.product_name} className="truncate">
-                + {r.product_name} <span className="text-ink-mute">· GM {fmtKron(r.gm_a)}</span>
+                + {r.product_name} <span className="text-ink-soft">· GM {fmtKron(r.gm_a)}</span>
               </li>
             ))}
           </ul>
@@ -2319,27 +2278,29 @@ function MoversList({
   dir: "up" | "down";
   currency: Currency;
 }) {
-  const fmtKron = useKronFormatter(currency);
   const { t } = useTranslation();
   return (
     <div>
-      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">{title}</div>
-      <ul className="rounded-lg border border-rule bg-surface divide-y divide-rule/60 max-h-64 overflow-y-auto">
-        {rows.length === 0 && (
-          <li className="px-3 py-2 text-[12px] text-ink-mute">{t("productsX.compare.noMovers")}</li>
-        )}
-        {rows.map((r) => (
-          <li key={r.product_name} className="px-3 py-2 grid grid-cols-[1fr_auto] gap-2 items-center">
-            <div className="min-w-0">
-              <div className="text-[12px] text-ink truncate">{r.product_name}</div>
-              <div className="text-[10.5px] text-ink-mute truncate">{r.brand} · {r.category}</div>
-            </div>
-            <div className={`text-right tabular-nums text-[12px] font-medium ${dir === "up" ? "text-[#2AA89B]" : "text-red-700"}`}>
-              {dir === "up" ? "+" : ""}{fmtKron(r.gm_delta)}
-            </div>
-          </li>
-        ))}
-      </ul>
+      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-1.5">{title}</div>
+      {/* One shared magnitude for the whole movers column. */}
+      <MoneyAmountGroup values={rows.map((r) => r.gm_delta * 1000)} fromCurrency={currency}>
+        <ul className="rounded-md border border-rule bg-surface divide-y divide-rule-soft max-h-64 overflow-y-auto">
+          {rows.length === 0 && (
+            <li className="px-3 py-2 text-[12px] text-ink-soft">{t("productsX.compare.noMovers")}</li>
+          )}
+          {rows.map((r) => (
+            <li key={r.product_name} className="px-3 py-1.5 min-h-8 grid grid-cols-[1fr_auto] gap-2 items-center">
+              <div className="min-w-0">
+                <div className="text-[12px] text-ink truncate">{r.product_name}</div>
+                <div className="text-[10.5px] text-ink-soft truncate">{r.brand} · {r.category}</div>
+              </div>
+              <div className={`text-right text-[12px] font-medium ${dir === "up" ? "text-success" : "text-alert"}`}>
+                <MoneyAmount value={r.gm_delta * 1000} fromCurrency={currency} signed />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </MoneyAmountGroup>
     </div>
   );
 }
@@ -2392,24 +2353,45 @@ function SkuTable({
   // every viewport without a media-query re-mount.
   const rowVirtualizer = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => 52,
+    estimateSize: () => 44,
     overscan: 10,
     scrollMargin,
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
+  // One shared magnitude across the NIV + GM money columns (instrument
+  // table rule: mixed scales in one table are impossible by construction).
+  const moneyGroupValues = useMemo(
+    () => rows.flatMap((r) => [(r.niv_krn ?? 0) * 1000, (r.gm_krn ?? 0) * 1000]),
+    [rows],
+  );
+  // Totals over the FILTERED rows — derived client-side from the same
+  // payload the rows render from, never fabricated.
+  const tableTotals = useMemo(() => {
+    let vol = 0;
+    let niv = 0;
+    let gmSum = 0;
+    for (const r of rows) {
+      vol += r.volume_tons ?? 0;
+      niv += r.niv_krn ?? 0;
+      gmSum += r.gm_krn ?? 0;
+    }
+    return { vol, niv, gm: gmSum, gmPct: niv !== 0 ? (gmSum / niv) * 100 : null };
+  }, [rows]);
+
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-rule bg-surface px-6 py-10 text-center text-[13px] text-ink-soft">
+      <div className="rounded-md border border-rule bg-surface px-6 py-10 text-center text-[13px] text-ink-soft">
         {t("products.table.emptyFiltered")}
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+    <MoneyAmountGroup values={moneyGroupValues} fromCurrency={currency}>
+    <div className="rounded-md border border-rule bg-surface overflow-hidden">
       {/* Desktop header — hidden on mobile since cards label their own metrics */}
-      <div className="hidden md:grid grid-cols-[1fr_120px_120px_90px_90px_90px_80px_80px_120px] gap-3 px-4 py-2.5 bg-bg-2/40 border-b border-rule text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+      <div className="hidden md:grid grid-cols-[1fr_120px_120px_90px_90px_90px_80px_80px_120px] gap-3 px-4 h-8 items-center bg-bg-2/40 border-b border-rule text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium">
         <div>{t("products.columns.skuCategory")}</div>
         <div className="text-right">{t("products.columns.volume")}</div>
         <div className="text-right">{t("products.columns.niv")}</div>
@@ -2455,7 +2437,7 @@ function SkuTable({
                   width: "100%",
                   transform: `translateY(${virt.start - rowVirtualizer.options.scrollMargin}px)`,
                 }}
-                className="border-b border-rule/60 hover:bg-bg-2/40 active:bg-bg-2/60 transition-colors cursor-pointer focus:outline-none focus:bg-bg-2/60 focus:ring-1 focus:ring-inset focus:ring-ink/20"
+                className="border-b border-rule-soft hover:bg-bg-2/40 active:bg-bg-2/60 transition-colors cursor-pointer focus:outline-none focus:bg-bg-2/60 focus:ring-1 focus:ring-inset focus:ring-ink/20"
               >
                 {/* MOBILE CARD — stacked layout below md (768px) */}
                 <div className="md:hidden px-4 py-3">
@@ -2466,7 +2448,7 @@ function SkuTable({
                       <div className="text-ink text-[14px] font-medium truncate" title={s.product_name}>
                         <SourceText lang="ro">{s.product_name}</SourceText>
                       </div>
-                      <div className="text-[11px] text-ink-mute mt-0.5 truncate">
+                      <div className="text-[11px] text-ink-soft mt-0.5 truncate">
                         {s.brand && <SourceText lang="ro">{s.brand}</SourceText>}
                         {s.brand && s.category && <span> · </span>}
                         {s.category && (
@@ -2488,33 +2470,35 @@ function SkuTable({
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-[11.5px]">
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("totals.volume")}</div>
-                      <div className="text-ink tabular-nums">
-                        {s.volume_tons !== null ? `${s.volume_tons.toLocaleString("en-GB", { maximumFractionDigits: 1 })}t` : "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("totals.niv")}</div>
-                      <div className="text-ink tabular-nums">
-                        {s.niv_krn !== null
-                          ? <Money value={s.niv_krn * 1000} fromCurrency={currency} compact />
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("totals.volume")}</div>
+                      <div className="text-ink">
+                        {s.volume_tons !== null
+                          ? <><Amount kind="count" value={s.volume_tons} fractionDigits={1} />t</>
                           : "—"}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("products.columns.gmPct")}</div>
-                      <div className={`tabular-nums ${(s.gm_pct ?? 0) < 0 ? "text-red-700" : "text-ink"}`}>
-                        {s.gm_pct !== null ? `${(s.gm_pct * 100).toFixed(1)}%` : "—"}
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("totals.niv")}</div>
+                      <div className="text-ink">
+                        {s.niv_krn !== null
+                          ? <MoneyAmount value={s.niv_krn * 1000} fromCurrency={currency} />
+                          : "—"}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("totals.gm")}</div>
-                      <div className={`tabular-nums font-medium ${gm < 0 ? "text-red-700" : "text-ink"}`}>
-                        <Money value={gm * 1000} fromCurrency={currency} compact signed />
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("products.columns.gmPct")}</div>
+                      <div className={(s.gm_pct ?? 0) < 0 ? "text-alert" : "text-ink"}>
+                        <PercentLevel value={s.gm_pct !== null ? s.gm_pct * 100 : null} />
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">DIO</div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("totals.gm")}</div>
+                      <div className={`font-medium ${gm < 0 ? "text-alert" : "text-ink"}`}>
+                        <MoneyAmount value={gm * 1000} fromCurrency={currency} signed />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">DIO</div>
                       <div
                         className="tabular-nums"
                         title={
@@ -2526,53 +2510,56 @@ function SkuTable({
                         data-dio-available={s.days_inventory_on_hand != null ? "true" : "false"}
                       >
                         {s.days_inventory_on_hand != null
-                          ? <span className="text-ink">{Math.round(s.days_inventory_on_hand).toLocaleString("en-GB")}d</span>
-                          : <span className="text-ink-mute/70">—</span>}
+                          ? <span className="text-ink"><Amount kind="count" value={Math.round(s.days_inventory_on_hand)} />d</span>
+                          : <span className="text-ink-soft/70">—</span>}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute">{t("productsX.cols.linesCh")}</div>
-                      <div className="text-ink-soft tabular-nums">
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("productsX.cols.linesCh")}</div>
+                      <div className="text-ink-soft font-mono tabular-nums text-[11px]">
                         {(s.line_row_count ?? "—")} / {s.channels_present?.length || 0}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* DESKTOP ROW — 9-column grid at md and up */}
-                <div className="hidden md:grid grid-cols-[1fr_120px_120px_90px_90px_90px_80px_80px_120px] gap-3 px-4 py-2.5 text-[12.5px] items-center">
-                  <div className="min-w-0">
+                {/* DESKTOP ROW — 9-column grid at md and up. Instrument
+                    table row: 32px, single line, right-aligned mono figures
+                    on hairline rules. Brand · category rides inline after
+                    the name (muted) instead of a second line. */}
+                <div className="hidden md:grid grid-cols-[1fr_120px_120px_90px_90px_90px_80px_80px_120px] gap-3 px-4 h-8 text-[12.5px] items-center">
+                  <div className="min-w-0 flex items-baseline gap-2">
                     {/* Product name + category — source data, wrapped for AT phoneme correctness */}
-                    <div className="text-ink truncate" title={s.product_name}>
+                    <span className="text-ink truncate min-w-0" title={s.product_name}>
                       <SourceText lang="ro">{s.product_name}</SourceText>
-                    </div>
-                    <div className="text-[10.5px] text-ink-mute mt-0.5 truncate">
-                      {s.brand && <SourceText lang="ro">{s.brand}</SourceText>}
-                      {s.brand && s.category && <span> · </span>}
-                      {s.category && (
-                        <>
-                          <SourceText lang="ro">{s.category}</SourceText>
-                          <CategoryHintInline category={s.category} />
-                        </>
-                      )}
-                    </div>
+                    </span>
+                    {(s.brand || s.category) && (
+                      <span className="text-[10.5px] text-ink-soft truncate min-w-0">
+                        {s.brand && <SourceText lang="ro">{s.brand}</SourceText>}
+                        {s.brand && s.category && <span> · </span>}
+                        {s.category && (
+                          <>
+                            <SourceText lang="ro">{s.category}</SourceText>
+                            <CategoryHintInline category={s.category} />
+                          </>
+                        )}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-right tabular-nums text-ink-soft">
-                    {s.volume_tons !== null ? s.volume_tons.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
+                  <div className="text-right text-ink-soft">
+                    <Amount kind="count" value={s.volume_tons} fractionDigits={1} />
                   </div>
-                  <div className="text-right tabular-nums text-ink-soft">
-                    {s.niv_krn !== null
-                      ? <Money value={s.niv_krn * 1000} fromCurrency={currency} compact />
-                      : "—"}
+                  <div className="text-right text-ink-soft">
+                    <MoneyAmount value={s.niv_krn !== null ? s.niv_krn * 1000 : null} fromCurrency={currency} />
                   </div>
-                  <div className={`text-right tabular-nums ${(s.gm_pct ?? 0) < 0 ? "text-red-700" : "text-ink"}`}>
-                    {s.gm_pct !== null ? `${(s.gm_pct * 100).toFixed(1)}%` : "—"}
+                  <div className={`text-right ${(s.gm_pct ?? 0) < 0 ? "text-alert" : "text-ink"}`}>
+                    <PercentLevel value={s.gm_pct !== null ? s.gm_pct * 100 : null} />
                   </div>
-                  <div className={`text-right tabular-nums font-medium ${gm < 0 ? "text-red-700" : "text-ink"}`}>
-                    <Money value={gm * 1000} fromCurrency={currency} compact signed />
+                  <div className={`text-right font-medium ${gm < 0 ? "text-alert" : "text-ink"}`}>
+                    <MoneyAmount value={gm * 1000} fromCurrency={currency} signed />
                   </div>
                   <div
-                    className="text-right tabular-nums"
+                    className="text-right"
                     title={
                       s.days_inventory_on_hand == null
                         ? t("products.table.dioMissingTooltip")
@@ -2582,11 +2569,11 @@ function SkuTable({
                     data-dio-available={s.days_inventory_on_hand != null ? "true" : "false"}
                   >
                     {s.days_inventory_on_hand != null
-                      ? <span className="text-ink">{Math.round(s.days_inventory_on_hand).toLocaleString("en-GB")}</span>
-                      : <span className="text-ink-mute/70 italic">—<span className="ml-1 text-[10px]">{t("products.dioUnavailableHint")}</span></span>}
+                      ? <span className="text-ink"><Amount kind="count" value={Math.round(s.days_inventory_on_hand)} /></span>
+                      : <span className="text-ink-soft/70 font-mono">—</span>}
                   </div>
-                  <div className="text-center text-[11.5px] text-ink-mute tabular-nums">{s.line_row_count ?? "—"}</div>
-                  <div className="text-center text-[11.5px] text-ink-mute">
+                  <div className="text-center text-[11.5px] text-ink-soft font-mono tabular-nums">{s.line_row_count ?? "—"}</div>
+                  <div className="text-center text-[11.5px] text-ink-soft font-mono tabular-nums">
                     {s.channels_present?.length || 0}
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.06em] font-semibold text-ink-soft" data-bucket={bucket3}>
@@ -2599,7 +2586,35 @@ function SkuTable({
           })}
         </div>
       </div>
+      {/* Totals over the filtered rows — double hairline above, per the
+          instrument table spec. Derived from the rendered rows, so it
+          re-sums live as filters/search narrow the table. */}
+      <div
+        data-testid="sku-table-totals"
+        className="hidden md:grid grid-cols-[1fr_120px_120px_90px_90px_90px_80px_80px_120px] gap-3 px-4 h-9 items-center border-t-[3px] border-t-rule [border-top-style:double] bg-bg-2/30 text-[12.5px]"
+      >
+        <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium">
+          {t("totals.title")} · <Amount kind="count" value={rows.length} />
+        </div>
+        <div className="text-right text-ink font-medium">
+          <Amount kind="count" value={tableTotals.vol} fractionDigits={1} />
+        </div>
+        <div className="text-right text-ink font-medium">
+          <MoneyAmount value={tableTotals.niv * 1000} fromCurrency={currency} />
+        </div>
+        <div className={`text-right font-medium ${(tableTotals.gmPct ?? 0) < 0 ? "text-alert" : "text-ink"}`}>
+          <PercentLevel value={tableTotals.gmPct} />
+        </div>
+        <div className={`text-right font-medium ${tableTotals.gm < 0 ? "text-alert" : "text-ink"}`}>
+          <MoneyAmount value={tableTotals.gm * 1000} fromCurrency={currency} signed />
+        </div>
+        <div />
+        <div />
+        <div />
+        <div />
+      </div>
     </div>
+    </MoneyAmountGroup>
   );
 }
 
@@ -2614,7 +2629,7 @@ function PortfolioTotalsBar({
   const fmtKron = useKronFormatter(currency);
   return (
     <section data-testid="portfolio-totals" className="rounded-2xl border border-rule bg-surface p-4">
-      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-2">{t("totals.title")}</div>
+      <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-2">{t("totals.title")}</div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[12.5px]">
         <Stat label={t("totals.volume")} value={`${totals.volume_tons.toLocaleString("en-GB", { maximumFractionDigits: 1 })} t`} />
         <Stat label={t("totals.niv")} value={fmtKron(totals.niv_krn)} />
@@ -2627,8 +2642,8 @@ function PortfolioTotalsBar({
 function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: "alert" }) {
   return (
     <div>
-      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">{label}</div>
-      <div className={`mt-0.5 font-serif text-[18px] tabular-nums ${tone === "alert" ? "text-red-700" : "text-ink"}`}>{value}</div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">{label}</div>
+      <div className={`mt-0.5 font-mono tabular-nums text-[16px] font-medium ${tone === "alert" ? "text-alert" : "text-ink"}`}>{value}</div>
     </div>
   );
 }
@@ -2717,11 +2732,9 @@ function InflightCard({
       <div
         data-testid="products-inflight"
         className="
-          relative overflow-hidden rounded-3xl
+          relative overflow-hidden rounded-lg
           border border-rule
           bg-gradient-to-br from-bg-2/40 via-surface to-surface
-          ring-1 ring-inset ring-white/[0.03]
-          shadow-[0_24px_48px_-30px_rgba(0,0,0,0.25)]
           px-6 sm:px-8 py-7 sm:py-8
         "
       >
@@ -2747,7 +2760,7 @@ function InflightCard({
             </span>
           </div>
           {!failed && !hangSuspected && (
-            <span className="text-[11px] text-ink-mute tabular-nums uppercase tracking-[0.08em]">
+            <span className="text-[11px] text-ink-soft tabular-nums uppercase tracking-[0.08em]">
               {t("productsX.inflight.stepOf", { current: Math.max(1, stage.ordinal), total: STEPS.length })}
             </span>
           )}
@@ -2755,7 +2768,7 @@ function InflightCard({
 
         <div className="relative text-[12.5px] text-ink-soft mb-5 truncate">
           <span className="text-ink font-medium">{inflight.filename}</span>
-          <span className="mx-1.5 text-ink-mute">·</span>
+          <span className="mx-1.5 text-ink-soft">·</span>
           <span>{stage.label}</span>
         </div>
 
@@ -2782,7 +2795,7 @@ function InflightCard({
                       ? "bg-brand text-paper"
                       : isActive
                       ? "bg-brand/15 text-brand-d ring-2 ring-brand/40"
-                      : "bg-bg-2 text-ink-mute"}
+                      : "bg-bg-2 text-ink-soft"}
                   `}>
                     {isDone
                       ? <Check size={12} strokeWidth={2.75} />
@@ -2794,7 +2807,7 @@ function InflightCard({
                     <span className={`block text-[13px] ${isDone || isActive ? "text-ink" : "text-ink-soft"} ${isActive ? "font-medium" : ""}`}>
                       {step.label}
                     </span>
-                    <span className="block text-[11.5px] text-ink-mute mt-0.5">{step.sub}</span>
+                    <span className="block text-[11.5px] text-ink-soft mt-0.5">{step.sub}</span>
                   </span>
                   {/* Connector — vertical line linking the steps. The
                    *  last step has no connector below it. */}
@@ -3072,13 +3085,18 @@ function EmptyState({
             on both surfaces. min-w-0 on the columns: grid items default to
             min-width auto, so the format-hint table's intrinsic width was
             blowing the whole page out sideways on phones (sweep-caught). */}
-        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6 items-start relative min-w-0">
+        {/* grid-cols-1 below lg is load-bearing: without an explicit fr
+            track the implicit auto column sizes to content max-content and
+            clips the whole hero at phone widths. */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6 items-start relative min-w-0">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+            <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-brand-d font-semibold">
               <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
               {t("productsX.empty.eyebrow")}
             </div>
-            <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink font-serif">
+            {/* Serif hero retired (Instrument migration) — calm sans display
+                at page scale; the gradient phrase carries the emphasis. */}
+            <h1 className="mt-3 text-[32px] sm:text-[40px] font-semibold leading-[1.08] tracking-[-0.02em] text-ink">
               <Trans
                 i18nKey="productsX.empty.heroTitle"
                 components={{ grad: <span className="text-grad" /> }}
@@ -3140,6 +3158,13 @@ function EmptyState({
             column contract is visible before the user drops a file. */}
         <SalesAnalysisFormatHint />
 
+        {/* Example RESULT — what the page computes from rows like the ones
+            above, visible BEFORE the first upload. Built strictly from the
+            format hint's own fictional rows (same figures, same labels);
+            nothing the analysis would have to invent (bucket signals) is
+            shown — those cells stay em-dash until real data lands. */}
+        <ExampleResultPreview />
+
         {/* File drop zone — swapped below the hero grid (the template card
             now occupies the hero's right column). 2026-07-25: replaced
             with the dashboard's dropzone (same chrome, same staged-files
@@ -3162,14 +3187,14 @@ function EmptyState({
             data-drag-active={drag ? "true" : "false"}
             className={`
               relative overflow-hidden
-              rounded-2xl border-2 border-dashed
+              rounded-lg border-2 border-dashed
               backdrop-blur-sm
               p-6 sm:p-7
               flex flex-col items-center justify-center text-center
               min-h-[240px]
               transition-all duration-150
               ${drag
-                ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30 shadow-[0_0_0_4px_rgba(92,211,197,0.08)]"
+                ? "border-brand bg-brand/10 ring-2 ring-inset ring-brand/30"
                 : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
             `}
           >
@@ -3198,7 +3223,7 @@ function EmptyState({
                 type="button"
                 data-testid="debug-simulate-upload"
                 onClick={() => void simulateFileProcess()}
-                className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-mute hover:text-ink hover:border-rule-strong transition-colors"
+                className="absolute top-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg border border-dashed border-rule bg-surface/90 backdrop-blur px-2.5 py-1 text-[11px] font-medium text-ink-soft hover:text-ink hover:border-rule-strong transition-colors"
               >
                 Debug: simulate scan
               </button>
@@ -3249,13 +3274,13 @@ function EmptyState({
                 <li key={label} className="relative flex-1 min-w-0 flex flex-col items-center text-center">
                   <span className="
                     relative z-10 inline-flex items-center justify-center
-                    h-8 w-8 rounded-full text-[12px] font-semibold tabular-nums
-                    shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors duration-300
+                    h-8 w-8 rounded-full text-[12px] font-mono font-semibold tabular-nums
+                    transition-colors duration-300
                     bg-surface text-ink-soft border border-rule
                   ">
                     {`0${i + 1}`}
                   </span>
-                  <span className="mt-2 text-[11.5px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[100px] text-ink-mute">
+                  <span className="mt-2 text-[11.5px] uppercase tracking-[0.08em] font-medium leading-tight max-w-[100px] text-ink-soft">
                     {/* Same i18n bridge ScanProgressView uses — the step
                         constants stay English literals; translate at render. */}
                     {SCAN_TEXT_KEYS[label] ? t(SCAN_TEXT_KEYS[label]) : label}
@@ -3268,7 +3293,7 @@ function EmptyState({
               /* Staged files — each has an X to discard; nothing uploads
                  until Start scan. Same block as the dashboard dropzone. */
               <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
-                <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+                <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft mb-2">
                   {t("productsX.empty.stagedHeading")}
                 </div>
                 {/* Grid of staged-file cards — icon above name, everything
@@ -3284,9 +3309,9 @@ function EmptyState({
                         data-testid={`view-staged-${i}`}
                         className="w-full flex flex-col items-center justify-center text-center gap-1.5 rounded-lg border border-rule bg-bg-2/40 px-3 py-4 hover:bg-bg-2/70 hover:border-rule-strong transition-colors"
                       >
-                        <FileSpreadsheet size={22} strokeWidth={1.5} className="text-ink-mute" />
+                        <FileSpreadsheet size={22} strokeWidth={1.5} className="text-ink-soft" />
                         <div className="w-full text-[12px] font-medium text-ink truncate">{f.name}</div>
-                        <div className="text-[10.5px] text-ink-mute">{(f.size / 1024).toFixed(0)} KB</div>
+                        <div className="text-[10.5px] text-ink-soft">{(f.size / 1024).toFixed(0)} KB</div>
                       </button>
                       <button
                         type="button"
@@ -3297,7 +3322,7 @@ function EmptyState({
                         disabled={scanning}
                         aria-label={t("productsX.empty.removeFileAria", { name: f.name })}
                         data-testid={`discard-staged-${i}`}
-                        className="absolute top-1.5 right-1.5 inline-flex items-center justify-center h-6 w-6 rounded-md text-ink-mute bg-surface/80 backdrop-blur hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none"
+                        className="absolute top-1.5 right-1.5 inline-flex items-center justify-center h-6 w-6 rounded-md text-ink-soft bg-surface/80 backdrop-blur hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none"
                       >
                         <X size={13} strokeWidth={2} />
                       </button>
@@ -3310,7 +3335,7 @@ function EmptyState({
                     onClick={() => setStagedFiles([])}
                     disabled={scanning}
                     data-testid="dismiss-all-staged"
-                    className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-[12.5px] font-medium text-ink-mute hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-[12.5px] font-medium text-ink-soft hover:text-ink hover:bg-bg-2 ring-1 ring-inset ring-rule transition-colors disabled:opacity-40"
                   >
                     <X size={13} strokeWidth={2} />
                     {t("productsX.empty.dismissAll")}
@@ -3382,7 +3407,7 @@ function ProductsPromptChips() {
     <section className="mt-8" data-testid="products-prompt-chips">
       <div className="flex items-center gap-2 mb-2.5">
         <Sparkles size={11} strokeWidth={2.25} className="text-brand-d" />
-        <span className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+        <span className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold">
           {t("topbar.ask")}
         </span>
       </div>
@@ -3402,7 +3427,7 @@ function ProductsPromptChips() {
             "
             data-testid="products-prompt-chip"
           >
-            <Sparkles size={11} strokeWidth={2} className="text-ink-mute group-hover:text-brand-d transition-colors" />
+            <Sparkles size={11} strokeWidth={2} className="text-ink-soft group-hover:text-brand-d transition-colors" />
             {t(`productsX.chips.${c.key}.label`)}
           </button>
         ))}
@@ -3458,20 +3483,20 @@ function ProductsStatsStrip({ stats, hasData }: { stats: HonestStats; hasData: b
     <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="products-stats-strip">
       <StatCard
         label={t("productsX.stats.datasetsAnalyzed")}
-        value={stats.datasetCount.toLocaleString("en-GB")}
+        value={<Amount kind="count" value={stats.datasetCount} />}
         sub={t("productsX.stats.importsOnFile", { count: stats.datasetCount })}
       />
       {stats.totalSkus !== null && (
         <StatCard
           label={t("productsX.stats.skusAnalyzed")}
-          value={stats.totalSkus.toLocaleString("en-GB")}
+          value={<Amount kind="count" value={stats.totalSkus} />}
           sub={t("productsX.stats.cumulative")}
         />
       )}
       {stats.totalLineRows !== null && (
         <StatCard
           label={t("productsX.stats.lineRows")}
-          value={stats.totalLineRows.toLocaleString("en-GB")}
+          value={<Amount kind="count" value={stats.totalLineRows} />}
           sub={t("productsX.stats.cumulative")}
         />
       )}
@@ -3486,12 +3511,12 @@ function ProductsStatsStrip({ stats, hasData }: { stats: HonestStats; hasData: b
   );
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({ label, value, sub }: { label: string; value: ReactNode; sub?: string }) {
   return (
-    <div className="rounded-xl border border-rule bg-surface px-4 py-3">
-      <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{label}</div>
-      <div className="mt-1.5 text-[22px] font-semibold text-ink tabular-nums leading-none">{value}</div>
-      {sub && <div className="mt-1 text-[11px] text-ink-mute">{sub}</div>}
+    <div className="rounded-md border border-rule bg-surface px-4 py-3">
+      <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium">{label}</div>
+      <div className="mt-1.5 text-[20px] font-mono font-medium text-ink tabular-nums leading-none">{value}</div>
+      {sub && <div className="mt-1 text-[11px] text-ink-soft">{sub}</div>}
     </div>
   );
 }
@@ -3518,7 +3543,7 @@ function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
   if (datasets.length === 0) {
     return (
       <section className="mt-10 rounded-2xl border border-rule bg-surface px-5 py-6 text-center" data-testid="products-recent-empty">
-        <div className="mx-auto h-9 w-9 rounded-lg bg-bg-2 text-ink-mute flex items-center justify-center mb-2">
+        <div className="mx-auto h-9 w-9 rounded-lg bg-bg-2 text-ink-soft flex items-center justify-center mb-2">
           <Boxes size={15} strokeWidth={1.75} />
         </div>
         <p className="text-[13px] text-ink-soft">
@@ -3532,15 +3557,15 @@ function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
   return (
     <section className="mt-10" data-testid="products-recent-imports">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+        <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold">
           {t("datasets.title")}
         </h2>
         {datasets.length > rows.length && (
-          <span className="text-[11px] text-ink-mute">{t("datasets.more", { count: datasets.length - rows.length })}</span>
+          <span className="text-[11px] text-ink-soft">{t("datasets.more", { count: datasets.length - rows.length })}</span>
         )}
       </div>
-      <div className="rounded-xl border border-rule bg-surface overflow-hidden">
-        <div className="grid grid-cols-[1fr_140px_100px_110px] gap-3 px-4 py-2 bg-bg-2/40 border-b border-rule text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">
+      <div className="rounded-md border border-rule bg-surface overflow-hidden">
+        <div className="grid grid-cols-[1fr_140px_100px_110px] gap-3 px-4 h-8 items-center bg-bg-2/40 border-b border-rule text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium">
           <div>{t("datasets.columns.file")}</div>
           <div className="text-right">{t("datasets.columns.rows")}</div>
           <div className="text-right">{t("datasets.columns.skus")}</div>
@@ -3548,19 +3573,19 @@ function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
         </div>
         <ul>
           {rows.map((d) => (
-            <li key={d.id} className="grid grid-cols-[1fr_140px_100px_110px] gap-3 px-4 py-2.5 border-b border-rule/60 last:border-0 items-baseline">
-              <div className="min-w-0">
-                <div className="text-[13px] text-ink truncate">{d.source_filename ?? d.label}</div>
-                <div className="text-[10.5px] text-ink-mute mt-0.5">
+            <li key={d.id} className="grid grid-cols-[1fr_140px_100px_110px] gap-3 px-4 min-h-8 py-1 border-b border-rule-soft last:border-0 items-center">
+              <div className="min-w-0 flex items-baseline gap-2">
+                <span className="text-[12.5px] text-ink truncate min-w-0">{d.source_filename ?? d.label}</span>
+                <span className="text-[10.5px] text-ink-soft truncate min-w-0">
                   {d.label !== (d.source_filename ?? d.label) && <span>{d.label} · </span>}
                   {new Date(d.uploaded_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
-                </div>
+                </span>
               </div>
-              <div className="text-right text-[12.5px] tabular-nums text-ink-soft">
-                {d.row_count != null ? d.row_count.toLocaleString("en-GB") : "—"}
+              <div className="text-right text-[12.5px] text-ink-soft">
+                <Amount kind="count" value={d.row_count} />
               </div>
-              <div className="text-right text-[12.5px] tabular-nums text-ink-soft">
-                {d.sku_count != null ? d.sku_count.toLocaleString("en-GB") : "—"}
+              <div className="text-right text-[12.5px] text-ink-soft">
+                <Amount kind="count" value={d.sku_count} />
               </div>
               <div>
                 <DocumentStatusPill status={d.document_status} active={d.is_active} />
@@ -3575,19 +3600,30 @@ function ProductsRecentImports({ datasets }: { datasets: DatasetSummary[] }) {
 
 function DocumentStatusPill({ status, active }: { status: DocumentStatus | null; active: boolean }) {
   const { t } = useTranslation();
-  // Real status from the backend; never a placeholder.
+  // Real status from the backend; never a placeholder. One chip system:
+  // analyzed = success, in-flight = info, failed = alert, unknown = neutral.
   const s = (status ?? "").toLowerCase();
   let label = status ?? t("datasets.status.unknown");
-  let cls = "border-rule text-ink-soft bg-bg-2/40";
-  if (s === "analyzed") { label = active ? t("datasets.status.active") : t("datasets.status.analyzed"); cls = "border-[#8FE3D9]/60 text-[#2AA89B] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
-  else if (s === "queued" || s === "extracting" || s === "ingesting") { label = t("datasets.status.processing"); cls = "border-[#8FE3D9]/60 text-[#1B7268] bg-[#E6F7F4] dark:bg-[#5CD3C5]/10"; }
-  else if (s === "failed") { label = t("datasets.status.failed"); cls = "border-red-300/60 text-red-700 bg-red-50 dark:bg-red-500/10"; }
+  let tone: ChipTone = "neutral";
+  if (s === "analyzed") { label = active ? t("datasets.status.active") : t("datasets.status.analyzed"); tone = "success"; }
+  else if (s === "queued" || s === "extracting" || s === "ingesting") { label = t("datasets.status.processing"); tone = "info"; }
+  else if (s === "failed") { label = t("datasets.status.failed"); tone = "alert"; }
   return (
-    <span className={`inline-flex items-center h-5 px-2 rounded-full border text-[10.5px] font-medium uppercase tracking-[0.04em] ${cls}`}>
+    <InstrumentChip tone={tone} className="uppercase tracking-[0.04em] text-[10.5px]">
       {label}
-    </span>
+    </InstrumentChip>
   );
 }
+
+// Fictional sample rows shared by the format hint (the INPUT shape) and
+// the example-result preview (what the analysis computes from them).
+// These figures are placeholders, labeled fictional wherever they render
+// — never real product data, never presented as such.
+const EXAMPLE_SALES_ROWS = [
+  { channel: "RETAIL", category: "CATEGORY 1", brand: "BRAND X", name: "EXAMPLE PRODUCT A", volumeTons: 100, nivKrn: 1500, gmKrn: 300, gmPct: 0.20, invKrn: 450 as number | null, cogsKrn: 1200 as number | null },
+  { channel: "HORECA", category: "CATEGORY 1", brand: "BRAND X", name: "EXAMPLE PRODUCT B", volumeTons: 50, nivKrn: 800, gmKrn: 120, gmPct: 0.15, invKrn: 220 as number | null, cogsKrn: 680 as number | null },
+  { channel: "EXPORT", category: "CATEGORY 2", brand: "BRAND Y", name: "EXAMPLE PRODUCT C", volumeTons: 200, nivKrn: 3000, gmKrn: 450, gmPct: 0.15, invKrn: null as number | null, cogsKrn: null as number | null },
+];
 
 /** Structure-only example of an accepted sales-analysis file.
  *  Columns mirror what `_sales_extract.py` synonyms accept; placeholder
@@ -3608,11 +3644,11 @@ function SalesAnalysisFormatHint() {
     "Volume (to)", "NIV (kRON)", "GM (kRON)", "GM2 pct",
     "Inventory value", "COGS",
   ];
-  const rows: Array<(string | number)[]> = [
-    ["RETAIL", "CATEGORY 1", "BRAND X", "EXAMPLE PRODUCT A", 100, 1500, 300, 0.20,  450, 1200],
-    ["HORECA", "CATEGORY 1", "BRAND X", "EXAMPLE PRODUCT B",  50,  800, 120, 0.15,  220,  680],
-    ["EXPORT", "CATEGORY 2", "BRAND Y", "EXAMPLE PRODUCT C", 200, 3000, 450, 0.15, "—", "—"],
-  ];
+  const rows: Array<(string | number)[]> = EXAMPLE_SALES_ROWS.map((r) => [
+    r.channel, r.category, r.brand, r.name,
+    r.volumeTons, r.nivKrn, r.gmKrn, r.gmPct,
+    r.invKrn ?? "—", r.cogsKrn ?? "—",
+  ]);
   function fmt(v: string | number): string {
     if (typeof v === "number") {
       if (v < 1) return v.toFixed(2);
@@ -3631,14 +3667,14 @@ function SalesAnalysisFormatHint() {
     // description — the example table follows inside. The "Expected
     // format" label sits OUTSIDE, above the card, as a section heading.
     <section className="mt-6" data-testid="sales-format-hint">
-      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-3">
+      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold mb-3">
         {t("expectedFormat.eyebrow")}
       </h2>
       <div className="rounded-lg border border-rule border-l-[3px] border-l-brand bg-surface p-3 text-left">
       <div className="mb-1 text-[12.5px] font-medium text-ink leading-tight">
         {t("expectedFormat.title")}
       </div>
-      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1.5">
         {t("productsX.xlsxExport")}
       </div>
       <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2 max-w-[640px]">
@@ -3672,11 +3708,11 @@ function SalesAnalysisFormatHint() {
       <div className="overflow-x-auto -mx-1 px-1">
         <table className="w-full text-[12.5px] tabular-nums">
           <thead>
-            <tr className="text-left border-b border-rule">
-              {headers.map((h) => (
+            <tr className="border-b border-rule">
+              {headers.map((h, j) => (
                 <th
                   key={h}
-                  className="py-1.5 pr-4 font-semibold text-[10.5px] uppercase tracking-[0.04em] text-ink-soft whitespace-nowrap"
+                  className={`h-8 pr-4 font-semibold text-[10.5px] uppercase tracking-[0.04em] text-ink-soft whitespace-nowrap ${j >= 4 ? "text-right" : "text-left"}`}
                 >
                   {/* Source-data column name — parser-mirroring identifier.
                       lang="ro" hint so AT pronounces "Denumire produs" with
@@ -3688,12 +3724,12 @@ function SalesAnalysisFormatHint() {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-b border-rule/50 last:border-0">
+              <tr key={i} className="border-b border-rule-soft last:border-0">
                 {r.map((v, j) => (
                   <td
                     key={j}
-                    className={`py-1.5 pr-4 whitespace-nowrap ${
-                      typeof v === "number" ? "font-mono text-ink" : "text-ink"
+                    className={`h-8 pr-4 whitespace-nowrap text-ink ${
+                      j >= 4 ? "text-right font-mono" : "text-left"
                     }`}
                   >
                     {/* String cells are source-data placeholders too. */}
@@ -3707,7 +3743,7 @@ function SalesAnalysisFormatHint() {
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-[11px] text-ink-mute italic">
+      <p className="mt-3 text-[11px] text-ink-soft italic">
         <Trans
           i18nKey="expectedFormat.exampleFooter"
           components={{
@@ -3717,6 +3753,118 @@ function SalesAnalysisFormatHint() {
         />
       </p>
       </div>
+    </section>
+  );
+}
+
+// ─── Example result preview ─────────────────────────────────────────────────
+//
+// The value proposition, visible BEFORE the first upload: the per-SKU view
+// this page produces, rendered as a small instrument table from the SAME
+// fictional rows the format hint shows (EXAMPLE_SALES_ROWS). Every figure
+// is either copied from those rows or derived by the page's documented
+// arithmetic (DIO = inventory / COGS × 365; the totals line sums the
+// rows). What a real analysis would have to CLASSIFY — the Protect /
+// Watch / Wind-down signal — is honestly em-dash here: signals exist only
+// once the engine has graded real rows.
+function ExampleResultPreview() {
+  const { t } = useTranslation();
+  const totals = EXAMPLE_SALES_ROWS.reduce(
+    (a, r) => ({ vol: a.vol + r.volumeTons, niv: a.niv + r.nivKrn, gm: a.gm + r.gmKrn }),
+    { vol: 0, niv: 0, gm: 0 },
+  );
+  const totalGmPct = totals.niv > 0 ? (totals.gm / totals.niv) * 100 : null;
+  const dioOf = (r: (typeof EXAMPLE_SALES_ROWS)[number]): number | null =>
+    r.invKrn != null && r.cogsKrn != null && r.cogsKrn > 0
+      ? Math.round((r.invKrn / r.cogsKrn) * 365)
+      : null;
+  const grid = "grid grid-cols-[minmax(0,1fr)_72px_88px_64px_88px_56px_72px] gap-3 px-4 items-center";
+  return (
+    <section className="mt-6" data-testid="products-example-result">
+      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold mb-3">
+        Example result
+      </h2>
+      <Panel>
+        <PanelHeader
+          title="Every SKU, ranked and graded"
+          actions={
+            <InstrumentChip tone="neutral" className="whitespace-nowrap">
+              {t("tmpl.salesExample")}
+            </InstrumentChip>
+          }
+        />
+        <MoneyAmountGroup
+          values={EXAMPLE_SALES_ROWS.flatMap((r) => [r.nivKrn * 1000, r.gmKrn * 1000])}
+          fromCurrency="RON"
+        >
+          <div className="overflow-x-auto">
+            <div className="min-w-[640px]">
+              <div className={`${grid} h-8 border-b border-rule bg-bg-2/40 text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium`}>
+                <div>{t("products.columns.skuCategory")}</div>
+                <div className="text-right">{t("products.columns.volume")}</div>
+                <div className="text-right">{t("totals.niv")}</div>
+                <div className="text-right">{t("products.columns.gmPct")}</div>
+                <div className="text-right">{t("totals.gm")}</div>
+                <div className="text-right">DIO</div>
+                <div>{t("products.columns.signal")}</div>
+              </div>
+              {EXAMPLE_SALES_ROWS.map((r) => {
+                const dio = dioOf(r);
+                return (
+                  <div key={r.name} className={`${grid} h-8 border-b border-rule-soft text-[12.5px]`}>
+                    <div className="min-w-0 flex items-baseline gap-2">
+                      <span className="text-ink truncate min-w-0">
+                        <SourceText lang="ro">{r.name}</SourceText>
+                      </span>
+                      <span className="text-[10.5px] text-ink-soft truncate min-w-0">
+                        <SourceText lang="ro">{`${r.brand} · ${r.category}`}</SourceText>
+                      </span>
+                    </div>
+                    <div className="text-right text-ink-soft">
+                      <Amount kind="count" value={r.volumeTons} />
+                    </div>
+                    <div className="text-right text-ink-soft">
+                      <MoneyAmount value={r.nivKrn * 1000} fromCurrency="RON" />
+                    </div>
+                    <div className="text-right text-ink">
+                      <PercentLevel value={r.gmPct * 100} />
+                    </div>
+                    <div className="text-right text-ink font-medium">
+                      <MoneyAmount value={r.gmKrn * 1000} fromCurrency="RON" signed />
+                    </div>
+                    <div className="text-right">
+                      {dio != null
+                        ? <span className="text-ink"><Amount kind="count" value={dio} /></span>
+                        : <span className="text-ink-soft/70 font-mono">—</span>}
+                    </div>
+                    {/* Signal is the ENGINE's judgment — not derivable from
+                        a format sample, so it stays honestly absent. */}
+                    <div className="text-[11px] text-ink-soft font-mono">—</div>
+                  </div>
+                );
+              })}
+              {/* Totals — double hairline, per the instrument table spec. */}
+              <div className={`${grid} h-9 border-t-[3px] border-t-rule [border-top-style:double] bg-bg-2/30 text-[12.5px]`}>
+                <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium">
+                  {t("totals.title")} · <Amount kind="count" value={EXAMPLE_SALES_ROWS.length} />
+                </div>
+                <div className="text-right text-ink font-medium"><Amount kind="count" value={totals.vol} /></div>
+                <div className="text-right text-ink font-medium"><MoneyAmount value={totals.niv * 1000} fromCurrency="RON" /></div>
+                <div className="text-right text-ink font-medium"><PercentLevel value={totalGmPct} /></div>
+                <div className="text-right text-ink font-medium"><MoneyAmount value={totals.gm * 1000} fromCurrency="RON" signed /></div>
+                <div className="text-right text-ink-soft/70 font-mono">—</div>
+                <div />
+              </div>
+            </div>
+          </div>
+        </MoneyAmountGroup>
+        <PanelBody className="py-2.5">
+          <p className="text-[11px] text-ink-soft italic">
+            {t("expectedFormat.exampleCaption")} Signals (Protect / Watch / Wind down) appear once your
+            real rows are classified.
+          </p>
+        </PanelBody>
+      </Panel>
     </section>
   );
 }
@@ -3836,6 +3984,18 @@ function CategoryHintInline({ category }: { category: string }) {
   const hint = categoryHint(category, i18n.language || "en");
   if (!hint) return null;
   return (
-    <span className="ml-1.5 text-[10.5px] text-ink-mute italic">({hint})</span>
+    <span className="ml-1.5 text-[10.5px] text-ink-soft italic">({hint})</span>
   );
 }
+
+// ─── Test-only exports ──────────────────────────────────────────────────────
+// The populated-state building blocks, exposed so the instrument-spec unit
+// tests can render them without booting the whole page (which needs a live
+// Supabase session). Not part of the page's public API.
+export const __productsTestables = {
+  SkuTable,
+  KpiCard,
+  WcCard,
+  ExampleResultPreview,
+  DocumentStatusPill,
+};

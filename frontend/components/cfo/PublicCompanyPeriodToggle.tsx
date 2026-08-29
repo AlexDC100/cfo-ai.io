@@ -26,7 +26,7 @@ export function PublicCompanyPeriodToggle({ value, onChange, disabled = false }:
       aria-label="Period dimension"
       className="
         inline-flex items-center gap-0.5
-        h-9 p-0.5 rounded-lg
+        h-8 p-0.5 rounded-sm
         border border-rule bg-bg-2/40
       "
     >
@@ -42,12 +42,12 @@ export function PublicCompanyPeriodToggle({ value, onChange, disabled = false }:
             data-testid={`public-company-period-${opt.code}`}
             className={`
               inline-flex items-center
-              h-full px-3 rounded-md
+              h-full px-3 rounded-sm
               text-[12.5px] font-medium
-              transition-colors
+              transition-colors duration-micro
               disabled:opacity-50 disabled:cursor-not-allowed
               ${active
-                ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                ? "bg-surface text-ink ring-1 ring-inset ring-rule"
                 : "text-ink-mute hover:text-ink"}
             `}
             title={opt.sub}

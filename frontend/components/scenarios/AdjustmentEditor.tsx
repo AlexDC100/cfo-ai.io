@@ -47,7 +47,7 @@ export function AdjustmentEditor() {
       {/* Levers — the templates ("Start from a template") moved above the
           drivers + results grid (ScenarioTemplateCards) 2026-07-26. */}
       <div>
-        <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium mb-2">
+        <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium mb-2">
           Adjust the drivers
         </div>
         <div className="space-y-2.5">
@@ -77,7 +77,7 @@ export function AdjustmentEditor() {
                         "text-[12px] font-medium px-1.5 py-0.5 rounded-sm",
                         showActive
                           ? "text-brand-dark dark:text-brand-light bg-brand-tint"
-                          : "text-ink-mute",
+                          : "text-ink-soft",
                       )}
                     >
                       <LeverValue lever={lever} v={value} />
@@ -88,7 +88,7 @@ export function AdjustmentEditor() {
                         onClick={() => removeLever(lever.key)}
                         aria-label={`Remove ${lever.label}`}
                         data-testid={`lever-remove-${lever.key}`}
-                        className="text-ink-mute hover:text-ink min-w-[32px] min-h-[32px] grid place-items-center rounded-sm hover:bg-bg-2"
+                        className="text-ink-soft hover:text-ink min-w-[32px] min-h-[32px] grid place-items-center rounded-sm hover:bg-bg-2"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -106,7 +106,7 @@ export function AdjustmentEditor() {
                   aria-label={lever.label}
                   className="w-full mt-2 accent-brand cursor-pointer touch-none"
                 />
-                <div className="text-[10.5px] text-ink-mute leading-snug mt-1">
+                <div className="text-[10.5px] text-ink-soft leading-snug mt-1">
                   {lever.hint}
                 </div>
               </div>

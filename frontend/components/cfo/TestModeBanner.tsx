@@ -45,16 +45,15 @@ export function TestModeBanner() {
       className="
         sticky top-0 z-[60]
         w-full
-        bg-[#5CD3C5] text-[#1B7268]
-        border-b border-[#2AA89B]/40
-        shadow-[0_2px_8px_-2px_rgba(42,168,155,0.35)]
+        bg-caution-tint text-caution
+        border-b border-caution/40
       "
     >
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2 sm:py-2.5 flex items-center gap-3">
         <AlertTriangle
           size={18}
           strokeWidth={2.25}
-          className="shrink-0 text-[#1B7268]"
+          className="shrink-0 text-caution"
           aria-hidden
         />
         <div className="flex-1 text-[12.5px] sm:text-[13px] leading-tight font-medium">
@@ -83,7 +82,7 @@ export function TestModeBanner() {
           className="
             shrink-0 inline-flex items-center justify-center
             h-7 w-7 rounded-md
-            text-[#1B7268]/80 hover:text-[#1B7268] hover:bg-[#2AA89B]/30
+            text-caution/80 hover:text-caution hover:bg-caution/20
             transition-colors
           "
         >

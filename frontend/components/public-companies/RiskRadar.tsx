@@ -98,9 +98,9 @@ const SOURCE_LABEL: Record<ExposureSource, string> = {
 
 const SOURCE_TINT: Record<ExposureSource, string> = {
   sector_model: "bg-bg-2/60 text-ink-mute border-rule/60",
-  sec_filing: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
-  operator_curated: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
-  bvb_override: "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30",
+  sec_filing: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
+  operator_curated: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
+  bvb_override: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
 };
 
 export function RiskRadar({ onDrillToCategory }: Props) {
@@ -144,7 +144,7 @@ export function RiskRadar({ onDrillToCategory }: Props) {
       {/* ── Header strip ──────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="font-serif text-[20px] sm:text-[22px] text-ink leading-tight">
+          <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
             AI Risk Radar
           </h2>
           <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px] leading-relaxed">
@@ -229,8 +229,9 @@ function RadarCard({
       data-category={category}
       data-level={data.level}
       className="
-        card-2026 group relative w-full text-left
+        group relative w-full rounded-md border border-rule bg-surface text-left
         p-4 sm:p-5
+        transition-colors duration-micro
         focus-within:border-brand/30
       "
     >
@@ -288,9 +289,9 @@ function RadarCard({
           <div
             className={`h-full rounded-full transition-all ${
               data.level === "critical" ? "bg-alert" :
-              data.level === "high"     ? "bg-[#5CD3C5]" :
-              data.level === "medium"   ? "bg-[#5CD3C5]" :
-                                          "bg-[#5CD3C5]"
+              data.level === "high"     ? "bg-brand" :
+              data.level === "medium"   ? "bg-brand" :
+                                          "bg-brand"
             }`}
             style={{ width: `${Math.max(2, Math.min(100, data.score))}%` }}
           />
@@ -545,8 +546,8 @@ function FeedStatusBadge({
 
   const tone =
     status === "live_feed_active"
-      ? "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30"
-      : "bg-[#5CD3C5]/10 text-[#5CD3C5] border-[#5CD3C5]/30";
+      ? "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent"
+      : "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent";
 
   let computedLabel = "";
   try {

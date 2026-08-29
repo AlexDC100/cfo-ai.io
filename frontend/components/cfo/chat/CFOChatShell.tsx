@@ -494,7 +494,10 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           <motion.div
             key="chat-empty-content"
             transition={{ duration: 0 }}
-            className={`flex-1 ${contentPadX} pb-8`}
+            // Below lg the composer is FIXED (out of flow), so the content
+            // needs enough bottom padding to scroll clear of it; on lg+ the
+            // sticky composer occupies flow space and pb-8 suffices.
+            className={`flex-1 ${contentPadX} pb-48 lg:pb-8`}
           >
             <PageHeader
               hero
@@ -530,7 +533,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             the input. The inline `bottom` lifts the block above an
             overlaying on-screen keyboard (0 on desktop / when closed). */}
         <div
-          className={`fixed inset-x-0 lg:sticky lg:inset-x-auto z-10 ${composerPadX} bg-gradient-to-t from-bg via-bg/90 to-transparent pt-6 pb-1`}
+          className={`fixed inset-x-0 lg:sticky lg:inset-x-auto z-10 ${composerPadX} bg-gradient-to-t from-bg via-bg to-transparent pt-6 pb-1`}
           style={{ bottom: keyboardInset }}
           onFocusCapture={() => setComposerFocused(true)}
           onBlurCapture={(e) => {
@@ -540,10 +543,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           }}
         >
           {/* Quick-prompt pills — only inside an active conversation (the empty
-              state shows the full prompt cards). Single scrollable row so they
-              stay compact above the input. */}
+              state shows the full prompt cards). Hidden below sm: on a phone
+              the two pill rows ate half the space above the fixed composer
+              and the conversation bled through the gaps between them. */}
           {store.current && store.current.messages.length > 0 && (
-            <div className="max-w-[1760px] flex flex-col items-start gap-1.5 pb-2">
+            <div className="max-w-[1760px] hidden sm:flex flex-col items-start gap-1.5 pb-2">
               {pyramidRows.map((row, r) => (
                 <div key={r} className="flex flex-wrap justify-start gap-1.5">
                   {row.map((p) => (
@@ -583,24 +587,30 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               the on-screen keyboard is up (2026-08-18) — on a phone this row
               would eat the sliver of space above the keyboard; it returns
               when the keyboard closes. */}
-          <div className={`max-w-[1760px] pt-0.5 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1 ${keyboardOpen ? "hidden" : ""}`}>
+          <div className={`max-w-[1760px] pt-1 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1 ${keyboardOpen ? "hidden" : ""}`}>
+            {/* Grounding as a Chip (tone accent) — workspace + period. The
+                grounding is a VERIFIED statement about which book the
+                assistant reads, so it carries the accent, not a neutral
+                pill. */}
             {hasPeriod && (
-              <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-bg-2 border border-rule text-[11.5px] text-ink-soft whitespace-nowrap">
+              <Chip tone="accent" dot className="shrink-0 whitespace-nowrap" data-testid="chat-grounding-chip">
                 {contextLine}
-              </span>
+              </Chip>
             )}
-            <span className="min-w-0 text-[11px] text-ink-mute leading-snug">
+            {/* Honesty caption — quiet, caption-sized, unchanged meaning. */}
+            <span className="min-w-0 text-[11px] text-ink-soft leading-snug">
               {disclosure}
             </span>
             {noWorkspace && (
-              <span
+              <Chip
+                tone="caution"
+                dot
                 data-testid="chat-no-workspace-pill"
                 title={t("chatX.noWorkspacePillTitle")}
-                className="ml-auto shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-amber-500/10 border border-amber-500/30 text-[11.5px] font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap"
+                className="ml-auto shrink-0 whitespace-nowrap"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
                 {t("chatX.noWorkspacePill")}
-              </span>
+              </Chip>
             )}
           </div>
         </div>

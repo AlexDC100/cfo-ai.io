@@ -18,7 +18,12 @@
 import { useSyncExternalStore } from "react";
 import i18n from "@/i18n";
 import { CfoApiError, cfoApi } from "@/lib/cfoApi";
-import { clearAiDegraded, reportAiFailure, setAiDegraded } from "@/lib/aiDegraded";
+import {
+  classifyUpstreamAnswer,
+  clearAiDegraded,
+  reportAiFailure,
+  setAiDegraded,
+} from "@/lib/aiDegraded";
 import {
   beginChatReply,
   endChatReply,
@@ -159,6 +164,25 @@ export function startChatTurn(ctx: ChatTurnContext): void {
         public_company: ctx.publicCompany,
       }, controller.signal);
       const answer = (response?.answer ?? "").trim() || "(no response)";
+      // A2 — the Edge Function wraps upstream Anthropic errors in an
+      // HTTP 200 whose answer is a raw "Couldn't reach Claude: <status>
+      // <json>" string. That is a FAILURE wearing an answer's clothes:
+      // route it through the same boundary as a thrown error so the raw
+      // payload never renders.
+      const upstreamKind = classifyUpstreamAnswer(answer);
+      if (upstreamKind) {
+        // eslint-disable-next-line no-console
+        console.debug("[ai] chat turn failed upstream", { kind: upstreamKind, answer });
+        setAiDegraded(upstreamKind);
+        chatCompleteAssistantTurn(ctx.orgId, {
+          conversationId,
+          assistantId,
+          content: "",
+          error: true,
+          failed: upstreamKind,
+        });
+        return;
+      }
       chatCompleteAssistantTurn(ctx.orgId, {
         conversationId,
         assistantId,

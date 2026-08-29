@@ -65,7 +65,7 @@ export function DioPersistenceBanner() {
     <section
       data-testid="dio-persistence-banner"
       className="
-        rounded-2xl border-2 border-red-400/60 bg-red-50/70 dark:bg-red-500/[0.08]
+        rounded-lg border border-alert/50 border-l-[3px] border-l-alert bg-alert-tint/60
         px-5 py-4 mb-4
       "
     >
@@ -73,28 +73,28 @@ export function DioPersistenceBanner() {
         <AlertTriangle
           size={18}
           strokeWidth={2}
-          className="text-red-700 dark:text-red-300 shrink-0 mt-0.5"
+          className="text-alert shrink-0 mt-0.5"
         />
         <div className="flex-1 min-w-0 space-y-2">
-          <h3 className="text-[14px] font-semibold text-red-900 dark:text-red-100">
+          <h3 className="text-[14px] font-semibold text-alert">
             DIO data dropped on recent upload
           </h3>
-          <p className="text-[12.5px] text-red-900/85 dark:text-red-100/85 leading-relaxed">
-            The <code className="font-mono text-[11.5px] bg-red-100/60 dark:bg-red-500/20 px-1 rounded">sku_aggregates</code> table is
+          <p className="text-[12.5px] text-ink-soft leading-relaxed">
+            The <code className="font-mono text-[11.5px] bg-alert/10 px-1 rounded">sku_aggregates</code> table is
             missing the DIO columns. Uploads are succeeding but the parsed DIO values
             are being silently discarded on insert — that's why every category card
             shows <span className="font-mono">—</span> instead of real DIO days.
           </p>
-          <p className="text-[12.5px] text-red-900/85 dark:text-red-100/85 leading-relaxed">
-            <strong>Fix:</strong> run{" "}
-            <code className="font-mono text-[11.5px] bg-red-100/60 dark:bg-red-500/20 px-1 rounded">
+          <p className="text-[12.5px] text-ink-soft leading-relaxed">
+            <strong className="text-ink">Fix:</strong> run{" "}
+            <code className="font-mono text-[11.5px] bg-alert/10 px-1 rounded">
               supabase/schema_phase_sku_dio_columns.sql
             </code>{" "}
             in Supabase Studio (one-shot, idempotent). Then re-classify the active
             dataset in the Datasets panel — backend will re-extract DIO from the
             source XLSX and this banner will disappear within 60s.
           </p>
-          <details className="text-[11.5px] text-red-900/70 dark:text-red-100/70">
+          <details className="text-[11.5px] text-ink-mute">
             <summary className="cursor-pointer font-medium">Diagnostics</summary>
             <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 mt-2 font-mono">
               {lastDropAgo && (

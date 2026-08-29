@@ -17,6 +17,8 @@ import { TrendingUp, Calculator, FileText, AlertTriangle, GitCompare, LineChart,
 import type { LucideIcon } from "lucide-react";
 
 import { useActiveOrg } from "@/lib/org";
+import { useAiDegraded } from "@/lib/aiDegraded";
+import "./chatDegradedI18n";
 import { useIndustryPrompts, type SuggestedPrompt } from "./industryPrompts";
 
 interface Props {
@@ -96,15 +98,20 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
   const prompts = hasPeriod ? workspacePrompts : (industryPrompts ?? generalPrompts);
   const industryLabel = industryPrompts ? (org?.industry_display_name ?? null) : null;
 
+  // A2 — suggestion cards stay visible but disabled while the assistant is
+  // degraded; the tooltip points at Retry on the failed turn.
+  const degraded = useAiDegraded();
+  const degradedTooltip = degraded ? t("chatDegraded.disabledTooltip") : undefined;
+
   // Cards match the dashboard's DocGuideCard pattern (document-type
   // guide): left-aligned, 3px brand left-border accent, compact medium
   // title over muted body copy — no icon tile.
   const grid = (
     <div>
-    <h2 className="mb-2.5 text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+    <h2 className="mb-2.5 text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold">
       {t("chatX.suggestedQuestions")}
       {industryLabel && (
-        <span className="normal-case tracking-normal font-normal text-ink-mute">
+        <span className="normal-case tracking-normal font-normal text-ink-soft">
           {" "}{t("chatX.basedOnIndustry", { industry: industryLabel })}
         </span>
       )}
@@ -119,12 +126,15 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
             key={p.title}
             type="button"
             onClick={() => onPick(p.prompt)}
+            disabled={!!degraded}
+            title={degradedTooltip}
             className="
-              rounded-lg border border-rule border-l-[3px] border-l-brand
+              rounded-md border border-rule border-l-[3px] border-l-brand
               bg-surface p-3 text-center
               hover:bg-transparent
-              transition-colors duration-150 ease-out
+              transition-colors duration-micro ease-out
               focus:outline-none focus:ring-2 focus:ring-brand/30
+              disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-surface
             "
             data-testid="chat-prompt-card"
           >

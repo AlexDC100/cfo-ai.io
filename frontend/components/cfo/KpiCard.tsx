@@ -1,5 +1,4 @@
 import { ReactNode } from "react";
-import { motion } from "framer-motion";
 
 interface Props {
   label: string;
@@ -9,9 +8,7 @@ interface Props {
   accent?: "default" | "danger" | "success" | "warning" | "info";
 }
 
-// Each accent corresponds to a token-aligned color for the number, plus a
-// soft halo of the same hue on hover. Halo opacity stays ≤30% so it never
-// competes with the data — it's a presence cue, not a chrome element.
+// Accent colors the figure only, via semantic tokens — never the chrome.
 const ACCENT_NUMBER: Record<NonNullable<Props["accent"]>, string> = {
   default: "text-ink",
   danger:  "text-alert",
@@ -20,50 +17,30 @@ const ACCENT_NUMBER: Record<NonNullable<Props["accent"]>, string> = {
   info:    "text-info",
 };
 
-const ACCENT_HALO: Record<NonNullable<Props["accent"]>, string> = {
-  default: "bg-brand/30",
-  danger:  "bg-alert/30",
-  success: "bg-success/40",
-  warning: "bg-caution/40",
-  info:    "bg-info/40",
-};
-
 /**
- * KPI card — the most-used surface across CFO AI's authenticated views.
+ * KPI stat panel (THE INSTRUMENT).
  *
- * Cleo-style treatment:
- *   - Number renders in Instrument Serif italic (`num-hero`) at 44px instead
- *     of regular serif at 36px. The italic + tabular-nums combo reads like
- *     a financial publication tear-out, not a dashboard widget.
- *   - Subtle lift + shadow + accent-hued halo on hover. The halo is the
- *     "alive" cue — desktops feel responsive without being noisy.
- *   - Label still uses the existing label-eyebrow utility so the visual
- *     identity of cards across the app stays consistent.
+ *   - 11px caps label, mono tabular figure — the ledger voice, not the
+ *     serif tear-out. Serif display survives only on marketing/empty
+ *     states, and a KPI card is neither.
+ *   - Hairline border, flat at rest: no hover lift, no halo, no shadow.
+ *     Depth is functional only under this identity.
  *
- * No entrance animation: cards render at full opacity immediately so
- * switching into a tab never fades content in.
+ * API unchanged — callers keep label/value/hint/accent.
  */
 export function KpiCard({ label, value, hint, accent = "default" }: Props) {
   return (
-    <motion.div
-      whileHover={{ y: -3, scale: 1.012 }}
-      // Spring on the hover state — snappier than the entrance.
-      style={{ transformStyle: "preserve-3d" }}
-    >
-      <div className="relative cfo-surface px-6 py-5 transition-shadow hover:shadow-2 overflow-hidden group">
-        {/* Accent halo — bloom of the value's color in the corner on hover. */}
-        <div
-          aria-hidden
-          className={`pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${ACCENT_HALO[accent]}`}
-        />
-        <div className="relative label-eyebrow text-ink-soft">{label}</div>
-        <div
-          className={`relative mt-3 num-hero text-[clamp(28px,7vw,44px)] leading-[1.05] ${ACCENT_NUMBER[accent]}`}
-        >
-          {value}
-        </div>
-        {hint && <div className="relative mt-2 text-[13px] text-ink-soft">{hint}</div>}
+    <div className="rounded-md border border-rule bg-surface px-5 py-4 min-w-0">
+      {/* D1 axe: ink-soft, not ink-mute — mute is ~3.5:1 on surface at 11px. */}
+      <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium">
+        {label}
       </div>
-    </motion.div>
+      <div
+        className={`mt-2.5 font-mono tabular-nums text-[clamp(20px,4vw,28px)] font-medium leading-[1.05] [overflow-wrap:anywhere] ${ACCENT_NUMBER[accent]}`}
+      >
+        {value}
+      </div>
+      {hint && <div className="mt-1.5 text-[12.5px] text-ink-soft">{hint}</div>}
+    </div>
   );
 }

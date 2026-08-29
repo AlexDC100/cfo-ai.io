@@ -597,6 +597,16 @@ export default function FinancialStatements() {
       warn_threshold_pct: 2.0,
     };
   }, [remotePeriod.metrics]);
+  // THE INSTRUMENT — one accuracy read for the header trust chip; the
+  // accuracy line recomputes through the same function (single authority).
+  const accuracyRead = useMemo(
+    () =>
+      computeAccuracyRead(
+        (statements as Statements | null)?.assembled_bs as Record<string, number> | undefined,
+        sourceDataQuality,
+      ),
+    [statements, sourceDataQuality],
+  );
   // F2.2 — Engine-canonical metrics map. Every ratio that has a direct
   // engine equivalent (current/quick/cash/gross_margin/net_margin/
   // debt_to_ebitda/debt_to_equity/equity_ratio/interest_coverage/dscr/
@@ -1441,10 +1451,26 @@ export default function FinancialStatements() {
         <>
         {hasPeriodLoaded ? (
           <>
-            {/* Source files (2026-07-26) — the uploads behind THIS month's
-                numbers, in the same tile row Products uses under its pills.
-                Financial-scope documents here (that's what "add a file" adds
-                on this surface), SKU datasets there. */}
+            {/* A3 — header first (PageHeader: eyebrow → title + trust +
+                Export), then the quiet mono source line, then the accuracy
+                trust line. */}
+            <div className="mb-1 min-w-0">
+              <CompactPeriodHeader
+                statements={statements}
+                invoices={invoices}
+                activeSampleId={activeSampleId}
+                onPickSample={pickSample}
+                onTriggerFile={() => fileRef.current?.click()}
+                onReset={resetWorkspace}
+                briefing={remotePeriod.briefing}
+                briefingPeriodId={remotePeriod.id}
+                trustBand={accuracyRead.band}
+                onExport={() => onTabChange("export")}
+              />
+            </div>
+            {/* Source files — the upload behind THIS month's numbers, as a
+                quiet mono meta line under the header (file · uploaded ·
+                Replace · Manage files). */}
             <DashboardSourceFiles
               periodId={remotePeriod.id ?? searchParams.get("period")}
               onAddFile={(f) => {
@@ -1459,24 +1485,8 @@ export default function FinancialStatements() {
                 })();
               }}
             />
-            {/* Loaded-month header — compact (2026 redesign). The official-
-                template card moved into the Overview tab's "Templates &
-                examples" disclosure so the first paint stays hero verdict +
-                key metrics + recommendations. */}
-            <div className="mb-4 min-w-0">
-              <CompactPeriodHeader
-                statements={statements}
-                invoices={invoices}
-                activeSampleId={activeSampleId}
-                onPickSample={pickSample}
-                onTriggerFile={() => fileRef.current?.click()}
-                onReset={resetWorkspace}
-                briefing={remotePeriod.briefing}
-                briefingPeriodId={remotePeriod.id}
-              />
-            </div>
-            {/* Accuracy note — full-width, directly under the header + official-
-                template section. */}
+            {/* Accuracy — trust chip + tap-open receipt, directly under the
+                source line. */}
             <AccuracyBanner
               assembledBs={statements?.assembled_bs as Record<string, number> | undefined}
               sourceDataQuality={sourceDataQuality ?? null}
@@ -1504,7 +1514,8 @@ export default function FinancialStatements() {
                   <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
                   {t("dashboard.label_eyebrow")}
                 </div>
-                <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif">
+                {/* design-lint-allow-serif: empty-state voice — one serif line per the brief */}
+              <h1 className="mt-3 text-[44px] sm:text-[56px] leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif">
                   {t("dashboard.hero_pre")}{" "}
                   <span className="text-grad">{t("dashboard.hero_highlight")}</span>
                   {" "}{t("dashboard.hero_post")}
@@ -1572,7 +1583,7 @@ export default function FinancialStatements() {
             its value overrides are hoisted into the `headline` memo above so
             the numbers stay byte-identical. */}
         {hasPeriodLoaded && statements && isDemoPeriod && (
-          <DemoBanner onUpload={() => fileRef.current?.click()} />
+          <DemoDataLine onUpload={() => fileRef.current?.click()} />
         )}
 
         {/* Budget vs Actual dashboard entry point removed 2026-07-25 — it's now
@@ -1593,12 +1604,19 @@ export default function FinancialStatements() {
               there's data to navigate. Enabled tabs render normally; tabs
               still missing their data render disabled (45% opacity + tooltip). */}
           {hasPeriodLoaded && (
-          <div className="relative">
+          /* Hairline underline tab bar — sticky under the 56px app header
+             (top-0 in the native shell, which renders no header). Accent
+             underline marks the active tab; the bar's own hairline is the
+             track it sits on. */
+          <div
+            className={`sticky ${isNativeShell() ? "top-0" : "top-14"} z-30 -mx-1 bg-bg px-1 border-b border-rule`}
+          >
+            <div className="relative">
             <TabsList
               data-testid="tabs-list"
               className="
-                h-auto bg-transparent p-0
-                flex flex-nowrap sm:flex-wrap justify-start sm:justify-center gap-1
+                h-auto bg-transparent p-0 -mb-px
+                flex flex-nowrap sm:flex-wrap justify-start gap-0
                 overflow-x-auto sm:overflow-visible scrollbar-none
               "
             >
@@ -1609,14 +1627,12 @@ export default function FinancialStatements() {
                 value="overview"
                 data-testid="tab-overview"
                 className="
-                  shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
+                  shrink-0 px-3 py-2 text-[12.5px] font-medium
                   text-ink-soft hover:text-ink
+                  border-b-2 border-transparent rounded-none whitespace-nowrap
                   data-[state=active]:text-ink data-[state=active]:font-semibold
-                  data-[state=active]:bg-surface
-                  data-[state=active]:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_hsl(var(--rule-strong)/0.4)]
-                  data-[state=active]:ring-1 data-[state=active]:ring-inset data-[state=active]:ring-brand/10
-                  rounded-xl whitespace-nowrap
-                  transition-all duration-150
+                  data-[state=active]:border-brand
+                  transition-colors duration-micro
                 "
               >
                 {t("dashV2.tabOverview")}
@@ -1630,14 +1646,12 @@ export default function FinancialStatements() {
                       value={tab.id}
                       data-testid={`tab-${tab.id}`}
                       className="
-                        shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
+                        shrink-0 px-3 py-2 text-[12.5px] font-medium
                         text-ink-soft hover:text-ink
+                        border-b-2 border-transparent rounded-none whitespace-nowrap
                         data-[state=active]:text-ink data-[state=active]:font-semibold
-                        data-[state=active]:bg-surface
-                        data-[state=active]:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_hsl(var(--rule-strong)/0.4)]
-                        data-[state=active]:ring-1 data-[state=active]:ring-inset data-[state=active]:ring-brand/10
-                        rounded-xl whitespace-nowrap
-                        transition-all duration-150
+                        data-[state=active]:border-brand
+                        transition-colors duration-micro
                       "
                     >
                       {t(tab.label)}
@@ -1655,8 +1669,8 @@ export default function FinancialStatements() {
                         aria-disabled="true"
                         data-testid={`tab-${tab.id}`}
                         className="
-                          shrink-0 px-3.5 py-1.5 text-[12.5px] font-medium
-                          rounded-xl whitespace-nowrap
+                          shrink-0 px-3 py-2 text-[12.5px] font-medium
+                          border-b-2 border-transparent rounded-none whitespace-nowrap
                           opacity-40 cursor-not-allowed select-none text-ink-soft
                         "
                       >
@@ -1677,6 +1691,7 @@ export default function FinancialStatements() {
             </TabsList>
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 left-0 w-6 bg-gradient-to-r from-bg to-transparent" />
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 right-0 w-6 bg-gradient-to-l from-bg to-transparent" />
+            </div>
           </div>
           )}
 
@@ -1764,43 +1779,39 @@ export default function FinancialStatements() {
             />
 
             {statements && totals && headline && (
-              <div
-                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 cards-stagger"
-                data-testid="key-metrics"
-              >
-                <KeyMetricCard
-                  label={t("dashV2.metricRevenue")}
-                  desc={t("dashV2.metricRevenueDesc")}
-                  value={headline.totalOperatingRevenue}
-                  currency={statements.currency}
-                  trend={trendFor("operating_revenue")}
-                  testid="key-metric-revenue"
-                />
-                <KeyMetricCard
-                  label={t("dashV2.metricEbitda")}
-                  desc={t("dashV2.metricEbitdaDesc")}
-                  value={headline.tileEbitdaRon}
-                  currency={statements.currency}
-                  trend={trendFor("ebitda")}
-                  testid="key-metric-ebitda"
-                />
-                <KeyMetricCard
-                  label={t("dashV2.metricCash")}
-                  desc={t("dashV2.metricCashDesc")}
-                  value={statements.balanceSheet.cash}
-                  currency={statements.currency}
-                  trend={trendFor("cash")}
-                  testid="key-metric-cash"
-                />
-                <KeyMetricCard
-                  label={t("dashV2.metricNetDebt")}
-                  desc={t("dashV2.metricNetDebtDesc")}
-                  value={totals.netDebt}
-                  currency={statements.currency}
-                  trend={null}
-                  testid="key-metric-net-debt"
-                />
-              </div>
+              <KeyMetricsRow
+                currency={statements.currency}
+                items={[
+                  {
+                    label: t("dashV2.metricRevenue"),
+                    desc: t("dashV2.metricRevenueDesc"),
+                    value: headline.totalOperatingRevenue,
+                    trend: trendFor("operating_revenue"),
+                    testid: "key-metric-revenue",
+                  },
+                  {
+                    label: t("dashV2.metricEbitda"),
+                    desc: t("dashV2.metricEbitdaDesc"),
+                    value: headline.tileEbitdaRon,
+                    trend: trendFor("ebitda"),
+                    testid: "key-metric-ebitda",
+                  },
+                  {
+                    label: t("dashV2.metricCash"),
+                    desc: t("dashV2.metricCashDesc"),
+                    value: statements.balanceSheet.cash,
+                    trend: trendFor("cash"),
+                    testid: "key-metric-cash",
+                  },
+                  {
+                    label: t("dashV2.metricNetDebt"),
+                    desc: t("dashV2.metricNetDebtDesc"),
+                    value: totals.netDebt,
+                    trend: null,
+                    testid: "key-metric-net-debt",
+                  },
+                ]}
+              />
             )}
 
             {statements && recommendations.length > 0 && (
@@ -2112,7 +2123,7 @@ export default function FinancialStatements() {
                       {canonical && (
                         <section className="space-y-3">
                           <header>
-                            <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                            <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold">
                               {t("dash.secondaryEbitdaCrossCheck")}
                             </div>
                           </header>
@@ -2168,7 +2179,7 @@ export default function FinancialStatements() {
                   {remotePeriod.valuation && remotePeriod.id && (
                     <section>
                       <header className="mb-3">
-                        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold">
                           {t("dash.persistedAssumptions")}
                         </div>
                         <p className="text-[12.5px] text-ink-soft mt-1 max-w-[640px]">
@@ -2249,79 +2260,60 @@ export default function FinancialStatements() {
             />
           ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
-          {/* HTML report — brand sleeve. */}
-          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
-            <div className="w-2 shrink-0 bg-brand" />
-            <div className="relative flex-1 p-3.5 flex flex-col">
-              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-brand opacity-[0.08]">
-                <FileText size={230} strokeWidth={1} />
-              </div>
-              <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("dash.exportHtmlTitle")}</h3>
-                <p className="text-[13.5px] text-ink-soft mt-1">
-                  {t("dash.exportHtmlBody")}
-                </p>
-              </div>
-              <div className="relative mt-auto pt-6 flex justify-end">
-                <button
-                  onClick={() => downloadReport(statements)}
-                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-                >
-                  <ArrowDownToLine size={15} strokeWidth={2} />
-                  {t("common.download")}
-                </button>
-              </div>
+          {/* Instrument export panels — hairline surfaces, one accent.
+              The colored sleeves + watermark icons are gone. */}
+          <div className="flex flex-col rounded-md border border-rule bg-surface p-4 min-h-[200px]">
+            <div className="flex items-center gap-2 text-ink-mute">
+              <FileText size={15} strokeWidth={1.75} />
+              <h3 className="text-[15px] font-semibold tracking-tight text-ink">{t("dash.exportHtmlTitle")}</h3>
+            </div>
+            <p className="text-[13px] text-ink-soft mt-2 leading-relaxed">
+              {t("dash.exportHtmlBody")}
+            </p>
+            <div className="mt-auto pt-5 flex justify-end">
+              <button
+                onClick={() => downloadReport(statements)}
+                className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
+              >
+                <ArrowDownToLine size={14} strokeWidth={2} />
+                {t("common.download")}
+              </button>
             </div>
           </div>
 
-          {/* Excel workbook — green sleeve. */}
-          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
-            <div className="w-2 shrink-0 bg-green-600" />
-            <div className="relative flex-1 p-3.5 flex flex-col">
-              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-green-600 opacity-[0.09]">
-                <FileSpreadsheet size={230} strokeWidth={1} />
-              </div>
-              <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("dash.exportXlsxTitle")}</h3>
-                <p className="text-[13.5px] text-ink-soft mt-1">
-                  {t("dash.exportXlsxBody")}
-                </p>
-              </div>
-              <div className="relative mt-auto pt-6 flex justify-end">
-                <button
-                  onClick={() =>
-                    import("@/lib/financialExports").then((m) =>
-                      m.downloadExcelReport(statements),
-                    )
-                  }
-                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"
-                >
-                  <ArrowDownToLine size={15} strokeWidth={2} />
-                  {t("common.download")}
-                </button>
-              </div>
+          <div className="flex flex-col rounded-md border border-rule bg-surface p-4 min-h-[200px]">
+            <div className="flex items-center gap-2 text-ink-mute">
+              <FileSpreadsheet size={15} strokeWidth={1.75} />
+              <h3 className="text-[15px] font-semibold tracking-tight text-ink">{t("dash.exportXlsxTitle")}</h3>
+            </div>
+            <p className="text-[13px] text-ink-soft mt-2 leading-relaxed">
+              {t("dash.exportXlsxBody")}
+            </p>
+            <div className="mt-auto pt-5 flex justify-end">
+              <button
+                onClick={() =>
+                  import("@/lib/financialExports").then((m) =>
+                    m.downloadExcelReport(statements),
+                  )
+                }
+                className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
+              >
+                <ArrowDownToLine size={14} strokeWidth={2} />
+                {t("common.download")}
+              </button>
             </div>
           </div>
 
-          {/* PowerPoint deck — orange sleeve. Coming next (no download yet). */}
-          <div className="relative flex overflow-hidden rounded-2xl border border-rule bg-surface min-h-[240px]">
-            <div className="w-2 shrink-0 bg-orange-500" />
-            <div className="relative flex-1 p-3.5 flex flex-col">
-              <div aria-hidden className="pointer-events-none absolute -bottom-10 -left-8 text-orange-500 opacity-[0.09]">
-                <Presentation size={230} strokeWidth={1} />
-              </div>
-              <div className="relative">
-                <h3 className="font-serif text-[26px] leading-tight text-ink">{t("dash.exportPptxTitle")}</h3>
-                <p className="text-[13.5px] text-ink-soft mt-1">
-                  {t("dash.exportPptxBody")}
-                </p>
-              </div>
-              <div className="relative mt-auto pt-6 flex justify-end">
-                <span className="inline-flex items-center gap-1.5 text-[11.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-                  <Sparkles size={11} strokeWidth={2} />
-                  {t("dash.comingNext")}
-                </span>
-              </div>
+          <div className="flex flex-col rounded-md border border-rule bg-bg-2 p-4 min-h-[200px]">
+            <div className="flex items-center gap-2 text-ink-mute">
+              <Presentation size={15} strokeWidth={1.75} />
+              <h3 className="text-[15px] font-semibold tracking-tight text-ink">{t("dash.exportPptxTitle")}</h3>
+            </div>
+            <p className="text-[13px] text-ink-soft mt-2 leading-relaxed">
+              {t("dash.exportPptxBody")}
+            </p>
+            <div className="mt-auto pt-5 flex justify-end">
+              <Chip tone="neutral">{t("dash.comingNext")}</Chip>
             </div>
           </div>
           </div>
@@ -2571,7 +2563,7 @@ function PeriodConfirmDialog({
                 >
                   <FileSpreadsheet size={16} strokeWidth={1.75} className="text-ink-mute shrink-0" />
                   <span className="text-[12.5px] font-medium text-ink truncate">{f.name}</span>
-                  <span className="ml-auto shrink-0 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+                  <span className="ml-auto shrink-0 text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">
                     {t("dash.preview")}
                   </span>
                 </button>
@@ -2777,6 +2769,32 @@ function TrustChip({ band, testid }: { band: AccuracyBand; testid?: string }) {
   );
 }
 
+// Demo-data notice — one hairline line, not a wash. Replaces the mint
+// DemoBanner card; testids preserved for the prod smoke spec.
+function DemoDataLine({ onUpload }: { onUpload?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="demo-banner"
+      className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-rule pb-2 text-[12px]"
+    >
+      <Chip tone="accent">{t("dashIx.demoChip")}</Chip>
+      <span className="text-ink-soft">{t("dashIx.demoBody")}</span>
+      {onUpload && (
+        <button
+          type="button"
+          onClick={onUpload}
+          data-testid="demo-banner-upload"
+          className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-medium text-brand-d transition-colors duration-micro hover:text-brand"
+        >
+          {t("dashIx.demoUpload")}
+          <ChevronRight size={13} strokeWidth={2} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function InvoiceKpiStrip({ invoices }: { invoices: Invoice[] }) {
   const { t } = useTranslation();
   const customers = useMemo(() => customerAnalytics(invoices), [invoices]);
@@ -2826,7 +2844,7 @@ function EmptyTabState({
       <div className="mx-auto h-12 w-12 rounded-full bg-bg-2 text-ink-mute flex items-center justify-center mb-3">
         <FileText size={20} strokeWidth={1.5} />
       </div>
-      <h3 className="font-serif text-[20px] text-ink">{title}</h3>
+      <h3 className="text-[16px] font-semibold text-ink">{title}</h3>
       <p className="text-[13px] text-ink-soft mt-1 max-w-[460px] mx-auto">{body}</p>
       <button
         onClick={onCta}
@@ -3036,10 +3054,10 @@ function StatutoryFormatBanner() {
   return (
     <div
       data-testid="statutory-format-banner"
-      className="mb-3 rounded-lg border-l-[3px] border-[#5CD3C5] bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06] px-4 py-3"
+      className="mb-3 rounded-sm border-l-2 border-info bg-bg-2 px-4 py-3"
     >
       <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
-        <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />
+        <Info size={13} strokeWidth={1.75} className="text-info mt-0.5 shrink-0" />
         <div className="flex-1">
           <strong className="text-ink">{t("dash.statutoryDetected")}</strong>{" "}
           {t("dash.statutoryBody")}
@@ -3047,7 +3065,7 @@ function StatutoryFormatBanner() {
             type="button"
             data-testid="statutory-banner-toggle"
             onClick={() => setExpanded((v) => !v)}
-            className="ml-1 text-[12px] text-[#2AA89B] hover:text-[#1B7268] underline-offset-2 hover:underline"
+            className="ml-1 text-[12px] text-brand-d hover:text-brand underline-offset-2 hover:underline"
           >
             {expanded ? t("upload.template.hideFormat") : t("dash.statutoryWhatsNot")}
           </button>
@@ -3088,16 +3106,19 @@ function KpiTile({
   // inside doesn't blow out the column. `num-hero-fluid` clamps the
   // font-size between 18-30 px so the same hero number reads at full
   // size on the dashboard hero but auto-compacts in a tight 6-col row.
+  // Instrument stat panel: 11px caps label, mono tabular figure. The mono
+  // face is set on the wrapper so nested <Money>/<LearnableNumber> spans
+  // inherit it without per-caller changes.
   return (
     <div
-      className="rounded-xl border border-rule bg-surface px-4 py-3 min-w-0 overflow-hidden"
+      className="rounded-md border border-rule bg-surface px-4 py-3 min-w-0 overflow-hidden"
       {...rest}
     >
-      <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{label}</div>
-      <div className="mt-2 num-hero num-hero-fluid text-ink leading-none">
+      <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium">{label}</div>
+      <div className="mt-2 font-mono tabular-nums text-[clamp(16px,2vw,20px)] font-medium text-ink leading-none [overflow-wrap:anywhere]">
         {value}
       </div>
-      {sub && <div className="mt-0.5 text-[11.5px] text-ink-soft leading-snug break-words">{sub}</div>}
+      {sub && <div className="mt-1 text-[11.5px] text-ink-soft leading-snug break-words">{sub}</div>}
     </div>
   );
 }
@@ -3113,6 +3134,8 @@ function CompactPeriodHeader({
   onReset,
   briefing,
   briefingPeriodId,
+  trustBand,
+  onExport,
 }: {
   statements: Statements | null;
   invoices: Invoice[] | null;
@@ -3120,12 +3143,16 @@ function CompactPeriodHeader({
   onPickSample: (id: string, opts?: { additive?: boolean }) => void;
   onTriggerFile: () => void;
   onReset: () => void;
-  /** Server-generated CFO briefing (Opus 4.7). When present it becomes the
-   *  header's subtitle — the briefing IS the description of the loaded
-   *  workspace. Empty for samples, where the generic descriptive line shows
-   *  instead. */
+  /** Server-generated CFO briefing. When present it becomes the header's
+   *  subtitle — the briefing IS the description of the loaded workspace.
+   *  Empty for samples, where the one-line caption shows instead. */
   briefing?: string | null;
   briefingPeriodId?: string | null;
+  /** Accuracy band for the header trust chip — same computeAccuracyRead()
+   *  the accuracy line uses, so the two can't disagree. */
+  trustBand?: AccuracyBand | null;
+  /** Jumps to the Export tab. */
+  onExport?: () => void;
 }) {
   const { t } = useTranslation();
   const companyName =
@@ -3149,28 +3176,41 @@ function CompactPeriodHeader({
   if (statements) currentlyHas.push("bilant", "pl");
   if (invoices) currentlyHas.push("invoice_register");
 
-  // 2026 redesign — the loaded-month header is COMPACT now: small eyebrow +
-  // one-line company · period title (no serif hero here; the serif display
-  // moment belongs to the health score on the hero verdict card), and the
-  // CFO briefing clamped to two lines behind a "read more" toggle so the
-  // overview's first paint is verdict + key metrics + recommendations.
+  // A3 — the serif hero is gone; the header is the standard PageHeader:
+  // 11px caps eyebrow → 19px title (company · period) + trust chip +
+  // Export action. The briefing stays the header's description, clamped.
   const [briefingOpen, setBriefingOpen] = useState(false);
   return (
     <header className="mb-2" data-testid="compact-period-header">
-      <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
-        <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
-        {t("dash.financialAnalysisEyebrow")}
-      </div>
-      <h1 className="mt-1.5 text-[24px] sm:text-[28px] font-semibold leading-tight tracking-[-0.015em] text-ink max-w-[820px]">
-        {companyName}
-        {periodLabel && (
-          <span className="text-ink-soft font-normal"> · {periodLabel}</span>
-        )}
-      </h1>
-      {/* The CFO briefing (Opus 4.7) stays the header's description of the
-          loaded workspace — mounted always (its regeneration effects keep
+      <PageHeader
+        eyebrow={t("dash.financialAnalysisEyebrow")}
+        title={companyName}
+        context={
+          <>
+            {periodLabel && <span className="text-ink-soft">· {periodLabel}</span>}
+            {trustBand && trustBand !== "unknown" && (
+              <TrustChip band={trustBand} testid="header-trust-chip" />
+            )}
+          </>
+        }
+        actions={
+          onExport ? (
+            <button
+              type="button"
+              onClick={onExport}
+              data-testid="header-export"
+              className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-rule px-3 text-[12.5px] font-medium text-ink transition-colors duration-micro hover:border-rule-strong hover:bg-bg-2"
+            >
+              <ArrowDownToLine size={13} strokeWidth={2} />
+              {t("dashIx.export")}
+            </button>
+          ) : undefined
+        }
+      />
+      {/* The CFO briefing stays the header's description of the loaded
+          workspace — mounted always (its regeneration effects keep
           running), presented clamped until expanded. Samples have no
-          briefing, so they fall back to the generic line. */}
+          briefing, so they fall back to the one-line caption. */}
       {briefing && briefingPeriodId ? (
         <CFOBriefingCard
           periodId={briefingPeriodId}
@@ -3179,8 +3219,8 @@ function CompactPeriodHeader({
           onToggle={() => setBriefingOpen((v) => !v)}
         />
       ) : (
-        <p className="mt-2 text-[13.5px] text-ink-soft max-w-[620px] leading-relaxed">
-          {t("dash.heroFallbackSubtitle")}
+        <p className="mt-1.5 text-[12.5px] text-ink-soft leading-snug max-w-[720px]">
+          {t("dashIx.captionFallback")}
         </p>
       )}
     </header>
@@ -3286,12 +3326,14 @@ async function previewExampleInNewTab(file: string): Promise<void> {
     const sheetName = wb.SheetNames[0];
     const tableHtml = XLSX.utils.sheet_to_html(wb.Sheets[sheetName]);
     const doc =
+      // Standalone document.write preview — the new tab cannot read the app's
+      // CSS vars, so the Paper palette is baked in as literals here.
       `<!doctype html><html><head><meta charset="utf-8"><title>${file}</title><style>` +
-      "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0f172a;background:#fff}" +
-      "h1{font-size:15px;margin:0 0 12px;color:#1B7268}" +
+      "body{font:13px/1.4 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:24px;color:#0B0E0D;background:#FAFAF7}" + // design-lint-allow-hex standalone document.write preview
+      "h1{font-size:15px;margin:0 0 12px;color:#0E7C6B}" + // design-lint-allow-hex standalone document.write preview
       "table{border-collapse:collapse;font-variant-numeric:tabular-nums}" +
-      "td,th{border:1px solid #d6dde6;padding:4px 8px;white-space:nowrap;text-align:right}" +
-      "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
+      "td,th{border:1px solid #E3E3DC;padding:4px 8px;white-space:nowrap;text-align:right}" + // design-lint-allow-hex standalone document.write preview
+      "tr:first-child td{background:#0E7C6B;color:#FAFAF7;font-weight:600;text-align:left}" + // design-lint-allow-hex standalone document.write preview
       `</style></head><body>${previewBackButtonHtml()}<h1>${i18n.t("dash.previewSheetCaption", { file, sheet: sheetName })}</h1>${tableHtml}</body></html>`;
     if (tab) {
       tab.document.open();
@@ -3303,6 +3345,7 @@ async function previewExampleInNewTab(file: string): Promise<void> {
     if (tab) {
       tab.document.open();
       tab.document.write(
+        // design-lint-allow-hex standalone document.write preview (error state)
         `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
         previewBackButtonHtml() +
         `${i18n.t("dash.previewLoadFailed", { msg })} ` +
@@ -3466,7 +3509,7 @@ function DashboardDevTools() {
           {/* Typed confirmation — mirrors the Workspace purge dialog's UX
               (type the word, button unlocks). Reuses the same i18n label. */}
           <label className="block">
-            <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
+            <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-soft font-semibold mb-1.5">
               {t("ws.typeToConfirm", { name: confirmWord }).replace(/<\/?1>/g, "")}
             </span>
             <input
@@ -3522,12 +3565,12 @@ function NotesJumpPill({
   if (notesTotal === 0) return null;
   const sev = (a: { severity?: string }) => a.severity ?? "";
   const tone = alerts.some((a) => sev(a) === "critical" || sev(a) === "high")
-    ? "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20"
+    ? "border-alert/40 bg-alert-tint text-alert hover:bg-alert/15"
     : alerts.some((a) => sev(a) === "medium")
-      ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+      ? "border-caution/40 bg-caution-tint text-caution hover:bg-caution/15"
       : alerts.some((a) => sev(a) === "low" || sev(a) === "info")
-        ? "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
-        : "border-brand/50 bg-brand/10 text-brand-d hover:bg-brand/20";
+        ? "border-info/40 bg-info-tint text-info hover:bg-info/15"
+        : "border-brand/40 bg-brand-tint text-brand-d hover:bg-brand/15";
   return (
     <div className="flex justify-end mb-3">
       <button
@@ -3602,8 +3645,9 @@ function DashboardSourceFiles({
           e.target.value = "";
         }}
       />
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] text-ink-mute">
-        <span className="font-mono text-[10.5px] uppercase tracking-[0.12em]">{t("srcline.source")}</span>
+      {/* Quiet mono meta line — file · uploaded · Replace · Manage files. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[11.5px] text-ink-mute">
+        <span className="text-[10.5px] uppercase tracking-[0.12em]">{t("srcline.source")}</span>
         {activeDoc ? (
           <button
             type="button"
@@ -3669,7 +3713,7 @@ function DashboardTemplateCard() {
       context="dashboard"
       actions={
         <div className="mt-3.5" data-testid="trial-balance-examples">
-          <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+          <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft mb-2">
             {t("dash.exampleTrialBalances")}
           </div>
           <div className="space-y-2">
@@ -3816,7 +3860,7 @@ function DashboardAddMonthZone({
             </div>
           ) : (
             <div className="relative text-left" data-testid="dashboard-staged-files">
-              <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+              <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft mb-2">
                 {t("dash.uploadedFiles")}
               </div>
               <div className="space-y-2">
@@ -3996,7 +4040,7 @@ function UploadAndSamplePanel({
       {/* Document-type guide — always-visible grid above the drop
           section, headed by the same "Expected format" section label
           /products uses. */}
-      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
+      <h2 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold">
         {t("expectedFormat.eyebrow")}
       </h2>
       <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="upload-document-guide">
@@ -4239,7 +4283,7 @@ function UploadAndSamplePanel({
           /* Staged files — replaces the example list once files are added.
              Each has an X to discard; nothing uploads until Start scan. */
           <div className="relative mt-6 w-full max-w-[640px] mx-auto text-left" data-testid="staged-files">
-            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-mute mb-2">
+            <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft mb-2">
               {t("dash.uploadedFiles")}
             </div>
             <div className="space-y-2">
@@ -4313,7 +4357,7 @@ function UploadAndSamplePanel({
       {SAMPLES_ENABLED && (
       <div data-testid="sample-picker-panel" className="rounded-2xl border border-rule bg-surface p-5">
         <div className="flex items-center justify-between mb-3 gap-2">
-          <h3 className="font-serif text-[16px] text-ink">{t("dash.tryASample")}</h3>
+          <h3 className="text-[14px] font-semibold text-ink">{t("dash.tryASample")}</h3>
           <div className="flex items-center gap-3">
             {statements && (
               <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium truncate max-w-[140px]">
@@ -4377,14 +4421,13 @@ function UploadHeroCallout() {
   return (
     <div
       data-testid="upload-hero-callout"
-      className="rounded-2xl px-6 py-6 sm:px-8 sm:py-7 text-white flex flex-col sm:flex-row items-start gap-4 sm:gap-5"
-      style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}
+      className="rounded-lg bg-gradient-cfo px-6 py-6 sm:px-8 sm:py-7 text-white flex flex-col sm:flex-row items-start gap-4 sm:gap-5"
     >
       <div className="text-[36px] sm:text-[42px] leading-none shrink-0" aria-hidden>
         📊
       </div>
       <div className="flex-1 min-w-0">
-        <h2 className="font-serif text-[20px] sm:text-[22px] leading-tight m-0 text-white">
+        <h2 className="text-[17px] font-semibold leading-tight m-0 text-white">
           {t("dash.calloutTitle")}
         </h2>
         <p className="mt-2 text-[13.5px] sm:text-[14px] leading-relaxed text-white/85">
@@ -4399,8 +4442,7 @@ function UploadHeroCallout() {
             target="_blank"
             rel="noopener noreferrer"
             data-testid="upload-hero-cta"
-            className="inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold transition-colors"
-            style={{ background: "#5CD3C5", color: "#1a1a1a" }}
+            className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-5 py-2.5 text-[13.5px] font-semibold text-ink transition-colors duration-micro hover:bg-bg-2"
           >
             {t("dash.calloutCta")}
           </a>
@@ -4429,8 +4471,8 @@ function DocGuideCard({ title, format, shows, where, tone }: {
     : tone === "free" ? "border-l-brand"
     : "border-l-rule-strong";
   const toneBadge =
-    tone === "best" ? { label: t("dash.badgeMostData"), cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
-    : tone === "free" ? { label: t("dash.badgeFreeInstant"), cls: "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/[0.18] dark:text-[#8FE3D9]" }
+    tone === "best" ? { label: t("dash.badgeMostData"), cls: "bg-brand-tint text-brand-d dark:text-brand-l" }
+    : tone === "free" ? { label: t("dash.badgeFreeInstant"), cls: "bg-brand-tint text-brand-d dark:text-brand-l" }
     : { label: t("dash.badgeAggregate"), cls: "bg-bg-2 text-ink-soft" };
   return (
     <div className={`rounded-lg border border-rule border-l-[3px] ${borderClass} bg-surface p-3 text-left`}>
@@ -4440,16 +4482,16 @@ function DocGuideCard({ title, format, shows, where, tone }: {
           {toneBadge.label}
         </span>
       </div>
-      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">{format}</div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1.5">{format}</div>
       <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2">{shows}</p>
-      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1">{t("dash.whereToGet")}</div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1">{t("dash.whereToGet")}</div>
       <ul className="space-y-0.5">
         {where.map((w, i) => (
           <li key={i} className="text-[11.5px] text-ink-soft leading-tight">
             <span className="text-ink-mute mr-1">·</span>
             {w.href ? (
               <a href={w.href} target="_blank" rel="noopener noreferrer"
-                 className="text-[#2AA89B] dark:text-[#8FE3D9] hover:underline underline-offset-2">
+                 className="text-brand-d dark:text-brand-l hover:underline underline-offset-2">
                 {w.label}
               </a>
             ) : (
@@ -4520,7 +4562,7 @@ function RatioGroupSection({
       {/* Eyebrow-style section header matches the new global design
        *  vocabulary used elsewhere in the app (uppercase + 0.12em
        *  tracking + brand-tinted small accent). */}
-      <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold mb-3">
+      <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold mb-3">
         {title}
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -4554,10 +4596,10 @@ function RatioTile({
       aria-label={clickable ? t("dash.openRatioDetail", { label: ratio.label }) : undefined}
       className={`
         group relative w-full text-left
-        rounded-2xl border border-rule bg-surface p-4
-        transition-all duration-150
+        rounded-md border border-rule bg-surface p-4
+        transition-colors duration-150
         ${clickable
-          ? "hover:border-brand/30 hover:bg-surface/95 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.12)] focus:outline-none focus:ring-2 focus:ring-brand/30 cursor-pointer"
+          ? "hover:border-rule-strong hover:bg-bg-2/40 focus:outline-none focus:ring-2 focus:ring-brand/30 cursor-pointer"
           : ""}
       `}
     >
@@ -4584,7 +4626,7 @@ function RatioTile({
                 : t("dashV2.ratioVerdictCritical")}
         </span>
       </div>
-      <div className="text-[24px] font-semibold text-ink leading-tight tabular-nums tracking-[-0.005em]">
+      <div className="font-mono text-[22px] font-medium text-ink leading-tight tabular-nums tracking-[-0.005em]">
         <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
           {formatRatio(ratio)}
         </LearnableNumber>
@@ -4670,7 +4712,7 @@ function RecommendationsSection({
   return (
     <section data-testid={testid}>
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+        <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold">
           {t("dashV2.recsTitle")}
         </h2>
         <div className="flex items-center gap-1.5 flex-wrap" data-testid="recs-filter">
@@ -4690,7 +4732,7 @@ function RecommendationsSection({
                 className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11.5px] font-medium transition-colors duration-150 ${
                   active
                     ? activeCls
-                    : "border-transparent text-ink-mute hover:text-ink hover:bg-bg-2/70"
+                    : "border-transparent text-ink-soft hover:text-ink hover:bg-bg-2/70"
                 }`}
               >
                 {p.label}
@@ -4791,7 +4833,7 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
   const askPrompt = t("dash.askRecPrompt", { title: rec.title });
 
   return (
-    <div className="card-2026 p-4 sm:p-5" data-testid={`rec-card-${rec.id}`}>
+    <div className="rounded-md border border-rule bg-surface p-4 sm:p-5" data-testid={`rec-card-${rec.id}`}>
       <div className="flex items-start gap-3">
         <span
           aria-hidden
@@ -4809,7 +4851,7 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
             </span>
           </div>
           {rec.estimatedImpact ? (
-            <div className="mt-1 text-[12px] font-medium text-[#2AA89B]">
+            <div className="mt-1 text-[12px] font-medium text-success">
               <LearnableRowLabel conceptKey="recommendation_impact" value={rec.estimatedImpact}>{t("dash.estimatedImpact")}</LearnableRowLabel>:{" "}
               <LearnableNumber conceptKey="recommendation_impact" value={rec.estimatedImpact}>
                 <Money value={rec.estimatedImpact} fromCurrency={currency as Currency} compact />
@@ -4838,7 +4880,7 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
             className={`transition-transform duration-200 ${actionsOpen ? "rotate-180" : ""}`}
           />
           {t("dashV2.actionsLabel")}
-          <span className="tabular-nums text-ink-mute">({actionItems.length})</span>
+          <span className="tabular-nums text-ink-soft">({actionItems.length})</span>
         </button>
         {actionsOpen && (
           <ul className="mt-2 space-y-1.5" data-testid={`rec-actions-${rec.id}`}>
@@ -4929,8 +4971,12 @@ function HeroVerdictCard({
   const { t } = useTranslation();
   if (!credit || !Number.isFinite(credit.score)) {
     return (
-      <section className="card-2026 p-5 sm:p-6" data-testid="hero-verdict" data-band="pending">
-        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+      <section
+        className="rounded-md border border-rule bg-surface p-5 sm:p-6"
+        data-testid="hero-verdict"
+        data-band="pending"
+      >
+        <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium">
           {t("dashV2.verdictLabel")}
         </div>
         <div className="mt-2 flex items-center gap-3">
@@ -4944,48 +4990,65 @@ function HeroVerdictCard({
   }
   const band: "strong" | "solid" | "watch" | "critical" =
     credit.score >= 80 ? "strong" : credit.score >= 60 ? "solid" : credit.score >= 40 ? "watch" : "critical";
+  // Semantic color only on semantic elements: the score, the gauge fill and
+  // the credit-class chip carry the band tone; everything else stays ink.
   const tone =
     band === "strong" || band === "solid"
-      ? { accent: "text-success", bar: "bg-success", ring: "border-success/30", chip: "bg-success/10 text-success border border-success/30" }
+      ? { accent: "text-success", bar: "bg-success", chip: "success" as ChipTone }
       : band === "watch"
-        ? { accent: "text-caution", bar: "bg-caution", ring: "border-caution/30", chip: "bg-caution/10 text-caution border border-caution/30" }
-        : { accent: "text-alert", bar: "bg-alert", ring: "border-alert/30", chip: "bg-alert/10 text-alert border border-alert/30" };
+        ? { accent: "text-caution", bar: "bg-caution", chip: "caution" as ChipTone }
+        : { accent: "text-alert", bar: "bg-alert", chip: "alert" as ChipTone };
   const verdictKey =
     band === "strong" ? "dashV2.verdictStrong"
     : band === "solid" ? "dashV2.verdictSolid"
     : band === "watch" ? "dashV2.verdictWatch"
     : "dashV2.verdictCritical";
+  const scorePct = Math.max(0, Math.min(100, credit.score));
   return (
     <section
-      className="card-2026 relative overflow-hidden p-5 sm:p-6"
+      className="rounded-md border border-rule bg-surface p-5 sm:p-6"
       data-testid="hero-verdict"
       data-band={band}
       data-score={credit.score}
     >
-      {/* Slim accent bar — the card's green/amber/red signal. */}
-      <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${tone.bar}`} />
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-        <div className="flex items-baseline gap-2 shrink-0">
-          {/* The single serif display moment of the redesigned overview. */}
-          <span className={`font-serif text-[56px] sm:text-[64px] leading-none tabular-nums ${tone.accent}`}>
-            {credit.score}
-          </span>
-          <span className="text-[12px] text-ink-mute">{t("dashV2.verdictScoreOf")}</span>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
-              {t("dashV2.verdictLabel")}
-            </span>
-            <span
-              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full tabular-nums ${tone.chip}`}
-              title={t("dashV2.ratingLabel")}
-            >
-              <Shield size={11} strokeWidth={2} />
-              {credit.rating}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
+        {/* Instrument gauge — mono score over a 0-100 hairline track. */}
+        <div className="w-full shrink-0 sm:w-[220px]">
+          <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium">
+            {t("dashV2.verdictLabel")}
+          </div>
+          <div className="mt-1.5 flex items-baseline gap-1.5">
+            <Amount
+              kind="count"
+              value={credit.score}
+              fractionDigits={Number.isInteger(credit.score) ? 0 : 1}
+              className={`text-[28px] font-medium leading-none ${tone.accent}`}
+            />
+            <span className="font-mono text-[11px] tabular-nums text-ink-soft">
+              {t("dashIx.scoreOutOf")}
             </span>
           </div>
-          <p className="mt-1.5 text-[14px] sm:text-[15px] text-ink leading-relaxed max-w-[640px]">
+          <div className="relative mt-2.5 h-px w-full bg-rule" aria-hidden>
+            <div
+              className={`absolute -top-[1px] left-0 h-[3px] ${tone.bar}`}
+              style={{ width: `${scorePct}%` }}
+            />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <Tooltip delayDuration={150}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-help">
+                <Chip tone={tone.chip} dot data-testid="credit-class-chip">
+                  {t("dashIx.creditClass", { grade: credit.rating })}
+                </Chip>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[260px] text-[12px] leading-snug">
+              {t("dashIx.creditClassTip")}
+            </TooltipContent>
+          </Tooltip>
+          <p className="mt-2 text-[14px] sm:text-[15px] text-ink leading-relaxed max-w-[640px]">
             {companyName ? <span className="font-medium">{companyName}: </span> : null}
             {t(verdictKey)}
           </p>
@@ -4995,54 +5058,96 @@ function HeroVerdictCard({
   );
 }
 
-/** One of the four above-the-fold key metric cards. Value is rendered
- *  through <Money> (the app's canonical currency-aware formatter) so the
- *  figure matches every other surface to the cent. */
+// ── Key metric stat panels (THE INSTRUMENT) ─────────────────────────────
+// One <AmountGroup> wraps the whole row so the four figures share a single
+// magnitude — "295,1 M" beside "17,7 M", never "295,1 M" beside "17.703.055".
+// Values convert to the display currency HERE (one place) and render through
+// <Amount>; the YoY delta is a chip with <Amount kind="percent">. No
+// provenance is passed — these are assembled aggregates whose payload
+// carries no source ref, and the affordance is never faked.
+
+interface KeyMetricItem {
+  label: string;
+  desc: string;
+  value: number;
+  trend: { pct: number; prevLabel: string } | null;
+  testid: string;
+}
+
+function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; currency: string }) {
+  const display = useDisplayCurrency();
+  const rates = useRates();
+  const converted = items.map((it) =>
+    convertFromTo(it.value, (currency || "RON") as Currency, display, rates.rates),
+  );
+  // <Amount> joins magnitude suffix and currency directly ("15,1 M€") —
+  // right for symbols, unreadable for codes ("MRON"). Codes get a narrow
+  // no-break space so the unit reads "M RON".
+  const displaySymbol =
+    display === "EUR" ? "€" : display === "USD" ? "$" : `\u202F${display}`;
+  return (
+    <AmountGroup values={converted}>
+      <div
+        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+        data-testid="key-metrics"
+      >
+        {items.map((it, i) => (
+          <KeyMetricCard
+            key={it.testid}
+            label={it.label}
+            desc={it.desc}
+            value={converted[i]}
+            displayCurrency={displaySymbol}
+            trend={it.trend}
+            testid={it.testid}
+          />
+        ))}
+      </div>
+    </AmountGroup>
+  );
+}
+
+/** One of the four above-the-fold key metric stat panels. Value arrives
+ *  already converted to the display currency (KeyMetricsRow owns the one
+ *  conversion) and renders through <Amount> under the row's shared scale. */
 function KeyMetricCard({
   label,
   desc,
   value,
-  currency,
+  displayCurrency,
   trend,
   testid,
 }: {
   label: string;
   desc: string;
   value: number;
-  currency: string;
+  displayCurrency: string;
   trend: { pct: number; prevLabel: string } | null;
   testid?: string;
 }) {
   const { t } = useTranslation();
-  const up = trend ? trend.pct >= 0 : false;
   return (
-    <div className="card-2026 p-4 min-w-0" data-testid={testid}>
+    <div className="rounded-md border border-rule bg-surface p-4 min-w-0" data-testid={testid}>
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold truncate">
+        <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium truncate">
           {label}
         </div>
         {trend && (
-          <span
-            className={`shrink-0 inline-flex items-center gap-0.5 text-[10.5px] font-medium tabular-nums ${
-              up ? "text-success" : "text-alert"
-            }`}
+          <Chip
+            tone="neutral"
+            className="shrink-0"
             title={t("dashV2.vsLastPeriod", { period: trend.prevLabel })}
           >
-            <ArrowUp
-              size={11}
-              strokeWidth={2.25}
-              className={up ? "" : "rotate-180"}
-            />
-            {`${Math.abs(trend.pct * 100).toFixed(1)}%`}
-          </span>
+            <Amount kind="percent" value={trend.pct} fractionDigits={1} />
+          </Chip>
         )}
       </div>
-      <div className="mt-2 text-[22px] sm:text-[24px] font-semibold text-ink leading-none tabular-nums tracking-[-0.01em] truncate">
-        <Money value={value} fromCurrency={currency as Currency} compact />
+      <div className="mt-2 text-[22px] font-medium text-ink leading-none tracking-[-0.01em]">
+        <Amount value={value} currency={displayCurrency} />
       </div>
       <p className="mt-1.5 text-[11.5px] text-ink-soft leading-snug">{desc}</p>
       {trend && (
-        <p className="mt-1 text-[10.5px] text-ink-mute">
+        <p className="mt-1 text-[10.5px] text-ink-soft">
           {t("dashV2.vsLastPeriod", { period: trend.prevLabel })}
         </p>
       )}
@@ -5074,12 +5179,12 @@ function DisclosureSection({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         data-testid={testid ? `${testid}-toggle` : undefined}
-        className="group w-full flex items-center justify-between gap-3 rounded-xl border border-rule/70 bg-surface/60 px-4 py-3 text-left hover:border-rule-strong hover:bg-bg-2/40 transition-colors duration-150"
+        className="group w-full flex items-center justify-between gap-3 rounded-md border border-rule bg-surface px-4 py-3 text-left hover:border-rule-strong hover:bg-bg-2/40 transition-colors duration-micro"
       >
         <span className="min-w-0">
           <span className="block text-[12.5px] font-semibold text-ink">{title}</span>
           {subtitle && (
-            <span className="block text-[11.5px] text-ink-mute mt-0.5 truncate">{subtitle}</span>
+            <span className="block text-[11.5px] text-ink-soft mt-0.5 truncate">{subtitle}</span>
           )}
         </span>
         <ChevronDown
@@ -5106,16 +5211,16 @@ function BalanceSheetTable({ statements }: { statements: Statements }) {
   const fmtMoney = useFmtMoney();
   const row = (label: string, val: number, opts?: { indent?: boolean; subtotal?: boolean; total?: boolean }) => (
     <tr
-      className={`${opts?.total ? "border-y-2 border-ink/20 font-semibold" : opts?.subtotal ? "bg-bg-2/40 font-semibold" : "border-b border-rule"} text-[13px]`}
+      className={`${opts?.total ? "border-t-[3px] border-t-ink [border-top-style:double] border-b border-b-rule font-semibold" : opts?.subtotal ? "bg-bg-2/40 font-semibold" : "border-b border-rule"} text-[13px]`}
     >
       <td className={`py-2 px-3 ${opts?.indent ? "pl-8 text-ink-soft" : "text-ink"}`}>{label}</td>
-      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(val, cur)}</td>
+      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{fmtMoney(val, cur)}</td>
     </tr>
   );
   return (
     <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
       <div className="px-5 py-3 bg-bg-2/40 border-b border-rule">
-        <h2 className="font-serif text-[18px] text-ink">{tr("dash.balanceSheet")} · {statements.periodLabel}</h2>
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">{tr("dash.balanceSheet")} · {statements.periodLabel}</h2>
       </div>
       <table className="w-full">
         <tbody>
@@ -5206,7 +5311,7 @@ function ValuationPanel({
     <>
       {/* Cash flow snapshot */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.freeCashFlow")}</h2>
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.freeCashFlow")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiTile label={t("dash.netIncome")} value={<LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub={t("dash.statutoryView")} />
           <KpiTile label={t("dash.plusDa")} value={<LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>} />
@@ -5233,7 +5338,7 @@ function ValuationPanel({
 
       {/* WACC */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.costOfCapital")}</h2>
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.costOfCapital")}</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <KpiTile label="WACC" value={<LearnableNumber conceptKey="wacc" value={wacc.wacc}>{pct(wacc.wacc, 2)}</LearnableNumber>} sub={t("dash.costOfEquitySub", { pct: pct(wacc.costOfEquity, 2) })} />
           <KpiTile label={t("dash.costOfEquity")} value={<LearnableNumber conceptKey="cost_of_equity" value={wacc.costOfEquity}>{pct(wacc.costOfEquity, 2)}</LearnableNumber>} sub={`Rf ${pct(wacc.riskFreeRate, 1)} + β${wacc.beta.toFixed(2)} × ERP ${pct(wacc.equityRiskPremium, 1)}`} />
@@ -5245,7 +5350,7 @@ function ValuationPanel({
 
       {/* DCF */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.dcfIntrinsic")}</h2>
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.dcfIntrinsic")}</h2>
         {fb?.is_development_phase && (
           <div className="mb-3 rounded-xl border border-info/40 bg-info-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed flex items-start gap-2">
             <Info size={14} strokeWidth={2} className="mt-0.5 shrink-0 text-info" />
@@ -5262,7 +5367,7 @@ function ValuationPanel({
               with the description block on its left. */}
           <div className="px-5 py-3 bg-bg-2/40 border-b border-rule flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="min-w-0">
-              <div className="font-serif text-[16px] text-ink">{t("dash.dcfForecastTitle")}</div>
+              <div className="text-[13px] font-semibold text-ink">{t("dash.dcfForecastTitle")}</div>
               <div className="text-[12px] text-ink-soft break-words">
                 {t("dash.baseFcf")}{" "}
                 <span className="text-ink font-medium tabular-nums">{fmtMoney(dcf.baseFcf, cur)}</span>
@@ -5273,8 +5378,8 @@ function ValuationPanel({
               </div>
             </div>
             <div className="md:text-right min-w-0 md:shrink-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{t("dash.equityValue")}</div>
-              <div className="font-serif num-hero-fluid-lg text-ink leading-tight tabular-nums break-words">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium">{t("dash.equityValue")}</div>
+              <div className="font-mono text-[clamp(18px,2.6vw,26px)] font-medium text-ink leading-tight tabular-nums break-words">
                 <LearnableNumber
                   conceptKey="equity_value"
                   value={valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue}
@@ -5301,14 +5406,14 @@ function ValuationPanel({
               {dcf.yearByYear.map((y) => (
                 <tr key={y.year} className="border-t border-rule">
                   <td className="py-2 px-4 text-ink">{t("dash.yearN", { n: y.year })}</td>
-                  <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(y.fcf, cur)}</td>
-                  <td className="py-2 px-4 text-right tabular-nums text-ink-soft">{y.discountFactor.toFixed(4)}</td>
-                  <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(y.presentValue, cur)}</td>
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{fmtMoney(y.fcf, cur)}</td>
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink-soft">{y.discountFactor.toFixed(4)}</td>
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{fmtMoney(y.presentValue, cur)}</td>
                 </tr>
               ))}
               <tr className="border-t border-rule bg-bg-2/30">
                 <td className="py-2 px-4 text-ink font-medium" colSpan={3}>{t("dash.terminalValuePv")}</td>
-                <td className="py-2 px-4 text-right tabular-nums text-ink font-medium">
+                <td className="py-2 px-4 text-right font-mono tabular-nums text-ink font-medium">
                   <LearnableNumber conceptKey="terminal_value" value={dcf.terminalValuePresent}>
                     {fmtMoney(dcf.terminalValuePresent, cur)}
                   </LearnableNumber>
@@ -5316,7 +5421,7 @@ function ValuationPanel({
               </tr>
               <tr className="border-t-2 border-ink/30 bg-bg-2/40">
                 <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>{t("dash.enterpriseValue")}</td>
-                <td className="py-2 px-4 text-right tabular-nums text-ink font-semibold">
+                <td className="py-2 px-4 text-right font-mono tabular-nums text-ink font-semibold">
                   <LearnableNumber conceptKey="enterprise_value" value={dcf.enterpriseValue}>
                     {fmtMoney(dcf.enterpriseValue, cur)}
                   </LearnableNumber>
@@ -5324,11 +5429,11 @@ function ValuationPanel({
               </tr>
               <tr className="border-t border-rule">
                 <td className="py-2 px-4 text-ink-soft" colSpan={3}>{t("dash.minusNetDebt")}</td>
-                <td className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(-dcf.netDebt, cur)}</td>
+                <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{fmtMoney(-dcf.netDebt, cur)}</td>
               </tr>
               <tr className="border-t-2 border-ink/30 bg-brand-tint">
                 <td className="py-2 px-4 text-ink font-semibold" colSpan={3}>{t("dash.equityValue")}</td>
-                <td className="py-2 px-4 text-right tabular-nums text-ink font-semibold">
+                <td className="py-2 px-4 text-right font-mono tabular-nums text-ink font-semibold">
                   <LearnableNumber conceptKey="equity_value" value={dcf.equityValue}>
                     {fmtMoney(dcf.equityValue, cur)}
                   </LearnableNumber>
@@ -5346,7 +5451,7 @@ function ValuationPanel({
               trusting a single point estimate. */}
           {dcf.scenarios && dcf.scenarios.length > 0 && (
             <div className="px-5 py-4 border-t border-rule bg-bg-2/20">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium mb-2">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium mb-2">
                 {t("dash.sensitivityHeading")} · {t("dash.forecastGShort")} {pct(dcf.forecastGrowthRate, 1)} · {t("dash.terminalGShort")} {pct(dcf.terminalGrowthRate, 1)}
               </div>
               <div className="overflow-x-auto -mx-2 sm:mx-0">
@@ -5364,7 +5469,7 @@ function ValuationPanel({
                   {dcf.scenarios.map((sc) => (
                     <tr
                       key={sc.label}
-                      className={`border-t border-rule ${sc.label === "Central" ? "bg-[#E6F7F4]/40 font-semibold" : ""}`}
+                      className={`border-t border-rule ${sc.label === "Central" ? "bg-brand-tint/40 font-semibold" : ""}`}
                     >
                       <td className="py-2 px-3 text-ink">
                         {sc.label === "Optimistic"
@@ -5375,10 +5480,10 @@ function ValuationPanel({
                               ? t("dashV2.scenarioConservative")
                               : sc.label}
                       </td>
-                      <td className="py-2 px-3 text-right tabular-nums text-ink">{pct(sc.wacc, 2)}</td>
-                      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(sc.enterpriseValue, cur)}</td>
-                      <td className="py-2 px-3 text-right tabular-nums text-ink-soft">{fmtMoney(-sc.netDebt, cur)}</td>
-                      <td className="py-2 px-3 text-right tabular-nums text-ink">{fmtMoney(sc.equityValue, cur)}</td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{pct(sc.wacc, 2)}</td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{fmtMoney(sc.enterpriseValue, cur)}</td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-soft">{fmtMoney(-sc.netDebt, cur)}</td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{fmtMoney(sc.equityValue, cur)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -5403,12 +5508,12 @@ function ValuationPanel({
 
           <div className="px-5 py-3 border-t border-rule bg-bg-2/20 grid grid-cols-2 gap-4">
             <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">EV / EBITDA</div>
-              <div className="font-serif text-[18px] text-ink tabular-nums break-words">{dcf.evToEbitda.toFixed(2)}×</div>
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">EV / EBITDA</div>
+              <div className="font-mono text-[16px] font-medium text-ink tabular-nums break-words">{dcf.evToEbitda.toFixed(2)}×</div>
             </div>
             <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">EV / Revenue</div>
-              <div className="font-serif text-[18px] text-ink tabular-nums break-words">{dcf.evToRevenue.toFixed(2)}×</div>
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">EV / Revenue</div>
+              <div className="font-mono text-[16px] font-medium text-ink tabular-nums break-words">{dcf.evToRevenue.toFixed(2)}×</div>
             </div>
           </div>
         </div>
@@ -5418,22 +5523,22 @@ function ValuationPanel({
           intrinsic-equity strings (RON 656,047,165) shrink to fit in
           the 2-col grid at mobile widths. */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.grahamTitle")}</h2>
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.grahamTitle")}</h2>
         <div className="rounded-2xl border border-rule bg-surface p-5">
           <div className="text-[12px] text-ink-soft mb-3 font-mono break-words">
             {graham.formula} &nbsp;·&nbsp; g = {pct(graham.growthRate, 1)} &nbsp;·&nbsp; Y = {pct(graham.bondYield, 2)}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">{t("dash.netIncomeTtm")}</div>
-              <div className="font-serif num-hero-fluid-sm text-ink tabular-nums break-words">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">{t("dash.netIncomeTtm")}</div>
+              <div className="font-mono text-[clamp(15px,1.8vw,20px)] font-medium text-ink tabular-nums break-words">
                 {fmtMoney(graham.eps * (statements.supplementary.sharesOutstanding ?? 1), cur)}
               </div>
               <div className="text-[10.5px] text-ink-mute mt-0.5">{t("dash.statutoryView")}</div>
             </div>
             <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium truncate">{t("dash.grahamFairValue")}</div>
-              <div className="font-serif num-hero-fluid-sm text-ink tabular-nums break-words">{fmtMoney(graham.intrinsicEquityValue, cur)}</div>
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">{t("dash.grahamFairValue")}</div>
+              <div className="font-mono text-[clamp(15px,1.8vw,20px)] font-medium text-ink tabular-nums break-words">{fmtMoney(graham.intrinsicEquityValue, cur)}</div>
             </div>
           </div>
           {/* 2026-07-25 — honesty note: g and Y are standing defaults (no
@@ -5447,7 +5552,7 @@ function ValuationPanel({
       {/* Multi-period growth */}
       {growth.length > 0 && (
         <div>
-          <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.multiPeriodGrowth")}</h2>
+          <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.multiPeriodGrowth")}</h2>
           <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full text-[13px] min-w-[560px] sm:min-w-0">
@@ -5465,9 +5570,9 @@ function ValuationPanel({
                   <tr key={row.metric} className="border-t border-rule">
                     <td className="py-2 px-4 text-ink">{row.metric}</td>
                     {row.values.map((v) => (
-                      <td key={v.period} className="py-2 px-4 text-right tabular-nums text-ink">{fmtMoney(v.value, cur)}</td>
+                      <td key={v.period} className="py-2 px-4 text-right font-mono tabular-nums text-ink">{fmtMoney(v.value, cur)}</td>
                     ))}
-                    <td className={`py-2 px-4 text-right tabular-nums font-medium ${row.cagr >= 0 ? "text-[#2AA89B]" : "text-red-700"}`}>
+                    <td className={`py-2 px-4 text-right font-mono tabular-nums font-medium ${row.cagr >= 0 ? "text-success" : "text-alert"}`}>
                       {row.cagr >= 0 ? "+" : ""}{(row.cagr * 100).toFixed(1)}%
                     </td>
                   </tr>
@@ -5509,11 +5614,11 @@ function RisksPanel({
   const altman = credit.altman;
 
   const ratingTone = (rating: string): string => {
-    if (rating.startsWith("AAA") || rating.startsWith("AA") || rating === "A") return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
-    if (rating.startsWith("BBB")) return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
-    if (rating.startsWith("BB")) return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
-    if (rating.startsWith("B") || rating === "CCC") return "bg-[#E6F7F4] text-[#2AA89B] border-[#8FE3D9]/60";
-    return "bg-red-50 text-red-700 border-red-300/60";
+    if (rating.startsWith("AAA") || rating.startsWith("AA") || rating === "A") return "bg-success-tint text-success border-transparent";
+    if (rating.startsWith("BBB")) return "bg-success-tint text-success border-transparent";
+    if (rating.startsWith("BB")) return "bg-caution-tint text-caution border-transparent";
+    if (rating.startsWith("B") || rating === "CCC") return "bg-caution-tint text-caution border-transparent";
+    return "bg-alert-tint text-alert border-transparent";
   };
 
   // Localized grade + Piotroski band labels (the lib emits EN enums/prose;
@@ -5538,11 +5643,11 @@ function RisksPanel({
     <>
       {/* Composite credit score */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.compositeCreditScore")}</h2>
-        <div className="rounded-2xl border-2 border-brand/40 ask-ai-anim-fill [--af-band:360px] [--af-shift:2036.5px] [animation-duration:36s] text-ink p-4 sm:p-6 flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.compositeCreditScore")}</h2>
+        <div className="rounded-md border border-rule bg-surface text-ink p-4 sm:p-6 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.12em] font-medium opacity-80">{t("dash.creditRating")}</div>
-            <div className="font-serif text-[clamp(40px,11vw,64px)] leading-none mt-1">{credit.rating}</div>
+            <div className="font-mono tabular-nums text-[clamp(30px,8vw,44px)] font-medium leading-none mt-1 text-ink">{credit.rating}</div>
             <div className="text-[12px] mt-2 opacity-80">
               {t("dash.compositeScoreLabel")}: {credit.score} / 100 · <span className="capitalize">{gradeLabel}</span>
             </div>
@@ -5565,11 +5670,11 @@ function RisksPanel({
               {credit.components.map((c) => (
                 <tr key={c.label} className="border-t border-rule">
                   <td className="py-2 px-4 text-ink">{c.label}</td>
-                  <td className="py-2 px-4 text-right tabular-nums text-ink">
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">
                     {Number.isFinite(c.value) ? c.value.toFixed(2) : "—"}
                   </td>
-                  <td className="py-2 px-4 text-right tabular-nums text-ink-soft">{(c.weight * 100).toFixed(0)}%</td>
-                  <td className="py-2 px-4 text-right tabular-nums text-ink">{c.contribution.toFixed(1)}</td>
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink-soft">{(c.weight * 100).toFixed(0)}%</td>
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{c.contribution.toFixed(1)}</td>
                   <td className="py-2 px-4 text-ink-soft text-[12px]">{c.read}</td>
                 </tr>
               ))}
@@ -5581,11 +5686,11 @@ function RisksPanel({
 
       {/* Piotroski F-Score */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">{t("dash.piotroskiTitle")}</h2>
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.piotroskiTitle")}</h2>
         <div className="rounded-2xl border border-rule bg-surface p-5 flex items-center justify-between mb-3">
           <div>
-            <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">{t("dash.piotroskiSub")}</div>
-            <div className="font-serif text-[clamp(28px,7vw,40px)] text-ink leading-none mt-1">
+            <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium">{t("dash.piotroskiSub")}</div>
+            <div className="font-mono tabular-nums text-[clamp(24px,5vw,32px)] font-medium text-ink leading-none mt-1">
               {piotroski.passCount}
               {piotroski.uncertainCount > 0 ? (
                 <span className="text-[16px] text-ink-soft"> / {9 - piotroski.uncertainCount} {t("dash.confirmed")}</span>
@@ -5616,9 +5721,9 @@ function RisksPanel({
               {piotroski.checks.map((c) => {
                 const tone =
                   c.result === "pass"
-                    ? "text-[#2AA89B]"
+                    ? "text-success"
                     : c.result === "fail"
-                      ? "text-red-700"
+                      ? "text-alert"
                       : "text-ink-mute";
                 const glyph = c.result === "pass" ? "✓" : c.result === "fail" ? "✗" : "?";
                 return (
@@ -5637,13 +5742,13 @@ function RisksPanel({
 
       {/* Altman Z (variant-aware) */}
       <div>
-        <h2 className="font-serif text-[22px] text-ink mb-3">
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">
           {t("dash.ratioBankruptcy")} · Altman {altman.variant}
         </h2>
         <div className="rounded-2xl border border-rule bg-surface p-5">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
-              <div className="font-serif text-[clamp(28px,7vw,40px)] text-ink leading-none">{altman.score.toFixed(2)}</div>
+              <div className="font-mono tabular-nums text-[clamp(24px,5vw,32px)] font-medium text-ink leading-none">{altman.score.toFixed(2)}</div>
               <div className="text-[12px] text-ink-soft mt-1">
                 {t("dash.altmanThresholds", { safe: altman.thresholds.safe.toFixed(2), distress: altman.thresholds.distress.toFixed(2) })}
               </div>
@@ -5651,10 +5756,10 @@ function RisksPanel({
             <span
               className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full border ${
                 altman.zone === "safe"
-                  ? "ask-ai-anim-fill [animation-duration:10s] border-brand/40 text-ink"
+                  ? "bg-success-tint text-success border-transparent"
                   : altman.zone === "grey"
-                    ? "bg-[#E6F7F4] text-[#2AA89B] border-transparent"
-                    : "bg-red-50 text-red-700 border-transparent"
+                    ? "bg-caution-tint text-caution border-transparent"
+                    : "bg-alert-tint text-alert border-transparent"
               }`}
             >
               {altman.zone === "safe" ? t("dash.safeZone") : altman.zone === "grey" ? t("dash.greyZone") : t("dash.distress")}
@@ -5676,9 +5781,9 @@ function RisksPanel({
                 {altman.weightedComponents.map((c, i) => (
                   <tr key={i} className="border-t border-rule">
                     <td className="py-2 px-3 text-ink">{c.label}</td>
-                    <td className="py-2 px-3 text-right tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
-                    <td className="py-2 px-3 text-right tabular-nums text-ink">{c.value.toFixed(4)}</td>
-                    <td className="py-2 px-3 text-right tabular-nums text-ink">{c.weighted.toFixed(3)}</td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{c.value.toFixed(4)}</td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{c.weighted.toFixed(3)}</td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-ink/30 bg-bg-2/50">
@@ -5686,12 +5791,12 @@ function RisksPanel({
                     {t("dash.altmanScoreLabel", { variant: altman.variant })}
                   </td>
                   <td
-                    className={`py-2 px-3 text-right tabular-nums font-semibold ${
+                    className={`py-2 px-3 text-right font-mono tabular-nums font-semibold ${
                       altman.zone === "safe"
-                        ? "text-[#2AA89B]"
+                        ? "text-success"
                         : altman.zone === "grey"
-                          ? "text-[#2AA89B]"
-                          : "text-red-700"
+                          ? "text-caution"
+                          : "text-alert"
                     }`}
                   >
                     {altman.score.toFixed(2)}

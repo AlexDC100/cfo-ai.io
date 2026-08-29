@@ -3,7 +3,7 @@
 // Ported from the "CFO AI Website" design canvas: a dark, self-contained
 // marketing site (home / pricing / privacy / cookies / terms / contact) plus
 // a GDPR cookie-consent modal. The design's palette already matches our
-// teal (#5CD3C5) / greyscale / red system.
+// teal / greyscale / red system.
 //
 // Implementation notes:
 //   · The large section markup is static, so it's rendered as scoped HTML
@@ -49,16 +49,23 @@ const CONSENT_KEY = "cfoai_consent";
 // ── Scoped design system + hover rules ────────────────────────────────────
 const SITE_CSS = `
 .cfo-site{
-  --bg:#0A0A0A; --bg-2:#0F0F0F; --surface:#141414; --surface-hi:#1C1C1C;
-  --ink:#F5F5F5; --ink-2:#DBDBDB; --ink-soft:#ABABAB; --ink-mute:#8C8C8C;
-  --rule:#292929; --rule-soft:#1A1A1A; --rule-strong:#3D3D3D;
-  --brand:#5CD3C5; --brand-d:#2AA89B; --brand-l:#8FE3D9; --brand-deep:#1B7268;
-  --alert:#FF6B6B;
+  /* Scoped palette DEFINITION for the self-contained marketing site — this
+     string template cannot use Tailwind classes, and the always-dark site
+     must never inherit the app theme. Values mirror the marketing dark
+     gradient family in index.css. (design-lint-allow-hex, whole block) */
+  --bg:#080D0B; --bg-2:#0C1210; --surface:#101614; --surface-hi:#1A211E; /* design-lint-allow-hex scoped marketing palette */
+  --ink:#F5F5F5; --ink-2:#DBDBDB; --ink-soft:#ABABAB; --ink-mute:#8C8C8C; /* design-lint-allow-hex scoped marketing palette */
+  --rule:#252D2A; --rule-soft:#181E1C; --rule-strong:#39443F; /* design-lint-allow-hex scoped marketing palette */
+  --brand:#4BBFA8; --brand-d:#37A18C; --brand-l:#6FD2BE; --brand-deep:#1E5A4E; /* design-lint-allow-hex scoped marketing palette */
+  --alert:#FF6B6B; /* design-lint-allow-hex scoped marketing palette */
+  --on-brand:#05110D;      /* ink on the bright gradient CTAs */ /* design-lint-allow-hex scoped marketing palette */
+  --bg-deep:#070C0A;       /* hero / proof-strip deep ground */ /* design-lint-allow-hex scoped marketing palette */
+  --board-hi:#BFD2CB; --board-mid:#6F8A82; --board-dim:#5C7169; /* ticker-board terminal shades */ /* design-lint-allow-hex scoped marketing palette */
   --serif:"Instrument Serif",Georgia,serif;
   --sans:"Inter Variable","Inter",system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
-  --grad:linear-gradient(135deg,#1B7268 0%,#22897E 25%,#2AA89B 55%,#45C6B8 80%,#5CD3C5 100%);
-  --grad-text:linear-gradient(120deg,#2AA89B 0%,#5CD3C5 55%,#8FE3D9 100%);
+  --grad:linear-gradient(135deg,#1E5A4E 0%,#2C7A68 25%,#37A18C 55%,#41B09A 80%,#4BBFA8 100%); /* design-lint-allow-hex scoped marketing palette */
+  --grad-text:linear-gradient(120deg,#37A18C 0%,#4BBFA8 55%,#6FD2BE 100%); /* design-lint-allow-hex scoped marketing palette */
   --maxw:1440px;
   min-height:100vh;background:var(--bg);color:var(--ink);
   font-family:var(--sans);font-size:16px;line-height:1.55;
@@ -70,7 +77,7 @@ const SITE_CSS = `
 .cfo-site a:hover{color:var(--brand-l)}
 .cfo-site p{margin:0 0 1em}
 .cfo-site h1,.cfo-site h2,.cfo-site h3,.cfo-site h4{margin:0}
-.cfo-site ::selection{background:rgba(92,211,197,.28);color:#fff}
+.cfo-site ::selection{background:rgba(75,191,168,.28);color:var(--ink)}
 .cfo-site summary::-webkit-details-marker{display:none}
 .cfo-site summary::marker{content:""}
 .cfo-site .grad-text{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
@@ -80,9 +87,9 @@ const SITE_CSS = `
 .cfo-site .btn-ghost2:hover{border-color:var(--ink-mute);background:var(--surface-hi)}
 .cfo-site .hv-brand:hover{border-color:var(--brand);color:var(--brand)}
 .cfo-site .card-hl{transition:border-color .15s ease}
-.cfo-site .card-hl:hover{border-color:rgba(92,211,197,.4) !important}
+.cfo-site .card-hl:hover{border-color:rgba(75,191,168,.4) !important}
 .cfo-site .pricing-card{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
-.cfo-site .pricing-card:hover{transform:translateY(-2px);border-color:rgba(92,211,197,.5) !important;box-shadow:0 20px 40px -30px rgba(92,211,197,.3)}
+.cfo-site .pricing-card:hover{transform:translateY(-2px);border-color:rgba(75,191,168,.5) !important;box-shadow:0 20px 40px -30px rgba(75,191,168,.3)}
 .cfo-site nav button:hover,.cfo-site nav a:hover{color:var(--ink)}
 .cfo-site footer a,.cfo-site footer button{opacity:.7;transition:opacity .15s ease}
 .cfo-site footer a:hover,.cfo-site footer button:hover{opacity:1}
@@ -95,8 +102,8 @@ const SITE_CSS = `
 .cfo-site .field{width:100%;background:var(--bg-2);border:1px solid var(--rule);border-radius:10px;padding:11px 14px;color:var(--ink);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}
 .cfo-site .field:focus{border-color:var(--brand)}
 .cfo-site .field::placeholder{color:var(--ink-mute)}
-.cfo-site .site-header{background:rgba(10,10,10,.72);backdrop-filter:blur(18px);border-bottom:1px solid var(--rule-soft);transition:background .35s ease,backdrop-filter .35s ease,border-color .35s ease}
-.cfo-site.at-top .site-header{background:rgba(10,10,10,0);backdrop-filter:blur(0px);border-bottom-color:transparent}
+.cfo-site .site-header{background:rgba(8,13,11,.72);backdrop-filter:blur(18px);border-bottom:1px solid var(--rule-soft);transition:background .35s ease,backdrop-filter .35s ease,border-color .35s ease}
+.cfo-site.at-top .site-header{background:rgba(8,13,11,0);backdrop-filter:blur(0px);border-bottom-color:transparent}
 .cfo-site .site-header-row{height:66px;transition:height .35s ease}
 .cfo-site .desktop-nav{display:flex}
 .cfo-site .desktop-actions{display:flex}
@@ -120,10 +127,20 @@ const SITE_CSS = `
   .cfo-site .desktop-actions{display:none}
   .cfo-site .burger-btn{display:inline-flex}
   .cfo-site .mobile-menu-panel{display:block}
+  /* Narrow screens: the readability overlay's ellipse covers less of the
+     text column, so the board itself dims further to hold AA behind the
+     stacked headline. */
+  .cfo-site #cfo-ticker-board{opacity:.32 !important}
 }
 .cfo-site.at-top .site-header-row{height:96px}
 @keyframes cfo-heroBoardDrift{0%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}50%{transform:perspective(1400px) rotateX(6deg) rotateY(-3deg) scale(1.8)}100%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}}
-@keyframes cfo-sectionPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(92,211,197,0)}50%{box-shadow:inset 0 0 0 3px rgba(92,211,197,.35)}}
+/* Reduced motion: freeze the board's drift (the live row updates are
+   paused in <HeroTicker> itself under the same media query). */
+@media (prefers-reduced-motion:reduce){
+  .cfo-site #cfo-ticker-board{animation:none}
+  .cfo-site .btn-grad:hover{transform:none}
+}
+@keyframes cfo-sectionPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(75,191,168,0)}50%{box-shadow:inset 0 0 0 3px rgba(75,191,168,.35)}}
 .cfo-site .section-pulse{animation:cfo-sectionPulse .8s ease-in-out 2}
 @media (max-width:680px){
   .cfo-site .mock-grid{grid-template-columns:1fr !important}
@@ -131,7 +148,10 @@ const SITE_CSS = `
 }
 `;
 
-const LOGO = `<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><path d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z" fill="#5CD3C5"></path><path d="M 38 14 L 60 60 L 48 60 L 38 38 Z" fill="#F4F6F8"></path><rect x="34" y="34" width="14" height="3" fill="#F4F6F8"></rect></svg>`;
+// Inline SVG logo baked into the template string — presentation `fill`
+// attributes can't be Tailwind classes; brand + off-white from the scoped palette.
+// design-lint-allow-hex scoped marketing palette (logo mark)
+const LOGO = `<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><path d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z" fill="#4BBFA8"></path><path d="M 38 14 L 60 60 L 48 60 L 38 38 Z" fill="#F4F6F8"></path><rect x="34" y="34" width="14" height="3" fill="#F4F6F8"></rect></svg>`;
 
 function eyebrow(label: string) {
   return `<div style="display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-soft);font-weight:500"><span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${label}</div>`;
@@ -193,7 +213,7 @@ function header(
     ? `
     <div class="cred-pill">
       <button data-act="account" style="display:flex;width:100%;align-items:center;gap:11px;background:transparent;border:none;border-radius:inherit;overflow:hidden;padding:5px 16px 5px 6px;cursor:pointer;font-family:inherit">
-        <span style="width:34px;height:34px;border-radius:50%;background:var(--grad);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;letter-spacing:.02em;flex-shrink:0">${esc(account.initials)}</span>
+        <span style="width:34px;height:34px;border-radius:50%;background:var(--grad);color:var(--on-brand);display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;letter-spacing:.02em;flex-shrink:0">${esc(account.initials)}</span>
         <span style="display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.3;text-align:left">
           <span style="font-size:13px;font-weight:600;color:var(--ink)">${esc(account.name)}</span>
           <span style="font-size:11px;color:var(--ink-mute)">${esc(account.email)}</span>
@@ -213,7 +233,7 @@ function header(
     </div>`
     : `
     <button class="navbtn" data-act="signin">${L.auth.signIn}</button>
-    <a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;background:var(--grad);color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 16px -6px rgba(92,211,197,.5)">${L.auth.getStartedFree}</a>`;
+    <a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-size:13px;font-weight:500;box-shadow:0 4px 16px -6px rgba(75,191,168,.5)">${L.auth.getStartedFree}</a>`;
 
   return `
 <header class="site-header" style="position:${overlay ? "fixed" : "sticky"};top:0;left:0;right:0;z-index:50">
@@ -252,7 +272,7 @@ function header(
       <button class="menu-item" data-act="account:settings">${L.menu.settings}</button>
       <button class="menu-item" data-act="account:signout" style="color:var(--alert)">${L.menu.signOut}</button>` : `
       <button class="menu-item" data-act="signin">${L.auth.signIn}</button>
-      <a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:flex;align-items:center;justify-content:center;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-size:14px;font-weight:500">${L.auth.getStartedFree}</a>`}
+      <a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:flex;align-items:center;justify-content:center;height:44px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-size:14px;font-weight:500">${L.auth.getStartedFree}</a>`}
     </div>
   </div>` : ""}
 </header>`;
@@ -293,13 +313,13 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
         ${L.pricing.solo.features.map(featureLi).join("")}
       </ul>
     </div>
-    <div class="pricing-card" style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(92,211,197,.5)">
-      <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:#04110F;background:var(--brand);padding:4px 12px;border-radius:999px">${L.pricing.business.badge}</span>
+    <div class="pricing-card" style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(75,191,168,.5)">
+      <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:var(--on-brand);background:var(--brand);padding:4px 12px;border-radius:999px">${L.pricing.business.badge}</span>
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">${L.pricing.business.name}</div>
       <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€${BUSINESS_MONTHLY}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.business.yearly}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.business.blurb}</p>
-      <a href="/signup?plan=pro" data-act="signup:pro" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
+      <a href="/signup?plan=pro" data-act="signup:pro" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
       <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
         ${featureLi(L.pricing.business.lead[0])}
         ${featureLi(`<strong>${L.pricing.business.lead[1]}</strong>`)}
@@ -364,7 +384,7 @@ const TICKER_SYMS = [
 
 const UP_COLOR = "var(--brand)"; // the site's accent teal, in place of the reference's generic green
 const DOWN_COLOR = "var(--alert)";
-const UP_FLASH_BG = "rgba(92,211,197,0.14)";
+const UP_FLASH_BG = "rgba(75,191,168,0.14)";
 const DOWN_FLASH_BG = "rgba(255,107,107,0.12)";
 
 interface BoardRowState { sym: string; price: number; pct: number; flash: 0 | 1 | -1; shuffle: number }
@@ -420,7 +440,7 @@ function formatBoardRow(r: BoardRowState, i: number): FormattedBoardRow {
     hiLo: `${(r.price * 0.96).toFixed(2)}–${(r.price * 1.04).toFixed(2)}`,
     arrow: up ? "▲" : "▼",
     color,
-    priceColor: r.flash ? flashColor : "#b8c8de",
+    priceColor: r.flash ? flashColor : "var(--board-hi)",
     rowBg: r.flash ? (r.flash === 1 ? UP_FLASH_BG : DOWN_FLASH_BG) : "transparent",
     numOpacity: r.shuffle > 0 ? 0.4 : 1,
     numFilter: r.shuffle > 0 ? "blur(2.5px)" : "blur(0px)",
@@ -433,13 +453,13 @@ function formatBoardRow(r: BoardRowState, i: number): FormattedBoardRow {
 
 const BoardRowView = memo(function BoardRowView({ row }: { row: FormattedBoardRow }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, borderBottom: "1px solid rgba(90,120,170,0.12)", padding: "5px 2px", whiteSpace: "nowrap", background: row.rowBg, transition: "background 0.6s ease" }}>
-      <span style={{ color: "#6b86ad", fontWeight: 600, width: 52 }}>{row.sym}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 14, borderBottom: "1px solid rgba(110,150,138,0.12)", padding: "5px 2px", whiteSpace: "nowrap", background: row.rowBg, transition: "background 0.6s ease" }}>
+      <span style={{ color: "var(--board-mid)", fontWeight: 600, width: 52 }}>{row.sym}</span>
       <span style={{ color: row.priceColor, width: 74, textAlign: "right", opacity: row.numOpacity, filter: row.numFilter, transition: "color 0.6s ease, opacity 0.2s ease, filter 0.2s ease" }}>{row.price}</span>
       <span style={{ width: 14, textAlign: "center", color: row.color }}>{row.arrow}</span>
       <span style={{ color: row.color, width: 72, textAlign: "right", opacity: row.numOpacity, filter: row.numFilter, transition: "opacity 0.2s ease, filter 0.2s ease" }}>{row.pct}</span>
-      <span style={{ color: "#55688a", fontSize: 12, width: 58, textAlign: "right" }}>{row.vol}</span>
-      <span style={{ color: "#55688a", fontSize: 12, width: 108, textAlign: "right" }}>{row.hiLo}</span>
+      <span style={{ color: "var(--board-dim)", fontSize: 12, width: 58, textAlign: "right" }}>{row.vol}</span>
+      <span style={{ color: "var(--board-dim)", fontSize: 12, width: 108, textAlign: "right" }}>{row.hiLo}</span>
       <span
         style={{
           display: "inline-flex",
@@ -472,6 +492,14 @@ function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
   const formatCache = useRef(new WeakMap<BoardRowState, FormattedBoardRow>());
 
   useEffect(() => {
+    // prefers-reduced-motion pauses the live updates entirely — the board
+    // renders once, static, and the CSS drift is frozen by the matching
+    // media query in SITE_CSS. Not reactive to mid-session OS changes on
+    // purpose (a reload is fine; wiring a listener isn't worth the churn).
+    if (typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
     const tick = setInterval(() => {
       setRows((prev) => prev.map((r) => {
         // 72% of ticks: just let any active flash fade back to neutral.
@@ -514,23 +542,26 @@ function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
 
 const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCycle = "monthly") => `
 <main>
-  <section style="position:relative;overflow:hidden;background:#060a12;min-height:100vh">
-    <div id="cfo-ticker-board" aria-hidden="true" style="position:absolute;top:30%;left:-8%;right:-8%;bottom:-46%;z-index:0;animation:cfo-heroBoardDrift 22s ease-in-out infinite;opacity:.9;pointer-events:none;will-change:transform"></div>
-    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 70% 90% at 38% 50%,rgba(6,10,18,.94) 0%,rgba(6,10,18,.72) 45%,rgba(6,10,18,.25) 100%)"></div>
-    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(6,10,18,.85),transparent 20%,transparent 75%,#060a12)"></div>
+  <section style="position:relative;overflow:hidden;background:var(--bg-deep);min-height:100vh">
+    <!-- Ticker layer capped at .55 — with the readability overlays above
+         it, the board behind the headline zone stays well below the AA
+         contrast floor for the F5F5F5 display text. -->
+    <div id="cfo-ticker-board" aria-hidden="true" style="position:absolute;top:30%;left:-8%;right:-8%;bottom:-46%;z-index:0;animation:cfo-heroBoardDrift 22s ease-in-out infinite;opacity:.55;pointer-events:none;will-change:transform"></div>
+    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 70% 90% at 38% 50%,rgba(7,12,10,.96) 0%,rgba(7,12,10,.84) 45%,rgba(7,12,10,.38) 100%)"></div>
+    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(7,12,10,.9),transparent 20%,transparent 72%,var(--bg-deep))"></div>
     <div style="position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:220px 24px 56px;display:flex;flex-direction:column;align-items:center;text-align:center">
       ${eyebrow(L.hero.eyebrow)}
       <h1 style="margin-top:26px;font-family:var(--serif);font-weight:400;font-size:clamp(40px,6.4vw,66px);line-height:1.04;letter-spacing:-.025em;max-width:920px;color:var(--ink)">${L.hero.t1}<span class="grad-text">${L.hero.thl}</span>${L.hero.t2}</h1>
       <p style="margin-top:22px;font-size:clamp(16px,2vw,18px);line-height:1.6;color:var(--ink-soft);max-width:660px">${L.hero.body}</p>
       <div style="margin-top:34px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
         ${signedIn
-          ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
-          : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.hero.ctaStart}</a>
+          ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(75,191,168,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
+          : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(75,191,168,.55)">${L.hero.ctaStart}</a>
         <a href="/login?next=/" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">${L.hero.ctaSignIn}</a>`}
       </div>
       <div style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
         <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
-          <span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span><span style="width:10px;height:10px;border-radius:50%;background:#2E2E2E"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span><span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span><span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span>
           <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.hero.mockTitle}</span>
         </div>
         <div class="mock-grid" style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
@@ -609,24 +640,22 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
           ${L.defensible.bullets.map((b) => `<li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">${b.strong}</strong> <span style="color:var(--ink-soft)">${b.rest}</span></div></li>`).join("\n          ")}
         </ul>
       </div>
-      <div style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px">
-        <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-bottom:16px">${L.defensible.cardLabel}</div>
-        <div id="defensible-bars" style="display:flex;flex-direction:column;gap:12px">
-          ${[
-            { label: L.defensible.yourCo, pct: "11.4%", w: 64, mine: true },
-            { label: "Peer A", pct: "9.2%", w: 52, mine: false },
-            { label: "Peer B", pct: "14.3%", w: 81, mine: false },
-            { label: "Peer C", pct: "8.3%", w: 47, mine: false },
-          ].map((row, i) => `
-          <div style="display:flex;align-items:center;gap:12px">
-            <span style="width:78px;font-family:var(--mono);font-size:12px;color:${row.mine ? "var(--brand)" : "var(--ink-soft)"};font-weight:${row.mine ? 600 : 400}">${row.label}</span>
-            <div style="flex:1;height:24px;border-radius:6px;background:var(--bg-2);overflow:hidden">
-              <div class="defensible-bar-fill" data-w="${row.w}" style="width:0%;height:100%;background:${row.mine ? "var(--brand)" : "var(--rule-strong)"};transition:width .9s cubic-bezier(.16,1,.3,1);transition-delay:${(i * 0.12).toFixed(2)}s"></div>
-            </div>
-            <span style="font-size:12px;color:${row.mine ? "var(--ink-2)" : "var(--ink-soft)"};width:44px;text-align:right">${row.pct}</span>
+      <!-- Proof strip — replaces the former decorative peer-bar numbers
+           with REAL measured stats (they mirror the claims in the copy to
+           the left). Terminal register: near-black panel, mono readouts,
+           phosphor values. No animation — proof doesn't perform. -->
+      <div id="proof-strip" style="border:1px solid var(--rule);background:var(--bg-deep);border-radius:18px;padding:24px 26px">
+        <div style="display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">
+          <span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${L.defensible.proof.label}
+        </div>
+        <div style="margin-top:18px;display:flex;flex-direction:column">
+          ${L.defensible.proof.stats.map((s, i) => `
+          <div style="display:flex;align-items:baseline;gap:16px;padding:11px 0;${i > 0 ? "border-top:1px solid var(--rule-soft)" : ""}">
+            <span style="font-family:var(--mono);font-size:20px;line-height:1.2;color:var(--brand-l);white-space:nowrap;font-variant-numeric:tabular-nums">${s.value}</span>
+            <span style="font-size:12.5px;line-height:1.55;color:var(--ink-soft)">${s.caption}</span>
           </div>`).join("")}
         </div>
-        <p style="margin:18px 0 0;font-size:12px;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:14px">${L.defensible.cardNote}</p>
+        <p style="margin:14px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:12px">${L.defensible.proof.note}</p>
       </div>
     </div>
   </section>
@@ -670,14 +699,14 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
   </section>
 
   <section style="position:relative;overflow:hidden;border-top:1px solid var(--rule-soft)">
-    <div aria-hidden="true" style="position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(92,211,197,.10),transparent 62%);pointer-events:none"></div>
+    <div aria-hidden="true" style="position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(75,191,168,.10),transparent 62%);pointer-events:none"></div>
     <div style="position:relative;max-width:820px;margin:0 auto;padding:88px 24px;text-align:center">
       <h2 style="font-family:var(--serif);font-weight:400;font-size:clamp(34px,5.5vw,58px);line-height:1.03;letter-spacing:-.03em">${L.cta.t1}<span class="grad-text">${L.cta.thl}</span></h2>
       <p style="margin-top:18px;font-size:16px;color:var(--ink-soft);max-width:520px;margin-left:auto;margin-right:auto">${L.cta.body}</p>
       <div style="margin-top:32px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center">
         ${signedIn
-          ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
-          : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(92,211,197,.55)">${L.cta.start}</a>
+          ? `<button data-act="workspace" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(75,191,168,.55);border:none;cursor:pointer;font-family:inherit">${L.cta.goWorkspace}</button>`
+          : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(75,191,168,.55)">${L.cta.start}</a>
         <a href="/login?next=/" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">${L.cta.signIn}</a>`}
       </div>
     </div>
@@ -758,13 +787,13 @@ const COOKIES = `
     <p>Cookies and similar technologies (including browser <em>localStorage</em>) are small pieces of data stored on your device. We use them to keep you signed in, remember your preferences, and — only with your consent — to understand usage and measure marketing.</p>
     ${h2("Categories we use")}
     <div style="display:flex;flex-direction:column;gap:14px;margin-top:6px">
-      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Strictly necessary</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--brand);border:1px solid rgba(92,211,197,.4);padding:3px 9px;border-radius:999px">Always on</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Authentication session, security, load balancing and your cookie-consent choice. The site cannot function without these, so they do not require consent.</p></div>
+      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Strictly necessary</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--brand);border:1px solid rgba(75,191,168,.4);padding:3px 9px;border-radius:999px">Always on</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Authentication session, security, load balancing and your cookie-consent choice. The site cannot function without these, so they do not require consent.</p></div>
       <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Analytics</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-mute);border:1px solid var(--rule-strong);padding:3px 9px;border-radius:999px">Optional</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Help us understand which features are used so we can improve the product. Set only if you accept analytics cookies.</p></div>
       <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Marketing</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-mute);border:1px solid var(--rule-strong);padding:3px 9px;border-radius:999px">Optional</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Measure the effectiveness of our campaigns and show relevant messaging. Set only if you accept marketing cookies.</p></div>
     </div>
     ${h2("Managing your choices")}
     <p>You gave (or declined) consent when you first visited. You can change your preferences at any time using the button below or via "Cookie settings" in the footer. You can also block or delete cookies in your browser settings.</p>
-    <button data-act="consent" class="btn-grad" style="margin-top:8px;display:inline-flex;align-items:center;height:44px;padding:0 22px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Open cookie settings</button>
+    <button data-act="consent" class="btn-grad" style="margin-top:8px;display:inline-flex;align-items:center;height:44px;padding:0 22px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Open cookie settings</button>
   </div>
 </section>`;
 
@@ -808,7 +837,7 @@ function contactMain(v: ContactValues, status: ContactStatus, L: LandingStrings)
   const formBody = status === "sent"
     ? `
     <div style="text-align:center;padding:26px 10px">
-      <div style="width:52px;height:52px;border-radius:50%;background:rgba(92,211,197,.14);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-size:24px">✓</div>
+      <div style="width:52px;height:52px;border-radius:50%;background:rgba(75,191,168,.14);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-size:24px">✓</div>
       <h3 style="font-family:var(--serif);font-weight:400;font-size:24px;margin-top:16px;color:var(--ink)">${L.contact.sentTitle}</h3>
       <p style="margin-top:8px;font-size:14px;color:var(--ink-soft)">${L.contact.sentBody}</p>
     </div>`
@@ -821,7 +850,7 @@ function contactMain(v: ContactValues, status: ContactStatus, L: LandingStrings)
     <textarea id="cf-message" class="field" style="margin-top:14px;min-height:130px;resize:vertical" placeholder="${L.contact.phMessage}">${esc(v.message)}</textarea>
     ${status === "invalid" ? `<p style="margin:12px 0 0;font-size:13px;color:var(--alert)">${L.contact.invalid}</p>` : ""}
     ${status === "error" ? `<p style="margin:12px 0 0;font-size:13px;color:var(--alert)">${L.contact.error}</p>` : ""}
-    <button data-act="contact:send" class="btn-grad" ${status === "sending" ? "disabled" : ""} style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;height:48px;padding:0 26px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14.5px;border:none;cursor:pointer;font-family:inherit;${status === "sending" ? "opacity:.6;cursor:default" : ""}">${status === "sending" ? L.contact.sending : L.contact.send}</button>
+    <button data-act="contact:send" class="btn-grad" ${status === "sending" ? "disabled" : ""} style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;height:48px;padding:0 26px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14.5px;border:none;cursor:pointer;font-family:inherit;${status === "sending" ? "opacity:.6;cursor:default" : ""}">${status === "sending" ? L.contact.sending : L.contact.send}</button>
     <p style="margin:12px 0 0;font-size:11.5px;color:var(--ink-mute)">${L.contact.note}</p>`;
 
   return `
@@ -928,11 +957,11 @@ function footer(year: number, L: LandingStrings, langCode: string) {
 }
 
 function consentModal(expanded: boolean, analytics: boolean, marketing: boolean, L: LandingStrings) {
-  const on = "#2AA89B", off = "#3D3D3D";
+  const on = "var(--brand-d)", off = "var(--rule-strong)";
   const track = (v: boolean) => (v ? on : off);
   const knob = (v: boolean) => (v ? "21px" : "3px");
   const toggleRow = (act: string, title: string, desc: string, v: boolean) => `
-      <button data-act="${act}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;font:inherit"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">${title}</div><div style="font-size:12px;color:var(--ink-mute)">${desc}</div></div><span style="width:42px;height:24px;border-radius:999px;flex-shrink:0;position:relative;transition:background .15s;background:${track(v)}"><span style="position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;left:${knob(v)}"></span></span></button>`;
+      <button data-act="${act}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;font:inherit"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">${title}</div><div style="font-size:12px;color:var(--ink-mute)">${desc}</div></div><span style="width:42px;height:24px;border-radius:999px;flex-shrink:0;position:relative;transition:background .15s;background:${track(v)}"><span style="position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:var(--ink);transition:left .15s;left:${knob(v)}"></span></span></button>`;
   return `
 <div style="position:fixed;inset:0;z-index:90;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);padding:0 16px 16px">
   <div style="width:100%;max-width:640px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:18px;padding:24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8)">
@@ -945,7 +974,7 @@ function consentModal(expanded: boolean, analytics: boolean, marketing: boolean,
       ${toggleRow("consent:marketing", L.consent.marketing, L.consent.marketingDesc, marketing)}
     </div>` : ""}
     <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px">
-      <button data-act="consent:acceptAll" class="btn-grad" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--grad);color:#fff;font-weight:500;font-size:14px;border:none;cursor:pointer;font-family:inherit">${L.consent.acceptAll}</button>
+      <button data-act="consent:acceptAll" class="btn-grad" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14px;border:none;cursor:pointer;font-family:inherit">${L.consent.acceptAll}</button>
       <button data-act="consent:rejectAll" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.consent.rejectAll}</button>
       ${expanded
         ? `<button data-act="consent:save" class="hv-brand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--surface-hi);border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">${L.consent.save}</button>`
@@ -963,7 +992,7 @@ const signoutModal = (L: LandingStrings) => `
     <p style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">${L.signout.body}</p>
     <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end">
       <button data-act="signout:cancel" style="height:42px;padding:0 20px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.signout.cancel}</button>
-      <button data-act="signout:confirm" style="height:42px;padding:0 20px;border-radius:999px;background:var(--alert);border:none;color:#fff;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.signout.confirm}</button>
+      <button data-act="signout:confirm" style="height:42px;padding:0 20px;border-radius:999px;background:var(--alert);border:none;color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.signout.confirm}</button>
     </div>
   </div>
 </div>`;
@@ -1210,26 +1239,9 @@ export default function Landing() {
     setTickerBoardHost(rootRef.current?.querySelector<HTMLElement>("#cfo-ticker-board") ?? null);
   }, [bodyHtml]);
 
-  // "Defensible by design" bar chart — animate the bars from 0 to their
-  // target width the first time the card scrolls into view. Driven by
-  // direct DOM writes (not React state) so it doesn't trigger a bodyHtml
-  // re-render — same reasoning as the ticker board: touching state here
-  // would tear down and rebuild the whole subtree instead of just
-  // transitioning a few widths.
-  useEffect(() => {
-    const container = rootRef.current?.querySelector<HTMLElement>("#defensible-bars");
-    const bars = container ? Array.from(container.querySelectorAll<HTMLElement>(".defensible-bar-fill")) : [];
-    if (!bars.length) return;
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        bars.forEach((bar) => { bar.style.width = `${bar.dataset.w}%`; });
-        io.disconnect();
-      });
-    }, { threshold: 0.3 });
-    io.observe(container as HTMLElement);
-    return () => io.disconnect();
-  }, [bodyHtml]);
+  // (The old "Defensible by design" bar-chart animation effect is gone
+  // with the decorative peer bars — the proof strip that replaced them is
+  // deliberately static.)
 
   // "Three steps from spreadsheet to action plan" timeline — the circles
   // themselves stay put (no movement); their border/text color lights up

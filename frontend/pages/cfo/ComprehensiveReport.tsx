@@ -25,6 +25,17 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { Download, FileText, Printer, Loader2 } from "lucide-react";
+// Instrument pass (2026-08): the EEI board CSS (eei-*) is fully evicted
+// from this page — panels/chips/header from the kit, every figure mono
+// via the Amount family, semantic color only on severity/sentiment.
+import { Chip, PageHeader as InstrumentPageHeader, Panel, PanelHeader, type ChipTone } from "@/components/instrument/Panel";
+import { Amount } from "@/components/instrument/Amount";
+import {
+  CappedMultiple,
+  MoneyAmount,
+  MoneyAmountGroup,
+  PercentLevel,
+} from "@/components/comparison/MoneyAmount";
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
@@ -221,7 +232,7 @@ export default function ComprehensiveReport() {
       <>
         <div className="max-w-[640px] mx-auto py-24 text-center">
           <FileText size={28} className="mx-auto text-ink-mute mb-3" />
-          <h1 className="font-serif text-[28px] text-ink">No period selected</h1>
+          <h1 className="text-[22px] font-semibold tracking-[-0.005em] text-ink">No period selected</h1>
           <p className="mt-2 text-[14px] text-ink-soft">
             Open a financial period from the dashboard, then click "View report" to land here.
           </p>
@@ -259,48 +270,46 @@ export default function ComprehensiveReport() {
   return (
     <>
       <div className="max-w-[1100px]" data-testid="comprehensive-report">
-        {/* ── Header card (navy gradient, matches the EEI v5 reference) ── */}
-        <header className="rounded-2xl px-6 py-6 mb-6 text-white"
-                style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}>
-          {/* 2026-05-26 mobile fix: stack vertically below sm: so the
-              company-name headline (34px serif) stays on one line. */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <div className="text-[10.5px] uppercase tracking-[0.14em] opacity-80">
-                Comprehensive financial analysis
+        {/* ── A3 hero eviction — the navy-gradient banner becomes the
+            compact instrument header; the memo identity survives in the
+            eyebrow. ── */}
+        <div className="mb-6 pb-4 border-b border-rule">
+          <InstrumentPageHeader
+            eyebrow="Comprehensive financial analysis"
+            title={companyName}
+            context={
+              <span>
+                Period ending <span className="font-mono tabular-nums">{periodEnd}</span>
+                {" · "}trial balance ({currency}) · displayed in <CurrencyDisplayChip />
+              </span>
+            }
+            actions={
+              <div className="flex items-center gap-2 flex-wrap print:hidden">
+                <GuideMeButton pageId="comprehensive-report" title="Report" steps={COMPREHENSIVE_GUIDE} />
+                <button
+                  onClick={exportPdf}
+                  disabled={pdfBusy}
+                  data-testid="report-export-pdf"
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-ink text-paper disabled:opacity-50 text-[12.5px] font-medium hover:bg-ink/90 transition-colors duration-micro"
+                >
+                  {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                  Export PDF
+                </button>
+                <button
+                  onClick={printHtml}
+                  data-testid="report-print"
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-rule bg-surface text-ink text-[12.5px] font-medium hover:bg-bg-2 transition-colors duration-micro"
+                >
+                  <Printer size={13} />
+                  Print
+                </button>
               </div>
-              <h1 className="mt-1 font-serif text-[26px] sm:text-[30px] md:text-[34px] leading-tight">
-                {companyName}
-              </h1>
-              <p className="mt-1.5 text-[13px] opacity-85">
-                Period ending {periodEnd} · Source: trial balance ({currency}) · Displayed in <CurrencyDisplayChip />
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap sm:shrink-0 print:hidden">
-              <GuideMeButton pageId="comprehensive-report" title="Report" steps={COMPREHENSIVE_GUIDE} />
-              <button
-                onClick={exportPdf}
-                disabled={pdfBusy}
-                data-testid="report-export-pdf"
-                className="inline-flex items-center gap-1.5 rounded-md bg-rule-soft/60 hover:bg-rule-soft disabled:opacity-50 px-3 py-1.5 text-[12.5px] font-medium transition-colors"
-              >
-                {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                Export PDF
-              </button>
-              <button
-                onClick={printHtml}
-                data-testid="report-print"
-                className="inline-flex items-center gap-1.5 rounded-md bg-rule-soft/60 hover:bg-rule-soft px-3 py-1.5 text-[12.5px] font-medium transition-colors"
-              >
-                <Printer size={13} />
-                Print
-              </button>
-            </div>
-          </div>
-        </header>
+            }
+          />
+        </div>
 
-        {/* ── Section nav — sticky local TOC ───────────────────────────── */}
-        <nav className="mb-6 rounded-xl border border-rule bg-surface px-4 py-2 flex flex-wrap gap-2 text-[12px] print:hidden">
+        {/* ── Section nav — local TOC ──────────────────────────────────── */}
+        <nav className="mb-6 rounded-md border border-rule bg-surface px-4 py-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] print:hidden">
           {[
             ["overview",    "1. Overview"],
             ["pnl",         "2. P&L"],
@@ -317,7 +326,7 @@ export default function ComprehensiveReport() {
           ))}
         </nav>
 
-        <article className="eei-scope space-y-10">
+        <article className="space-y-10">
           {/* ── 1. OVERVIEW ─────────────────────────────────────────── */}
           <section id="overview" data-testid="report-section-1-overview">
             <SectionHeader number={1} title="Overview" />
@@ -340,17 +349,19 @@ export default function ComprehensiveReport() {
               // Empty-state — should not happen on a loaded report, but
               // a defensive fallback so the page never crashes if the
               // canonical assembly is unavailable.
-              <div className="rounded-2xl border border-rule bg-bg-2/40 px-6 py-8 text-center text-[13px] text-ink-soft">
+              <div className="rounded-md border border-rule bg-bg-2/40 px-6 py-8 text-center text-[13px] text-ink-soft">
                 No canonical metrics available for this period.
               </div>
             )}
             {report.briefing?.summary && (
-              <div className="eei-briefing mt-5">
-                <div className="head">Executive briefing</div>
-                <p className="body">
+              <Panel inset className="mt-5 border-l-[3px] border-l-brand px-4 py-3">
+                <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
+                  Executive briefing
+                </div>
+                <p className="text-[13px] text-ink-soft leading-relaxed whitespace-pre-line">
                   {relabelOperationalInBriefing(report.briefing.summary)}
                 </p>
-              </div>
+              </Panel>
             )}
           </section>
 
@@ -388,7 +399,7 @@ export default function ComprehensiveReport() {
           <section id="risk" data-testid="report-section-7-risk" className="space-y-5">
             <SectionHeader number={7} title="Risk & Credit" />
             {credit ? <CreditScoreCard data={credit} variant="full" /> : (
-              <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
+              <div className="rounded-md border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
                 Credit score not available — re-run the pipeline to compute the composite score for this period.
               </div>
             )}
@@ -417,8 +428,8 @@ export default function ComprehensiveReport() {
 
 function SectionHeader({ number, title }: { number: number; title: string }) {
   return (
-    <h2 className="eei-h2">
-      <span className="num">{number}.</span>
+    <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3 pb-2 border-b border-rule">
+      <span className="font-mono tabular-nums text-ink-mute mr-1.5">{number}.</span>
       {title}
     </h2>
   );
@@ -448,21 +459,6 @@ function relabelOperationalInBriefing(summary: string): string {
     .replace(/\bstatutory net income\b/gi, "operational net income (excl. capitalized own-work)");
 }
 
-// Legacy non-converting helpers retained ONLY for the now-removed code paths
-// below. New call sites must use `useReportFmt(sourceCurrency)`.
-// (Marked deprecated so a future cleanup PR can delete them once every
-// caller is hook-based.)
-/** @deprecated CUR-FIX — use the `fmt` returned from `useReportFmt()` instead. */
-function fmt(n: number | null | undefined, opts?: { signed?: boolean; pct?: boolean; mult?: boolean }): string {
-  if (n == null || !Number.isFinite(n)) return "—";
-  if (opts?.pct) return `${(n).toFixed(1)}%`;
-  if (opts?.mult) return `${n.toFixed(2)}×`;
-  const abs = Math.abs(n);
-  const formatted = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(abs);
-  if (opts?.signed && n < 0) return `(${formatted})`;
-  return n < 0 ? `(${formatted})` : formatted;
-}
-
 function KpiGrid({
   canonical, credit, netMarginCanonical, currency,
 }: {
@@ -481,8 +477,8 @@ function KpiGrid({
    *  `useReportFmt`. The display currency comes from <CurrencyProvider>. */
   currency: string;
 }) {
-  // CUR-FIX — every money value in this grid converts to display currency.
-  const { fmt, fmtCompact } = useReportFmt(currency);
+  // CUR-FIX — exact converted figures still surface in the sub line.
+  const { fmt, displayCurrency } = useReportFmt(currency);
   // Pull from the canonical object only. No fallback to legacy
   // independent derivations — those are the bug the canonical object
   // exists to eliminate.
@@ -497,31 +493,41 @@ function KpiGrid({
   const roe = balance.equity > 0 ? netProfit.statutory_account_121 / balance.equity : null;
   const altman = credit?.altmanZ ?? null;
 
+  const src = currency as Currency;
   // The KPI strip surfaces three EBITDA / net-profit figures explicitly:
   //   · Reported EBITDA (legal view, ties to acct 121)
   //   · Core EBITDA     (basis for valuation — 758/781 stripped)
   //   · Net profit      (statutory acct 121 — the legally filed number)
   // The 758/781 bridge is rendered as a separate panel directly below.
   // This is the consistency fix — no surface picks its own figure.
+  // Money tiles share ONE magnitude via the surrounding AmountGroup; the
+  // sub line carries the exact converted figure so nothing is lost to
+  // compaction.
   const tiles: Array<{
     label: string;
-    value: string;
+    value: React.ReactNode;
     sub?: string;
     headline?: boolean;
     conceptKey?: string;
     rawValue?: number;
   }> = [
-    { label: "Net turnover", value: fmt(revenue), sub: fmtCompact(revenue), conceptKey: "operating_revenue", rawValue: revenue },
+    {
+      label: "Net turnover",
+      value: <MoneyAmount value={revenue} fromCurrency={src} />,
+      sub: `${fmt(revenue)} ${displayCurrency}`,
+      conceptKey: "operating_revenue",
+      rawValue: revenue,
+    },
     {
       label: "EBITDA — reported",
-      value: fmt(ebitda.reported),
+      value: <MoneyAmount value={ebitda.reported} fromCurrency={src} />,
       sub: ebitda.reported_margin_pct != null ? `${ebitda.reported_margin_pct.toFixed(1)}% margin · acct 121 view` : "Reported / statutory",
       conceptKey: "ebitda",
       rawValue: ebitda.reported,
     },
     {
       label: "EBITDA — core",
-      value: fmt(ebitda.core),
+      value: <MoneyAmount value={ebitda.core} fromCurrency={src} />,
       sub: ebitda.core_margin_pct != null ? `${ebitda.core_margin_pct.toFixed(1)}% margin · excl. 758, 781` : "Basis for valuation",
       headline: true,
       conceptKey: "ebitda",
@@ -529,7 +535,7 @@ function KpiGrid({
     },
     {
       label: "Net profit — statutory (ct 121)",
-      value: fmt(netProfit.statutory_account_121),
+      value: <MoneyAmount value={netProfit.statutory_account_121} fromCurrency={src} />,
       // F1.e — Margin reads engine-canonical `net_margin` from
       // calculated_metrics so this tile agrees with the dashboard tile
       // and the Ratios row on the same page. The "legally filed"
@@ -546,42 +552,46 @@ function KpiGrid({
       conceptKey: "net_profit",
       rawValue: netProfit.statutory_account_121,
     },
-    { label: "Total assets", value: fmt(balance.total_assets), sub: fmtCompact(balance.total_assets), conceptKey: "total_assets", rawValue: balance.total_assets },
-    { label: "Equity ratio", value: equityRatio == null ? "—" : `${(equityRatio*100).toFixed(1)}%`, sub: "Equity / Assets", conceptKey: equityRatio == null ? undefined : "equity_ratio", rawValue: equityRatio ?? undefined },
-    { label: "Net Debt / EBITDA", value: ndeRatio == null ? "—" : `${ndeRatio.toFixed(2)}×`, sub: "Leverage · on Core EBITDA", conceptKey: ndeRatio == null ? undefined : "net_debt_ebitda", rawValue: ndeRatio ?? undefined },
-    { label: "ROE", value: roe == null ? "—" : `${(roe*100).toFixed(1)}%`, sub: "Return on equity", conceptKey: roe == null ? undefined : "roe", rawValue: roe ?? undefined },
-    { label: "Altman Z″", value: altman == null ? "—" : altman.toFixed(2), sub: "Distress score", conceptKey: altman == null ? undefined : "altman_z_score", rawValue: altman ?? undefined },
+    {
+      label: "Total assets",
+      value: <MoneyAmount value={balance.total_assets} fromCurrency={src} />,
+      sub: `${fmt(balance.total_assets)} ${displayCurrency}`,
+      conceptKey: "total_assets",
+      rawValue: balance.total_assets,
+    },
+    { label: "Equity ratio", value: <PercentLevel value={equityRatio != null ? equityRatio * 100 : null} />, sub: "Equity / Assets", conceptKey: equityRatio == null ? undefined : "equity_ratio", rawValue: equityRatio ?? undefined },
+    { label: "Net Debt / EBITDA", value: <CappedMultiple value={ndeRatio} />, sub: "Leverage · on Core EBITDA", conceptKey: ndeRatio == null ? undefined : "net_debt_ebitda", rawValue: ndeRatio ?? undefined },
+    { label: "ROE", value: <PercentLevel value={roe != null ? roe * 100 : null} />, sub: "Return on equity", conceptKey: roe == null ? undefined : "roe", rawValue: roe ?? undefined },
+    { label: "Altman Z″", value: <Amount kind="count" value={altman} fractionDigits={2} />, sub: "Distress score", conceptKey: altman == null ? undefined : "altman_z_score", rawValue: altman ?? undefined },
   ];
 
   return (
-    <div className="eei-kpi-grid">
-      {tiles.map((t) => (
-        <div key={t.label} className={`eei-kpi-card${t.headline ? " is-headline" : ""}`}>
-          <div className="label">{t.label}</div>
-          <div className="value">
-            {t.conceptKey != null && t.rawValue != null ? (
-              <LearnableNumber conceptKey={t.conceptKey} value={t.rawValue}>
-                {t.value}
-              </LearnableNumber>
-            ) : (
-              t.value
-            )}
-          </div>
-          {t.sub && <div className="sub">{t.sub}</div>}
-        </div>
-      ))}
-    </div>
+    <MoneyAmountGroup
+      values={[revenue, ebitda.reported, ebitda.core, netProfit.statutory_account_121, balance.total_assets]}
+      fromCurrency={src}
+    >
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {tiles.map((t) => (
+          <Panel
+            key={t.label}
+            className={`p-4 ${t.headline ? "border-l-[3px] border-l-brand" : ""}`}
+          >
+            <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1">{t.label}</div>
+            <div className="text-[19px] text-ink leading-tight">
+              {t.conceptKey != null && t.rawValue != null ? (
+                <LearnableNumber conceptKey={t.conceptKey} value={t.rawValue}>
+                  {t.value}
+                </LearnableNumber>
+              ) : (
+                t.value
+              )}
+            </div>
+            {t.sub && <div className="mt-1 text-[11px] text-ink-mute">{t.sub}</div>}
+          </Panel>
+        ))}
+      </div>
+    </MoneyAmountGroup>
   );
-}
-
-// CUR-FIX — `currency_M` is replaced by `fmtCompact` from `useReportFmt`.
-// Kept here only as deprecated dead-code so the symbol still resolves if
-// any rare downstream import references it; new code MUST use the hook.
-/** @deprecated CUR-FIX — use `useReportFmt().fmtCompact` instead. */
-function currency_M(n: number): string {
-  if (Math.abs(n) >= 1_000_000) return `${(n/1_000_000).toFixed(1)} M RON`;
-  if (Math.abs(n) >= 1_000)     return `${(n/1_000).toFixed(0)} K RON`;
-  return `${n.toFixed(0)} RON`;
 }
 
 function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: string }) {
@@ -642,46 +652,66 @@ function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: stri
     );
   }
 
+  // Instrument row styling — semantic emphasis through tokens only.
+  const rowCls: Record<RowStyle, string> = {
+    normal: "",
+    indent: "",
+    subtotal: "bg-bg-2/60 font-semibold text-ink",
+    highlight: "bg-brand-tint/30 font-semibold text-ink",
+    headline: "bg-brand-tint/50 font-semibold text-ink",
+    reconciliation: "text-ink-mute",
+    memo: "",
+  };
+  const labelCls: Record<RowStyle, string> = {
+    normal: "",
+    indent: "pl-8 text-ink-soft",
+    subtotal: "",
+    highlight: "",
+    headline: "",
+    reconciliation: "pl-8 italic",
+    memo: "pl-8 italic text-ink-mute",
+  };
+
   return (
     <>
-      <table className="eei-table">
-        <thead>
-          <tr>
-            <th>Line</th>
-            <th className="num">{displayCurrency}</th>
-            <th className="num">% of turnover</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const v = r.val;
-            const pct = v != null && revenue > 0 ? `${(v / revenue * 100).toFixed(1)}%` : "—";
-            const cls =
-              r.style === "headline"       ? "headline"
-              : r.style === "reconciliation" ? "reconciliation"
-              : r.style === "highlight"    ? "subtotal"
-              : r.style === "subtotal"     ? "subtotal"
-              : r.style === "memo"         ? "memo"
-              : r.style === "indent"       ? "indent"
-              : "";
-            return (
-              <tr key={r.label} className={cls}>
-                <td>{r.label}</td>
-                <td className="num">{fmt(v ?? null, { signed: true })}</td>
-                <td className="num">{pct}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <Panel className="overflow-x-auto">
+        <table className="w-full text-[12.5px] min-w-[480px]">
+          <thead className="bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+            <tr className="border-b border-rule">
+              <th className="text-left px-4 h-8 font-medium">Line</th>
+              <th className="text-right px-3 h-8 font-medium">{displayCurrency}</th>
+              <th className="text-right px-3 h-8 font-medium">% of turnover</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const v = r.val;
+              return (
+                <tr
+                  key={r.label}
+                  className={`h-8 ${r.style === "headline" ? "border-t border-t-rule-strong" : r.style === "reconciliation" ? "border-t border-dashed border-rule-strong" : "border-t border-rule-soft"} first:border-t-0 ${rowCls[r.style]}`}
+                >
+                  <td className={`px-4 py-1 ${labelCls[r.style]}`}>{r.label}</td>
+                  <td className="px-3 py-1 text-right">
+                    <MoneyAmount value={v} fromCurrency={currency as Currency} unit={false} />
+                  </td>
+                  <td className="px-3 py-1 text-right text-ink-soft">
+                    <PercentLevel value={v != null && revenue > 0 ? (v / revenue) * 100 : null} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Panel>
 
       {/* Commentary callout — only when 722 is material. Mirrors the
-       *  EEI report's analytical note: 722 is a non-cash credit offset
-       *  to CIP (231); the corresponding cost is in 628; net P&L effect
-       *  on the OPERATIONAL view is ~zero. */}
+       *  analytical note: 722 is a non-cash credit offset to CIP (231);
+       *  the corresponding cost is in 628; net P&L effect on the
+       *  OPERATIONAL view is ~zero. */}
       {has722 && (
-        <div className="eei-callout commentary" role="note">
-          <span className="lead">722 reconciliation —</span>{" "}
+        <Panel inset className="mt-4 border-l-[3px] border-l-brand px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed" role="note">
+          <span className="font-semibold text-brand-d dark:text-brand-l">722 reconciliation —</span>{" "}
           Account 722 (capitalized own work) is a non-cash credit that capitalizes internally-incurred
           costs into CIP (account 231 — the year&rsquo;s movement matches 722 to the cent). The
           corresponding cost sits inside account 628 (third-party services). Net P&amp;L effect of the
@@ -689,7 +719,7 @@ function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: stri
           headline figure across this report. Statutory net profit ({fmt(statNetProfit)} {displayCurrency}, matches
           account 121 closing balance) is shown above as the reconciled total — not as a competing
           headline.
-        </div>
+        </Panel>
       )}
     </>
   );
@@ -717,7 +747,7 @@ function BsTable({ bs, currency }: { bs: Record<string, number>; currency: strin
     ["Dividends payable", bs.ap_dividends ?? 0],
   ];
   return (
-    <div className="eei-two-up">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <BsHalf title="Assets" rows={assetRows} totalLabel="Total assets" totalValue={bs.total_assets} reference={total} currency={currency} />
       <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={(bs.total_equity ?? 0) + (bs.total_liabilities ?? 0)} reference={total} currency={currency} />
     </div>
@@ -732,41 +762,45 @@ function BsHalf({ title, rows, totalLabel, totalValue, reference, currency }: {
   reference: number;
   currency: string;
 }) {
-  const { fmt, displayCurrency } = useReportFmt(currency);
+  const { displayCurrency } = useReportFmt(currency);
   return (
-    <div>
-      <h3 className="eei-h3">{title}</h3>
-      <table className="eei-table">
-        <thead>
-          <tr>
-            <th>Line</th>
-            <th className="num">{displayCurrency}</th>
-            <th className="num">% of assets</th>
+    <Panel className="overflow-x-auto">
+      <PanelHeader title={title} />
+      <table className="w-full text-[12.5px]">
+        <thead className="bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+          <tr className="border-b border-rule">
+            <th className="text-left px-4 h-8 font-medium">Line</th>
+            <th className="text-right px-3 h-8 font-medium">{displayCurrency}</th>
+            <th className="text-right px-3 h-8 font-medium">% of assets</th>
           </tr>
         </thead>
         <tbody>
           {rows.map(([label, val]) => (
-            <tr key={label}>
-              <td>{label}</td>
-              <td className="num">{fmt(val ?? null)}</td>
-              <td className="num">
-                {val != null && reference > 0 ? `${(val/reference*100).toFixed(1)}%` : ""}
+            <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
+              <td className="px-4 py-1">{label}</td>
+              <td className="px-3 py-1 text-right">
+                <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} />
+              </td>
+              <td className="px-3 py-1 text-right text-ink-soft">
+                {val != null && reference > 0 ? <PercentLevel value={(val / reference) * 100} /> : null}
               </td>
             </tr>
           ))}
-          <tr className="total">
-            <td>{totalLabel}</td>
-            <td className="num">{fmt(totalValue ?? null)}</td>
-            <td className="num"></td>
+          <tr className="border-t border-t-rule-strong h-8 bg-bg-2/60 font-semibold text-ink">
+            <td className="px-4 py-1">{totalLabel}</td>
+            <td className="px-3 py-1 text-right">
+              <MoneyAmount value={totalValue} fromCurrency={currency as Currency} unit={false} />
+            </td>
+            <td className="px-3 py-1"></td>
           </tr>
         </tbody>
       </table>
-    </div>
+    </Panel>
   );
 }
 
 function CashFlowTable({ cf, currency }: { cf: Record<string, number | boolean | string[] | undefined>; currency: string }) {
-  const { fmt } = useReportFmt(currency);
+  const { displayCurrency } = useReportFmt(currency);
   const isApprox = Boolean(cf.is_approximated);
   const notes = Array.isArray(cf.approximation_notes) ? cf.approximation_notes : [];
   const n = (k: string) => (typeof cf[k] === "number" ? (cf[k] as number) : 0);
@@ -810,61 +844,79 @@ function CashFlowTable({ cf, currency }: { cf: Record<string, number | boolean |
   ];
 
   return (
-    <div>
+    <div className="space-y-4">
       {isApprox && (
-        <div className="eei-approx-banner">
-          <strong>Cash flow is approximated.</strong>
-          <p style={{ margin: "4px 0 0 0" }}>
+        <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft">
+          <strong className="font-semibold text-caution">Cash flow is approximated.</strong>
+          <p className="mt-1">
             Single-period upload — working-capital movements and financing detail
             estimated from typical Romanian patterns. Upload the prior year for
             exact reconciliation.
           </p>
           {notes.length > 0 && (
-            <ul>
+            <ul className="mt-1.5 space-y-0.5 text-[11.5px] text-ink-mute list-disc pl-4">
               {notes.map((nt, i) => <li key={i}>{nt}</li>)}
             </ul>
           )}
-        </div>
+        </Panel>
       )}
       {sections.map((s) => (
-        <div key={s.title}>
-          <h3 className="eei-h3">{s.title}</h3>
-          <table className="eei-table">
+        <Panel key={s.title} className="overflow-x-auto">
+          <PanelHeader
+            title={s.title}
+            actions={<span className="text-[11px] text-ink-mute">figures in <span className="font-mono">{displayCurrency}</span></span>}
+          />
+          <table className="w-full text-[12.5px]">
             <tbody>
               {s.rows.map(([label, val]) => (
-                <tr key={label} className="indent">
-                  <td>{isApprox ? `~ ${label}` : label}</td>
-                  <td className="num">{fmt(val, { signed: true })}</td>
+                <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
+                  <td className="px-4 py-1 pl-8 text-ink-soft">{isApprox ? `~ ${label}` : label}</td>
+                  <td className="px-3 py-1 text-right">
+                    <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} />
+                  </td>
                 </tr>
               ))}
-              <tr className="subtotal">
-                <td>{s.subtotal[0]}</td>
-                <td className="num">{fmt(s.subtotal[1], { signed: true })}</td>
+              <tr className="border-t border-t-rule-strong h-8 bg-bg-2/60 font-semibold text-ink">
+                <td className="px-4 py-1">{s.subtotal[0]}</td>
+                <td className="px-3 py-1 text-right">
+                  <MoneyAmount value={s.subtotal[1]} fromCurrency={currency as Currency} unit={false} />
+                </td>
               </tr>
             </tbody>
           </table>
-        </div>
+        </Panel>
       ))}
-      <table className="eei-table" style={{ marginTop: 8 }}>
-        <tbody>
-          <tr className="total">
-            <td>Net change in cash</td>
-            <td className="num">{fmt(n("net_change_in_cash"), { signed: true })}</td>
-          </tr>
-        </tbody>
-      </table>
+      <Panel className="overflow-x-auto">
+        <table className="w-full text-[12.5px]">
+          <tbody>
+            <tr className="h-8 bg-bg-2/60 font-semibold text-ink">
+              <td className="px-4 py-1">Net change in cash</td>
+              <td className="px-3 py-1 text-right">
+                <MoneyAmount value={n("net_change_in_cash")} fromCurrency={currency as Currency} unit={false} />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Panel>
     </div>
   );
 }
 
 function RatiosTables({ metrics }: { metrics: Record<string, number | null> }) {
   const m = (k: string) => metrics[k];
-  // Helpers for pct/mult formatting
-  const pct = (v: number | null | undefined) => v == null ? "—" : `${(v * 100).toFixed(1)}%`;
-  const mult = (v: number | null | undefined) => v == null ? "—" : `${v.toFixed(2)}×`;
-  const days = (v: number | null | undefined) => v == null ? "—" : `${Math.round(v)} d`;
+  // Every ratio figure flows through the instrument, by unit.
+  const pct = (v: number | null | undefined) => (
+    <PercentLevel value={v != null ? v * 100 : null} />
+  );
+  const mult = (v: number | null | undefined) => <CappedMultiple value={v} />;
+  const days = (v: number | null | undefined) =>
+    v == null ? (
+      <Amount kind="count" value={null} />
+    ) : (
+      <span className="font-mono tabular-nums"><Amount kind="count" value={Math.round(v)} /> d</span>
+    );
 
-  const groups: Array<{ title: string; rows: Array<[string, string]> }> = [
+  const groups: Array<{ title: string; rows: Array<[string, React.ReactNode]> }> = [
     {
       title: "Profitability",
       rows: [
@@ -910,19 +962,19 @@ function RatiosTables({ metrics }: { metrics: Record<string, number | null> }) {
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
       {groups.map((g) => (
-        <div key={g.title}>
-          <h3 className="eei-h3">{g.title}</h3>
-          <table className="eei-table">
+        <Panel key={g.title}>
+          <PanelHeader title={g.title} />
+          <table className="w-full text-[12.5px]">
             <tbody>
               {g.rows.map(([label, val]) => (
-                <tr key={label}>
-                  <td>{label}</td>
-                  <td className="num">{val}</td>
+                <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
+                  <td className="px-4 py-1 text-ink-soft">{label}</td>
+                  <td className="px-3 py-1 text-right text-ink">{val}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Panel>
       ))}
     </div>
   );
@@ -934,7 +986,7 @@ function ValuationView({ metrics, pl, bs, currency }: {
   bs: Record<string, number>;
   currency: string;
 }) {
-  const { fmt, displayCurrency } = useReportFmt(currency);
+  const { displayCurrency } = useReportFmt(currency);
   const ebitda = pl.ebitda_statutory ?? pl.ebitda ?? metrics.ebitda ?? 0;
   const netDebt = (bs.total_debt ?? 0) - (bs.cash ?? 0);
   const bookEquity = bs.total_equity ?? metrics.total_equity ?? 0;
@@ -948,40 +1000,44 @@ function ValuationView({ metrics, pl, bs, currency }: {
   return (
     <div className="space-y-3">
       {ebitda <= 0 && (
-        <div className="rounded-xl border border-[#8FE3D9]/50 bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.08] px-4 py-3 text-[12.5px] text-[#1B7268] dark:text-[#E6F7F4]">
+        <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft">
           EBITDA is non-positive — EV/EBITDA multiples produce meaningless values.
           For asset-heavy or distressed cases, prefer NAV (book equity) as the
           floor and revenue-multiple as a cross-check.
-        </div>
+        </Panel>
       )}
-      <div className="rounded-xl border border-rule bg-surface overflow-hidden">
-        <header className="bg-bg-2/40 px-4 py-2 text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium border-b border-rule/60">
-          Valuation envelope
-        </header>
-        <table className="w-full text-[12.5px]">
-          <thead>
-            <tr>
-              <th className="text-left px-4 py-2 font-medium text-ink-mute">Method</th>
-              <th className="text-right px-3 py-2 font-medium text-ink-mute">Enterprise value ({displayCurrency})</th>
-              <th className="text-right px-3 py-2 font-medium text-ink-mute">Equity value ({displayCurrency})</th>
+      <Panel className="overflow-x-auto">
+        <PanelHeader title="Valuation envelope" />
+        <table className="w-full text-[12.5px] min-w-[480px]">
+          <thead className="bg-surface text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
+            <tr className="border-b border-rule">
+              <th className="text-left px-4 h-8 font-medium">Method</th>
+              <th className="text-right px-3 h-8 font-medium">Enterprise value ({displayCurrency})</th>
+              <th className="text-right px-3 h-8 font-medium">Equity value ({displayCurrency})</th>
             </tr>
           </thead>
           <tbody>
             {multiples.map((m) => (
-              <tr key={m.label} className="border-t border-rule/40">
-                <td className="px-4 py-2 text-ink">EV/EBITDA · {m.label}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{ebitda > 0 ? fmt(m.ev) : "n/a"}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{ebitda > 0 ? fmt(m.equity, { signed: true }) : "n/a"}</td>
+              <tr key={m.label} className="border-t border-rule-soft first:border-t-0 h-8">
+                <td className="px-4 py-1 text-ink">EV/EBITDA · {m.label}</td>
+                <td className="px-3 py-1 text-right">
+                  {ebitda > 0 ? <MoneyAmount value={m.ev} fromCurrency={currency as Currency} unit={false} /> : <span className="text-ink-mute">n/a</span>}
+                </td>
+                <td className="px-3 py-1 text-right">
+                  {ebitda > 0 ? <MoneyAmount value={m.equity} fromCurrency={currency as Currency} unit={false} /> : <span className="text-ink-mute">n/a</span>}
+                </td>
               </tr>
             ))}
-            <tr className="border-t border-rule bg-bg-2/40 font-semibold">
-              <td className="px-4 py-2 text-ink">Book equity (NAV floor)</td>
-              <td className="px-3 py-2"></td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmt(bookEquity)}</td>
+            <tr className="border-t border-t-rule-strong h-8 bg-bg-2/60 font-semibold text-ink">
+              <td className="px-4 py-1">Book equity (NAV floor)</td>
+              <td className="px-3 py-1"></td>
+              <td className="px-3 py-1 text-right">
+                <MoneyAmount value={bookEquity} fromCurrency={currency as Currency} unit={false} />
+              </td>
             </tr>
           </tbody>
         </table>
-      </div>
+      </Panel>
       <p className="text-[11.5px] text-ink-mute leading-relaxed">
         EV/EBITDA at 6× conservative, 8× mid, 10× premium. NAV = book equity floor;
         full DCF + adjusted NAV cascade in the Valuation tab.
@@ -993,7 +1049,7 @@ function ValuationView({ metrics, pl, bs, currency }: {
 function RecommendationsList({ recs }: { recs: PeriodResponse["recommendations"] }) {
   if (!recs || recs.length === 0) {
     return (
-      <div className="rounded-xl border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
+      <div className="rounded-md border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft">
         No deterministic recommendations fired. Pair with qualitative review or
         re-run the pipeline after uploading prior-period data.
       </div>
@@ -1003,20 +1059,28 @@ function RecommendationsList({ recs }: { recs: PeriodResponse["recommendations"]
     <ol className="space-y-3">
       {recs.map((r, i) => {
         const sev = r.severity?.toLowerCase() ?? "medium";
-        const sevColor =
-          sev === "critical" ? "border-red-400"
-          : sev === "high"   ? "border-[#5CD3C5]"
-          : sev === "medium" ? "border-[#5CD3C5]"
-          : "border-[#8FE3D9]";
+        // Severity ladder — red only for critical (danger); amber
+        // caution for high/medium; slate info for the rest.
+        const sevRule =
+          sev === "critical" ? "border-l-alert"
+          : sev === "high"   ? "border-l-caution"
+          : sev === "medium" ? "border-l-caution"
+          : "border-l-info";
+        const sevTone: ChipTone =
+          sev === "critical" ? "alert"
+          : sev === "high" || sev === "medium" ? "caution"
+          : "info";
         return (
-          <li key={i} className={`rounded-xl border-l-[3px] ${sevColor} bg-surface border border-rule px-4 py-3`}>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] uppercase tracking-[0.1em] font-medium text-ink-mute">{sev}</span>
-              <span className="text-[14px] font-medium text-ink">{i + 1}. {r.title ?? "Recommendation"}</span>
-            </div>
-            {r.why && <p className="text-[12.5px] text-ink-soft mt-1"><strong className="text-ink">Why:</strong> {r.why}</p>}
-            {r.action && <p className="text-[12.5px] text-ink-soft mt-1"><strong className="text-ink">Action:</strong> {r.action}</p>}
-            {r.impact && <p className="text-[12.5px] text-ink-soft mt-1"><strong className="text-ink">Impact:</strong> {r.impact}</p>}
+          <li key={i}>
+            <Panel className={`border-l-[3px] ${sevRule} px-4 py-3`}>
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <Chip tone={sevTone} className="uppercase tracking-[0.06em]">{sev}</Chip>
+                <span className="text-[14px] font-medium text-ink">{i + 1}. {r.title ?? "Recommendation"}</span>
+              </div>
+              {r.why && <p className="text-[12.5px] text-ink-soft mt-1"><strong className="text-ink">Why:</strong> {r.why}</p>}
+              {r.action && <p className="text-[12.5px] text-ink-soft mt-1"><strong className="text-ink">Action:</strong> {r.action}</p>}
+              {r.impact && <p className="text-[12.5px] text-ink-soft mt-1"><strong className="text-ink">Impact:</strong> {r.impact}</p>}
+            </Panel>
           </li>
         );
       })}
@@ -1035,13 +1099,11 @@ function NinetyDayPlan({ recs }: { recs: PeriodResponse["recommendations"] }) {
   });
   return (
     <div className="mt-6">
-      <h3 className="font-serif text-[16px] text-ink mb-3">90-day action plan</h3>
+      <h3 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">90-day action plan</h3>
       <div className="grid md:grid-cols-3 gap-3">
         {Object.entries(buckets).map(([window, items]) => (
-          <div key={window} className="rounded-xl border border-rule bg-surface overflow-hidden">
-            <header className="bg-bg-2/40 px-4 py-2 text-[11px] uppercase tracking-[0.1em] font-medium text-ink-mute border-b border-rule/60">
-              {window}
-            </header>
+          <Panel key={window}>
+            <PanelHeader title={window} />
             <div className="p-3">
               {items && items.length > 0 ? (
                 <ul className="space-y-1.5 text-[12.5px] text-ink-soft">
@@ -1056,7 +1118,7 @@ function NinetyDayPlan({ recs }: { recs: PeriodResponse["recommendations"] }) {
                 <p className="text-[12px] text-ink-mute italic">No items in this window.</p>
               )}
             </div>
-          </div>
+          </Panel>
         ))}
       </div>
     </div>

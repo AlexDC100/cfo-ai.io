@@ -103,7 +103,7 @@ export default function ContactSalesPage() {
         </p>
 
         {done ? (
-          <div className="mt-8 rounded-xl border border-[#5CD3C5]/30 bg-[#5CD3C5]/5 p-6">
+          <div className="mt-8 rounded-xl border border-brand/30 bg-brand/5 p-6">
             <h2 className="text-[18px] font-semibold text-ink">
               Got it — talk soon
             </h2>

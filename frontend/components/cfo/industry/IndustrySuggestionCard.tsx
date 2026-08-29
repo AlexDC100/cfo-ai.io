@@ -129,10 +129,10 @@ function CandidateRowView({
       <div className="mt-1.5 font-medium text-ink inline-flex items-center gap-2">
         {candidate.display_name ?? candidate.industry_key}
         {isSelected && (
-          <CheckCircle2 size={14} strokeWidth={2.2} className="text-[#2AA89B]" aria-label="Currently selected" />
+          <CheckCircle2 size={14} strokeWidth={2.2} className="text-brand" aria-label="Currently selected" />
         )}
         {isPrimary && locked && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-[#2AA89B] bg-[#E6F7F4]/70 rounded px-1.5 py-0.5">
+          <span className="inline-flex items-center gap-1 text-[10px] text-brand bg-brand-tint/70 rounded px-1.5 py-0.5">
             <Lock size={9} /> Locked
           </span>
         )}

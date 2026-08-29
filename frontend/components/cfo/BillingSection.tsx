@@ -263,7 +263,7 @@ function CancelSaveAttempt({ open, sub, onClose, onConfirm }: CancelSaveAttemptP
       <AlertDialogContent data-testid="cancel-save-attempt">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle size={16} strokeWidth={2} className="text-[#2AA89B]" />
+            <AlertTriangle size={16} strokeWidth={2} className="text-caution" />
             Sorry to see you go.
           </AlertDialogTitle>
           <AlertDialogDescription>

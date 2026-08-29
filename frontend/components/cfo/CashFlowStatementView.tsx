@@ -234,16 +234,16 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
                 <ArrowUp size={92} strokeWidth={2.5} className="absolute left-1/2 top-[60%] -translate-x-1/2 -translate-y-1/2" />
               </div>
               <div className="relative flex items-start gap-2.5">
-                <span aria-hidden className="text-[#2AA89B] dark:text-[#8FE3D9] mt-0.5">ⓘ</span>
+                <span aria-hidden className="text-brand mt-0.5">ⓘ</span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium text-[#1B7268] dark:text-[#E6F7F4]">
+                  <div className="text-[13px] font-medium text-brand-d dark:text-ink">
                     {t("statements.cf.approximated.heading")}
                   </div>
-                  <p className="text-[12px] text-[#1B7268]/85 dark:text-[#E6F7F4]/85 mt-1 leading-relaxed">
+                  <p className="text-[12px] text-brand-d/85 dark:text-ink/85 mt-1 leading-relaxed">
                     {t("statements.cf.approximated.body")}
                   </p>
                   {statement.approximationNotes.length > 0 && (
-                    <ul className="text-[11.5px] text-[#1B7268]/80 dark:text-[#E6F7F4]/80 mt-2 ml-3 list-disc space-y-0.5">
+                    <ul className="text-[11.5px] text-brand-d/80 dark:text-ink/80 mt-2 ml-3 list-disc space-y-0.5">
                       {statement.approximationNotes.map((note, i) => (
                         <li key={i}>{note}</li>
                       ))}
@@ -257,7 +257,7 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
                     >
                       {t("statements.cf.approximated.cta")}
                     </a>
-                    <span className="text-[11.5px] text-[#1B7268]/70 dark:text-[#E6F7F4]/70">
+                    <span className="text-[11.5px] text-brand-d/70 dark:text-ink/70">
                       {t("statements.cf.approximated.hint")}
                     </span>
                   </div>

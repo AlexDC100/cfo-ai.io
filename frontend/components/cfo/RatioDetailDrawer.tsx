@@ -456,12 +456,12 @@ function Section({
 
 function CategoryChip({ category }: { category: RatioKnowledge["category"] }) {
   const palette: Record<RatioKnowledge["category"], { bg: string; text: string; label: string }> = {
-    liquidity:     { bg: "bg-[#EDF1F6] dark:bg-[hsl(173,57%,18%)]", text: "text-[#1B7268] dark:text-[hsl(173,57%,80%)]", label: "Liquidity" },
-    profitability: { bg: "bg-[#EEF4F0] dark:bg-[hsl(173,57%,14%)]", text: "text-[#2AA89B] dark:text-[hsl(173,57%,72%)]", label: "Profitability" },
-    leverage:      { bg: "bg-[#F1EDF6] dark:bg-[hsl(173,57%,18%)]", text: "text-[#1B7268] dark:text-[hsl(173,57%,80%)]", label: "Leverage" },
-    coverage:      { bg: "bg-[#E6F7F4] dark:bg-[hsl(173,57%,18%)]",  text: "text-[#2AA89B] dark:text-[hsl(173,57%,75%)]",  label: "Coverage" },
-    efficiency:    { bg: "bg-[#E6F7F4] dark:bg-[hsl(173,57%,16%)]", text: "text-[#1B7268] dark:text-[hsl(173,57%,76%)]", label: "Efficiency" },
-    distress:      { bg: "bg-[#F4E8E8] dark:bg-[hsl(0,30%,18%)]",   text: "text-[#7A1F1F] dark:text-[hsl(0,40%,80%)]",   label: "Distress" },
+    liquidity:     { bg: "bg-info-tint",    text: "text-info",              label: "Liquidity" },
+    profitability: { bg: "bg-success-tint", text: "text-success",           label: "Profitability" },
+    leverage:      { bg: "bg-bg-2",         text: "text-ink-soft",          label: "Leverage" },
+    coverage:      { bg: "bg-brand-tint",   text: "text-brand-d dark:text-brand-l", label: "Coverage" },
+    efficiency:    { bg: "bg-brand-tint",   text: "text-brand-d dark:text-brand-l", label: "Efficiency" },
+    distress:      { bg: "bg-alert-tint",   text: "text-alert",             label: "Distress" },
   };
   const c = palette[category];
   return (

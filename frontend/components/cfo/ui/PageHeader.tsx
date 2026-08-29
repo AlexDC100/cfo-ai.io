@@ -58,8 +58,11 @@ export function PageHeader({
       )}
       <div className="relative flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
+          {/* D1 axe: the eyebrow sits on the brand atmosphere wash where
+              ink-mute lands ~2.6-3.4:1; brand-d clears AA on every wash in
+              both themes and matches the Sparkles mark beside it. */}
           {eyebrow && (
-            <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
+            <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-brand-d font-semibold">
               <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
               {eyebrow}
             </div>
@@ -67,7 +70,7 @@ export function PageHeader({
           <h1
             className={`mt-3 ${
               hero ? "text-[44px] sm:text-[56px]" : "text-[36px] sm:text-[44px]"
-            } leading-[1.04] tracking-[-0.02em] text-ink max-w-[820px] font-serif`}
+            } leading-[1.08] tracking-tight font-semibold text-ink max-w-[820px]`}
           >
             {title}
           </h1>

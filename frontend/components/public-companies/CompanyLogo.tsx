@@ -35,18 +35,14 @@ interface Props {
   className?: string;
 }
 
-// Eight tones picked so adjacent rows don't visually collide. Derived
-// from the ticker's char codes so ABCD always gets the same colour.
-const AVATAR_BG_TONES = [
-  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-  "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-200",
-  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-  "bg-stone-200 text-stone-800 dark:bg-stone-500/20 dark:text-stone-200",
-  "bg-[#E6F7F4] text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",
-];
+// THE INSTRUMENT (2026-08-29): both avatar palettes collapsed onto the
+// token sheet. Identity comes from the mono TICKER TEXT, not from a
+// per-ticker rainbow — semantic tints (amber/red) are reserved for
+// reconciliation states and the one accent stays interactive-only, so
+// every letter avatar rests on the quiet neutral surface. Behavior
+// (hash → tone plumbing, image fallback, fonts) is unchanged; the tone
+// tables just resolve to one entry each now.
+const AVATAR_BG_TONES = ["bg-bg-2 text-ink-2"];
 
 function tickerToneIndex(ticker: string): number {
   let sum = 0;
@@ -56,21 +52,7 @@ function tickerToneIndex(ticker: string): number {
   return sum % AVATAR_BG_TONES.length;
 }
 
-// ── Monogram palette (PCI redesign, 2026-08-04) ─────────────────────────
-// Curated 8-tone palette for the `variant="monogram"` avatar: calm tinted
-// backgrounds with legible ink, styled for both light and dark. The tone
-// is deterministic — same char-code hash as above, so a ticker keeps one
-// identity across every surface and session.
-const MONOGRAM_TONES = [
-  "bg-[#5CD3C5]/15 text-[#1B7268] dark:bg-[#5CD3C5]/20 dark:text-[#8FE3D9]",       // teal (brand)
-  "bg-indigo-500/12 text-indigo-700 dark:bg-indigo-400/20 dark:text-indigo-200",
-  "bg-amber-500/15 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200",
-  "bg-rose-500/12 text-rose-700 dark:bg-rose-400/20 dark:text-rose-200",
-  "bg-slate-500/15 text-slate-700 dark:bg-slate-400/20 dark:text-slate-200",
-  "bg-emerald-500/12 text-emerald-700 dark:bg-emerald-400/20 dark:text-emerald-200",
-  "bg-violet-500/12 text-violet-700 dark:bg-violet-400/20 dark:text-violet-200",
-  "bg-cyan-500/12 text-cyan-700 dark:bg-cyan-400/20 dark:text-cyan-200",
-] as const;
+const MONOGRAM_TONES = ["bg-bg-2 text-ink-2"] as const;
 
 function monogramTone(ticker: string): string {
   let sum = 0;

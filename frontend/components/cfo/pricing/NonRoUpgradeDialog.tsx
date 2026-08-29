@@ -37,7 +37,7 @@ export function NonRoUpgradeDialog({ open, onClose, serverMessage }: Props) {
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <DialogContent data-testid="non-ro-upgrade-dialog" className="max-w-[440px]">
         <DialogHeader>
-          <DialogTitle className="text-[18px] font-serif text-ink flex items-center gap-2">
+          <DialogTitle className="text-[16px] font-semibold text-ink flex items-center gap-2">
             <Globe2 size={16} strokeWidth={2} className="text-brand shrink-0" />
             {t("pricing.nonRoBlockedTitle")}
           </DialogTitle>

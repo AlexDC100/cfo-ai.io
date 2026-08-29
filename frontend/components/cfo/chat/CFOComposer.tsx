@@ -208,7 +208,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           panel keeps its own padding + full width. */}
       <div className="w-full">
       {contextLine && (
-        <div className="mb-2 text-[11.5px] text-ink-mute text-left selection:bg-transparent">
+        <div className="mb-2 text-[11.5px] text-ink-soft text-left selection:bg-transparent">
           {contextLine}
         </div>
       )}
@@ -277,7 +277,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             title={lockTooltip}
             className="
               inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-sm
-              text-ink-mute hover:text-ink hover:bg-bg-2/70
+              text-ink-soft hover:text-ink hover:bg-bg-2/70
               disabled:opacity-50 transition-colors duration-micro
             "
           >
@@ -321,7 +321,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             className={`
               flex-1 min-w-0 resize-none bg-transparent py-2
               text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
-              placeholder:text-ink-mute focus:outline-none focus-visible:shadow-none
+              placeholder:text-ink-soft focus:outline-none focus-visible:shadow-none
               disabled:opacity-60
               ${compact ? "min-h-[40px]" : "min-h-[62px]"} max-h-[170px]
             `}
@@ -332,9 +332,9 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           {!compact && (
             <span
               aria-hidden
-              className="hidden sm:inline-flex items-baseline gap-1 shrink-0 self-end mb-2 mr-0.5 text-[10.5px] font-mono text-ink-faint select-none"
+              className="hidden sm:inline-flex items-baseline gap-1 shrink-0 self-end mb-2 mr-0.5 text-[10.5px] font-mono text-ink-soft select-none"
             >
-              ⌘↵ <span className="text-ink-faint">{t("chatDegraded.sendHint")}</span>
+              ⌘↵ <span className="text-ink-soft">{t("chatDegraded.sendHint")}</span>
             </span>
           )}
           {pending ? (
@@ -362,7 +362,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               className="
                 inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-sm
                 bg-brand text-paper hover:bg-brand/90 transition-colors duration-micro
-                disabled:bg-bg-2 disabled:text-ink-mute disabled:cursor-not-allowed
+                disabled:bg-bg-2 disabled:text-ink-soft disabled:cursor-not-allowed
               "
             >
               <ArrowUp size={14} strokeWidth={2.25} />
@@ -372,7 +372,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
       </div>
 
       {disclosure && (
-        <div className="mt-2 text-[11px] text-ink-mute text-center leading-snug">
+        <div className="mt-2 text-[11px] text-ink-soft text-center leading-snug">
           {disclosure}
         </div>
       )}

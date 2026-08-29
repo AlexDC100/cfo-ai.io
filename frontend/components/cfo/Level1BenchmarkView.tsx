@@ -128,6 +128,7 @@ export function Level1BenchmarkView({ documentId }: Props) {
   if (state === "empty") {
     return (
       <div className="max-w-[680px] mx-auto py-16 text-center">
+        {/* design-lint-allow-serif: empty-state voice — one serif line per the brief */}
         <h1 className="font-serif text-[24px] text-ink mb-2">No benchmark data yet</h1>
         <p className="text-[13px] text-ink-soft">
           Upload either a Romanian trial balance (for a full ratio benchmark) or a
@@ -141,7 +142,8 @@ export function Level1BenchmarkView({ documentId }: Props) {
     return (
       <div className="max-w-[680px] mx-auto py-16">
         <div className="rounded-lg border border-[hsl(var(--warning-2)/0.4)] bg-[hsl(var(--warning-2-tint))]/40 p-5">
-          <h1 className="font-serif text-[20px] text-ink mb-1">Benchmark error</h1>
+          {/* design-lint-allow-serif: empty-state voice — one serif line per the brief */}
+        <h1 className="font-serif text-[20px] text-ink mb-1">Benchmark error</h1>
           <p className="text-[12.5px] text-ink-soft">{errMsg || "Unknown error."}</p>
         </div>
       </div>
@@ -161,12 +163,12 @@ export function Level1BenchmarkView({ documentId }: Props) {
 
       {/* Company identity header */}
       <header className="rounded-2xl px-6 py-6 mb-6 text-white"
-              style={{ background: "linear-gradient(135deg, #1B7268 0%, #2AA89B 100%)" }}>
+              style={{ background: "var(--grad-brand)" }}>
         <div className="flex flex-col gap-3">
           <div className="text-[10.5px] uppercase tracking-[0.14em] opacity-80">
             Industry benchmark — Level 1 (Public Financial Summary)
           </div>
-          <h1 className="font-serif text-[28px] leading-tight">
+          <h1 className="text-[22px] font-semibold leading-tight tracking-tight">
             {data.company.name || "Romanian company"}
           </h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] opacity-90">
@@ -177,8 +179,7 @@ export function Level1BenchmarkView({ documentId }: Props) {
             )}
           </div>
           <div className="flex flex-wrap gap-2 mt-1">
-            <span className="inline-block text-[10.5px] uppercase tracking-[0.08em] font-semibold px-2 py-0.5 rounded-md"
-                  style={{ background: "rgba(92,211,197,0.18)", color: "#8FE3D9", border: "1px solid rgba(92,211,197,0.30)" }}>
+            <span className="inline-block text-[10.5px] uppercase tracking-[0.08em] font-semibold px-2 py-0.5 rounded-md bg-white/15 text-white border border-white/25">
               Industry: {data.industry.category}
               {data.industry.source === "mapped_2digit" ? " · auto-detected from CAEN" : ""}
             </span>
@@ -295,7 +296,7 @@ interface BigKPIProps {
   tone?: "neutral" | "positive" | "negative";
 }
 function BigKPI({ label, value, fmt, tone = "neutral" }: BigKPIProps) {
-  const color = tone === "negative" ? "#c62828" : tone === "positive" ? "#2AA89B" : "#1a1a1a";
+  const color = tone === "negative" ? "hsl(var(--alert))" : tone === "positive" ? "hsl(var(--success))" : "hsl(var(--ink))";
   return (
     <div className="rounded-lg border border-rule bg-bg-2/30 p-3">
       <div className="text-[10.5px] uppercase tracking-[0.06em] text-ink-soft">{label}</div>
@@ -321,11 +322,11 @@ function fmtVal(v: number | null | undefined, fmt: "currency" | "pct" | "ratio" 
 
 function VerdictPill({ verdict }: { verdict: Comparison["verdict"] }) {
   const map: Record<typeof verdict, { label: string; bg: string; fg: string }> = {
-    top_quartile:    { label: "Top quartile",    bg: "#E6F7F4", fg: "#2AA89B" },
-    above_median:    { label: "Above median",    bg: "#E6F7F4", fg: "#2AA89B" },
-    below_median:    { label: "Below median",    bg: "#E6F7F4", fg: "#2AA89B" },
-    bottom_quartile: { label: "Bottom quartile", bg: "#fde8e8", fg: "#c62828" },
-    not_available:   { label: "n/a",             bg: "#f0f4f8", fg: "#5a6577" },
+    top_quartile:    { label: "Top quartile",    bg: "hsl(var(--success-tint))", fg: "hsl(var(--success))" },
+    above_median:    { label: "Above median",    bg: "hsl(var(--success-tint))", fg: "hsl(var(--success))" },
+    below_median:    { label: "Below median",    bg: "hsl(var(--success-tint))", fg: "hsl(var(--success))" },
+    bottom_quartile: { label: "Bottom quartile", bg: "hsl(var(--alert-tint))", fg: "hsl(var(--alert))" },
+    not_available:   { label: "n/a",             bg: "hsl(var(--bg-2))", fg: "hsl(var(--ink-mute))" },
   };
   const v = map[verdict];
   return (

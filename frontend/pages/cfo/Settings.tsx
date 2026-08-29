@@ -308,7 +308,7 @@ function IndustrySection() {
     return (
       <div
         data-testid="settings-industry-empty"
-        className="rounded-lg border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-mute"
+        className="rounded-lg border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft"
       >
         Open any period (Dashboard, Cash, Profit…) and come back here to
         review or change its industry classification. The picker also lives
@@ -494,6 +494,7 @@ function ProfileCard() {
                 placeholder="Alex"
                 readOnly={!editing}
                 inputRef={firstInputRef}
+                ariaLabel={t("settings.first_name")}
               />
             </Field>
           </div>
@@ -504,6 +505,7 @@ function ProfileCard() {
                 onChange={setLastName}
                 placeholder="Maier"
                 readOnly={!editing}
+                ariaLabel={t("settings.last_name")}
               />
             </Field>
           </div>
@@ -515,13 +517,13 @@ function ProfileCard() {
             disabled={busy}
             data-testid="settings-profile-edit"
             aria-pressed={editing}
-            // Animated teal sweep while editing — the same "this is the
-            // active thing" language as the selected language/currency
-            // pills and Learning card. See those for the band/shift note.
+            // While editing, the brand-tinted border is the "this is the
+            // active thing" signal — flat, no animated fill, matching the
+            // segmented controls below.
             className={cn(
-              "shrink-0 inline-flex items-center justify-center gap-1.5 h-[38px] rounded-md px-3.5 text-[12.5px] font-medium border disabled:opacity-50 transition-colors",
+              "shrink-0 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm px-3 text-[12.5px] font-medium border disabled:opacity-50 transition-colors duration-micro",
               editing
-                ? "ask-ai-anim-fill bg-surface text-ink border-brand/50 [--af-band:90px] [--af-shift:509.1px] [--af-a1:0.34] [--af-a2:0.12] [animation-duration:7.2s]"
+                ? "bg-surface text-ink border-brand/60"
                 : "bg-surface border-rule text-ink-soft hover:text-ink hover:border-rule-strong",
             )}
           >
@@ -538,7 +540,7 @@ function ProfileCard() {
             read-only even in edit mode instead of looking editable and then
             behaving differently from the two fields beside it. */}
         <Field label={t("settings.email")}>
-          <Input value={email} onChange={setEmail} readOnly />
+          <Input value={email} onChange={setEmail} readOnly ariaLabel={t("settings.email")} />
         </Field>
       </div>
     </section>
@@ -667,7 +669,7 @@ function CurrencyCard() {
           {/* Provenance sits with the description, not with the numbers —
               it qualifies where the whole feed comes from, and inside the
               rates box it read as a footnote to those two lines only. */}
-          <div className="mt-1 text-[11px] text-ink-mute">
+          <div className="mt-1 text-[11px] text-ink-soft">
             {t("settings.currency_source", "Source")}: {sourceLabel} ·{" "}
             {t("settings.currency_updated", "Updated")} {fetchedAtLabel}
             {rates?.stale && (
@@ -707,7 +709,7 @@ function CurrencyCard() {
             <span>{r.to}</span>
           </div>
         ))}
-        <div className="mt-1 border-t border-rule-soft pt-1 text-[10.5px] text-ink-mute">
+        <div className="mt-1 border-t border-rule-soft pt-1 text-[10.5px] text-ink-soft">
           {t("settingsX.currency.display_only")}
         </div>
       </div>
@@ -801,7 +803,7 @@ function SubscriptionCard({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="inline-flex items-center gap-2">
-            <span className="font-serif text-[26px] leading-none tracking-[-0.01em] text-ink">
+            <span className="text-[22px] font-semibold leading-none tracking-[-0.01em] text-ink">
               {planName}
             </span>
             <StatusBadge status={status} entitled={entitled} cancelAtPeriodEnd={cancelAtPeriodEnd} />
@@ -836,7 +838,7 @@ function SubscriptionCard({
 
       {/* Action row — cancel or reactivate, depending on state. */}
       <div className="mt-5 pt-4 border-t border-rule/60 flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-[11.5px] text-ink-mute">
+        <p className="text-[11.5px] text-ink-soft">
           Stripe checkout integration is the only remaining step.
           You can change plans freely until then — see <code className="font-mono">billing.ts</code>.
         </p>
@@ -859,7 +861,7 @@ function SubscriptionCard({
           )}
           <button
             onClick={onRefresh}
-            className="text-[11px] text-ink-mute hover:text-ink transition-colors"
+            className="text-[11px] text-ink-soft hover:text-ink transition-colors"
             title="Re-fetch subscription from the server"
           >
             Refresh
@@ -890,7 +892,7 @@ function StatusBadge({ status, entitled, cancelAtPeriodEnd }: { status: string; 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-rule bg-bg-2 px-3 py-2.5">
-      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">{label}</div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium">{label}</div>
       <div className="mt-1 text-[13px]">{children}</div>
     </div>
   );
@@ -925,7 +927,7 @@ function SecurityCard({ email, onSignOut }: { email: string | null; onSignOut: (
         </button>
       </Row>
       <Row icon={Shield} title={t("settings.2fa")}>
-        <span className="text-[12px] text-ink-mute">{t("settings.coming_soon")}</span>
+        <span className="text-[12px] text-ink-soft">{t("settings.coming_soon")}</span>
       </Row>
       {/* Sign-out row removed (May 2026 redesign) — the THE single
           sign-out lives in the top-right account dropdown
@@ -954,7 +956,7 @@ function IntegrationsStub() {
           </button>
         </Row>
       ))}
-      <div className="px-5 py-3 text-[11.5px] text-ink-mute flex items-center gap-2">
+      <div className="px-5 py-3 text-[11.5px] text-ink-soft flex items-center gap-2">
         <AlertTriangle size={12} strokeWidth={1.75} />
         Integrations are part of the Professional and Enterprise plans.
       </div>
@@ -1077,7 +1079,7 @@ function DataSection() {
               disabled={busy}
               onClick={() => { void clearMyUploads(); }}
               data-testid="settings-confirm-clear"
-              className="inline-flex items-center gap-1.5 h-11 sm:h-9 px-3.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
+              className="inline-flex items-center gap-1.5 h-11 sm:h-9 px-3.5 rounded-lg bg-alert hover:bg-alert/90 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
             >
               {busy
                 ? <><Loader2 size={13} className="animate-spin" />Clearing…</>
@@ -1200,7 +1202,7 @@ function DebugEmailSection({ email }: { email: string | null }) {
       <div className="px-5 py-4 flex items-center justify-between gap-3 bg-bg-2/40">
         <div className="min-w-0">
           <div className="text-[13.5px] font-medium text-ink">All email types</div>
-          <div className="text-[11.5px] text-ink-mute leading-snug">
+          <div className="text-[11.5px] text-ink-soft leading-snug">
             Sends every template below to your address in one batch.
           </div>
         </div>
@@ -1224,7 +1226,7 @@ function DebugEmailSection({ email }: { email: string | null }) {
             </div>
             <div className="min-w-0">
               <div className="text-[13.5px] text-ink truncate">{m.label}</div>
-              <div className="text-[11.5px] text-ink-mute leading-snug">{m.description}</div>
+              <div className="text-[11.5px] text-ink-soft leading-snug">{m.description}</div>
             </div>
           </div>
           <button
@@ -1240,7 +1242,7 @@ function DebugEmailSection({ email }: { email: string | null }) {
           </button>
         </div>
       ))}
-      <div className="px-5 py-3 text-[11.5px] text-ink-mute flex items-center gap-2">
+      <div className="px-5 py-3 text-[11.5px] text-ink-soft flex items-center gap-2">
         <AlertTriangle size={12} strokeWidth={1.75} />
         {email
           ? <>Preview emails are delivered only to <span className="text-ink-soft">{email}</span>. Requires RESEND_API_KEY on the backend.</>
@@ -1407,16 +1409,19 @@ function DangerZoneSection({ email }: { email: string | null }) {
   }
 
   return (
-    <div className="rounded-2xl border border-red-500/40 bg-surface overflow-hidden shadow-[0_10px_40px_-16px_rgba(220,38,38,0.25)]">
-      <div className="rounded-[15px] bg-surface overflow-hidden">
+    // Alert tokens only — red is reserved for danger, and this IS the
+    // danger surface. Flat at rest: the hairline alert border carries the
+    // warning; no resting shadow.
+    <div className="rounded-md border border-alert/40 bg-surface overflow-hidden">
+      <div className="bg-surface overflow-hidden">
         {/* Header — danger icon + title */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-red-500/15 bg-red-500/[0.04]">
-          <span className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-red-500/10 text-red-600 ring-1 ring-red-500/20">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-alert/15 bg-alert/5">
+          <span className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-alert/10 text-alert ring-1 ring-alert/20">
             <AlertTriangle size={17} strokeWidth={2} />
           </span>
           <div>
-            <h3 className="text-[14.5px] font-semibold text-red-600">Danger zone</h3>
-            <p className="text-[11.5px] text-ink-mute">
+            <h3 className="text-[14.5px] font-semibold text-alert">Danger zone</h3>
+            <p className="text-[11.5px] text-ink-soft">
               Security-sensitive and destructive actions. Proceed carefully.
             </p>
           </div>
@@ -1442,18 +1447,18 @@ function DangerZoneSection({ email }: { email: string | null }) {
           </Row>
 
           <Row icon={Shield} title="Two-factor authentication" description="Add a second factor to your sign-in.">
-            <span className="text-[12px] text-ink-mute">Coming soon</span>
+            <span className="text-[12px] text-ink-soft">Coming soon</span>
           </Row>
 
           {/* Clear all uploads — two-step confirm */}
           <div className="px-5 py-4 flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-red-500/20 bg-red-500/5 text-red-600 shrink-0">
+              <div className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-alert/20 bg-alert/5 text-alert shrink-0">
                 <Trash2 size={14} strokeWidth={1.75} />
               </div>
               <div className="min-w-0">
                 <div className="text-[13.5px] text-ink">Clear all my uploaded documents</div>
-                <div className="text-[11.5px] text-ink-mute leading-snug max-w-[440px]">
+                <div className="text-[11.5px] text-ink-soft leading-snug max-w-[440px]">
                   Hides every document and analysis you've uploaded to this workspace.
                   Reversible by support for 30 days. Doesn't affect other users.
                 </div>
@@ -1464,7 +1469,7 @@ function DangerZoneSection({ email }: { email: string | null }) {
                 type="button"
                 onClick={() => setConfirming(true)}
                 data-testid="settings-clear-uploads"
-                className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[12.5px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+                className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-alert/30 bg-alert/10 text-[12.5px] font-medium text-alert hover:bg-alert/20 transition-colors"
               >
                 <Trash2 size={13} strokeWidth={1.75} />
                 Clear uploads
@@ -1484,7 +1489,7 @@ function DangerZoneSection({ email }: { email: string | null }) {
                   disabled={clearBusy}
                   onClick={() => { void clearMyUploads(); }}
                   data-testid="settings-confirm-clear"
-                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-alert hover:bg-alert/90 text-white text-[12.5px] font-medium disabled:opacity-60 transition-colors"
                 >
                   {clearBusy
                     ? <><Loader2 size={13} className="animate-spin" />Clearing…</>
@@ -1578,12 +1583,12 @@ function DangerRow({
   return (
     <div className="px-5 py-4 flex items-start justify-between gap-4">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-red-500/20 bg-red-500/5 text-red-600 shrink-0">
+        <div className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-alert/20 bg-alert/5 text-alert shrink-0">
           <Trash2 size={14} strokeWidth={1.75} />
         </div>
         <div className="min-w-0">
           <div className="text-[13.5px] text-ink">{title}</div>
-          <div className="text-[11.5px] text-ink-mute leading-snug max-w-[440px]">
+          <div className="text-[11.5px] text-ink-soft leading-snug max-w-[440px]">
             {description}
           </div>
         </div>
@@ -1594,7 +1599,7 @@ function DangerRow({
         data-testid={`settings-${buttonLabel.toLowerCase().replace(/[^a-z]+/g, "-").replace(/-$/, "")}`}
         // The former hover fill is now the resting state — these read as
         // destructive at a glance instead of only once the cursor lands.
-        className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[12.5px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+        className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-alert/30 bg-alert/10 text-[12.5px] font-medium text-alert hover:bg-alert/20 transition-colors"
       >
         <Trash2 size={13} strokeWidth={1.75} />
         {buttonLabel}
@@ -1661,7 +1666,7 @@ function ConfirmPhraseDialog({
         </DialogHeader>
 
         <label className="block">
-          <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
+          <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-soft font-semibold mb-1.5">
             Type{" "}
             <span className="font-mono normal-case tracking-normal text-ink">{phrase}</span>{" "}
             to confirm
@@ -1675,7 +1680,7 @@ function ConfirmPhraseDialog({
             autoComplete="off"
             spellCheck={false}
             data-testid="confirm-phrase-input"
-            className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-mute focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500/40"
+            className="w-full h-10 px-3 rounded-lg border border-rule bg-surface text-[14px] text-ink placeholder:text-ink-soft focus:outline-none focus:ring-2 focus:ring-alert/30 focus:border-alert/40"
           />
         </label>
 
@@ -1693,7 +1698,7 @@ function ConfirmPhraseDialog({
             onClick={() => void confirm()}
             disabled={!match || busy}
             data-testid="confirm-phrase-confirm"
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-red-600 text-white text-[13px] font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-alert text-white text-[13px] font-medium hover:bg-alert/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {busy
               ? <><Loader2 size={14} className="animate-spin" />{busyLabel}</>
@@ -1718,12 +1723,14 @@ function Section({ title, subtitle, divider = false, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <section className={divider ? "border-t border-rule pt-6" : undefined}>
-      <h2 className="text-[15px] font-medium text-ink">{title}</h2>
-      {subtitle && <p className="mt-0.5 text-[12.5px] text-ink-soft">{subtitle}</p>}
-      {/* Tighter than the previous mt-3 — the heading and its controls read
-          as one block now that the dividers group the sections. */}
-      <div className="mt-1.5">{children}</div>
+    <section className={divider ? "border-t border-rule pt-5" : undefined}>
+      {/* Caps section titles — the same register as PanelHeader, so the
+          Settings column scans like a stack of instrument panels. */}
+      <h2 className="text-[12.5px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+        {title}
+      </h2>
+      {subtitle && <p className="mt-1 text-[12px] text-ink-soft">{subtitle}</p>}
+      <div className="mt-2.5">{children}</div>
     </section>
   );
 }
@@ -1731,14 +1738,14 @@ function Section({ title, subtitle, divider = false, children }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium mb-1.5">{label}</div>
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1.5">{label}</div>
       {children}
     </div>
   );
 }
 
 function Input({
-  value, onChange, placeholder, readOnly = false, inputRef,
+  value, onChange, placeholder, readOnly = false, inputRef, ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -1749,6 +1756,10 @@ function Input({
    *  and it can't receive focus — which the group-blur handler needs. */
   readOnly?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Accessible name. Field's caption div is purely visual (no <label>
+   *  association), so inputs without a placeholder have NO name for AT —
+   *  a critical axe `label` violation (D1). */
+  ariaLabel?: string;
 }) {
   return (
     <input
@@ -1758,9 +1769,12 @@ function Input({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       readOnly={readOnly}
+      aria-label={ariaLabel}
       aria-readonly={readOnly || undefined}
       className={cn(
-        "w-full border rounded-md px-3 py-2 text-[13.5px] transition-colors focus:outline-none",
+        // Instrument input: 32px, hairline rule, flat at rest. Focus is a
+        // brand-tinted border, not a glow.
+        "w-full h-8 border rounded-sm px-2.5 text-[13px] transition-colors duration-micro focus:outline-none",
         readOnly
           // Keep the field's outline so it still reads as an input, just
           // faded — a fully borderless value gave no hint that Edit would
@@ -1768,7 +1782,7 @@ function Input({
           // a read-only input still takes focus and text selection by
           // default, which made it look editable when it isn't.
           ? "bg-transparent border-rule/40 text-ink-soft cursor-default select-none"
-          : "bg-bg-2 border-rule text-ink focus:border-brand/50 focus:bg-surface",
+          : "bg-surface border-rule text-ink focus:border-brand/60",
       )}
     />
   );
@@ -1790,7 +1804,7 @@ function Row({
         </div>
         <div className="min-w-0">
           <div className="text-[13.5px] text-ink truncate">{title}</div>
-          {description && <div className="text-[11.5px] text-ink-mute leading-snug">{description}</div>}
+          {description && <div className="text-[11.5px] text-ink-soft leading-snug">{description}</div>}
         </div>
       </div>
       <div className="shrink-0">{children}</div>
