@@ -1,23 +1,31 @@
-// Premium message bubble for the CFO AI chat.
+// Message rendering for the CFO AI chat — THE INSTRUMENT identity.
 //
-// Two visual languages share this component:
-//   · user turn   — right-aligned, soft brand-tint pill, compact, capped width
-//   · assistant turn — left-aligned, glass-style card with subtle border,
+// Three visual languages share this component:
+//   · user turn      — right-aligned flat panel, faint accent tint,
+//                      hairline border, capped width
+//   · assistant turn — left-aligned flat hairline panel on surface,
 //                      readable line-height, light markdown rendering
+//   · failed turn    — the A2 degraded panel: calm headline, Retry,
+//                      quiet "details" disclosure with a human-readable
+//                      reason. Never the raw error payload (that lives
+//                      in console.debug only — see lib/aiDegraded.ts).
 //
 // Markdown rendering is intentionally minimal (no new runtime deps —
 // react-markdown is NOT in the dep tree and the spec forbids adding
 // providers). We handle the four formatting bits the model actually
 // uses in financial output: ## / ### headers, bullet lists,
 // **bold**, `code`, and paragraph breaks. Anything else falls through
-// as plain text inside a <p>.
-//
-// The bubble also surfaces the "Grounded in workspace snapshot · …"
-// caption when the assistant turn was sent with workspace context.
+// as plain text inside a <p>. Figures inside an answer stay PLAIN
+// TEXT on purpose: parsing free-text numbers into <Amount> would fake
+// provenance the payload doesn't carry.
 
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { RotateCcw } from "lucide-react";
+import { Panel } from "@/components/instrument/Panel";
+import { AI_FAILURE_REASON_KEY } from "@/lib/aiDegraded";
+import "./chatDegradedI18n";
 import type { ChatMessage } from "./types";
 
 interface Props {
@@ -29,15 +37,66 @@ interface Props {
   /** Called on each reveal tick so the list can keep the view pinned to
    *  the bottom while the answer types out. */
   onType?: () => void;
+  /** A2 — present only on the conversation's LAST message: re-runs the
+   *  failed turn through the normal send pipeline. Older failed turns
+   *  render the panel without the button. */
+  onRetry?: () => void;
 }
 
-export function CFOMessageBubble({ message, animate = false, onType }: Props) {
+export function CFOMessageBubble({ message, animate = false, onType, onRetry }: Props) {
   const isUser = message.role === "user";
   if (isUser) return <UserBubble message={message} />;
   // Stop pressed mid-generation — a muted marker in the assistant slot
   // (left side, same placement as an answer), like Claude's "Interrupted".
   if (message.interrupted) return <InterruptedMarker />;
+  // A2 degraded state — the calm panel replaces the answer body.
+  if (message.failed) return <FailedTurnPanel kind={message.failed} onRetry={onRetry} />;
   return <AssistantBubble message={message} animate={animate} onType={onType} />;
+}
+
+// ─── Failed turn (A2) ────────────────────────────────────────────
+// What the user sees when the assistant couldn't answer. The contract:
+// no JSON braces, no status codes, no request ids in the DOM — a calm
+// one-liner, a Retry button, and a quiet disclosure whose reason is one
+// of three human-readable strings.
+function FailedTurnPanel({ kind, onRetry }: { kind: NonNullable<ChatMessage["failed"]>; onRetry?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="mb-6 max-w-[640px]" data-role="assistant" data-testid="chat-ai-degraded">
+      <Panel inset className="px-4 py-3">
+        <p className="text-[13.5px] leading-relaxed text-ink">
+          {t("chatDegraded.headline")}
+        </p>
+        <div className="mt-2.5 flex items-start gap-3">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              data-testid="chat-ai-degraded-retry"
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-sm border border-rule bg-surface text-[12px] font-medium text-ink hover:border-rule-strong transition-colors duration-micro"
+            >
+              <RotateCcw size={12} strokeWidth={2} />
+              {t("chatDegraded.retry")}
+            </button>
+          )}
+          {/* Native disclosure — the human-readable reason ("service
+              temporarily unavailable" / "usage limit reached" / "network
+              error") stays folded until asked for. */}
+          <details className="min-w-0">
+            <summary
+              data-testid="chat-ai-degraded-details"
+              className="cursor-pointer list-none leading-7 text-[11.5px] text-ink-mute hover:text-ink-soft select-none [&::-webkit-details-marker]:hidden"
+            >
+              {t("chatDegraded.details")}
+            </summary>
+            <p className="mt-0.5 text-[11.5px] leading-snug text-ink-soft" data-testid="chat-ai-degraded-reason">
+              {t(AI_FAILURE_REASON_KEY[kind])}
+            </p>
+          </details>
+        </div>
+      </Panel>
+    </div>
+  );
 }
 
 // ─── Interrupted marker ──────────────────────────────────────────
@@ -91,7 +150,7 @@ function UserBubble({ message }: Props) {
       data-role="user"
     >
       <div className="max-w-[88%] sm:max-w-[760px]">
-        <div className="rounded-2xl rounded-tr-md bg-brand-tint/70 dark:bg-brand/[0.14] border border-brand/15 px-4 py-2.5 text-[14px] leading-relaxed text-ink whitespace-pre-wrap">
+        <div className="rounded-md rounded-tr-sm border border-rule bg-brand-tint/60 dark:bg-brand-tint px-4 py-2.5 text-[14px] leading-relaxed text-ink whitespace-pre-wrap">
           {message.content}
         </div>
         {message.attachments && message.attachments.length > 0 && (
@@ -99,9 +158,9 @@ function UserBubble({ message }: Props) {
             {message.attachments.map((a) => (
               <span
                 key={a.id}
-                className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-surface px-2 py-0.5 text-[11px] text-ink-soft"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-rule bg-surface px-2 py-0.5 text-[11px] text-ink-soft"
               >
-                <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px]">{ext(a.name)}</span>
+                <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] font-mono">{ext(a.name)}</span>
                 <span className="truncate max-w-[140px]">{a.name}</span>
               </span>
             ))}
@@ -126,8 +185,8 @@ function AssistantBubble({ message, animate = false, onType }: Props) {
       className="mb-6 max-w-[1000px]"
       data-role="assistant"
     >
-      {/* Body — plain text, no card / label / copy button. */}
-      <div className="text-[14px] leading-[1.65] text-ink">
+      {/* Flat hairline panel on surface — no shadow at rest. */}
+      <div className="rounded-md border border-rule bg-surface px-4 py-3 text-[14px] leading-[1.65] text-ink">
         <MiniMarkdown text={shown} />
         {/* Blinking caret while the answer is still typing out. */}
         {typing && (
@@ -223,8 +282,8 @@ function renderInline(text: string): React.ReactNode {
 
   return tokens.map((t, k) => {
     if (t.kind === "bold") return <strong key={k} className="font-semibold text-ink">{t.v}</strong>;
-    if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded text-[12.5px] bg-bg-2/70 text-ink break-all">{t.v}</code>;
-    if (t.kind === "link") return <a key={k} href={t.v} target="_blank" rel="noreferrer" className="text-brand-d underline underline-offset-2 hover:text-brand break-all">{t.v}</a>;
+    if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded-sm text-[12.5px] font-mono bg-bg-2/70 text-ink break-all">{t.v}</code>;
+    if (t.kind === "link") return <a key={k} href={t.v} target="_blank" rel="noreferrer" className="text-brand-dark dark:text-brand-light underline underline-offset-2 hover:text-brand break-all">{t.v}</a>;
     return <span key={k}>{t.v}</span>;
   });
 }

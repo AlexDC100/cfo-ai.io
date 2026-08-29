@@ -1,15 +1,18 @@
-// Sticky chat composer — premium, glass-style, single source of truth
-// for input across both the /chat page and the slide-over panel.
+// Sticky chat composer — flat hairline panel (THE INSTRUMENT), single
+// source of truth for input across both the /chat page and the
+// slide-over panel.
 //
 // Features:
-//   · multi-line textarea that grows up to a sane cap
-//   · Send on Enter / newline on Shift+Enter
+//   · multi-line textarea, two lines at rest, grows up to a sane cap
+//   · Send on Enter or ⌘↵ / newline on Shift+Enter
 //   · attach button (UI only — populates the local attachments list,
 //     backend wiring is out of scope; chips render via CFOFilePreview)
-//   · focus glow + keyboard-shortcut hint
+//   · quiet ⌘↵ send hint beside the send button
 //   · while a turn is generating: typing stays enabled, SENDING is
 //     blocked, and the send button becomes a Stop button (Claude-style
 //     square) that interrupts the reply via `onStop`
+//   · A2 degraded state: everything stays visible but is disabled with
+//     a tooltip until Retry succeeds (see lib/aiDegraded.ts)
 //
 // The composer exposes a `focus()` method via forwardRef so the
 // "Ask CFO AI" entry point (when already on /chat) can focus the
@@ -21,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { Paperclip, ArrowUp, Square } from "lucide-react";
 import { CFOFilePreview } from "./CFOFilePreview";
 import { readDraft, writeDraft } from "./chatDrafts";
+import "./chatDegradedI18n";
 import type { ChatAttachment } from "./types";
 
 export interface CFOComposerHandle {
@@ -50,6 +54,11 @@ interface Props {
    *  Ask CFO AI daily or monthly cap has been reached. Spec literal:
    *  "disable + message if blocked, no generic error". */
   blockedReason?: { headline: string; body: string; href?: string } | null;
+  /** A2 degraded state — when set, input/attach/send are disabled with
+   *  this tooltip (no banner: the failed turn's panel in the thread is
+   *  the surface, and its Retry button is the way back). Auto-clears on
+   *  the next successful turn. */
+  degradedReason?: string | null;
   /** Per-conversation draft persistence (2026-07-25). When set, the
    *  composer initializes from the saved draft for this key and saves
    *  every keystroke back, so switching conversations (the shell keys
@@ -80,17 +89,21 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     disclosure,
     compact = false,
     blockedReason = null,
+    degradedReason = null,
     draftKey = null,
   },
   ref,
 ) {
   const { t } = useTranslation();
   const resolvedPlaceholder = placeholder ?? t("chatX.askAnythingPlaceholder");
-  // Hard-disable ONLY when a chat cap has been hit: input, attach, and send
-  // are all locked. `pending` is softer — the user can keep typing their next
-  // question while the answer generates; only SENDING is blocked (and the
-  // send button becomes Stop).
-  const hardDisabled = !!blockedReason;
+  // Hard-disable when a chat cap has been hit OR while the assistant is
+  // degraded (A2): input, attach, and send are all locked. `pending` is
+  // softer — the user can keep typing their next question while the answer
+  // generates; only SENDING is blocked (and the send button becomes Stop).
+  // While degraded there is no banner — the failed turn's panel carries
+  // Retry; the tooltip on the locked controls points there.
+  const hardDisabled = !!blockedReason || !!degradedReason;
+  const lockTooltip = degradedReason ?? undefined;
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   // Restore this conversation's unsent draft on mount. The shell keys the
@@ -133,9 +146,11 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     if (!ta) return;
     ta.style.height = "auto";
     const next = Math.min(ta.scrollHeight, 7 * 22);  // ~7 lines @ 22px line-height
-    // 40px floor keeps the single-line layout level with the 36px buttons.
-    ta.style.height = `${Math.max(40, next)}px`;
-  }, [text]);
+    // Page composer rests at TWO lines (the input reads as a place to
+    // write, not a search field); the compact slide-over keeps the tighter
+    // 40px floor that matches its 36px buttons.
+    ta.style.height = `${Math.max(compact ? 40 : 62, next)}px`;
+  }, [text, compact]);
 
   function submit() {
     const trimmed = text.trim();
@@ -152,6 +167,8 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Enter sends (existing behavior, unchanged); ⌘↵ / Ctrl+↵ also send,
+    // matching the hint beside the send button. Shift+Enter = newline.
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -204,17 +221,16 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
         <div
           data-testid="chat-blocked-banner"
           className="
-            mb-2 rounded-xl border border-[#8FE3D9]/70 bg-[#E6F7F4] px-3 py-2
-            text-[12px] text-[#1B7268] flex items-start gap-2
-            dark:bg-[#1B7268]/20 dark:text-[#8FE3D9] dark:border-[#2AA89B]/50
+            mb-2 rounded-md border border-rule bg-caution-tint px-3 py-2
+            text-[12px] text-ink flex items-start gap-2
           "
         >
-          <span className="font-medium">{blockedReason.headline}.</span>
-          <span className="flex-1">{blockedReason.body}</span>
+          <span className="font-medium text-caution">{blockedReason.headline}.</span>
+          <span className="flex-1 text-ink-soft">{blockedReason.body}</span>
           {blockedReason.href && (
             <a
               href={blockedReason.href}
-              className="font-medium underline underline-offset-2 hover:opacity-80 shrink-0"
+              className="font-medium text-brand-dark dark:text-brand-light underline underline-offset-2 hover:opacity-80 shrink-0"
             >
               {t("chatX.seePlans")}
             </a>
@@ -227,13 +243,14 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           grow into multiple lines above them. The old layout stacked the
           textarea over a second toolbar row (attach + shortcut hint + send);
           the hint went away with the row. */}
-      <div className={`
-        relative rounded-2xl border border-rule
-        bg-transparent backdrop-blur-md
-        shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]
-        transition-all
+      <div
+        title={lockTooltip}
+        data-degraded={degradedReason ? "true" : undefined}
+        className={`
+        relative rounded-md border border-rule bg-surface
+        transition-colors duration-micro focus-within:border-rule-strong
         ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}
-        ${blockedReason ? "opacity-70" : ""}
+        ${hardDisabled ? "opacity-70" : ""}
       `}>
         {/* Attachments row */}
         <AnimatePresence>
@@ -257,10 +274,11 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             disabled={hardDisabled}
             data-testid="chat-attach"
             aria-label={t("chatX.attachAria")}
+            title={lockTooltip}
             className="
-              inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-lg
+              inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-sm
               text-ink-mute hover:text-ink hover:bg-bg-2/70
-              disabled:opacity-50 transition-colors
+              disabled:opacity-50 transition-colors duration-micro
             "
           >
             <Paperclip size={15} strokeWidth={1.75} />

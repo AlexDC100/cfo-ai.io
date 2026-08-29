@@ -51,6 +51,12 @@ export interface ChatMessage {
    *  server (kept in the localStorage cache so the marker survives a
    *  refresh until the next server hydration). */
   interrupted?: boolean;
+  /** Set when the assistant turn FAILED (A2 degraded state). Carries the
+   *  classified failure kind — never the raw error payload, which goes to
+   *  console.debug only (see lib/aiDegraded.ts). Renders as the calm
+   *  "CFO AI is unavailable" panel with Retry. Same persistence rule as
+   *  `interrupted`: localStorage cache only, never the server. */
+  failed?: import("@/lib/aiDegraded").AiFailureKind;
 }
 
 export interface ChatConversation {

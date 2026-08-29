@@ -1,0 +1,28 @@
+{
+  "en": {
+    "chatDegraded": {
+      "headline": "CFO AI is unavailable right now — your figures are unaffected.",
+      "retry": "Retry",
+      "details": "Details",
+      "reasonService": "Service temporarily unavailable.",
+      "reasonUsage": "Usage limit reached.",
+      "reasonNetwork": "Network error.",
+      "pastFailure": "This answer could not be generated.",
+      "disabledTooltip": "CFO AI is unavailable — use Retry on the last message.",
+      "sendHint": "to send"
+    }
+  },
+  "ro": {
+    "chatDegraded": {
+      "headline": "CFO AI nu este disponibil momentan — cifrele tale nu sunt afectate.",
+      "retry": "Reîncearcă",
+      "details": "Detalii",
+      "reasonService": "Serviciu temporar indisponibil.",
+      "reasonUsage": "Limita de utilizare a fost atinsă.",
+      "reasonNetwork": "Eroare de rețea.",
+      "pastFailure": "Acest răspuns nu a putut fi generat.",
+      "disabledTooltip": "CFO AI este indisponibil — folosește Reîncearcă la ultimul mesaj.",
+      "sendHint": "pentru trimitere"
+    }
+  }
+}

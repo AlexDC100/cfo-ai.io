@@ -1,4 +1,4 @@
-// MarketPulseStrip — one-line market read under the hero (2026-08-04).
+// MarketPulseStrip — one-line market read under the search bar.
 //
 // The data layer carries NO BET index series (checked: publicCompanyUniverse
 // + publicCompanyPriceHistory expose per-ticker data only), so per the
@@ -10,12 +10,17 @@
 //
 // Renders nothing when no row carries a live priceChangePct (static /
 // demo fallback) — a fake pulse is worse than none.
+//
+// THE INSTRUMENT: hairline strip (no resting shadow), figures through
+// <Amount>, movement colors from the semantic tokens (success up,
+// alert down) — never raw hex.
 
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
 import { Sparkline } from "@/components/dashboard/Sparkline";
+import { Amount } from "@/components/instrument/Amount";
 import { fmtSignedPct, useCardSparkline } from "./pciData";
 import "./pciI18n";
 
@@ -76,24 +81,27 @@ export function MarketPulseStrip({ rows, onSelectTicker }: Props) {
 
   if (!pulse) return null;
 
-  const medUp = pulse.med >= 0;
   const moverUp = pulse.topMover.priceChangePct >= 0;
 
   return (
     <section
       data-testid="market-pulse-strip"
       className="
-        card-2026 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3
-        text-[12px] tabular-nums min-w-0
+        flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-rule
+        bg-bg-2 px-4 py-2 text-[12px] min-w-0
       "
     >
       {/* Aggregate — honest label: the universe's median day change. */}
       <span className="inline-flex items-center gap-2 min-w-0">
-        <Activity size={13} strokeWidth={2} className="shrink-0 text-brand-d" />
-        <span className="text-ink font-medium">
-          {t("pci.pulse.market", { value: fmtSignedPct(pulse.med) })}
-        </span>
-        <span className="text-ink-mute text-[10.5px]">
+        <Activity size={13} strokeWidth={2} className="shrink-0 text-brand-dark dark:text-brand-light" />
+        <span className="text-ink font-medium">{t("pci.pulse.marketLead")}</span>
+        <Amount
+          kind="percent"
+          value={pulse.med / 100}
+          fractionDigits={2}
+          className="text-[12px] text-ink"
+        />
+        <span className="font-mono text-[10.5px] tabular-nums text-ink-mute">
           {t("pci.pulse.n", { n: pulse.n })}
         </span>
       </span>
@@ -103,28 +111,25 @@ export function MarketPulseStrip({ rows, onSelectTicker }: Props) {
         type="button"
         onClick={() => onSelectTicker(pulse.topMover.ticker)}
         data-testid="pulse-top-mover"
-        className="inline-flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
+        className="inline-flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity duration-micro"
       >
         <span className="text-[10.5px] uppercase tracking-[0.08em] text-ink-mute">
           {t("pci.pulse.topMover")}
         </span>
         {moverUp ? (
-          <TrendingUp size={12} strokeWidth={2} className="text-[#2AA89B] dark:text-[#8FE3D9]" />
+          <TrendingUp size={12} strokeWidth={2} className="text-success" />
         ) : (
-          <TrendingDown size={12} strokeWidth={2} className="text-red-700 dark:text-red-300" />
+          <TrendingDown size={12} strokeWidth={2} className="text-alert" />
         )}
-        <span className="font-mono font-semibold text-ink">
+        <span className="font-mono font-medium text-ink">
           {pulse.topMover.ticker.replace(/\.BVB$/, "")}
         </span>
-        <span
-          className={`font-medium ${
-            moverUp
-              ? "text-[#2AA89B] dark:text-[#8FE3D9]"
-              : "text-red-700 dark:text-red-300"
-          }`}
-        >
-          {fmtSignedPct(pulse.topMover.priceChangePct)}
-        </span>
+        <Amount
+          kind="percent"
+          value={pulse.topMover.priceChangePct / 100}
+          fractionDigits={2}
+          className={`text-[12px] ${moverUp ? "text-success" : "text-alert"}`}
+        />
         {sparkData && (
           <span className="w-[72px] pointer-events-none">
             <Sparkline
@@ -143,7 +148,7 @@ export function MarketPulseStrip({ rows, onSelectTicker }: Props) {
           data-testid="pulse-insight"
           className="inline-flex items-center gap-1.5 min-w-0 text-ink-soft"
         >
-          <Sparkles size={12} strokeWidth={2} className="shrink-0 text-brand-d" />
+          <Sparkles size={12} strokeWidth={2} className="shrink-0 text-brand-dark dark:text-brand-light" />
           <span className="truncate">
             {t("pci.pulse.insight", {
               sector: pulse.insight.sector,

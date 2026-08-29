@@ -38,11 +38,15 @@ interface Props {
   searchQuery?: string;
   /** Clear the search from the pill's ✕. */
   onClearSearch?: () => void;
+  /** A2 — re-run the trailing failed turn through the send pipeline.
+   *  Offered only on the conversation's LAST message; older failed turns
+   *  render the degraded panel without a Retry button. */
+  onRetryFailed?: () => void;
 }
 
 export function CFOMessageList({
   messages, groundedLabel, bottomInset = false, topInset = false, wideContent = false,
-  documentScroll = false, searchQuery = "", onClearSearch,
+  documentScroll = false, searchQuery = "", onClearSearch, onRetryFailed,
 }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
@@ -158,6 +162,13 @@ export function CFOMessageList({
           message={m}
           animate={m.id === animateId}
           onType={m.id === animateId ? scrollToBottom : undefined}
+          // Retry only on the trailing failed turn — the one whose user
+          // message rollbackLastPair can still restore.
+          onRetry={
+            m.failed && m.id === messages[messages.length - 1]?.id
+              ? onRetryFailed
+              : undefined
+          }
         />
       ))}
       {lastIsPendingAssistant && (

@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Activity, LayoutGrid, Globe } from "lucide-react";
 import { PublicShell } from "@/components/cfo/PublicShell";
-import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { Chip, PageHeader } from "@/components/instrument/Panel";
 import { useAuth } from "@/lib/auth";
 import { CompanySearchPanel, searchUniverse } from "@/components/public-companies/CompanySearchPanel";
 import { MarketsOverview, type GridFilter } from "@/components/public-companies/MarketsOverview";
@@ -29,7 +29,6 @@ import "@/components/public-companies/pciI18n";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useWorkspaceName } from "@/lib/workspaceName";
 import { staticBvbRows } from "@/lib/bvbStaticUniverse";
-import { BVBBadge } from "@/components/public-companies/BVBBadge";
 import { fetchUniverse } from "@/lib/publicCompanyUniverse";
 import type { PriceRange } from "@/lib/publicCompanyPriceHistory";
 import {
@@ -284,86 +283,63 @@ export default function PublicCompanyIntelligence() {
             : "max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-8"
         }
       >
-        {/* ── Section 1 — Compact header + status banner ───────────
-            2026-05-26 (mobile fix): the prior layout used
-            `flex items-start justify-between gap-4 flex-wrap`
-            with `flex-1` on the left column. The status pill
-            ("Demo mode · Nasdaq key missing", ~180px wide) was
-            wide enough to squeeze the left column to ~150px on
-            iPhone SE / 14, causing the "Public Company Intelligence"
-            headline to wrap to three column-stacked lines.
+        {/* ── Section 1 — compact instrument header ─────────────────────
+            THE INSTRUMENT: the serif hero + gradient accent became the
+            compact PageHeader (11px caps eyebrow → 19px title) with the
+            listing scope as meta chips ("BVB · RON") in the context slot.
+            The subtitle survives as one measured paragraph below. */}
+        <div className="min-w-0">
+          <PageHeader
+            eyebrow={t("pci.header.eyebrow")}
+            title={
+              <>
+                {t("pci.header.titlePre")}
+                {t("pci.header.titleGrad")}
+              </>
+            }
+            context={
+              <>
+                <Chip className="font-mono">BVB</Chip>
+                <Chip className="font-mono">RON</Chip>
+              </>
+            }
+          />
+          <p className="mt-1.5 max-w-[720px] text-[12.5px] leading-relaxed text-ink-soft">
+            {t("pci.header.subtitle")}
+          </p>
 
-            Fix: stack vertically by default, switch to row at the
-            sm: breakpoint (640px). Drop `flex-1` from the left
-            column so it sizes to its content; the status group
-            gets `sm:shrink-0` so it never forces the heading
-            narrower than the heading needs. Heading also scales
-            from 24px (mobile) → 28px → 34px. */}
-        {/* Dashboard-hero styling: the module name reads as a small
-            Sparkles eyebrow (like the dashboard's "Get started"), the
-            value proposition is promoted to the large semibold headline
-            (like "Upload your trial balance…"). Status banner + Docs sit
-            in the header's actions slot. */}
-        {/* Header row — the hero header + tab strip on the left, the
-            "Your real peer" section (user's company vs. its BVB peer)
-            on the right. The peer section moved up here from the top of
-            MarketsOverview (2026-07-24) so it shares the header's
-            horizontal band; it stacks below the header on narrower
-            screens. */}
-        <div className="flex flex-col xl:flex-row xl:items-start gap-6">
-          <div className="min-w-0 flex-1">
-            <PageHeader
-              hero
-              eyebrow={t("pci.header.eyebrow")}
-              title={
-                <>
-                  {t("pci.header.titlePre")}
-                  <span className="text-grad">{t("pci.header.titleGrad")}</span>.{" "}
-                  <span className="inline-flex align-middle">
-                    <BVBBadge variant="section" />
-                  </span>
-                </>
-              }
-              subtitle={t("pci.header.subtitle")}
+          {/* ── Tab strip — Overview / Risk Radar / Map ────────────────
+                Hairline underline tabs on a full-width rule; the active
+                tab carries the accent underline. Persists to ?tab= so
+                deep links + browser back/forward work. */}
+          <div
+            role="tablist"
+            aria-label={t("pci.header.tabsAria")}
+            className="mt-5 mb-5 flex gap-5 border-b border-rule"
+            data-testid="public-intelligence-tabs"
+          >
+            <TabPill
+              active={view === "overview"}
+              onClick={() => switchView("overview")}
+              icon={LayoutGrid}
+              label={t("pci.header.tabOverview")}
+              testid="tab-overview"
             />
-
-            {/* ── Tab strip — Overview / Risk Radar ──────────────────────
-                  Segmented control sits between the header and the per-tab
-                  content. Sticky-ish styling matches the rest of the app
-                  (rounded pill, brand accent on active). Persists to ?tab=
-                  so deep links + browser back/forward work. */}
-            <div
-              role="tablist"
-              aria-label={t("pci.header.tabsAria")}
-              className="mb-5 inline-flex p-1 rounded-xl border border-rule/60 bg-bg-2/40 gap-1"
-              data-testid="public-intelligence-tabs"
-            >
-              <TabPill
-                active={view === "overview"}
-                onClick={() => switchView("overview")}
-                icon={LayoutGrid}
-                label={t("pci.header.tabOverview")}
-                testid="tab-overview"
-              />
-              <TabPill
-                active={view === "risk-radar"}
-                onClick={() => switchView("risk-radar")}
-                icon={Activity}
-                label={t("pci.header.tabRisk")}
-                testid="tab-risk-radar"
-              />
-              <TabPill
-                active={view === "map"}
-                onClick={() => switchView("map")}
-                icon={Globe}
-                label={t("pci.header.tabMap")}
-                testid="tab-map"
-              />
-            </div>
+            <TabPill
+              active={view === "risk-radar"}
+              onClick={() => switchView("risk-radar")}
+              icon={Activity}
+              label={t("pci.header.tabRisk")}
+              testid="tab-risk-radar"
+            />
+            <TabPill
+              active={view === "map"}
+              onClick={() => switchView("map")}
+              icon={Globe}
+              label={t("pci.header.tabMap")}
+              testid="tab-map"
+            />
           </div>
-          {/* "Your real peer" pairing removed (2026-07-26 per operator). The
-              PeerSection component still lives in MarketsOverview.tsx if it's
-              ever wanted back; nothing renders it today. */}
         </div>
 
         {/* Risk Radar tab — short-circuit before the overview block.
@@ -385,22 +361,22 @@ export default function PublicCompanyIntelligence() {
         ) : (
         <>
         <div className="space-y-5">
-          {/* ── Hero — peers suggested for the user's own company
-                (2026-08-04 redesign). Hidden when no real period is
-                loaded. ── */}
-          <PeerSuggestRail rows={allCompanies} onSelectTicker={handleSelectTicker} />
-
-          {/* ── Market pulse — aggregate day read of the live-quoted
-                universe (hidden entirely in static/demo mode). ── */}
-          <MarketPulseStrip rows={allCompanies} onSelectTicker={handleSelectTicker} />
-
-          {/* ── Market Search ──────────────────────────────────────── */}
+          {/* ── Market Search — the primary entry point, first under the
+                tabs (THE INSTRUMENT B5: search prominent at top). ── */}
           <CompanySearchPanel
             rows={allCompanies}
             onSelect={handleSelectTicker}
             query={searchQuery}
             onQueryChange={setSearchQuery}
           />
+
+          {/* ── Market pulse — aggregate day read of the live-quoted
+                universe (hidden entirely in static/demo mode). ── */}
+          <MarketPulseStrip rows={allCompanies} onSelectTicker={handleSelectTicker} />
+
+          {/* ── Peers suggested for the user's own company. Hidden when
+                no real period is loaded. ── */}
+          <PeerSuggestRail rows={allCompanies} onSelectTicker={handleSelectTicker} />
 
           {/* ── Markets overview — filter chips + company cards; the
                 compare tray lives inside. Risk Radar drills land in the
@@ -471,6 +447,8 @@ interface TabPillProps {
 
 function TabPill({ active, onClick, icon: Icon, label, testid, disabled = false }: TabPillProps) {
   const { t } = useTranslation();
+  // Hairline underline tab: the active item carries a 2px accent rule that
+  // sits ON the container's 1px border (-mb-px), never a fill or a shadow.
   return (
     <button
       type="button"
@@ -483,14 +461,14 @@ function TabPill({ active, onClick, icon: Icon, label, testid, disabled = false 
       title={disabled ? t("pci.header.tabUnavailable", { label }) : undefined}
       className={`
         inline-flex items-center gap-1.5
-        h-8 px-3 rounded-lg
+        -mb-px pb-2 pt-1 border-b-2
         text-[12.5px] font-medium
-        transition-colors
+        transition-colors duration-micro
         ${disabled
-          ? "text-ink-mute opacity-40 cursor-not-allowed"
+          ? "border-transparent text-ink-mute opacity-40 cursor-not-allowed"
           : active
-          ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
-          : "text-ink-soft hover:text-ink"}
+          ? "border-brand text-ink"
+          : "border-transparent text-ink-soft hover:text-ink"}
       `}
     >
       <Icon size={13} strokeWidth={1.75} />

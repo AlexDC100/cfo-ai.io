@@ -37,6 +37,9 @@ export const pciEn = {
   },
   pulse: {
     market: "BVB market today: median {{value}}",
+    // Split variant — same meaning as `market`, but the figure renders
+    // beside the label through <Amount> instead of interpolated text.
+    marketLead: "BVB market today · median",
     n: "n={{n}}",
     topMover: "Top mover",
     insight: "{{sector}} leads today: {{ticker}} {{change}}",
@@ -174,6 +177,7 @@ export const pciRo = {
   },
   pulse: {
     market: "Piața BVB azi: mediană {{value}}",
+    marketLead: "Piața BVB azi · mediană",
     n: "n={{n}}",
     topMover: "Mișcarea zilei",
     insight: "{{sector}} conduce azi: {{ticker}} {{change}}",

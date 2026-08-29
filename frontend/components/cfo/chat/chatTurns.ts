@@ -18,6 +18,7 @@
 import { useSyncExternalStore } from "react";
 import i18n from "@/i18n";
 import { CfoApiError, cfoApi } from "@/lib/cfoApi";
+import { clearAiDegraded, reportAiFailure, setAiDegraded } from "@/lib/aiDegraded";
 import {
   beginChatReply,
   endChatReply,
@@ -164,6 +165,8 @@ export function startChatTurn(ctx: ChatTurnContext): void {
         content: answer,
         groundedPeriod: ctx.groundedLabel,
       });
+      // A2 auto-recover — a successful turn releases the degraded lock.
+      clearAiDegraded();
     } catch (err) {
       if (controller.signal.aborted) {
         if (turn.stopRequested) {
@@ -217,13 +220,19 @@ export function startChatTurn(ctx: ChatTurnContext): void {
           return;
         }
       }
-      const unreachable = i18n.t("chatX.errUnreachable");
-      const msg = err instanceof Error ? err.message : unreachable;
+      // A2 — EVERY other AI failure funnels through the one mapper. The
+      // raw payload (status, request_id, JSON body) goes to console.debug
+      // inside reportAiFailure and never reaches the DOM; the message
+      // carries only the classified kind, which the bubble renders as the
+      // calm degraded panel with Retry + a human-readable reason.
+      const kind = reportAiFailure(err);
+      setAiDegraded(kind);
       chatCompleteAssistantTurn(ctx.orgId, {
         conversationId,
         assistantId,
-        content: `**${unreachable}** ${msg}\n\n${i18n.t("chatX.errTryAgain")}`,
+        content: "",
         error: true,
+        failed: kind,
       });
     } finally {
       inflight.delete(conversationId);

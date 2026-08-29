@@ -14,6 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "design:lint": "node scripts/check_design_lint.mjs",
+    "design:gates": "node scripts/design_gates.mjs",
     "generate-template": "python3 scripts/generate_upload_template.py"
   },
   "dependencies": {

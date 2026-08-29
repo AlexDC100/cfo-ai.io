@@ -1,0 +1,148 @@
+{
+  "en": {
+    "shell": {
+      "nav": {
+        "overview": "Overview",
+        "analyze": "Analyze",
+        "explore": "Explore",
+        "ask": "Ask"
+      },
+      "theme": {
+        "label": "Theme",
+        "toPaper": "Switch to Paper theme",
+        "toTerminal": "Switch to Terminal theme"
+      },
+      "context": {
+        "noWorkspace": "No workspace",
+        "openLabel": "Switch workspace or period",
+        "periods": "Recent periods",
+        "workspaces": "Workspaces",
+        "filterPlaceholder": "Filter periods…",
+        "noPeriods": "No periods yet — upload a document to create one.",
+        "upload": "Upload a document",
+        "current": "Current"
+      },
+      "trust": {
+        "aiRead": "AI-read",
+        "suffixBalanced": "machine-computed",
+        "suffixReconciled": "auto-adjusted",
+        "suffixAiRead": "verified",
+        "openReceipt": "Balance status — open receipt",
+        "receiptTitle": "Balance receipt",
+        "receiptSubtitle": "Exactly what the engine served for this period — nothing is recomputed here.",
+        "status": "Status",
+        "difference": "Difference",
+        "mapping": "Mapping version",
+        "extraction": "Extraction",
+        "model": "Model",
+        "reconciliation": "Reconciliation",
+        "originalDifference": "Original difference",
+        "appliedDelta": "Applied adjustment",
+        "placement": "Placement",
+        "placementBs": "Balance sheet",
+        "placementPnl": "P&L",
+        "origin": "Origin",
+        "originLlm": "AI-proposed",
+        "originDeterministic": "Deterministic",
+        "appliedAt": "Applied",
+        "rationale": "Rationale",
+        "diagnosis": "Diagnosis"
+      },
+      "palette": {
+        "hint": "Search or press {{mod}}K",
+        "placeholder": "Search pages, actions, periods, companies…",
+        "pages": "Pages",
+        "actions": "Actions",
+        "periods": "Recent periods",
+        "companies": "Companies",
+        "products": "Products",
+        "learn": "Learn",
+        "upload": "Upload a document",
+        "uploadHint": "Trial balance, statements or sales file",
+        "export": "Export statements",
+        "exportHint": "Open the export tab",
+        "askAi": "Ask CFO AI",
+        "askAiHint": "Open the chat",
+        "toggleSidebar": "Toggle sidebar",
+        "toggleSidebarHint": "Collapse or expand the rail",
+        "switchPeriod": "Switch period",
+        "company": "Open company",
+        "noResults": "No matches.",
+        "navHint": "↑↓ navigate · Enter to run · Esc to close"
+      }
+    }
+  },
+  "ro": {
+    "shell": {
+      "nav": {
+        "overview": "Sinteză",
+        "analyze": "Analiză",
+        "explore": "Explorează",
+        "ask": "Întreabă"
+      },
+      "theme": {
+        "label": "Temă",
+        "toPaper": "Comută pe tema Paper",
+        "toTerminal": "Comută pe tema Terminal"
+      },
+      "context": {
+        "noWorkspace": "Fără spațiu de lucru",
+        "openLabel": "Schimbă spațiul de lucru sau perioada",
+        "periods": "Perioade recente",
+        "workspaces": "Spații de lucru",
+        "filterPlaceholder": "Filtrează perioadele…",
+        "noPeriods": "Nicio perioadă încă — încarcă un document pentru a crea una.",
+        "upload": "Încarcă un document",
+        "current": "Curent"
+      },
+      "trust": {
+        "aiRead": "Citit de AI",
+        "suffixBalanced": "calculat de motor",
+        "suffixReconciled": "ajustat automat",
+        "suffixAiRead": "verificat",
+        "openReceipt": "Starea echilibrului — deschide detaliile",
+        "receiptTitle": "Detalii echilibru",
+        "receiptSubtitle": "Exact ce a servit motorul pentru această perioadă — nimic nu este recalculat aici.",
+        "status": "Stare",
+        "difference": "Diferență",
+        "mapping": "Versiune de mapare",
+        "extraction": "Extracție",
+        "model": "Model",
+        "reconciliation": "Reconciliere",
+        "originalDifference": "Diferența inițială",
+        "appliedDelta": "Ajustarea aplicată",
+        "placement": "Plasare",
+        "placementBs": "Bilanț",
+        "placementPnl": "Cont de profit și pierdere",
+        "origin": "Origine",
+        "originLlm": "Propusă de AI",
+        "originDeterministic": "Deterministă",
+        "appliedAt": "Aplicată",
+        "rationale": "Motivație",
+        "diagnosis": "Diagnostic"
+      },
+      "palette": {
+        "hint": "Caută sau apasă {{mod}}K",
+        "placeholder": "Caută pagini, acțiuni, perioade, companii…",
+        "pages": "Pagini",
+        "actions": "Acțiuni",
+        "periods": "Perioade recente",
+        "companies": "Companii",
+        "products": "Produse",
+        "learn": "Învață",
+        "upload": "Încarcă un document",
+        "uploadHint": "Balanță, situații financiare sau fișier de vânzări",
+        "export": "Exportă situațiile",
+        "exportHint": "Deschide tabul de export",
+        "askAi": "Întreabă CFO AI",
+        "askAiHint": "Deschide conversația",
+        "toggleSidebar": "Comută bara laterală",
+        "toggleSidebarHint": "Restrânge sau extinde bara",
+        "switchPeriod": "Schimbă perioada",
+        "company": "Deschide compania",
+        "noResults": "Niciun rezultat.",
+        "navHint": "↑↓ navighează · Enter execută · Esc închide"
+      }
+    }
+  }
+}

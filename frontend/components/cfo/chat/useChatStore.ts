@@ -46,6 +46,7 @@ import {
 } from "./chatRemote";
 import { CHAT_STORAGE_KEY, CHAT_CURRENT_KEY, type ChatConversation, type ChatMessage } from "./types";
 import { clearDraft } from "./chatDrafts";
+import { clearAiDegraded } from "@/lib/aiDegraded";
 import { abortChatReply, hasChatReplyInFlight } from "@/lib/chatPendingStore";
 import { activeLocale } from "@/lib/locale";
 
@@ -89,6 +90,12 @@ function parseConversations(raw: string | null): ChatConversation[] {
           attachments: Array.isArray(m.attachments) ? m.attachments : undefined,
           pending: false,  // Never persist `pending` — a refresh shouldn't show a spinner.
           interrupted: m.interrupted === true ? true : undefined,
+          // Failed turns keep their degraded marker across refreshes (cache
+          // only — like `interrupted`, never written to the server).
+          failed:
+            m.failed === "service" || m.failed === "usage" || m.failed === "network"
+              ? m.failed
+              : undefined,
         })),
       }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -507,6 +514,11 @@ export function chatRename(orgId: string | null, id: string, title: string): voi
 export function chatRemove(orgId: string | null, id: string): void {
   const owner = ownerOrgId(orgId, id);
   const st = getOrgState(owner);
+  // A2 — deleting the conversation that holds the failed turn removes the
+  // only Retry surface; releasing the degraded lock here keeps the composer
+  // from staying disabled with no path back to a working state.
+  const removed = st.conversations.find((c) => c.id === id);
+  if (removed?.messages[removed.messages.length - 1]?.failed) clearAiDegraded();
   const next = st.conversations.filter((c) => c.id !== id);
   patchOrgState(owner, { conversations: next });
   safeWriteAll(owner, next);
@@ -635,6 +647,9 @@ export interface CompleteAssistantTurnInput {
   error?: boolean;
   /** The user pressed Stop — renders as the muted "Interrupted" marker. */
   interrupted?: boolean;
+  /** The turn failed — renders as the calm degraded panel (A2). Implies
+   *  error-style persistence handling (kept locally, never server-side). */
+  failed?: import("@/lib/aiDegraded").AiFailureKind;
 }
 
 export function chatCompleteAssistantTurn(
@@ -658,6 +673,7 @@ export function chatCompleteAssistantTurn(
           groundedPeriod: params.groundedPeriod ?? m.groundedPeriod ?? null,
           pending: false,
           interrupted: params.interrupted === true ? true : undefined,
+          failed: params.failed ?? undefined,
         };
         finished = done;
         return done;
@@ -670,7 +686,7 @@ export function chatCompleteAssistantTurn(
   // happened) but is not written to server history — a reopened conversation
   // on another device shouldn't replay it.
   const conv = next.find((c) => c.id === params.conversationId);
-  if (finished && !params.error && !params.interrupted && conv) {
+  if (finished && !params.error && !params.interrupted && !params.failed && conv) {
     const msg = finished as ChatMessage;
     void (async () => {
       // Awaits the thread INSERT if it's still in flight, so a fast reply

@@ -48,7 +48,12 @@ import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetr
 import { ConfigurableDashboard } from "@/components/dashboard/ConfigurableDashboard";
 import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
-import { DemoBanner } from "@/components/dashboard/DemoBanner";
+// THE INSTRUMENT — resting-surface + figure primitives (import only).
+import { Amount, AmountGroup } from "@/components/instrument/Amount";
+import { Chip, PageHeader, Panel, PanelBody, type ChipTone } from "@/components/instrument/Panel";
+import { CFOBriefingCard } from "@/components/cfo/CFOBriefingCard";
+import "@/components/cfo/dashInstrumentI18n";
+import { isNativeShell } from "@/lib/nativeShell";
 import { buildMultiYearSeries, seriesForConcept } from "@/lib/learning/multiPeriodSeries";
 import { DEMO_SAMPLE_ID } from "@/lib/demo/demoCompany";
 import type { Currency } from "@/lib/rates";

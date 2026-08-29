@@ -1,0 +1,40 @@
+{
+  "en": {
+    "settingsX": {
+      "appearance": {
+        "title": "Appearance",
+        "subtitle": "Theme and density. Saved to your account and applied on every device.",
+        "theme_label": "Theme",
+        "theme_paper": "Paper",
+        "theme_terminal": "Terminal",
+        "theme_hint": "Paper is the light instrument; Terminal is the dark one.",
+        "density_label": "Density",
+        "density_comfortable": "Comfortable",
+        "density_compact": "Compact",
+        "density_hint": "Compact tightens row spacing on data tables."
+      },
+      "currency": {
+        "display_only": "display only"
+      }
+    }
+  },
+  "ro": {
+    "settingsX": {
+      "appearance": {
+        "title": "Aspect",
+        "subtitle": "Temă și densitate. Salvate în contul tău și aplicate pe fiecare dispozitiv.",
+        "theme_label": "Temă",
+        "theme_paper": "Paper",
+        "theme_terminal": "Terminal",
+        "theme_hint": "Paper este instrumentul luminos; Terminal este cel întunecat.",
+        "density_label": "Densitate",
+        "density_comfortable": "Confortabil",
+        "density_compact": "Compact",
+        "density_hint": "Compact strânge spațierea rândurilor în tabelele de date."
+      },
+      "currency": {
+        "display_only": "doar pentru afișare"
+      }
+    }
+  }
+}

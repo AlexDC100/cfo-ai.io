@@ -142,10 +142,10 @@ export function CompanySearchPanel({
       <div className="flex flex-col sm:flex-row items-stretch gap-2.5">
         <div className="
           flex-1 min-w-0
-          flex items-center gap-3 h-12 px-4
-          rounded-xl border border-rule bg-surface
+          flex items-center gap-3 h-11 px-4
+          rounded-md border border-rule bg-surface
           focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/20
-          transition-all
+          transition-all duration-micro
         ">
           <Search size={18} strokeWidth={1.75} className="text-ink-mute shrink-0" />
           <input
@@ -190,7 +190,7 @@ export function CompanySearchPanel({
             inline-flex items-center gap-1.5
             text-[10px] uppercase tracking-[0.12em] font-semibold text-ink-mute mr-1
           ">
-            <CheckCircle2 size={10} strokeWidth={2.25} className="text-brand-d" />
+            <CheckCircle2 size={10} strokeWidth={2.25} className="text-brand-dark dark:text-brand-light" />
             {t("pci.search.yourPeers")}
           </span>
           {peers.map((p) => (
@@ -198,16 +198,16 @@ export function CompanySearchPanel({
               key={p.ticker}
               className="
                 group inline-flex items-center
-                rounded-md border border-brand/25 bg-brand/8
+                rounded-full bg-brand-tint
                 overflow-hidden
               "
             >
               <button
                 onClick={() => handleHitClick(p.ticker)}
-                className="flex items-center gap-1.5 px-2 py-1 text-left"
+                className="flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 text-left"
                 title={p.name}
               >
-                <span className="font-mono text-[11.5px] font-semibold text-brand-d tabular-nums">
+                <span className="font-mono text-[11px] font-medium text-brand-dark dark:text-brand-light tabular-nums">
                   {p.ticker}
                 </span>
               </button>
@@ -215,8 +215,8 @@ export function CompanySearchPanel({
                 onClick={(e) => { e.preventDefault(); removePeer(p.ticker); }}
                 aria-label={t("pci.search.removePeer", { ticker: p.ticker })}
                 className="
-                  px-1.5 py-1 text-brand-d/60 hover:text-[#2AA89B] hover:bg-[#5CD3C5]/10
-                  transition-colors
+                  px-1.5 py-1 text-brand-dark/60 hover:text-brand-dark dark:text-brand-light/60 dark:hover:text-brand-light
+                  transition-colors duration-micro
                 "
               >
                 <X size={10} strokeWidth={2} />
@@ -232,7 +232,7 @@ export function CompanySearchPanel({
 
       {/* No-match note */}
       {noMatches && (
-        <div className="mt-4 rounded-xl border border-rule bg-bg-2/40 px-4 py-3 text-[12.5px] text-ink">
+        <div className="mt-4 rounded-md border border-rule bg-bg-2 px-4 py-3 text-[12.5px] text-ink">
           {t("pci.search.noMatch", { query: query.trim() })}
         </div>
       )}
