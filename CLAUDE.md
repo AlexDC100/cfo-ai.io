@@ -1281,10 +1281,18 @@ CLIs `scripts/public_{ingest,seo,funnel}.py`, gates
 
 ### Operator runbook — go-live
 
-Nothing is public until these run. The engine is deployed and serving at
-`/api/public/ro/*`, but with **zero companies ingested** and **no clean
-paths routed**, so nothing is indexable today. That is deliberate:
-publishing pages about real named companies is a human act.
+**EXECUTED 2026-08-29 — the storefront is LIVE.** 600,697 publishable
+companies, 3.86M filings (FY2020–FY2024, all CC-BY-4.0), 600,945
+sitemap URLs in 14 shards; the Caddy clean-path matcher is applied
+(backup at `/opt/scandia/Caddyfile.bak-*`), robots.txt advertises the
+sitemap, PS6 + PS-E2E both PASS in production. Two real-data traps hit
+and fixed on the way, both fail-closed first: the July identification
+snapshot is UTF-8-with-BOM (June was ISO-8859-2 — wrong decode made the
+whole join refuse and publishable stayed 0), and the PS6 gate's own
+probe burst tripped the public rate limiter (292×429 — the gate now
+paces to the bucket's 60/min refill via `PS6_PROBE_PACE_S`, with a
+backoff ladder; never weaken the shield for a gate). The runbook below
+stays as the recipe for future years/families:
 
 ```
 # 1. Ingest a year (77 MB; data.gov.ro ignores Range headers)
