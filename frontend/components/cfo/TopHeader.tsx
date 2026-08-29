@@ -194,14 +194,17 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenPalette, onOpenAccoun
             aria-label={t("topbar.askCfoAi")}
             title={`${t("topbar.askCfoAi")} (${mod}J)`}
             className="
-              hidden sm:inline-flex items-center justify-center h-8 w-8
-              rounded-sm text-brand-dark
-              hover:bg-brand-tint
+              hidden sm:inline-flex items-center gap-1.5 h-8 px-3
+              rounded-md bg-brand text-paper text-[12.5px] font-semibold
+              hover:bg-brand-dark
               transition-colors duration-micro
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1
             "
           >
-            <Sparkles size={16} strokeWidth={1.75} />
+            <Sparkles size={14} strokeWidth={2} />
+            {/* Labeled, not icon-only: the subtle glyph was invisible to
+                the operator ("main function, hard to see", 2026-08-29). */}
+            <span className="hidden md:inline">{t("topbar.askCfoAi")}</span>
           </button>
         )}
 

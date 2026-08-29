@@ -188,6 +188,10 @@ export function Sidebar({
   // In-flight work surfaces on the item that owns it: a chat reply spins
   // the Ask CFO AI item, a running analysis spins Dashboard or Products.
   const chatReplyPending = useChatReplyPending();
+  // The promoted Ask row builds its own href (it renders outside
+  // SidebarLink), so it needs the period param at this level too.
+  const [navParams] = useSearchParams();
+  const period = navParams.get("period");
   const upload = useUploadStore();
   const uploadActive = !!upload.current && isInFlight(upload.current.status);
   const dashboardUploadActive = uploadActive && upload.current?.surface !== "products";
@@ -249,7 +253,50 @@ export function Sidebar({
             <CurrencyToggle />
           </div>
         )}
-        {groups.map((g) => (
+        {/* Ask CFO AI — the product's headline capability, promoted to
+            the TOP of the rail as the one accent-filled row (operator
+            directive 2026-08-29: "main function, not at the bottom hard
+            to see"). It stays in SHELL_NAV_ALL for the ⌘K palette; the
+            grouped loop below skips the ask group so it never renders
+            twice. */}
+        <div className={effectivelyCollapsed ? "px-2 pb-1" : "px-3 pb-1"}>
+          <NavLink
+            to={period ? `/chat?period=${encodeURIComponent(period)}` : "/chat"}
+            data-testid="sidebar-chat"
+            onClick={(e) => {
+              if (!confirmLeaveUnsaved()) { e.preventDefault(); return; }
+              onItemClick?.();
+            }}
+            title={effectivelyCollapsed ? t("sidebar.chat") : undefined}
+            className={({ isActive }) =>
+              `group flex items-center justify-center gap-2 rounded-md min-h-[44px] sm:min-h-0 sm:h-9 text-[13px] font-semibold transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                isActive
+                  ? "bg-brand-dark text-paper"
+                  : "bg-brand text-paper hover:bg-brand-dark"
+              }`
+            }
+          >
+            {chatReplyPending ? (
+              <Loader2 size={15} strokeWidth={2} className="animate-spin shrink-0"
+                       aria-label="CFO AI is thinking" />
+            ) : (
+              <Sparkles size={15} strokeWidth={2} className="shrink-0" />
+            )}
+            <span
+              className={`whitespace-nowrap overflow-hidden transition-opacity duration-overlay ${
+                effectivelyCollapsed ? "hidden" : "opacity-100"
+              }`}
+            >
+              {t("sidebar.chat")}
+            </span>
+            {!effectivelyCollapsed && (
+              <kbd className="ml-1 hidden sm:inline text-[10px] font-mono font-normal opacity-70 group-hover:opacity-100">
+                ⌘J
+              </kbd>
+            )}
+          </NavLink>
+        </div>
+        {groups.filter((g) => g.key !== "ask").map((g) => (
           <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
             {g.items.map(({ to, labelKey, icon: Icon, testId, end, shortcutKey }) => (
               <SidebarLink
