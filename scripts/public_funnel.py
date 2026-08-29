@@ -2,16 +2,19 @@
 """Public-funnel rollup CLI (Lane 5, public-data acquisition engine).
 
 Aggregates the funnel_events table (data/public_ro.db) over a trailing
-window, best-effort joins the Supabase attribution counts (signups with
-a first_touch record; of those, users who uploaded), writes the honest
-record to data/obs/funnel_last.json (the /ops funnel panel + the
-``engine_ops.py status`` funnel lines read it), and prints a summary.
+window, best-effort joins the Supabase attribution counts (signups
+attributed IN THAT SAME WINDOW; of those, users who uploaded), writes
+the honest record to data/obs/funnel_last.json (the /ops funnel panel +
+the ``engine_ops.py status`` funnel lines read it), and prints a summary.
 
 Honesty rules (wave contract):
   * rates are None ("n/a") on a zero/unknown denominator — absence is
     never reconstructed as a measurement;
   * when Supabase is unreachable (no service key on this host, network
-    down) the attributed counts are None, not 0.
+    down) the attributed counts are None, not 0;
+  * ``--window-days`` sizes BOTH sides of every rate. It is passed to
+    the attribution read too, so an all-time numerator can never be
+    divided by a windowed denominator (that printed rates above 100%).
 
 Conventions (matches scripts/engine_ops.py): exit 0 always, 2 only for
 usage/internal errors; NOTICE lines for anomalies, never red.
@@ -72,11 +75,21 @@ def main(argv=None) -> int:
         if args.no_supabase:
             signups, uploads = None, None
         else:
-            signups, uploads = funnel.fetch_attributed_counts()
+            # ONE window for both halves of every rate: the attributed
+            # signups must be counted over the same trailing days as the
+            # traffic they are divided by, or the panel prints >100%.
+            signups, uploads = funnel.fetch_attributed_counts(
+                window_days=args.window_days
+            )
             if signups is None:
                 print(
                     "NOTICE  public funnel: Supabase attribution source "
                     "unreachable — attributed counts recorded as n/a, not 0"
+                )
+            elif uploads is None:
+                print(
+                    "NOTICE  public funnel: attributed upload count "
+                    "unavailable — recorded as n/a, not 0"
                 )
         record = funnel.compute_funnel_rollup(
             event_counts=counts,

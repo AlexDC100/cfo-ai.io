@@ -19,27 +19,27 @@ it (bare single-letter markers are file-level attributions).
 
 | invariant | meaning | defined in | enforced by |
 |---|---|---|---|
-| `I1` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
-| `I2` | BALANCED serving: gateway totals == canonical totals exactly, in integer cents; raw == adjusted on every concept. | — | `tests/engine/test_facts_gateway.py`, `tests/engine/test_public_funnel.py`, `tests/engine/test_public_summary_serving.py` |
+| `I1` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
+| `I2` | BALANCED serving: gateway totals == canonical totals exactly, in integer cents; raw == adjusted on every concept. | — | `tests/engine/test_facts_gateway.py`, `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_summary_serving.py` |
 | `I3` | RECONCILED serving: gateway == the ADJUSTED figures while every raw_*() accessor still returns the unchanged source cents. | — | `tests/engine/test_facts_gateway.py`, `tests/engine/test_public_summary_serving.py` |
 | `I4` | Status contract: present_status never yields a 'balanced'-family display for machine RECONCILED; the API serialization uses its output verbatim. | — | `tests/engine/test_facts_gateway.py`, `tests/engine/test_properties.py`, `tests/engine/test_public_summary_serving.py` |
 | `I5` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_summary_serving.py` |
-| `I6` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_summary_serving.py` |
-| `I7` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_summary_serving.py` |
+| `I6` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_summary_serving.py` |
+| `I7` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
 | `I8` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_summary_serving.py` |
 | `I9` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_summary_serving.py` |
-| `I10` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
+| `I10` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
 | `I11` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_summary_serving.py` |
 | `I12` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py` |
-| `I13` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
+| `I13` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
 | `I14` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
-| `I15` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
+| `I15` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
 | `I16` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
 | `I17` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
-| `I18` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
-| `I19` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
-| `I20` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
-| `I21` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py` |
+| `I18` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
+| `I19` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
+| `I20` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
+| `I21` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py` |
 | `I99` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py` |
 
 ## P-family — Property suite (hypothesis, real production chain)

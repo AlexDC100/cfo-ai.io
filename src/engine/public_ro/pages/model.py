@@ -155,6 +155,49 @@ def total_assets_of(filing: Dict[str, Any]) -> Optional[int]:
     return sum(int(p or 0) for p in parts)
 
 
+# ── licence evidence (the footer's input) ──────────────────────────────
+
+def dataset_slug_of(provenance: Optional[Dict[str, Any]]) -> Optional[str]:
+    """CKAN dataset slug behind a filing, from the joined provenance.
+
+    ``provenance["dataset_id"]`` is the INGEST id ("2015_UU_<sha12>",
+    ingest.py) and NOT a portal slug, so the slug can only be recovered
+    from source_url. Returns None when there is nothing to read — a
+    guessed slug would resolve to a guessed licence.
+    """
+    if not provenance:
+        return None
+    url = provenance.get("source_url")
+    if not url:
+        return None
+    text = str(url).split("#", 1)[0].split("?", 1)[0].rstrip("/")
+    if not text:
+        return None
+    return text.rsplit("/", 1)[-1] or None
+
+
+def license_evidence(
+    filings: Sequence[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Per-filing licence evidence, ascending by year.
+
+    A data.gov.ro bilanț licence varies BY YEAR under ONE registered
+    source (FY2008-2018 = uk-ogl, FY2019-2023 = CC-BY-4.0), so the
+    source-level licence is not the licence of any particular page. This
+    only extracts what the store recorded; resolving an id and wording
+    the sentence belong to compliance + the renderer.
+    """
+    out: List[Dict[str, Any]] = []
+    for f in filings:
+        prov = f.get("provenance") or {}
+        out.append({
+            "year": int(f["year"]),
+            "license_id": prov.get("license_id"),
+            "dataset_slug": dataset_slug_of(prov),
+        })
+    return out
+
+
 # ── health flags (deterministic, factual) ──────────────────────────────
 
 def build_health_flags(years: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -232,7 +275,19 @@ def estimate_percentile(value: float, dist: Dict[str, Any]) -> Optional[int]:
             anchors.append((float(v), pct))
     if len(anchors) < 2:
         return None
+    # A distribution of one member places nobody: every anchor is that
+    # member's own value, so the bottom-of-range branch below would have
+    # published the SOLE filer in a CAEN division as "p10" — a sector
+    # position the data cannot support. Refuse instead (no bar renders).
+    n = dist.get("n")
+    if n is not None and int(n) < 2:
+        return None
     anchors.sort(key=lambda t: (t[0], t[1]))
+    if value == anchors[0][0] == anchors[-1][0]:
+        # Ties EVERY anchor — the distribution has no spread here, so it
+        # cannot order this company against it. A tie with only the
+        # lowest anchor (p10 < p90) is still a real p10 and is kept.
+        return None
     if value <= anchors[0][0]:
         return 3 if value < anchors[0][0] else anchors[0][1]
     if value >= anchors[-1][0]:
@@ -314,11 +369,22 @@ def build_page_model(
         ]
         if all(v is None for v in series):
             continue
+        # The endpoints ship as (year, value) PAIRS, not as two indexes
+        # into two parallel lists: the renderer used to take the first /
+        # last reported VALUE but label it with years[0] / years[-1], so
+        # a filing that reported nothing for this slot was published
+        # carrying its neighbour's number (PS1 — a false claim about a
+        # named company, contradicting the "—" on its own KPI card).
+        reported = [
+            (int(f["year"]), v) for f, v in zip(window, series) if v is not None
+        ]
         trends.append({
             "key": key,
             "years": [int(f["year"]) for f in window],
             "values": series,
             "baseline_zero": baseline_zero,
+            "first_reported": {"year": reported[0][0], "value": reported[0][1]},
+            "last_reported": {"year": reported[-1][0], "value": reported[-1][1]},
         })
 
     # sector position (estimated percentile per metric)
@@ -354,6 +420,7 @@ def build_page_model(
         "years": [int(f["year"]) for f in filings],
         "dataset_version": dataset_version,
         "provenance": prov,
+        "license_evidence": license_evidence(filings),
         "kpis": {
             "revenue": revenue,
             "net_result": net_result,

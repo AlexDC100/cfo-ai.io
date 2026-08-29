@@ -13,7 +13,12 @@ from __future__ import annotations
 from html import escape
 from typing import Any, Dict, List, Optional
 
-from engine.public_ro.compliance import license_line
+from engine.public_ro.compliance import (
+    LICENSE_URLS,
+    dataset_license,
+    get_source,
+    license_line,
+)
 from engine.public_ro.funnel import BEACON_SNIPPET
 from engine.public_ro.seo import canonical_base, company_path, index_path
 
@@ -82,6 +87,12 @@ color:#fff;border-radius:10px;padding:22px 24px;margin-bottom:18px}
 .chip{display:inline-block;background:rgba(20,184,166,.16);
 border:1px solid rgba(20,184,166,.45);color:#7fe7db;font-size:11.5px;
 padding:3px 10px;border-radius:999px;margin-top:10px}
+.notice{background:#fff8e1;border:1px solid #f0c674;
+border-left:4px solid #d98e04;border-radius:6px;padding:12px 14px;
+margin:14px 0 0;font-size:13px;color:#4a3708}
+.notice strong{display:block;margin-bottom:4px}
+.notice p{margin:0}
+.notice .m{color:#7a6430}
 h2{font-size:17px;color:var(--navy);margin:26px 0 10px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 @media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}}
@@ -240,10 +251,109 @@ def _head(
     return "\n".join(parts)
 
 
+# The bilanț source publishes one dataset PER YEAR and the portal's
+# licence changes across them (FY2008-2018 = uk-ogl, FY2019-2023 =
+# CC-BY-4.0, FY2024/2025 unset). Case + spelling are normalised because
+# ingest stores CKAN's own token lowercased and accepts the "ogl-uk"
+# spelling as the same OGL licence (ingest.check_license). An id that is
+# neither is rendered VERBATIM: it is what the publisher asserted, and
+# mapping it onto a known licence would be inventing one.
+_LICENSE_ID_ALIASES = {lid.lower(): lid for lid in LICENSE_URLS}
+_LICENSE_ID_ALIASES["ogl-uk"] = "uk-ogl"
+
+# Footer sentences are Romanian on both language variants — the existing
+# contract, set by compliance.license_line() which the RO and EN pages
+# have always shared.
+_LICENSE_UNKNOWN_TEXT = "nedeclarată pentru acest set de date"
+_LICENSE_VARIES_TEXT = "variază pe set de date (vezi pagina companiei)"
+
+
+def _canonical_license_id(raw: Optional[str]) -> Optional[str]:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    return _LICENSE_ID_ALIASES.get(text.lower(), text)
+
+
+def _resolve_license(evidence: Dict[str, Any]) -> Optional[str]:
+    """Licence of ONE filing: what ingest recorded from CKAN, else the
+    registry's per-dataset answer for its slug. None = not asserted."""
+    lic = _canonical_license_id(evidence.get("license_id"))
+    if lic:
+        return lic
+    slug = evidence.get("dataset_slug")
+    if slug:
+        return _canonical_license_id(dataset_license(str(slug)))
+    return None
+
+
+def _year_span(years: List[int]) -> str:
+    ys = sorted(set(int(y) for y in years))
+    runs: List[List[int]] = [[ys[0], ys[0]]]
+    for y in ys[1:]:
+        if y == runs[-1][1] + 1:
+            runs[-1][1] = y
+        else:
+            runs.append([y, y])
+    return ", ".join(str(a) if a == b else "%d–%d" % (a, b) for a, b in runs)
+
+
+def _bilant_license_lines(model: Optional[Dict[str, Any]]) -> List[str]:
+    """Attribution for the bilanț source, carrying the licence that
+    actually covers the filings THIS page renders.
+
+    The old line was ``license_line("mfinante_datagov")`` — the SOURCE
+    registry's licence — on every page, so a page built entirely from
+    FY2015 filings (uk-ogl, and ingestable by default) published a
+    CC-BY-4.0 claim the data does not support. Pages with no filing
+    provenance (index, error) state that the licence varies rather than
+    picking one.
+    """
+    src = get_source("mfinante_datagov")
+    evidence = (model or {}).get("license_evidence") or []
+    if not evidence:
+        return ["Sursa datelor: %s · Licență: %s"
+                % (src.name, _LICENSE_VARIES_TEXT)]
+
+    groups: Dict[Optional[str], List[int]] = {}
+    order: List[Optional[str]] = []
+    for ev in evidence:
+        lic = _resolve_license(ev)
+        if lic not in groups:
+            groups[lic] = []
+            order.append(lic)
+        groups[lic].append(int(ev["year"]))
+
+    lines: List[str] = []
+    for lic in order:
+        if lic is None:
+            line = "Sursa datelor: %s · Licență: %s" % (
+                src.name, _LICENSE_UNKNOWN_TEXT)
+        elif lic == src.license_id:
+            # Same licence the registry asserts — let compliance own the
+            # wording so the two can never drift apart.
+            line = license_line("mfinante_datagov")
+        else:
+            line = "Sursa datelor: %s · Licență: %s" % (src.name, lic)
+            url = LICENSE_URLS.get(lic)
+            if url:
+                line += " (%s)" % url
+        if len(order) > 1:
+            # Only a mixed-licence page needs to say which years each
+            # licence covers; a single licence covers all of them.
+            line += " · Ani: %s" % _year_span(groups[lic])
+        lines.append(line)
+    return lines
+
+
 def _footer_html(model: Optional[Dict[str, Any]], lang: str) -> str:
     s = _s(lang)
-    lines: List[str] = [license_line("mfinante_datagov")]
+    lines: List[str] = _bilant_license_lines(model)
     if model is not None and model.get("name_source"):
+        # The identification snapshots are uniformly CC-BY-4.0 across
+        # every release, so the source-level line IS this source's line.
         lines.append(license_line("mfinante_datagov_identificare"))
     lis = "".join("<p>%s</p>" % escape(x) for x in lines)
     support = _support_email()
@@ -341,6 +451,28 @@ def _ratio_card(r: Dict[str, Any], lang: str, s: Dict[str, str]) -> str:
             % (escape(label), escape(val)))
 
 
+def _trend_range(tr: Dict[str, Any], lang: str) -> Optional[str]:
+    """Caption of a trend card: the endpoints, each under ITS OWN year.
+
+    Reads the model's (year, value) endpoint pairs rather than indexing
+    ``years`` and ``values`` separately — that separation is what let a
+    year which reported nothing be labelled with its neighbour's number
+    (build_page_model emits the pairs). No pairs means nothing was
+    reported, and the card refuses instead of inventing a range.
+    """
+    first, last = tr.get("first_reported"), tr.get("last_reported")
+    if not first or not last:
+        return None
+    fmt = fmt_int if tr["key"] == "employees" else fmt_compact_ron
+    if first["year"] == last["year"]:
+        # One reported filing is one point; an arrow from a year to
+        # itself would assert a movement that was never filed.
+        return "%d: %s" % (first["year"], fmt(first["value"], lang))
+    return "%d: %s → %d: %s" % (
+        first["year"], fmt(first["value"], lang),
+        last["year"], fmt(last["value"], lang))
+
+
 def _locked_card(key: str, s: Dict[str, str]) -> str:
     # HARD RULE (PS5, tested): no digit may appear anywhere inside this
     # block — labels, placeholder and note are all digit-free.
@@ -373,7 +505,40 @@ def _json_ld(model: Dict[str, Any], canonical: str) -> str:
                       separators=(",", ":"))
 
 
-def render_company_page(model: Dict[str, Any], lang: str) -> str:
+def render_annotation_notice(public_notice: Optional[Dict[str, Any]],
+                             lang: str) -> str:
+    """The operator-annotation notice box.
+
+    takedown.ANNOTATION_RENDERER names this function by (module, attr)
+    and takedown.page_layer_renders_annotations() probes for it, so the
+    endpoint can tell an operator whether their 'annotate' actually
+    changed a served byte. Renaming or moving it silently turns the
+    softer takedown action back into a no-op — grep the name before you
+    touch it.
+
+    Only PUBLIC_NOTICE_FIELDS may appear here. `reason` and
+    `verified_by` stay in the private audit trail: verified_by is a real
+    person's identity, and publishing it on the page this flow exists to
+    protect would be a fresh disclosure.
+
+    An absent note renders the standing label alone — the page never
+    invents a sentence about the company to fill the box.
+    """
+    if not public_notice:
+        return ""
+    s = _s(lang)
+    parts = ['<aside class="notice" role="note">',
+             "<strong>%s</strong>" % escape(s["notice_annotated"])]
+    note = public_notice.get("note")
+    if note:
+        parts.append('<p><span class="m">%s:</span> %s</p>'
+                     % (escape(s["notice_annotated_src"]), escape(str(note))))
+    parts.append("</aside>")
+    return "".join(parts)
+
+
+def render_company_page(model: Dict[str, Any], lang: str,
+                        annotation: Optional[Dict[str, Any]] = None) -> str:
     s = _s(lang)
     base = canonical_base()
     cui, year, name = model["cui"], model["year"], model["name"]
@@ -421,6 +586,13 @@ def render_company_page(model: Dict[str, Any], lang: str) -> str:
         % (escape(name), "".join(meta_bits), escape(s["trust_chip"]), year)
     )
 
+    # Directly under the header, ABOVE the figures it disputes: a notice
+    # printed below the KPI band would be read after the numbers it is
+    # meant to qualify.
+    if annotation:
+        out.append(render_annotation_notice(annotation.get("public_notice"),
+                                            lang))
+
     # KPI band
     out.append('<section id="kpi"><div class="grid">')
     out.append(_kpi_card(s["kpi_revenue"],
@@ -449,13 +621,9 @@ def render_company_page(model: Dict[str, Any], lang: str) -> str:
         for tr in model["trends"]:
             label = s[_TREND_LABEL_KEYS[tr["key"]]]
             vals = tr["values"]
-            first = next((v for v in vals if v is not None), None)
-            last = next((v for v in reversed(vals) if v is not None), None)
-            rng = "%d: %s → %d: %s" % (
-                tr["years"][0], fmt_compact_ron(first, lang)
-                if tr["key"] != "employees" else fmt_int(first, lang),
-                tr["years"][-1], fmt_compact_ron(last, lang)
-                if tr["key"] != "employees" else fmt_int(last, lang))
+            rng = _trend_range(tr, lang)
+            if rng is None:
+                continue  # nothing reported — the card has no range to state
             out.append(
                 '<div class="tcard"><span class="lbl">%s</span>%s'
                 '<div class="rng">%s</div></div>'

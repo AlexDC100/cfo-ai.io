@@ -20,14 +20,24 @@ import hashlib
 import json
 from typing import Any, Dict, Optional
 
-from .store import PublicRoStore
+from .store import INDICATOR_SLOTS, PublicRoStore
 
 PUBLIC_SUMMARY_VERSION = "ps1"
 PUBLIC_SUMMARY_STATUS = "PUBLIC_SUMMARY"
 
-#: Canonical i-slot -> stable indicator name in the envelope. Order is
-#: irrelevant (serialization sorts keys) but names are frozen: renaming
-#: one would change every content_hash.
+#: Canonical i-slot -> the ENVELOPE KEY of that indicator: the source
+#: file's own i-code, upper-case. This is the vocabulary every reader of
+#: a ps1 envelope documents — engine.serving.facts.FactsGateway's summary
+#: tier (I13 revenue, I7 liabilities, I10 equity, I15 expenses, I18/I19
+#: result, I20 employees), frontend/lib/servedFacts.ts, and the golden
+#: corpus (corpus/public_summary_ro/expected/served_envelope.json). Order
+#: is irrelevant (serialization sorts keys); the KEYS are frozen —
+#: changing one both breaks those readers and moves every content_hash.
+INDICATOR_CODES: Dict[str, str] = {slot: slot.upper() for slot in INDICATOR_SLOTS}
+
+#: Romanian DISPLAY LABELS for the same slots — for renderers that want a
+#: human caption next to a value. NOT envelope keys and never used as
+#: such: the envelope speaks i-codes (INDICATOR_CODES above).
 INDICATOR_NAMES: Dict[str, str] = {
     "i1": "active_imobilizate_total",
     "i2": "active_circulante_total",
@@ -105,10 +115,10 @@ def build_public_summary(
         provenance_src = filing.get("provenance") or {}
 
         indicators: Dict[str, int] = {}
-        for slot, name in INDICATOR_NAMES.items():
+        for slot, code in INDICATOR_CODES.items():
             value = filing.get(slot)
             if value is not None:
-                indicators[name] = int(value)
+                indicators[code] = int(value)
 
         derived: Dict[str, int] = {}
         for key in ("total_assets", "net_result"):

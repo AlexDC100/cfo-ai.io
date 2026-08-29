@@ -167,12 +167,26 @@ def parse_bilant(text: str) -> Tuple[List[str], Iterable[Dict[str, Any]]]:
 def derive_fields(ind: Dict[str, Optional[int]]) -> Dict[str, Optional[int]]:
     """total_assets = i1+i2+i6 (Active totale is NOT a source column);
     net_result = i18 - i19 (profit and loss are separate non-negative
-    columns). All-None inputs stay honestly None."""
-    assets_parts = [ind.get("i1"), ind.get("i2"), ind.get("i6")]
-    if all(v is None for v in assets_parts):
+    columns).
+
+    ABSENT != ZERO, and for total_assets that means ALL THREE components
+    are REQUIRED. With one empty the total is UNKNOWN — not the sum of
+    the rest: a partial sum asserts a magnitude the file does not
+    support, and snapshot's indicators block would honestly OMIT the very
+    component the derived total silently counted as zero.
+
+    net_result is deliberately NOT symmetric with that rule. i18/i19 are
+    a mutually EXCLUSIVE pair (profit net / pierdere neta, both
+    non-negative): an empty side reports "no result on this side", not a
+    hole, and requiring both would refuse the ordinary filing. The
+    FactsGateway summary tier and the golden corpus read the same
+    or-semantics, so do not "fix" this into agreement with the sum rule.
+    """
+    i1, i2, i6 = ind.get("i1"), ind.get("i2"), ind.get("i6")
+    if i1 is None or i2 is None or i6 is None:
         total_assets: Optional[int] = None
     else:
-        total_assets = sum(v or 0 for v in assets_parts)
+        total_assets = i1 + i2 + i6
     profit, loss = ind.get("i18"), ind.get("i19")
     if profit is None and loss is None:
         net_result: Optional[int] = None

@@ -11,8 +11,13 @@ probe OS font paths, because /Library vs /usr/share fonts would make the
 PNG host-dependent.
 
 Disk cache: data/public_og/ (override: PUBLIC_RO_OG_DIR), keyed by
-(cui, year, dataset_version) — a new dataset version is a new file, so
-stale images are never served for fresh data.
+(cui, year, dataset_version, lang) PLUS a digest of the arguments that
+reach render_og_png. The dataset version alone was not enough: it covers
+the KPIs, which come from a filing, but the card also draws the company
+NAME, which comes from the companies table — so a `public_ingest.py
+ident` rename left every social card advertising the old name forever
+(nothing in the key had moved). See cache.page_cache_key for the same
+bug on the HTML side.
 """
 from __future__ import annotations
 
@@ -22,6 +27,8 @@ import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from .cache import inputs_digest
 
 WIDTH, HEIGHT = 1200, 630
 
@@ -125,16 +132,24 @@ def cached_og_png(
     lang: str = "ro",
     directory: Optional[Path] = None,
 ) -> bytes:
-    """Disk-cached render keyed by (cui, year, dataset_version, lang)."""
+    """Disk-cached render keyed by (cui, year, dataset_version, lang) and
+    a digest of the render arguments."""
+    # ONE dict feeds both the digest and the render call: a new input
+    # cannot reach the canvas without also moving the key. Listing the
+    # render inputs a second time is exactly how the name fell out.
+    render_inputs = {"name": name, "cui": int(cui), "year": int(year),
+                     "kpis": kpis, "lang": lang}
     d = og_dir(directory)
-    fname = "%d-%d-%s-%s.png" % (int(cui), int(year),
-                                 _safe_token(str(dataset_version)), lang)
+    fname = "%d-%d-%s-%s-%s.png" % (int(cui), int(year),
+                                    _safe_token(str(dataset_version)),
+                                    _safe_token(str(lang)),
+                                    inputs_digest(render_inputs))
     path = d / fname
     try:
         return path.read_bytes()
     except OSError:
         pass
-    data = render_og_png(name=name, cui=cui, year=year, kpis=kpis, lang=lang)
+    data = render_og_png(**render_inputs)
     with _lock:
         try:
             d.mkdir(parents=True, exist_ok=True)

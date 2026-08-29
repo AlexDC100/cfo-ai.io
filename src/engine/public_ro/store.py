@@ -26,7 +26,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Tuple
 
 DB_ENV = "PUBLIC_RO_DB_PATH"
 SCHEMA_VERSION = 1
@@ -127,6 +127,21 @@ _SCHEMA = [
 
 def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _hub_slug(kind: str, raw: str) -> str:
+    """URL-safe hub key for a raw dimension value.
+
+    Delegates to the seo lane, which OWNS the slug vocabulary: the hub
+    route resolves a slug by equality against ``hub_keys()`` while the
+    sitemap folds the same key into its <loc>, so a second fold
+    implemented here would silently advertise URLs the route 404s.
+    Imported lazily — seo.py pulls in fastapi, which the ingest paths
+    (scripts/public_ingest.py) must stay free of.
+    """
+    from engine.public_ro.seo import county_slug, slugify
+
+    return county_slug(raw) if kind == "judet" else slugify(raw)
 
 
 class PublicRoStore:
@@ -270,8 +285,27 @@ class PublicRoStore:
         return out
 
     def search_companies(self, q: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """Name-prefix + exact-CUI search over PUBLISHABLE companies
-        only (unpublishable CUIs never surface, PS7)."""
+        """Name-prefix + exact-CUI search over companies that are publishable
+        RIGHT NOW.
+
+        Every candidate is routed through ``compliance.validate_publishable``
+        — the ONE PS7/PS8 predicate pages, sitemaps and search share. The
+        ``publishable`` column alone is an INGEST-TIME verdict that knows
+        nothing about an operator takedown, so a removed company kept
+        surfacing here (name, county, CUI and a now-410 URL) long after its
+        page had been pulled.
+
+        ``has_filings`` is carried into the predicate rather than assumed:
+        a publishable CUI with zero filings has no company page (the route
+        404s), so returning it would publish a dead URL.
+
+        The compliance import is deliberately NOT guarded: if the predicate
+        cannot be loaded, this raises and the callers' try/except renders an
+        empty result set — search fails CLOSED rather than degrading to the
+        column-only filter that caused the leak.
+        """
+        from engine.public_ro.compliance import validate_publishable
+
         q = (q or "").strip()
         if not q:
             return []
@@ -284,13 +318,31 @@ class PublicRoStore:
         else:
             clauses.append("name LIKE ? ESCAPE '\\' COLLATE NOCASE")
             params.append(_like_prefix(q))
-        params.append(limit)
+        # Over-fetch: the predicate drops rows AFTER sqlite applied LIMIT,
+        # so fetching exactly `limit` would silently shorten every result
+        # set that happens to contain a removed or thin CUI.
+        params.append(limit * 2 + 10)
         rows = self._conn.execute(
-            "SELECT cui, name, county, locality, caen FROM companies "
+            "SELECT cui, name, county, locality, caen, tip_contrib, "
+            "reg_number, EXISTS(SELECT 1 FROM filings f "
+            "WHERE f.cui=companies.cui) AS has_filings FROM companies "
             "WHERE %s ORDER BY name LIMIT ?" % " AND ".join(clauses),
             params,
         ).fetchall()
-        return [dict(r) for r in rows]
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            item = dict(row)
+            # db_path scopes the takedown lookup to THIS store's file; the
+            # predicate would otherwise consult PUBLIC_RO_DB_PATH / the
+            # repo default and miss (or invent) removals.
+            if not validate_publishable(item, db_path=self.path):
+                continue
+            for gate_only in ("tip_contrib", "reg_number", "has_filings"):
+                item.pop(gate_only, None)
+            out.append(item)
+            if len(out) >= limit:
+                break
+        return out
 
     # ── filings ────────────────────────────────────────────────────
 
@@ -374,28 +426,154 @@ class PublicRoStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def hub_top_companies(
-        self,
-        *,
-        year: int,
-        caen2: Optional[str] = None,
-        county: Optional[str] = None,
-        limit: int = 50,
-    ) -> List[Dict[str, Any]]:
-        """Top publishable companies for a sector (2-digit CAEN) or
-        county hub, ranked by revenue (canonical i13)."""
-        limit = max(1, min(int(limit), 500))
-        clauses = ["c.publishable=1", "f.year=?"]
-        params: List[Any] = [int(year)]
+    # ── hub addressing (one contract, two ways in) ─────────────────
+
+    def _removed_cuis(self) -> FrozenSet[int]:
+        """PS8 exclusion set from lane 6's append-only audit trail.
+
+        Scoped to THIS store's db file on purpose: takedown.default_db_path()
+        resolves PUBLIC_RO_DB_PATH / data/public_ro.db, so a store opened on
+        any other file would consult the wrong trail and could republish a
+        removed company.
+        """
+        from engine.public_ro.takedown import removed_cuis
+
+        return removed_cuis(self.path)
+
+    def _removed_cui_sql(self, alias: str) -> Tuple[str, List[Any]]:
+        """(" AND <alias>.cui NOT IN (…)", params) — the PS8 exclusion as a
+        SQL fragment, for the aggregates whose COUNT must be exact rather
+        than filtered afterwards. Empty fragment when nothing is removed."""
+        removed = sorted(int(c) for c in self._removed_cuis())
+        if not removed:
+            return "", []
+        return (" AND %s.cui NOT IN (%s)" % (alias, ",".join("?" * len(removed))),
+                list(removed))
+
+    def _counties_for_slug(self, slug: str) -> List[str]:
+        """Every raw county spelling that folds to ``slug``.
+
+        The store keeps the county exactly as the identification snapshot
+        spells it ("Satu Mare", "Bucureşti") while the URL carries the
+        folded form, and sqlite cannot fold diacritics — so the (at most
+        ~42) distinct values are folded here, through the same vocabulary
+        hub_keys advertises. A list, not one value: two spellings of one
+        county fold together, and matching only the first would list fewer
+        companies than the hub's own count promises.
+        """
+        want = str(slug or "").strip().lower()
+        if not want:
+            return []
+        rows = self._conn.execute(
+            "SELECT DISTINCT county FROM companies WHERE publishable=1 "
+            "AND county IS NOT NULL AND county <> ''"
+        ).fetchall()
+        return [str(r["county"]) for r in rows
+                if _hub_slug("judet", str(r["county"])) == want
+                or str(r["county"]).strip().lower() == want]
+
+    def _hub_dimensions(
+        self, kind: str, slug: Optional[str]
+    ) -> Optional[Tuple[Optional[str], Optional[List[str]]]]:
+        """(caen2, counties) for a hub address, or None when the slug names
+        no hub this store can serve.
+
+        None means "list nothing" — never "no filter". See
+        hub_top_companies for why that distinction is load-bearing.
+        """
+        kind = str(kind or "").strip().lower()
+        text = str(slug or "").strip()
+        if not text:
+            return None
+        if kind in ("sector", "caen", "caen2"):
+            # Accepts the bare division ("10") AND a label-carrying slug
+            # ("10-industria-alimentara"), so the seo lane can enrich the
+            # key with a CAEN division name without 404-ing the route.
+            head = text.split("-", 1)[0][:2]
+            return (head, None) if head.isdigit() else None
+        if kind in ("judet", "county"):
+            counties = self._counties_for_slug(text)
+            return (None, counties) if counties else None
+        return None
+
+    def _hub_filters(
+        self, caen2: Optional[str], county: Optional[Any]
+    ) -> Tuple[List[str], List[Any]]:
+        clauses = ["c.publishable=1"]
+        params: List[Any] = []
         if caen2:
-            clauses.append("substr(f.caen,1,2)=?")
+            # COALESCE: hub_keys groups on companies.caen, but a filing row
+            # may carry no CAEN of its own — without this a hub advertises
+            # companies its own page then refuses to list.
+            clauses.append("substr(COALESCE(f.caen, c.caen),1,2)=?")
             params.append(str(caen2)[:2])
         if county:
-            clauses.append("c.county=? COLLATE NOCASE")
-            params.append(county)
-        params.append(limit)
+            values = [county] if isinstance(county, str) else list(county)
+            clauses.append("c.county COLLATE NOCASE IN (%s)"
+                           % ",".join("?" * len(values)))
+            params.extend(values)
+        return clauses, params
+
+    def _hub_latest_year(self, caen2: Optional[str],
+                         county: Optional[Any]) -> Optional[int]:
+        clauses, params = self._hub_filters(caen2, county)
+        row = self._conn.execute(
+            "SELECT MAX(f.year) AS y FROM filings f "
+            "JOIN companies c ON c.cui=f.cui WHERE %s" % " AND ".join(clauses),
+            params,
+        ).fetchone()
+        return int(row["y"]) if row and row["y"] is not None else None
+
+    def hub_top_companies(
+        self,
+        kind: Optional[str] = None,
+        slug: Optional[str] = None,
+        *,
+        year: Optional[int] = None,
+        caen2: Optional[str] = None,
+        county: Optional[Any] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Top publishable companies for one hub, ranked by revenue (i13).
+
+        ONE query, two ways to address it:
+          * the hub ADDRESS ``(kind, slug)`` — all a route knows is
+            /sector/10 or /judet/satu-mare (pages/hubs.py), resolved here
+            into the dimensions below;
+          * the raw DIMENSIONS ``year=/caen2=/county=`` — what the ingest
+            and percentile jobs already hold.
+        The address wins when both are given.
+
+        ``year`` defaults to the latest year filed INSIDE THIS HUB, not the
+        global latest: a sector whose companies last reported in 2023 would
+        otherwise render an empty page on a 2024 corpus.
+
+        An unresolvable address returns [] — never an unfiltered list.
+        Dropping the filter would put the whole country's top companies
+        under a county heading, i.e. state something about named companies
+        that the open data does not support.
+        """
+        if kind is not None:
+            dims = self._hub_dimensions(kind, slug)
+            if dims is None:
+                return []
+            caen2, county = dims
+        if year is None:
+            year = self._hub_latest_year(caen2, county)
+            if year is None:
+                return []
+        limit = max(1, min(int(limit), 500))
+        removed = self._removed_cuis()
+        clauses, params = self._hub_filters(caen2, county)
+        clauses.append("f.year=?")
+        params.append(int(year))
+        # Fetch the removals' worth of extra rows so a takedown shortens
+        # nobody's page: the exclusion happens after sqlite applied LIMIT.
+        params.append(limit + len(removed))
         rows = self._conn.execute(
-            "SELECT c.cui, c.name, c.county, f.caen, f.year, "
+            # ``latest_year`` (not ``year``) is the hub row contract the
+            # renderer in pages/hubs.py reads for its Year column.
+            "SELECT c.cui, c.name, c.county, f.caen, f.year AS latest_year, "
             "f.i13 AS revenue, f.net_result, f.total_assets, "
             "f.i20 AS employees, f.dataset_id "
             "FROM filings f JOIN companies c ON c.cui=f.cui "
@@ -403,7 +581,8 @@ class PublicRoStore:
             % " AND ".join(clauses),
             params,
         ).fetchall()
-        return [dict(r) for r in rows]
+        out = [dict(r) for r in rows if int(r["cui"]) not in removed]
+        return out[:limit]
 
     # ── percentiles ────────────────────────────────────────────────
 
@@ -453,36 +632,68 @@ class PublicRoStore:
     def hub_keys(self, kind: str) -> List[Dict[str, Any]]:
         """Sector (caen2) or county hub keys with their company counts.
 
-        Only publishable companies with filings are counted, so a hub
-        can never advertise more companies than its page can list.
+        ``slug`` is URL-SAFE and is the key the hub route resolves by
+        equality; ``label_ro`` / ``label_en`` carry the human form for
+        display. The raw county column ("Satu Mare", "Bucureşti") is not a
+        legal path segment and used to reach sitemap <loc> values verbatim.
+        Counties are aggregated BY SLUG, so two spellings of one county
+        become one hub whose count matches what its page lists.
+
+        Only publishable companies with filings are counted, minus
+        taken-down CUIs (PS8): a count inflated by removed companies could
+        clear HUB_MIN_COMPANIES in the sitemap while the page itself
+        rendered below the threshold and therefore noindex — the two
+        policies must agree.
+
+        Sector labels are the bare 2-digit division: this store holds no
+        CAEN division-name table. The seo lane owns sector_slug(code,
+        label) for when one lands; this key stays parseable by it
+        (see _hub_dimensions).
         """
         kind = str(kind or "").strip().lower()
+        excl, excl_params = self._removed_cui_sql("c")
         if kind in ("sector", "caen", "caen2"):
+            hub_kind = "sector"
             rows = self._conn.execute(
                 "SELECT substr(c.caen, 1, 2) AS slug_key, "
                 "       COUNT(DISTINCT c.cui) AS company_count "
                 "FROM companies c JOIN filings f ON f.cui = c.cui "
                 "WHERE c.publishable = 1 AND c.caen IS NOT NULL "
-                "AND length(c.caen) >= 2 "
-                "GROUP BY slug_key ORDER BY slug_key"
+                "AND length(c.caen) >= 2" + excl +
+                " GROUP BY slug_key ORDER BY slug_key",
+                excl_params,
             ).fetchall()
         elif kind in ("judet", "county"):
+            hub_kind = "judet"
             rows = self._conn.execute(
                 "SELECT c.county AS slug_key, "
                 "       COUNT(DISTINCT c.cui) AS company_count "
                 "FROM companies c JOIN filings f ON f.cui = c.cui "
                 "WHERE c.publishable = 1 AND c.county IS NOT NULL "
-                "AND c.county <> '' "
-                "GROUP BY slug_key ORDER BY slug_key"
+                "AND c.county <> ''" + excl +
+                " GROUP BY slug_key ORDER BY slug_key",
+                excl_params,
             ).fetchall()
         else:
             return []
-        return [
-            {"slug": str(r["slug_key"]),
-             "label_ro": str(r["slug_key"]),
-             "company_count": int(r["company_count"])}
-            for r in rows if r["slug_key"]
-        ]
+        merged: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            if not r["slug_key"]:
+                continue
+            label = str(r["slug_key"])
+            slug = _hub_slug(hub_kind, label)
+            if not slug:
+                continue
+            entry = merged.get(slug)
+            if entry is None:
+                merged[slug] = {"slug": slug, "label_ro": label,
+                                "label_en": label,
+                                "company_count": int(r["company_count"])}
+            else:
+                # Summing is exact: a CUI carries exactly one county row,
+                # so no company is counted under two spellings.
+                entry["company_count"] += int(r["company_count"])
+        return [merged[slug] for slug in sorted(merged)]
 
     def dataset_version(self) -> Optional[Dict[str, Any]]:
         """The newest ingested dataset — {version, fetch_date} — or None

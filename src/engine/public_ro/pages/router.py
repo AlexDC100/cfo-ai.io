@@ -26,8 +26,9 @@ Serving discipline:
   - Cache-Control: public, max-age=3600, stale-while-revalidate=86400;
   - light token-bucket rate limit (engine.public_ro.ratelimit.check,
     crawler UAs exempt by UA string — DNS verification is future work);
-  - page bytes cached per (cui, year, dataset_version, lang) — disk +
-    in-process LRU (cache.PageCache).
+  - page bytes cached under cache.page_cache_key, which digests the
+    company row and the filings list themselves — disk + in-process LRU
+    (cache.PageCache).
 """
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from engine.public_ro import ratelimit
 from engine.public_ro.seo import canonical_base, company_path, robots_headers_for
 
-from .cache import PageCache
+from .cache import PageCache, page_cache_key
 from .i18n import STRINGS
 from .model import build_page_model, fmt_compact_ron, fmt_int, net_result_of
 from .og import cached_og_png
@@ -168,6 +169,23 @@ def _hub_links(store: Any, lang: str) -> List[Dict[str, Any]]:
     return out
 
 
+def _annotation_for(cui: int) -> Optional[Dict[str, Any]]:
+    """Active operator annotation for this CUI, or None.
+
+    takedown.annotation() is the single page-layer predicate; everything
+    else on the audit row is private. Best-effort: a takedown-store
+    problem must not take the company page down with it — the page
+    renders un-annotated rather than 500ing.
+    """
+    try:
+        from engine.public_ro.takedown import annotation
+
+        return annotation(cui)
+    except Exception:  # noqa: BLE001
+        logger.warning("annotation lookup failed for %s", cui, exc_info=True)
+        return None
+
+
 def _percentiles_for(store: Any, *, year: int,
                      caen: Optional[str]) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
@@ -224,22 +242,35 @@ def build_router(store: Any = None, *,
             )
         latest = filings[-1]
         year = int(latest["year"])
-        prov = latest.get("provenance") or {}
-        dsv = str(prov.get("dataset_id") or "0")
-        # The percentile epoch belongs in the key: sector bars come from
-        # a job that reruns independently of any filing's dataset_id, so
-        # keying on dsv alone served stale bars forever.
+        # The percentile epoch stands in for the sector distributions:
+        # they come from a job that reruns independently of any filing's
+        # dataset_id, and the router reads them only after a cache miss.
         try:
             epoch = str(st.percentiles_epoch())
         except Exception:  # noqa: BLE001 — older store, no epoch column
             epoch = "0"
-        cache_key = (cui, year, dsv, lang, epoch)
+        # An operator annotation changes the served bytes but moves
+        # NOTHING the key already covers — no filing, no dataset, no
+        # identity field — so it has to join the key itself or the
+        # notice would never reach a page that had been rendered once
+        # (which is every page that matters). Keyed on created_at so a
+        # later annotation, or a restore, invalidates in turn.
+        annotation = _annotation_for(cui)
+        ann_stamp = "0"
+        if annotation:
+            ann_stamp = str((annotation.get("public_notice") or {}).get(
+                "created_at") or "annotated")
+        # Whole rows, not picked columns — page_cache_key owns what a
+        # cached page depends on (see cache.py).
+        cache_key = page_cache_key(cui=cui, year=year, lang=lang,
+                                   company=company, filings=filings,
+                                   percentiles_epoch=epoch) + (ann_stamp,)
         html = cache.get(cache_key)
         if html is None:
             pct = _percentiles_for(
                 st, year=year, caen=latest.get("caen") or company.get("caen"))
             model = build_page_model(company, filings, percentiles=pct)
-            html = render_company_page(model, lang)
+            html = render_company_page(model, lang, annotation=annotation)
             cache.put(cache_key, html)
         return HTMLResponse(html, headers=_headers(request))
 

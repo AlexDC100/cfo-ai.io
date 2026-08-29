@@ -87,6 +87,11 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "cta_button": "Creeaza cont gratuit",
         "cta_accountant": "Sunt contabil — cere raportul complet",
         # footer
+        # Standing label for an operator annotation. Shown ALONE when
+        # the operator recorded no note — the page never invents a
+        # sentence about the company to fill the box.
+        "notice_annotated": "Aceste date sunt contestate de companie.",
+        "notice_annotated_src": "Notă operator",
         "footer_takedown": "Solicita corectarea sau eliminarea datelor",
         "footer_generated": "Pagina generata determinist din setul de date",
         # index / search
@@ -189,6 +194,8 @@ STRINGS: Dict[str, Dict[str, str]] = {
         ),
         "cta_button": "Create a free account",
         "cta_accountant": "I'm an accountant — request the full report",
+        "notice_annotated": "This data is disputed by the company.",
+        "notice_annotated_src": "Operator note",
         "footer_takedown": "Request a correction or removal of this data",
         "footer_generated": "Page rendered deterministically from dataset",
         "index_title": "Romanian companies — public financial data",

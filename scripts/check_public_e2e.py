@@ -229,10 +229,10 @@ def _check_funnel_sink(db_path: Path, v: Violations, verbose: bool) -> None:
         return
 
     before = _funnel_count(conn)
-    ok = funnel.record_event(conn, kind="page_view", cui=SEED[0][0],
+    ok = funnel.record_event(kind="page_view", cui=str(SEED[0][0]),
                              path="/companii/700001-alfa-prod-srl",
                              utm=None, ip="203.0.113.9",
-                             user_agent="Mozilla/5.0")
+                             user_agent="Mozilla/5.0", db=db_path)
     after = _funnel_count(conn)
     if not ok or after <= before:
         v.add("FUNNEL_EVENT_NOT_PERSISTED",
@@ -283,10 +283,13 @@ def _check_takedown_is_total(client: Any, store: Any, out_dir: Path,
               "and URL)" % cui)
 
     h = client.get("/companii", params={"q": name}, headers=HDRS)
-    if h.status_code == 200 and name in h.text:
+    # Assert on the RESULT LINK, not the name: the index echoes the
+    # caller's own query back into the search box, so searching for a
+    # company always puts its name in the HTML. Only a link to the
+    # company page proves a stored row was actually served.
+    if h.status_code == 200 and ("/companii/%d-" % cui) in h.text:
         v.add("TAKEDOWN_LEAKS_VIA_INDEX",
-              "the rendered directory still prints %r for removed CUI %d"
-              % (name, cui))
+              "the rendered directory still links removed CUI %d" % cui)
 
     try:
         seo.generate_sitemaps(store, out_dir=out_dir)

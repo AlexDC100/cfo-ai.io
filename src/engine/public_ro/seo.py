@@ -62,6 +62,7 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from urllib.parse import quote, urlsplit, urlunsplit
 from xml.sax.saxutils import escape as _xml_escape
 
 from fastapi import APIRouter, Request, Response
@@ -141,6 +142,22 @@ def slugify(text: str) -> str:
     text = text.encode("ascii", "ignore").decode("ascii").lower()
     text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
     return text or "x"
+
+
+def canonical_company_slug(name: Optional[str]) -> str:
+    """THE company slug — borrowed from the page's own authority.
+
+    ``pages/slug.canonical_slug`` bounds the slug (60 chars, rstripped)
+    and falls back to ``companie`` for a missing name; the company route
+    301s anything else to that form. A second implementation here put
+    permanently-redirecting URLs in the sitemap for every company whose
+    name slugged past the bound, so this delegates instead of deciding.
+
+    Imported inside the function on purpose: pages/slug.py imports this
+    module at module scope, so a top-level import would be a cycle.
+    """
+    from engine.public_ro.pages.slug import canonical_slug
+    return canonical_slug(name)
 
 
 def company_path(cui: int, slug: str, lang: str = "ro") -> str:
@@ -247,12 +264,39 @@ def _atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
+#: RFC-3986 characters that may stay literal inside a path segment
+#: (unreserved + sub-delims + ":" "@"). "%" is NOT here: our URLs are
+#: built from slugs that never contain one, so a "%" reaching this point
+#: is raw data and must be escaped rather than trusted as an escape.
+_PATH_SAFE = "/-_.~!$&'()*+,;=:@"
+_QUERY_SAFE = _PATH_SAFE + "?"
+
+
+def _loc(url: str) -> str:
+    """A single <loc> body: RFC-3986 percent-encoded, then XML-escaped.
+
+    sitemaps.org requires an escaped, fetchable URL. Escaping only &<>
+    let a raw county name ("Satu Mare", "Bistrița-Năsăud") reach the file
+    as a <loc> holding a literal space / non-ASCII bytes — parseable XML
+    that is not a URL any crawler can fetch. Slugging upstream is the
+    real fix; this is the writer-side guarantee that no invalid <loc> can
+    leave the module whatever a store hands over.
+    """
+    parts = urlsplit(url)
+    if parts.scheme and parts.netloc:
+        url = urlunsplit((parts.scheme, parts.netloc,
+                          quote(parts.path, safe=_PATH_SAFE),
+                          quote(parts.query, safe=_QUERY_SAFE),
+                          quote(parts.fragment, safe=_PATH_SAFE)))
+    return _xml_escape(url)
+
+
 def _urlset_xml(urls: Sequence[str], lastmod: Optional[str]) -> bytes:
     parts = ['<?xml version="1.0" encoding="UTF-8"?>\n',
              '<urlset xmlns="%s">\n' % _SITEMAP_NS]
     lm = "<lastmod>%s</lastmod>" % _xml_escape(lastmod) if lastmod else ""
     for u in urls:
-        parts.append("<url><loc>%s</loc>%s</url>\n" % (_xml_escape(u), lm))
+        parts.append("<url><loc>%s</loc>%s</url>\n" % (_loc(u), lm))
     parts.append("</urlset>\n")
     return "".join(parts).encode("utf-8")
 
@@ -301,9 +345,30 @@ def collect_company_urls(store: Any,
         if cui in removed:                 # lane 6 takedown
             excluded["takedown"] += 1
             continue
-        slug = row.get("slug") or slugify(str(row.get("name", "")))
+        # From the NAME, through the page's authority — never from a
+        # store-supplied slug column. The page canonicalises off the name
+        # and 301s every other form, so any second source here (or a
+        # column that later drifts) re-advertises redirecting URLs.
+        slug = canonical_company_slug(row.get("name"))
         urls.append(base + company_path(cui, slug, "ro"))
     return urls, excluded
+
+
+def hub_loc_slug(kind: str, raw: Any) -> str:
+    """URL-safe hub slug for a <loc>, from whatever ``hub_keys`` returns.
+
+    The judet key has historically been the RAW county string ("Satu
+    Mare"), which is not a legal path segment. Normalising through the
+    slug vocabulary this module owns is IDEMPOTENT, so this stays correct
+    once the store hands over an already-slugged key.
+
+    Sector keys are NOT rebuilt with ``sector_slug()`` here: the hub route
+    resolves a slug by equality against ``hub_keys()``, so minting a
+    different key would 404 the very page the sitemap advertises. The
+    store owns the sector key; this only makes it URL-safe.
+    """
+    text = str(raw)
+    return county_slug(text) if kind == "judet" else slugify(text)
 
 
 def collect_hub_urls(store: Any, base: Optional[str] = None) -> List[str]:
@@ -319,11 +384,14 @@ def collect_hub_urls(store: Any, base: Optional[str] = None) -> List[str]:
         for entry in hub_keys(kind):
             if int(entry.get("company_count", 0)) < HUB_MIN_COMPANIES:
                 continue
-            slug = entry.get("slug") or entry.get("key")
+            raw = entry.get("slug") or entry.get("key")
+            if not raw:
+                continue
+            slug = hub_loc_slug(kind, raw)
             if not slug:
                 continue
-            urls.append(base + hub_path(kind, str(slug), "ro"))
-            urls.append(base + hub_path(kind, str(slug), "en"))
+            urls.append(base + hub_path(kind, slug, "ro"))
+            urls.append(base + hub_path(kind, slug, "en"))
     return urls
 
 
@@ -368,8 +436,8 @@ def generate_sitemaps(store: Any,
            '<sitemapindex xmlns="%s">\n' % _SITEMAP_NS]
     lm = "<lastmod>%s</lastmod>" % _xml_escape(lastmod) if lastmod else ""
     for s in shards:
-        idx.append("<sitemap><loc>%s/sitemaps/%s.xml.gz</loc>%s</sitemap>\n"
-                   % (_xml_escape(base), s["name"], lm))
+        idx.append("<sitemap><loc>%s</loc>%s</sitemap>\n"
+                   % (_loc("%s/sitemaps/%s.xml.gz" % (base, s["name"])), lm))
     idx.append("</sitemapindex>\n")
     _atomic_write(out / "sitemap.xml", "".join(idx).encode("utf-8"))
 

@@ -39,7 +39,10 @@ Connections are opened here with ``PRAGMA journal_mode=WAL`` and
 ``busy_timeout=5000`` per the wave storage contract. When lane 1's
 ``engine.public_ro.store`` module exposes ``db_path()`` we defer to it
 so both lanes agree on the file; env ``PUBLIC_RO_DB_PATH`` overrides
-for tests.
+for tests. That store ALSO declares ``funnel_events`` (schema-only, in a
+slightly different shape), and only the first CREATE in a given file has
+any effect — so ``connect()`` reconciles the table it finds to the
+columns this module writes instead of assuming its own DDL ran.
 
 No AI anywhere in this module (wave rule: zero anthropic imports).
 """
@@ -122,23 +125,30 @@ BEACON_SNIPPET = (
 # Storage plumbing
 # ──────────────────────────────────────────────────────────────────────
 
+# Two modules CREATE funnel_events in the same file: this one and lane
+# 1's ``store.PublicRoStore`` ("schema-only here — lanes 5/6 own their
+# write paths", store.py:14). Whichever opens the file first wins and
+# every later CREATE TABLE IF NOT EXISTS is a silent no-op, so the shape
+# this module finds is NOT guaranteed to be the shape below — the store's
+# has no ``day`` column. Nullable columns (rather than the NOT NULL the
+# writer always satisfies anyway) are deliberate: ALTER TABLE cannot add
+# a NOT NULL column without a default, so this is the one shape both the
+# fresh-create and the migration path can produce. _reconcile_columns()
+# is what makes the difference survivable; see connect().
 _FUNNEL_DDL = (
     """
     CREATE TABLE IF NOT EXISTS funnel_events (
         id       INTEGER PRIMARY KEY AUTOINCREMENT,
         ts       TEXT NOT NULL,          -- ISO-8601 UTC
-        day      TEXT NOT NULL,          -- YYYY-MM-DD (UTC)
+        day      TEXT,                   -- YYYY-MM-DD (UTC)
         kind     TEXT NOT NULL,
         cui      TEXT,
         path     TEXT,
         utm      TEXT,                   -- JSON object of utm_* params or NULL
-        ip_hash  TEXT NOT NULL,          -- sha256(daily_salt + ip)[:16]; raw IP NEVER stored
-        ua_class TEXT NOT NULL           -- crawler | browser | other
+        ip_hash  TEXT,                   -- sha256(daily_salt + ip)[:16]; raw IP NEVER stored
+        ua_class TEXT                    -- crawler | browser | other
     )
     """,
-    "CREATE INDEX IF NOT EXISTS idx_funnel_events_day  ON funnel_events(day)",
-    "CREATE INDEX IF NOT EXISTS idx_funnel_events_kind ON funnel_events(kind)",
-    "CREATE INDEX IF NOT EXISTS idx_funnel_events_iph  ON funnel_events(ip_hash, ts)",
     """
     CREATE TABLE IF NOT EXISTS funnel_salt (
         day  TEXT PRIMARY KEY,           -- YYYY-MM-DD (UTC)
@@ -146,6 +156,19 @@ _FUNNEL_DDL = (
     )
     """,
 )
+
+# Indexes are created AFTER _reconcile_columns() — the day index is
+# exactly what used to raise "no such column: day" on a store-created
+# file, killing every event in the process.
+_FUNNEL_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_funnel_events_day  ON funnel_events(day)",
+    "CREATE INDEX IF NOT EXISTS idx_funnel_events_kind ON funnel_events(kind)",
+    "CREATE INDEX IF NOT EXISTS idx_funnel_events_iph  ON funnel_events(ip_hash, ts)",
+)
+
+#: Every column record_event() writes. connect() guarantees all of them
+#: exist whichever module created the table.
+_EVENT_COLUMNS = ("ts", "day", "kind", "cui", "path", "utm", "ip_hash", "ua_class")
 
 
 def _repo_root() -> Path:
@@ -171,15 +194,48 @@ def db_path() -> Path:
     return _repo_root() / "data" / "public_ro.db"
 
 
+def _reconcile_columns(conn: sqlite3.Connection) -> None:
+    """Add any write column the found table is missing.
+
+    The store's funnel_events has no ``day``; ours does. Without this the
+    day index raised ``no such column: day`` on every connect() and
+    record_event() swallowed it — the route still answered 204, so the
+    sink reported success while storing nothing. Adding the column is
+    preferred over dropping it from the writer because a file created by
+    the older funnel DDL has ``day NOT NULL`` and would then reject every
+    insert; after this both origins converge on one shape.
+    """
+    have = {row[1] for row in conn.execute("PRAGMA table_info(funnel_events)")}
+    for column in _EVENT_COLUMNS:
+        if column in have:
+            continue
+        try:
+            # Identifiers cannot be bound; these come from _EVENT_COLUMNS.
+            conn.execute("ALTER TABLE funnel_events ADD COLUMN %s TEXT" % column)
+        except sqlite3.OperationalError:
+            # Another process won the race and added it first.
+            logger.debug("[public_ro.funnel] column %s already added", column)
+    if "day" not in have:
+        # Pre-existing rows carry ts but no day; derive rather than leave
+        # them NULL so the day index and any day query see whole history.
+        conn.execute(
+            "UPDATE funnel_events SET day = substr(ts, 1, 10) WHERE day IS NULL"
+        )
+
+
 def connect(path: Optional[Any] = None) -> sqlite3.Connection:
     """Open the public-RO DB with the wave PRAGMAs (WAL + busy_timeout
-    5000) and make sure the funnel tables exist."""
+    5000) and make sure the funnel tables exist AND carry every column
+    this module writes (the file is shared with lane 1's store)."""
     target = Path(path) if path is not None else db_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(target))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
     for stmt in _FUNNEL_DDL:
+        conn.execute(stmt)
+    _reconcile_columns(conn)
+    for stmt in _FUNNEL_INDEXES:
         conn.execute(stmt)
     conn.commit()
     return conn
@@ -248,6 +304,10 @@ def _sanitize_utm(utm: Any) -> Optional[str]:
     return json.dumps(clean, sort_keys=True, ensure_ascii=False) if clean else None
 
 
+#: Set once the sink has failed in this process (see record_event).
+_SINK_FAILURE_SEEN = False
+
+
 def record_event(
     *,
     kind: str,
@@ -295,8 +355,21 @@ def record_event(
             return True
         finally:
             conn.close()
-    except Exception:  # noqa: BLE001 — sink failures are silent by design
-        logger.debug("[public_ro.funnel] event dropped on error", exc_info=True)
+    except Exception:  # noqa: BLE001 — silent to the CALLER, not to the operator
+        # The route answers 204 either way (no abuse oracle), so a broken
+        # sink is invisible from outside. The first failure per process is
+        # therefore a WARNING: a whole-schema outage once ran for weeks
+        # behind a debug-level log and a green 204.
+        global _SINK_FAILURE_SEEN
+        if _SINK_FAILURE_SEEN:
+            logger.debug("[public_ro.funnel] event dropped on error", exc_info=True)
+        else:
+            _SINK_FAILURE_SEEN = True
+            logger.warning(
+                "[public_ro.funnel] event sink failing — events are being "
+                "dropped; further drops log at debug",
+                exc_info=True,
+            )
         return False
 
 
@@ -305,10 +378,29 @@ def record_event(
 # ──────────────────────────────────────────────────────────────────────
 
 def _client_ip(request: Any) -> str:
+    """The LAST X-Forwarded-For hop, else the socket peer.
+
+    Rightmost, not leftmost: Caddy fronts this backend with a bare
+    ``reverse_proxy`` (no ``trusted_proxies``), which APPENDS the real
+    peer to whatever the caller already put in the header. So index 0 is
+    always attacker-written and only the final entry was added by our
+    proxy. This value keys the hourly abuse cap — reading it from the
+    left let one caller mint a fresh cap bucket per request by rotating
+    the header, and with it rewrite every /ops funnel number.
+
+    Correct for EXACTLY ONE trusted hop, which is what runs today: DNS
+    points straight at the VPS and responses carry `via: 1.1 Caddy` and
+    nothing else. A CDN in front would invert this — the last hop would
+    be the CDN edge, every visitor would collapse into a single cap
+    bucket, and the cap would throttle the world instead of an abuser.
+    If one is ever added, index from the right by the number of trusted
+    hops; do not go back to hops[0].
+    """
     try:
-        fwd = request.headers.get("x-forwarded-for")
-        if fwd:
-            return fwd.split(",")[0].strip()
+        fwd = request.headers.get("x-forwarded-for") or ""
+        hops = [hop.strip() for hop in fwd.split(",") if hop.strip()]
+        if hops:
+            return hops[-1]
         client = getattr(request, "client", None)
         return getattr(client, "host", "") or ""
     except Exception:  # noqa: BLE001
@@ -512,36 +604,95 @@ def write_funnel_record(record: Mapping[str, Any], path: Optional[Any] = None) -
     return target
 
 
-def fetch_attributed_counts() -> Tuple[Optional[int], Optional[int]]:
-    """Best-effort Supabase read: (signups with a first_touch record,
-    of those, users with any uploads). Returns (None, None) when the
-    admin client is unavailable — the rollup stays honest instead of
-    inventing zeros."""
+#: user_ids per user_usage request. The in.() list rides in the query
+#: string, so it is chunked rather than sent whole for a large cohort.
+_USAGE_CHUNK = 100
+#: Row ceiling per chunk (a user holds one user_usage row per month).
+#: Hitting it exactly means the page may be truncated, and a truncated
+#: count is unknown — see the None return below.
+_USAGE_ROWS_PER_USER = 60
+
+
+def _in_list(values: Iterable[str]) -> str:
+    """PostgREST ``in.("a","b")``. Values are quoted so a stray comma in
+    an id cannot split one term into two."""
+    return "in.(%s)" % ",".join(
+        '"%s"' % str(v).replace("\\", "").replace('"', "") for v in values
+    )
+
+
+def fetch_attributed_counts(
+    *, window_days: int, now: Optional[datetime] = None
+) -> Tuple[Optional[int], Optional[int]]:
+    """Best-effort Supabase read over the SAME trailing window the event
+    rollup uses: (signups attributed in-window, of those, how many have
+    ever uploaded).
+
+    ``window_days`` is required, not defaulted: pairing an all-time
+    numerator with a windowed denominator is what made the /ops panel
+    print conversion rates above 100%, and a default is exactly how that
+    pairing goes unnoticed at a call site.
+
+    Either half is None when its read failed — an unknown count must
+    stay unknown; a fabricated 0 reads as a measured "nobody", which is
+    a different and much worse claim.
+    """
+    moment = now or datetime.now(timezone.utc)
+    since = (moment - timedelta(days=max(1, int(window_days)))).isoformat()
+
     try:
         from engine.api import _supabase
 
         with _supabase.admin() as client:
+            # profiles.first_touch is written by the signup trigger, so
+            # created_at IS the attribution moment for this cohort.
             profiles = client.select(
                 "profiles",
                 columns="id",
-                filters={"first_touch": "not.is.null"},
+                filters={
+                    "first_touch": "not.is.null",
+                    "created_at": "gte.%s" % since,
+                },
                 limit=10000,
             ) or []
-            attributed = {str(p.get("id")) for p in profiles if p.get("id")}
+            attributed = sorted({str(p.get("id")) for p in profiles if p.get("id")})
             if not attributed:
+                # A measured zero: nobody was attributed in the window,
+                # so nobody attributed uploaded either.
                 return 0, 0
-            usage = client.select(
-                "user_usage", columns="user_id,uploads", limit=10000
-            ) or []
-        uploads_by_user: Dict[str, int] = {}
-        for row in usage:
-            uid = str(row.get("user_id") or "")
-            if uid in attributed:
-                uploads_by_user[uid] = uploads_by_user.get(uid, 0) + int(
-                    row.get("uploads") or 0
-                )
-        migrated = sum(1 for v in uploads_by_user.values() if v > 0)
-        return len(attributed), migrated
+            uploaders = _fetch_uploaders(client, attributed)
     except Exception:  # noqa: BLE001 — honest None, never a fabricated 0
         logger.debug("[public_ro.funnel] attribution fetch unavailable", exc_info=True)
         return None, None
+    return len(attributed), uploaders
+
+
+def _fetch_uploaders(client: Any, attributed: List[str]) -> Optional[int]:
+    """How many of ``attributed`` have any upload, counted server-side.
+
+    The unfiltered read this replaces pulled user_usage whole under a row
+    limit; user_usage is one row per user PER MONTH, so unattributed
+    users consumed the page and attributed uploaders fell off the end —
+    the panel then reported 0 uploads against a cohort that had all
+    uploaded. Returns None if a chunk failed or came back at its ceiling
+    (possibly truncated): a maybe-short count is not a count.
+    """
+    uploaders = 0
+    for start in range(0, len(attributed), _USAGE_CHUNK):
+        chunk = attributed[start:start + _USAGE_CHUNK]
+        cap = len(chunk) * _USAGE_ROWS_PER_USER
+        try:
+            rows = client.select(
+                "user_usage",
+                columns="user_id,uploads",
+                filters={"user_id": _in_list(chunk), "uploads": "gt.0"},
+                limit=cap,
+            ) or []
+        except Exception:  # noqa: BLE001
+            logger.debug("[public_ro.funnel] usage chunk unavailable", exc_info=True)
+            return None
+        if len(rows) >= cap:
+            logger.debug("[public_ro.funnel] usage chunk hit its row ceiling")
+            return None
+        uploaders += len({str(r.get("user_id")) for r in rows if r.get("user_id")})
+    return uploaders

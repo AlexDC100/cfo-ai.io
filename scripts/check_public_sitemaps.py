@@ -82,6 +82,28 @@ def _to_path(url: str, base: str) -> str:
     return (m.group(1) or "/") if m else url
 
 
+#: Statuses that mean "this is not the URL that serves the page". A
+#: sitemap must list final URLs only, so every one of these is a
+#: violation when it comes back from a sitemapped URL.
+_REDIRECT_STATUSES = (301, 302, 303, 307, 308)
+
+
+def _get(client: Any, path: str, headers: Dict[str, str]) -> Any:
+    """THE probe. Reads the sitemapped URL itself, never its target.
+
+    starlette's TestClient follows redirects by default, so the gate used
+    to read the status of the REDIRECT TARGET — a sitemapped URL that
+    301s to its canonical form answered 200 and the whole "sitemap lists
+    a redirecting URL" violation class was undetectable. Clients that
+    cannot take the kwarg (the documented ``.get(path, headers=...)``
+    contract) fall back and are expected not to redirect on their own.
+    """
+    try:
+        return client.get(path, headers=headers, follow_redirects=False)
+    except TypeError:
+        return client.get(path, headers=headers)
+
+
 def _is_noindex(resp: Any) -> bool:
     if "noindex" in (resp.headers.get("x-robots-tag") or "").lower():
         return True
@@ -147,7 +169,7 @@ def run_gate(client: Any,
             violations.append("EXCLUDED url present in a shard: %s" % url)
             # no continue — the direct-request noindex facet is checked
             # independently so a planted violation reports both defects
-        resp = client.get(_to_path(url, base), headers=headers)
+        resp = _get(client, _to_path(url, base), headers)
         if resp.status_code in (404, 410):
             continue
         if not _is_noindex(resp):
@@ -165,7 +187,14 @@ def run_gate(client: Any,
                 violations.append(
                     "shard %s: non-canonical-origin url %s" % (name, url))
                 continue
-            resp = client.get(_to_path(url, base), headers=headers)
+            resp = _get(client, _to_path(url, base), headers)
+            if resp.status_code in _REDIRECT_STATUSES:
+                violations.append(
+                    "shard %s: %s -> HTTP %d redirect to %s (a sitemap must"
+                    " list canonical URLs only)"
+                    % (name, url, resp.status_code,
+                       resp.headers.get("location") or "?"))
+                continue
             if resp.status_code != 200:
                 violations.append("shard %s: %s -> HTTP %d"
                                   % (name, url, resp.status_code))
@@ -224,8 +253,11 @@ def _markers_and_exclusions(base: str) -> Any:
     for row in store.publishable_companies():
         cui = int(row["cui"])
         name = str(row.get("name") or "")
-        slug = row.get("slug") or seo.slugify(name)
-        url = base + seo.company_path(cui, str(slug), "ro")
+        # Same authority the generator and the page use; deriving the
+        # slug a third way here would file markers under URLs that are in
+        # no shard, so the gate would silently check nothing.
+        url = base + seo.company_path(cui, seo.canonical_company_slug(name),
+                                      "ro")
         years = row.get("years") or (
             [row["latest_year"]] if row.get("latest_year") else [])
         if not years or cui in removed:
@@ -236,10 +268,11 @@ def _markers_and_exclusions(base: str) -> Any:
     if hub_keys:
         for kind in ("sector", "judet"):
             for entry in hub_keys(kind):
-                slug = str(entry.get("slug") or entry.get("key") or "")
-                label = str(entry.get("label_ro") or slug)
-                if not slug:
+                raw = str(entry.get("slug") or entry.get("key") or "")
+                label = str(entry.get("label_ro") or raw)
+                if not raw:
                     continue
+                slug = seo.hub_loc_slug(kind, raw)
                 for lang in ("ro", "en"):
                     markers[base + seo.hub_path(kind, slug, lang)] = label
     return markers, excluded
@@ -259,7 +292,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     from fastapi.testclient import TestClient
     app = _build_real_app()
     markers, excluded = _markers_and_exclusions(base)
-    with TestClient(app) as client:
+    # follow_redirects=False belongs here too, not only in _get: the
+    # default is the gate's blind spot, and a client built with it on is
+    # one refactor away from being passed somewhere that doesn't override.
+    with TestClient(app, follow_redirects=False) as client:
         violations = run_gate(client, sitemap_dir, base,
                               markers=markers, excluded_urls=excluded,
                               sample_n=args.sample,

@@ -483,8 +483,17 @@ def test_public_summary_byte_identity_and_hash_excludes_fetch_date(tmp_path):
     ps = env1["public_summary"]
     assert ps["version"] == "ps1"
     assert ps["status"] == "PUBLIC_SUMMARY"
-    assert ps["indicators"]["cifra_de_afaceri_neta"] == 5000
-    assert "patrimoniul_regiei" not in ps["indicators"]  # NULL stays absent
+    # I-CODES, not the human names. Corrected 2026-08-29: this test used
+    # to assert the INDICATOR_NAMES vocabulary ("cifra_de_afaceri_neta"),
+    # which made it the only place agreeing with a producer that nothing
+    # else agreed with — the frozen corpus envelope
+    # (corpus/public_summary_ro) and FactsGateway's summary tier both
+    # read "I13"/"I7"/"I10"/"I20". Feeding a real envelope to
+    # FactsGateway.from_envelope therefore raised MissingFactError for
+    # values that were present. The producer was fixed to emit I-codes;
+    # this assertion was encoding the defect.
+    assert ps["indicators"]["I13"] == 5000
+    assert "I12" not in ps["indicators"]  # NULL stays absent
     assert ps["derived"] == {"total_assets": 3050, "net_result": 340}
     assert ps["provenance"]["content_hash"]
 

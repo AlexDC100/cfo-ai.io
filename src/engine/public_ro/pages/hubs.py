@@ -26,10 +26,16 @@ offline. See _shell().
 
 Store contract (lane 2, duck-typed):
   store.hub_keys(kind) -> [{slug, label_ro, label_en?, company_count}]
-  store.hub_top_companies(kind, slug, limit) -> rows sorted by
-      latest-year revenue desc: {cui, name, slug?, latest_year,
-      revenue?, net_result?, employees?, county_label?, caen_label?,
-      revenue_percentile?}
+      ``slug`` is the URL-safe key; this page resolves a request slug by
+      equality against it, so it must be the same string the sitemap puts
+      in <loc> (raw county values are not legal path segments).
+  store.hub_top_companies(kind, slug, limit=N) -> rows sorted by revenue
+      desc: {cui, name, slug?, latest_year, revenue?, net_result?,
+      employees?, county_label?, caen_label?, revenue_percentile?}
+      A route knows only kind + slug, so the STORE picks the year (the
+      latest one filed inside that hub) and refuses an unresolvable slug
+      with an empty list — this page must never trigger an unfiltered
+      "top companies" listing under a hub heading.
   store.hub_stats(kind, slug) -> {company_count, total_revenue?,
       median_revenue?, year?}   (optional)
 
