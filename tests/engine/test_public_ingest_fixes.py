@@ -327,3 +327,45 @@ def test_gateway_refuses_rather_than_reconstructing_a_holed_total(tmp_path):
     assert gw is not None
     with pytest.raises(MissingFactError):
         gw.total_assets()
+
+
+# ── real-world July-2026 snapshot regression (found in go-live, 2026-08-29) ──
+
+def test_ident_accepts_the_utf8_bom_july_variant(tmp_path):
+    """The July-updated identification files on data.gov.ro are UTF-8
+    WITH A BOM, not the ISO-8859-2 the June format documented. Decoded
+    as latin, the BOM mojibake glues onto the first column name and the
+    required-column check refuses with "header lacks COD_FISCAL" — which
+    is exactly what happened in the production go-live run. The ingester
+    must detect the BOM and decode utf-8-sig; BOM-less files keep the
+    documented ISO-8859-2 path.
+    """
+    import os
+    from engine.public_ro.identification import ingest_identification
+    from engine.public_ro.store import PublicRoStore
+
+    db = tmp_path / "p.db"
+    os.environ["PUBLIC_RO_TAKEDOWN_DB"] = str(db)
+    st = PublicRoStore(db)
+    st.register_dataset(
+        dataset_id="d1", year=2024, family="UU", sha256="d" * 64,
+        source_url="u", resource_id="r", license_id="CC-BY-4.0",
+        license_note=None, row_count=1, fetched_at="2026-06-15T00:00:00Z")
+    st.ensure_company_stub(930001, "1071")
+    st.upsert_filing(cui=930001, year=2024, family="UU", dataset_id="d1",
+                     caen="1071", total_assets=1, net_result=1,
+                     indicators={"i13": 100})
+
+    header = ("COD_FISCAL^DENUMIRE^TIP_UNITATE^TIP_CONTRIB^LOCALITATE^"
+              "JUDET_COMERT^NR_COMERT^AN_COMERT^JUDET")
+    row = ("930001^Brutăria Țării SRL^Sediu central^PJ^Cluj-Napoca^"
+           "J12^55^2013^Cluj")
+    data = ("﻿" + header + "\r\n" + row + "\r\n").encode("utf-8")
+
+    counts = ingest_identification(st, data, source_label="ident-2026-07")
+    assert counts["pj_upserted"] == 1, counts
+    c = st.get_company(930001)
+    # Diacritics must survive — proof the utf-8 path actually decoded.
+    assert c["name"] == "Brutăria Țării SRL"
+    assert bool(c["publishable"]) is True
+    st.close()

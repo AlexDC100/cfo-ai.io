@@ -98,8 +98,18 @@ def ingest_identification(
     pf_discarded and pf_revoked are DISJOINT: a PF row either found no
     stored CUI (discarded, nothing written) or revoked one (see the PS7
     note in the module docstring)."""
+    # The June-2026 A/B files are ISO-8859-2 as documented — but the
+    # July-updated variants on the same dataset ship as UTF-8 WITH A
+    # BOM. Decoded as latin, the BOM mojibake glues onto the first
+    # column name and the required-column check refuses with "header
+    # lacks COD_FISCAL" (hit in the production go-live, 2026-08-29).
+    # The BOM is the honest discriminator: present -> utf-8-sig;
+    # absent -> the documented legacy encoding. Never guess beyond that.
     try:
-        text = data_bytes.decode(ENCODING)
+        if data_bytes[:3] == b"\xef\xbb\xbf":
+            text = data_bytes.decode("utf-8-sig")
+        else:
+            text = data_bytes.decode(ENCODING)
     except UnicodeDecodeError as exc:
         raise IdentificationFormatError(
             "file does not decode as %s: %s" % (ENCODING, exc)
