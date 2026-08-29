@@ -18,7 +18,7 @@ export default {
         // Fraunces (already loaded) for older browsers.
         serif: ['"Instrument Serif"', "Fraunces", "ui-serif", "Georgia", "serif"],
         // Body, UI, tables, numbers — Inter Variable.
-        sans: ['"Inter Variable"', "Inter", "Geist", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ['"Instrument Sans Variable"', '"Inter Variable"', "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       colors: {
@@ -113,11 +113,23 @@ export default {
         popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
       },
+      transitionDuration: {
+        // Motion tokens — calibrated, not animated (Part F).
+        micro: "120ms",
+        overlay: "200ms",
+        page: "320ms",
+      },
       borderRadius: {
+        // THE INSTRUMENT: 6 controls / 10 cards / 12 large — and the
+        // whole legacy xl/2xl/3xl "blobby pill" range collapses onto the
+        // large token so no surviving class can render a 16-24px corner.
         sm: "var(--radius-sm)",
         DEFAULT: "var(--radius)",
         md: "var(--radius)",
         lg: "var(--radius-lg)",
+        xl: "var(--radius-lg)",
+        "2xl": "var(--radius-lg)",
+        "3xl": "var(--radius-lg)",
       },
       spacing: {
         "safe-t": "env(safe-area-inset-top)",
@@ -135,6 +147,18 @@ export default {
         // Legacy aliases (existing code references these)
         card: "var(--shadow-1)",
         glass: "var(--shadow-2)",
+        // THE INSTRUMENT: depth is functional only. Tailwind's literal
+        // elevation ramp is remapped onto the tokens — resting tiers
+        // (sm/DEFAULT/md) resolve to the transparent shadow-1/2, so no
+        // surviving `shadow-md` class can float a resting panel; the
+        // floating tiers (lg/xl/2xl) resolve to the real overlay
+        // shadows reserved for palette/popover/toast layers.
+        sm: "var(--shadow-1)",
+        DEFAULT: "var(--shadow-1)",
+        md: "var(--shadow-2)",
+        lg: "var(--shadow-3)",
+        xl: "var(--shadow-3)",
+        "2xl": "var(--shadow-4)",
       },
       transitionTimingFunction: {
         quint: "cubic-bezier(0.16, 1, 0.3, 1)",

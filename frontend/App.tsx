@@ -179,7 +179,11 @@ function App() {
         the DEFAULT (the product is designed dark-first), but the forced
         pin is gone: the avatar menu carries a Light/Dark/System switcher,
         persisted via next-themes localStorage + user_prefs.theme sync. */}
-    <ThemeProvider defaultTheme="dark" enableSystem>
+    {/* THE INSTRUMENT: "Paper" (light) is the default theme;
+        "Terminal" (dark) is the persisted power-user mode. enableSystem
+        stays off so the default is deterministic — an accountant's OS
+        dark mode must not silently flip the ledger to Terminal. */}
+    <ThemeProvider defaultTheme="light" enableSystem={false}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
         <CurrencyProvider>

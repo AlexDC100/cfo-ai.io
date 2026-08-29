@@ -3,6 +3,11 @@
    visual lift; sans for data legibility, serif for presence. UPRIGHT only —
    italic 400 is intentionally NOT loaded so we can't accidentally render it. */
 @import "@fontsource-variable/inter";
+/* THE INSTRUMENT — UI sans is Instrument Sans (a precise grotesk that
+   shares heritage with the demoted Instrument Serif). Inter stays
+   loaded as the fallback so nothing flashes if the variable face is
+   slow. Chosen over Geist in the Part-B screenshot round. */
+@import "@fontsource-variable/instrument-sans";
 @import "@fontsource/instrument-serif/400.css";
 /* JetBrains Mono — self-hosted (perf pass 2026-08-04). Was Google Fonts;
    the render-blocking fonts.googleapis.com stylesheet is gone from
@@ -48,27 +53,30 @@
      out in light mode; these 700-series stops keep the same hue sweep but
      stay legible against #FAFAF7. The .dark block below restores the
      bright variant for the navy background. */
-  /* Monochrome teal sweep — the single accent colour (#5CD3C5) in shades. */
-  --grad-from: #2AA89B;    /* teal-dark */
-  --grad-via:  #45C6B8;    /* teal-mid */
-  --grad-to:   #5CD3C5;    /* teal */
+  /* THE INSTRUMENT — verified green-teal sweep (Paper). The bright
+     #5CD3C5 family is retired; these are the only raw hex in the app
+     (this file IS the token sheet — D5 forbids hex in components). */
+  --grad-from: #0A5F52;
+  --grad-via:  #0E7C6B;
+  --grad-to:   #1E9480;
   --grad-hero: linear-gradient(135deg, var(--grad-from) 0%, var(--grad-via) 50%, var(--grad-to) 100%);
-  --grad-warm: linear-gradient(135deg, #1B7268 0%, #5CD3C5 100%);
-  --grad-cool: linear-gradient(135deg, #2AA89B 0%, #5CD3C5 100%);
-  --grad-money: linear-gradient(135deg, #1B7268 0%, #2AA89B 50%, #5CD3C5 100%);
-  --grad-cfo: linear-gradient(135deg, #1B7268 0%, #22897E 25%, #2AA89B 55%, #45C6B8 80%, #5CD3C5 100%);
+  --grad-warm: linear-gradient(135deg, #0A5F52 0%, #1E9480 100%);
+  --grad-cool: linear-gradient(135deg, #0E7C6B 0%, #1E9480 100%);
+  --grad-money: linear-gradient(135deg, #0A5F52 0%, #0E7C6B 50%, #1E9480 100%);
+  --grad-cfo: linear-gradient(135deg, #0A5F52 0%, #0C6E5F 25%, #0E7C6B 55%, #168873 80%, #1E9480 100%);
 }
 .dark {
   /* Dark-mode override — bright 500-series colors that pop on the #05070A
      navy background. Same hue sequence as light, just brighter. */
-  --grad-from: #45C6B8;
-  --grad-via:  #5CD3C5;
-  --grad-to:   #8FE3D9;
+  /* Terminal — phosphor-calm sweep. */
+  --grad-from: #37A18C;
+  --grad-via:  #4BBFA8;
+  --grad-to:   #6FD2BE;
   --grad-hero: linear-gradient(135deg, var(--grad-from) 0%, var(--grad-via) 50%, var(--grad-to) 100%);
-  --grad-warm: linear-gradient(135deg, #2AA89B 0%, #5CD3C5 100%);
-  --grad-cool: linear-gradient(135deg, #45C6B8 0%, #8FE3D9 100%);
-  --grad-money: linear-gradient(135deg, #2AA89B 0%, #5CD3C5 50%, #8FE3D9 100%);
-  --grad-cfo: linear-gradient(135deg, #2AA89B 0%, #3BBFB0 25%, #5CD3C5 55%, #78DCD0 80%, #8FE3D9 100%);
+  --grad-warm: linear-gradient(135deg, #37A18C 0%, #6FD2BE 100%);
+  --grad-cool: linear-gradient(135deg, #4BBFA8 0%, #6FD2BE 100%);
+  --grad-money: linear-gradient(135deg, #37A18C 0%, #4BBFA8 50%, #6FD2BE 100%);
+  --grad-cfo: linear-gradient(135deg, #37A18C 0%, #41B09A 25%, #4BBFA8 55%, #5DC9B3 80%, #6FD2BE 100%);
 }
 .dark {
   /* Gradients render at the same hex; perceived saturation lifts on dark
@@ -192,66 +200,73 @@
 
 @layer base {
   :root {
-    /* ─────────────────────────────────────────────────────────
-       LIGHT MODE — warm enterprise cream. Background is soft off-white,
-       borders sit a touch warmer, ink is a cool near-black for clarity.
-       Token names align with the canonical theme spec (bg / surface /
-       border / text / primary / gold / danger / warning / success / info).
-       ───────────────────────────────────────────────────────── */
-    /* Neutrals — pure greyscale (saturation 0), warm/cool tint stripped. */
-    --bg:           0 0% 97%;          /* page bg */
-    --bg-2:         0 0% 93%;          /* surface-muted / inset */
-    --surface:      0 0% 100%;         /* cards */
-    --surface-soft: 0 0% 95%;          /* elevated card variant */
-    --surface-hi:   0 0% 95%;          /* card hover */
-    --surface-hover:0 0% 95%;          /* alias of surface-hi */
+    /* ═══════════════════════════════════════════════════════════
+       THE INSTRUMENT — theme "Paper" (default).
+       Near-black ink on warm paper; hairline rules; ONE accent — the
+       deep "verified" green-teal. Depth is functional only: flat
+       surfaces separated by hairlines; real shadow exists ONLY on
+       floating layers (palette, popovers, toasts). Red is reserved:
+       it means IMBALANCE and nothing else. Token NAMES are unchanged
+       from the previous system so every consumer rethemes at once.
+       ═══════════════════════════════════════════════════════════ */
+    /* Neutrals — warm paper, green-black ink (#FAFAF7 / #0B0E0D). */
+    --bg:           60 23% 97%;        /* paper */
+    --bg-2:         60 14% 94%;        /* inset / quiet fill */
+    --surface:      60 30% 99%;        /* panels — one step above paper */
+    --surface-soft: 60 15% 95%;
+    --surface-hi:   60 15% 95%;        /* hover fill (quiet, not mint) */
+    --surface-hover:60 15% 95%;
 
-    --ink:          0 0% 9%;           /* primary text */
-    --ink-2:        0 0% 18%;
-    --ink-soft:     0 0% 41%;          /* secondary text */
-    --ink-mute:     0 0% 58%;          /* tertiary text */
-    --ink-faint:    0 0% 80%;
+    --ink:          160 12% 5%;        /* #0B0E0D */
+    --ink-2:        160 8% 15%;
+    --ink-soft:     160 5% 38%;
+    --ink-mute:     155 4% 52%;
+    --ink-faint:    150 5% 78%;
 
-    /* Canonical text aliases for the spec-compliant token names. */
     --text:         var(--ink);
     --text-muted:   var(--ink-soft);
     --text-soft:    var(--ink-mute);
 
-    --rule:         0 0% 87%;          /* hairline */
-    --rule-soft:    0 0% 92%;
-    --rule-strong:  0 0% 78%;
+    /* Hairlines — ink at 10% / 16% over paper, resolved to solids so
+       stacked hairlines can't compound into darker seams. */
+    --rule:         70 5% 88%;         /* ink @ .10 */
+    --rule-soft:    60 10% 92%;
+    --rule-strong:  66 4% 83%;         /* ink @ .16 */
 
-    /* Spec aliases. */
     --border:       var(--rule);
     --border-strong:var(--rule-strong);
 
-    /* Brand — the single accent colour #5CD3C5, in shades. */
-    --brand:        173 57% 59%;       /* #5CD3C5 — teal */
-    --brand-d:      173 60% 42%;       /* teal-dark */
-    --brand-l:      173 58% 72%;
-    --brand-tint:   173 45% 93%;       /* subtle teal wash for hover/active */
-    --primary-hover:173 60% 46%;
+    /* THE accent — verified green-teal (#0E7C6B family), AA on paper.
+       The old bright #5CD3C5 is gone: it could never carry text. */
+    --brand:        171 80% 27%;       /* #0E7C6B */
+    --brand-d:      171 82% 21%;
+    --brand-l:      171 40% 40%;
+    --brand-tint:   168 32% 93%;       /* restrained wash — NOT pastel mint */
+    --primary-hover:171 82% 23%;
 
-    /* Gold accent collapsed into the teal accent. */
-    --brand-2:      173 57% 59%;
-    --brand-2-d:    173 60% 42%;
-    --brand-2-l:    173 58% 72%;
-    --brand-2-tint: 173 45% 93%;
+    /* Gold accent stays collapsed into the single accent. */
+    --brand-2:      171 80% 27%;
+    --brand-2-d:    171 82% 21%;
+    --brand-2-l:    171 40% 40%;
+    --brand-2-tint: 168 32% 93%;
 
-    --silver:       0 0% 78%;
+    --silver:       150 4% 72%;
 
-    /* Semantic states — every non-red state becomes the teal accent; only
-       alert (red) keeps its hue. */
-    --success:      173 60% 38%;
-    --success-tint: 173 45% 90%;
-    --caution:      173 60% 38%;
-    --caution-tint: 173 45% 92%;
-    --alert:        7  62% 44%;        /* #B83A2A — red, unchanged */
-    --alert-tint:   7  60% 93%;
-    --info:         173 60% 38%;
-    --info-tint:    173 45% 92%;
-    --warning-2:    173 60% 38%;
-    --warning-2-tint: 173 45% 92%;
+    /* Semantic states — each hue MEANS one thing:
+       success  = verified/balanced (accent family)
+       caution  = RECONCILED (auto-adjusted) — deep amber
+       alert    = IMBALANCED — red, reserved for imbalance only
+       info     = neutral slate                                   */
+    --success:      171 75% 25%;
+    --success-tint: 168 30% 93%;
+    --caution:      38 90% 30%;
+    --caution-tint: 40 55% 93%;
+    --alert:        4 72% 40%;
+    --alert-tint:   5 55% 94%;
+    --info:         210 12% 40%;
+    --info-tint:    210 16% 93%;
+    --warning-2:    38 90% 30%;
+    --warning-2-tint: 40 55% 93%;
 
     --paper:        var(--bg);
     --burgundy:     var(--brand);
@@ -268,7 +283,8 @@
     --popover:              var(--surface);
     --popover-foreground:   var(--ink);
     --primary:              var(--brand);
-    --primary-foreground:   0 0% 10%;
+    /* The accent is DARK now — primary buttons carry near-white text. */
+    --primary-foreground:   60 20% 98%;
     --secondary:            var(--bg-2);
     --secondary-foreground: var(--ink);
     --muted:                var(--bg-2);
@@ -281,31 +297,38 @@
     --input:                var(--rule);
     --ring:                 var(--brand);
 
-    --radius-sm: 8px;
-    --radius:    14px;
-    --radius-lg: 20px;
+    /* Radii — 6 controls / 10 cards / 12 large. The blobby 14–20px
+       pill radii are retired. Chips use rounded-full. */
+    --radius-sm: 6px;
+    --radius:    10px;
+    --radius-lg: 12px;
 
-    --shadow-1:
-      0 1px 2px hsl(0 0% 0% / 0.05),
-      0 1px 1px hsl(0 0% 0% / 0.03);
-    --shadow-2:
-      0 2px 4px hsl(0 0% 0% / 0.04),
-      0 8px 16px hsl(0 0% 0% / 0.06);
+    /* Depth is functional ONLY. Resting surfaces get hairlines, never
+       shadow — shadow-1/2 are intentionally transparent so any legacy
+       consumer flattens instead of floating. 3/4 belong to floating
+       layers exclusively (palette, dropdown, popover, toast). */
+    --shadow-1: 0 0 0 0 transparent;
+    --shadow-2: 0 0 0 0 transparent;
     --shadow-3:
-      0 4px 8px hsl(0 0% 0% / 0.04),
-      0 16px 32px hsl(0 0% 0% / 0.08);
+      0 4px 12px hsl(160 12% 5% / 0.07),
+      0 16px 40px hsl(160 12% 5% / 0.10);
     --shadow-4:
-      0 8px 16px hsl(0 0% 0% / 0.06),
-      0 32px 64px hsl(0 0% 0% / 0.12);
-    --shadow-inset: inset 0 1px 2px hsl(0 0% 0% / 0.06);
-    --ring-focus:   0 0 0 3px hsl(var(--brand) / 0.28);
-    --shadow-glow:  0 0 32px hsl(var(--brand) / 0.20);
+      0 8px 20px hsl(160 12% 5% / 0.09),
+      0 28px 64px hsl(160 12% 5% / 0.14);
+    --shadow-inset: inset 0 1px 2px hsl(160 12% 5% / 0.05);
+    --ring-focus:   0 0 0 3px hsl(var(--brand) / 0.30);
+    --shadow-glow:  0 0 0 0 transparent;   /* decorative glow retired */
 
+    /* Motion — calibrated, not animated. */
+    --dur-1: 120ms;   /* micro */
+    --dur-2: 200ms;   /* overlay */
+    --dur-3: 320ms;   /* page */
     --ease-quint:  cubic-bezier(0.16, 1, 0.3, 1);
     --ease-fluid:  cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1);
 
-    --bucket-protect-fg:    var(--brand-2-d);
-    --bucket-protect-bg:    var(--brand-2-tint);
+    --bucket-protect-fg:    var(--brand-d);
+    --bucket-protect-bg:    var(--brand-tint);
     --bucket-watch-fg:      var(--info);
     --bucket-watch-bg:      var(--info-tint);
     --bucket-fix-fg:        var(--warning-2);
@@ -318,86 +341,106 @@
     --bucket-scale-bg:      var(--success-tint);
 
     --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-d)) 100%);
-    --grad-hero:   linear-gradient(135deg, hsl(173 57% 50%) 0%, hsl(173 57% 59%) 50%, hsl(173 57% 70%) 100%);
-    --grad-mesh:
-      radial-gradient(at 18% 16%, hsl(var(--brand) / 0.08) 0px, transparent 55%),
-      radial-gradient(at 82% 8%,  hsl(var(--brand) / 0.07)  0px, transparent 55%);
+    --grad-hero:   linear-gradient(135deg, hsl(171 82% 21%) 0%, hsl(171 80% 27%) 60%, hsl(171 55% 34%) 100%);
+    /* Ambient mesh retired in-app: nothing decorative survives review. */
+    --grad-mesh:   none;
   }
 
-  /* ─────────────────────────────────────────────────────────
-     DARK MODE — primary brand surface. Deep navy, metallic
-     gold/silver, teal CTA. Inspired by Vitalis AI landing.
-     ───────────────────────────────────────────────────────── */
+  /* ═══════════════════════════════════════════════════════════
+     THE INSTRUMENT — theme "Terminal" (user-switchable, persisted).
+     Near-black green-tinted canvas; phosphor-calm accent; the mode
+     accountants keep open all day. Same token names, retuned.
+     ═══════════════════════════════════════════════════════════ */
   .dark {
-    /* Neutrals — pure greyscale (saturation 0), navy tint stripped. */
-    --bg:           0 0% 4%;           /* page bg */
-    --bg-2:         0 0% 6%;           /* soft inset */
-    --surface:      0 0% 8%;           /* cards */
-    --surface-soft: 0 0% 11%;          /* elevated card variant */
-    --surface-hi:   0 0% 14%;          /* card hover */
-    --surface-hover:0 0% 14%;          /* alias */
+    --bg:           165 25% 4%;        /* green-black canvas */
+    --bg-2:         163 18% 6%;
+    --surface:      162 16% 7%;
+    --surface-soft: 160 13% 9%;
+    --surface-hi:   160 12% 12%;
+    --surface-hover:160 12% 12%;
 
-    --ink:          0 0% 96%;          /* primary text */
-    --ink-2:        0 0% 86%;
-    --ink-soft:     0 0% 67%;          /* muted */
-    --ink-mute:     0 0% 55%;          /* tertiary */
-    --ink-faint:    0 0% 30%;
+    --ink:          150 12% 92%;
+    --ink-2:        150 8% 82%;
+    --ink-soft:     150 6% 64%;
+    --ink-mute:     150 5% 50%;
+    --ink-faint:    152 6% 28%;
 
     --text:         var(--ink);
     --text-muted:   var(--ink-soft);
     --text-soft:    var(--ink-mute);
 
-    --rule:         0 0% 16%;          /* default hairline */
-    --rule-soft:    0 0% 10%;
-    --rule-strong:  0 0% 24%;
+    --rule:         158 10% 15%;
+    --rule-soft:    160 12% 9%;
+    --rule-strong:  156 8% 22%;
 
     --border:       var(--rule);
     --border-strong:var(--rule-strong);
 
-    --brand:        173 57% 59%;       /* #5CD3C5 — teal CTA */
-    --brand-d:      173 60% 46%;
-    --brand-l:      173 57% 72%;
-    --brand-tint:   173 45% 12%;
-    --primary-hover:173 60% 50%;
+    /* Phosphor-calm — luminous enough to read as the accent, never neon. */
+    --brand:        168 45% 52%;
+    --brand-d:      169 50% 42%;
+    --brand-l:      166 45% 66%;
+    --brand-tint:   168 35% 11%;
+    --primary-hover:168 48% 58%;
 
-    /* Gold accent collapsed into the teal accent. */
-    --brand-2:      173 57% 59%;
-    --brand-2-d:    173 60% 46%;
-    --brand-2-l:    173 57% 72%;
-    --brand-2-tint: 173 45% 14%;
+    --brand-2:      168 45% 52%;
+    --brand-2-d:    169 50% 42%;
+    --brand-2-l:    166 45% 66%;
+    --brand-2-tint: 168 35% 11%;
 
-    --silver:       0 0% 80%;
+    --silver:       150 5% 70%;
 
-    /* Semantic states — non-red states become teal; alert stays red. */
-    --success:      173 60% 55%;
-    --success-tint: 173 45% 14%;
-    --caution:      173 60% 55%;
-    --caution-tint: 173 45% 16%;
-    --alert:        0   100% 65%;      /* #FF4D4D — red, unchanged */
-    --alert-tint:   0   60% 18%;
-    --info:         173 60% 55%;
-    --info-tint:    173 45% 16%;
-    --warning-2:    173 60% 55%;
-    --warning-2-tint: 173 45% 16%;
+    --success:      168 45% 52%;
+    --success-tint: 168 35% 11%;
+    --caution:      40 65% 58%;
+    --caution-tint: 42 40% 13%;
+    --alert:        4 65% 58%;
+    --alert-tint:   4 45% 13%;
+    --info:         205 15% 62%;
+    --info-tint:    208 18% 13%;
+    --warning-2:    40 65% 58%;
+    --warning-2-tint: 42 40% 13%;
 
-    --shadow-1:
-      0 1px 0 hsl(0 0% 100% / 0.04) inset,
-      0 1px 2px hsl(0 0% 0% / 0.5);
-    --shadow-2:
-      0 1px 0 hsl(0 0% 100% / 0.04) inset,
-      0 4px 16px hsl(0 0% 0% / 0.55);
+    --paper:        var(--bg);
+    --success-bg:   var(--success-tint);
+    --caution-bg:   var(--caution-tint);
+    --alert-bg:     var(--alert-tint);
+
+    --background:           var(--bg);
+    --foreground:           var(--ink);
+    --card:                 var(--surface);
+    --card-foreground:      var(--ink);
+    --popover:              var(--surface);
+    --popover-foreground:   var(--ink);
+    --primary:              var(--brand);
+    /* Light accent in Terminal — ink-dark text on it. */
+    --primary-foreground:   165 25% 5%;
+    --secondary:            var(--bg-2);
+    --secondary-foreground: var(--ink);
+    --muted:                var(--bg-2);
+    --muted-foreground:     var(--ink-soft);
+    --accent:               var(--brand-tint);
+    --accent-foreground:    var(--brand-l);
+    --destructive:          var(--alert);
+    --destructive-foreground: 0 0% 98%;
+    --border:               var(--rule);
+    --input:                var(--rule);
+    --ring:                 var(--brand);
+
+    --shadow-1: 0 0 0 0 transparent;
+    --shadow-2: 0 0 0 0 transparent;
     --shadow-3:
-      0 1px 0 hsl(0 0% 100% / 0.05) inset,
-      0 8px 32px hsl(0 0% 0% / 0.65);
+      0 4px 12px hsl(0 0% 0% / 0.45),
+      0 16px 40px hsl(0 0% 0% / 0.55);
     --shadow-4:
-      0 1px 0 hsl(0 0% 100% / 0.06) inset,
-      0 16px 48px hsl(0 0% 0% / 0.7);
-    --shadow-inset: inset 0 1px 2px hsl(0 0% 0% / 0.55);
-    --ring-focus:   0 0 0 3px hsl(var(--brand) / 0.36);
-    --shadow-glow:  0 0 40px hsl(var(--brand) / 0.32);
+      0 8px 20px hsl(0 0% 0% / 0.55),
+      0 28px 64px hsl(0 0% 0% / 0.65);
+    --shadow-inset: inset 0 1px 2px hsl(0 0% 0% / 0.5);
+    --ring-focus:   0 0 0 3px hsl(var(--brand) / 0.38);
+    --shadow-glow:  0 0 0 0 transparent;
 
-    --bucket-protect-fg:    var(--brand-2-l);
-    --bucket-protect-bg:    var(--brand-2-tint);
+    --bucket-protect-fg:    var(--brand-l);
+    --bucket-protect-bg:    var(--brand-tint);
     --bucket-watch-fg:      var(--info);
     --bucket-watch-bg:      var(--info-tint);
     --bucket-fix-fg:        var(--warning-2);
@@ -410,16 +453,8 @@
     --bucket-scale-bg:      var(--success-tint);
 
     --grad-brand:  linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-d)) 100%);
-    --grad-hero:   linear-gradient(135deg, hsl(173 57% 50%) 0%, hsl(173 57% 59%) 50%, hsl(173 57% 72%) 100%);
-    --grad-gold:   linear-gradient(135deg, hsl(173 57% 50%) 0%, hsl(173 60% 65%) 100%);
-    /* Dark-mode mesh — monochrome teal ambient. Opacities stay ≤12% so data
-       surfaces never have to fight the ambient. */
-    --grad-mesh:
-      radial-gradient(at 12% 14%, hsl(var(--brand) / 0.12) 0px, transparent 50%),
-      radial-gradient(at 88% 8%,  hsl(173 57% 59% / 0.10) 0px, transparent 55%),
-      radial-gradient(at 50% 90%, hsl(173 57% 59% / 0.10) 0px, transparent 55%),
-      radial-gradient(at 95% 80%, hsl(173 57% 59% / 0.06) 0px, transparent 55%),
-      radial-gradient(at 8% 70%,  hsl(173 57% 59% / 0.06) 0px, transparent 55%);
+    --grad-hero:   linear-gradient(135deg, hsl(169 50% 42%) 0%, hsl(168 45% 52%) 60%, hsl(166 45% 60%) 100%);
+    --grad-mesh:   none;
   }
 }
 
