@@ -89,6 +89,14 @@ export function JurisdictionSelect({
   ];
   const options = known.includes(current) ? known : [...known, current];
 
+  // Global-positioning directive (2026-08-29): the dropdown reads
+  // Auto-detect → Romania → group "International" (country rows A→Z,
+  // then the generic IFRS-style reading). WIRE VALUES ARE FROZEN — the
+  // regrouping is <optgroup> presentation over the same option codes;
+  // Hungary is one country row inside the group, never a headline.
+  const topLevel = options.filter((c) => c === "auto" || c === "RO");
+  const international = options.filter((c) => c !== "auto" && c !== "RO");
+
   return (
     <select
       id={id}
@@ -105,11 +113,20 @@ export function JurisdictionSelect({
         "h-8 rounded-lg border border-rule bg-surface px-2 text-[12px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand-d/40"
       }
     >
-      {options.map((code) => (
+      {topLevel.map((code) => (
         <option key={code} value={code}>
           {jurisdictionLabel(code, t)}
         </option>
       ))}
+      {international.length > 0 && (
+        <optgroup label={t("bsCanonical.jurisdiction.groupIntl")}>
+          {international.map((code) => (
+            <option key={code} value={code}>
+              {jurisdictionLabel(code, t)}
+            </option>
+          ))}
+        </optgroup>
+      )}
     </select>
   );
 }

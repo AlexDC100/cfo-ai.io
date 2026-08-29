@@ -179,7 +179,7 @@ const en: LandingStrings = {
     },
     pro: {
       name: "Multi-Country", price: "€16.99", priceNote: "/mo — everything in Pro, plus international",
-      blurb: "Portfolios that cross borders — Hungarian and international trial balances, dual-verified AI reading.",
+      blurb: "Portfolios that cross borders — European, US, and worldwide trial balances, dual-verified AI reading.",
       cta: "Start with Multi-Country",
       lead: ["Everything in Pro", "Plus international coverage:"],
       features: ["8 non-Romanian trial balances / month (€1.49 per extra)", "AI-interpreted exotic layouts, machine-read numbers", "200 Ask CFO AI chats / month", "Up to 5 company workspaces"],
@@ -318,7 +318,7 @@ const ro: LandingStrings = {
     },
     pro: {
       name: "Multi-Country", price: "16,99 €", priceNote: "/lună — tot ce e în Pro, plus internațional",
-      blurb: "Portofolii care trec granițele — balanțe de verificare din Ungaria și internaționale, citite de AI cu dublă verificare.",
+      blurb: "Portofolii care trec granițele — balanțe de verificare europene, americane și din întreaga lume, citite de AI cu dublă verificare.",
       cta: "Începe cu Multi-Country",
       lead: ["Tot ce e în Pro", "Plus acoperire internațională:"],
       features: ["8 balanțe non-românești / lună (1,49 € per extra)", "Formate exotice interpretate de AI, cifre citite mecanic", "200 de conversații Ask CFO AI / lună", "Până la 5 spații de lucru"],
