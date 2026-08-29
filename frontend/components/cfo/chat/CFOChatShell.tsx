@@ -29,6 +29,9 @@ import { CFOHistorySidebar } from "./CFOHistorySidebar";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useChatStore } from "./useChatStore";
 import { startChatTurn, stopChatTurn, useChatCapBlocked } from "./chatTurns";
+import { useAiDegraded } from "@/lib/aiDegraded";
+import { Chip } from "@/components/instrument/Panel";
+import "./chatDegradedI18n";
 import { useCurrency } from "@/stores/currency";
 import { useAuth } from "@/lib/auth";
 import { getActiveOrgId } from "@/lib/activeOrg";
@@ -193,6 +196,13 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // into the banner + hard input-disable.
   const capBlocked = useChatCapBlocked();
 
+  // A2 — while the assistant is degraded (a turn failed and Retry hasn't
+  // succeeded yet), the composer and every suggestion chip stay VISIBLE
+  // but disabled with a tooltip. Cleared automatically by the next
+  // successful turn (see lib/aiDegraded.ts).
+  const degraded = useAiDegraded();
+  const degradedTooltip = degraded ? t("chatDegraded.disabledTooltip") : null;
+
   useImperativeHandle(ref, () => ({
     focusComposer: () => composerRef.current?.focus(),
     setComposer: (prompt: string) => composerRef.current?.setText(prompt),
@@ -300,6 +310,15 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     if (store.currentId) stopChatTurn(store.currentId);
   }, [store.currentId]);
 
+  // A2 Retry — roll the failed pair back (restores the user's question)
+  // and re-run it through the normal send pipeline with the CURRENT
+  // context. Success clears the degraded lock; another failure re-arms it.
+  const retryFailedTurn = useCallback(() => {
+    if (!store.currentId) return;
+    const restored = store.rollbackLastPair(store.currentId);
+    if (restored) send(restored, []);
+  }, [store, send]);
+
   const pending = useMemo(
     () => {
       if (!store.current) return false;
@@ -347,7 +366,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               <CFOEmptyState hasPeriod={expectGrounded} companyName={companyName} onPick={pickPrompt} />
             </div>
           ) : (
-            <CFOMessageList messages={store.current.messages} groundedLabel={groundedLabel} />
+            <CFOMessageList
+              messages={store.current.messages}
+              groundedLabel={groundedLabel}
+              onRetryFailed={retryFailedTurn}
+            />
           )}
         </div>
 
@@ -364,6 +387,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           contextLine={contextLine}
           disclosure={disclosure}
           blockedReason={capBlocked}
+          degradedReason={degradedTooltip}
           compact
         />
       </div>
@@ -491,6 +515,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               documentScroll
               searchQuery={chatQuery}
               onClearSearch={() => setChatQuery("")}
+              onRetryFailed={retryFailedTurn}
             />
           </div>
         )}
@@ -526,7 +551,9 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                       key={p.title}
                       type="button"
                       onClick={() => pickPrompt(p.prompt)}
-                      className="shrink-0 whitespace-nowrap inline-flex items-center rounded-full border border-rule bg-surface px-3 py-1 text-[11.5px] text-ink-soft hover:border-brand/30 hover:text-ink hover:bg-surface transition-colors"
+                      disabled={!!degraded}
+                      title={degradedTooltip ?? undefined}
+                      className="shrink-0 whitespace-nowrap inline-flex items-center rounded-full border border-rule bg-surface px-3 py-1 text-[11.5px] text-ink-soft hover:border-brand/30 hover:text-ink hover:bg-surface transition-colors duration-micro disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-rule disabled:hover:text-ink-soft"
                       data-testid="chat-prompt-pill"
                     >
                       {p.title}
@@ -548,6 +575,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               onStop={stopCurrent}
               placeholder={expectGrounded ? t("chatX.askAboutPlaceholder", { name: companyName || t("chatX.yourCompany") }) : t("chatX.askAnythingPlaceholder")}
               blockedReason={capBlocked}
+              degradedReason={degradedTooltip}
             />
           </div>
           {/* Context pill + general-answer disclosure — in line, under the input.

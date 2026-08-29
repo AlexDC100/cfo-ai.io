@@ -9,7 +9,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { PageHeader } from "@/components/instrument/Panel";
+import { Amount } from "@/components/instrument/Amount";
+import { AppearanceSection } from "@/components/cfo/settings/AppearanceSection";
+import { SegmentedControl } from "@/components/cfo/settings/SegmentedControl";
+import "./settingsXI18n";
 import { debugSendMail, debugSendAllMail, type DebugMailKind } from "@/lib/newsletterApi";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
@@ -96,13 +100,15 @@ export default function Settings() {
 
   return (
     <>
-      <PageHeader
-        hero
-        eyebrow={t("sidebar.settings")}
-        title={t("settings.title")}
-        subtitle={t("settings.subtitle")}
-        testid="settings-header"
-      />
+      {/* Instrument header — 11px caps eyebrow → 19px title. The serif
+          hero is retired on authenticated screens; the subtitle rides
+          below as quiet context. */}
+      <div data-testid="settings-header" className="mb-6">
+        <PageHeader eyebrow={t("sidebar.settings")} title={t("settings.title")} />
+        <p className="mt-1 max-w-[560px] text-[12.5px] text-ink-soft">
+          {t("settings.subtitle")}
+        </p>
+      </div>
 
       {/*
         Settings IA, after cleanup:
@@ -121,13 +127,7 @@ export default function Settings() {
                          each period view, so a Settings entry was a
                          confused second seat — operator directive)
       */}
-      {/* Negative top margin trims PageHeader's shared `mb-8 sm:mb-10`.
-          That gap is calibrated for pages whose content opens with a
-          section heading; Settings now opens straight into the First/Last
-          name fields, so the full gap read as a hole. Done here rather
-          than in PageHeader — every other page still wants the original
-          spacing. */}
-      <div className="space-y-6 max-w-[860px] -mt-4 sm:-mt-5">
+      <div className="space-y-6 max-w-[860px]">
         <ProfileCard />
         {/* Language — presented like Billing (Section title + card); the
             card's own serif <h3> title was removed for the Section <h2>. */}
@@ -140,6 +140,13 @@ export default function Settings() {
             title was removed so the Section <h2> is the single heading). */}
         <Section title={t("settings.currency", "Display currency")} divider>
           <CurrencyCard />
+        </Section>
+
+        {/* Appearance — theme (Paper/Terminal) + density. New in the
+            instrument pass; see AppearanceSection for the data-density
+            contract table surfaces consume. */}
+        <Section title={t("settingsX.appearance.title")} divider>
+          <AppearanceSection />
         </Section>
 
         {/* Workspace + Industry classification sections were removed per
@@ -245,7 +252,19 @@ export default function Settings() {
           </section>
         )}
 
-        {/* Danger Zone — GitHub-style. Consolidates the security actions
+        {/* Disclaimer — the sidebar modal's content, seated as a real
+          Settings section (same i18n keys, one source of truth). There is
+          no standalone /disclaimer route to preserve. */}
+      <Section title={t("sidebar.disclaimer")} divider>
+        <p
+          data-testid="settings-disclaimer"
+          className="max-w-[560px] text-[12.5px] leading-relaxed text-ink-soft"
+        >
+          {t("sidebar.footer_note")}
+        </p>
+      </Section>
+
+      {/* Danger Zone — GitHub-style. Consolidates the security actions
             (password reset, 2FA) and the destructive clear-my-uploads sweep
             that used to live in the separate Security / Data sections.
             Rendered without a <Section> wrapper because it carries its own
@@ -570,35 +589,24 @@ function LanguageCard() {
         <p className="text-[12.5px] text-ink-soft max-w-[480px]">
           {t("settings.language_description")}
         </p>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {SUPPORTED_LANGUAGES.map((lang) => {
-            const active = i18n.language?.startsWith(lang.code) ?? false;
-            return (
-              <button
-                key={lang.code}
-                type="button"
-                onClick={() => void pickLanguage(lang.code)}
-                data-testid={`lang-${lang.code}`}
-                // Selected option carries the app's animated teal sweep
-                // (`.ask-ai-anim-fill`, index.css) — same treatment as the
-                // selected Learning-mode card, so "chosen" reads the same
-                // way across Settings. Band/shift are scaled down from the
-                // 100px default to suit a ~110px pill, keeping the
-                // --af-shift = 4 × --af-band / cos(45°) relationship and the
-                // matching duration so the px/s speed is unchanged.
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-11 sm:h-9 px-3 rounded-lg border text-[12.5px] transition-colors",
-                  active
-                    ? "ask-ai-anim-fill bg-surface text-ink border-brand/50 font-medium [--af-band:90px] [--af-shift:509.1px] [--af-a1:0.34] [--af-a2:0.12] [animation-duration:7.2s]"
-                    : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong",
-                )}
-              >
-                <span className="font-mono text-[10px] tracking-[0.08em] text-ink-mute">{lang.badge}</span>
-                <span>{lang.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Segmented control — one hairline rail, the active language
+            raised to surface. The pickLanguage flow (setLanguage +
+            profile mirror + toast) is unchanged. */}
+        <SegmentedControl
+          value={
+            SUPPORTED_LANGUAGES.find((l) => i18n.language?.startsWith(l.code))?.code ??
+            SUPPORTED_LANGUAGES[0]?.code ??
+            "en"
+          }
+          onChange={(code) => void pickLanguage(code)}
+          ariaLabel={t("settings.language")}
+          options={SUPPORTED_LANGUAGES.map((lang) => ({
+            value: lang.code,
+            label: lang.label,
+            badge: lang.badge,
+            testId: `lang-${lang.code}`,
+          }))}
+        />
       </div>
     </div>
   );
@@ -635,9 +643,10 @@ function CurrencyCard() {
       const t = rates?.rates?.[to];
       return {
         to,
-        // 4 dp holds up in both directions: RON→EUR is ~0.1911 and the
-        // reverse ~5.2327 — neither loses a meaningful digit here.
-        value: from && t ? (t / from).toFixed(4) : "—",
+        // Raw number; <Amount> owns formatting (4 dp holds up in both
+        // directions: RON→EUR ~0.1911, the reverse ~5.2327) and renders
+        // the missing marker itself when the feed is absent.
+        value: from && t ? t / from : null,
       };
     });
 
@@ -662,46 +671,45 @@ function CurrencyCard() {
             {t("settings.currency_source", "Source")}: {sourceLabel} ·{" "}
             {t("settings.currency_updated", "Updated")} {fetchedAtLabel}
             {rates?.stale && (
-              <span className="ml-1 text-[#2AA89B]">
+              <span className="ml-1 text-caution">
                 · {t("settings.currency_stale", "offline fallback")}
               </span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          {(["RON", "EUR", "USD"] as const).map((c) => {
-            const active = display === c;
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setDisplay(c)}
-                data-testid={`settings-currency-${c.toLowerCase()}`}
-                // Matches the language pills above — see the note there for
-                // the band/shift/duration relationship.
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-11 sm:h-9 px-3 rounded-lg border text-[12.5px] transition-colors",
-                  active
-                    ? "ask-ai-anim-fill bg-surface text-ink border-brand/50 font-medium [--af-band:90px] [--af-shift:509.1px] [--af-a1:0.34] [--af-a2:0.12] [animation-duration:7.2s]"
-                    : "bg-surface text-ink-soft border-rule hover:text-ink hover:border-rule-strong",
-                )}
-              >
-                <span>{c}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Matches the language segmented control above. */}
+        <SegmentedControl
+          value={display}
+          onChange={(c) => setDisplay(c)}
+          ariaLabel={t("settings.currency", "Display currency")}
+          options={(["RON", "EUR", "USD"] as const).map((c) => ({
+            value: c,
+            label: c,
+            testId: `settings-currency-${c.toLowerCase()}`,
+          }))}
+        />
       </div>
 
-      {/* "Reference rate:" prefix dropped — the "1 RON = …" form already
-          says what these are, and repeating the label on both lines was
-          two thirds of the width. */}
-      <div className="shrink-0 rounded-lg border border-rule bg-bg-2/40 px-3.5 py-2.5 text-[12px] text-ink-soft">
+      {/* Live cross-rates readout — mono via <Amount>; no provenance
+          affordance because the FX payload carries none (never fake it).
+          The caption scopes the numbers: conversion is presentational,
+          the stored figures stay in their native currency. */}
+      <div className="shrink-0 rounded-md border border-rule bg-bg-2/40 px-3.5 py-2.5 text-[12px] text-ink-soft">
         {crossRates.map((r) => (
-          <div key={r.to} className="tabular-nums">
-            1 {display} = <span className="font-mono text-ink">{r.value}</span> {r.to}
+          <div key={r.to} className="flex items-baseline gap-1.5">
+            <span>1 {display} =</span>
+            <Amount
+              value={r.value}
+              kind="count"
+              fractionDigits={4}
+              className="text-[12px] text-ink"
+            />
+            <span>{r.to}</span>
           </div>
         ))}
+        <div className="mt-1 border-t border-rule-soft pt-1 text-[10.5px] text-ink-mute">
+          {t("settingsX.currency.display_only")}
+        </div>
       </div>
       {/* "Refresh now" removed (2026-07-27). Rates now come from the
           `fx-rates` Edge Function, which keeps one shared BNR row refreshed

@@ -47,13 +47,13 @@ import { UNIVERSE_SECTORS } from "@/lib/publicCompanyUniverse";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sparkline } from "@/components/dashboard/Sparkline";
+import { Amount } from "@/components/instrument/Amount";
+import { Chip as StateChip } from "@/components/instrument/Panel";
+import { pickMagnitude } from "@/lib/amountFormat";
 import { CompanyLogo } from "./CompanyLogo";
 import { CompareTray } from "./CompareTray";
 import {
   computeStandouts,
-  fmtCompactMoney,
-  fmtPrice,
-  fmtSignedPct,
   fmtStandoutValue,
   isPendingRow,
   useCardSparkline,
@@ -571,7 +571,7 @@ function CompanyGrid({
             opacity only; disabled under prefers-reduced-motion). */}
         <div
           key={current}
-          className="cards-stagger flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5"
+          className="cards-stagger flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3"
         >
           {pageRows.map((r) => (
             <CompanyCard
@@ -683,8 +683,9 @@ function CompanyCard({
       }}
       data-testid={`company-grid-tile-${r.ticker}`}
       className="
-        card-2026 group relative flex flex-col gap-2 p-3 min-w-0
+        group relative flex flex-col gap-2 rounded-md border border-rule bg-surface p-3 min-w-0
         text-left cursor-pointer select-none
+        transition-colors duration-micro hover:border-rule-strong
       "
     >
       {/* Header — monogram + ticker/name + compare checkbox. */}
@@ -693,18 +694,18 @@ function CompanyCard({
           ticker={displayTicker}
           variant="monogram"
           size={36}
-          className="rounded-lg"
+          className="rounded-sm"
         />
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-mono font-semibold text-[12.5px] text-ink tabular-nums">
+            <span className="font-mono font-medium text-[12.5px] text-ink tabular-nums">
               {displayTicker}
             </span>
             {moverDir === "up" && (
-              <TrendingUp size={12} strokeWidth={2} className="shrink-0 text-[#2AA89B] dark:text-[#8FE3D9]" />
+              <TrendingUp size={12} strokeWidth={2} className="shrink-0 text-success" />
             )}
             {moverDir === "down" && (
-              <TrendingDown size={12} strokeWidth={2} className="shrink-0 text-red-700 dark:text-red-300" />
+              <TrendingDown size={12} strokeWidth={2} className="shrink-0 text-alert" />
             )}
           </div>
           <div className="text-[11px] text-ink-soft truncate">{r.companyName}</div>
@@ -740,7 +741,7 @@ function CompanyCard({
         <div className="flex min-w-0">
           <span
             className="
-              inline-flex max-w-full items-center rounded-full border border-rule bg-bg-2/50
+              inline-flex max-w-full items-center rounded-full border border-rule bg-bg-2
               px-2 py-0.5 text-[10px] font-medium text-ink-soft truncate
             "
           >
@@ -757,14 +758,8 @@ function CompanyCard({
             <div className="h-2 rounded bg-bg-2 animate-pulse w-3/5" />
             <div className="h-2 rounded bg-bg-2 animate-pulse w-2/5" />
           </div>
-          <span
-            className="
-              inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10
-              px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300
-            "
-          >
-            {t("pci.card.pending")}
-          </span>
+          {/* Caution = "still reconciling", the one amber meaning. */}
+          <StateChip tone="caution">{t("pci.card.pending")}</StateChip>
         </div>
       ) : (
         <>
@@ -785,13 +780,15 @@ function CompanyCard({
                   data-testid={`company-card-standout-${r.ticker}`}
                   className="
                     inline-flex max-w-full items-center gap-1.5 self-start rounded-full
-                    border border-brand/40 bg-brand/10 px-2 py-0.5
-                    text-[10.5px] font-medium text-ink tabular-nums truncate
+                    bg-brand-tint px-2 py-0.5
+                    text-[10.5px] font-medium text-brand-dark dark:text-brand-light truncate
                   "
                 >
                   {t(`pci.card.metric.${standout.key}`)}{" "}
-                  {fmtStandoutValue(standout.key, standout.value)}
-                  <span className="text-ink-mute">
+                  <span className="font-mono tabular-nums">
+                    {fmtStandoutValue(standout.key, standout.value)}
+                  </span>
+                  <span className="opacity-70">
                     {t("pci.card.rank", { rank: standout.rank, n: standout.n })}
                   </span>
                 </span>
@@ -805,21 +802,23 @@ function CompanyCard({
       )}
 
       {/* Footer — price + day change | market cap (or revenue). */}
-      <div className="mt-auto flex items-end justify-between gap-2 pt-1 border-t border-rule/50 text-[11px] tabular-nums min-w-0">
+      <div className="mt-auto flex items-end justify-between gap-2 pt-1 border-t border-rule-soft text-[11px] min-w-0">
         <div className="min-w-0">
           {hasPrice ? (
             <>
-              <span className="text-ink font-medium">{fmtPrice(r.price, r.currency)}</span>
+              <Amount
+                value={r.price}
+                currency={r.currency}
+                fractionDigits={2}
+                className="text-[11px] text-ink"
+              />
               {hasChange && (
-                <span
-                  className={`ml-1.5 font-medium ${
-                    changeUp
-                      ? "text-[#2AA89B] dark:text-[#8FE3D9]"
-                      : "text-red-700 dark:text-red-300"
-                  }`}
-                >
-                  {fmtSignedPct(r.priceChangePct)}
-                </span>
+                <Amount
+                  kind="percent"
+                  value={(r.priceChangePct ?? 0) / 100}
+                  fractionDigits={2}
+                  className={`ml-1.5 text-[11px] ${changeUp ? "text-success" : "text-alert"}`}
+                />
               )}
             </>
           ) : (
@@ -832,18 +831,24 @@ function CompanyCard({
               <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-mute">
                 {t("pci.card.mktCap")}
               </div>
-              <div className="text-ink font-medium">
-                {fmtCompactMoney(r.marketCap, r.currency)}
-              </div>
+              <Amount
+                value={r.marketCap}
+                currency={r.currency}
+                magnitude={pickMagnitude([r.marketCap])}
+                className="text-[11px] text-ink"
+              />
             </>
           ) : r.revenue != null && Number.isFinite(r.revenue) ? (
             <>
               <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-mute">
                 {t("pci.compare.row.revenue")}
               </div>
-              <div className="text-ink font-medium">
-                {fmtCompactMoney(r.revenue, r.currency)}
-              </div>
+              <Amount
+                value={r.revenue}
+                currency={r.currency}
+                magnitude={pickMagnitude([r.revenue])}
+                className="text-[11px] text-ink"
+              />
             </>
           ) : null}
         </div>
@@ -879,16 +884,22 @@ function Chip({
       aria-pressed={selected}
       className={`
         group shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border
-        text-[11.5px] font-medium transition-colors duration-150 cursor-pointer
+        text-[11.5px] font-medium transition-colors duration-micro cursor-pointer
         ${selected
-          ? "border-brand/60 bg-brand/15 text-ink hover:bg-brand/25"
+          ? "border-brand/50 bg-brand-tint text-brand-dark dark:text-brand-light"
           : "border-rule bg-surface text-ink hover:bg-bg-2 hover:border-rule-strong"}
       `}
     >
       <span className="min-w-0 max-w-[150px]">
         <HoverMarquee text={label} />
       </span>
-      <span className="text-[10px] text-ink-mute tabular-nums shrink-0">{count}</span>
+      <span
+        className={`font-mono text-[10px] tabular-nums shrink-0 ${
+          selected ? "opacity-70" : "text-ink-mute"
+        }`}
+      >
+        {count}
+      </span>
     </button>
   );
 

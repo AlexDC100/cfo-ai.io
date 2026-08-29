@@ -317,15 +317,26 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             disabled={hardDisabled}
             data-testid="chat-input"
             aria-label={t("topbar.askCfoAi")}
-            className="
+            title={lockTooltip}
+            className={`
               flex-1 min-w-0 resize-none bg-transparent py-2
               text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
               placeholder:text-ink-mute focus:outline-none focus-visible:shadow-none
               disabled:opacity-60
-              min-h-[40px] max-h-[170px]
-            "
+              ${compact ? "min-h-[40px]" : "min-h-[62px]"} max-h-[170px]
+            `}
           />
 
+          {/* Quiet ⌘↵ hint — desktop page composer only (compact panel and
+              touch layouts don't have the room; Enter still sends there). */}
+          {!compact && (
+            <span
+              aria-hidden
+              className="hidden sm:inline-flex items-baseline gap-1 shrink-0 self-end mb-2 mr-0.5 text-[10.5px] font-mono text-ink-faint select-none"
+            >
+              ⌘↵ <span className="text-ink-faint">{t("chatDegraded.sendHint")}</span>
+            </span>
+          )}
           {pending ? (
             <button
               type="button"
@@ -334,9 +345,8 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               aria-label={t("chatX.stopGenerating")}
               title={t("chatX.stopGenerating")}
               className="
-                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-lg
-                ask-ai-anim-fill [animation-duration:10s]
-                border border-brand/40 text-ink
+                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-sm
+                bg-brand text-paper transition-colors duration-micro
               "
             >
               <Square size={10} strokeWidth={0} fill="currentColor" />
@@ -348,11 +358,11 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               disabled={!text.trim() || hardDisabled}
               data-testid="chat-send"
               aria-label={t("chatX.sendMessage")}
+              title={lockTooltip}
               className="
-                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-lg
-                ask-ai-anim-fill [animation-duration:10s]
-                border border-brand/40 text-ink
-                disabled:[background-image:none] disabled:animate-none disabled:bg-bg-2 disabled:border-transparent disabled:text-ink-mute disabled:cursor-not-allowed
+                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-sm
+                bg-brand text-paper hover:bg-brand/90 transition-colors duration-micro
+                disabled:bg-bg-2 disabled:text-ink-mute disabled:cursor-not-allowed
               "
             >
               <ArrowUp size={14} strokeWidth={2.25} />

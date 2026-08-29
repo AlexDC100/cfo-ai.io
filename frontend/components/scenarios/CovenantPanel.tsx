@@ -2,12 +2,17 @@
 //
 // The single most valuable scenario output for a CFO with bank debt:
 // "if this happens, do my covenants still hold?" For each covenant we show
-// the threshold, the baseline value, the scenario value, and a status pill
+// the threshold, the baseline value, the scenario value, and a status chip
 // (pass / near / breach) computed by the deterministic covenant engine.
 //
 // detectCovenantBreaches returns only the non-passing covenants; we iterate
-// the full covenant set so passing ones still render (green), giving the
-// reader a complete compliance picture rather than only the alarms.
+// the full covenant set so passing ones still render, giving the reader a
+// complete compliance picture rather than only the alarms.
+//
+// Instrument pass (2026-08): Panel + Chip; multiples through the ≥99×
+// discipline (a wiped-out denominator states the bound, never "Infinity×").
+// Semantics: pass = success, near = caution, breach = alert — the one
+// place on this screen where red is earned.
 
 import {
   detectCovenantBreaches,
@@ -16,6 +21,8 @@ import {
   type CovenantMetricKey,
 } from "@/lib/scenarios/covenants";
 import type { CascadeState } from "@/lib/scenarios/cascade";
+import { Panel, PanelHeader, Chip, type ChipTone } from "@/components/instrument/Panel";
+import { CappedMultiple } from "@/components/comparison/MoneyAmount";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 
@@ -36,13 +43,9 @@ const METRIC_LABEL: Record<CovenantMetricKey, string> = {
   debt_to_equity: "Debt / equity",
 };
 
-function fmt(metric: CovenantMetricKey, v: number | null): string {
-  if (v === null || Number.isNaN(v)) return "n/a";
-  // EBITDA ≤ 0 / equity ≤ 0 surface as +Infinity (worst-case sentinel from
-  // computeMetric). Show ">99×" rather than "Infinity×" — the breach pill
-  // carries the alarm; this just says "off the scale".
-  if (!Number.isFinite(v)) return ">99×";
-  return `${v.toFixed(2)}×`;
+function MetricValue({ v, className }: { v: number | null; className?: string }) {
+  if (v === null || Number.isNaN(v)) return <span className={className}>n/a</span>;
+  return <CappedMultiple value={v} cap={99} className={className} />;
 }
 
 function opGlyph(op: Covenant["operator"]): string {
@@ -62,30 +65,23 @@ export function CovenantPanel({ baseline, scenario, covenants, active }: Props) 
   const breachCount = scenarioBreaches.filter((b) => b.severity === "breach").length;
 
   return (
-    <div
-      data-testid="covenant-panel"
-      className="rounded-xl border border-rule bg-surface overflow-hidden"
-    >
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-rule bg-bg-2/40">
-        <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold">
-          Covenant impact
-        </div>
-        {active && breachCount > 0 && (
-          <span
-            data-testid="covenant-breach-count"
-            className="text-[10.5px] font-semibold text-rose-600 dark:text-rose-400"
-          >
-            {breachCount} breach{breachCount > 1 ? "es" : ""}
-          </span>
-        )}
-        {active && breachCount === 0 && (
-          <span className="text-[10.5px] font-semibold text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]">
-            All clear
-          </span>
-        )}
-      </div>
+    <Panel data-testid="covenant-panel" className="overflow-hidden">
+      <PanelHeader
+        title="Covenant impact"
+        actions={
+          active ? (
+            breachCount > 0 ? (
+              <Chip tone="alert" dot data-testid="covenant-breach-count">
+                {breachCount} breach{breachCount > 1 ? "es" : ""}
+              </Chip>
+            ) : (
+              <Chip tone="success" dot>All clear</Chip>
+            )
+          ) : undefined
+        }
+      />
 
-      <div className="divide-y divide-rule/60">
+      <div className="divide-y divide-rule-soft">
         {covenants.map((cov) => {
           const baseVal = computeMetric(baseline, cov.metric);
           const scenVal = computeMetric(scenario, cov.metric);
@@ -105,32 +101,32 @@ export function CovenantPanel({ baseline, scenario, covenants, active }: Props) 
                     {cov.name}
                   </div>
                   <div className="text-[11px] text-ink-mute mt-0.5">
-                    {METRIC_LABEL[cov.metric]} {opGlyph(cov.operator)} {cov.threshold.toFixed(2)}×
+                    {METRIC_LABEL[cov.metric]} {opGlyph(cov.operator)}{" "}
+                    <span className="font-mono tabular-nums">{cov.threshold.toFixed(2)}×</span>
                   </div>
                 </div>
-                <StatusPill status={status} />
+                <StatusChip status={status} />
               </div>
 
               <div className="mt-2 flex items-center gap-4 text-[11.5px]">
                 <span className="text-ink-mute">
                   Baseline{" "}
-                  <span className="tabular-nums text-ink-soft">{fmt(cov.metric, baseVal)}</span>
+                  <MetricValue v={baseVal} className="text-ink-soft" />
                 </span>
                 {active && (
                   <span className="text-ink-mute">
                     Scenario{" "}
-                    <span
+                    <MetricValue
+                      v={scenVal}
                       className={cn(
-                        "tabular-nums font-semibold",
+                        "font-semibold",
                         status === "breach"
-                          ? "text-rose-600 dark:text-rose-400"
+                          ? "text-alert"
                           : status === "near"
-                            ? "text-[#2AA89B] dark:text-[#5CD3C5]"
+                            ? "text-caution"
                             : "text-ink",
                       )}
-                    >
-                      {fmt(cov.metric, scenVal)}
-                    </span>
+                    />
                   </span>
                 )}
               </div>
@@ -138,7 +134,7 @@ export function CovenantPanel({ baseline, scenario, covenants, active }: Props) 
           );
         })}
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -152,41 +148,18 @@ function statusFromSeverity(
   return "pass";
 }
 
-function StatusPill({ status }: { status: Status }) {
-  const map: Record<Status, { label: string; cls: string; Icon: typeof ShieldCheck }> = {
-    pass: {
-      label: "Pass",
-      cls: "bg-[hsl(173,57%,55%)]/10 text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]",
-      Icon: ShieldCheck,
-    },
-    near: {
-      label: "Near limit",
-      cls: "bg-[#5CD3C5]/10 text-[#2AA89B] dark:text-[#5CD3C5]",
-      Icon: ShieldAlert,
-    },
-    breach: {
-      label: "Breach",
-      cls: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-      Icon: ShieldX,
-    },
-    na: {
-      label: "n/a",
-      cls: "bg-white/[0.04] text-ink-mute",
-      Icon: ShieldAlert,
-    },
+function StatusChip({ status }: { status: Status }) {
+  const map: Record<Status, { label: string; tone: ChipTone; Icon: typeof ShieldCheck }> = {
+    pass: { label: "Pass", tone: "success", Icon: ShieldCheck },
+    near: { label: "Near limit", tone: "caution", Icon: ShieldAlert },
+    breach: { label: "Breach", tone: "alert", Icon: ShieldX },
+    na: { label: "n/a", tone: "neutral", Icon: ShieldAlert },
   };
-  const { label, cls, Icon } = map[status];
+  const { label, tone, Icon } = map[status];
   return (
-    <span
-      data-testid="covenant-status-pill"
-      className={cn(
-        "inline-flex items-center gap-1 px-2 py-0.5 rounded-md shrink-0",
-        "text-[10.5px] font-semibold whitespace-nowrap",
-        cls,
-      )}
-    >
+    <Chip tone={tone} data-testid="covenant-status-pill" className="shrink-0">
       <Icon className="w-3 h-3" />
       {label}
-    </span>
+    </Chip>
   );
 }

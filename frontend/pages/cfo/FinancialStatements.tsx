@@ -2714,155 +2714,66 @@ function PeriodConfirmDialog({
 // persisted raw provider failures verbatim — "Narrative unavailable:
 // Error code: 400 … credit balance is too low…"). Never render these as
 // prose; show the localized fallback instead.
-function isUnusableNarrative(s: string | null | undefined): boolean {
-  if (!s) return true;
-  return /\[NARRATIVE_UNAVAILABLE\]|Narrative unavailable|invalid_request_error|credit balance|Error code: \d/i.test(s);
+// CFOBriefingCard + isUnusableNarrative moved to
+// components/cfo/CFOBriefingCard.tsx (Instrument migration) so the A4
+// header policy — no model ids in primary DOM — is testable in isolation.
+
+// ── Accuracy band — ONE computation for every trust surface ─────────────
+// The header trust chip and the accuracy line both read this; they can't
+// drift because neither carries its own thresholds.
+type AccuracyBand = "clean" | "watch" | "problem" | "unknown";
+
+interface AccuracyRead {
+  band: AccuracyBand;
+  worstPct: number;
+  bsDriftPct: number | null;
+  sourceImbalancePct: number | null;
 }
 
-function CFOBriefingCard({
-  periodId,
-  baseBriefing,
-  collapsed = false,
-  onToggle,
-}: {
-  periodId: string;
-  baseBriefing: string;
-  /** 2026 redesign — the header renders the briefing clamped to two lines by
-   *  default so the overview's first paint stays hero + metrics + recs. The
-   *  card stays MOUNTED either way (its currency/language regeneration
-   *  effects keep running); only the presentation collapses. */
-  collapsed?: boolean;
-  onToggle?: () => void;
-}) {
-  const { t, i18n } = useTranslation();
-  const display = useDisplayCurrency();
-  const baseUsable = !isUnusableNarrative(baseBriefing);
-  const [text, setText] = useState<string>(baseUsable ? baseBriefing : "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function computeAccuracyRead(
+  assembledBs?: Record<string, number> | null,
+  sourceDataQuality?: { raw_imbalance_pct: number } | null,
+): AccuracyRead {
+  const totalAssets = Number(assembledBs?.total_assets ?? 0);
+  const bsDelta = Number(assembledBs?.bs_balance_delta ?? NaN);
+  const bsDriftPct =
+    isFinite(bsDelta) && totalAssets > 0 ? (Math.abs(bsDelta) / totalAssets) * 100 : null;
+  const sourceImbalancePct = sourceDataQuality?.raw_imbalance_pct ?? null;
+  const worstPct = Math.max(bsDriftPct ?? 0, sourceImbalancePct ?? 0);
+  // Clean-band threshold 0.1% (operator directive 2026-08-27) — MUST match
+  // the "target: under 0.1%" copy in dash.accClean*/accUnknownBody (en+ro).
+  const band: AccuracyBand =
+    bsDriftPct === null && sourceImbalancePct === null
+      ? "unknown"
+      : worstPct < 0.1
+        ? "clean"
+        : worstPct < 2
+          ? "watch"
+          : "problem";
+  return { band, worstPct, bsDriftPct, sourceImbalancePct };
+}
 
-  // Language awareness (2026-08-04): the persisted briefing was generated
-  // in the UI language active AT SCAN TIME. If the user has since switched
-  // EN↔RO, re-narrate in the language they're reading — "no RO body under
-  // EN labels". Detection is cheap and reliable for this language pair:
-  // Romanian business prose always carries diacritics, English never does.
-  const activeLang = (i18n.language || "en").slice(0, 2);
-  const baseLang = /[șțăîâȘȚĂÎÂ]/.test(baseBriefing) ? "ro" : "en";
-  const langMismatch = activeLang !== baseLang && (activeLang === "ro" || activeLang === "en");
+// Semantic mapping locked to the token contract: success=verified,
+// caution=watch, alert=imbalance (red reserved), neutral=unverified.
+const TRUST_CHIP_TONE: Record<AccuracyBand, ChipTone> = {
+  clean: "success",
+  watch: "caution",
+  problem: "alert",
+  unknown: "neutral",
+};
+const TRUST_CHIP_LABEL_KEY: Record<AccuracyBand, string> = {
+  clean: "dashIx.trustVerified",
+  watch: "dashIx.trustWatch",
+  problem: "dashIx.trustImbalanced",
+  unknown: "dashIx.trustUnverified",
+};
 
-  // Reset to baseline if user switches periods (different periodId)
-  // OR returns to RON (the canonical persisted briefing) in its own language.
-  useEffect(() => {
-    if (display === "RON" && !langMismatch) {
-      setText(baseUsable ? baseBriefing : "");
-      setError(null);
-    }
-  }, [baseBriefing, baseUsable, display, langMismatch]);
-
-  useEffect(() => {
-    if (display === "RON" && !langMismatch) return;
-    // Debounce 600ms so rapid RON→EUR→USD toggles don't fire 3 Opus calls.
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { getSupabase } = await import("@/lib/supabase");
-        const sb = getSupabase();
-        const { data: session } = sb
-          ? await sb.auth.getSession()
-          : { data: { session: null } };
-        const token = session?.session?.access_token;
-        if (!token) {
-          throw new Error("Not signed in");
-        }
-        const apiUrl =
-          (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
-        const res = await fetch(
-          `${apiUrl}/api/period/${periodId}/briefing/regenerate?currency=${display}&language=${activeLang}`,
-          { method: "POST", headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (
-          !cancelled &&
-          typeof data.briefing === "string" &&
-          data.briefing.length > 0 &&
-          !isUnusableNarrative(data.briefing)
-        ) {
-          setText(data.briefing);
-        } else if (!cancelled && isUnusableNarrative(data.briefing)) {
-          // Regeneration failed upstream (e.g. provider billing). Keep
-          // whatever prose we already have; surface a friendly note.
-          setError(t("dash.narrativeUnavailable"));
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 600);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps — activeLang/langMismatch drive the same debounce
-  }, [display, periodId, activeLang, langMismatch]);
-
-  // Chrome-less (2026-07-25): the briefing IS the header's subtitle, so it
-  // drops the bordered card and renders as plain prose styled like the
-  // subtitle across the app's tab headers (soft ink, relaxed leading) — just
-  // a small eyebrow label above and the accuracy note below.
+function TrustChip({ band, testid }: { band: AccuracyBand; testid?: string }) {
+  const { t } = useTranslation();
   return (
-    <div data-testid="cfo-briefing" className="mt-3 max-w-[1040px]">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-medium">
-          <Sparkles size={11} strokeWidth={2} />
-          {t("dash.cfoBriefingEyebrow")}
-          {display !== "RON" && (
-            <span className="text-ink-mute normal-case tracking-normal">
-              · {t("dash.displayedIn", { currency: display })}
-            </span>
-          )}
-        </div>
-        {loading && (
-          <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
-            <Loader2 size={12} className="animate-spin" />
-            {t("dash.regeneratingIn", { currency: display })}
-          </div>
-        )}
-      </div>
-      <p
-        className={`text-[14px] sm:text-[14.5px] text-ink-soft leading-relaxed transition-opacity ${loading ? "opacity-60" : ""} ${collapsed ? "line-clamp-2" : ""}`}
-      >
-        {text}
-      </p>
-      {onToggle && (
-        <button
-          type="button"
-          onClick={onToggle}
-          data-testid="cfo-briefing-toggle"
-          className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-d hover:text-brand transition-colors"
-        >
-          {collapsed ? t("dashV2.briefingShowMore") : t("dashV2.briefingShowLess")}
-          <ChevronDown
-            size={12}
-            strokeWidth={2}
-            className={`transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
-          />
-        </button>
-      )}
-      {error && (
-        <p className="mt-2 text-[11px] text-[#2AA89B]">
-          {t("dash.regenFailed", { currency: display, error })}
-        </p>
-      )}
-      {!collapsed && (
-        <p className="mt-3 text-[11px] italic text-ink-mute leading-relaxed">
-          {t("dash.briefingDisclaimer")}
-        </p>
-      )}
-    </div>
+    <Chip tone={TRUST_CHIP_TONE[band]} dot data-testid={testid}>
+      {t(TRUST_CHIP_LABEL_KEY[band])}
+    </Chip>
   );
 }
 
@@ -2964,32 +2875,14 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
       return false;
     }
   });
+  // A5 — trust chip + tap-open receipt. The chip and one caption line are
+  // the resting surface; the full sentences (the receipt) open on demand.
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
-  // ── Compute the measured signals ──────────────────────────────────
-  const totalAssets = Number(assembledBs?.total_assets ?? 0);
-  const bsDelta = Number(assembledBs?.bs_balance_delta ?? NaN);
-  const bsDriftPct = isFinite(bsDelta) && totalAssets > 0
-    ? (Math.abs(bsDelta) / totalAssets) * 100
-    : null;
-  const sourceImbalancePct = sourceDataQuality?.raw_imbalance_pct ?? null;
-
-  // ── Severity bands ────────────────────────────────────────────────
-  // CLEAN: BS reconciles within 0.5% AND source TB balanced within 0.5%
-  // WATCH: either signal between 0.5% and 2%
-  // PROBLEM: either signal above 2% (would noticeably affect headline numbers)
-  const worstPct = Math.max(bsDriftPct ?? 0, sourceImbalancePct ?? 0);
-  // Clean-band threshold tightened 0.5% -> 0.1% (operator directive
-  // 2026-08-27) — MUST match the "target: under 0.1%" copy in
-  // dash.accClean*/accUnknownBody (en+ro); the two drifting apart makes
-  // the banner claim a target it does not enforce.
-  const band: "clean" | "watch" | "problem" | "unknown" =
-    bsDriftPct === null && sourceImbalancePct === null
-      ? "unknown"
-      : worstPct < 0.1
-      ? "clean"
-      : worstPct < 2
-      ? "watch"
-      : "problem";
+  const { band, worstPct, bsDriftPct, sourceImbalancePct } = computeAccuracyRead(
+    assembledBs,
+    sourceDataQuality,
+  );
 
   // AI LANE — permanent AI-read badge on the accuracy line whenever the
   // period was llm-extracted (never removable, so it also renders on the
@@ -3015,7 +2908,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
           }}
           className="inline-flex items-center gap-1 text-[11.5px] text-ink-mute hover:text-ink"
         >
-          <CheckCircle2 size={11} strokeWidth={1.75} className="text-[#2AA89B]" />
+          <CheckCircle2 size={11} strokeWidth={1.75} className="text-success" />
           {t("dash.qualityPassedLink")}
         </button>
         {aiReadBadge}
@@ -3025,101 +2918,107 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
   // Watch + problem bands ALWAYS render — dismissal doesn't suppress
   // real warnings. User can dismiss the green state only.
 
-  // ── Render per band ───────────────────────────────────────────────
-  const tone =
-    band === "clean"
-      ? {
-          border: "border-[#8FE3D9]/40",
-          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
-          icon: <CheckCircle2 size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
-          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
-        }
-      : band === "watch"
-      ? {
-          border: "border-[#8FE3D9]/50",
-          bg: "bg-[#E6F7F4]/40 dark:bg-[#5CD3C5]/[0.06]",
-          icon: <Info size={13} strokeWidth={1.75} className="text-[#2AA89B] mt-0.5 shrink-0" />,
-          headline: "text-[#2AA89B] dark:text-[#5CD3C5]",
-        }
-      : band === "problem"
-      ? {
-          border: "border-alert/50",
-          bg: "bg-alert/[0.06] dark:bg-alert/[0.08]",
-          icon: <AlertCircle size={13} strokeWidth={1.75} className="text-alert mt-0.5 shrink-0" />,
-          headline: "text-alert",
-        }
-      : {
-          border: "border-rule",
-          bg: "bg-bg-2/40",
-          icon: <Info size={13} strokeWidth={1.75} className="text-ink-mute mt-0.5 shrink-0" />,
-          headline: "text-ink",
-        };
+  // Caption beside the chip: the one measured number that matters for this
+  // band, mono, so the resting line still says something specific.
+  const caption =
+    band === "clean" && bsDriftPct !== null
+      ? t("dashIx.trustDriftCaption", { pct: (Math.floor(worstPct * 100) / 100).toFixed(2) })
+      : band !== "unknown" && sourceImbalancePct !== null && sourceImbalancePct >= 0.5
+        ? t("dashIx.trustSourceCaption", { pct: sourceImbalancePct.toFixed(2) })
+        : band !== "unknown" && bsDriftPct !== null && bsDriftPct >= 0.1
+          ? t("dashIx.trustDriftCaption", { pct: bsDriftPct.toFixed(2) })
+          : null;
+
+  // The receipt — the full sentences, unchanged in meaning, now behind the
+  // disclosure instead of painted as a wash across the page.
+  const receipt = (
+    <div className="text-[12.5px] leading-relaxed text-ink-soft">
+      {band === "clean" && (
+        <>
+          <strong className="text-success">{t("dash.accCleanTitle")}</strong>{" "}
+          {t("dash.accCleanPre")}{" "}
+          <strong className="font-mono tabular-nums">
+            {(Math.floor(worstPct * 100) / 100).toFixed(2)}%
+          </strong>{" "}
+          {t("dash.accCleanPost")}
+        </>
+      )}
+      {band === "watch" && (
+        <>
+          <strong className="text-caution">{t("dash.accWatchTitle")}</strong>{" "}
+          {sourceImbalancePct !== null && sourceImbalancePct >= 0.5 ? (
+            <>
+              {t("dash.accSrcImbalancePre")}{" "}
+              <strong>{t("dash.accImbalanceBold", { pct: sourceImbalancePct.toFixed(2) })}</strong>{" "}
+              {t("dash.accWatchSmallNote")}{" "}
+            </>
+          ) : null}
+          {bsDriftPct !== null && bsDriftPct >= 0.5 ? (
+            <>
+              {t("dash.accBsDriftPre")} <strong>{bsDriftPct.toFixed(2)}%</strong> {t("dash.accBsDriftPost")}{" "}
+            </>
+          ) : null}
+          {t("dash.accWatchTail")}
+        </>
+      )}
+      {band === "problem" && (
+        <>
+          <strong className="text-alert">{t("dash.accProblemTitle")}</strong>{" "}
+          {sourceImbalancePct !== null && sourceImbalancePct >= 2 ? (
+            <>
+              {t("dash.accSrcImbalancePre")}{" "}
+              <strong>{t("dash.accImbalanceBold", { pct: sourceImbalancePct.toFixed(2) })}</strong>{" "}
+              {t("dash.accProblemSrcTail")}{" "}
+            </>
+          ) : null}
+          {bsDriftPct !== null && bsDriftPct >= 2 ? (
+            <>
+              {t("dash.accProblemBsPre")}{" "}
+              <strong>{bsDriftPct.toFixed(2)}%</strong> {t("dash.accProblemBsTail")}{" "}
+            </>
+          ) : null}
+          {t("dash.accProblemTail")}
+        </>
+      )}
+      {band === "unknown" && (
+        <>
+          <strong className="text-ink">{t("dash.accUnknownTitle")}</strong>{" "}
+          {t("dash.accUnknownBody")}
+        </>
+      )}
+    </div>
+  );
 
   return (
-    <div
-      data-testid="accuracy-banner"
-      data-band={band}
-      className={`flex items-start justify-between gap-3 mb-3 rounded-lg border-l-[3px] ${tone.border} ${tone.bg} px-4 py-3`}
-    >
-      <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-soft">
-        {tone.icon}
-        <div>
-          {band === "clean" && (
-            <>
-              <strong className={tone.headline}>{t("dash.accCleanTitle")}</strong>{" "}
-              {t("dash.accCleanPre")} <strong>{(Math.floor(worstPct * 100) / 100).toFixed(2)}%</strong>{" "}
-              {t("dash.accCleanPost")}
-            </>
-          )}
-          {band === "watch" && (
-            <>
-              <strong className={tone.headline}>{t("dash.accWatchTitle")}</strong>{" "}
-              {sourceImbalancePct !== null && sourceImbalancePct >= 0.5 ? (
-                <>
-                  {t("dash.accSrcImbalancePre")}{" "}
-                  <strong>{t("dash.accImbalanceBold", { pct: sourceImbalancePct.toFixed(2) })}</strong>{" "}
-                  {t("dash.accWatchSmallNote")}{" "}
-                </>
-              ) : null}
-              {bsDriftPct !== null && bsDriftPct >= 0.5 ? (
-                <>
-                  {t("dash.accBsDriftPre")} <strong>{bsDriftPct.toFixed(2)}%</strong> {t("dash.accBsDriftPost")}{" "}
-                </>
-              ) : null}
-              {t("dash.accWatchTail")}
-            </>
-          )}
-          {band === "problem" && (
-            <>
-              <strong className={tone.headline}>{t("dash.accProblemTitle")}</strong>{" "}
-              {sourceImbalancePct !== null && sourceImbalancePct >= 2 ? (
-                <>
-                  {t("dash.accSrcImbalancePre")}{" "}
-                  <strong>{t("dash.accImbalanceBold", { pct: sourceImbalancePct.toFixed(2) })}</strong>{" "}
-                  {t("dash.accProblemSrcTail")}{" "}
-                </>
-              ) : null}
-              {bsDriftPct !== null && bsDriftPct >= 2 ? (
-                <>
-                  {t("dash.accProblemBsPre")}{" "}
-                  <strong>{bsDriftPct.toFixed(2)}%</strong> {t("dash.accProblemBsTail")}{" "}
-                </>
-              ) : null}
-              {t("dash.accProblemTail")}
-            </>
-          )}
-          {band === "unknown" && (
-            <>
-              <strong className={tone.headline}>{t("dash.accUnknownTitle")}</strong>{" "}
-              {t("dash.accUnknownBody")}
-            </>
-          )}
-          {/* AI LANE — the badge sits ON the accuracy line itself. */}
-          <span className="ml-2 inline-flex align-middle">{aiReadBadge}</span>
-        </div>
+    <div data-testid="accuracy-banner" data-band={band} className="mb-3">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <button
+          type="button"
+          onClick={() => setReceiptOpen((v) => !v)}
+          aria-expanded={receiptOpen}
+          data-testid="accuracy-receipt-toggle"
+          className="group inline-flex items-center gap-2 text-left"
+        >
+          <TrustChip band={band} />
+          <span className="text-[11.5px] text-ink-mute group-hover:text-ink transition-colors">
+            {t("dashIx.accuracyTitle")}
+            {caption && (
+              <span className="font-mono tabular-nums"> · {caption}</span>
+            )}
+          </span>
+          <ChevronDown
+            size={12}
+            strokeWidth={2}
+            className={`text-ink-mute transition-transform duration-200 ${receiptOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        <span className="inline-flex">{aiReadBadge}</span>
       </div>
-      {/* Dismiss (×) removed 2026-07-25 — the accuracy note now sits under the
-          CFO briefing and always shows; it's a per-document signal, not a nag. */}
+      {receiptOpen && (
+        <Panel inset className="mt-2" data-testid="accuracy-receipt">
+          <PanelBody>{receipt}</PanelBody>
+        </Panel>
+      )}
     </div>
   );
 }

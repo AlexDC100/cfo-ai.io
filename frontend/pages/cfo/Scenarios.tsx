@@ -17,8 +17,13 @@
 
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, TrendingDown } from "lucide-react";
+import { Lock, MoveRight, Sparkles } from "lucide-react";
+// Two header systems on purpose: the serif hero survives ONLY on the
+// no-period empty state; the loaded surface uses the compact instrument
+// PageHeader (A3 hero eviction).
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { PageHeader as InstrumentPageHeader, Chip } from "@/components/instrument/Panel";
+import { CappedMultiple } from "@/components/comparison/MoneyAmount";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
@@ -34,6 +39,9 @@ import { ScenarioComparison } from "@/components/scenarios/ScenarioComparison";
 import { CovenantPanel } from "@/components/scenarios/CovenantPanel";
 import type { Statements } from "@/lib/financialReport";
 
+// Before → after strip: baseline value, a quiet arrow, the scenario value
+// carrying the semantic color. A non-finite scenario leverage renders as
+// the ≥99× bound (never ">99×" / "Infinity×").
 function ImpactSummary({
   leverageBase,
   leverageScen,
@@ -43,38 +51,36 @@ function ImpactSummary({
   leverageScen: number | null;
   breachCount: number;
 }) {
-  const fmt = (v: number | null) =>
-    v === null ? "n/a" : !Number.isFinite(v) ? ">99×" : `${v.toFixed(2)}×`;
   const worsened =
-    leverageBase !== null && leverageScen !== null && leverageScen > leverageBase;
+    leverageBase !== null &&
+    leverageScen !== null &&
+    (!Number.isFinite(leverageScen) || leverageScen > leverageBase);
   return (
     <div
       data-testid="scenario-impact-summary"
-      className="flex flex-wrap items-center gap-x-6 gap-y-2 py-1"
+      className="flex flex-wrap items-center gap-x-5 gap-y-2 py-1"
     >
       <div className="flex items-center gap-2">
-        <TrendingDown
-          className={`w-4 h-4 ${worsened ? "text-rose-500" : "text-ink-mute"}`}
-          strokeWidth={1.75}
-        />
-        <span className="text-[12.5px] text-ink-mute">Net debt / EBITDA</span>
-        <span className="text-[14px] font-semibold tabular-nums text-ink">
-          {fmt(leverageBase)} <span className="text-ink-mute">→</span>{" "}
-          <span className={worsened ? "text-rose-600 dark:text-rose-400" : "text-ink"}>
-            {fmt(leverageScen)}
-          </span>
+        <span className="text-[12px] text-ink-mute">Net debt / EBITDA</span>
+        <span className="text-[13px] font-semibold text-ink inline-flex items-center gap-1.5">
+          <CappedMultiple value={leverageBase} className="text-ink-soft" />
+          <MoveRight size={13} strokeWidth={1.75} className="text-ink-mute" aria-hidden />
+          <CappedMultiple
+            value={leverageScen}
+            className={worsened ? "text-alert" : "text-ink"}
+          />
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[12.5px] text-ink-mute">Covenants</span>
+        <span className="text-[12px] text-ink-mute">Covenants</span>
         {breachCount > 0 ? (
-          <span className="text-[13px] font-semibold text-rose-600 dark:text-rose-400">
+          <Chip tone="alert" dot>
             {breachCount} breached
-          </span>
+          </Chip>
         ) : (
-          <span className="text-[13px] font-semibold text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)]">
+          <Chip tone="success" dot>
             all holding
-          </span>
+          </Chip>
         )}
       </div>
     </div>

@@ -12,19 +12,27 @@
 //   · days / rate levers (dso/dio/tax) — every value is an explicit "set",
 //     so they only apply once the user engages them (key present in store).
 //     The reset ✕ detaches the lever.
+//
+// Instrument pass (2026-08): value chips are mono tabular via <Amount>,
+// the track uses the one brand accent, engaged state is a brand-tinted
+// hairline — all tokens, no raw color.
 
 import { useScenario } from "@/stores/scenario";
 import { SCENARIO_LEVERS, type ScenarioLever } from "@/lib/scenarios/levers";
+import { Amount } from "@/components/instrument/Amount";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function valueLabel(lever: ScenarioLever, v: number): string {
-  if (lever.kind === "pct") {
-    const sign = v > 0 ? "+" : v < 0 ? "−" : "";
-    return `${sign}${Math.abs(v)}%`;
-  }
-  if (lever.kind === "days") return `${v}d`;
-  return `${v}%`; // rate_pct
+function LeverValue({ lever, v }: { lever: ScenarioLever; v: number }) {
+  // pct levers are deltas (signed); days/rate levers are explicit sets.
+  const signed = lever.kind === "pct";
+  const unit = lever.kind === "days" ? "d" : "%";
+  return (
+    <span className="font-mono tabular-nums">
+      <Amount kind="count" value={v} signed={signed} fractionDigits={0} />
+      {unit}
+    </span>
+  );
 }
 
 export function AdjustmentEditor() {
@@ -39,10 +47,10 @@ export function AdjustmentEditor() {
       {/* Levers — the templates ("Start from a template") moved above the
           drivers + results grid (ScenarioTemplateCards) 2026-07-26. */}
       <div>
-        <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-2">
+        <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium mb-2">
           Adjust the drivers
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {SCENARIO_LEVERS.map((lever) => {
             const engaged = lever.key in leverValues;
             const value = leverValues[lever.key] ?? lever.neutral;
@@ -54,9 +62,9 @@ export function AdjustmentEditor() {
                 data-testid={`lever-${lever.key}`}
                 data-engaged={showActive ? "true" : "false"}
                 className={cn(
-                  "rounded-lg border px-3 py-2.5 transition-colors",
+                  "rounded-md border px-3 py-2.5 transition-colors duration-micro",
                   showActive
-                    ? "border-[hsl(173,57%,55%)]/40 bg-[hsl(173,57%,55%)]/[0.04]"
+                    ? "border-brand/40 bg-brand-tint/40"
                     : "border-rule bg-surface",
                 )}
               >
@@ -66,13 +74,13 @@ export function AdjustmentEditor() {
                     <span
                       data-testid={`lever-value-${lever.key}`}
                       className={cn(
-                        "text-[12px] tabular-nums font-semibold px-1.5 py-0.5 rounded",
+                        "text-[12px] font-medium px-1.5 py-0.5 rounded-sm",
                         showActive
-                          ? "text-[hsl(173,57%,42%)] dark:text-[hsl(173,57%,60%)] bg-[hsl(173,57%,55%)]/10"
+                          ? "text-brand-dark dark:text-brand-light bg-brand-tint"
                           : "text-ink-mute",
                       )}
                     >
-                      {valueLabel(lever, value)}
+                      <LeverValue lever={lever} v={value} />
                     </span>
                     {engaged && (
                       <button
@@ -80,7 +88,7 @@ export function AdjustmentEditor() {
                         onClick={() => removeLever(lever.key)}
                         aria-label={`Remove ${lever.label}`}
                         data-testid={`lever-remove-${lever.key}`}
-                        className="text-ink-mute hover:text-ink min-w-[32px] min-h-[32px] grid place-items-center rounded hover:bg-bg-2"
+                        className="text-ink-mute hover:text-ink min-w-[32px] min-h-[32px] grid place-items-center rounded-sm hover:bg-bg-2"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -96,7 +104,7 @@ export function AdjustmentEditor() {
                   onChange={(e) => setLever(lever.key, Number(e.target.value))}
                   data-testid={`lever-slider-${lever.key}`}
                   aria-label={lever.label}
-                  className="w-full mt-2 accent-[hsl(173,57%,45%)] cursor-pointer touch-none"
+                  className="w-full mt-2 accent-brand cursor-pointer touch-none"
                 />
                 <div className="text-[10.5px] text-ink-mute leading-snug mt-1">
                   {lever.hint}
