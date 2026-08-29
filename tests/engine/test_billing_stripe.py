@@ -215,6 +215,9 @@ class FakeStripe:
         self.schedules: Dict[str, SObj] = {}
         # idempotency_key → {"params": ..., "record": ...}
         self.usage_records: Dict[str, Dict[str, Any]] = {}
+        # identifier -> params (Billing Meters era: meter-backed prices
+        # reject classic usage_records; events are the write path).
+        self.meter_events: Dict[str, Dict[str, Any]] = {}
         self.usage_total = 0
         self.upcoming_invoice: Optional[SObj] = None
         self._seq = itertools.count(1)
@@ -397,6 +400,27 @@ class FakeStripe:
         self.checkout.Session = _CheckoutSession
         self.billing_portal = _NS()
         self.billing_portal.Session = _PortalSession
+
+        class _MeterEvent:
+            @staticmethod
+            def create(**kw: Any) -> SObj:
+                _rec("billing.MeterEvent.create", kw)
+                ident = kw.get("identifier")
+                if ident is not None and ident in fs.meter_events:
+                    # Real Stripe rejects a duplicate identifier within
+                    # the dedup window — the caller must treat it as an
+                    # idempotent replay, never a failure.
+                    raise FakeStripeError(
+                        "An event already exists with identifier '%s'"
+                        % ident)
+                if ident is not None:
+                    fs.meter_events[ident] = {"params": kw}
+                return sobj({"object": "billing.meter_event",
+                             "identifier": ident,
+                             "event_name": kw.get("event_name")})
+
+        self.billing = _NS()
+        self.billing.MeterEvent = _MeterEvent
 
     # test helpers ----------------------------------------------------
 
@@ -1940,3 +1964,81 @@ def test_transport_customer_create_retrieve_roundtrip(transport_env):
     assert cust["id"].startswith("cus_")
     got = mod.Customer.retrieve(cust["id"])
     assert got["id"].startswith("cus_")
+
+
+# ── Billing Meters era (2025-03-31.basil+) ─────────────────────────────
+# The live account's metered prices are meter-backed; classic
+# create_usage_record is REJECTED for them. The write path must emit a
+# billing.MeterEvent (identifier = the idempotency), while classic
+# prices keep the legacy call so pre-rotation subs bill unchanged.
+
+def _seed_meter_backed_sub(fake_admin, fake_stripe):
+    fake_admin.seed("subscriptions", {
+        "user_id": USER_ID, "tier": "multi", "status": "active",
+        "stripe_customer_id": "cus_MeterCust001",
+        "stripe_subscription_id": "sub_MeterSub001",
+    })
+    items = [{
+        "id": "si_MeterBase001", "object": "subscription_item",
+        "subscription": "sub_MeterSub001", "quantity": 1,
+        "price": {"id": "price_multi_test", "object": "price",
+                  "currency": "eur", "unit_amount": 1699,
+                  "recurring": {"interval": "month",
+                                "usage_type": "licensed"}},
+    }, {
+        "id": "si_MeterExtraDoc001", "object": "subscription_item",
+        "subscription": "sub_MeterSub001", "quantity": 1,
+        "price": {"id": "price_multi_extra_test", "object": "price",
+                  "currency": "eur", "unit_amount": 99,
+                  "recurring": {"interval": "month",
+                                "usage_type": "metered",
+                                "meter": "mtr_extra_doc_test"}},
+    }, {
+        "id": "si_MeterNonRo001", "object": "subscription_item",
+        "subscription": "sub_MeterSub001", "quantity": 1,
+        "price": {"id": "price_multi_extra_nonro_test", "object": "price",
+                  "currency": "eur", "unit_amount": 149,
+                  "recurring": {"interval": "month",
+                                "usage_type": "metered",
+                                "meter": "mtr_extra_nonro_test"}},
+    }]
+    fake_stripe.subscriptions["sub_MeterSub001"] = SObj({
+        "id": "sub_MeterSub001", "object": "subscription",
+        "customer": "cus_MeterCust001", "status": "active",
+        "items": {"object": "list", "data": items},
+    })
+
+
+def test_meter_backed_extra_doc_emits_meter_event(fake_admin, fake_stripe,
+                                                  billing_env):
+    _seed_meter_backed_sub(fake_admin, fake_stripe)
+    out = _billing.record_metered_extra_doc(USER_ID, "res-mb1")
+    assert out["ok"] is True and out["billed"] is True, out
+    assert fake_stripe.calls_for("SubscriptionItem.create_usage_record") == []
+    kw = fake_stripe.calls_for("billing.MeterEvent.create")[0]
+    assert kw["event_name"] == "extra_doc"
+    assert kw["identifier"] == "extra_doc:res-mb1"
+    assert kw["payload"] == {"stripe_customer_id": "cus_MeterCust001",
+                             "value": "1"}
+
+
+def test_meter_backed_nonro_uses_its_own_event_name(fake_admin, fake_stripe,
+                                                    billing_env):
+    _seed_meter_backed_sub(fake_admin, fake_stripe)
+    out = _billing.record_metered_extra_doc(USER_ID, "res-mb2",
+                                            kind="extra_nonro")
+    assert out["ok"] is True and out["billed"] is True, out
+    kw = fake_stripe.calls_for("billing.MeterEvent.create")[0]
+    assert kw["event_name"] == "extra_nonro"
+    assert kw["identifier"] == "extra_nonro:res-mb2"
+
+
+def test_meter_event_duplicate_identifier_is_idempotent(fake_admin,
+                                                        fake_stripe,
+                                                        billing_env):
+    _seed_meter_backed_sub(fake_admin, fake_stripe)
+    out1 = _billing.record_metered_extra_doc(USER_ID, "res-mb3")
+    out2 = _billing.record_metered_extra_doc(USER_ID, "res-mb3")
+    assert out1["ok"] is True and out1["billed"] is True
+    assert out2["ok"] is True and out2["billed"] is True, out2
+    assert len(fake_stripe.meter_events) == 1

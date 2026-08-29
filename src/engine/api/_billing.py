@@ -618,6 +618,59 @@ def record_metered_extra_doc(user_id: str, reservation_id: str, *,
     # Record the usage. The idempotency key is the reservation_id so
     # any retry of this function for the same reservation is a no-op.
     item_id = metered_item.get("id") if hasattr(metered_item, "get") else metered_item["id"]
+
+    # BILLING METERS FORK (2026-08-29). Accounts on Stripe API
+    # 2025-03-31.basil+ back metered prices with Meters, and classic
+    # create_usage_record is REJECTED for them — the write path is a
+    # billing.MeterEvent keyed by customer. The provisioner
+    # (scripts era: /root/stripe_provision.py on the VPS) creates one
+    # meter per DIMENSION with event_name == our `kind` ("extra_doc" /
+    # "extra_nonro"), which is the contract this branch relies on. The
+    # event `identifier` replaces the idempotency key: Stripe rejects a
+    # duplicate within the dedup window, which we treat as a safe
+    # replay. Classic (pre-rotation) items keep the legacy call below
+    # so existing subscribers bill exactly as before.
+    _item_price = (metered_item.get("price") if hasattr(metered_item, "get")
+                   else metered_item["price"]) or {}
+    _meter_id = ((_item_price.get("recurring") or {}) if hasattr(_item_price, "get")
+                 else {}).get("meter")
+    if _meter_id:
+        customer_id = (sub_row.get("stripe_customer_id")
+                       or (sub.get("customer") if isinstance(sub, dict)
+                           else getattr(sub, "customer", None)))
+        if not customer_id:
+            logger.error("[billing] meter event needs a customer id; none on "
+                         "sub row or subscription %s", sub_id)
+            return {"ok": False, "billed": False,
+                    "error": "meter_event_no_customer"}
+        identifier = f"{kind}:{reservation_id}"
+        try:
+            event = stripe_client.billing.MeterEvent.create(
+                event_name=kind,
+                identifier=identifier,
+                payload={"stripe_customer_id": customer_id, "value": "1"},
+            )
+        except Exception as exc:  # noqa: BLE001
+            msg = str(exc)
+            if "identifier" in msg and ("already exists" in msg
+                                        or "duplicate" in msg.lower()):
+                logger.info("[billing] meter event already recorded for "
+                            "reservation %s — safe no-op", reservation_id)
+                return {"ok": True, "billed": True, "amount_eur": None,
+                        "reason": "idempotent_replay"}
+            logger.exception("[billing] MeterEvent.create failed for sub %s",
+                             sub_id)
+            return {"ok": False, "billed": False,
+                    "error": "meter_event_failed", "detail": msg[:160]}
+        logger.info("[billing] recorded meter event kind=%s user=%s sub=%s "
+                    "reservation=%s", kind, user_id, sub_id, reservation_id)
+        return {
+            "ok": True,
+            "billed": True,
+            "meter_event_identifier": identifier,
+            "subscription_item_id": item_id,
+        }
+
     try:
         usage_record = stripe_client.SubscriptionItem.create_usage_record(
             item_id,
