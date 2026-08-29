@@ -91,6 +91,9 @@ const METRIC_ORDER = ["count", "mktcap", "revenue", "growth", "margin"] as const
 // endpoints are pinned here — to the Paper accent (verified green-teal),
 // replacing the retired bright teal.
 const EMPTY_FILL = "hsl(var(--bg-2))";
+// Listings exist but the active metric has no figure — a distinct
+// honest state between "no companies" and the value ramp.
+const LISTED_NO_DATA_FILL = "hsl(var(--surface-hi))";
 const rampAt = (t: number): string => {
   // E7F5F2 → 0E7C6B (brand ramp, light stop → accent)
   const a = [0xe7, 0xf5, 0xf2];
@@ -109,7 +112,12 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
   const [counties, setCounties] = useState<CountyFeature[] | null>(null);
   const [neighbours, setNeighbours] = useState<Feature<Geometry>[]>([]);
   const [geoError, setGeoError] = useState(false);
-  const [active, setActive] = useState<string[]>(["mktcap"]);
+  // ONE metric at a time (radio). The old multi-chip "composite score"
+  // averaged normalized metrics into an opaque 0-100 — and scored a
+  // county with NO data 0.5, ranking it above real below-median values.
+  // Default is Companies: the only metric complete for every county, so
+  // the first paint never shows a wall of dashes.
+  const [metric, setMetric] = useState<string>("count");
   const [selected, setSelected] = useState<string | null>(null);
   const [tip, setTip] = useState<{ x: number; y: number; html: string } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -176,29 +184,35 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
     [rows],
   );
 
-  // ── Scores (composite over active metrics, normalized 0..1) ──
-  const scores = useMemo(() => {
-    const keys = active.length ? active : ["mktcap"];
-    const covered = [...byCounty.keys()];
-    const per = keys.map((k) => {
-      const m = METRICS[k];
-      const vals = new Map<string, number | null>();
-      covered.forEach((cc) => vals.set(cc, m.agg(byCounty.get(cc)!)));
-      const nums = [...vals.values()].filter((v): v is number => v != null);
-      const lo = Math.min(...nums), hi = Math.max(...nums);
-      const out = new Map<string, number>();
-      covered.forEach((cc) => {
-        const v = vals.get(cc);
-        let n = v == null ? 0.5 : hi === lo ? 0.5 : (v - lo) / (hi - lo);
-        if (!m.higher) n = 1 - n;
-        out.set(cc, n);
-      });
-      return out;
-    });
-    const out = new Map<string, number>();
-    covered.forEach((cc) => out.set(cc, mean(per.map((p) => p.get(cc))) ?? 0.5));
+  // ── The active metric's VALUE per county (no normalization games) ──
+  const countyValues = useMemo(() => {
+    const m = METRICS[metric];
+    const out = new Map<string, number | null>();
+    for (const [cc, cos] of byCounty) out.set(cc, m.agg(cos));
     return out;
-  }, [active, byCounty]);
+  }, [metric, byCounty]);
+
+  const reportingCount = useMemo(
+    () => [...countyValues.values()].filter((v) => v != null).length,
+    [countyValues],
+  );
+
+  // Normalized 0..1 among VALUE-BEARING counties only — drives fill and
+  // the row bars. A county without data is simply not on this scale.
+  const valueFraction = useCallback(
+    (cc: string): number | null => {
+      const v = countyValues.get(cc);
+      if (v == null) return null;
+      const nums = [...countyValues.values()].filter(
+        (x): x is number => x != null,
+      );
+      const lo = Math.min(...nums), hi = Math.max(...nums);
+      if (hi === lo) return 1;
+      const n = (v - lo) / (hi - lo);
+      return METRICS[metric].higher ? n : 1 - n;
+    },
+    [countyValues, metric],
+  );
 
   // ── Projection / paths ──
   const { pathFor, transform } = useMemo(() => {
@@ -225,44 +239,53 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
     return { pathFor: p, transform: t };
   }, [counties, size, selected]);
 
-  // ── Fill color: company count toward brand teal ──
+  // ── Fill color: the ACTIVE metric drives the choropleth. The old map
+  // always colored by company count, so switching "Score by" recolored
+  // nothing — the control looked broken. A county with listings but no
+  // figure for this metric gets its own honest state (never the ramp,
+  // never the empty fill).
   const fillFor = useCallback(
     (ckey: string): string => {
       const cos = byCounty.get(ckey);
       if (!cos?.length) return EMPTY_FILL;
-      const maxC = Math.max(1, ...[...byCounty.values()].map((v) => v.length));
-      return rampAt(0.22 + 0.78 * (cos.length / maxC));
+      const t = valueFraction(ckey);
+      if (t == null) return LISTED_NO_DATA_FILL;
+      return rampAt(0.22 + 0.78 * t);
     },
-    [byCounty],
+    [byCounty, valueFraction],
   );
 
   const showTipFor = useCallback(
     (f: CountyFeature, e: React.MouseEvent) => {
       const cos = byCounty.get(f.ckey) ?? [];
-      const keys = active.length ? active : ["mktcap"];
+      const m = METRICS[metric];
       const lines = cos.length
-        ? keys
-            .map((k) => `<span class="opacity-60">${METRICS[k].label}</span> ${METRICS[k].fmt(METRICS[k].agg(cos))}`)
-            .join("<br>")
+        ? `<span class="opacity-60">${m.label}</span> ${m.fmt(m.agg(cos))}`
         : `<span class="opacity-60">No listed companies</span>`;
       const count = cos.length
         ? `<span class="opacity-60">${cos.length} listed compan${cos.length > 1 ? "ies" : "y"}</span><br>`
         : "";
       setTip({ x: e.clientX, y: e.clientY, html: `<b>${f.display}</b><br>${count}${lines}` });
     },
-    [byCounty, active],
+    [byCounty, metric],
   );
 
-  const toggleMetric = (k: string) =>
-    setActive((cur) =>
-      cur.includes(k) ? (cur.length > 1 ? cur.filter((x) => x !== k) : cur) : [...cur, k],
-    );
-
-  // ── Panel data ──
-  const covered = useMemo(
-    () => [...byCounty.keys()].sort((a, b) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0)),
-    [byCounty, scores],
-  );
+  // ── Panel data ── value-bearing counties by value, then the no-data
+  // tail by listing count. The two groups never interleave: a county
+  // with no figure must not outrank one with a real below-median figure
+  // (the old null->0.5 normalization did exactly that — "Botoșani, —"
+  // above a county with an actual number, under a "Ranked by Market
+  // cap" heading).
+  const covered = useMemo(() => {
+    const m = METRICS[metric];
+    return [...byCounty.keys()].sort((a, b) => {
+      const va = countyValues.get(a), vb = countyValues.get(b);
+      if (va != null && vb != null) return m.higher ? vb - va : va - vb;
+      if (va != null) return -1;
+      if (vb != null) return 1;
+      return byCounty.get(b)!.length - byCounty.get(a)!.length;
+    });
+  }, [byCounty, countyValues, metric]);
   const displayOf = useCallback(
     (ckey: string) =>
       counties?.find((c) => c.ckey === ckey)?.display ??
@@ -280,7 +303,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
   }
 
   const selCos = selected ? byCounty.get(selected) ?? [] : [];
-  const detailKey = active.find((k) => METRICS[k].co) ?? "mktcap";
+  const detailKey = METRICS[metric].co ? metric : "mktcap";
   const detailMetric = METRICS[detailKey];
   const sortedSel = [...selCos].sort(
     (a, b) => (detailMetric.co?.(b) ?? -1e18) - (detailMetric.co?.(a) ?? -1e18),
@@ -295,12 +318,14 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
             Score by
           </span>
           {METRIC_ORDER.map((k) => {
-            const on = active.includes(k);
+            const on = metric === k;
             return (
               <button
                 key={k}
                 type="button"
-                onClick={() => toggleMetric(k)}
+                role="radio"
+                aria-checked={on}
+                onClick={() => setMetric(k)}
                 className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12.5px] font-medium transition-colors ${
                   on
                     ? "bg-brand border-brand text-paper font-semibold"
@@ -308,7 +333,6 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                 }`}
               >
                 {METRICS[k].label}
-                {on && <span aria-hidden>✕</span>}
               </button>
             );
           })}
@@ -320,14 +344,20 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
               style={{ background: `linear-gradient(90deg,${rampAt(0.22)},${rampAt(0.6)},${rampAt(1)})` }}
             />
             <div className="flex justify-between text-[10.5px] text-ink-mute">
-              <span>Fewer</span>
-              <span>Companies</span>
-              <span>More</span>
+              <span>Lower</span>
+              <span>{METRICS[metric].label}</span>
+              <span>Higher</span>
             </div>
           </div>
+          {reportingCount < covered.length && (
+            <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+              <i className="inline-block w-[13px] h-[13px] rounded-[3px] border" style={{ background: LISTED_NO_DATA_FILL, borderColor: "hsl(var(--rule))" }} />
+              Listed · no data
+            </div>
+          )}
           <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
             <i className="inline-block w-[13px] h-[13px] rounded-[3px] border" style={{ background: EMPTY_FILL, borderColor: "hsl(var(--rule))" }} />
-            No coverage
+            No listings
           </div>
         </div>
       </div>
@@ -354,7 +384,7 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                 style={{
                   transform: transform || undefined,
                   transformOrigin: "0 0",
-                  transition: "transform .8s cubic-bezier(.22,1,.32,1)",
+                  transition: "transform var(--dur-3, 320ms) var(--ease-quint)",
                 }}
               >
                 {pathFor &&
@@ -410,17 +440,22 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                   Romania · {counties?.length ?? "—"} județe · {covered.length} with listings
                 </div>
                 <div className="text-[15px] font-semibold mt-0.5 text-ink">
-                  Ranked by {active.length > 1 ? "composite score" : METRICS[active[0]].label}
+                  Ranked by {METRICS[metric].label}
                 </div>
+                {reportingCount < covered.length && (
+                  <div className="text-[11px] text-ink-mute mt-0.5">
+                    {reportingCount} of {covered.length} counties report{" "}
+                    {METRICS[metric].label.toLowerCase()} · the rest rank by
+                    listings
+                  </div>
+                )}
               </div>
               <div className="overflow-y-auto flex-1 px-2.5 py-1.5">
                 {covered.map((cc) => {
                   const cos = byCounty.get(cc)!;
-                  const s = Math.round((scores.get(cc) ?? 0) * 100);
-                  const primary =
-                    active.length > 1
-                      ? `Score ${s}`
-                      : METRICS[active[0]].fmt(METRICS[active[0]].agg(cos));
+                  const frac = valueFraction(cc);
+                  const s = frac == null ? 0 : Math.round(frac * 100);
+                  const primary = METRICS[metric].fmt(countyValues.get(cc) ?? null);
                   return (
                     <button
                       key={cc}
@@ -437,7 +472,10 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                           {cos.length} listed compan{cos.length > 1 ? "ies" : "y"}
                         </span>
                         <span className="block h-1.5 rounded bg-bg-2 mt-1.5 overflow-hidden">
-                          <span className="block h-full bg-brand rounded" style={{ width: `${Math.max(6, s)}%` }} />
+                            <span
+                            className={`block h-full rounded ${frac == null ? "bg-ink-faint/40" : "bg-brand"}`}
+                            style={{ width: `${frac == null ? 4 : Math.max(6, s)}%` }}
+                          />
                         </span>
                       </span>
                       <span className="tabular-nums font-semibold text-[13px] text-ink text-right">{primary}</span>
@@ -473,15 +511,16 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
                   </div>
                   <div className="ml-auto text-right">
                     <div className="font-mono text-[22px] font-medium tabular-nums leading-none text-brand-dark">
-                      {Math.round((scores.get(selected) ?? 0) * 100)}
+                      {METRICS[metric].fmt(countyValues.get(selected) ?? null)}
                     </div>
                     <div className="text-[9.5px] uppercase tracking-[0.08em] text-ink-mute">
-                      {active.length > 1 ? "Composite" : METRICS[active[0]].label}
+                      {METRICS[metric].label}
+                      {METRICS[metric].unit ? ` · ${METRICS[metric].unit}` : ""}
                     </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-px bg-rule-soft border border-rule-soft rounded-[10px] overflow-hidden mt-3">
-                  {(active.length ? active : ["mktcap"]).map((k) => (
+                  {METRIC_ORDER.filter((k) => k !== "count").map((k) => (
                     <div key={k} className="bg-surface px-2.5 py-2">
                       <div className="text-[10px] uppercase tracking-[0.04em] text-ink-mute">
                         {METRICS[k].label}
