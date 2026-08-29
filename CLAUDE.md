@@ -1252,6 +1252,107 @@ currency + account there.
 
 ---
 
+## 21. Public-data acquisition engine — RO company storefront (2026-08-29)
+
+Every Romanian **legal entity** (by CUI) gets a cached, fast, shareable
+page built ONLY from open published filing data (data.gov.ro CKAN
+"situatii financiare"). It is the acquisition funnel into the paid
+product. It is **summary-level** and must never masquerade as a full
+trial-balance analysis.
+
+**Code:** `src/engine/public_ro/` (store, ingest, ckan, identification,
+compliance, funnel, seo, takedown, teardown, ratelimit, snapshot, specs,
+anaf_client + `pages/`), `src/engine/serving/public_summary.py`, operator
+CLIs `scripts/public_{ingest,seo,funnel}.py`, gates
+`scripts/check_public_{sitemaps,e2e}.py`.
+
+### Invariants (PS1–PS8)
+
+| | Invariant |
+|---|---|
+| PS1 | Summary facts REFUSE rather than approximate. `LockedRatio` is a typed refusal. ABSENT ≠ ZERO. |
+| PS2 | **No AI in any numeric path.** The package has zero anthropic imports; the advisory hook leaves a `public_summary` envelope byte-identical and never constructs a client. Works fully with credits ABSENT. |
+| PS3 | Byte-identical renders (HTML + OG PNG). No clocks, no `hash()`. |
+| PS4 | Public and paid funnel cohorts stay strictly separated. |
+| PS5 | Locked ratio cards leak no numeric value. |
+| PS6 | No sitemap ever lists a noindex / thin / removed / redirecting URL. |
+| PS7 | PFA/II/IF (natural-person forms) excluded — at ingestion AND at serve. |
+| PS8 | A takedown is honored everywhere, immediately. |
+
+### Operator runbook — go-live
+
+Nothing is public until these run. The engine is deployed and serving at
+`/api/public/ro/*`, but with **zero companies ingested** and **no clean
+paths routed**, so nothing is indexable today. That is deliberate:
+publishing pages about real named companies is a human act.
+
+```
+# 1. Ingest a year (77 MB; data.gov.ro ignores Range headers)
+docker exec cfo-ai-backend python3 /app/scripts/public_ingest.py \
+    discover --year 2024 --family UU
+docker exec cfo-ai-backend python3 /app/scripts/public_ingest.py \
+    ingest --year 2024 --family UU --license-id cc-by-4.0
+# 2. Identification join — WITHOUT THIS, publishable stays 0 for every
+#    CUI (PS7 fails closed) and no page renders.
+docker exec cfo-ai-backend python3 /app/scripts/public_ingest.py \
+    ident --path /app/data/<identification-snapshot> --label snap-2026
+# 3. Sector percentiles, then sitemaps, then the PS6 gate
+docker exec cfo-ai-backend python3 /app/scripts/public_ingest.py percentiles --year 2024
+docker exec cfo-ai-backend python3 /app/scripts/public_seo.py sitemaps
+docker exec cfo-ai-backend python3 /app/scripts/public_seo.py verify
+```
+
+**4. Clean-path routing (the last step, and the one that makes it
+indexable).** The public ingress is `scandia-caddy`
+(`/opt/scandia/Caddyfile`) — NOT the `nginx.conf` in this repo, which
+only serves SPA static files. Without a matcher, `/companii` falls
+through to the SPA and every crawler gets `index.html` — a soft-404 on
+every company page. A validated one-line-block change is staged at
+`/tmp/Caddyfile.proposed` on the VPS (`caddy validate` → "Valid
+configuration"); it extends the existing `@api` matcher with
+`/companii*, /companies*, /sector/*, /sectors/*, /judet/*, /counties/*,
+/sitemap.xml, /sitemaps/*, /og/*`. **That file fronts the whole VPS
+including the scandia stack — validate before reloading, always.**
+
+**5.** Rebuild the frontend last: `public/robots.txt` gained a
+`Sitemap: https://cfo-ai.io/sitemap.xml` line, which must not go live
+before step 3 or it advertises a 404. (Vite copies `public/` into
+`dist`, which GitHub Pages also publishes — hence the absolute URL, so
+the Pages copy never advertises a sitemap on its own origin.)
+
+### Traps worth knowing
+
+- **`FakeStore` doubles hid two total outages** behind 244 green tests
+  and a 19-gate battery: every hub page 500'd (positional call against a
+  keyword-only store method) and every funnel event was dropped (store
+  creates `funnel_events` without `day`; funnel indexed `day`, raised,
+  swallowed, still answered 204). `scripts/check_public_e2e.py` (battery
+  gate `public-e2e`) exists to make that class impossible — it fakes
+  nothing. **Do not add a mirror store to test this subsystem.**
+- **`TestClient` defaults `follow_redirects=True`**, which silently
+  disabled the PS6 gate's entire "sitemap lists a 301" check — it read
+  the redirect target's status. Always pass `follow_redirects=False`
+  when the URL itself is under test.
+- **The real spec labels are not the idealized ones.** data.gov.ro writes
+  `ACTIVE CIRCULANTE - TOTAL, din care:` without diacritics; every
+  hand-written fixture used the bare form, so the spine refused every
+  real file. The real spec is committed byte-for-byte at
+  `tests/engine/fixtures/public_ro/spec_2024_uu_REAL_data_gov_ro.csv`.
+- **One slug authority:** `pages.slug.canonical_slug`. The sitemap used
+  to build its own, so every long-named company was advertised at a
+  permanently 301-ing URL.
+- **The page cache key digests whole rows**, not picked columns — a
+  denylist (`updated_at`, `provenance`), never an allowlist. A new column
+  costs a cache miss; a forgotten one serves a wrong fact.
+- **`_client_ip` takes the RIGHTMOST `X-Forwarded-For` hop.** Caddy
+  appends, so index 0 is attacker-written. Correct for exactly one
+  trusted hop, which is what runs today (`via: 1.1 Caddy`, DNS straight
+  at the VPS). A CDN in front would invert it.
+- Container has no `curl` or `ps`; only `/app/data` is a mounted volume,
+  so anything staged elsewhere is wiped by a rebuild.
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*
