@@ -88,6 +88,18 @@ def _to_path(url: str, base: str) -> str:
 _REDIRECT_STATUSES = (301, 302, 303, 307, 308)
 
 
+#: Self-throttle between probes. The 2026-08-29 go-live run fired the
+#: gate's ~300 sampled requests as one same-IP burst at the LIVE host
+#: and collected 292 HTTP 429s from our own token-bucket rate limiter —
+#: every "violation" was the abuse shield working as designed. The gate
+#: paces itself and treats 429 as retryable-with-backoff instead of
+#: weakening the shield (a gate exemption in the limiter would be a
+#: spoofable bypass). A URL that still 429s after the retries is a real
+#: availability problem and stays a violation.
+_PROBE_PACE_S = 0.25
+_429_RETRIES = (2.0, 5.0, 11.0)
+
+
 def _get(client: Any, path: str, headers: Dict[str, str]) -> Any:
     """THE probe. Reads the sitemapped URL itself, never its target.
 
@@ -97,11 +109,26 @@ def _get(client: Any, path: str, headers: Dict[str, str]) -> Any:
     a redirecting URL" violation class was undetectable. Clients that
     cannot take the kwarg (the documented ``.get(path, headers=...)``
     contract) fall back and are expected not to redirect on their own.
+
+    Paced (see _PROBE_PACE_S) and 429-tolerant: rate-limit answers back
+    off and retry before counting as a violation.
     """
-    try:
-        return client.get(path, headers=headers, follow_redirects=False)
-    except TypeError:
-        return client.get(path, headers=headers)
+    import time as _time
+
+    def _once() -> Any:
+        try:
+            return client.get(path, headers=headers, follow_redirects=False)
+        except TypeError:
+            return client.get(path, headers=headers)
+
+    _time.sleep(_PROBE_PACE_S)
+    resp = _once()
+    for delay in _429_RETRIES:
+        if getattr(resp, "status_code", None) != 429:
+            break
+        _time.sleep(delay)
+        resp = _once()
+    return resp
 
 
 def _is_noindex(resp: Any) -> bool:
