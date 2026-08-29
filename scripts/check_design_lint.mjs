@@ -115,6 +115,7 @@ const SHADOW_ALLOWED = new Set([
   "frontend/components/cfo/chat/CFOMessageList.tsx", // floating sticky search-match pill over the scroller
   "frontend/components/cfo/industry/IndustryPicker.tsx", // fixed right slide-over sheet (z-50 overlay)
   "frontend/components/comparison/LastYearSourcePicker.tsx", // absolute dropdown menu (z-40)
+  "frontend/components/instrument/ExplainDrawer.tsx", // floating rounded Sheet drawer (Command-Center shell)
   "frontend/components/learning/MetricGlossaryDrawer.tsx", // floating rounded Sheet drawer (Command-Center shell)
   "frontend/components/public-companies/GeographicMapPanel.tsx", // fixed cursor-follow map tooltip (z-50)
   "frontend/components/public-companies/StockDetailDrawer.tsx", // floating rounded Sheet drawer (Command-Center shell)

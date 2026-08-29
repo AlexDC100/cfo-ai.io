@@ -32,6 +32,11 @@ const LABEL = arg("label", "adhoc");
 const BASE = arg("base", "http://localhost:5173");
 const THEME = arg("theme", "current"); // current | light | dark | both
 const ONLY = arg("routes", null);
+// THE DIAL — pin the view mode (simple | pro | both | current) BEFORE first
+// paint via addInitScript, so mode-gated surfaces (story overview, statement
+// disclosure) are what actually gets captured. "current" leaves the app's
+// own default resolution untouched.
+const MODE = arg("mode", "current");
 
 const ROUTES = ONLY
   ? ONLY.split(",")
@@ -62,8 +67,10 @@ function slug(route) {
 }
 
 const themes = THEME === "both" ? ["light", "dark"] : [THEME];
+const modes = MODE === "both" ? ["simple", "pro"] : [MODE];
 
 const browser = await chromium.launch();
+for (const mode of modes) {
 for (const theme of themes) {
   for (const vp of VIEWPORTS) {
     const ctx = await browser.newContext({
@@ -71,6 +78,14 @@ for (const theme of themes) {
       deviceScaleFactor: 1,
       colorScheme: theme === "dark" ? "dark" : "light",
     });
+    if (mode !== "current") {
+      // Persisted-key pin (lib/viewMode.ts) before any app code runs.
+      await ctx.addInitScript((m) => {
+        try {
+          localStorage.setItem("cfo-view-mode-v1", m);
+        } catch {}
+      }, mode);
+    }
     const page = await ctx.newPage();
     for (const route of ROUTES) {
       try {
@@ -97,12 +112,15 @@ for (const theme of themes) {
         if (await d.isVisible({ timeout: 800 })) await d.click();
       } catch {}
       await page.waitForTimeout(600);
-      const name = `${slug(route)}--${vp.name}${THEME === "both" ? "--" + theme : ""}.png`;
+      const name = `${slug(route)}--${vp.name}${THEME === "both" ? "--" + theme : ""}${
+        MODE === "both" || (MODE !== "current" && MODE !== "") ? "--" + mode : ""
+      }.png`;
       await page.screenshot({ path: join(outDir, name), fullPage: vp.name !== "mobile-390" });
       process.stdout.write(`shot ${name}\n`);
     }
     await ctx.close();
   }
+}
 }
 await browser.close();
 console.log(`\nDONE -> ${outDir}`);

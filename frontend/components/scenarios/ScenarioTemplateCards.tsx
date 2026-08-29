@@ -18,8 +18,12 @@ import {
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { useIsSimple } from "@/lib/viewMode";
 import type { ReactNode } from "react";
+// ── DIAL lane (mode-aware entry points) — Simple-mode strings ──────────
+import "./modeI18n";
 
 const TEMPLATE_ICONS: Record<string, LucideIcon> = {
   recession: TrendingDown,
@@ -30,6 +34,16 @@ const TEMPLATE_ICONS: Record<string, LucideIcon> = {
 
 export function ScenarioTemplateCards({ headerRight }: { headerRight?: ReactNode }) {
   const { activeTemplateKey, isDirty, applyTemplate, reset } = useScenario();
+
+  // ── DIAL lane (mode-aware entry points) — Simple mode leads with the
+  // QUESTION the template answers ("What if sales drop 20%?"), keeping
+  // the Pro label as the subtitle. PRESENTATION ONLY: same templates,
+  // same applyTemplate seeds, same active state — only labels change.
+  // Pro mode renders exactly the pre-modes card. An unknown template key
+  // has no question string and falls back to its Pro rendering.
+  const isSimple = useIsSimple();
+  const { t, i18n } = useTranslation();
+  const isRo = (i18n.resolvedLanguage ?? i18n.language ?? "").startsWith("ro");
 
   return (
     <div data-testid="scenario-templates">
@@ -59,6 +73,11 @@ export function ScenarioTemplateCards({ headerRight }: { headerRight?: ReactNode
         {SCENARIO_TEMPLATES.map((tpl) => {
           const Icon = TEMPLATE_ICONS[tpl.key] ?? TrendingDown;
           const isActive = activeTemplateKey === tpl.key;
+          // DIAL lane — Simple question lead (empty string → Pro fallback).
+          const question = isSimple
+            ? t(`scenModes.templates.${tpl.key}`, { defaultValue: "" })
+            : "";
+          const proName = isRo ? (tpl.nameRo ?? tpl.name) : tpl.name;
           return (
             <button
               key={tpl.key}
@@ -75,15 +94,28 @@ export function ScenarioTemplateCards({ headerRight }: { headerRight?: ReactNode
                   : "border-rule border-l-[3px] border-l-transparent bg-surface hover:bg-bg-2",
               )}
             >
-              <div className="flex items-center gap-2">
+              {/* DIAL lane — in Simple the title row reserves two question
+                  lines (sm+ multi-column only) so every card's Pro-label
+                  subtitle sits on the same baseline whether its question
+                  wraps or not. Pro keeps the original single-line row. */}
+              <div className={cn("flex items-center gap-2", question && "sm:min-h-[34px]")}>
                 <Icon
                   size={16}
                   strokeWidth={1.75}
                   className={cn("shrink-0", isActive ? "text-brand-dark dark:text-brand-light" : "text-ink-soft")}
                 />
-                <span className="text-[12.5px] font-medium text-ink leading-tight">{tpl.name}</span>
+                {/* Pro title stays byte-identical to the pre-modes card
+                    (tpl.name, EN) — only the Simple path localizes. */}
+                <span className="text-[12.5px] font-medium text-ink leading-tight">
+                  {question || tpl.name}
+                </span>
               </div>
-              <p className="mt-1.5 text-[11.5px] text-ink-soft leading-relaxed line-clamp-3">{tpl.description}</p>
+              {question ? (
+                // DIAL lane — Simple: the Pro label survives as the subtitle.
+                <p className="mt-1.5 text-[11.5px] text-ink-soft leading-relaxed">{proName}</p>
+              ) : (
+                <p className="mt-1.5 text-[11.5px] text-ink-soft leading-relaxed line-clamp-3">{tpl.description}</p>
+              )}
             </button>
           );
         })}

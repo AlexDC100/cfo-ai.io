@@ -48,10 +48,15 @@ export function PanelHeader({
   title,
   actions,
   className,
+  as: Heading = "h3",
 }: {
   title: ReactNode;
   actions?: ReactNode;
   className?: string;
+  /** Heading level — pass "h2" when the panel sits directly under the
+   *  page h1 so the document outline never skips a level (axe
+   *  heading-order). Purely semantic; the 13px caps look is fixed. */
+  as?: "h2" | "h3" | "h4";
 }) {
   return (
     <div
@@ -60,9 +65,9 @@ export function PanelHeader({
         className,
       )}
     >
-      <h3 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+      <Heading className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
         {title}
-      </h3>
+      </Heading>
       {actions ? <div className="flex items-center gap-1.5">{actions}</div> : null}
     </div>
   );

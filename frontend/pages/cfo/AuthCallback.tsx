@@ -111,13 +111,15 @@ export default function AuthCallback() {
         if (cancelled) return;
         // Recovery flow lands the user on a reset-password page; for now we
         // route to /login with a hint until that page ships. Everything else
-        // (signup confirm, magic link, email change) goes to the /workspace
-        // setup wizard so first-runners pick a name + industry before the
-        // dashboard.
+        // (signup confirm, magic link, email change) goes through /onboarding
+        // — THE DIAL's one-time role question. First-timers see it once;
+        // everyone else is forwarded straight to the /workspace setup wizard
+        // by the page's already-asked branch, so non-signup flows behave
+        // exactly as they did when this navigated to /workspace directly.
         if (flowType === "recovery") {
           navigate("/login?reset=1", { replace: true });
         } else {
-          navigate("/workspace", { replace: true });
+          navigate("/onboarding", { replace: true });
         }
       }, 700);
     };

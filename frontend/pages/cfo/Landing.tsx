@@ -34,6 +34,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { pickLanguageWithProfileSync, SUPPORTED_LANGUAGES } from "@/i18n";
+import { MARQUEE } from "@/lib/markets";
 import { landingStringsFor, type LandingStrings } from "./landingStrings";
 
 type Page = "home" | "pricing" | "contact" | "legal";
@@ -540,7 +541,29 @@ function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
   );
 }
 
-const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCycle = "monthly") => `
+// ── Global-positioning strip (directive 2026-08-29) ──────────────────────
+// One quiet line + the marquee market row, rendered under the hero mock.
+// The row comes STRAIGHT from lib/markets.ts MARQUEE so its order can never
+// drift from the canonical taxonomy (gate G4: US, DE, GB, FR, IT, ES, AE —
+// Hungary never appears in this row). No flags, no country singled out —
+// every name renders in the same quiet mono caps, and the line itself keeps
+// the ACCEPTANCE_LINE phrasing discipline (gate G3: "accepted" /
+// "machine-verified", never "supported / certified / guaranteed" beside a
+// global claim).
+const marqueeMarketRow = (langCode: string) => {
+  const lang: "en" | "ro" = langCode === "ro" ? "ro" : "en";
+  return MARQUEE
+    .map((m) => `<span style="white-space:nowrap">${m.displayName[lang]}</span>`)
+    .join(`<span aria-hidden="true" style="color:var(--rule-strong)">·</span>`);
+};
+
+const globalStrip = (L: LandingStrings, langCode: string) => `
+      <div style="margin-top:64px;width:100%;max-width:820px;border-top:1px solid var(--rule-soft);padding-top:26px">
+        <p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-soft)">${L.global.line}</p>
+        <div style="margin-top:16px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:14px;row-gap:8px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-mute)">${marqueeMarketRow(langCode)}</div>
+      </div>`;
+
+const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCycle = "monthly", langCode = "en") => `
 <main>
   <section style="position:relative;overflow:hidden;background:var(--bg-deep);min-height:100vh">
     <!-- Ticker layer capped at .55 — with the readability overlays above
@@ -583,6 +606,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
         </div>
       </div>
       <p style="margin-top:22px;font-size:11.5px;color:var(--ink-mute);max-width:520px">${L.hero.mockNote}</p>
+      ${globalStrip(L, langCode)}
     </div>
   </section>
 
@@ -1222,7 +1246,7 @@ export default function Landing() {
     const year = new Date().getFullYear();
     const main =
       page === "contact" ? contactMain(contactRef.current, contactStatus, L)
-      : page === "home" ? homeMain(L, account != null, billingCycle)
+      : page === "home" ? homeMain(L, account != null, billingCycle, langCode)
       : page === "pricing" ? pricingMain(L, billingCycle)
       : legalMain(L);
     return main

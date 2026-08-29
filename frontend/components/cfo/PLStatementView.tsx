@@ -8,10 +8,20 @@
 //
 // All visual conventions live in the .pl-* classes — see plStatementView.css.
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { PLStatement, PLSection, PLLine } from "@/lib/plStructure";
 import { formatPercent } from "@/lib/formatRon";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
+// THE DIAL — Simple mode opens statements totals-first: item rows hide
+// behind "Show all lines", labels with a glossary match get the <Term>
+// plain-language affordance. Pro renders exactly what exists today
+// (every branch below is gated on useIsSimple; values never change).
+import { useIsSimple } from "@/lib/viewMode";
+import { Term } from "@/components/instrument/Term";
+import { ShowAllLinesToggle } from "@/components/cfo/simple/ShowAllLines";
+import { SimpleTermLabel } from "@/components/cfo/simple/SimpleTermLabel";
+import { termForRow } from "@/components/cfo/simple/termForRow";
 import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
 import { useHighlightFromUrl } from "./useHighlightFromUrl";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -35,6 +45,13 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
   const { t } = useTranslation();
   const fmt = useAmountFormatter(statement.currency);
   const display = useDisplayCurrency();
+  // THE DIAL — Simple opens totals-first; "Show all lines" expands to the
+  // untouched full table. keyOnly hides only `style: "item"` rows —
+  // subtotal/total/boxed rows (the builder-marked headline rows) always
+  // render, so every figure that remains is one the builder computed.
+  const isSimple = useIsSimple();
+  const [showAll, setShowAll] = useState(false);
+  const keyOnly = isSimple && !showAll;
 
   const [operatingRevenue, operatingExpenses, depreciationSection, financialItems, closingSection] =
     statement.sections;
@@ -51,14 +68,23 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
         {!hideGuide && <GuideMeButton pageId="pnl" title="P&L" steps={PL_GUIDE} />}
       </div>
 
+      {/* THE DIAL — Simple-only disclosure toggle. Pro never renders it. */}
+      {isSimple && (
+        <ShowAllLinesToggle
+          open={showAll}
+          onToggle={() => setShowAll((v) => !v)}
+          testid="pl-show-all"
+        />
+      )}
+
       <div className="pl-body">
         {/* OPERATING REVENUE */}
         <div data-guide="pl-revenue">
-          <PLSectionView section={operatingRevenue} currency={statement.currency} />
+          <PLSectionView section={operatingRevenue} currency={statement.currency} keyOnly={keyOnly} />
         </div>
 
         {/* OPERATING EXPENSES */}
-        <PLSectionView section={operatingExpenses} currency={statement.currency} />
+        <PLSectionView section={operatingExpenses} currency={statement.currency} keyOnly={keyOnly} />
 
         {/* EBITDA — boxed off with double borders. */}
         <div
@@ -67,7 +93,9 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
           {...{ [TRACEABLE_TARGET_ATTR]: "ebitda" }}
         >
           <div className="pl-row pl-total">
-            <span className="pl-label">{t("statements.pl.ebitda")}</span>
+            <span className="pl-label">
+              <SimpleTermLabel termId="ebitda">{t("statements.pl.ebitda")}</SimpleTermLabel>
+            </span>
             <LearnableNumber conceptKey="ebitda" value={statement.ebitda} className="pl-amount" block>
               {fmt(statement.ebitda)}
             </LearnableNumber>
@@ -75,14 +103,14 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
         </div>
 
         {/* D&A → EBIT */}
-        <PLSectionView section={depreciationSection} currency={statement.currency} />
+        <PLSectionView section={depreciationSection} currency={statement.currency} keyOnly={keyOnly} />
 
         {/* FINANCIAL ITEMS */}
-        <PLSectionView section={financialItems} currency={statement.currency} />
+        <PLSectionView section={financialItems} currency={statement.currency} keyOnly={keyOnly} />
 
         {/* PBT → NET PROFIT (operational headline) */}
         <div data-guide="pl-net-profit">
-          <PLSectionView section={closingSection} currency={statement.currency} />
+          <PLSectionView section={closingSection} currency={statement.currency} keyOnly={keyOnly} />
         </div>
 
         {statement.capitalizedOwnWorkMemo != null &&
@@ -118,12 +146,26 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
   );
 }
 
-function PLSectionView({ section, currency }: { section: PLSection; currency: string }) {
+function PLSectionView({
+  section,
+  currency,
+  keyOnly = false,
+}: {
+  section: PLSection;
+  currency: string;
+  /** THE DIAL — Simple collapsed state: render only builder-marked
+   *  headline rows (subtotal/total/boxed); `item` lines hide. */
+  keyOnly?: boolean;
+}) {
   // Hook BEFORE the empty-section bail-out — see the same note in
   // BSStatementView. A section that loses its lines between renders must not
   // change this component's hook count.
   const fmt = useAmountFormatter(currency);
   if (section.lines.length === 0 && !section.subtotalLabel) return null;
+  const visibleLines = keyOnly
+    ? section.lines.filter((l) => l.style !== "item")
+    : section.lines;
+  if (keyOnly && visibleLines.length === 0 && !section.subtotalLabel) return null;
   const subtotalAttrs = section.subtotalBucket
     ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
     : {};
@@ -132,7 +174,7 @@ function PLSectionView({ section, currency }: { section: PLSection; currency: st
     <div className="pl-section">
       {section.header && <div className="pl-section-header">{section.header}</div>}
 
-      {section.lines.map((line, i) => (
+      {visibleLines.map((line, i) => (
         <PLLineView key={`${line.accountCode ?? "x"}-${i}`} line={line} currency={currency} />
       ))}
 
@@ -140,7 +182,11 @@ function PLSectionView({ section, currency }: { section: PLSection; currency: st
         <>
           <div className="pl-subtotal-rule" />
           <div className="pl-row pl-subtotal" {...subtotalAttrs}>
-            <span className="pl-label">{section.subtotalLabel}</span>
+            <span className="pl-label">
+              <SimpleTermLabel termId={termForRow(section.subtotalBucket)}>
+                {section.subtotalLabel}
+              </SimpleTermLabel>
+            </span>
             {subtotalConceptKey ? (
               <LearnableNumber
                 conceptKey={subtotalConceptKey}
@@ -168,7 +214,9 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
   if (line.style === "subtotal" && !line.accountCode) {
     return (
       <div className="pl-row pl-subtotal" {...lineAttrs}>
-        <span className="pl-label">{line.label}</span>
+        <span className="pl-label">
+          <SimpleTermLabel termId={termForRow(line.bucket)}>{line.label}</SimpleTermLabel>
+        </span>
         {conceptKey ? (
           <LearnableNumber
             conceptKey={conceptKey}
@@ -202,7 +250,9 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
   return (
     <div className={`pl-row pl-row-item ${line.style}`} {...lineAttrs}>
       <span className="pl-label">
-        {labelText}
+        <SimpleTermLabel termId={termForRow(line.bucket, line.accountCode)}>
+          {labelText}
+        </SimpleTermLabel>
         <AccountChip code={chipCode} />
       </span>
       {conceptKey ? (

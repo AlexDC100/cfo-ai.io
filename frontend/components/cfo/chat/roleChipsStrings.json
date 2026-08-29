@@ -1,0 +1,78 @@
+{
+  "en": {
+    "roleChips": {
+      "ws": {
+        "hire": {
+          "title": "Can I afford to hire?",
+          "prompt": "Can I afford to hire another person? Use my latest numbers and show me the reasoning in plain language."
+        },
+        "profitWhy": {
+          "title": "Why is profit lower than last year?",
+          "prompt": "Why is profit lower than last year? Walk me through what changed, in plain language."
+        },
+        "cashProblem": {
+          "title": "Do I have a cash problem?",
+          "prompt": "Do I have a cash problem? Tell me straight whether the money coming in covers what has to go out."
+        },
+        "bills": {
+          "title": "Can I keep paying the bills?",
+          "prompt": "If nothing changes, how long can I keep paying salaries and bills from the cash I have?"
+        },
+        "takeMoney": {
+          "title": "Can I take money out?",
+          "prompt": "Can I safely take money out of the company this year without hurting the business?"
+        },
+        "worry": {
+          "title": "What should worry me most?",
+          "prompt": "Looking at my numbers, what should worry me most right now — and what can wait?"
+        },
+        "worth": {
+          "title": "What is my business worth?",
+          "prompt": "Roughly what is my business worth today, and what would make it worth more?"
+        },
+        "bankLoan": {
+          "title": "Would a bank lend to us?",
+          "prompt": "If I asked the bank for a loan, how would they see my numbers? What would strengthen my case?"
+        }
+      }
+    }
+  },
+  "ro": {
+    "roleChips": {
+      "ws": {
+        "hire": {
+          "title": "Îmi permit să angajez?",
+          "prompt": "Îmi permit să angajez încă o persoană? Folosește cifrele mele recente și arată-mi raționamentul pe înțelesul meu."
+        },
+        "profitWhy": {
+          "title": "De ce e profitul mai mic decât anul trecut?",
+          "prompt": "De ce e profitul mai mic decât anul trecut? Explică-mi pas cu pas ce s-a schimbat, pe limba mea."
+        },
+        "cashProblem": {
+          "title": "Am o problemă de bani?",
+          "prompt": "Am o problemă de numerar? Spune-mi direct dacă banii care intră acoperă ce trebuie să iasă."
+        },
+        "bills": {
+          "title": "Pot plăti facturile în continuare?",
+          "prompt": "Dacă nu se schimbă nimic, cât timp mai pot plăti salariile și facturile din banii pe care îi am?"
+        },
+        "takeMoney": {
+          "title": "Pot să scot bani din firmă?",
+          "prompt": "Pot să scot bani din firmă anul acesta fără să afectez afacerea?"
+        },
+        "worry": {
+          "title": "Ce ar trebui să mă îngrijoreze?",
+          "prompt": "Uitându-te la cifrele mele, ce ar trebui să mă îngrijoreze cel mai mult acum — și ce mai poate aștepta?"
+        },
+        "worth": {
+          "title": "Cât valorează firma mea?",
+          "prompt": "Cam cât valorează firma mea azi și ce ar face-o să valoreze mai mult?"
+        },
+        "bankLoan": {
+          "title": "Mi-ar da banca un credit?",
+          "prompt": "Dacă aș cere un credit la bancă, cum ar arăta cifrele mele? Ce mi-ar întări dosarul?"
+        }
+      }
+    }
+  }
+}

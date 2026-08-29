@@ -39,6 +39,14 @@ import {
 // legacy component is left in src/ as quiet dead code; no remaining
 // callers in this codebase.
 import { IndustryBadge, IndustryPicker } from "@/components/cfo/industry";
+// EXPLAIN ANYTHING (Prompt 12, Part D) — the Simple-mode "Explain"
+// affordance on each comparison panel. The figures passed to the drawer
+// are built ONLY from what this table already renders (values via the
+// same formatValue nodes; prose strings via the same locale engine).
+import { ExplainButton } from "@/components/cfo/simple/ExplainButton";
+import { glossaryIdForMetric, type ExplainFigure } from "@/lib/explain";
+import { formatAmount, formatExact, formatMultiple } from "@/lib/amountFormat";
+import { useActiveLocale } from "@/lib/locale";
 import { ComingSoon } from "@/components/cfo/ComingSoon";
 import { Level1BenchmarkView } from "@/components/cfo/Level1BenchmarkView";
 import { EmptyState } from "@/components/cfo/ui/EmptyState";
@@ -791,13 +799,13 @@ export default function BenchmarkReportPage() {
 
         {/* Compare sections — render only when the API returned them. */}
         {r.sections.profitability && (
-          <ComparisonSection section={r.sections.profitability} testId="benchmark-profitability" />
+          <ComparisonSection section={r.sections.profitability} testId="benchmark-profitability" periodId={r.period_id} />
         )}
         {r.sections.cost_structure && (
-          <ComparisonSection section={r.sections.cost_structure} testId="benchmark-cost-structure" />
+          <ComparisonSection section={r.sections.cost_structure} testId="benchmark-cost-structure" periodId={r.period_id} />
         )}
         {r.sections.capital_structure && (
-          <ComparisonSection section={r.sections.capital_structure} testId="benchmark-capital-structure" />
+          <ComparisonSection section={r.sections.capital_structure} testId="benchmark-capital-structure" periodId={r.period_id} />
         )}
 
         {/* Footer: the print / PDF affordance only. The "Change industry"
@@ -901,7 +909,23 @@ function HeadlineGrid({ section }: { section: HeadlineSection }) {
   );
 }
 
-function ComparisonSection({ section, testId }: { section: ComparisonSection; testId: string }) {
+// Explain-anything prose strings — the same figures the table shows, as
+// locale-formatted text for the template/prompt. The drawer's figure LIST
+// renders through formatValue (the table's own nodes), so what the user
+// sees in the drawer is cent-identical to the table by construction.
+function plainValueText(
+  value: number | null | undefined,
+  unit: string | null | undefined,
+  locale: string,
+): string | null {
+  if (value === null || value === undefined) return null;
+  if (unit === "pct") return `${formatAmount(value, { locale, fractionDigits: 1 })}%`;
+  if (unit === "ratio") return formatMultiple(value, { locale, cap: 99 })?.display ?? null;
+  return formatExact(value, { locale, currency: "RON" });
+}
+
+function ComparisonSection({ section, testId, periodId }: { section: ComparisonSection; testId: string; periodId: string }) {
+  const locale = useActiveLocale();
   if (section.comparisons.length === 0) {
     return null;
   }
@@ -911,11 +935,49 @@ function ComparisonSection({ section, testId }: { section: ComparisonSection; te
       ? []
       : [c.company_value, c.benchmark.p25, c.benchmark.p50, c.benchmark.p75],
   );
+  // The rows the Explain drawer grounds itself in — label + on-screen
+  // value + industry median, nothing this table doesn't already show.
+  const explainRows = section.comparisons.filter((c) => c.company_value !== null).slice(0, 4);
+  const explainFigures: ExplainFigure[] = explainRows.flatMap((c) => {
+    const value = plainValueText(c.company_value, c.benchmark.unit, locale);
+    if (value === null) return [];
+    const compare = plainValueText(c.benchmark.p50, c.benchmark.unit, locale);
+    const label = locale.startsWith("ro") ? c.display.ro : c.display.en;
+    return [{
+      termId: glossaryIdForMetric(c.metric_name) ?? undefined,
+      label,
+      value,
+      ...(compare ? { compare } : {}),
+    }];
+  });
   return (
     <section data-testid={testId} className="space-y-2">
-      <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
-        {section.title_en}
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+          {section.title_en}
+        </h2>
+        <ExplainButton
+          request={{
+            panelId: testId,
+            panelKind: "benchmark",
+            snapshotKey: periodId,
+            title: section.title_en,
+            figures: explainFigures,
+          }}
+          figureDisplay={
+            <div className="space-y-1">
+              {explainRows.map((c) => (
+                <div key={c.metric_name} className="flex items-baseline justify-between gap-3 text-[12.5px]">
+                  <span className="text-ink-soft">{locale.startsWith("ro") ? c.display.ro : c.display.en}</span>
+                  <span className="font-medium text-ink">
+                    {formatValue(c.company_value, c.benchmark.unit)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          }
+        />
+      </div>
       <Panel className="overflow-x-auto lg:overflow-x-visible">
         <MoneyAmountGroup values={groupValues} fromCurrency="RON">
           <table className="w-full text-[12.5px] min-w-[640px] sm:min-w-0">

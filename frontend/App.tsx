@@ -89,6 +89,10 @@ const MultiYearHistory = lazy(() => import("./pages/cfo/MultiYearHistory"));
 const Ops = lazy(() => import("./pages/cfo/Ops"));
 // Settings without the app shell — reached from the landing account menu.
 const AccountSettings = lazy(() => import("./pages/cfo/AccountSettings"));
+// THE DIAL (Part A) — first-login role question ("What describes you
+// best?"). Lazy: only fresh signups ever render it; everyone else is
+// instantly redirected by the page's own already-asked branch.
+const Onboarding = lazy(() => import("./pages/cfo/Onboarding"));
 const Chat = lazy(() => import("./pages/cfo/Chat"));
 // NASDAQ-8's standalone US search page was removed 2026-07-23 (Romania-only
 // coverage) — /dashboard/public/search now redirects to /public-companies.
@@ -344,10 +348,17 @@ function AppRoutes() {
           <Route path="/roadmap" element={<RoadmapPage />} />
           <Route path="/contact-sales" element={<ContactSalesPage />} />
 
-          {/* /onboarding was removed (2026-07-23) — the /workspace setup
-              wizard owns first-run naming + industry now. Old links land on
-              the redirect below. */}
-          <Route path="/onboarding" element={<Navigate to="/workspace" replace />} />
+          {/* /onboarding — THE DIAL's first-login role question (2026-08-29).
+              From 2026-07-23 until now this was a hard redirect to /workspace
+              (the old industry wizard died there). Decision, documented: the
+              redirect moved INTO the page — Onboarding renders the "What
+              describes you best?" question only while the
+              cfo-onboarding-role-asked-v1 guard is absent (first login) and
+              otherwise <Navigate>s to /workspace itself, so every old deep
+              link keeps landing exactly where it did. Standalone route (not
+              under AppLayout): it is a full-screen first-run surface with no
+              app shell, like the signup pages that feed it. */}
+          <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
 
           {/* Settings without the app shell (landing account menu → Settings). */}
           <Route path="/account/settings" element={<AuthGuard><AccountSettings /></AuthGuard>} />

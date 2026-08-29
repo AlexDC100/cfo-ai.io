@@ -16,6 +16,9 @@
     "test:e2e": "playwright test",
     "design:lint": "node scripts/check_design_lint.mjs",
     "design:gates": "node scripts/design_gates.mjs",
+    "modes:jargon": "node scripts/check_simple_jargon.mjs",
+    "modes:parity": "vitest run frontend/lib/__tests__/modeParityHarness.test.tsx frontend/lib/__tests__/viewModes.test.ts",
+    "modes:e2e": "playwright test e2e/design/modes.spec.ts",
     "generate-template": "python3 scripts/generate_upload_template.py"
   },
   "dependencies": {

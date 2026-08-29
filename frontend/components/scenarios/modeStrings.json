@@ -1,0 +1,26 @@
+{
+  "en": {
+    "scenModes": {
+      "templates": {
+        "recession": "What if sales drop 20%?",
+        "aggressive_growth": "What if we grow 25%?",
+        "cost_optimization": "What if we cut costs 15%?",
+        "covenant_stress_test": "How far can sales fall before the bank worries?"
+      },
+      "showAll": "Show all rows ({{count}} more)",
+      "showFewer": "Show fewer rows"
+    }
+  },
+  "ro": {
+    "scenModes": {
+      "templates": {
+        "recession": "Ce se întâmplă dacă vânzările scad cu 20%?",
+        "aggressive_growth": "Ce se întâmplă dacă creștem cu 25%?",
+        "cost_optimization": "Ce se întâmplă dacă tăiem costurile cu 15%?",
+        "covenant_stress_test": "Cât pot scădea vânzările înainte să apară probleme cu banca?"
+      },
+      "showAll": "Arată toate rândurile (încă {{count}})",
+      "showFewer": "Arată mai puține rânduri"
+    }
+  }
+}

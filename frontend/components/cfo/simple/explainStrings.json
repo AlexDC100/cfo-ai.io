@@ -1,0 +1,26 @@
+{
+  "en": {
+    "explain": {
+      "button": "Explain",
+      "title": "Explained simply",
+      "figures": "The figures this explains",
+      "asking": "Asking CFO AI for a closer read…",
+      "sourceAi": "AI explanation · grounded in your figures",
+      "sourceTemplate": "Standard explanation",
+      "aiUnavailable": "CFO AI couldn't add more right now — the explanation above still stands.",
+      "retry": "Retry"
+    }
+  },
+  "ro": {
+    "explain": {
+      "button": "Explică",
+      "title": "Explicat simplu",
+      "figures": "Cifrele explicate aici",
+      "asking": "Îl întrebăm pe CFO AI pentru o citire mai atentă…",
+      "sourceAi": "Explicație AI · bazată pe cifrele tale",
+      "sourceTemplate": "Explicație standard",
+      "aiUnavailable": "CFO AI nu a putut adăuga mai mult acum — explicația de mai sus rămâne valabilă.",
+      "retry": "Reîncearcă"
+    }
+  }
+}

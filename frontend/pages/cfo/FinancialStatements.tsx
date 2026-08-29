@@ -49,8 +49,20 @@ import { ConfigurableDashboard } from "@/components/dashboard/ConfigurableDashbo
 import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
 // THE INSTRUMENT — resting-surface + figure primitives (import only).
-import { Amount, AmountGroup } from "@/components/instrument/Amount";
+import { Amount } from "@/components/instrument/Amount";
 import { Chip, PageHeader, Panel, PanelBody, type ChipTone } from "@/components/instrument/Panel";
+// THE DIAL — Simple mode: story overview + trust hint + first-upload
+// journey. Modes are presentation only; every figure below reads the SAME
+// accessors in both branches (gate M1).
+import { useIsSimple } from "@/lib/viewMode";
+import { StoryOverview } from "@/components/cfo/simple/StoryOverview";
+import { TrustHint } from "@/components/cfo/simple/TrustHint";
+import {
+  FirstUploadJourney,
+  journeySeen,
+  markJourneySeen,
+} from "@/components/cfo/simple/FirstUploadJourney";
+import { KeyMetricsRow } from "@/components/cfo/KeyMetricsRow";
 import { CFOBriefingCard } from "@/components/cfo/CFOBriefingCard";
 import "@/components/cfo/dashInstrumentI18n";
 import { isNativeShell } from "@/lib/nativeShell";
@@ -455,6 +467,11 @@ export default function FinancialStatements() {
   // missing → State A. The page chrome below this is conditional on the flag.
   const hasPeriodLoaded = statements !== null || invoices !== null;
 
+  // THE DIAL — view mode. PRESENTATION ONLY: the Simple branch below reads
+  // the exact same memos (headline / totals / recommendations / trendFor)
+  // as the Pro branch; nothing about a VALUE may depend on this flag.
+  const isSimple = useIsSimple();
+
   const onTabChange = useCallback((next: string) => {
     setSearchParams((prev) => {
       const sp = new URLSearchParams(prev);
@@ -675,7 +692,15 @@ export default function FinancialStatements() {
         : remotePeriod.detectedType === "trial_balance"
           ? t("dash.sourceTbTooltip")
           : null;
-    return { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, sourceTooltip };
+    // THE DIAL — the P&L builder's "Total operating expenses (cash)"
+    // subtotal, exactly what the Pro P&L tab renders as that row. Simple
+    // mode's cash-runway sentence divides it; when the builder produced no
+    // such section the sentence simply doesn't render (absent ≠ zero).
+    // Found by label, not index — the 758 section shifts positions.
+    const totalOperatingExpenses =
+      pl.sections.find((s) => s.subtotalLabel?.startsWith("Total operating expenses"))
+        ?.subtotalAmount ?? null;
+    return { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, sourceTooltip, totalOperatingExpenses };
   }, [statements, totals, remotePeriod.lineItems, remotePeriod.metrics, remotePeriod.detectedType, dashboardCanonicalMargins, t]);
 
   // ── 2026 redesign: hero health verdict ──────────────────────────────────
@@ -923,9 +948,15 @@ export default function FinancialStatements() {
   // BEFORE the analyzed auto-clear hedge below, which reads it (a later
   // declaration would be a temporal-dead-zone throw in that effect's deps).
   const [awaitingView, setAwaitingView] = useState<{ periodId: string | null } | null>(null);
+  // THE DIAL — first-upload journey (Simple only, once). Armed when a
+  // successful scan hands off to the dashboard; the overlay itself mounts
+  // only after the period's data has actually landed, so it can never
+  // block on a fetch (and any render error inside it self-dismisses).
+  const [journeyArmed, setJourneyArmed] = useState(false);
   function viewResults() {
     const periodId = awaitingView?.periodId ?? uploadInFlight?.periodId ?? null;
     setAwaitingView(null);
+    if (isSimple && !journeySeen()) setJourneyArmed(true);
     console.info("[scan] viewResults →", periodId ?? "(no period)");
     if (periodId) {
       toast({ title: t("toasts.analysisComplete"), description: t("dash.loadedIntoDashboard") });
@@ -1436,6 +1467,25 @@ export default function FinancialStatements() {
           the eye. */}
 
       <TooltipProvider delayDuration={150}>
+        {/* THE DIAL — first-upload journey overlay (Simple only, skippable,
+            once). Mounts only when the scanned period's data has landed;
+            the story dashboard is already rendered underneath, so skipping
+            or any error lands the user straight on it. */}
+        {journeyArmed && isSimple && !uploadInFlight && statements && totals && headline && (
+          <FirstUploadJourney
+            currency={statements.currency}
+            revenue={headline.totalOperatingRevenue}
+            profit={headline.tileNetProfitRon}
+            cash={statements.balanceSheet.cash}
+            trustBand={accuracyRead.band}
+            trustChip={<TrustChip band={accuracyRead.band} />}
+            recommendations={recommendations}
+            onDone={() => {
+              markJourneySeen();
+              setJourneyArmed(false);
+            }}
+          />
+        )}
         {/* Scan takeover — whenever an upload is in flight, the WHOLE surface
             (both State A entry and State B loaded-month) reduces to the pipeline
             steps + council sphere, so scanning a new month from the dashboard
@@ -1751,6 +1801,32 @@ export default function FinancialStatements() {
                 scanning={scanning}
                 inflight={uploadInFlight}
                 onViewResults={viewResults}
+              />
+            </>
+          ) : isSimple && statements && totals && headline ? (
+            // THE DIAL — Story Overview (Simple mode). Reading-order
+            // narrative for owners: health gauge (UNCHANGED — same
+            // HeroVerdictCard, same verdict sentence) then the five story
+            // panels. Every figure flows from the SAME memos the Pro branch
+            // reads below — headline / totals / recommendations / trendFor —
+            // so the numbers are cent-identical across modes (gate M1).
+            <>
+              <HeroVerdictCard
+                credit={heroCredit}
+                companyName={statements?.companyName ?? null}
+              />
+              <StoryOverview
+                currency={statements.currency}
+                revenue={headline.totalOperatingRevenue}
+                profit={headline.tileNetProfitRon}
+                cash={statements.balanceSheet.cash}
+                netDebt={totals.netDebt}
+                totalDebt={totals.totalDebt}
+                ebitda={headline.tileEbitdaRon}
+                annualOperatingCosts={headline.totalOperatingExpenses}
+                revenueTrend={trendFor("operating_revenue")}
+                recommendations={recommendations}
+                onJumpToTab={onTabChange}
               />
             </>
           ) : (
@@ -2886,6 +2962,9 @@ interface AccuracyBannerProps {
 
 function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: AccuracyBannerProps) {
   const { t } = useTranslation();
+  // THE DIAL — Simple mode shows the one-time trust hint next to the chip.
+  // Hook lives above the early returns (hook-count stability).
+  const isSimple = useIsSimple();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     try {
       return localStorage.getItem("accuracy_banner_dismissed") === "true";
@@ -3032,6 +3111,10 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
         </button>
         <span className="inline-flex">{aiReadBadge}</span>
       </div>
+      {/* THE DIAL — one-time Simple-mode trust hint, right under the chip
+          it points at. "See how" opens the SAME receipt the chip owns;
+          the chip's copy stays frozen and identical across modes. */}
+      {isSimple && <TrustHint onSeeHow={() => setReceiptOpen(true)} />}
       {receiptOpen && (
         <Panel inset className="mt-2" data-testid="accuracy-receipt">
           <PanelBody>{receipt}</PanelBody>
@@ -5059,101 +5142,10 @@ function HeroVerdictCard({
 }
 
 // ── Key metric stat panels (THE INSTRUMENT) ─────────────────────────────
-// One <AmountGroup> wraps the whole row so the four figures share a single
-// magnitude — "295,1 M" beside "17,7 M", never "295,1 M" beside "17.703.055".
-// Values convert to the display currency HERE (one place) and render through
-// <Amount>; the YoY delta is a chip with <Amount kind="percent">. No
-// provenance is passed — these are assembled aggregates whose payload
-// carries no source ref, and the affordance is never faked.
-
-interface KeyMetricItem {
-  label: string;
-  desc: string;
-  value: number;
-  trend: { pct: number; prevLabel: string } | null;
-  testid: string;
-}
-
-function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; currency: string }) {
-  const display = useDisplayCurrency();
-  const rates = useRates();
-  const converted = items.map((it) =>
-    convertFromTo(it.value, (currency || "RON") as Currency, display, rates.rates),
-  );
-  // <Amount> joins magnitude suffix and currency directly ("15,1 M€") —
-  // right for symbols, unreadable for codes ("MRON"). Codes get a narrow
-  // no-break space so the unit reads "M RON".
-  const displaySymbol =
-    display === "EUR" ? "€" : display === "USD" ? "$" : `\u202F${display}`;
-  return (
-    <AmountGroup values={converted}>
-      <div
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-        data-testid="key-metrics"
-      >
-        {items.map((it, i) => (
-          <KeyMetricCard
-            key={it.testid}
-            label={it.label}
-            desc={it.desc}
-            value={converted[i]}
-            displayCurrency={displaySymbol}
-            trend={it.trend}
-            testid={it.testid}
-          />
-        ))}
-      </div>
-    </AmountGroup>
-  );
-}
-
-/** One of the four above-the-fold key metric stat panels. Value arrives
- *  already converted to the display currency (KeyMetricsRow owns the one
- *  conversion) and renders through <Amount> under the row's shared scale. */
-function KeyMetricCard({
-  label,
-  desc,
-  value,
-  displayCurrency,
-  trend,
-  testid,
-}: {
-  label: string;
-  desc: string;
-  value: number;
-  displayCurrency: string;
-  trend: { pct: number; prevLabel: string } | null;
-  testid?: string;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="rounded-md border border-rule bg-surface p-4 min-w-0" data-testid={testid}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium truncate">
-          {label}
-        </div>
-        {trend && (
-          <Chip
-            tone="neutral"
-            className="shrink-0"
-            title={t("dashV2.vsLastPeriod", { period: trend.prevLabel })}
-          >
-            <Amount kind="percent" value={trend.pct} fractionDigits={1} />
-          </Chip>
-        )}
-      </div>
-      <div className="mt-2 text-[22px] font-medium text-ink leading-none tracking-[-0.01em]">
-        <Amount value={value} currency={displayCurrency} />
-      </div>
-      <p className="mt-1.5 text-[11.5px] text-ink-soft leading-snug">{desc}</p>
-      {trend && (
-        <p className="mt-1 text-[10.5px] text-ink-soft">
-          {t("dashV2.vsLastPeriod", { period: trend.prevLabel })}
-        </p>
-      )}
-    </div>
-  );
-}
+// Extracted to components/cfo/KeyMetricsRow.tsx (THE DIAL, gate M1) so the
+// mode-parity test renders the REAL Pro row beside Simple's StoryOverview.
+// Conversion + display symbol live in the shared useConvertedAmounts hook,
+// the ONE code path both modes format figures through.
 
 /** Minimal disclosure section — progressive-disclosure wrapper for overview
  *  blocks that shouldn't compete with the first paint. Content unmounts when

@@ -38,6 +38,14 @@ import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { BalanceSheetMap } from "@/components/learning/BalanceSheetMap";
 import { BALANCE_SHEET_GUIDE } from "@/components/learning/balanceSheetGuide";
 import { AccountChip, splitAccountParen, StatementCurrencyChip } from "./AccountChip";
+// THE DIAL — Simple mode opens the BS totals-first (builder-marked
+// subtotal/total rows only) behind "Show all lines"; plain-text labels
+// with a glossary match get the <Term> affordance. Pro is untouched —
+// every branch gates on useIsSimple, and no VALUE depends on mode.
+import { useIsSimple } from "@/lib/viewMode";
+import { ShowAllLinesToggle } from "@/components/cfo/simple/ShowAllLines";
+import { SimpleTermLabel } from "@/components/cfo/simple/SimpleTermLabel";
+import { termForRow } from "@/components/cfo/simple/termForRow";
 import "./bsStatementView.css";
 
 interface Props {
@@ -55,6 +63,12 @@ interface Props {
 export function BSStatementView({ statement, hideGuide = false, periodId }: Props) {
   useHighlightFromUrl();
   const { t } = useTranslation();
+  // THE DIAL — Simple collapsed state. Status strips, badges, totals and
+  // section subtotals always render (honesty surfaces + headline rows);
+  // only item/contra detail rows hide behind the toggle.
+  const isSimple = useIsSimple();
+  const [showAll, setShowAll] = useState(false);
+  const keyOnly = isSimple && !showAll;
   // 2026-05-24 — currency-aware formatting. `fmt(value)` converts the
   // value from statement.currency to the user's current display currency
   // and formats in the appropriate locale (no symbol — header chip
@@ -109,6 +123,15 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
         </>
       )}
 
+      {/* THE DIAL — Simple-only disclosure toggle. Pro never renders it. */}
+      {isSimple && (
+        <ShowAllLinesToggle
+          open={showAll}
+          onToggle={() => setShowAll((v) => !v)}
+          testid="bs-show-all"
+        />
+      )}
+
       {/* Column header row */}
       <div className="bs-col-header">
         <span />
@@ -120,7 +143,7 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
       {/* ASSETS */}
       <div className="bs-section-title" data-guide="bs-assets">{t("statements.bs.assets")}</div>
       {statement.assetSections.map((section, i) => (
-        <BSSectionView key={`a-${i}`} section={section} currency={statement.currency} />
+        <BSSectionView key={`a-${i}`} section={section} currency={statement.currency} keyOnly={keyOnly} />
       ))}
       <div
         className="bs-total-row"
@@ -150,7 +173,7 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
       <div className="bs-section-title" data-guide="bs-equity">{t("statements.bs.equityLiab")}</div>
       <div data-guide="bs-liabilities" />
       {statement.equityLiabSections.map((section, i) => (
-        <BSSectionView key={`el-${i}`} section={section} currency={statement.currency} />
+        <BSSectionView key={`el-${i}`} section={section} currency={statement.currency} keyOnly={keyOnly} />
       ))}
       <div
         className="bs-total-row"
@@ -199,7 +222,18 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
   );
 }
 
-function BSSectionView({ section, currency }: { section: BSSection; currency: string }) {
+function BSSectionView({
+  section,
+  currency,
+  keyOnly = false,
+}: {
+  section: BSSection;
+  currency: string;
+  /** THE DIAL — Simple collapsed state: only builder-marked subtotal/total
+   *  rows render; item/contra/note detail hides. Synthetic reconciliation
+   *  rows stay visible — an adjusting entry never hides from the reader. */
+  keyOnly?: boolean;
+}) {
   // Hook BEFORE the empty-section bail-out (2026-07-26): this used to sit
   // under it, so a re-render in which a section lost its lines ran one fewer
   // hook than the previous render and React threw "Rendered fewer hooks than
@@ -207,6 +241,12 @@ function BSSectionView({ section, currency }: { section: BSSection; currency: st
   // with no trial balance behind it.
   const fmt = useAmountFormatter(currency);
   if (section.lines.length === 0 && !section.subtotalLabel) return null;
+  const visibleLines = keyOnly
+    ? section.lines.filter(
+        (l) => l.style === "subtotal" || l.style === "total" || l.synthetic,
+      )
+    : section.lines;
+  if (keyOnly && visibleLines.length === 0 && !section.subtotalLabel) return null;
   const subtotalAttrs = section.subtotalBucket
     ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
     : {};
@@ -214,7 +254,7 @@ function BSSectionView({ section, currency }: { section: BSSection; currency: st
   return (
     <div className="bs-section">
       {section.header && <div className="bs-section-header">{section.header}</div>}
-      {section.lines.map((line, i) => (
+      {visibleLines.map((line, i) => (
         <BSLineView key={i} line={line} currency={currency} />
       ))}
       {section.subtotalLabel && (
@@ -235,7 +275,11 @@ function BSSectionView({ section, currency }: { section: BSSection; currency: st
                   {section.subtotalLabel}
                 </LearnableRowLabel>
               ) : (
-                section.subtotalLabel
+                // Plain-label branch only — never nest <Term> inside the
+                // LearnableRowLabel button (nested-interactive).
+                <SimpleTermLabel termId={termForRow(section.subtotalBucket)}>
+                  {section.subtotalLabel}
+                </SimpleTermLabel>
               )}
             </span>
             {subtotalConceptKey ? (
@@ -296,7 +340,7 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
                 {line.label}
               </LearnableRowLabel>
             ) : (
-              line.label
+              <SimpleTermLabel termId={termForRow(line.bucket)}>{line.label}</SimpleTermLabel>
             )}
           </span>
           {conceptKey ? (
@@ -367,7 +411,9 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
             {labelText}
           </LearnableRowLabel>
         ) : (
-          labelText
+          <SimpleTermLabel termId={termForRow(line.bucket, line.accountCode)}>
+            {labelText}
+          </SimpleTermLabel>
         )}
         <AccountChip code={chipCode} />
         {/* RECONCILIATION FLOW — the synthetic "Diferențe de reconciliere"

@@ -18,8 +18,10 @@ import type { LucideIcon } from "lucide-react";
 
 import { useActiveOrg } from "@/lib/org";
 import { useAiDegraded } from "@/lib/aiDegraded";
+import { getRole, useViewMode } from "@/lib/viewMode";
 import "./chatDegradedI18n";
 import { useIndustryPrompts, type SuggestedPrompt } from "./industryPrompts";
+import { useSimpleWorkspacePrompts } from "./roleChips";
 
 interface Props {
   hasPeriod: boolean;
@@ -56,10 +58,24 @@ const GENERAL_PROMPT_DEFS: Array<{ icon: LucideIcon; key: string }> = [
   { icon: AlertTriangle, key: "distress" },
 ];
 
-/** Workspace-grounded starter prompts, resolved in the active language. */
+/** Workspace-grounded starter prompts, resolved in the active language.
+ *
+ *  THE DIAL (Part E) — this hook is the single mode/role choke point for
+ *  the grounded chip set, so every consumer (the empty-state cards here
+ *  AND the in-conversation pill rows in CFOChatShell) switches together:
+ *    · Pro    → the existing DSCR/leverage/covenant set, byte-identical
+ *               to what shipped before modes existed (hard rule 3);
+ *    · Simple → owner-language questions from roleChips.ts, ordered by
+ *               role. Deterministic, no model call.
+ *  Presentation only — chips are canned QUESTION text; no figure ever
+ *  branches on the mode. The role read is stable per render: role is set
+ *  once at onboarding, and a role change that flips the effective mode
+ *  re-renders via useViewMode's store subscription. */
 export function useWorkspacePrompts(): SuggestedPrompt[] {
   const { t } = useTranslation();
-  return useMemo(
+  const mode = useViewMode();
+  const simplePrompts = useSimpleWorkspacePrompts(getRole());
+  const proPrompts = useMemo(
     () =>
       WORKSPACE_PROMPT_DEFS.map((d) => ({
         icon: d.icon,
@@ -68,6 +84,7 @@ export function useWorkspacePrompts(): SuggestedPrompt[] {
       })),
     [t],
   );
+  return mode === "simple" ? simplePrompts : proPrompts;
 }
 
 /** General finance starter prompts, resolved in the active language. */

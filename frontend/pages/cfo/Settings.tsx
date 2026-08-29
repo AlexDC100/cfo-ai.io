@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/instrument/Panel";
 import { Amount } from "@/components/instrument/Amount";
+import { ModeSwitch } from "@/components/instrument/shell/ModeSwitch";
 import { AppearanceSection } from "@/components/cfo/settings/AppearanceSection";
 import { SegmentedControl } from "@/components/cfo/settings/SegmentedControl";
 import "./settingsXI18n";
@@ -142,11 +143,24 @@ export default function Settings() {
           <CurrencyCard />
         </Section>
 
-        {/* Appearance — theme (Paper/Terminal) + density. New in the
-            instrument pass; see AppearanceSection for the data-density
-            contract table surfaces consume. */}
+        {/* Appearance — theme (Paper/Terminal) + density, plus THE DIAL's
+            view mode (Simple/Pro). The mode block lives here rather than
+            inside AppearanceSection (another lane's file): same ModeSwitch
+            control as the header, framed by the section's label + hint
+            pattern. */}
         <Section title={t("settingsX.appearance.title")} divider>
-          <AppearanceSection />
+          <div className="space-y-5">
+            <AppearanceSection />
+            <div>
+              <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink-soft">
+                {t("modes.switch.label")}
+              </div>
+              <ModeSwitch />
+              <p className="mt-1.5 max-w-[520px] text-[11px] text-ink-soft">
+                {t("modes.switch.hint")}
+              </p>
+            </div>
+          </div>
         </Section>
 
         {/* Workspace + Industry classification sections were removed per

@@ -199,12 +199,14 @@ export function AuthCard({
       target();
       return;
     }
-    // Brand-new signup with no preselection AND no explicit next — push them
-    // to the /workspace setup wizard (name + industry pick). The AuthGuard
-    // keeps bouncing them back there until the industry is set, even if
-    // they try to jump to /dashboard manually.
+    // Brand-new signup with no preselection AND no explicit next — first
+    // stop is /onboarding (THE DIAL's one-time "What describes you best?"
+    // role question), which forwards to the /workspace setup wizard
+    // (name + industry pick) on answer, on skip, and instantly whenever
+    // the question was already asked — so repeat sign-ins pass straight
+    // through to /workspace as before.
     if (mode === "sign_up" && !next) {
-      navigate("/workspace");
+      navigate("/onboarding");
       return;
     }
     target();

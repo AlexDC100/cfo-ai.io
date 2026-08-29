@@ -47,6 +47,30 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
       ro: "Banii blocați în operațiunile curente: stocuri și facturi neîncasate de la clienți, minus ce datorezi furnizorilor. Cu cât e mai mult blocat, cu atât ai mai puțin numerar liber.",
     },
   },
+  dio: {
+    term: { en: "DIO", ro: "DIO" },
+    simple: { en: "Days stock sits on the shelf (DIO)", ro: "Zile cât stă marfa pe raft (DIO)" },
+    plain: {
+      en: "How many days, on average, goods wait between arriving and being sold. Fewer days means less money parked in stock.",
+      ro: "Câte zile stă marfa, în medie, între sosire și vânzare. Mai puține zile înseamnă mai puțini bani blocați în stoc.",
+    },
+  },
+  dpo: {
+    term: { en: "DPO", ro: "DPO" },
+    simple: { en: "Days you take to pay suppliers (DPO)", ro: "Zile în care îți plătești furnizorii (DPO)" },
+    plain: {
+      en: "How many days, on average, you take to pay supplier invoices. Longer keeps cash in hand — within the agreed terms.",
+      ro: "În câte zile, în medie, plătești facturile furnizorilor. Mai târziu păstrează numerarul — în limita termenelor agreate.",
+    },
+  },
+  capex: {
+    term: { en: "Capex", ro: "Capex" },
+    simple: { en: "Money spent on equipment & buildings (capex)", ro: "Bani investiți în echipamente și clădiri (capex)" },
+    plain: {
+      en: "Spending on things the business keeps and uses for years — machines, vehicles, buildings — rather than day-to-day costs.",
+      ro: "Cheltuieli pe lucruri pe care afacerea le păstrează și folosește ani întregi — utilaje, mașini, clădiri — nu costuri de zi cu zi.",
+    },
+  },
   dso: {
     term: { en: "DSO", ro: "DSO" },
     simple: { en: "Days until customers pay (DSO)", ro: "Zile până încasezi de la clienți (DSO)" },

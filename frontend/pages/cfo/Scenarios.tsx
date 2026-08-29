@@ -24,6 +24,15 @@ import { Lock, MoveRight, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { PageHeader as InstrumentPageHeader, Chip } from "@/components/instrument/Panel";
 import { CappedMultiple } from "@/components/comparison/MoneyAmount";
+// EXPLAIN ANYTHING (Prompt 12, Part D) — Simple-mode "Explain" on the
+// RESULTS side of the page only. Boundary note: the entry-points lane
+// owns ScenarioTemplateCards (the template cards); this affordance
+// deliberately mounts above the impact/results panels instead, grounded
+// in the same figures ImpactSummary already renders.
+import { ExplainButton } from "@/components/cfo/simple/ExplainButton";
+import type { ExplainFigure } from "@/lib/explain";
+import { formatMultiple } from "@/lib/amountFormat";
+import { useActiveLocale } from "@/lib/locale";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
@@ -87,6 +96,15 @@ function ImpactSummary({
   );
 }
 
+// Leverage as prose text for the Explain drawer — the SAME bound
+// discipline as CappedMultiple (non-finite renders the ≥99× bound, never
+// "Infinity×"), so the drawer's sentence matches the strip's figure.
+function leverageText(value: number | null, locale: string): string {
+  if (value === null) return "—";
+  if (!Number.isFinite(value)) return "≥99×";
+  return formatMultiple(value, { locale, cap: 99 })?.display ?? "—";
+}
+
 function ScenariosInner({
   statements,
   periodLabel,
@@ -100,6 +118,7 @@ function ScenariosInner({
 }) {
   const { adjustments, covenants } = useScenario();
   const currency = statements.currency ?? "RON";
+  const locale = useActiveLocale();
 
   const baseline = useMemo(
     () =>
@@ -170,6 +189,51 @@ function ScenariosInner({
           <AdjustmentEditor />
         </div>
         <div className="space-y-5">
+          {/* Explain (Simple mode) — grounded ONLY in figures already on
+              screen: the leverage before→after and the covenant count the
+              ImpactSummary strip renders. The drawer's figure list reuses
+              CappedMultiple, so its values are identical by construction. */}
+          {active && (
+            <div className="-mb-3 flex justify-end">
+              <ExplainButton
+                request={{
+                  panelId: "scenario-impact",
+                  panelKind: "scenario-impact",
+                  snapshotKey: periodLabel ?? "period",
+                  title: "Scenario impact",
+                  figures: [
+                    {
+                      termId: "leverage",
+                      label: "Net debt / EBITDA",
+                      value: leverageText(leverageBase, locale),
+                      compare: leverageText(leverageScen, locale),
+                    },
+                    {
+                      termId: "covenant",
+                      label: "Covenants breached",
+                      value: String(breachCount),
+                    },
+                  ] satisfies ExplainFigure[],
+                }}
+                figureDisplay={
+                  <div className="space-y-1 text-[12.5px]">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-ink-soft">Net debt / EBITDA</span>
+                      <span className="inline-flex items-center gap-1.5 font-medium text-ink">
+                        <CappedMultiple value={leverageBase} className="text-ink-soft" />
+                        <MoveRight size={12} strokeWidth={1.75} className="text-ink-soft" aria-hidden />
+                        <CappedMultiple value={leverageScen} />
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-ink-soft">Covenants breached</span>
+                      <span className="font-medium text-ink">{breachCount}</span>
+                    </div>
+                  </div>
+                }
+              />
+            </div>
+          )}
           <ScenarioComparison
             baseline={baseline}
             scenario={scenario}

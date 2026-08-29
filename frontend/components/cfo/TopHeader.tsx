@@ -24,6 +24,7 @@ import { BackendStatusIndicator } from "./BackendStatusIndicator";
 import { NotificationsMenu } from "./NotificationsMenu";
 import { CurrencyMenu } from "./CurrencyMenu";
 import { ContextObject } from "@/components/instrument/shell/ContextObject";
+import { ModeSwitch } from "@/components/instrument/shell/ModeSwitch";
 import { TrustChip } from "@/components/instrument/shell/TrustChip";
 import { modKeyLabel } from "@/components/instrument/shell/shellI18n";
 import "@/components/instrument/shell/shellI18n";
@@ -119,6 +120,15 @@ export function TopHeader({ onOpenAi, onOpenSidebar, onOpenPalette, onOpenAccoun
         {signedIn && (
           <div className="hidden sm:block ml-1 min-w-0">
             <ContextObject />
+          </div>
+        )}
+
+        {/* THE DIAL — Simple | Pro. Presentation only; the lib persists
+            the choice. Desktop affordance like the ContextObject beside it
+            (phones switch modes from Settings > Appearance). */}
+        {signedIn && (
+          <div className="hidden sm:block shrink-0 ml-1">
+            <ModeSwitch />
           </div>
         )}
 

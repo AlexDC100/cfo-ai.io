@@ -1,139 +1,181 @@
-// /onboarding — captures the industry of the user's organization so the
-// pipeline can apply industry-aware thresholds and Opus 4.7 narrative.
+// /onboarding — THE DIAL's first-login question (Prompt 12, Part A).
 //
-// Reached automatically after signup (AuthCard → /onboarding) and from
-// AuthGuard for any signed-in user whose org doesn't yet have an industry
-// set. The user can't reach /dashboard or /upload until they've completed
-// this step.
+// "What describes you best?" → I run a business / I'm an accountant or
+// CFO / I'm an analyst or investor. An answer calls setRole(); the view
+// mode FOLLOWS via lib/viewMode's default chain (owner → Simple,
+// accountant/analyst → Pro) — nothing here sets a mode directly, so an
+// explicit later choice from the header switcher always wins. Skip
+// stores NO role: the account simply keeps the Simple default.
+//
+// Shown ONCE. The guard key `cfo-onboarding-role-asked-v1` is written on
+// answer AND on skip (localStorage first, mirrored to user_prefs so a
+// second device doesn't re-ask), and any later visit — deep link, old
+// bookmark, the post-auth flows that funnel through here — redirects to
+// /workspace exactly like the pre-DIAL hard redirect did.
+//
+// Routing decision (documented per the lane brief): from 2026-07-23 the
+// App.tsx route was `<Navigate to="/workspace" replace />` — the old
+// industry wizard died and /workspace took over first-run setup. That
+// redirect now lives HERE as the already-asked branch, so every old deep
+// link keeps landing where it did, while the signup flow (AuthCard's
+// sign-up branch + AuthCallback's non-recovery confirmations) gains
+// exactly one first-login stop before the /workspace wizard.
+//
+// Serif display is allowed on this file — it is a first-run surface,
+// allowlisted in scripts/check_design_lint.mjs (SERIF_MARKETING).
 
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Building2, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { Briefcase, Calculator, LineChart, type LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
 import { Logo } from "@/components/cfo/Logo";
-import { OrgIndustryPills, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
-import { useAuth } from "@/lib/auth";
-import { useActiveOrg, updateActiveOrg, refreshActiveOrg } from "@/lib/org";
-import { useToast } from "@/hooks/use-toast";
+import { Panel } from "@/components/instrument/Panel";
+import "@/components/instrument/shell/modeI18n";
+import { getRemotePref, setPref } from "@/lib/prefs";
+import { setRole, type UserRole } from "@/lib/viewMode";
+
+/** Show-once guard. localStorage is the source of first paint; the pref
+ *  mirror stops a second device from re-asking once prefs hydrate. */
+export const ROLE_ASKED_KEY = "cfo-onboarding-role-asked-v1";
+const ROLE_ASKED_PREF = "onboarding_role_asked";
+
+export function roleQuestionAsked(): boolean {
+  try {
+    if (localStorage.getItem(ROLE_ASKED_KEY) === "1") return true;
+  } catch {
+    /* private mode — fall through to the remote mirror */
+  }
+  return getRemotePref<boolean>("user", ROLE_ASKED_PREF) === true;
+}
+
+function markRoleQuestionAsked(): void {
+  try {
+    localStorage.setItem(ROLE_ASKED_KEY, "1");
+  } catch {
+    /* private mode — the pref mirror still records it */
+  }
+  setPref("user", ROLE_ASKED_PREF, true);
+}
+
+interface RoleOption {
+  role: Exclude<UserRole, null>;
+  icon: LucideIcon;
+  titleKey: string;
+  descKey: string;
+}
+
+const ROLE_OPTIONS: RoleOption[] = [
+  {
+    role: "owner",
+    icon: Briefcase,
+    titleKey: "modes.onboarding.owner_title",
+    descKey: "modes.onboarding.owner_desc",
+  },
+  {
+    role: "accountant",
+    icon: Calculator,
+    titleKey: "modes.onboarding.accountant_title",
+    descKey: "modes.onboarding.accountant_desc",
+  },
+  {
+    role: "analyst",
+    icon: LineChart,
+    titleKey: "modes.onboarding.analyst_title",
+    descKey: "modes.onboarding.analyst_desc",
+  },
+];
 
 export default function Onboarding() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const { status, displayName, companyName } = useAuth();
-  const { org, loading } = useActiveOrg();
-  const { toast } = useToast();
-  const [industryKey, setIndustryKey] = useState<string | null>(null);
-  const [orgName, setOrgName] = useState("");
-  const [busy, setBusy] = useState(false);
+  // Read the guard ONCE on mount. Answering marks the key and then
+  // navigates; re-reading during that render would flip this component
+  // into the redirect branch mid-click — same destination, but via a
+  // jarring double transition.
+  const [alreadyAsked] = useState(roleQuestionAsked);
 
-  // Land non-signed-in users on /login. Already-onboarded users skip ahead.
-  useEffect(() => {
-    if (status === "signed_out") navigate("/login?next=/onboarding", { replace: true });
-  }, [status, navigate]);
+  if (alreadyAsked) {
+    return <Navigate to="/workspace" replace />;
+  }
 
-  useEffect(() => {
-    if (org && !orgName) setOrgName(org.name);
-    if (org?.industry_key) setIndustryKey(org.industry_key);
-  }, [org, orgName]);
-
-  // If org already has an industry, skip onboarding entirely.
-  useEffect(() => {
-    if (!loading && org && org.industry_key) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [loading, org, navigate]);
-
-  async function handleContinue() {
-    if (!industryKey || !org) {
-      toast({ title: "Pick an industry to continue", variant: "destructive" });
-      return;
-    }
-    const display = orgIndustryLabel(industryKey);
-    setBusy(true);
-    const ok = await updateActiveOrg({
-      name: orgName || org.name,
-      industry_key: industryKey,
-      industry_display_name: display,
-    });
-    setBusy(false);
-    if (!ok) {
-      toast({ title: "Couldn't save", description: "Check your connection and try again.", variant: "destructive" });
-      return;
-    }
-    await refreshActiveOrg();
-    navigate("/dashboard", { replace: true });
+  function finish(role: Exclude<UserRole, null> | null): void {
+    if (role) setRole(role);
+    markRoleQuestionAsked();
+    navigate("/workspace", { replace: true });
   }
 
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
       <header
-        className="px-4 sm:px-10 py-5 flex items-center justify-between gap-3"
+        className="px-4 sm:px-10 py-5 flex items-center gap-3"
         style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
       >
-        <div className="flex items-center gap-3">
-          <Logo size={26} compact />
-          <span className="hidden sm:inline-flex text-[10.5px] uppercase tracking-[0.18em] text-ink-soft pl-3 border-l border-rule">
-            Set up your workspace
-          </span>
-        </div>
+        <Logo size={26} compact />
       </header>
 
       <main
         className="flex-1 flex items-center justify-center px-4 sm:px-5 py-8 sm:py-16"
         style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom) + 1rem)" }}
       >
-        <div className="w-full max-w-[640px]">
-          <div className="mb-6">
-            <div className="label-eyebrow">Step 1 of 2 · Industry</div>
+        <div className="w-full max-w-[560px]">
+          <div className="mb-7">
+            <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-mute">
+              {t("modes.onboarding.eyebrow")}
+            </div>
             <h1 className="mt-2 font-serif text-[32px] sm:text-[40px] leading-[1.05] tracking-[-0.02em]">
-              Welcome{displayName ? `, ${displayName.split(" ")[0]}` : ""}.
+              {t("modes.onboarding.title")}
             </h1>
-            <p className="mt-3 text-[14px] text-ink-soft max-w-[520px]">
-              Pick the closest match to your company's industry. CFO AI applies
-              industry-appropriate benchmarks — a 4× Debt/EBITDA is normal in real estate
-              and alarming in B2B SaaS.
+            <p className="mt-3 text-[14px] text-ink-soft max-w-[480px]">
+              {t("modes.onboarding.subtitle")}
             </p>
           </div>
 
-          <div className="rounded-3xl border border-rule bg-surface/80 backdrop-blur-xl p-6 sm:p-7 space-y-5">
-            <label className="block">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-ink-mute mb-1.5">Company name</div>
-              <div className="flex items-center gap-2 rounded-lg border border-rule bg-bg-2/40 px-3 h-11">
-                <Building2 size={14} className="text-ink-mute" strokeWidth={1.75} />
-                <input
-                  className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-ink-soft/70"
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                  placeholder={companyName ?? "Acme Romania SRL"}
-                  autoComplete="organization"
-                />
-              </div>
-            </label>
-
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.08em] text-ink-mute mb-2">Industry</div>
-              <OrgIndustryPills value={industryKey} onChange={setIndustryKey} />
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                disabled={busy || !industryKey || !orgName.trim()}
-                onClick={handleContinue}
-                className="
-                  inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full
-                  bg-brand text-paper text-[13.5px] font-medium
-                  hover:bg-brand-d transition-colors
-                  disabled:opacity-50
-                "
-              >
-                {busy ? <Loader2 size={14} className="animate-spin" /> : null}
-                Continue to upload
-              </button>
-            </div>
+          <div className="space-y-3">
+            {ROLE_OPTIONS.map((o) => {
+              const Icon = o.icon;
+              return (
+                <Panel
+                  key={o.role}
+                  className="transition-colors duration-micro hover:border-rule-strong"
+                >
+                  <button
+                    type="button"
+                    data-testid={`onboarding-role-${o.role}`}
+                    onClick={() => finish(o.role)}
+                    className="
+                      flex w-full items-start gap-3.5 rounded-md px-5 py-4 text-left
+                      hover:bg-bg-2/50 transition-colors duration-micro
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                    "
+                  >
+                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-rule bg-bg-2 text-ink-soft">
+                      <Icon size={15} strokeWidth={1.75} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-medium text-ink">
+                        {t(o.titleKey)}
+                      </span>
+                      <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-soft">
+                        {t(o.descKey)}
+                      </span>
+                    </span>
+                  </button>
+                </Panel>
+              );
+            })}
           </div>
 
-          <p className="mt-4 text-[11.5px] text-ink-mute text-center">
-            You can change this later from Settings · Workspace.
-          </p>
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              data-testid="onboarding-skip"
+              onClick={() => finish(null)}
+              className="text-[12.5px] text-ink-soft hover:text-ink transition-colors duration-micro"
+            >
+              {t("modes.onboarding.skip")}
+            </button>
+          </div>
         </div>
       </main>
     </div>

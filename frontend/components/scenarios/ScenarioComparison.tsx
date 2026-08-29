@@ -45,9 +45,17 @@ import {
   sentimentFor,
   type DeltaSentiment,
 } from "@/lib/learning/computeDeltas";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Amount } from "@/components/instrument/Amount";
 import { Panel } from "@/components/instrument/Panel";
+// ── DIAL lane (mode-aware entry points) — Simple-mode row disclosure.
+// This file belongs to the explain lane; the DIAL lane's additions are
+// fenced with "DIAL lane" markers and change ROW VISIBILITY only — every
+// value still flows through resolveRowValue in both modes (gate M1).
+import { useIsSimple } from "@/lib/viewMode";
+import "./modeI18n";
 import {
   CappedMultiple,
   MoneyAmount,
@@ -205,6 +213,24 @@ export function ScenarioComparison({ baseline, scenario, currency, active }: Pro
     if (row.kind !== "currency") return [];
     return [resolveRowValue(row.conceptKey, baseline), resolveRowValue(row.conceptKey, scenario)];
   });
+
+  // ── DIAL lane (mode-aware entry points) — Simple mode collapses the
+  // table to the HEADLINE rows (revenue → total debt) with a "Show all"
+  // disclosure for the ratios & leverage group. Presentation only:
+  //   · same SCENARIO_METRIC_ROWS, same resolveRowValue, and the Amount
+  //     group scale above is computed over ALL rows in both modes, so a
+  //     row renders the identical string collapsed, expanded, or in Pro;
+  //   · Pro mode renders every row exactly as before modes existed.
+  const isSimple = useIsSimple();
+  const { t } = useTranslation();
+  const [showAllRows, setShowAllRows] = useState(false);
+  const ratiosStart = SCENARIO_METRIC_ROWS.findIndex((r) => r.groupStart === "ratios");
+  const collapsed = isSimple && !showAllRows && ratiosStart > 0;
+  const visibleRows = collapsed
+    ? SCENARIO_METRIC_ROWS.slice(0, ratiosStart)
+    : SCENARIO_METRIC_ROWS;
+  const hiddenCount = SCENARIO_METRIC_ROWS.length - visibleRows.length;
+  // ── end DIAL lane block ────────────────────────────────────────────
   return (
     // NO overflow-hidden here: any overflow value except visible would make
     // the Panel the sticky header's scrollport and pin it 56px INTO the
@@ -228,7 +254,8 @@ export function ScenarioComparison({ baseline, scenario, currency, active }: Pro
           </div>
         </div>
 
-        {SCENARIO_METRIC_ROWS.map((row) => {
+        {/* DIAL lane — visibleRows is SCENARIO_METRIC_ROWS in Pro. */}
+        {visibleRows.map((row) => {
           const base = resolveRowValue(row.conceptKey, baseline);
           const scen = resolveRowValue(row.conceptKey, scenario);
           const isRatiosGroup = row.groupStart === "ratios";
@@ -261,6 +288,31 @@ export function ScenarioComparison({ baseline, scenario, currency, active }: Pro
             </div>
           );
         })}
+
+        {/* ── DIAL lane — Simple-mode disclosure toggle. Renders only in
+            Simple (Pro shows every row and never sees this control). */}
+        {isSimple && ratiosStart > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAllRows((v) => !v)}
+            aria-expanded={!collapsed}
+            data-testid="scenario-rows-toggle"
+            className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-[11.5px] text-ink-soft hover:text-ink border-t border-rule-soft transition-colors duration-micro ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+          >
+            {collapsed ? (
+              <>
+                <ChevronDown size={13} strokeWidth={1.75} aria-hidden />
+                {t("scenModes.showAll", { count: hiddenCount })}
+              </>
+            ) : (
+              <>
+                <ChevronUp size={13} strokeWidth={1.75} aria-hidden />
+                {t("scenModes.showFewer")}
+              </>
+            )}
+          </button>
+        )}
+        {/* ── end DIAL lane block ─────────────────────────────────────── */}
       </MoneyAmountGroup>
     </Panel>
   );

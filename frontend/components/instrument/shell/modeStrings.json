@@ -1,0 +1,46 @@
+{
+  "en": {
+    "modes": {
+      "switch": {
+        "label": "View mode",
+        "simple": "Simple",
+        "pro": "Pro",
+        "hint": "Simple tells the story of your numbers in plain language. Pro shows the full instrument — every statement, ratio and reconciliation. Same figures in both."
+      },
+      "onboarding": {
+        "eyebrow": "Welcome to CFO AI",
+        "title": "What describes you best?",
+        "subtitle": "This only sets how your numbers are presented — a plain-language story, or the full instrument. You can switch anytime from the header or Settings.",
+        "owner_title": "I run a business",
+        "owner_desc": "Clear answers about cash, profit and debt, in plain language. Starts in Simple view.",
+        "accountant_title": "I'm an accountant or CFO",
+        "accountant_desc": "Full statements, ratios and reconciliation detail. Starts in Pro view.",
+        "analyst_title": "I'm an analyst or investor",
+        "analyst_desc": "Benchmarks, multiples and peer comparison up front. Starts in Pro view.",
+        "skip": "Skip for now"
+      }
+    }
+  },
+  "ro": {
+    "modes": {
+      "switch": {
+        "label": "Mod de afișare",
+        "simple": "Simplu",
+        "pro": "Pro",
+        "hint": "Simplu îți spune povestea cifrelor pe înțelesul tău. Pro arată instrumentul complet — fiecare situație, indicator și reconciliere. Aceleași cifre în ambele."
+      },
+      "onboarding": {
+        "eyebrow": "Bine ai venit la CFO AI",
+        "title": "Ce te descrie cel mai bine?",
+        "subtitle": "Alegerea stabilește doar cum îți sunt prezentate cifrele — o poveste pe limba ta sau instrumentul complet. Poți comuta oricând din antet sau din Setări.",
+        "owner_title": "Conduc o afacere",
+        "owner_desc": "Răspunsuri clare despre bani, profit și datorii, pe limba ta. Pornești în modul Simplu.",
+        "accountant_title": "Sunt contabil sau CFO",
+        "accountant_desc": "Situații complete, indicatori și detalii de reconciliere. Pornești în modul Pro.",
+        "analyst_title": "Sunt analist sau investitor",
+        "analyst_desc": "Benchmarkuri, multipli și comparații cu companii similare. Pornești în modul Pro.",
+        "skip": "Sari peste deocamdată"
+      }
+    }
+  }
+}

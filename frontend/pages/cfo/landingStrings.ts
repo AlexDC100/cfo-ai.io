@@ -29,6 +29,12 @@ export interface LandingStrings {
     mockTitle: string;
   };
   stats: { drift: string; ratios: string; peers: string; upload: string };
+  /** Global-positioning strip under the hero (directive 2026-08-29).
+   *  Phrasing discipline mirrors lib/markets.ts ACCEPTANCE_LINE (gate G3):
+   *  global claims say "accepted" / "machine-verified" — never
+   *  "supported" / "certified" / "guaranteed". The market row itself is
+   *  NOT copy — it renders straight from lib/markets.ts MARQUEE. */
+  global: { line: string };
   modules: {
     eyebrow: string; t1: string; thl: string;
     cards: { kicker: string; title: string; body: string }[];
@@ -109,6 +115,7 @@ const en: LandingStrings = {
     mockTitle: "cfo-ai · today's briefing · 06:14",
   },
   stats: { drift: "Balance-sheet drift", ratios: "Financial ratios", peers: "Public-company peers", upload: "Upload to report" },
+  global: { line: "Romania at deterministic grade. Any other country accepted — structure read by AI, numbers machine-verified twice." },
   modules: {
     eyebrow: "Four flagship modules", t1: "One platform. ", thl: "Your books, or any public company.",
     cards: [
@@ -255,6 +262,7 @@ const ro: LandingStrings = {
     mockTitle: "cfo-ai · briefingul de azi · 06:14",
   },
   stats: { drift: "Abatere de bilanț", ratios: "Indicatori financiari", peers: "Companii publice comparabile", upload: "De la încărcare la raport" },
+  global: { line: "România la nivel determinist. Orice altă țară acceptată — structura citită de AI, cifrele verificate mecanic de două ori." },
   modules: {
     eyebrow: "Patru module emblematice", t1: "O singură platformă. ", thl: "Contabilitatea ta sau orice companie publică.",
     cards: [

@@ -1,0 +1,108 @@
+{
+  "en": {
+    "story": {
+      "how": {
+        "title": "How you did"
+      },
+      "cash": {
+        "title": "Your cash",
+        "label": "Money in the bank (cash)"
+      },
+      "owe": {
+        "title": "What you owe",
+        "totalLoans": "All loans (total debt)"
+      },
+      "watch": {
+        "title": "The one thing to watch",
+        "allClearTitle": "Nothing urgent",
+        "allClearBody": "No pressing issue stands out in this period's numbers. Keep an eye on the suggestions below as the months add up.",
+        "fallbackBody": "This came out of the automatic checks on this period's numbers. Open the suggestions for the details and the recommended action.",
+        "seeDetails": "See details"
+      },
+      "next": {
+        "title": "Suggested next steps",
+        "empty": "Nothing else needs your attention right now.",
+        "seeAll": "See all suggestions"
+      },
+      "sev": {
+        "critical": "Critical",
+        "watch": "Watch",
+        "info": "Info"
+      },
+      "vsLastPeriod": "vs {{period}}",
+      "trustHint": {
+        "text": "Every number here is machine-checked — tap to see how.",
+        "dismiss": "Dismiss this hint"
+      },
+      "journey": {
+        "stepOf": "Step {{current}} of {{total}}",
+        "skip": "Skip",
+        "continue": "Continue",
+        "cta": "See your dashboard",
+        "readTitle": "Books read & verified",
+        "readTitleUnverified": "Books read",
+        "readBody": "We rebuilt your statements from the file you uploaded and ran the balance checks.",
+        "numbersTitle": "Your three headline numbers",
+        "watchTitle": "The one thing to watch"
+      },
+      "statements": {
+        "showAll": "Show all lines",
+        "showKey": "Show key lines only",
+        "keyOnlyNote": "Key lines only — totals and headline rows."
+      }
+    }
+  },
+  "ro": {
+    "story": {
+      "how": {
+        "title": "Cum ți-a mers"
+      },
+      "cash": {
+        "title": "Numerarul tău",
+        "label": "Bani în bancă (numerar)"
+      },
+      "owe": {
+        "title": "Ce datorezi",
+        "totalLoans": "Toate creditele (datorie totală)"
+      },
+      "watch": {
+        "title": "Singurul lucru de urmărit",
+        "allClearTitle": "Nimic urgent",
+        "allClearBody": "Nicio problemă presantă nu iese în evidență în cifrele acestei perioade. Urmărește sugestiile de mai jos pe măsură ce se adună lunile.",
+        "fallbackBody": "A rezultat din verificările automate pe cifrele acestei perioade. Deschide sugestiile pentru detalii și acțiunea recomandată.",
+        "seeDetails": "Vezi detaliile"
+      },
+      "next": {
+        "title": "Pași următori sugerați",
+        "empty": "Nimic altceva nu are nevoie de atenția ta acum.",
+        "seeAll": "Vezi toate sugestiile"
+      },
+      "sev": {
+        "critical": "Critic",
+        "watch": "De urmărit",
+        "info": "Info"
+      },
+      "vsLastPeriod": "vs {{period}}",
+      "trustHint": {
+        "text": "Fiecare cifră de aici e verificată automat — apasă ca să vezi cum.",
+        "dismiss": "Închide acest indiciu"
+      },
+      "journey": {
+        "stepOf": "Pasul {{current}} din {{total}}",
+        "skip": "Sari peste",
+        "continue": "Continuă",
+        "cta": "Vezi panoul tău",
+        "readTitle": "Registre citite și verificate",
+        "readTitleUnverified": "Registre citite",
+        "readBody": "Ți-am reconstruit situațiile din fișierul încărcat și am rulat verificările de echilibru.",
+        "numbersTitle": "Cele trei cifre principale ale tale",
+        "watchTitle": "Singurul lucru de urmărit"
+      },
+      "statements": {
+        "showAll": "Arată toate liniile",
+        "showKey": "Doar liniile principale",
+        "keyOnlyNote": "Doar liniile principale — totaluri și rânduri de sinteză."
+      }
+    }
+  }
+}

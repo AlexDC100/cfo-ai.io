@@ -11,10 +11,18 @@
 // transparent "WC reconciliation" plug line when prior-period data
 // isn't available to itemize working-capital deltas.
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cloud, ArrowUp } from "lucide-react";
 import type { CashFlowStatement } from "@/lib/cfStructure";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
+// THE DIAL — Simple mode opens the CF totals-first: adjustment / working-
+// capital / investing / financing detail rows hide behind "Show all lines";
+// section totals and the cash reconciliation block (an honesty surface)
+// always render. Pro is untouched; no VALUE depends on mode.
+import { useIsSimple } from "@/lib/viewMode";
+import { ShowAllLinesToggle } from "@/components/cfo/simple/ShowAllLines";
+import { SimpleTermLabel } from "@/components/cfo/simple/SimpleTermLabel";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { CF_GUIDE } from "@/components/learning/pageGuides";
@@ -35,6 +43,11 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
   // 2026-05-24 — currency conversion via display-currency toggle.
   const fmt = useAmountFormatter(statement.currency);
   const display = useDisplayCurrency();
+  // THE DIAL — Simple collapsed state (detail rows only; totals + the
+  // reconciliation block and every honesty banner always render).
+  const isSimple = useIsSimple();
+  const [showAll, setShowAll] = useState(false);
+  const keyOnly = isSimple && !showAll;
 
   return (
     <div className={(showApproximationBanner || notes.length > 0) ? "lg:grid lg:grid-cols-[auto_minmax(440px,560px)] lg:gap-3 lg:items-start lg:justify-center" : ""}>
@@ -52,25 +65,46 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
         {!hideGuide && <GuideMeButton pageId="cash-flow" title="Cash Flow" steps={CF_GUIDE} />}
       </div>
 
+      {/* THE DIAL — Simple-only disclosure toggle. Pro never renders it. */}
+      {isSimple && (
+        <ShowAllLinesToggle
+          open={showAll}
+          onToggle={() => setShowAll((v) => !v)}
+          testid="cf-show-all"
+        />
+      )}
+
       <div className="cf-body">
         {/* ── OPERATING ACTIVITIES ─────────────────────────────────── */}
         <section className="cf-section" data-testid="cf-section-operating" data-guide="cf-operating">
           <div className="cf-section-header">{t("statements.cf.operating.header")}</div>
 
-          <div className="cf-row cf-row-item">
-            <span className="cf-label">{t("statements.cf.operating.netProfit")}</span>
-            <LearnableNumber conceptKey="net_profit" value={operating.netProfit} className="cf-amount" block>
-              {fmt(operating.netProfit)}
-            </LearnableNumber>
-          </div>
-          <div className="cf-row cf-row-item">
-            <span className="cf-label">{t("statements.cf.operating.depreciation")}</span>
-            <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
-              {fmt(operating.depreciation)}
-            </LearnableNumber>
-          </div>
+          {!keyOnly && (
+            <>
+              <div className="cf-row cf-row-item">
+                <span className="cf-label">
+                  <SimpleTermLabel termId="net_profit">
+                    {t("statements.cf.operating.netProfit")}
+                  </SimpleTermLabel>
+                </span>
+                <LearnableNumber conceptKey="net_profit" value={operating.netProfit} className="cf-amount" block>
+                  {fmt(operating.netProfit)}
+                </LearnableNumber>
+              </div>
+              <div className="cf-row cf-row-item">
+                <span className="cf-label">
+                  <SimpleTermLabel termId="depreciation">
+                    {t("statements.cf.operating.depreciation")}
+                  </SimpleTermLabel>
+                </span>
+                <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
+                  {fmt(operating.depreciation)}
+                </LearnableNumber>
+              </div>
 
-          <div className="cf-subtotal-rule" />
+              <div className="cf-subtotal-rule" />
+            </>
+          )}
           <div className="cf-row cf-subtotal">
             <span className="cf-label">{t("statements.cf.operating.cfBeforeWc")}</span>
             <LearnableNumber conceptKey="operating_cash_flow_before_wc" value={operating.cfBeforeWcChanges} className="cf-amount" block>
@@ -78,7 +112,7 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
             </LearnableNumber>
           </div>
 
-          {operating.wcChanges.length > 0 && (
+          {!keyOnly && operating.wcChanges.length > 0 && (
             <>
               <div className="cf-subsection-header">{t("statements.cf.operating.wcChanges")}</div>
               {operating.wcChanges.map((wc, i) => (
@@ -105,7 +139,11 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
 
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-from-operating">
-            <span className="cf-label">{t("statements.cf.operating.cashFromOperating")}</span>
+            <span className="cf-label">
+              <SimpleTermLabel termId="cash_flow">
+                {t("statements.cf.operating.cashFromOperating")}
+              </SimpleTermLabel>
+            </span>
             <LearnableNumber conceptKey="operating_cash_flow" value={operating.cashFromOperating} className="cf-amount" block>
               {fmt(operating.cashFromOperating)}
             </LearnableNumber>
@@ -115,7 +153,7 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
         {/* ── INVESTING ACTIVITIES ─────────────────────────────────── */}
         <section className="cf-section" data-testid="cf-section-investing" data-guide="cf-investing">
           <div className="cf-section-header">{t("statements.cf.investing.header")}</div>
-          {investing.items.map((item, i) => (
+          {!keyOnly && investing.items.map((item, i) => (
             <div key={`${item.label}-${i}`} className="cf-row cf-row-item">
                 <span className="cf-label">
                 {item.label}
@@ -138,6 +176,8 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
         {/* ── FINANCING ACTIVITIES ─────────────────────────────────── */}
         <section className="cf-section" data-testid="cf-section-financing" data-guide="cf-financing">
           <div className="cf-section-header">{t("statements.cf.financing.header")}</div>
+          {!keyOnly && (
+          <>
           <div className="cf-row cf-row-item">
             <span className="cf-label">
               {t("statements.cf.financing.ltDraws")}
@@ -173,6 +213,8 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
               {fmt(financing.dividendsPaid)}
             </LearnableNumber>
           </div>
+          </>
+          )}
           <div className="cf-subtotal-rule" />
           <div className="cf-row cf-section-total" data-testid="cf-cash-from-financing">
             <span className="cf-label">{t("statements.cf.financing.cashFromFinancing")}</span>
