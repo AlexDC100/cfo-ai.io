@@ -28,6 +28,7 @@ directly with a planted fixture app (tests/engine/test_public_seo.py).
 from __future__ import annotations
 
 import argparse
+import os
 import gzip
 import random
 import re
@@ -96,8 +97,13 @@ _REDIRECT_STATUSES = (301, 302, 303, 307, 308)
 #: weakening the shield (a gate exemption in the limiter would be a
 #: spoofable bypass). A URL that still 429s after the retries is a real
 #: availability problem and stays a violation.
-_PROBE_PACE_S = 0.25
-_429_RETRIES = (2.0, 5.0, 11.0)
+#: In-process TestClient runs keep a token-cost-only pace; a NETWORK run
+#: against the live host must fit the public token bucket (60/min
+#: default) — the go-live invocation sets PS6_PROBE_PACE_S=1.1. Either
+#: way the retry ladder below converges on the bucket's refill rate, so
+#: a misconfigured pace stretches the run instead of failing it.
+_PROBE_PACE_S = float(os.environ.get("PS6_PROBE_PACE_S", "0.05"))
+_429_RETRIES = (2.0, 5.0, 11.0, 23.0)
 
 
 def _get(client: Any, path: str, headers: Dict[str, str]) -> Any:
