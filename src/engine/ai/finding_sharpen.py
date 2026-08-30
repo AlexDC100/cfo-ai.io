@@ -1305,7 +1305,16 @@ def _resolve(text: str, finding: Any) -> str:
                             (finding.currency or "RON").upper())
 
 
-def _to_steps(draft: Dict[str, Any], finding: Any) -> Tuple[Any, ...]:
+def _to_steps(draft, finding, lang="en"):
+    # type: (Dict[str, Any], Any, str) -> Tuple[Any, ...]
+    """Structured steps, stamped with the language of their own words.
+
+    The stamp is what lets `ActionStep.render()` pick the right joiner. A
+    Romanian step rendered with the English one came out as "…, from
+    controlorul financiar" — half-translated, and plausible enough to
+    ship. The language now travels with the text instead of being
+    inferred from which code path did the rendering.
+    """
     F = _F()
     out = []  # type: List[Any]
     for step in draft["steps"]:
@@ -1315,6 +1324,7 @@ def _to_steps(draft: Dict[str, Any], finding: Any) -> Tuple[Any, ...]:
             provider=_resolve(str(step.get("provider") or ""), finding),
             horizon=(_resolve(str(step["horizon"]), finding)
                      if step.get("horizon") else None),
+            lang=lang,
         ))
     return tuple(out)
 
@@ -1724,7 +1734,7 @@ def _apply_ro(finding: Any, ro_draft: Optional[Dict[str, Any]],
         ro_finding = _raw_apply(
             finding,
             rationale=_resolve(ro_draft["rationale"], finding),
-            action_steps=_to_steps(ro_draft, finding))
+            action_steps=_to_steps(ro_draft, finding, lang="ro"))
     except F.NarrativeMutationError as exc:
         journal_record({"event": "mutation_refusal", "language": "ro",
                         "rule_id": view.rule_id, "detail": str(exc)[:400]},

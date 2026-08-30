@@ -380,16 +380,45 @@ class ActionStep:
     artefact: str            # what to obtain / check / compute
     provider: str            # who typically provides it
     horizon: Optional[str] = None
+    #: Language of THIS step's three text fields. Defaults to "en", so
+    #: every deterministic detector — all 38 construction sites — is
+    #: byte-identical to before this field existed.
+    #:
+    #: It exists because the sharpening layer returns Romanian steps, and
+    #: `render()` used to splice them with an English joiner: a correct
+    #: Romanian step came out as "…, from controlorul financiar". Nothing
+    #: renders RO steps through here today (the frontend joins the
+    #: structured steps itself), so this was a trap rather than a live
+    #: bug — and a trap that produces a plausible half-English sentence
+    #: is exactly the kind that ships. Stamping the language on the step
+    #: makes the joiner follow the words instead of the code path.
+    lang: str = "en"
+
+    #: Joiner per language. A language absent here REFUSES in `render()`
+    #: rather than falling back to English, on the house rule: a missing
+    #: translation is ABSENT, and absent is not "the English one".
+    _JOINERS = {
+        "en": ("%s — %s, from %s", "(%s)"),
+        "ro": ("%s — %s, de la %s", "(%s)"),
+    }
 
     def lead_verb(self) -> str:
         head = self.imperative.strip().split(" ", 1)[0] if self.imperative.strip() else ""
         return head.strip(",.;:").lower()
 
     def render(self) -> str:
-        text = "%s — %s, from %s" % (self.imperative.rstrip(". "),
-                                     self.artefact.rstrip(". "), self.provider)
+        shape = self._JOINERS.get(self.lang)
+        if shape is None:
+            raise ValueError(
+                "ActionStep.render(): no joiner for lang %r. Add one to "
+                "ActionStep._JOINERS — do not fall back to English, which "
+                "would emit a sentence that is half one language and half "
+                "another and read as correct." % (self.lang,))
+        body, horizon_fmt = shape
+        text = body % (self.imperative.rstrip(". "),
+                       self.artefact.rstrip(". "), self.provider)
         if self.horizon:
-            text += " (%s)" % self.horizon
+            text += " " + (horizon_fmt % self.horizon)
         return text + "."
 
 

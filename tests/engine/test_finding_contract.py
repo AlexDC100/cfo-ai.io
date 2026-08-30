@@ -692,3 +692,47 @@ def test_a_money_impact_does_not_print_a_third_uncited_figure():
     assert "Debt net of cash moves from RON 1,000 to RON 800." in body
     assert "-RON 200" not in body
     assert impact.delta == pytest.approx(-200.0)   # still on the payload
+
+
+# ── ActionStep language stamp ────────────────────────────────────────────
+#
+# A Romanian step spliced with the English joiner produced "…, from
+# controlorul financiar": half-translated, and plausible enough to ship.
+# The language travels with the words now, not with the code path.
+
+def test_english_step_renders_with_the_english_joiner():
+    step = F.ActionStep("Obtain the aging schedule",
+                        "counterparty balances", "the financial controller")
+    assert step.render() == (
+        "Obtain the aging schedule — counterparty balances, "
+        "from the financial controller.")
+
+
+def test_english_is_the_default_so_every_detector_is_byte_identical():
+    assert F.ActionStep("A", "b", "c").lang == "en"
+    assert F.ActionStep("A", "b", "c").render() == "A — b, from c."
+
+
+def test_romanian_step_renders_with_the_romanian_joiner():
+    step = F.ActionStep("Obține balanța pe vechimi",
+                        "soldurile pe contrapartidă",
+                        "controlorul financiar", lang="ro")
+    rendered = step.render()
+    assert "de la controlorul financiar" in rendered
+    assert " from " not in rendered
+
+
+def test_horizon_placement_is_unchanged_in_both_languages():
+    en = F.ActionStep("A", "b", "c", horizon="within 2 weeks").render()
+    ro = F.ActionStep("A", "b", "c", horizon="în 2 săptămâni",
+                      lang="ro").render()
+    assert en == "A — b, from c (within 2 weeks)."
+    assert ro == "A — b, de la c (în 2 săptămâni)."
+
+
+def test_unknown_language_refuses_rather_than_falling_back_to_english():
+    # ABSENT is not "the English one". A half-rendered sentence reads as
+    # correct, which is why this must raise instead of degrade.
+    with pytest.raises(ValueError) as exc:
+        F.ActionStep("A", "b", "c", lang="hu").render()
+    assert "_JOINERS" in str(exc.value)
