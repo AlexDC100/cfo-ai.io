@@ -68,13 +68,13 @@ export function CapsuleAskUnavailable({ block, onRetry }: CapsuleAskUnavailableP
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         {block.kind === "degraded" ? (
           // The human-readable reason, from the mapper's fixed three.
-          <span className="text-[11px] text-ink-mute">
+          <span className="text-[11px] text-ink-soft">
             {t("capsuleEmpty.degraded.detailsLabel")}
             {": "}
             {t(block.reasonKey)}
           </span>
         ) : (
-          <span data-testid="capsule-throttle-countdown" className="text-[11px] text-ink-mute tabular-nums">
+          <span data-testid="capsule-throttle-countdown" className="text-[11px] text-ink-soft tabular-nums">
             {t("capsuleEmpty.throttle.ready", { seconds: block.secondsRemaining })}
           </span>
         )}

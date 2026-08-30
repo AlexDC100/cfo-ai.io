@@ -103,6 +103,16 @@ export {
 // asked is something you reach for, not something you read every time
 // the surface opens. `CapsuleRecentQuestions` was deleted, not hidden.
 
+export {
+  DECAY_AT,
+  MAX_TRACKED,
+  clearJumpCounts,
+  rankByUsage,
+  readJumpCounts,
+  recordJump,
+  type JumpCounts,
+} from "./capsuleJumpUsage";
+
 export { useCapsuleKeys, type CapsuleKeys } from "./capsuleKeys";
 export { useCapsuleSnapshot, type CapsuleSnapshotResult } from "./useCapsuleSnapshot";
 export { ensureCapsuleEmptyStrings } from "./capsuleEmptyI18n";

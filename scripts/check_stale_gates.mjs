@@ -90,7 +90,13 @@ for (const f of gateFiles) {
     REF_RX.lastIndex = 0
     while ((m = REF_RX.exec(line))) {
       const id = m[1] || m[2]
-      if (!id || id.includes('${')) continue
+      // A testid is a plain identifier. Anything else came from a
+      // REGEX SOURCE, not an assertion — other gate scripts contain
+      // `[data-testid="..."]` patterns as string literals, and matching
+      // those made `([^` and `…` look like stale ids. Defining what a
+      // testid can be is the fix; suppressing the two names would leave
+      // the next regex fragment to be discovered by hand.
+      if (!id || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id)) continue
       const where = `${relative(ROOT, f)}:${i + 1}`
       if (!referenced.has(id)) referenced.set(id, [])
       referenced.get(id).push(where)
@@ -152,11 +158,16 @@ const healed = [...baseline].filter((id) => !stale.some(([s]) => s === id))
 console.log(`  ${stale.length} stale (baseline ${baseline.size}, `
   + `new ${fresh.length}, healed ${healed.length})`)
 
+// A healed id left in the baseline is a loose ratchet: the gate would
+// silently permit that assertion to go stale again. Tightening is one
+// command, and the message says which.
 if (healed.length) {
   console.log('')
-  console.log('These are FIXED — remove them from the baseline so the')
-  console.log('ratchet cannot loosen:')
+  console.log('FAIL — these are FIXED but still in the baseline, which')
+  console.log('leaves room for them to regress. Tighten the ratchet:')
+  console.log('  node scripts/check_stale_gates.mjs --write-baseline')
   for (const id of healed.sort()) console.log(`  ${id}`)
+  process.exit(1)
 }
 
 if (fresh.length) {

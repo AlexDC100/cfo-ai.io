@@ -131,6 +131,15 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
     # which is the point: that suite is not in the battery, so nothing
     # else would have noticed the drift.
     ("stale-gates", ["node", "scripts/check_stale_gates.mjs"]),
+    # K1/K8 — THE CAPSULE IS ASK-FIRST. Static half: the command-surface
+    # placeholder leads with an ask verb (EN + RO), "Ask" is not a list
+    # row, and the header budget agrees with the header lane's own set.
+    # In the battery because production shipped "Search pages, actions,
+    # periods, companies…" for months while every C-gate stayed green —
+    # a surface can satisfy every correctness law and still tell the
+    # reader to do the wrong thing. Live half (K1-K9, needs vite :5173 +
+    # engine :8000): e2e/design/capsule.spec.ts. Plants: design_review/capsule/GATES.md
+    ("capsule-ask", ["node", "scripts/check_capsule_ask.mjs"]),
     # U1/U3 — NARRATIVE UNITS. A note that reads "holds RON 7,692,203 — 19.6%
     # of total assets 7.467.122,25 €" is one claim in two currencies; the
     # ratio was correct and the sentence still made it unverifiable. This
@@ -142,7 +151,13 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
     # exemption. Contract + plant log: design_review/narrative/GATES.md
     ("narrative-units", ["node", "scripts/check_narrative_units.mjs"]),
     ("global-positioning", ["node", "scripts/check_global_positioning.mjs"]),
-    ("tsc", ["npx", "tsc", "--noEmit"]),
+    # `npx tsc --noEmit` sat here and CHECKED ZERO FILES. The root
+    # tsconfig.json is solution-style — `"files": []` plus references —
+    # so without `-b` tsc obeys the empty file list and exits 0 in 0.2s.
+    # Every lane pasted it as proof for months while 102 real type errors
+    # accumulated across 32 files. The 0.2s runtime was the tell; a green
+    # gate invites nobody to read its runtime.
+    ("tsc", ["node", "scripts/check_tsc.mjs"]),
             ("npm-build", ["npm", "run", "build"]),
         ]
     return gates

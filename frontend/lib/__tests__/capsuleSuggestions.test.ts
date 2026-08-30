@@ -44,6 +44,7 @@ function snapshot(over: Partial<CapsuleWorkspaceSnapshot> = {}): CapsuleWorkspac
     silence: false,
     metrics: [],
     unattached: [],
+    moves: [],
     ...over,
   };
 }

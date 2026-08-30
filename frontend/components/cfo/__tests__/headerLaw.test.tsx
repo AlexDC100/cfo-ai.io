@@ -94,9 +94,11 @@ vi.mock("@/components/cfo/AccountMenu", () => ({
 vi.mock("@/components/cfo/NotificationsMenu", () => ({
   NotificationsMenu: () => <button type="button" data-testid="notifications-button" />,
 }));
-vi.mock("@/components/cfo/CurrencyMenu", () => ({
-  CurrencyMenu: () => <button type="button" data-testid="currency-menu-trigger" />,
-}));
+// NOTE: the mock for "@/components/cfo/CurrencyMenu" was DELETED here on
+// 2026-08-30 (Part E). TopHeader never imported it, and CurrencyMenu is
+// no longer rendered anywhere in the app — a mock for a module under
+// test that nothing imports is dead weight that makes the suite look
+// like it covers a surface it does not.
 vi.mock("@/components/cfo/CurrencyToggle", () => ({
   CurrencyToggle: () => <button type="button" data-testid="currency-toggle" />,
 }));
@@ -111,6 +113,13 @@ vi.mock("@/components/instrument/shell/ContextObject", () => ({
 }));
 vi.mock("@/components/instrument/shell/ModeSwitch", () => ({
   ModeSwitch: () => <div role="radiogroup" data-testid="mode-switch" />,
+  toggleViewMode: () => "pro",
+  MODE_PALETTE_ACTION: {
+    id: "act-view-mode",
+    labelKey: "modes.switch.paletteLabel",
+    hintKey: "modes.switch.hint",
+    nextMode: () => "pro",
+  },
   // The Capsule refactor (2026-08-30) moved the dial into the avatar
   // menu, whose content mounts lazily — so the cross-device sync was
   // extracted into this hook and seated in TopHeader, which is always
@@ -143,6 +152,16 @@ import { SHELL_NAV_ALL } from "@/components/cfo/Sidebar";
 // renderRealTrustChip flips (see the vi.mock factory above).
 import { TrustChip } from "@/components/instrument/shell/TrustChip";
 import shellStrings from "@/components/instrument/shell/shellStrings.json";
+// The census is defined ONCE, in the gate script, and imported by both
+// runtime halves. See the header of that file for why.
+import {
+  INTERACTIVE_SELECTORS,
+  COMPOSITE_SELECTORS,
+  MAX_COMPOSITE_CHILDREN,
+  headerCensus,
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore — plain .mjs gate module, no d.ts by design
+} from "../../../../scripts/check_header_law.mjs";
 
 beforeEach(() => {
   cleanup();
@@ -414,5 +433,193 @@ describe("H4 — the ⌘K hint lives in the <kbd> alone", () => {
       text,
       `H4: the command bar's text ("${text}") repeats the shortcut — the <kbd> is the ONE hint`,
     ).not.toMatch(/⌘|ctrl|cmd|K\b/i);
+  });
+});
+
+// ── H1s · the census, structurally (the trust-present case) ────────────
+//
+// The LIVE gate cannot reach this case: the test-mode demo period serves
+// no canonical envelope, so the trust chip never renders there and the
+// Capsule is only ever measured holding ONE child. Here the chip is
+// mocked into existence, which is the only place the two-child Capsule
+// can be proven to still collapse to one control.
+//
+// Structural, not responsive: jsdom has no layout and never resolves
+// `lg:hidden`, so BOTH left-slot controls and the bell appear. The live
+// gate owns which of them paint at which width.
+
+describe("H1s — the Capsule collapses to ONE control even when it holds the trust chip", () => {
+  const structuralCensus = (header: HTMLElement) =>
+    headerCensus(header, {
+      selectors: INTERACTIVE_SELECTORS,
+      composites: COMPOSITE_SELECTORS,
+      structural: true,
+    });
+
+  it("counts the Capsule once, and swallows both of its children", () => {
+    const { container } = renderHeader();
+    const header = container.querySelector("header")!;
+    const census = structuralCensus(header);
+
+    expect(
+      census.items.map((i: { testid: string | null }) => i.testid),
+      "H1s: the header's structural control set changed. Live-width filtering is the e2e gate's job; " +
+        "this list is every control that exists at all.",
+    ).toEqual([
+      "header-nav-toggle",
+      "header-brand",
+      "header-capsule",
+      "notifications-button",
+      "account-menu-trigger",
+    ]);
+
+    const capsule = census.composites.find(
+      (c: { testid: string | null }) => c.testid === "header-capsule",
+    );
+    expect(capsule, "H1s: the Capsule is no longer recognised as a composite").toBeTruthy();
+    expect(
+      capsule.children.map((c: { testid: string | null }) => c.testid),
+      "H1s: the Capsule's interior changed — it must hold exactly the trust control and the command bar",
+    ).toEqual(["trust-chip", "header-command-bar"]);
+    expect(
+      capsule.children.length,
+      "H1b: a composite may not become a hiding place for a growing control cluster",
+    ).toBeLessThanOrEqual(MAX_COMPOSITE_CHILDREN);
+  });
+
+  it("no radiogroup survives in the bar (the dial is gone, not hidden)", () => {
+    const { container } = renderHeader();
+    const header = container.querySelector("header")!;
+    expect(
+      header.querySelectorAll('[role="radiogroup"], [data-testid="mode-switch"]').length,
+      "H7: the Simple|Pro dial is back in TopHeader's own markup. Its homes are the avatar menu, " +
+        "Settings > Appearance and the ⌘K palette action (MODE_PALETTE_ACTION in ModeSwitch.tsx).",
+    ).toBe(0);
+  });
+});
+
+// ── H7 · the dial left the bar but not the product ─────────────────────
+
+describe("H7 — the relocated dial is still wired", () => {
+  it("TopHeader still seats useViewModeSync (cross-device adoption)", async () => {
+    // The avatar menu's content mounts lazily, so the sync hook cannot
+    // live there. Deleting this call from TopHeader would silently kill
+    // remote view-mode adoption with no visible symptom.
+    const src = await import("@/components/cfo/TopHeader?raw").catch(() => null);
+    // `?raw` is a Vite feature and may be unavailable under some vitest
+    // configs — fall back to asserting the module's behaviour instead.
+    if (src && typeof (src as { default?: string }).default === "string") {
+      expect((src as { default: string }).default).toMatch(/useViewModeSync\s*\(\s*\)/);
+    } else {
+      const mod = await import("@/components/instrument/shell/ModeSwitch");
+      expect(typeof mod.useViewModeSync, "useViewModeSync must remain exported for TopHeader").toBe(
+        "function",
+      );
+    }
+  });
+
+  it("publishes a palette action descriptor for the ⌘K lane", async () => {
+    const mod = await vi.importActual<typeof import("@/components/instrument/shell/ModeSwitch")>(
+      "@/components/instrument/shell/ModeSwitch",
+    );
+    expect(mod.MODE_PALETTE_ACTION.id).toBe("act-view-mode");
+    expect(mod.MODE_PALETTE_ACTION.labelKey).toBe("modes.switch.paletteLabel");
+    expect(typeof mod.toggleViewMode, "toggleViewMode is the one mutation the action needs").toBe(
+      "function",
+    );
+    // The label key must actually resolve in BOTH languages, or the
+    // palette row would render a raw key when the lane wires it up.
+    const strings = (await import("@/components/instrument/shell/modeStrings.json")).default as {
+      en: { modes: { switch: Record<string, string> } };
+      ro: { modes: { switch: Record<string, string> } };
+    };
+    for (const lang of ["en", "ro"] as const) {
+      expect(
+        strings[lang].modes.switch.paletteLabel,
+        `H7: modes.switch.paletteLabel missing for ${lang}`,
+      ).toBeTruthy();
+    }
+  });
+});
+
+// ── H6s · the relocation coach mark (static half) ──────────────────────
+
+describe("H6s — the relocation coach mark", () => {
+  const COACH_KEY = "cfo:header-mode-coachmark-v1";
+  const VIEW_MODE_KEY = "cfo-view-mode-v1";
+
+  // This runner's `window.localStorage` is an EMPTY OBJECT with no
+  // methods (Node's own localStorage shadows jsdom's — the runner even
+  // warns "`--localstorage-file` was provided without a valid path").
+  // The product guards every access in try/catch, so it degrades to
+  // "never arm" here — which would let all four of these tests pass
+  // while proving nothing. Install a real in-memory Storage instead.
+  let store: Record<string, string> = {};
+  const memoryStorage = {
+    getItem: (k: string) => (k in store ? store[k] : null),
+    setItem: (k: string, v: string) => {
+      store[k] = String(v);
+    },
+    removeItem: (k: string) => {
+      delete store[k];
+    },
+    clear: () => {
+      store = {};
+    },
+    key: (i: number) => Object.keys(store)[i] ?? null,
+    get length() {
+      return Object.keys(store).length;
+    },
+  };
+
+  beforeEach(() => {
+    store = {};
+    Object.defineProperty(window, "localStorage", {
+      value: memoryStorage,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("does NOT arm for a user who never operated the dial", () => {
+    renderHeader();
+    expect(
+      screen.queryByTestId("header-coach-mark"),
+      "H6s: a first-run user is being told a control they never touched has moved",
+    ).toBeNull();
+  });
+
+  it("arms for a user who holds an explicit view-mode choice", () => {
+    window.localStorage.setItem(VIEW_MODE_KEY, "pro");
+    renderHeader();
+    expect(screen.getByTestId("header-coach-mark")).toBeInTheDocument();
+  });
+
+  it("Escape dismisses it, and it never re-shows", () => {
+    window.localStorage.setItem(VIEW_MODE_KEY, "pro");
+    renderHeader();
+    expect(screen.getByTestId("header-coach-mark")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("header-coach-mark")).toBeNull();
+    expect(window.localStorage.getItem(COACH_KEY)).toBe("dismissed");
+
+    cleanup();
+    renderHeader(); // a fresh mount == a reload
+    expect(
+      screen.queryByTestId("header-coach-mark"),
+      "H6s: a dismissed coach mark came back — 'one-time' must survive a remount",
+    ).toBeNull();
+  });
+
+  it("is portaled OUT of the header, so it spends no budget", () => {
+    window.localStorage.setItem(VIEW_MODE_KEY, "pro");
+    const { container } = renderHeader();
+    const header = container.querySelector("header")!;
+    expect(
+      header.querySelector('[data-testid="header-coach-mark"]'),
+      "H6s: the coach mark rendered INSIDE <header> — it would then count as a header control",
+    ).toBeNull();
+    expect(screen.getByTestId("header-coach-mark")).toBeInTheDocument();
   });
 });

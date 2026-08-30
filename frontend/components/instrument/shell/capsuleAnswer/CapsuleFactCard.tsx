@@ -119,38 +119,81 @@ export function CapsuleFactCard({ evidence, visuals, onJump }: CapsuleFactCardPr
   return (
     <div
       data-testid="capsule-fact-card"
-      className="mt-2 flex items-end gap-3 border-b border-rule-soft pb-3"
+      className="mt-2 border-b border-rule-soft pb-3"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
-            {label}
+      <div className="flex items-center gap-1.5">
+        <span className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
+          {label}
+        </span>
+        {meta.periodLabel && (
+          <span className="shrink-0 truncate text-[10px] uppercase tracking-[0.14em] text-ink-soft/70">
+            · {meta.periodLabel}
           </span>
-          {meta.periodLabel && (
-            <span className="shrink-0 truncate text-[10px] uppercase tracking-[0.14em] text-ink-mute/70">
-              · {meta.periodLabel}
-            </span>
-          )}
-        </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          {/* leading-none, and the row reserves its own height below —
-              the streamed prose arrives underneath and must not be able
-              to reflow this line. */}
-          <FigureValue
-            meta={meta}
-            evidence={evidence}
-            className="text-[26px] leading-none tracking-tight text-ink"
-          />
-          {delta && (
-            <DeltaChip meta={delta} evidence={evidence} direction={direction} />
-          )}
-        </div>
+        )}
       </div>
-      {/* The dot is the jump. It renders only when the metric maps to a
-          statement row we can actually navigate to — a dot with nowhere
-          to go is trust chrome with nothing behind it. */}
-      <div className="shrink-0 pb-1">
-        <ProvenanceDot meta={meta} onJump={onJump} />
+      {/* `data-fact` IS the grounding claim, and it is load-bearing.
+          C3 walks the DOM and demands that every figure sit inside an
+          element naming where it came from. A MONEY figure carries
+          `data-narrative-money` from the renderer itself; a
+          DIMENSIONLESS one (a ratio, a day count) renders as a bare
+          `<Amount>` span and carries nothing — the gate's own documented
+          gap. While every figure lived in the figure list that did not
+          matter, because the LIST was whitelisted. The headline moved a
+          figure out of that list, so the headline has to carry the
+          attribute itself. Removing it would silently un-ground every
+          ratio answer. */}
+      <div
+        data-fact={meta.fact}
+        data-metric={meta.metric}
+        className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1"
+      >
+        {/* leading-none, and the block below reserves its own height —
+            the streamed prose arrives underneath and must not be able to
+            reflow this line. */}
+        {/* THE HOVER COLOUR IS PINNED, and this is not cosmetic.
+            `TraceableNumber` — the app-wide inline "jump to the source
+            row" affordance this figure is rendered through — carries
+            `hover:text-accent`. At 12px inside a sentence that is a
+            perfectly good affordance. At 26px, as the ANSWER, it repaints
+            the single most important number on the surface in a pale
+            tint that fails AA while the pointer rests on it.
+            Caught in the r5 screenshots: the headline read as washed-out
+            teal in every mobile capture, and only there, because that is
+            where the driver's pointer happened to land. It was
+            misdiagnosed twice — first as a compositor artifact, then as
+            the panel's translucency — before the pixels were magnified
+            and the dotted underline gave it away.
+            `TraceableNumber` belongs to another lane, so the colour is
+            pinned from here. `!` rather than plain utilities because
+            Tailwind resolves competing `hover:` colours by STYLESHEET
+            order, not by the order they appear in this attribute — an
+            unmarked `hover:text-ink` would win or lose by accident.
+            `brand-d` / `brand-l` keep the "this is clickable" signal and
+            measure 7.2:1 and above. */}
+        <FigureValue
+          meta={meta}
+          evidence={evidence}
+          className="
+            text-[26px] leading-none tracking-tight text-ink
+            [&_button:hover]:!text-brand-d dark:[&_button:hover]:!text-brand-l
+          "
+        />
+        {/* THE DOT SITS WITH THE NUMBER — but not touching it.
+            r1 pinned it to the card's right edge, four hundred pixels
+            from the figure it is the proof of, which is not a
+            relationship the eye makes. r2 moved it adjacent, and at 5px
+            immediately after "RON" it could be read as a full stop. The
+            extra left margin is the whole fix: close enough to belong to
+            the number, far enough not to punctuate it.
+            It renders at all only when the metric maps to a statement
+            row we can navigate to — a dot with nowhere to go is trust
+            chrome with nothing behind it. */}
+        <span className="ml-1 self-center">
+          <ProvenanceDot meta={meta} onJump={onJump} />
+        </span>
+        {delta && (
+          <DeltaChip meta={delta} evidence={evidence} direction={direction} />
+        )}
       </div>
     </div>
   );

@@ -472,7 +472,12 @@ export function buildCapsuleSuggestions(
   //     "Why did gross margin get flagged?" and "What moved gross margin
   //     down?" are one question asked twice, and two of three slots is
   //     too high a price for a rephrasing.
-  const move = s.moves.find(
+  // `s.moves ?? []` for the same reason the function opens with
+  // `snapshot ?? EMPTY_SNAPSHOT`: a snapshot assembled by an older build
+  // (or by a caller that predates this field) is a MISSING field, not a
+  // crash. The rule is the file's own — absent is not zero, and it is
+  // certainly not a TypeError.
+  const move = (s.moves ?? []).find(
     (m) => !finding || m.subject.toLowerCase() !== finding.subject.toLowerCase(),
   );
   if (move) {

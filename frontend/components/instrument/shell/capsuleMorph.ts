@@ -106,12 +106,43 @@ function prefersReducedMotion(): boolean {
 export interface CapsuleMorph {
   /** Attach to the panel element. */
   ref: (node: HTMLElement | null) => void;
-  /** Spread onto the panel. Carries the starting transform for exactly
-   *  one frame, then identity. */
+  /** Spread onto the panel. Carries the anchored `left` for as long as
+   *  the panel is open, and the starting transform for exactly one
+   *  frame. */
   style: CSSProperties;
   /** True while the growth is in flight — the host fades content in
    *  behind it so the distorted frames are not read as text. */
   morphing: boolean;
+}
+
+/** Keeps the panel on screen with a margin, whatever the trigger's
+ *  centre asks for. A capsule near the viewport edge must not push the
+ *  panel half off it. */
+export const ANCHOR_MARGIN = 8;
+
+/**
+ * Where the panel's left edge goes so that its centre sits under the
+ * TRIGGER's centre — clamped into the viewport.
+ *
+ * Why this exists: the panel used to centre on the VIEWPORT (`mx-auto`),
+ * and the capsule does not sit at the viewport's centre — the 240px rail
+ * pushes it right. The gates lane measured the result at 28px of centre
+ * drift against a 24px tolerance (K6), which is the "detached panel"
+ * complaint surviving in a form small enough to argue about. Centring on
+ * the trigger makes the drift zero by construction rather than by luck,
+ * and it is what "the overlay geometry originates from the capsule's own
+ * bounding box" actually means.
+ */
+export function anchoredLeft(
+  trigger: MorphRect,
+  panelWidth: number,
+  viewportWidth: number,
+  margin: number = ANCHOR_MARGIN,
+): number {
+  const centre = trigger.x + trigger.width / 2;
+  const ideal = centre - panelWidth / 2;
+  const max = Math.max(margin, viewportWidth - panelWidth - margin);
+  return Math.round(Math.min(Math.max(ideal, margin), max));
 }
 
 /**
@@ -132,7 +163,20 @@ export interface CapsuleMorph {
 export function useCapsuleMorph(open: boolean, enabled = true): CapsuleMorph {
   const [style, setStyle] = useState<CSSProperties>({});
   const [morphing, setMorphing] = useState(false);
-  const nodeRef = useRef<HTMLElement | null>(null);
+  // THE NODE IS STATE, NOT A REF, and that is the whole fix for a bug
+  // that made this hook silently do nothing.
+  //
+  // The panel is a Radix `Dialog.Content` inside a Portal. It does not
+  // mount in the same commit that flips `open` — Presence mounts it one
+  // commit later. A layout effect keyed on `[open]` therefore ran while
+  // `nodeRef.current` was still null, took the early return, and never
+  // ran again because its deps had not changed. The panel kept its
+  // `mx-auto` fallback and the anchor was dead code: measured live at
+  // 30px of centre drift with an empty inline `style` attribute.
+  //
+  // A callback ref that sets STATE re-renders when the node arrives, so
+  // the effect re-runs with a real element to measure.
+  const [node, setNode] = useState<HTMLElement | null>(null);
   const rafs = useRef<number[]>([]);
   const timer = useRef<number | null>(null);
 
@@ -143,9 +187,7 @@ export function useCapsuleMorph(open: boolean, enabled = true): CapsuleMorph {
     timer.current = null;
   }, []);
 
-  const ref = useCallback((node: HTMLElement | null) => {
-    nodeRef.current = node;
-  }, []);
+  const ref = useCallback((el: HTMLElement | null) => setNode(el), []);
 
   useLayoutEffect(() => {
     clear();
@@ -154,29 +196,62 @@ export function useCapsuleMorph(open: boolean, enabled = true): CapsuleMorph {
       setMorphing(false);
       return;
     }
-    const node = nodeRef.current;
     const narrow =
       typeof window !== "undefined" && window.innerWidth < MORPH_MIN_VIEWPORT;
-    if (!enabled || !node || narrow || prefersReducedMotion()) {
-      // The fade the overlay's own classes already provide. Nothing to
-      // add, and nothing to clean up.
-      setStyle({});
+    const from = narrow ? null : measureTrigger();
+    const rect = node?.getBoundingClientRect();
+
+    // ── THE ANCHOR IS NOT PART OF THE MOTION ─────────────────────────
+    //
+    // Where the panel SITS and how it GOT there are two different
+    // questions, and only the second one is animation. So the anchor is
+    // computed before every early return below: a reader with
+    // `prefers-reduced-motion` still gets a panel centred under the
+    // capsule, and so does the answer canvas, which never morphs at all.
+    // Wiring the anchor into the morph's own bail-out was the first
+    // version of this file, and it meant "no animation" silently also
+    // meant "back to centring on the viewport".
+    //
+    // Below MORPH_MIN_VIEWPORT there is nothing to anchor to: the panel
+    // is full-bleed and the header has collapsed the pill.
+    const anchor: CSSProperties =
+      from && rect && rect.width > 0
+        ? {
+            left: anchoredLeft(from, rect.width, window.innerWidth),
+            right: "auto",
+            marginLeft: 0,
+            marginRight: 0,
+          }
+        : {};
+
+    if (!enabled || !node || !from || !rect || prefersReducedMotion()) {
+      // The fade the overlay's own classes already provide, in the place
+      // the anchor put it.
+      setStyle(anchor);
       setMorphing(false);
       return;
     }
 
-    const from = measureTrigger();
-    const to = node.getBoundingClientRect();
-    const transform =
-      from && morphTransform(from, { x: to.left, y: to.top, width: to.width, height: to.height });
+    // One measurement, not two: moving an element horizontally cannot
+    // change its width, so the destination rect is known without a
+    // second layout pass.
+    const to = {
+      x: typeof anchor.left === "number" ? anchor.left : rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+
+    const transform = morphTransform(from, to);
     if (!transform) {
-      setStyle({});
+      setStyle(anchor);
       setMorphing(false);
       return;
     }
 
     setMorphing(true);
     setStyle({
+      ...anchor,
       transformOrigin: "top left",
       transform,
       opacity: 0.6,
@@ -188,6 +263,7 @@ export function useCapsuleMorph(open: boolean, enabled = true): CapsuleMorph {
         rafs.current.push(
           requestAnimationFrame(() => {
             setStyle({
+              ...anchor,
               transformOrigin: "top left",
               transform: "none",
               opacity: 1,
@@ -203,15 +279,17 @@ export function useCapsuleMorph(open: boolean, enabled = true): CapsuleMorph {
     );
 
     timer.current = window.setTimeout(() => {
-      // Drop the transform entirely once it has arrived. See the header:
-      // a residual `transform: none` is harmless, but leaving a computed
-      // transform on a fixed panel is not.
-      setStyle({});
+      // Drop the TRANSFORM once it has arrived — a residual `transform:
+      // none` is harmless, but leaving a computed transform on a fixed
+      // panel creates a containing block and quietly breaks `position:
+      // fixed` children. The ANCHOR stays: it is where the panel lives,
+      // not how it got there.
+      setStyle(anchor);
       setMorphing(false);
     }, 240);
 
     return clear;
-  }, [open, enabled, clear]);
+  }, [open, enabled, node, clear]);
 
   useEffect(() => clear, [clear]);
 

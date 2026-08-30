@@ -39,7 +39,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Menu, Search, X } from "lucide-react";
+// Sparkles, not Search: the same glyph the surface this trigger
+// opens uses for its ask affordance. A magnifier promised a
+// different product from the one behind the button.
+import { Menu, Sparkles, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Logo } from "./Logo";
@@ -163,7 +166,7 @@ function ModeCoachMark() {
         aria-label={t("header.coach.aria")}
         className="
           pointer-events-auto absolute right-3 top-[60px] w-[264px]
-          rounded-lg border border-rule bg-surface p-3 shadow-lg
+          rounded-lg border border-rule-strong bg-surface p-3
         "
       >
         <div className="flex items-start gap-2">
@@ -287,6 +290,10 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
 
               {/* Workspace · period. Formatted labels only — the
                   ?period UUID never reaches the DOM (D11). */}
+              {/* K1-d. The accessible name must carry the SAME verb the
+                  surface does. This said "Search" while the overlay it opens
+                  says "Ask" — a screen-reader user and a sighted user were
+                  told the same button does two different things. */}
               <button
                 type="button"
                 data-testid="header-command-bar"
@@ -296,13 +303,13 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
                   text-left focus-visible:outline-none
                   focus-visible:ring-2 focus-visible:ring-ring
                 "
-                aria-label={t("common.search")}
-                title={`${t("common.search")} (${mod}K)`}
+                aria-label={t("header.capsule.aria")}
+                title={`${t("header.capsule.title")} (${mod}K)`}
               >
                 <span className="flex-1 truncate text-[12.5px] text-ink-soft group-hover:text-ink">
                   {capsuleLabel}
                 </span>
-                <Search size={13} strokeWidth={1.75} className="shrink-0 text-ink-mute" />
+                <Sparkles size={13} strokeWidth={1.75} className="shrink-0 text-ink-mute" />
                 <kbd className="hidden sm:inline shrink-0 rounded-sm border border-rule bg-bg px-1.5 py-px font-mono text-[10px] text-ink-soft">
                   {mod}K
                 </kbd>

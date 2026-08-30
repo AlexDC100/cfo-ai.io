@@ -1,47 +1,81 @@
-// THE INSTRUMENT — CommandPalette (⌘K): the one showcase glass surface,
-// and now the ANSWER SURFACE.
+// THE CAPSULE — the ask-first surface (⌘K), and the app's ONE glass panel.
 //
-// Translucent backdrop-blur panel, shadow-2xl (it floats — the only place
-// resting depth is allowed). Keyboard-first: ⌘K opens, typing anywhere
-// unfocused opens, ⌘J opens straight into Ask, arrows navigate, Tab jumps
-// to Ask, Enter runs, ⌘Enter hands off to full chat, Esc collapses.
+// ══ WHAT CHANGED, AND WHY ═══════════════════════════════════════════════
 //
-// Groups: Pages (the exact rail destinations, via useShellNav — one list,
-// two surfaces), Actions (upload, export, theme, Ask CFO AI ⌘J, toggle
-// rail ⌘.), Recent periods, Companies (static BVB universe), plus the
-// dataset search the old ⌘K dialog carried (SKUs, categories, learning
-// concepts, glossary) so nothing regressed in the swap.
+// This surface used to be a search palette that also had an Ask row. It
+// opened with the placeholder "Search pages, actions, periods,
+// companies…", stacked FIVE sections of empty state (period status,
+// recent questions, a workspace suggestion, actions, every page) for
+// eighteen rows, and offered "Ask a question" as one list item among
+// them — below "Dashboard".
 //
-// ── ANSWER MODE (Part B) ──────────────────────────────────────────────
+// Every one of those is the same mistake: the surface described what it
+// COULD do instead of what it is FOR. It is for asking.
 //
-// Enter on the Ask row does not navigate. The overlay grows IN PLACE:
-// the question pins to the top of the thread, the answer builds below it,
-// and a follow-up input keeps focus at the bottom. No route change, no
-// second window — the question was asked here, so it is answered here.
-// Escape collapses back to search and keeps the thread alive for ten
-// minutes (`capsuleThread`), because "read the answer → jump to the
-// source cell → come back and ask the follow-up" is the common move.
+//   · the verb is ASK. The placeholder names the period you are asking
+//     about, live: "Ask about Dec 2025 — or jump anywhere"
+//   · there is NO Ask row. Typing prose IS asking, and Enter answers.
+//     The one exception is an EXACT navigation match ("dashboard"),
+//     because someone who typed a destination's whole name meant the
+//     destination
+//   · the empty state is THREE zones — context strip, up to three asks,
+//     four jumps — and each renders nothing rather than something empty,
+//     so the panel's height is the sum of what is true
+//   · everything else lives behind typing, where the router already
+//     answers every keystroke in under 5ms and for free
 //
-// ── The model-spend rule ──────────────────────────────────────────────
+// ══ THE MODEL-SPEND RULE ════════════════════════════════════════════════
 //
-// The intent router (`lib/capsuleRouter`) classifies EVERY keystroke with
-// no model call, and the Ask row is the only row whose activation costs
-// one. Typing "cash flow" and pressing Enter navigates, for free —
-// `willCallModel` is the predicate, and it is asserted per-fixture in the
-// router's own gate. This surface honours it by construction: the model
-// pipeline is reachable from exactly one branch of `activate()`.
+// `lib/capsuleRouter` classifies EVERY keystroke with no model call, and
+// `willCallModel(result, index)` is the predicate that says whether
+// activating a row costs one. Deleting the Ask row did not weaken that —
+// it moved the paid path from "a row you can arrow onto" to ONE function,
+// `askModel`, reachable from exactly three places (Enter with no exact
+// nav match, ⌘J, and a suggestion the reader confirmed). Navigation,
+// entities and actions cannot reach it at all, and the gate asserts that
+// by counting network requests rather than by reading this comment.
 //
-// The palette keeps its own richer catalogue (SKUs, concepts, periods,
-// companies) alongside the router's lanes; what it takes from the router
-// is the LANE DECISION and the Ask row's placement invariant — exactly
-// one Ask row, at index 0 or 1, so it is always one keystroke away.
+// ══ THE GLASS ═══════════════════════════════════════════════════════════
+//
+// This is the one surface in the app allowed resting depth, and it earns
+// it by floating. It MORPHS out of the header capsule rather than
+// appearing beside it (`capsuleMorph`), runs to 720px, and its height is
+// its content's.
+//
+// `sm:mx-auto` below is the horizontal FALLBACK only. When the trigger
+// can be measured, `capsuleMorph` overrides left/margin inline and the
+// panel centres under the CAPSULE rather than under the viewport — the
+// 240px rail makes those two permanently different places, which is the
+// 28px of centre drift K6 was failing on.
+//
+// THE GLASS IS 0.92 FILL + a 24px backdrop blur, and both numbers are
+// measured rather than chosen:
+//
+//   · CONTRAST FIRST. Every text node on this panel was measured through
+//     the real composite (scrim → panel → row) in both themes. At the
+//     fill below, all of them clear AA (worst node: 5.29 on Paper, 7.67
+//     on Terminal). That measurement is what fixes the number — not
+//     taste. It is also why this lane's text sits on `ink-soft` rather
+//     than `ink-mute`: measured on this panel, `ink-mute` is 3.53 and
+//     fails, `ink-soft` is 5.82 and passes.
+//   · THE BLUR IS LOAD-BEARING, which an A/B proved. Dropped to
+//     `backdrop-blur-none` at a 0.96 fill, the page's OWN TEXT became
+//     legible straight through the panel — the r5b capture shows the
+//     dashboard heading and its Export button reading through the
+//     answer. Translucency without a blur is not glass, it is a hole.
+//     The blur is what turns the page behind into the low-frequency
+//     wash the AA measurement below is valid against.
+//   · SCRIM 50%. It is the other half of the same job: the darker the
+//     backdrop, the less the wash can vary, and the closer the measured
+//     contrast is to the contrast a reader actually gets over an
+//     arbitrary page.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 // Radix primitive directly (not ui/dialog's DialogContent): the shared
 // wrapper hard-codes the heavy black/80 overlay, which turns the glass
-// panel into fog on Paper. The palette owns a lighter overlay instead.
+// panel into fog on Paper. The palette owns a lighter scrim instead.
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
@@ -73,7 +107,16 @@ import { BucketChip } from "@/components/cfo/BucketChip";
 import { openGlossary } from "@/components/learning/MetricGlossaryDrawer";
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
 import { CONCEPTS_BY_KEY, type Concept } from "@/lib/learning/concepts";
-import { routeQuery } from "@/lib/capsuleRouter";
+import { foldQuery, routeQuery } from "@/lib/capsuleRouter";
+import { buildFactIndex } from "@/lib/capsuleFactIndex";
+import { resolveTier0, type Tier0Answer } from "@/lib/capsuleTier0";
+import {
+  LAT_CAPSULE_OPEN,
+  LAT_INDEX_BUILD,
+  LAT_TIER0_PAINT,
+  mark,
+  measure,
+} from "@/lib/capsuleLatency";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { factsFrom } from "@/lib/servedFacts";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
@@ -84,19 +127,25 @@ import {
   CapsuleAnswerPanel,
   type HostCitation,
 } from "./capsuleAnswer/CapsuleAnswerPanel";
+import { CapsuleTier0Preview } from "./capsuleAnswer/CapsuleTier0Preview";
 import { useCapsuleAnswer } from "./capsuleAnswer/useCapsuleAnswer";
 // The suggestions / degraded / limits lane's public barrel. Its own
 // header names this file as the host, so the mount points live here.
 import {
-  CapsuleAskRowNotice,
   CapsuleEmptyState,
+  MAX_JUMPS,
+  rankByUsage,
+  readJumpCounts,
+  recordJump,
   releaseCapsuleAsk,
   rememberCapsuleQuestion,
   reserveCapsuleAsk,
   useCapsuleAskAvailability,
   useCapsuleKeys,
   useCapsuleRecall,
+  type CapsuleJumpItem,
 } from "./capsuleEmpty";
+import { useCapsuleMorph } from "./capsuleMorph";
 import { handOffThreadToChat } from "./capsuleAnswer/capsuleChatHandoff";
 import type { RetrievalContext } from "./capsuleAnswer/capsuleRetrieval";
 
@@ -117,12 +166,24 @@ interface PaletteItem {
   kbd?: string;
   /** Right-aligned custom trailing (bucket chip, Learn tag). */
   trailing?: React.ReactNode;
-  /** The ONE row whose activation costs a model call. */
-  ask?: boolean;
-  /** Ask row only: the model is unavailable, so activation is inert. */
-  blocked?: boolean;
+  /** A destination — eligible to be the EXACT-match Enter target, and
+   *  counted for the Jump zone's "most-used" ranking. */
+  destination?: boolean;
+  /** Extra strings that NAME this row, beyond its label. A company row
+   *  is labelled with the company's name but reached by its TICKER, so
+   *  typing "TLV" is typing that row's name even though the label says
+   *  "Banca Transilvania". Folded before comparison, like the label. */
+  exactTokens?: readonly string[];
   run: () => void;
 }
+
+/** What Enter does right now. Rendered in the footer, because the whole
+ *  point of deleting the Ask row was that a verb does not need a row. */
+type Primary =
+  | { kind: "ask"; question: string }
+  | { kind: "nav"; item: PaletteItem }
+  | { kind: "row"; item: PaletteItem; index: number }
+  | { kind: "none" };
 
 // Snapshot of the concept catalog — the registry never mutates at runtime.
 const ALL_CONCEPTS: Concept[] = Object.values(CONCEPTS_BY_KEY);
@@ -149,7 +210,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const groups = useShellNav();
-  const { periods, goToPeriod } = usePeriodStepper();
+  const { periods, goToPeriod, selectedMonth } = usePeriodStepper();
   const { resolvedTheme, setTheme } = useTheme();
   const run = useDailyRun();
   const popoverStack = usePopoverStack();
@@ -157,12 +218,18 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const { userKey, orgKey } = useCapsuleKeys();
   // ONE predicate for "may this surface spend a model call right now" —
   // the assistant being down and the per-user burst guard collapse into
-  // it, and the Ask row reads it in one place.
+  // it, and every paid path reads it in one place.
   const askAvailability = useCapsuleAskAvailability(userKey);
   const recall = useCapsuleRecall(orgKey);
 
   const [query, setQuery] = useState("");
-  const [activeIdx, setActiveIdx] = useState(0);
+  /** -1 means "no row is selected" — the resting state, where Enter runs
+   *  the PRIMARY action rather than a row. Arrowing down enters the list. */
+  const [activeIdx, setActiveIdx] = useState(-1);
+  /** Tab forces the ask lane even when the query is an exact destination.
+   *  It is the escape hatch for "I really do want to ask about the
+   *  dashboard", and it is what the live gate presses. */
+  const [askForced, setAskForced] = useState(false);
   const [mode, setMode] = useState<"search" | "answer">("search");
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -181,14 +248,26 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     [periods, locale],
   );
 
-  // The MONTH, not the workspace label. `activePeriod.label` is the
-  // friendly workspace name — usually the company — and putting that
-  // where a period belongs makes the retrieval trace read "Reading
-  // revenue · Meridian Industries SRL" and the citation footer claim a
-  // company name is a period.
+  // THE MONTH, AND ONLY EVER A MONTH — resolved the way the HEADER
+  // resolves it.
+  //
+  // Two failures, one field, caught one round apart in the screenshot
+  // loop:
+  //   r0  `activePeriod.label` sat here as a fallback, so a period with
+  //       no `period_end` made the surface say "Period · Meridian
+  //       Industries SRL" — a company name in the month slot.
+  //   r1  the fallback was removed, and the surface then said nothing at
+  //       all while the header, three rows above, said "Aug 2026".
+  //
+  // Both come from asking a different question of the app than the
+  // header asks. `usePeriodStepper().selectedMonth` IS the header's
+  // answer — `formatPeriodMonth` of the SELECTED period row — so it is a
+  // month by construction and cannot become a company name. The
+  // resolved-period date stays as the second source, for a demo period
+  // that never reaches the stepper's list.
   const periodMonth = useMemo(
-    () => formatPeriodMonth(activePeriod.periodEnd, locale),
-    [activePeriod.periodEnd, locale],
+    () => selectedMonth ?? formatPeriodMonth(activePeriod.periodEnd, locale),
+    [selectedMonth, activePeriod.periodEnd, locale],
   );
 
   // `ctx` identity keys the router's memo AND the retrieval plan, so it
@@ -201,6 +280,72 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     }),
     [activePeriod.id, periodMonth, periodOptions],
   );
+
+  // ── TIER 0: the answer that arrives while you type ──────────────────
+  //
+  // ONE period — the one that is open. The stepper's other periods carry
+  // no statements on the client, and fetching them here would put a
+  // network request on the keystroke path, which is the exact thing C4
+  // exists to forbid. A single-period index still answers every "what is
+  // X" question and honestly REFUSES every comparison ("only one period
+  // is loaded"), which is better than a comparison that had to fetch.
+  const factIndex = useMemo(() => {
+    mark(LAT_INDEX_BUILD);
+    const statements = activePeriod.statements;
+    const index = buildFactIndex({
+      periods:
+        statements && activePeriod.id
+          ? [
+              {
+                periodId: activePeriod.id,
+                periodLabel: periodMonth ?? "",
+                statements,
+                metrics: Object.fromEntries(
+                  activePeriod.metrics.map((m) => [m.name, m.value]),
+                ),
+                docId: activePeriod.sourceDocumentFilename ?? undefined,
+              },
+            ]
+          : [],
+      activePeriodId: activePeriod.id,
+    });
+    measure(LAT_INDEX_BUILD, LAT_INDEX_BUILD);
+    return index;
+  }, [
+    activePeriod.statements,
+    activePeriod.id,
+    activePeriod.metrics,
+    activePeriod.sourceDocumentFilename,
+    periodMonth,
+  ]);
+
+  const tier0: Tier0Answer | null = useMemo(() => {
+    const q = query.trim();
+    if (!q) return null;
+    mark(LAT_TIER0_PAINT);
+    const resolved = resolveTier0(q, factIndex);
+    // Measured on every keystroke that resolves, so the "instant" claim
+    // is a number in `snapshotLatency()` rather than an adjective here.
+    if (resolved) measure(LAT_TIER0_PAINT, LAT_TIER0_PAINT);
+    return resolved;
+  }, [query, factIndex]);
+
+  // The status dot pulses ONCE when a Tier-0 answer actually resolves —
+  // a refusal is not a resolution and does not pulse.
+  const [pulseKey, setPulseKey] = useState(0);
+  const lastPulse = useRef<string>("");
+  useEffect(() => {
+    const signature =
+      tier0 && !tier0.refused && tier0.facts.length > 0
+        ? `${tier0.kind}:${tier0.facts.map((f) => f.factKey).join(",")}`
+        : "";
+    if (!signature || signature === lastPulse.current) {
+      lastPulse.current = signature;
+      return;
+    }
+    lastPulse.current = signature;
+    setPulseKey((n) => n + 1);
+  }, [tier0]);
 
   const answer = useCapsuleAnswer({
     retrieval,
@@ -247,8 +392,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
    *  `reserveCapsuleAsk` is taken BEFORE the dispatch and released if the
    *  dispatch never happens — credits are live and billing, so a stuck
    *  Enter key must cost one answer, not six. A refused reservation is
-   *  not an error state: the surface still opens, and the Ask row already
-   *  says why it is unavailable. */
+   *  not an error state: the surface still opens, and the empty state
+   *  already says why it is unavailable. */
   const askModel = useCallback(
     (question: string) => {
       const q = question.trim();
@@ -283,7 +428,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
 
   useEffect(() => {
     if (open) {
-      setActiveIdx(0);
+      mark(LAT_CAPSULE_OPEN);
+      setActiveIdx(-1);
+      setAskForced(false);
       if (pendingChar.current) {
         setQuery(pendingChar.current);
         pendingChar.current = null;
@@ -365,7 +512,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   }, [skus]);
   const companies = useMemo(() => staticBvbRows(), []);
 
-  const hostItems: PaletteItem[] = useMemo(() => {
+  const items: PaletteItem[] = useMemo(() => {
     const q = query.trim().toLowerCase();
     const match = (...hay: Array<string | null | undefined>) =>
       !q || hay.some((h) => (h ?? "").toLowerCase().includes(q));
@@ -383,7 +530,11 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             hint: g.label,
             icon: item.icon,
             kbd: item.shortcutKey ? `${mod}${item.shortcutKey}` : undefined,
-            run: () => go(item.to),
+            destination: true,
+            run: () => {
+              recordJump(orgKey, `page-${item.to}`);
+              go(item.to);
+            },
           });
         }
       }
@@ -395,7 +546,11 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         group: t("shell.palette.pages"),
         label: settingsLabel,
         icon: SettingsIcon,
-        run: () => go("/settings"),
+        destination: true,
+        run: () => {
+          recordJump(orgKey, "page-/settings");
+          go("/settings");
+        },
       });
     }
 
@@ -407,6 +562,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         label: t("shell.palette.upload"),
         hint: t("shell.palette.uploadHint"),
         icon: Upload,
+        destination: true,
         run: () => go("/dashboard"),
       },
       {
@@ -415,6 +571,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         label: t("shell.palette.export"),
         hint: t("shell.palette.exportHint"),
         icon: Download,
+        destination: true,
         run: () => go("/dashboard?tab=export"),
       },
       {
@@ -426,6 +583,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             : t("shell.theme.toTerminal"),
         hint: t("shell.theme.label"),
         icon: SunMoon,
+        destination: true,
         run: () => {
           setTheme(resolvedTheme === "dark" ? "light" : "dark");
           close();
@@ -437,6 +595,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         label: t("shell.palette.askAi"),
         hint: t("shell.palette.askAiHint"),
         icon: Sparkles,
+        destination: true,
         run: () => {
           close();
           onOpenAi();
@@ -449,6 +608,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         hint: t("shell.palette.toggleSidebarHint"),
         icon: PanelLeft,
         kbd: `${mod}.`,
+        destination: true,
         run: () => {
           try { window.dispatchEvent(new Event(SIDEBAR_TOGGLE_EVENT)); } catch { /* SSR */ }
           close();
@@ -568,6 +728,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             label: co.companyName ?? co.ticker,
             hint: `${co.ticker} · ${t("shell.palette.company")}`,
             icon: Globe,
+            // Typing a whole ticker IS typing this row's name.
+            exactTokens: co.ticker ? [co.ticker] : undefined,
             run: () => go(`/dashboard/public/${encodeURIComponent(co.ticker)}`),
           });
           if (++added >= 6) break;
@@ -580,54 +742,83 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     // re-created per render but behaviorally constant — listing them would
     // defeat the memo without changing results.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, groups, periods, categories, skus, companies, resolvedTheme, locale, t, mod]);
+  }, [query, groups, periods, categories, skus, companies, resolvedTheme, locale, t, mod, orgKey]);
 
-  // ── the Ask row + INV-1 ──────────────────────────────────────────────
+  // ── ZONE 3: the four destinations the reader actually uses ───────────
   //
-  // The router decides the LANE; the placement invariant is the router's
-  // (`askIndex <= 1`) and this list honours it: Ask is row 0 when the
-  // query reads as a question or nothing matched, row 1 otherwise. Enter
-  // on the default row of a navigate / entity / action query is therefore
-  // always free.
-  const items: PaletteItem[] = useMemo(() => {
-    const q = query.trim();
-    const router = routeQuery(q);
-    const askRow: PaletteItem = {
-      id: "capsule.ask",
-      group: t("capsuleRouter.group.ask"),
-      label: q
-        ? t("capsuleRouter.ask.row", { query: q })
-        : t("capsuleRouter.ask.rowEmpty"),
-      hint: askAvailability.block ? undefined : t("capsuleRouter.ask.hint"),
-      icon: Sparkles,
-      kbd: askAvailability.block ? undefined : `${mod}J`,
-      ask: true,
-      // A blocked ask still renders a row — it is the one place that
-      // explains WHY — but activating it does nothing.
-      blocked: Boolean(askAvailability.block),
-      trailing: askAvailability.block ? (
-        <CapsuleAskRowNotice block={askAvailability.block} />
-      ) : undefined,
-      run: () => {
-        if (askAvailability.block) return;
-        enterAnswerMode(q);
-      },
-    };
-    const askAt =
-      router.classification.lane === "ask" || hostItems.length === 0 ? 0 : 1;
-    const next = [...hostItems];
-    next.splice(askAt, 0, askRow);
-    return next;
-  }, [hostItems, query, t, mod, enterAnswerMode, askAvailability.block]);
+  // Measured (`capsuleJumpUsage`), with the rail's own order as the tie
+  // break — so a fresh workspace shows the product's priorities and a
+  // used one shows the reader's.
+  const jumps: CapsuleJumpItem[] = useMemo(() => {
+    if (query.trim()) return [];
+    const destinations = items.filter((i) => i.destination);
+    const ranked = rankByUsage(destinations, readJumpCounts(orgKey));
+    return ranked.slice(0, MAX_JUMPS).map((i) => ({
+      id: i.id,
+      label: i.label,
+      hint: i.hint,
+      icon: i.icon,
+      kbd: i.kbd,
+    }));
+  }, [items, query, orgKey]);
 
-  const askIndex = useMemo(() => items.findIndex((i) => i.ask), [items]);
+  const runJump = useCallback(
+    (jump: CapsuleJumpItem) => {
+      items.find((i) => i.id === jump.id)?.run();
+    },
+    [items],
+  );
+
+  // ── the primary Enter action ─────────────────────────────────────────
+  //
+  // THE RULE: Enter answers. It navigates only when the input is EXACTLY
+  // the NAME of something you can open — folded, so "Bilanț" and "bilant"
+  // both count — because someone who typed a whole name meant it.
+  // Anything shorter or longer than an exact name is prose, and prose is
+  // a question.
+  //
+  // "Name" includes a row's `exactTokens`. Caught live in the r2 loop:
+  // typing "TLV" put the Banca Transilvania row on screen and still
+  // aimed Enter at the model, because the ROW's label is the company's
+  // name while the thing the reader typed was its ticker. A row you can
+  // see, whose identifier you typed in full, is not a question.
+  //
+  // `askForced` (Tab) overrides even that. `activeIdx >= 0` overrides
+  // everything: an explicitly selected row is an explicit instruction.
+  const exactNav = useMemo(() => {
+    const folded = foldQuery(query);
+    if (!folded) return null;
+    // THE ROUTER HAS A VETO. A query it classifies as `ask` stays a
+    // question even if it happens to spell a destination — "is the
+    // balance sheet balanced" is not a request for the balance sheet
+    // page, and the router's precedence table already knows that. The
+    // exact-name test below is the second condition, not the only one.
+    if (routeQuery(query).classification.lane === "ask") return null;
+    return (
+      items.find((i) => {
+        if (foldQuery(i.label) === folded) return i.destination || Boolean(i.exactTokens);
+        return (i.exactTokens ?? []).some((tok) => foldQuery(tok) === folded);
+      }) ?? null
+    );
+  }, [items, query]);
+
+  const primary: Primary = useMemo(() => {
+    if (activeIdx >= 0 && items[activeIdx]) {
+      return { kind: "row", item: items[activeIdx], index: activeIdx };
+    }
+    const q = query.trim();
+    if (!q) return { kind: "none" };
+    if (exactNav && !askForced) return { kind: "nav", item: exactNav };
+    return { kind: "ask", question: q };
+  }, [activeIdx, items, query, exactNav, askForced]);
 
   useEffect(() => {
-    if (activeIdx >= items.length) setActiveIdx(0);
+    if (activeIdx >= items.length) setActiveIdx(-1);
   }, [items.length, activeIdx]);
 
   // Keep the active row in view while arrowing.
   useEffect(() => {
+    if (activeIdx < 0) return;
     const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${activeIdx}"]`);
     el?.scrollIntoView({ block: "nearest" });
   }, [activeIdx]);
@@ -669,34 +860,41 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onOpenChange, enterAnswerMode]);
 
-  function activate(index: number) {
-    const item = items[index];
-    if (!item) return;
-    item.run();
+  function runPrimary() {
+    if (primary.kind === "none") return;
+    if (primary.kind === "row" || primary.kind === "nav") {
+      primary.item.run();
+      return;
+    }
+    enterAnswerMode(primary.question);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      setAskForced(false);
       setActiveIdx((i) => Math.min(i + 1, items.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       // ⌘K → ArrowUp on an empty box recalls the last question, the way
-      // a shell recalls the last command. With text in the box it is
-      // plain row navigation.
-      if (!query) {
+      // a shell recalls the last command. This is where the recent-
+      // questions SECTION went: reachable, not displayed.
+      if (!query && activeIdx < 0) {
         const recalled = recall.older();
         if (recalled !== null) {
           setQuery(recalled);
           return;
         }
       }
-      setActiveIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Tab" && !e.shiftKey && askIndex >= 0) {
-      // Tab always lands on Ask — the second half of the router's
-      // one-keystroke guarantee, for readers already several rows down.
+      // -1 is a real stop: arrowing back off the top returns to the
+      // resting state, where Enter answers again.
+      setActiveIdx((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Tab" && !e.shiftKey) {
+      // Tab is the ask lane's escape hatch: it leaves the rows and
+      // guarantees Enter answers, whatever the query happens to spell.
       e.preventDefault();
-      setActiveIdx(askIndex);
+      setActiveIdx(-1);
+      setAskForced(true);
     } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       const q = query.trim();
@@ -708,52 +906,33 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       // can be composed here instead of in a different surface.
     } else if (e.key === "Enter") {
       e.preventDefault();
-      activate(activeIdx);
+      runPrimary();
     }
   }
 
-  // ── rendering the flat list without breaking the keyboard order ─────
+  // ── rows ─────────────────────────────────────────────────────────────
   //
-  // The Ask row is wedged at index 1 (INV-1), which lands it INSIDE the
-  // first group — splitting "Pages" into two runs. Two things follow,
-  // and the first one was a real bug found in the screenshot loop:
-  //
-  //   · two runs meant two <div key="Pages">. Duplicate keys make React
-  //     stop reconciling that list properly: rows from earlier renders
-  //     survived, every row reported `data-idx="0"`, and the highlight
-  //     sat on all of them at once.
-  //   · even keyed correctly, "PAGES / Dashboard / ASK / … / PAGES /
-  //     Workspaces" reads as a bug to the eye.
-  //
-  // So the top rows — the best match plus the Ask row — render as an
-  // unheaded band, and headings resume below it. Flat indices are
-  // untouched, so keyboard order and visual order still agree row for
-  // row, which is what the router's one-keystroke guarantee rests on.
-  const bandEnd = Math.min(askIndex + 1, items.length);
-  const band = items.slice(0, bandEnd).map((item, idx) => ({ item, idx }));
+  // Grouped runs with 10px caps labels. The Ask row is gone, so there is
+  // no longer a wedged item splitting a group in two — the duplicate-key
+  // bug that shape used to cause went with it.
   const grouped: { group: string; entries: { item: PaletteItem; idx: number }[] }[] = [];
-  items.slice(bandEnd).forEach((item, i) => {
-    const idx = bandEnd + i;
+  items.forEach((item, idx) => {
     const last = grouped[grouped.length - 1];
     if (last && last.group === item.group) last.entries.push({ item, idx });
     else grouped.push({ group: item.group, entries: [{ item, idx }] });
   });
 
-  /** One dense row. Shared by the top band and the grouped runs so the
-   *  two can never drift apart in style or in behaviour. */
+  /** One 40px row. */
   const renderRow = (item: PaletteItem, idx: number) => (
-    // Single-line dense rows — a command surface, not a content list:
-    // label left, muted hint right.
     <button
       id={`palette-item-${idx}`}
       data-idx={idx}
-      data-ask={item.ask ? "true" : undefined}
       role="option"
       aria-selected={idx === activeIdx}
       onClick={() => item.run()}
       onMouseEnter={() => setActiveIdx(idx)}
       className={`
-        flex h-9 w-full items-center gap-3 px-4 text-left
+        flex h-10 w-full items-center gap-3 px-4 text-left
         transition-colors duration-micro
         ${idx === activeIdx ? "bg-bg-2" : "hover:bg-bg-2/60"}
       `}
@@ -765,13 +944,13 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       )}
       <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{item.label}</span>
       {item.hint && (
-        <span className="max-w-[45%] shrink-0 truncate text-[11px] text-ink-mute">
+        <span className="max-w-[45%] shrink-0 truncate text-[11px] text-ink-soft">
           {item.hint}
         </span>
       )}
       {item.trailing}
       {item.kbd && (
-        <kbd className="shrink-0 rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-mute">
+        <kbd className="shrink-0 rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
           {item.kbd}
         </kbd>
       )}
@@ -779,51 +958,81 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   );
 
   const answerMode = mode === "answer";
+  const typing = query.trim().length > 0;
+  // `enabled` gates the ANIMATION only. The hook still anchors the panel
+  // under the capsule in answer mode — the canvas must not jump sideways
+  // the moment a question is asked.
+  const morph = useCapsuleMorph(open, !answerMode);
+
+  const placeholder = periodMonth
+    ? t("capsuleEmpty.placeholder.ask", { period: periodMonth })
+    : t("capsuleEmpty.placeholder.askNoPeriod");
+
+  /** The footer's left half: what Enter will do, in words. This is where
+   *  the deleted Ask row's job went — a verb does not need a row, but it
+   *  does need to be legible. */
+  const primaryLabel =
+    primary.kind === "ask"
+      ? t("capsuleEmpty.enter.ask")
+      : primary.kind === "nav" || primary.kind === "row"
+      ? t("capsuleEmpty.enter.go", { target: primary.item.label })
+      : t("capsuleEmpty.enter.idle");
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
+        {/* Scrim at 40% — enough to sink the page behind the glass so the
+            panel's own translucency has something calm to sit on. */}
         <DialogPrimitive.Overlay
           className="
-            fixed inset-0 z-50 bg-black/30
+            fixed inset-0 z-50 bg-black/50
             data-[state=open]:animate-in data-[state=open]:fade-in-0
             data-[state=closed]:animate-out data-[state=closed]:fade-out-0
           "
         />
         <DialogPrimitive.Content
+          ref={morph.ref as unknown as React.Ref<HTMLDivElement>}
+          style={morph.style}
           data-testid="command-palette"
           data-mode={answerMode ? "answer" : "search"}
+          data-morphing={morph.morphing ? "true" : undefined}
+          onCloseAutoFocus={(e) => {
+            // H6. Radix restores focus to whatever opened the dialog, but
+            // this one is opened from AppShell state rather than a
+            // DialogTrigger, so nothing owned the restore and Escape left
+            // focus on <body>. A keyboard user lost their place and had to
+            // Tab from the top of the document (WCAG 2.4.3).
+            //
+            // Measured, not assumed: the header lane observed focus land on
+            // <body> and left the gate RED rather than silence it, because
+            // the fix belongs to this file.
+            const bar = document.querySelector<HTMLElement>(
+              '[data-testid="header-command-bar"]');
+            if (!bar) return;      // no trigger mounted: let Radix decide
+            e.preventDefault();
+            bar.focus();
+          }}
           onEscapeKeyDown={() => {
             // Esc collapses; `capsuleThread` keeps the conversation for
             // ten minutes so reopening resumes it.
             if (answerMode) answer.collapse();
           }}
-          className={`
+          className="
             fixed z-50 flex flex-col overflow-hidden
-            ${answerMode
-              // AA over dense prose. The glass survives as blur + a
-              // near-opaque fill; at 0.9 the body text on this panel
-              // sits on whatever happens to be behind it, and the
-              // contract is "AA contrast or drop the glass".
-              ? "bg-[hsl(var(--surface)/0.97)]"
-              : "bg-[hsl(var(--surface)/0.9)]"}
-            backdrop-blur-xl
-            border border-rule
+            inset-x-2 top-2 w-auto max-w-[calc(100vw-1rem)]
+            sm:inset-x-0 sm:top-[68px] sm:mx-auto sm:w-full sm:max-w-[720px]
+            rounded-lg border border-rule
+            ring-1 ring-inset ring-rule-soft
+            bg-[hsl(var(--surface)/0.92)] backdrop-blur-xl
             shadow-2xl
-            inset-x-2 top-2
-            w-auto max-w-[calc(100vw-1rem)] rounded-lg
-            sm:inset-x-auto sm:top-[112px] sm:left-1/2
-            sm:-translate-x-1/2
-            sm:w-full ${answerMode ? "sm:max-w-[680px]" : "sm:max-w-[600px]"}
-            duration-overlay
-            transition-[max-width] motion-reduce:transition-none
-            data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95
-            data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95
-            motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none
-          `}
+            data-[state=open]:animate-in data-[state=open]:fade-in-0
+            data-[state=closed]:animate-out data-[state=closed]:fade-out-0
+            motion-reduce:data-[state=open]:animate-none
+            motion-reduce:data-[state=closed]:animate-none
+          "
         >
           <DialogPrimitive.Title className="sr-only">
-            {answerMode ? t("capsuleAnswer.eyebrow") : t("common.search")}
+            {answerMode ? t("capsuleAnswer.eyebrow") : t("capsuleEmpty.placeholder.aria")}
           </DialogPrimitive.Title>
 
           {answerMode ? (
@@ -839,22 +1048,22 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                   data-testid="capsule-answer-back"
                   className="
                     inline-flex h-7 w-7 items-center justify-center rounded-sm
-                    text-ink-mute transition-colors duration-micro
+                    text-ink-soft transition-colors duration-micro
                     hover:bg-bg-2 hover:text-ink
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
                   "
                 >
                   <ArrowLeft size={15} strokeWidth={1.75} />
                 </button>
-                <span className="flex-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+                <span className="flex-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
                   {t("capsuleAnswer.eyebrow")}
                 </span>
-                <kbd className="hidden sm:inline-block rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-mute">
+                <kbd className="hidden sm:inline-block rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
                   {t("capsuleAnswer.backHint")}
                 </kbd>
               </div>
               <CapsuleAnswerPanel
-                className="max-h-[min(560px,72vh)] transition-[max-height] duration-overlay motion-reduce:transition-none"
+                className="max-h-[min(560px,72vh)]"
                 turns={answer.turns}
                 busy={answer.busy}
                 citation={citation}
@@ -866,80 +1075,173 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             </>
           ) : (
             <>
-              <div className="flex items-start gap-3 border-b border-rule-soft px-4 py-3">
-                <Search size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-ink-mute" />
+              <div className="relative flex items-start gap-3 px-4 py-3">
+                {/* The icon states the VERB, and the verb changes. A fixed
+                    magnifier beside a placeholder that says "Ask" is the
+                    surface contradicting itself in the same 16 pixels —
+                    which is precisely the r0 defect, surviving as an
+                    icon. Sparkles at rest and while a question is being
+                    typed; the magnifier only when Enter would navigate. */}
+                {primary.kind === "nav" || primary.kind === "row" ? (
+                  <Search
+                    size={16}
+                    strokeWidth={1.75}
+                    data-testid="capsule-verb-icon"
+                    data-verb="jump"
+                    className="mt-0.5 shrink-0 text-ink-soft"
+                  />
+                ) : (
+                  <Sparkles
+                    size={16}
+                    strokeWidth={1.75}
+                    data-testid="capsule-verb-icon"
+                    data-verb="ask"
+                    className={`mt-0.5 shrink-0 transition-colors duration-micro ${
+                      typing ? "text-brand" : "text-ink-soft"
+                    }`}
+                  />
+                )}
                 <textarea
                   ref={inputRef}
                   autoFocus
                   rows={1}
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setAskForced(false);
+                    setActiveIdx(-1);
+                  }}
                   onKeyDown={onKeyDown}
-                  placeholder={t("shell.palette.placeholder")}
+                  placeholder={placeholder}
+                  aria-label={t("capsuleEmpty.placeholder.aria")}
                   role="combobox"
                   aria-expanded="true"
                   aria-controls="command-palette-list"
-                  aria-activedescendant={items[activeIdx] ? `palette-item-${activeIdx}` : undefined}
+                  aria-activedescendant={
+                    activeIdx >= 0 && items[activeIdx] ? `palette-item-${activeIdx}` : undefined
+                  }
                   className="
                     max-h-24 flex-1 resize-none bg-transparent text-[14px] leading-6
-                    text-ink placeholder:text-ink-mute outline-none
+                    text-ink placeholder:text-ink-soft outline-none
                   "
                 />
-                <kbd className="mt-0.5 hidden sm:inline-block rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-mute">
+                <kbd className="mt-0.5 hidden sm:inline-block rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
                   esc
                 </kbd>
+
+                {/* The typing state, as one 2px line. It sits ON the
+                    hairline rather than beside it, so nothing moves when
+                    it appears — an underline that adds height would push
+                    the whole result list down on the first keystroke. */}
+                <span
+                  aria-hidden
+                  data-testid="capsule-underline"
+                  className="absolute inset-x-0 bottom-0 h-px bg-rule-soft"
+                />
+                <span
+                  aria-hidden
+                  className={`
+                    absolute bottom-0 left-0 h-[2px] bg-brand
+                    transition-all duration-overlay ease-quint
+                    motion-reduce:transition-none
+                    ${typing ? "w-full opacity-100" : "w-0 opacity-0"}
+                  `}
+                />
               </div>
 
               <div
                 ref={listRef}
                 id="command-palette-list"
                 role="listbox"
-                className="max-h-[min(420px,60vh)] overflow-y-auto py-1.5"
+                className="chat-scroll max-h-[min(52vh,440px)] overflow-y-auto pb-1.5"
               >
-                {/* With the box empty the suggestions lane owns this
-                    space: workspace context, its own trust line, the
-                    period-aware suggestions and the recent questions.
-                    It is CLICK-ONLY here (no `activeIndex`/`indexOffset`)
-                    — the flat keyboard order below it stays exactly what
-                    the router's placement invariant describes, and no
-                    row silently changes index when a suggestion list
-                    grows. Wiring its rows into the arrow-key order is a
-                    follow-up both lanes should design together. */}
-                {!query.trim() && <CapsuleEmptyState onPick={(q) => enterAnswerMode(q)} />}
-                {items.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-[13px] text-ink-soft">
-                    {t("shell.palette.noResults")}
-                  </div>
+                {/* THE EMPTY STATE — three zones, and its own flat
+                    keyboard order continues from the rows below it. */}
+                {!typing && (
+                  <CapsuleEmptyState
+                    onPick={(q) => setQuery(q)}
+                    jumps={jumps}
+                    onJump={runJump}
+                    onFixUnattached={(periodId) => {
+                      close();
+                      goToPeriod(periodId);
+                    }}
+                    onUpload={() => go("/dashboard")}
+                    pulseKey={pulseKey}
+                    indexOffset={0}
+                    activeIndex={-1}
+                  />
+                )}
+
+                {/* Tier 0 — above the rows, before Enter. Local lookup
+                    only; nothing here reaches the network. */}
+                {typing && (
+                  <CapsuleTier0Preview
+                    answer={tier0}
+                    onOpen={() => enterAnswerMode(query.trim())}
+                  />
+                )}
+
+                {typing && items.length === 0 ? (
+                  /* NOT the old Ask row reborn.
+                   *
+                   * The row this surface deleted was "Ask a question" —
+                   * a generic verb sitting BELOW "Dashboard" in a list of
+                   * eighteen navigation items, competing with them.
+                   *
+                   * This is the opposite case: prose was typed, nothing
+                   * in the app is called that, and the answer is the
+                   * ONLY thing on offer. It carries the reader's own
+                   * words, not a generic label, and it exists because a
+                   * footer hint is a keyboard affordance and a pointer
+                   * needs a hit target too. When anything matches, this
+                   * does not render at all. */
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected="true"
+                    data-idx={0}
+                    data-ask="true"
+                    data-testid="capsule-ask-fallback"
+                    onClick={() => enterAnswerMode(query.trim())}
+                    className="
+                      flex h-10 w-full items-center gap-3 px-4 text-left
+                      transition-colors duration-micro hover:bg-bg-2/60
+                    "
+                  >
+                    <Sparkles size={15} strokeWidth={1.75} className="shrink-0 text-brand" />
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+                      {t("capsuleEmpty.enter.askFallback", { query: query.trim() })}
+                    </span>
+                    <span className="shrink-0 truncate text-[11px] text-ink-soft">
+                      {t("capsuleEmpty.enter.askFallbackHint")}
+                    </span>
+                  </button>
                 ) : (
-                  <>
-                    {/* The top band: best match + Ask, no heading. */}
-                    <ul>
-                      {band.map(({ item, idx }) => (
-                        <li key={item.id}>{renderRow(item, idx)}</li>
-                      ))}
-                    </ul>
-                    {grouped.map((g, gi) => (
-                      // The key carries the run index: one group label can
-                      // legitimately appear in two runs, and a bare label
-                      // key made React reconcile the list wrongly.
-                      <div key={`${g.group}-${gi}`}>
-                        <div className="px-4 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
-                          {g.group}
-                        </div>
-                        <ul>
-                          {g.entries.map(({ item, idx }) => (
-                            <li key={item.id}>{renderRow(item, idx)}</li>
-                          ))}
-                        </ul>
+                  typing &&
+                  grouped.map((g, gi) => (
+                    // The key carries the run index: one group label can
+                    // legitimately appear in two runs, and a bare label
+                    // key made React reconcile the list wrongly.
+                    <div key={`${g.group}-${gi}`}>
+                      <div className="px-4 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
+                        {g.group}
                       </div>
-                    ))}
-                  </>
+                      <ul>
+                        {g.entries.map(({ item, idx }) => (
+                          <li key={item.id}>{renderRow(item, idx)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
                 )}
               </div>
 
-              <div className="flex items-center justify-between border-t border-rule-soft px-4 py-2 text-[11px] text-ink-mute">
-                <span>{t("shell.palette.navHint")}</span>
-                <span className="font-mono tabular-nums">{items.length}</span>
+              <div className="flex items-center justify-between gap-3 border-t border-rule-soft px-4 py-2 text-[11px] text-ink-soft">
+                <span className="min-w-0 truncate" data-testid="capsule-primary-hint">
+                  {primaryLabel}
+                </span>
+                <span className="hidden shrink-0 sm:inline">{t("capsuleEmpty.enter.keys")}</span>
               </div>
             </>
           )}

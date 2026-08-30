@@ -8,8 +8,11 @@
         "aria": "Tip: the Simple and Pro view-mode switch moved into the account menu"
       },
       "account": {
-        "withAlerts_one": "Account menu · {{name}} · {{count}} alert needs attention",
-        "withAlerts_other": "Account menu · {{name}} · {{count}} alerts need attention"
+        "withAlerts": "Account menu · {{name}} · {{n}} alerts need attention"
+      },
+      "capsule": {
+        "aria": "Ask about this workspace, or jump anywhere",
+        "title": "Ask or jump"
       }
     }
   },
@@ -22,8 +25,11 @@
         "aria": "Sfat: comutatorul Simplu / Pro s-a mutat în meniul contului"
       },
       "account": {
-        "withAlerts_one": "Meniul contului · {{name}} · {{count}} alertă are nevoie de atenție",
-        "withAlerts_other": "Meniul contului · {{name}} · {{count}} alerte au nevoie de atenție"
+        "withAlerts": "Meniul contului · {{name}} · {{n}} alerte au nevoie de atenție"
+      },
+      "capsule": {
+        "aria": "Întreabă despre acest workspace sau navighează oriunde",
+        "title": "Întreabă sau navighează"
       }
     }
   }

@@ -7,8 +7,10 @@
  * app shell around it.
  *
  * What it locks:
- *   D  the context zone leads; suggestions are computed, capped at three,
- *      and never padded; recents render as pills.
+ *   B  THREE ZONES and no fourth — a one-line context strip, up to three
+ *      computed asks, four jumps. Recents are NOT a zone (they moved to
+ *      ⌘K → ArrowUp), and the removed sections stay removed.
+ *   D  suggestions are computed, capped at three, and never padded.
  *   F  C7 — with the assistant down the Ask row reads "CFO AI is
  *      unavailable — search still works" and the router's navigate lane
  *      still resolves with NO model call;
@@ -31,6 +33,7 @@ import {
 } from "@/lib/capsuleSuggestions";
 
 import { CapsuleEmptyStateView } from "../CapsuleEmptyState";
+import { MAX_JUMPS } from "../CapsuleJumpList";
 import { CapsuleAskRowNotice, CapsuleAskUnavailable } from "../CapsuleAskUnavailable";
 import { CapsuleScopeLabel } from "../CapsuleScopeLabel";
 import strings from "../capsuleEmptyStrings.json";
@@ -54,6 +57,7 @@ function snapshot(over: Partial<CapsuleWorkspaceSnapshot> = {}): CapsuleWorkspac
     silence: false,
     metrics: [],
     unattached: [],
+    moves: [],
     ...over,
   };
 }
@@ -69,7 +73,8 @@ function renderView(
       context={buildCapsuleContext(snap)}
       trustLabel={null}
       suggestions={buildCapsuleSuggestions(snap, mode)}
-      recents={[]}
+      jumps={[]}
+      onJump={() => {}}
       onPick={(q) => picked.push(q)}
       {...extra}
     />,
@@ -83,16 +88,17 @@ afterEach(() => {
   resetCapsuleAskGuard();
 });
 
-// ── D: the context zone ────────────────────────────────────────────────
+// ── B/D: ZONE 1 — the context strip ────────────────────────────────────
 
-describe("context zone leads", () => {
+describe("zone 1 — the context strip is ONE line", () => {
   it("names the period and shows the engine's own verdict wording", () => {
     render(
       <CapsuleEmptyStateView
         context={buildCapsuleContext(snapshot({ trustBand: "reconciled" }))}
         trustLabel="Reconciled"
         suggestions={[]}
-        recents={[]}
+        jumps={[]}
+        onJump={() => {}}
         onPick={() => {}}
       />,
     );
@@ -100,24 +106,67 @@ describe("context zone leads", () => {
     expect(screen.getByTestId("capsule-context-trust")).toHaveTextContent("Reconciled");
   });
 
-  it("badges NOTHING on a period with no verdict", () => {
+  it("says 'Not verified' on a period with no verdict — and wears no badge", () => {
     render(
       <CapsuleEmptyStateView
         context={buildCapsuleContext(snapshot({ trustBand: null }))}
         trustLabel={null}
         suggestions={[]}
-        recents={[]}
+        jumps={[]}
+        onJump={() => {}}
         onPick={() => {}}
       />,
     );
-    expect(screen.queryByTestId("capsule-context-trust")).toBeNull();
-    expect(screen.getByTestId("capsule-context-unverified")).toBeInTheDocument();
+    // The verdict SLOT is always there — the strip is one line and its
+    // parts do not appear and disappear. What must not appear is a
+    // BADGE: a chip on an unverified period claims a check that never
+    // ran. The strip renders the words in plain muted text instead.
+    expect(screen.getByTestId("capsule-context-trust")).toHaveTextContent("Not verified");
+    expect(screen.getByTestId("capsule-status-dot").className).toContain("bg-ink-mute");
   });
 
   it("with no period loaded, says so and still says search works", () => {
-    renderView(snapshot({ hasPeriod: false, periodLabel: null, trustBand: null }));
-    expect(screen.getByTestId("capsule-context-zone").textContent).toContain("No period loaded");
-    expect(screen.getByTestId("capsule-context-zone").textContent).toMatch(/search/i);
+    renderView(
+      snapshot({ hasPeriod: false, periodLabel: null, trustBand: null }),
+      "pro",
+      { onUpload: () => {} },
+    );
+    const strip = screen.getByTestId("capsule-context-strip");
+    expect(strip.textContent).toContain("No period loaded");
+    // The strip is an INVITATION, not an error: it offers the fix.
+    expect(strip.textContent).toContain("Upload a document");
+    expect(strip.dataset.state).toBe("no-period");
+  });
+
+  it("is ONE line — the strip's own height class says 28px", () => {
+    renderView(snapshot({ trustBand: "reconciled" }));
+    expect(screen.getByTestId("capsule-context-strip").className).toContain("h-7");
+  });
+
+  it("makes 'periods without a file' a DESTINATION, not a statistic", () => {
+    const jumped: string[] = [];
+    renderView(
+      snapshot({
+        unattached: [
+          { periodId: "p-nov", label: "Nov 2025" },
+          { periodId: "p-oct", label: "Oct 2025" },
+        ],
+      }),
+      "pro",
+      { onFixUnattached: (id: string) => jumped.push(id) },
+    );
+    const fix = screen.getByTestId("capsule-fix-unattached");
+    expect(fix.textContent).toContain("2 periods without a file");
+    fireEvent.click(fix);
+    expect(jumped).toEqual(["p-nov"]);
+  });
+
+  it("renders the count as plain text when the host cannot act on it", () => {
+    renderView(snapshot({ unattached: [{ periodId: "p1", label: "Nov 2025" }] }));
+    expect(screen.queryByTestId("capsule-fix-unattached")).toBeNull();
+    expect(screen.getByTestId("capsule-context-strip").textContent).toContain(
+      "1 period without a file",
+    );
   });
 
   it("never claims 'no period loaded' about a period it simply cannot name", () => {
@@ -126,13 +175,20 @@ describe("context zone leads", () => {
         context={buildCapsuleContext(snapshot({ periodLabel: "1.553.210", trustBand: "reconciled" }))}
         trustLabel="Reconciled"
         suggestions={[]}
-        recents={[]}
+        jumps={[]}
+        onJump={() => {}}
         onPick={() => {}}
       />,
     );
-    const zone = screen.getByTestId("capsule-context-zone");
+    const zone = screen.getByTestId("capsule-context-strip");
     expect(zone.textContent).not.toContain("No period loaded");
-    expect(screen.queryByTestId("capsule-context-period")).toBeNull();
+    // The figure-shaped label is REFUSED (S1) — it never reaches the
+    // slot — and the slot then says what is true rather than going
+    // silent: the period is loaded, it simply has no usable name.
+    expect(zone.textContent).not.toContain("1.553.210");
+    expect(screen.getByTestId("capsule-context-period")).toHaveTextContent(
+      "Period not dated",
+    );
     expect(screen.getByTestId("capsule-context-trust")).toHaveTextContent("Reconciled");
   });
 
@@ -142,7 +198,8 @@ describe("context zone leads", () => {
         context={buildCapsuleContext(snapshot({ trustBand: "material_imbalance" }))}
         trustLabel={null}
         suggestions={[]}
-        recents={[]}
+        jumps={[]}
+        onJump={() => {}}
         onPick={() => {}}
       />,
     );
@@ -152,7 +209,7 @@ describe("context zone leads", () => {
 
 // ── D: computed suggestions, never boilerplate ─────────────────────────
 
-describe("suggestions are computed from this workspace", () => {
+describe("zone 2 — suggestions are computed from this workspace", () => {
   const busy = snapshot({
     findings: [{ key: "f1", severity: "critical", subject: "Receivables provision" }],
     trustBand: "reconciled",
@@ -220,41 +277,144 @@ describe("mode-aware phrasing", () => {
   });
 });
 
-// ── D: recents ─────────────────────────────────────────────────────────
+// ── B: ZONE 3, and the sections that are GONE ──────────────────────────
 
-describe("recent questions", () => {
-  it("lists them as pills with the recall hint", () => {
+describe("zone 3 — jump", () => {
+  const jumps = [
+    { id: "page-/dashboard", label: "Dashboard", hint: "Overview" },
+    { id: "page-/workspace", label: "Workspaces", hint: "Overview" },
+    { id: "page-/products", label: "Products", hint: "Analyze" },
+    { id: "page-/settings", label: "Settings" },
+    { id: "page-/benchmark", label: "Benchmark", hint: "Analyze" },
+  ];
+
+  it("shows FOUR destinations under one label, never five", () => {
     render(
       <CapsuleEmptyStateView
         context={buildCapsuleContext(snapshot())}
         trustLabel={null}
         suggestions={[]}
-        recents={["why is profit down?", "dscr headroom?"]}
+        jumps={jumps}
+        onJump={() => {}}
         onPick={() => {}}
       />,
     );
-    expect(screen.getAllByTestId("capsule-recent")).toHaveLength(2);
-    expect(screen.getByTestId("capsule-recents").textContent).toContain("↑");
+    expect(screen.getAllByTestId("capsule-jump-row")).toHaveLength(MAX_JUMPS);
+    expect(screen.getByTestId("capsule-jump").textContent).toContain("Jump to…");
   });
 
-  it("renders nothing when there are none", () => {
+  it("renders nothing at all when the host offers no destinations", () => {
     renderView(snapshot());
-    expect(screen.queryByTestId("capsule-recents")).toBeNull();
+    expect(screen.queryByTestId("capsule-jump")).toBeNull();
   });
 
-  it("picking a recent reports its source", () => {
-    const seen: Array<[string, string]> = [];
+  it("hands the item back rather than navigating itself", () => {
+    const taken: string[] = [];
     render(
       <CapsuleEmptyStateView
         context={buildCapsuleContext(snapshot())}
         trustLabel={null}
         suggestions={[]}
-        recents={["why is profit down?"]}
-        onPick={(q, source) => seen.push([q, source])}
+        jumps={jumps}
+        onJump={(item) => taken.push(item.id)}
+        onPick={() => {}}
       />,
     );
-    fireEvent.click(screen.getByTestId("capsule-recent"));
-    expect(seen).toEqual([["why is profit down?", "recent"]]);
+    fireEvent.click(screen.getAllByTestId("capsule-jump-row")[0]);
+    expect(taken).toEqual(["page-/dashboard"]);
+  });
+
+  it("continues zone 2's flat keyboard order — no discontinuity between them", () => {
+    const snap = snapshot({
+      findings: [{ key: "f1", severity: "critical", subject: "Receivables provision" }],
+      unattached: [{ periodId: "p1", label: "Nov 2025" }],
+    });
+    render(
+      <CapsuleEmptyStateView
+        context={buildCapsuleContext(snap)}
+        trustLabel={null}
+        suggestions={buildCapsuleSuggestions(snap, "pro")}
+        jumps={jumps}
+        onJump={() => {}}
+        onPick={() => {}}
+        indexOffset={0}
+      />,
+    );
+    const idx = [
+      ...screen.getAllByTestId("capsule-suggestion"),
+      ...screen.getAllByTestId("capsule-jump-row"),
+    ].map((el) => Number(el.dataset.idx));
+    // 0,1,…,n with no gap and no repeat: ArrowDown walks one list.
+    expect(idx).toEqual(idx.map((_, i) => i));
+  });
+});
+
+describe("B — the 18-row firehose is gone", () => {
+  const busy = snapshot({
+    findings: [{ key: "f1", severity: "critical", subject: "Receivables provision" }],
+    trustBand: "reconciled",
+    metrics: [{ name: "dscr", value: 1.2, unit: "ratio" }],
+    unattached: [{ periodId: "p1", label: "Nov 2025" }],
+  });
+
+  it("shows THREE ZONES and no fourth", () => {
+    render(
+      <CapsuleEmptyStateView
+        context={buildCapsuleContext(busy)}
+        trustLabel="Reconciled"
+        suggestions={buildCapsuleSuggestions(busy, "pro")}
+        jumps={[
+          { id: "page-/dashboard", label: "Dashboard" },
+          { id: "page-/workspace", label: "Workspaces" },
+        ]}
+        onJump={() => {}}
+        onPick={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("capsule-context-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("capsule-suggestions")).toBeInTheDocument();
+    expect(screen.getByTestId("capsule-jump")).toBeInTheDocument();
+    // The two sections that used to sit between them.
+    expect(screen.queryByTestId("capsule-recents")).toBeNull();
+    expect(screen.queryByTestId("capsule-context-zone")).toBeNull();
+  });
+
+  it("the worst case is a HANDFUL of rows, not eighteen", () => {
+    render(
+      <CapsuleEmptyStateView
+        context={buildCapsuleContext(busy)}
+        trustLabel="Reconciled"
+        suggestions={buildCapsuleSuggestions(busy, "pro")}
+        jumps={[
+          { id: "a", label: "Dashboard" },
+          { id: "b", label: "Workspaces" },
+          { id: "c", label: "Products" },
+          { id: "d", label: "Settings" },
+          { id: "e", label: "Benchmark" },
+        ]}
+        onJump={() => {}}
+        onPick={() => {}}
+      />,
+    );
+    // Three asks + four jumps is the ceiling this IA allows, and it is
+    // the number the surface must not be able to exceed no matter how
+    // much the workspace has to say.
+    const rows = screen.getAllByRole("option");
+    expect(rows.length).toBeLessThanOrEqual(3 + MAX_JUMPS);
+  });
+
+  it("recents are reachable, not displayed — the row component left the contract", async () => {
+    // The recall STORE survives (⌘K → ArrowUp reads it) and must keep
+    // working; the visible SECTION does not exist any more. The barrel
+    // IS the contract, so asserting on the barrel is what stops the row
+    // quietly coming back through a different import.
+    const barrel = await import("../index");
+    expect(barrel).not.toHaveProperty("CapsuleRecentQuestions");
+    expect(barrel).not.toHaveProperty("RECENT_PILLS");
+    expect(barrel).not.toHaveProperty("CapsuleContextZone");
+    // …while the recall path the section was replaced BY is still here.
+    expect(typeof barrel.useCapsuleRecall).toBe("function");
+    expect(typeof barrel.rememberCapsuleQuestion).toBe("function");
   });
 });
 
@@ -408,6 +568,9 @@ describe("EN/RO parity for every generated key", () => {
     generatedKeys.push(`suggest.unattached.${mode}`);
     generatedKeys.push(`suggest.finding.${mode}`);
     generatedKeys.push(`suggest.silence.${mode}`);
+    for (const direction of ["up", "down"]) {
+      generatedKeys.push(`suggest.move.${direction}.${mode}`);
+    }
     for (const variant of ["imbalance", "drift", "reconciled"]) {
       generatedKeys.push(`suggest.trust.${variant}.${mode}`);
     }
@@ -415,7 +578,7 @@ describe("EN/RO parity for every generated key", () => {
       generatedKeys.push(`suggest.covenant.${test.id}.${mode}`);
     }
   }
-  for (const kind of ["unattached", "finding", "trust", "covenant", "silence"]) {
+  for (const kind of ["unattached", "finding", "move", "trust", "covenant", "silence"]) {
     generatedKeys.push(`basis.${kind}`);
   }
 
@@ -425,15 +588,66 @@ describe("EN/RO parity for every generated key", () => {
     expect(missing, `missing in ${lang}: ${missing.join(", ")}`).toEqual([]);
   });
 
-  it("the two bundles have identical key shapes", () => {
-    const shape = (node: unknown, prefix = ""): string[] => {
-      if (typeof node === "string") return [prefix];
-      if (!node || typeof node !== "object") return [];
-      return Object.entries(node as Record<string, unknown>)
-        .flatMap(([k, v]) => shape(v, prefix ? `${prefix}.${k}` : k))
+  // A LANGUAGE WITH MORE PLURAL FORMS IS NOT A MISSING TRANSLATION.
+  //
+  // English has two CLDR plural categories (one / other); Romanian has
+  // three (one / few / other — "2 perioade" but "20 DE perioade"). A
+  // byte-identical key-shape comparison therefore FAILS on a correctly
+  // translated Romanian plural, which is exactly backwards: it would
+  // push a translator to delete the `_few` form and ship wrong grammar
+  // for every count from 2 to 19.
+  //
+  // So the shapes are compared MODULO the CLDR suffix, and the plural
+  // FAMILIES are then asserted separately, each against the forms its
+  // own language actually requires.
+  const PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
+  const stripPlural = (key: string): string => {
+    for (const suffix of PLURAL_SUFFIXES) {
+      if (key.endsWith(suffix)) return key.slice(0, -suffix.length);
+    }
+    return key;
+  };
+  const shape = (node: unknown, prefix = ""): string[] => {
+    if (typeof node === "string") return [prefix];
+    if (!node || typeof node !== "object") return [];
+    return Object.entries(node as Record<string, unknown>).flatMap(([k, v]) =>
+      shape(v, prefix ? `${prefix}.${k}` : k),
+    );
+  };
+  const families = (node: unknown): string[] =>
+    [...new Set(shape(node).map(stripPlural))].sort();
+
+  it("the two bundles have identical key shapes, modulo plural form", () => {
+    expect(families(strings.ro.capsuleEmpty)).toEqual(families(strings.en.capsuleEmpty));
+  });
+
+  it("every plural family carries the forms ITS language requires", () => {
+    // The families that are plural at all — detected from EN, which is
+    // where a plural is introduced.
+    const enKeys = shape(strings.en.capsuleEmpty);
+    const pluralFamilies = [
+      ...new Set(enKeys.filter((k) => k !== stripPlural(k)).map(stripPlural)),
+    ].sort();
+    expect(pluralFamilies.length, "no plural families found — the test is inert").toBeGreaterThan(0);
+
+    const formsFor = (bag: unknown, family: string): string[] =>
+      shape(bag)
+        .filter((k) => stripPlural(k) === family && k !== family)
+        .map((k) => k.slice(family.length))
         .sort();
-    };
-    expect(shape(strings.ro.capsuleEmpty)).toEqual(shape(strings.en.capsuleEmpty));
+
+    for (const family of pluralFamilies) {
+      expect(formsFor(strings.en.capsuleEmpty, family), `en ${family}`).toEqual([
+        "_one",
+        "_other",
+      ]);
+      // Romanian: one (1), few (2-19), other (20+, the "de" form).
+      expect(formsFor(strings.ro.capsuleEmpty, family), `ro ${family}`).toEqual([
+        "_few",
+        "_one",
+        "_other",
+      ]);
+    }
   });
 
   it("no bundled string carries a hard-coded figure", () => {

@@ -15,12 +15,26 @@
 
 import i18n from "@/i18n";
 import strings from "./capsuleAnswerStrings.json";
+import tier0Strings from "./capsuleTier0Strings.json";
 
 i18n.addResourceBundle(
   "en", "translation", { capsuleAnswer: strings.en.capsuleAnswer }, true, false,
 );
 i18n.addResourceBundle(
   "ro", "translation", { capsuleAnswer: strings.ro.capsuleAnswer }, true, false,
+);
+
+// `lib/capsuleTier0.ts` emits `capsuleTier0.note.*` KEYS and says in its
+// own header that the SURFACE lane registers them. This is that lane, so
+// this is that registration. The namespace is deliberately the resolver's
+// and not `capsuleAnswer.*`: the resolver owns which notes exist, and a
+// note it adds tomorrow must land in a bundle whose name it already
+// knows, without an edit here to rename it.
+i18n.addResourceBundle(
+  "en", "translation", { capsuleTier0: tier0Strings.en.capsuleTier0 }, true, false,
+);
+i18n.addResourceBundle(
+  "ro", "translation", { capsuleTier0: tier0Strings.ro.capsuleTier0 }, true, false,
 );
 
 /** Explicit no-op so a caller can express the dependency as a call

@@ -41,6 +41,7 @@
 // call by itself.
 
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import "./capsuleEmptyI18n";
 import { useViewMode } from "@/lib/viewMode";
@@ -101,6 +102,15 @@ export function CapsuleEmptyStateView({
   activeIndex = -1,
   indexOffset = 0,
 }: CapsuleEmptyStateViewProps) {
+  const { t } = useTranslation();
+
+  // "Fewer, not filler" made visible: with a period loaded and nothing to
+  // suggest, ONE quiet line says so rather than three invented questions.
+  // It is the honest empty state, and it renders only when there IS a
+  // period — a workspace with nothing loaded is explained by the strip
+  // above, and saying it twice is a stutter.
+  const showEmptyLine = suggestions.length === 0 && !!context.periodLabel;
+
   return (
     <div data-testid="capsule-empty-state">
       <CapsuleContextStrip
@@ -116,6 +126,14 @@ export function CapsuleEmptyStateView({
         activeIndex={activeIndex}
         indexOffset={indexOffset}
       />
+      {showEmptyLine && (
+        <p
+          data-testid="capsule-suggestions-empty"
+          className="px-4 pb-1 pt-2.5 text-[12px] leading-relaxed text-ink-soft"
+        >
+          {t("capsuleEmpty.suggest.empty")}
+        </p>
+      )}
       {/* Zone 3 continues the SAME flat keyboard order zone 2 started, so
           ArrowDown walks suggestions then jumps without a discontinuity —
           and the offset is derived, never a second hard-coded base. */}

@@ -56,7 +56,7 @@ export function CapsuleSuggestionList({
 
   return (
     <div data-testid="capsule-suggestions">
-      <div className="px-4 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+      <div className="px-4 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
         {t("capsuleEmpty.suggest.heading")}
       </div>
       <ul>
@@ -85,7 +85,7 @@ export function CapsuleSuggestionList({
                 <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
                   {question}
                 </span>
-                <span className="hidden max-w-[42%] shrink-0 truncate text-[11px] text-ink-mute sm:inline">
+                <span className="hidden max-w-[42%] shrink-0 truncate text-[11px] text-ink-soft sm:inline">
                   {basis}
                 </span>
                 {/* The affordance the row is FOR: this text goes in the
@@ -95,7 +95,7 @@ export function CapsuleSuggestionList({
                   size={12}
                   strokeWidth={1.75}
                   aria-hidden
-                  className={`shrink-0 text-ink-mute transition-opacity duration-micro ${
+                  className={`shrink-0 text-ink-soft transition-opacity duration-micro ${
                     active ? "opacity-100" : "opacity-0 group-hover:opacity-60"
                   }`}
                 />

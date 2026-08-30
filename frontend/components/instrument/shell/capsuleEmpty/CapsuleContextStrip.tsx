@@ -84,7 +84,7 @@ function usePulse(key: number): boolean {
 }
 
 const SEP = (
-  <span aria-hidden className="text-ink-mute/60">
+  <span aria-hidden className="text-ink-soft/60">
     ·
   </span>
 );
@@ -112,7 +112,7 @@ export function CapsuleContextStrip({
       <div
         data-testid="capsule-context-strip"
         data-state="no-period"
-        className="flex h-7 items-center gap-2 px-4 text-[11.5px] text-ink-mute"
+        className="flex h-7 items-center gap-2 px-4 text-[11.5px] text-ink-soft"
       >
         <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-ink-mute" />
         <span className="truncate">{t("capsuleEmpty.strip.noPeriod")}</span>
@@ -139,7 +139,7 @@ export function CapsuleContextStrip({
     <div
       data-testid="capsule-context-strip"
       data-state="period"
-      className="flex h-7 items-center gap-2 overflow-hidden px-4 text-[11.5px] text-ink-mute"
+      className="flex h-7 items-center gap-2 overflow-hidden px-4 text-[11.5px] text-ink-soft"
     >
       <span
         data-testid="capsule-status-dot"
@@ -152,16 +152,21 @@ export function CapsuleContextStrip({
         `}
       />
 
-      {/* A period whose month could not be resolved gets NO name. Saying
-          "Period · <company>" was the r0 defect; saying nothing is the
-          honest shape, and the verdict beside it still identifies it. */}
-      {context.periodLabel && (
-        <span data-testid="capsule-context-period" className="shrink-0 text-ink-soft">
-          {context.periodLabel}
-        </span>
-      )}
-
-      {context.periodLabel && SEP}
+      {/* A period whose month could not be resolved is NAMED AS SUCH.
+          Three rounds of the loop landed here:
+            r0  the slot fell back to `activePeriod.label` and printed a
+                COMPANY where a month belongs;
+            r1  the fallback was deleted, and the strip read a bare
+                "Not verified" with no subject — true, but stunted;
+            r2  it says what is actually the case. The demo period really
+                does carry no `period_end`, and "Period not dated" is the
+                honest sentence. Note the header shows "Aug 2026" here —
+                that is ITS current-month fallback, not this period's
+                month, and copying it would be inventing a date. */}
+      <span data-testid="capsule-context-period" className="shrink-0 text-ink-soft">
+        {context.periodLabel ?? t("capsuleEmpty.strip.undated")}
+      </span>
+      {SEP}
       <span data-testid="capsule-context-trust" className="shrink-0 truncate">
         {verdict}
       </span>

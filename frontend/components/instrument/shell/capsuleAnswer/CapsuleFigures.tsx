@@ -163,7 +163,7 @@ export function ProvenanceDot({
       data-traceable-source-bucket={source.bucket}
       className="
         inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full
-        text-ink-mute transition-colors duration-micro
+        text-ink-soft transition-colors duration-micro
         hover:text-brand-d dark:hover:text-brand-l
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
       "
@@ -191,7 +191,7 @@ export function FigureRow({
       <span className="min-w-0 flex-1 truncate text-[12px] text-ink-soft">
         {label}
         {meta.periodLabel && (
-          <span className="text-ink-mute"> · {meta.periodLabel}</span>
+          <span className="text-ink-soft"> · {meta.periodLabel}</span>
         )}
       </span>
       <FigureValue meta={meta} evidence={evidence} className="text-[12.5px] text-ink" />
@@ -241,7 +241,7 @@ export function DeltaChip({
       ? "text-success"
       : direction === "down"
       ? "text-alert"
-      : "text-ink-mute";
+      : "text-ink-soft";
   const arrow = direction === "up" ? "\u25B2" : direction === "down" ? "\u25BC" : "\u2013";
   return (
     <span
@@ -279,7 +279,7 @@ export function ComparisonVisual({
       className="mt-2 rounded-sm border border-rule-soft bg-bg-2/40 px-3 py-2"
       data-testid="capsule-comparison"
     >
-      <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+      <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
         {heading}
       </div>
       <table className="w-full">
@@ -304,7 +304,7 @@ export function ComparisonVisual({
           </tr>
           {delta && (
             <tr className="border-t border-rule-soft">
-              <td className="pt-1 text-[12px] text-ink-mute">
+              <td className="pt-1 text-[12px] text-ink-soft">
                 {t("capsuleAnswer.visual.change")}
               </td>
               <td className="pt-1 text-right" colSpan={2}>
@@ -342,14 +342,14 @@ export function SparklineVisual({
       data-testid="capsule-sparkline"
     >
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+        <div className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
           {heading}
         </div>
         <div className="mt-0.5 flex items-baseline gap-2">
           {lastMeta && (
             <FigureValue meta={lastMeta} evidence={evidence} className="text-[13px] text-ink" />
           )}
-          <span className="truncate text-[11px] text-ink-mute">{last?.label}</span>
+          <span className="truncate text-[11px] text-ink-soft">{last?.label}</span>
           {lastMeta && <ProvenanceDot meta={lastMeta} onJump={onJump} />}
         </div>
       </div>

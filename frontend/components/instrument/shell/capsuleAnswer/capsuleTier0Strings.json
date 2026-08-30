@@ -1,0 +1,42 @@
+{
+  "en": {
+    "capsuleTier0": {
+      "note": {
+        "balanced": "The balance sheet balances for this period.",
+        "notBalanced": "The balance sheet does not balance for this period.",
+        "activePeriod": "The period you have open.",
+        "currency": "The currency this period's book is kept in.",
+        "absent": "No figure for {{metric}} in this period — it is missing, not zero.",
+        "singlePeriod": "Only one period is loaded, so there is nothing to compare against.",
+        "unlabelledPeriod": "That period carries no month label, so a comparison would be a guess.",
+        "currencyMismatch": "Those periods are kept in different currencies — comparing them directly would mix two books.",
+        "entityMismatch": "Those periods belong to different entities.",
+        "noBaseline": "No earlier period to measure the change from.",
+        "definition": "{{definition}}",
+        "findings": "Findings surfaced on {{period}}.",
+        "imbalance": "The gap between the two sides of the balance sheet for {{period}}.",
+        "noBreakdown": "The total is on file for {{period}}, but the split behind it is not — a trial balance carries the balance, not the counterparties."
+      }
+    }
+  },
+  "ro": {
+    "capsuleTier0": {
+      "note": {
+        "balanced": "Bilanțul se echilibrează pentru această perioadă.",
+        "notBalanced": "Bilanțul nu se echilibrează pentru această perioadă.",
+        "activePeriod": "Perioada pe care o ai deschisă.",
+        "currency": "Moneda în care este ținută contabilitatea acestei perioade.",
+        "absent": "Nu există o valoare pentru {{metric}} în această perioadă — lipsește, nu este zero.",
+        "singlePeriod": "Este încărcată o singură perioadă, deci nu ai cu ce să compari.",
+        "unlabelledPeriod": "Perioada aceea nu are etichetă de lună, așa că o comparație ar fi o presupunere.",
+        "currencyMismatch": "Perioadele acelea sunt ținute în monede diferite — comparate direct, ar amesteca două registre.",
+        "entityMismatch": "Perioadele acelea aparțin unor entități diferite.",
+        "noBaseline": "Nu există o perioadă anterioară față de care să măsurăm variația.",
+        "definition": "{{definition}}",
+        "findings": "Constatări apărute în {{period}}.",
+        "imbalance": "Diferența dintre cele două părți ale bilanțului pentru {{period}}.",
+        "noBreakdown": "Totalul este în fișier pentru {{period}}, dar defalcarea din spatele lui nu — o balanță de verificare conține soldul, nu partenerii."
+      }
+    }
+  }
+}

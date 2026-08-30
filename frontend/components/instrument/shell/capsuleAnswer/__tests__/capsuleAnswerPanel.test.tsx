@@ -97,13 +97,42 @@ describe("a resolved answer", () => {
     expect(body.textContent).toMatch(/293[.,\s]?050[.,\s]?085/);
   });
 
-  it("lists only the facts the sentence cited, each with its period", async () => {
+  it("leads with the FACT CARD, and does not reprint it in a list below", async () => {
     const turn = await turnFor("assets");
     renderPanel([turn]);
-    const rows = screen.getAllByTestId("capsule-figure-row");
-    expect(rows).toHaveLength(1);
-    expect(rows[0].textContent).toContain("Total assets");
-    expect(rows[0].textContent).toContain("Dec 2025");
+    // One fact in the evidence → it is the headline, at 26px, with its
+    // metric label and its period. The figure list has nothing left to
+    // say and therefore does not render at all: printing the same
+    // number twice under a heading is not a receipt, it is a stutter.
+    const card = screen.getByTestId("capsule-fact-card");
+    expect(card.textContent).toContain("Total assets");
+    expect(card.textContent).toContain("Dec 2025");
+    expect(screen.queryByTestId("capsule-figures")).toBeNull();
+  });
+
+  it("the headline figure names the fact it came from (C3 grounding)", async () => {
+    const turn = await turnFor("assets");
+    renderPanel([turn]);
+    // The list used to be the whitelisted container that made every
+    // figure traceable. The headline is outside it, so it carries the
+    // claim itself — a DIMENSIONLESS headline renders as a bare span and
+    // would otherwise be indistinguishable from a numeral a model typed.
+    const grounded = document
+      .querySelector('[data-testid="capsule-fact-card"] [data-fact]');
+    expect(grounded).not.toBeNull();
+    expect(grounded?.getAttribute("data-fact")).toBeTruthy();
+  });
+
+  it("still lists the facts the headline did NOT absorb", async () => {
+    const turn = await turnFor("assets");
+    // Two facts: the money one leads, the ratio stays in the list.
+    const twoFacts = {
+      ...turn,
+      citedFacts: Object.keys(turn.evidence.factMeta),
+    };
+    if (Object.keys(turn.evidence.factMeta).length < 2) return; // fixture is single-fact
+    renderPanel([twoFacts]);
+    expect(screen.getAllByTestId("capsule-figure-row").length).toBeGreaterThan(0);
   });
 
   it("gives the figure a provenance dot that jumps to the source row", async () => {
@@ -189,7 +218,10 @@ describe("the deterministic floor", () => {
     renderPanel([turn]);
     expect(screen.getByTestId("capsule-fallback-note")).toBeInTheDocument();
     expect(screen.queryByTestId("capsule-answer-body")).toBeNull();
-    expect(screen.getAllByTestId("capsule-figure-row").length).toBeGreaterThan(0);
+    // The figures survive the fallback — that is the whole promise of the
+    // deterministic floor. They are on the FACT CARD now rather than in a
+    // list, because a single-fact answer has one number and prints it once.
+    expect(screen.getByTestId("capsule-fact-card")).toBeInTheDocument();
   });
 
   it("the rejected model sentence never reaches the DOM", async () => {

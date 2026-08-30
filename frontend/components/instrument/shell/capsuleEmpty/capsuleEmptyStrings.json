@@ -124,11 +124,19 @@
         "unattached_one": "{{count}} period without a file",
         "unattached_other": "{{count}} periods without a file",
         "findings_one": "{{count}} finding",
-        "findings_other": "{{count}} findings"
+        "findings_other": "{{count}} findings",
+        "undated": "Period not dated"
       },
       "jump": {
-        "heading": "Jump to…",
-        "hint": "Type to search everything"
+        "heading": "Jump to…"
+      },
+      "enter": {
+        "ask": "Enter answers your question",
+        "go": "Enter opens {{target}}",
+        "idle": "Type to ask, or to jump anywhere",
+        "keys": "↑↓ move · Tab to ask · Esc to close",
+        "askFallback": "Answer “{{query}}”",
+        "askFallbackHint": "From this period's figures"
       }
     }
   },
@@ -259,11 +267,19 @@
         "unattached_other": "{{count}} de perioade fără fișier",
         "findings_one": "{{count}} constatare",
         "findings_few": "{{count}} constatări",
-        "findings_other": "{{count}} de constatări"
+        "findings_other": "{{count}} de constatări",
+        "undated": "Perioadă fără dată"
       },
       "jump": {
-        "heading": "Sari la…",
-        "hint": "Scrie ca să cauți peste tot"
+        "heading": "Sari la…"
+      },
+      "enter": {
+        "ask": "Enter îți răspunde la întrebare",
+        "go": "Enter deschide {{target}}",
+        "idle": "Scrie ca să întrebi sau ca să sari oriunde",
+        "keys": "↑↓ navighezi · Tab întrebi · Esc închizi",
+        "askFallback": "Răspunde la „{{query}}”",
+        "askFallbackHint": "Din cifrele acestei perioade"
       }
     }
   }

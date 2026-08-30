@@ -174,7 +174,10 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
     belowLg && alertCount > 0
       ? t("header.account.withAlerts", {
           name: displayName ?? user.email,
-          count: alertCount,
+          // `n`, not `count`: i18next pluralises on `count`, and Romanian
+          // has three plural forms — a missing `_few` variant would put a
+          // raw key into an aria-label.
+          n: alertCount,
         })
       : `Account menu · ${displayName ?? user.email}`;
 

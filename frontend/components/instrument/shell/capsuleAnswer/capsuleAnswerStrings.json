@@ -116,11 +116,21 @@
         "trend": "Trend or one-off?",
         "drivers": "Which accounts drove it?",
         "evidence": "Show the evidence",
-        "gap_fix": "What would fill the gap?"
+        "gap_fix": "What would fill the gap?",
+        "ask": {
+          "compare_prior": "How does {{metric}} compare with the same period last year?",
+          "trend": "Is the move in {{metric}} a trend or a one-off?",
+          "drivers": "Which accounts drove the change in {{metric}}?",
+          "gap_fix": "What data would I need to close the gap in this answer?",
+          "evidence": "Show every figure behind this answer."
+        }
       },
       "questionChip": "Your question",
       "writing": "Writing the interpretation…",
-      "newQuestion": "New question"
+      "newQuestion": "New question",
+      "tier0": {
+        "open": "Enter"
+      }
     }
   },
   "ro": {
@@ -240,11 +250,21 @@
         "trend": "Tendință sau întâmplare?",
         "drivers": "Ce conturi au determinat asta?",
         "evidence": "Arată dovezile",
-        "gap_fix": "Ce ar completa golul?"
+        "gap_fix": "Ce ar completa golul?",
+        "ask": {
+          "compare_prior": "Cum se compară {{metric}} cu aceeași perioadă de anul trecut?",
+          "trend": "Mișcarea din {{metric}} este o tendință sau o întâmplare?",
+          "drivers": "Ce conturi au determinat variația din {{metric}}?",
+          "gap_fix": "De ce date am nevoie ca să acopăr golul din răspunsul acesta?",
+          "evidence": "Arată toate cifrele din spatele acestui răspuns."
+        }
       },
       "questionChip": "Întrebarea ta",
       "writing": "Scriem interpretarea…",
-      "newQuestion": "Întrebare nouă"
+      "newQuestion": "Întrebare nouă",
+      "tier0": {
+        "open": "Enter"
+      }
     }
   }
 }

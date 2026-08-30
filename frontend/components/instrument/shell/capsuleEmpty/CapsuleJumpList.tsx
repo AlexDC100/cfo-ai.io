@@ -55,13 +55,12 @@ export function CapsuleJumpList({
 
   return (
     <div data-testid="capsule-jump">
-      <div className="flex items-baseline gap-2 px-4 pb-1 pt-2.5">
-        <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
-          {t("capsuleEmpty.jump.heading")}
-        </span>
-        <span className="truncate text-[10.5px] text-ink-mute/70">
-          {t("capsuleEmpty.jump.hint")}
-        </span>
+      {/* The label, and nothing beside it. It used to carry a "type to
+          search everything" hint, which is the same sentence the footer
+          already prints two rows below — and a surface that says a thing
+          twice is a surface that is not sure you read it. */}
+      <div className="px-4 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
+        {t("capsuleEmpty.jump.heading")}
       </div>
       <ul>
         {items.slice(0, MAX_JUMPS).map((item, i) => {
@@ -91,12 +90,12 @@ export function CapsuleJumpList({
                   {item.label}
                 </span>
                 {item.hint && (
-                  <span className="shrink-0 truncate text-[11px] text-ink-mute">
+                  <span className="shrink-0 truncate text-[11px] text-ink-soft">
                     {item.hint}
                   </span>
                 )}
                 {item.kbd && (
-                  <kbd className="shrink-0 rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-mute">
+                  <kbd className="shrink-0 rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
                     {item.kbd}
                   </kbd>
                 )}

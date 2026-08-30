@@ -1,30 +1,49 @@
-// THE CAPSULE — ANSWER MODE.
+// THE CAPSULE — THE ANSWER CANVAS.
 //
-// The same overlay the reader was searching in, grown downward. No route
-// change, no second window, no chat page: the question was asked from
-// here, so it is answered here, and Escape puts them back exactly where
-// they were with the thread intact.
+// The same overlay the reader was typing in, grown. No route change, no
+// second window, no chat page: the question was asked from here, so it
+// is answered here, and Escape puts them back exactly where they were
+// with the thread intact.
 //
-// ── What is rendered, and from what ───────────────────────────────────
+// ── The anatomy, in the order it is read ──────────────────────────────
 //
-//   prose      guarded model text → <NarrativeText> with the evidence's
-//              facts + DECLARED units. Every figure inside a sentence
-//              resolves through the money path, so a claim cannot
-//              straddle the conversion boundary.
-//   figures    <FigureValue> (i.e. <Amount>) from `factMeta`, each with
-//              a provenance dot that navigates to the statement row.
-//   visuals    derived from facts in `capsuleAnswerVisuals` — never
-//              parsed out of the prose.
-//   citation   which periods, which snapshot, which file, and the
-//              engine's own trust verdict for that data.
+//   1  QUESTION CHIP     the question, pinned as one compact line. It is
+//                        context, not content, so it wears a chip and not
+//                        a heading
+//   2  FACT CARD         the number, large, in mono, with its delta chip
+//                        and a provenance dot that JUMPS to the source
+//                        cell. See CapsuleFactCard for why this is first
+//   3  MICRO-VISUAL      a sparkline or a three-row comparison — drawn
+//                        FROM FACTS by `capsuleAnswerVisuals`, never
+//                        parsed out of model text
+//   4  INTERPRETATION    the streamed prose, plain-language, mode-aware,
+//                        through `NarrativeText` so every figure inside a
+//                        sentence resolves on the money path
+//   5  CITATION          period, snapshot, source file, trust verdict
+//   6  ACTIONS           evidence · chat · copy · pack
+//   7  FOLLOW-UP CHIPS   the next question, computed from THIS answer's
+//                        evidence (`capsuleFollowUps`). Nearest the
+//                        composer, because that is where the next
+//                        question happens
 //
-// ── Motion ────────────────────────────────────────────────────────────
+// ── Motion, and what "no layout shift" actually means here ────────────
 //
 // The overlay is `position: fixed`, so growing it moves NOTHING behind
-// it: layout shift is zero by construction rather than by measurement.
-// Inside, the answer appends downward — blocks arrive in order and never
-// re-wrap what is already on screen. Under `prefers-reduced-motion` the
-// stagger is skipped entirely and the answer is simply there.
+// it: the page's layout shift is zero by construction rather than by
+// measurement. That is the easy half.
+//
+// The hard half is INSIDE. The reveal used to mount blocks one at a
+// time, which meant the citation, the actions and the follow-ups were
+// pushed down the screen once per block — every already-painted line
+// moved, repeatedly, under the reader's eye. Now every block of a
+// finished turn is in the DOM from the first frame and reveals by
+// OPACITY on a stagger. The container reaches its final height
+// immediately; nothing that has been painted is ever moved again.
+//
+// While the answer is still being written, the prose region reserves the
+// height of the skeleton it is showing, and a cursor glyph marks the
+// live edge. Under `prefers-reduced-motion` the stagger is skipped and
+// the answer is simply there.
 //
 // ── The streamed text is not shown raw ────────────────────────────────
 //
@@ -49,7 +68,9 @@ import "./capsuleAnswerI18n";
 import { codeCopy, hasCopy, metricLabel } from "./capsuleAnswerI18n";
 import { answerToNativeText, type CapsuleTurn } from "./capsuleAnswerClient";
 import type { CapsuleEvidence } from "./capsuleAnswerTypes";
+import { CapsuleFactCard, pickHeadline } from "./CapsuleFactCard";
 import { CapsuleVisuals, FigureList } from "./CapsuleFigures";
+import { buildFollowUps, type CapsuleFollowUp } from "./capsuleFollowUps";
 import { inPack, subscribePack, togglePack } from "./capsuleExportPack";
 
 /** Host-supplied citation context — the palette knows the active period,
@@ -91,9 +112,15 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-/** Reveal blocks one at a time, appending downward. Block granularity,
- *  not word: re-wrapping a paragraph mid-reveal is a layout jump inside
- *  the block, which is precisely what the motion contract forbids. */
+/**
+ * Reveal blocks by OPACITY, on a stagger, without moving anything.
+ *
+ * Returns the number of blocks currently opaque. Every block is mounted
+ * either way — the caller renders all of them and dims the ones this
+ * count has not reached yet. That distinction is the whole point: a
+ * mount-based stagger changes the container's height on every tick, and
+ * this one cannot.
+ */
 function useBlockReveal(count: number, enabled: boolean): number {
   const [shown, setShown] = useState(enabled ? 0 : count);
   useEffect(() => {
@@ -120,7 +147,7 @@ function RetrievalTrace({ turn }: { turn: CapsuleTurn }) {
   const { t } = useTranslation();
   if (turn.trace.length === 0) {
     return (
-      <div className="text-[12px] text-ink-mute" data-testid="capsule-trace">
+      <div className="text-[12px] text-ink-soft" data-testid="capsule-trace">
         {t("capsuleAnswer.trace.none")}
       </div>
     );
@@ -147,11 +174,11 @@ function RetrievalTrace({ turn }: { turn: CapsuleTurn }) {
                   : "bg-ink-mute animate-pulse motion-reduce:animate-none"
               }`}
             />
-            <span className={line.state === "missing" ? "text-ink-mute line-through" : "text-ink-soft"}>
+            <span className={line.state === "missing" ? "text-ink-soft line-through" : "text-ink-soft"}>
               {label}
             </span>
             {line.state === "missing" && (
-              <span className="text-[11px] text-ink-mute">{t("capsuleAnswer.trace.missing")}</span>
+              <span className="text-[11px] text-ink-soft">{t("capsuleAnswer.trace.missing")}</span>
             )}
           </li>
         );
@@ -171,7 +198,7 @@ function Absences({ evidence }: { evidence: CapsuleEvidence }) {
     <div className="mt-2 space-y-1.5" data-testid="capsule-absences">
       {gaps.length > 0 && (
         <div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
             {t("capsuleAnswer.gapsTitle")}
           </div>
           <ul className="mt-0.5 space-y-0.5">
@@ -185,7 +212,7 @@ function Absences({ evidence }: { evidence: CapsuleEvidence }) {
       )}
       {limits.length > 0 && (
         <div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
             {t("capsuleAnswer.limitsTitle")}
           </div>
           <ul className="mt-0.5 space-y-0.5">
@@ -223,7 +250,7 @@ function Citation({
 
   return (
     <div
-      className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-rule-soft pt-2 text-[11px] text-ink-mute"
+      className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-rule-soft pt-2 text-[11px] text-ink-soft"
       data-testid="capsule-citation"
     >
       <span>
@@ -261,12 +288,14 @@ function Actions({
   onOpenInChat,
   showEvidence,
   onToggleEvidence,
+  hasEvidence,
 }: {
   turn: CapsuleTurn;
   citation: HostCitation;
   onOpenInChat: () => void;
   showEvidence: boolean;
   onToggleEvidence: () => void;
+  hasEvidence: boolean;
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -314,7 +343,22 @@ function Actions({
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-0.5" data-testid="capsule-actions">
-      <button type="button" className={btn} onClick={onOpenInChat}>
+      {/* Evidence leads: it is the only action that answers a question
+          about the answer. It is also the only one that renders
+          conditionally — a turn with nothing further to show would
+          otherwise offer a button that expands into the same list. */}
+      {hasEvidence && (
+        <button
+          type="button"
+          className={btn}
+          onClick={onToggleEvidence}
+          aria-expanded={showEvidence}
+          data-testid="capsule-evidence-toggle"
+        >
+          {showEvidence ? t("capsuleAnswer.hideEvidence") : t("capsuleAnswer.showEvidence")}
+        </button>
+      )}
+      <button type="button" className={btn} onClick={onOpenInChat} data-testid="capsule-open-chat">
         <MessageSquare size={13} strokeWidth={1.75} />
         {t("capsuleAnswer.actions.openInChat")}
       </button>
@@ -326,15 +370,41 @@ function Actions({
         <Package size={13} strokeWidth={1.75} />
         {packed ? t("capsuleAnswer.actions.inPack") : t("capsuleAnswer.actions.addToPack")}
       </button>
-      <button
-        type="button"
-        className={btn}
-        onClick={onToggleEvidence}
-        aria-expanded={showEvidence}
-        data-testid="capsule-evidence-toggle"
-      >
-        {showEvidence ? t("capsuleAnswer.hideEvidence") : t("capsuleAnswer.showEvidence")}
-      </button>
+    </div>
+  );
+}
+
+// ── follow-up chips ────────────────────────────────────────────────────
+
+function FollowUps({
+  followUps,
+  onPick,
+}: {
+  followUps: readonly CapsuleFollowUp[];
+  onPick: (f: CapsuleFollowUp) => void;
+}) {
+  const { t } = useTranslation();
+  if (followUps.length === 0) return null;
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center gap-1.5" data-testid="capsule-followups">
+      {followUps.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            data-testid="capsule-followup-chip"
+            data-kind={f.kind}
+            data-local={f.local ? "true" : undefined}
+            onClick={() => onPick(f)}
+            className="
+              rounded-full border border-rule bg-bg-2/60 px-2.5 py-1 text-[11.5px]
+              text-ink-soft transition-colors duration-micro
+              hover:border-brand/40 hover:bg-bg-2 hover:text-ink
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+            "
+          >
+            {t(f.labelKey, f.labelParams)}
+          </button>
+      ))}
     </div>
   );
 }
@@ -347,6 +417,7 @@ function Turn({
   onJump,
   onOpenInChat,
   onRetry,
+  onAsk,
   reduced,
 }: {
   turn: CapsuleTurn;
@@ -354,6 +425,7 @@ function Turn({
   onJump: (source: TraceableSource) => void;
   onOpenInChat: () => void;
   onRetry: (turn: CapsuleTurn) => void;
+  onAsk: (question: string) => void;
   reduced: boolean;
 }) {
   const { t } = useTranslation();
@@ -363,29 +435,112 @@ function Turn({
   const evidence = turn.evidence;
   const currency = (evidence.currency ?? "RON") as Currency;
 
+  // Which fact the CARD is already showing at 26px. The list must not
+  // print it again at 12px under a heading — one answer, one number.
+  const headlineFact = useMemo(
+    () => (done && !turn.degraded ? pickHeadline(evidence, turn.visuals)?.meta.fact ?? null : null),
+    [done, turn.degraded, evidence, turn.visuals],
+  );
+
   const shownFacts = useMemo(() => {
+    // "Show evidence" is the one place EVERYTHING appears, headline
+    // included — that is what the reader asked for.
     if (showEvidence) return Object.keys(evidence.factMeta);
     // Deterministic answers lead with the figures; a prose answer shows
     // only what it actually cited, so the list is a receipt for the
     // sentence above it rather than a second, competing answer.
-    return turn.deterministic ? Object.keys(evidence.factMeta) : turn.citedFacts;
-  }, [showEvidence, turn.deterministic, turn.citedFacts, evidence.factMeta]);
+    const base = turn.deterministic ? Object.keys(evidence.factMeta) : turn.citedFacts;
+    const rest = base.filter((f) => f !== headlineFact);
+    // If the headline WAS the whole list, the list has nothing left to
+    // say and does not render — heading included.
+    return rest;
+  }, [showEvidence, turn.deterministic, turn.citedFacts, evidence.factMeta, headlineFact]);
+
+  const followUps = useMemo(
+    () =>
+      done
+        ? buildFollowUps({
+            evidence,
+            citedFacts: turn.citedFacts,
+            deterministic: turn.deterministic,
+            degraded: Boolean(turn.degraded),
+          })
+        : [],
+    [done, evidence, turn.citedFacts, turn.deterministic, turn.degraded],
+  );
+
+  // The toggle renders whenever there IS evidence. A zero-fact turn
+  // hides it rather than offering a button that expands into nothing.
+  const hasEvidence = Object.keys(evidence.factMeta).length > 0;
+
+  const pickFollowUp = (f: CapsuleFollowUp) => {
+    // A LOCAL chip costs nothing — it expands what is already here. Only
+    // the others reach `onAsk`, which is the one path that can spend.
+    if (f.local) {
+      setShowEvidence(true);
+      return;
+    }
+    // The chip says "vs last year?"; the QUESTION says which metric.
+    // A model handed the chip's own text would have to guess the
+    // subject, and guessing the subject is how an answer ends up about
+    // the wrong number.
+    const metric = f.metricKey ? metricLabel(t, f.metricKey, f.metricKey) : "";
+    onAsk(t(`capsuleAnswer.followUp.ask.${f.kind}`, { ...f.labelParams, metric }));
+  };
 
   return (
     <article className="px-4 py-3" data-testid="capsule-turn">
-      <h3 className="text-[13.5px] font-medium leading-snug text-ink">{turn.question}</h3>
+      {/* The question is CONTEXT for what follows, so it wears a chip and
+          not a heading. One line, truncated, with the full text in
+          `title` — a three-line question restated at full size above its
+          own answer pushes the answer off the first screen. */}
+      {/* HUGS ITS TEXT. Full-width, bordered and rounded, it read as a
+          disabled input — something you could click into and type. A
+          chip is the size of what it says. */}
+      <div className="flex items-start">
+        <span
+          data-testid="capsule-question-chip"
+          title={turn.question}
+          className="
+            max-w-full truncate rounded-full border border-rule bg-bg-2/70
+            px-2.5 py-1 text-[12px] text-ink-soft
+          "
+        >
+          {turn.question}
+        </span>
+      </div>
 
       {!done && (
         <div className="mt-2 space-y-2">
           <RetrievalTrace turn={turn} />
           {turn.status === "generating" && (
-            <div className="space-y-1.5" data-testid="capsule-skeleton">
+            // The reserved region. Two skeleton lines and a cursor at the
+            // live edge occupy the height the prose will occupy, so the
+            // swap from shimmer to sentence moves nothing below it.
+            <div
+              className="space-y-1.5"
+              style={{ minHeight: 40 }}
+              data-testid="capsule-skeleton"
+            >
               <div className="h-2 w-[85%] rounded-sm bg-bg-2 animate-pulse motion-reduce:animate-none" />
-              <div className="h-2 w-[62%] rounded-sm bg-bg-2 animate-pulse motion-reduce:animate-none" />
-              <span className="sr-only">{t("capsuleAnswer.answering")}</span>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-[62%] rounded-sm bg-bg-2 animate-pulse motion-reduce:animate-none" />
+                <span
+                  aria-hidden
+                  data-testid="capsule-cursor"
+                  className="inline-block h-3 w-[2px] bg-brand animate-pulse motion-reduce:animate-none"
+                />
+              </div>
+              <span className="sr-only">{t("capsuleAnswer.writing")}</span>
             </div>
           )}
         </div>
+      )}
+
+      {/* 2 — THE FACT CARD. Before the prose, because it is the answer
+          and the prose is the commentary. */}
+      {done && !turn.degraded && (
+        <CapsuleFactCard evidence={evidence} visuals={turn.visuals} onJump={onJump} />
       )}
 
       {done && turn.degraded && (
@@ -397,7 +552,7 @@ function Turn({
           <p className="mt-0.5 text-[12px] text-ink-soft">
             {t(`capsuleAnswer.degraded.${turn.degraded}`)}
           </p>
-          <p className="mt-0.5 text-[11.5px] text-ink-mute">{t("capsuleAnswer.degraded.note")}</p>
+          <p className="mt-0.5 text-[11.5px] text-ink-soft">{t("capsuleAnswer.degraded.note")}</p>
           <button
             type="button"
             onClick={() => onRetry(turn)}
@@ -409,25 +564,34 @@ function Turn({
         </div>
       )}
 
+      {/* 3 — the micro-visual, from facts. */}
+      {done && <CapsuleVisuals visuals={turn.visuals} evidence={evidence} onJump={onJump} />}
+
       {done && !turn.degraded && turn.deterministic && (
-        <p className="mt-2 text-[12px] italic text-ink-mute" data-testid="capsule-fallback-note">
+        <p className="mt-2 text-[12px] italic text-ink-soft" data-testid="capsule-fallback-note">
           {t("capsuleAnswer.fallbackNote")}
         </p>
       )}
 
+      {/* 4 — the interpretation. Every block is mounted; the stagger is
+          opacity only, so nothing below this region ever moves once it
+          has been painted. */}
       {done && turn.blocks.length > 0 && (
         <div className="mt-2 space-y-1.5" data-testid="capsule-answer-body">
-          {turn.blocks.slice(0, revealed).map((block, i) => (
+          {turn.blocks.map((block, i) => (
             <div
               key={i}
-              className={
-                block.kind === "bullet"
+              style={{ transitionDelay: reduced ? undefined : `${i * 70}ms` }}
+              className={`
+                transition-opacity duration-overlay motion-reduce:transition-none
+                ${i < revealed ? "opacity-100" : "opacity-0"}
+                ${block.kind === "bullet"
                   ? "flex gap-2 text-[13px] leading-relaxed text-ink-soft"
-                  : "text-[13px] leading-relaxed text-ink-soft"
-              }
+                  : "text-[13px] leading-relaxed text-ink-soft"}
+              `}
             >
               {block.kind === "bullet" && (
-                <span aria-hidden className="select-none text-ink-mute">
+                <span aria-hidden className="select-none text-ink-soft">
                   ·
                 </span>
               )}
@@ -443,11 +607,9 @@ function Turn({
         </div>
       )}
 
-      {done && <CapsuleVisuals visuals={turn.visuals} evidence={evidence} onJump={onJump} />}
-
       {done && shownFacts.length > 0 && (
         <>
-          <div className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+          <div className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
             {showEvidence ? t("capsuleAnswer.evidenceTitle") : t("capsuleAnswer.figures")}
           </div>
           <FigureList facts={shownFacts} evidence={evidence} onJump={onJump} />
@@ -459,10 +621,11 @@ function Turn({
           more useful words; three of them stacked reads as a stutter. */}
       {done &&
         shownFacts.length === 0 &&
+        !headlineFact &&
         turn.blocks.length === 0 &&
         evidence.gaps.length === 0 &&
         !turn.degraded && (
-          <p className="mt-2 text-[12px] text-ink-mute">{t("capsuleAnswer.evidenceNone")}</p>
+          <p className="mt-2 text-[12px] text-ink-soft">{t("capsuleAnswer.evidenceNone")}</p>
         )}
 
       {done && <Absences evidence={evidence} />}
@@ -474,8 +637,10 @@ function Turn({
           onOpenInChat={onOpenInChat}
           showEvidence={showEvidence}
           onToggleEvidence={() => setShowEvidence((v) => !v)}
+          hasEvidence={hasEvidence}
         />
       )}
+      {done && <FollowUps followUps={followUps} onPick={pickFollowUp} />}
     </article>
   );
 }
@@ -506,7 +671,16 @@ export function CapsuleAnswerPanel({
 
   // New content appends downward; keep the newest turn in view without
   // yanking the reader off something they are mid-read of.
+  //
+  // NOT ON THE FIRST TURN. There is nothing above it to scroll past, so
+  // the scroll has no destination — but it still ANIMATES, and it
+  // animates over the fact card at exactly the moment the reader is
+  // trying to read the number. Caught in the r3 screenshots: the mobile
+  // captures show the headline figure ghosted mid-scroll, in a frame the
+  // desktop (short enough not to scroll) never produced. The first
+  // answer should simply be there.
   useEffect(() => {
+    if (turns.length <= 1) return;
     const el = scrollRef.current;
     if (!el) return;
     // `scrollTo` is absent in jsdom and in a couple of embedded WebViews;
@@ -530,7 +704,7 @@ export function CapsuleAnswerPanel({
     <div className={`flex min-h-0 flex-col ${className ?? ""}`} data-testid="capsule-answer">
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 divide-y divide-rule-soft overflow-y-auto"
+        className="chat-scroll min-h-0 flex-1 divide-y divide-rule-soft overflow-y-auto"
         role="log"
         aria-live="polite"
         aria-busy={busy}
@@ -543,11 +717,15 @@ export function CapsuleAnswerPanel({
             onJump={onJump}
             onOpenInChat={onOpenInChat}
             onRetry={onRetry}
+            onAsk={onAsk}
             reduced={reduced}
           />
         ))}
       </div>
 
+      {/* The composer docks at the bottom of the canvas — the thread
+          scrolls above it, and the caret never leaves the place the next
+          question goes. */}
       <div className="border-t border-rule-soft px-4 py-2.5">
         <textarea
           ref={inputRef}
@@ -565,10 +743,10 @@ export function CapsuleAnswerPanel({
           data-testid="capsule-followup"
           className="
             max-h-24 w-full resize-none bg-transparent text-[13px] text-ink
-            placeholder:text-ink-mute outline-none
+            placeholder:text-ink-soft outline-none
           "
         />
-        <div className="mt-1 flex items-center justify-between text-[10.5px] text-ink-mute">
+        <div className="mt-1 flex items-center justify-between text-[10.5px] text-ink-soft">
           <span>{t("capsuleAnswer.followUpHint")}</span>
           <span>{t("capsuleAnswer.openChatHint")}</span>
         </div>

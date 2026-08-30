@@ -26,7 +26,6 @@ stock-drawer-add-peer
 stock-drawer-open-full
 top-learning-hub-glossary
 top-learning-hub-trigger
-topheader-ask-cfo-ai
 universe-row-AAPL
 universe-search-input
 valuation-cross-dcf
