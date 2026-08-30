@@ -525,7 +525,22 @@ function wantsJudgement(q: string): boolean {
 const TIER0_BUDGET_MS = 100;
 /** Pinned so the gate cannot be greened by reclassifying misses. See the
  *  block above the K3 assertions for why this, and not the aggregate, is
- *  one of the two failing predicates. */
+ *  one of the two failing predicates.
+ *
+ *  WHEN THIS NUMBER MAY MOVE — owner policy, 2026-08-30.
+ *
+ *  Reviewing it is REQUIRED whenever the suggestion chips change, and
+ *  that is its ONLY legitimate reason to move. 24 of the 72 corpus
+ *  questions are `capsuleEmpty.suggest.*` chips, and those chips exist
+ *  to START a model conversation — so adding, removing or rewording one
+ *  changes how many questions legitimately want a judgement, and this
+ *  pin must be re-derived from the corpus and updated in the same commit
+ *  with the new count stated.
+ *
+ *  It may NOT move because the gate is red. A miss reclassified as
+ *  "wants a judgement" stops counting against coverage, which is exactly
+ *  how this gate would be greened dishonestly. If coverage regresses,
+ *  the `realGaps === 0` predicate is the one that should be answered. */
 const JUDGEMENT_PIN = 35;
 
 describe("K3 — zero-spend coverage over the one corpus, under 100 ms", () => {
