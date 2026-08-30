@@ -1,0 +1,1186 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "fr",
+  "as_of": "2026-08-29",
+  "source": {
+    "name": "filings.xbrl.org ESEF filings index, joined to GLEIF Level 1 legal names",
+    "url": "https://filings.xbrl.org/api/filings?filter=country eq FR",
+    "dataset_version": "filings.xbrl.org country=FR count=1178 + GLEIF golden copy 2026-08-29T16:00:00Z",
+    "retrieved_at": "2026-08-30T05:10:07Z",
+    "names_from": "https://api.gleif.org/api/v1/lei-records",
+    "identity_only": true
+  },
+  "license_note": "Filings index: at present, there are no restrictions on the ways that the data can be used (filings.xbrl.org/docs/about). Legal names: The data available through the Access Service are provided under the CC0 licence, see CC0 1.0 Universal (CC0 1.0). (gleif.org/en/meta/lei-data-terms-of-use, retrieved 2026-08-30)",
+  "coverage_note": "The entities that have actually filed ESEF reports for country FR, keyed by the LEI the filings index publishes and named from GLEIF — identity only, NO figures. This is FEED COVERAGE, not index membership: a national index list would name companies this platform holds nothing for, while this file names exactly the companies the ESEF feed can speak about. Index constituent lists were considered and rejected as a source — they are the index providers' proprietary IP with no licence-clear machine-readable public distribution, and the free copies are HTML tables. Members carry no ticker because the feed publishes none, which is exactly why this market's registry status is fundamentals_only: the figures exist, the ticker lookup does not. 1178 filing rows yielded 292 distinct entities, 0 of which had no GLEIF Level 1 record at fetch time and are therefore absent rather than named by guess.",
+  "member_count": 292,
+  "members": [
+    {
+      "name": "CREDIT AGRICOLE CORPORATE AND INVESTMENT BANK",
+      "lei": "1VUV7VQFKUOQSJ21A208"
+    },
+    {
+      "name": "PUBLICIS GROUPE SA",
+      "lei": "2138004KW8BV57III342"
+    },
+    {
+      "name": "ANTIN INFRASTRUCTURE PARTNERS",
+      "lei": "2138008FABJXP4HUOK53"
+    },
+    {
+      "name": "GeNeuro SA, en liquidation",
+      "lei": "213800FUJCKXO9LK3444"
+    },
+    {
+      "name": "VINCI",
+      "lei": "213800WFQ334R8UXUG83"
+    },
+    {
+      "name": "Carmila",
+      "lei": "222100P6D3QKU33LZQ72"
+    },
+    {
+      "name": "Itissalat Al-Maghrib Ste SA",
+      "lei": "254900LH0G1ZIZ78Y462"
+    },
+    {
+      "name": "Vantiva",
+      "lei": "4N6SD705LP5XZKA2A097"
+    },
+    {
+      "name": "Sartorius Stedim Biotech",
+      "lei": "52990006IVXY7GCSSR39"
+    },
+    {
+      "name": "VERALLIA",
+      "lei": "5299007YZU978DE0ZY32"
+    },
+    {
+      "name": "PERNOD RICARD",
+      "lei": "52990097YFPX9J0H5D87"
+    },
+    {
+      "name": "SOCIETE ANONYME DES BAINS DE MER ET DU CERCLE DES ETRANGERS A MONACO",
+      "lei": "529900EOUMEP2AXWRT17"
+    },
+    {
+      "name": "THALES",
+      "lei": "529900FNDVTQJOVVPZ19"
+    },
+    {
+      "name": "ARGAN",
+      "lei": "529900FXM41XSCUSGH04"
+    },
+    {
+      "name": "L'OREAL",
+      "lei": "529900JI1GG6F7RKVI53"
+    },
+    {
+      "name": "TotalEnergies SE",
+      "lei": "529900S21EQ1BO4ESM68"
+    },
+    {
+      "name": "Atos Group",
+      "lei": "5493001EZOOA66PTBR68"
+    },
+    {
+      "name": "Bloomberg Finance L.P.",
+      "lei": "5493001KJTIIGC8Y1R12"
+    },
+    {
+      "name": "REMY COINTREAU",
+      "lei": "5493004V6A3Z027YT216"
+    },
+    {
+      "name": "VALEO",
+      "lei": "5493006IH2N2WMIBB742"
+    },
+    {
+      "name": "IMERYS",
+      "lei": "54930075MZSSIB2TGC64"
+    },
+    {
+      "name": "CREDIT DU NORD",
+      "lei": "54930076YK05WVH25M52"
+    },
+    {
+      "name": "MAUNA KEA TECHNOLOGIES",
+      "lei": "5493007KMDG4MFIGJJ63"
+    },
+    {
+      "name": "BIOMERIEUX SA",
+      "lei": "549300AK8Y0LBIQ4T071"
+    },
+    {
+      "name": "CARREFOUR",
+      "lei": "549300B8P6MUJ1YWTS08"
+    },
+    {
+      "name": "WORLDLINE",
+      "lei": "549300CJMQNCA0U4TS33"
+    },
+    {
+      "name": "CAISSE FRANCAISE DE FINANCEMENT LOCAL",
+      "lei": "549300E6W08778I4OW85"
+    },
+    {
+      "name": "SANOFI",
+      "lei": "549300E9PC51EN656011"
+    },
+    {
+      "name": "CARMILA SAS",
+      "lei": "549300ECA6MK5PD4MR60"
+    },
+    {
+      "name": "EUTELSAT COMMUNICATIONS",
+      "lei": "549300EFWH9UR17YSK05"
+    },
+    {
+      "name": "EXAIL TECHNOLOGIES",
+      "lei": "549300EWC06TYV07XE53"
+    },
+    {
+      "name": "SFIL",
+      "lei": "549300HFEHJOXGE4ZE63"
+    },
+    {
+      "name": "ATLAND",
+      "lei": "549300HGBVWX4FC44K67"
+    },
+    {
+      "name": "VIGIE",
+      "lei": "549300JQIZM6CL7POC81"
+    },
+    {
+      "name": "QUADIENT S.A.",
+      "lei": "549300K4W3A5ITOPTK67"
+    },
+    {
+      "name": "ERAMET",
+      "lei": "549300LUH78PG2MP6N64"
+    },
+    {
+      "name": "ESSILORLUXOTTICA",
+      "lei": "549300M3VH1A3ER1TB49"
+    },
+    {
+      "name": "IPSEN",
+      "lei": "549300M6SGDPB4Z94P11"
+    },
+    {
+      "name": "GENSIGHT BIOLOGICS",
+      "lei": "549300NK4AB8OUEX1F54"
+    },
+    {
+      "name": "COMPAGNIE GENERALE DES ETABLISSEMENTS MICHELIN",
+      "lei": "549300SOSI58J6VIW052"
+    },
+    {
+      "name": "KERING",
+      "lei": "549300VGEJKB7SVUZR78"
+    },
+    {
+      "name": "ELECTRICITE DE FRANCE",
+      "lei": "549300X3UK4GG3FNMO06"
+    },
+    {
+      "name": "CRIT AB",
+      "lei": "89450054R82I99Y73N93"
+    },
+    {
+      "name": "ARVERNE GROUP",
+      "lei": "894500FOM6WHY0KFW309"
+    },
+    {
+      "name": "IPSEN PHARMA",
+      "lei": "96950004ZQHLJ6V8PJ87"
+    },
+    {
+      "name": "MERCIALYS",
+      "lei": "969500081CGAXB7YS433"
+    },
+    {
+      "name": "ARKEMA",
+      "lei": "9695000EHMS84KKP2785"
+    },
+    {
+      "name": "FONCIERE INEA",
+      "lei": "9695000H29HRRE478O62"
+    },
+    {
+      "name": "PARROT",
+      "lei": "9695000KELLFSASOM232"
+    },
+    {
+      "name": "BOIRON",
+      "lei": "9695000UMPNY21KKDO98"
+    },
+    {
+      "name": "UMANIS",
+      "lei": "9695000YAN1ITY2E1L16"
+    },
+    {
+      "name": "LA POSTE",
+      "lei": "9695000YG7TR7PAP0L59"
+    },
+    {
+      "name": "AMUNDI",
+      "lei": "96950010FL2T1TJKR531"
+    },
+    {
+      "name": "NEXANS",
+      "lei": "96950015FU78G84UIV14"
+    },
+    {
+      "name": "METROPOLE TELEVISION",
+      "lei": "96950018NOMJX5XRH047"
+    },
+    {
+      "name": "OVH GROUPE",
+      "lei": "9695001J8OSOVX4TP939"
+    },
+    {
+      "name": "SOPRA STERIA GROUP",
+      "lei": "96950020QIOHAAK9V551"
+    },
+    {
+      "name": "IDI",
+      "lei": "96950022J37K8UHSJH76"
+    },
+    {
+      "name": "74SOFTWARE",
+      "lei": "96950022O6SP7FQONJ77"
+    },
+    {
+      "name": "SERGEFERRARI GROUP",
+      "lei": "96950023L46VUM1L8555"
+    },
+    {
+      "name": "COFACE SA",
+      "lei": "96950025N07LTJYFSN57"
+    },
+    {
+      "name": "COMPAGNIE DES ALPES",
+      "lei": "96950029IN3GW457GG90"
+    },
+    {
+      "name": "TARKETT",
+      "lei": "9695002EVBYM5B2OIP31"
+    },
+    {
+      "name": "EUROAPI",
+      "lei": "9695002FT7GGI3CKKJ14"
+    },
+    {
+      "name": "IPSOS",
+      "lei": "9695002OY2X35E9X8W87"
+    },
+    {
+      "name": "GL EVENTS",
+      "lei": "9695002PXZMQNBPY2P44"
+    },
+    {
+      "name": "ARAMIS GROUP",
+      "lei": "9695002Q984W0T41WB42"
+    },
+    {
+      "name": "ALBIOMA",
+      "lei": "9695002W8GRJRZ44MA62"
+    },
+    {
+      "name": "CEGEDIM",
+      "lei": "9695002XQWX9TKCOZT86"
+    },
+    {
+      "name": "INNATE PHARMA",
+      "lei": "9695002Y8420ZB8HJE29"
+    },
+    {
+      "name": "ALSTOM",
+      "lei": "96950032TUYMW11FB530"
+    },
+    {
+      "name": "SMCP",
+      "lei": "96950034TTGHHKKEN547"
+    },
+    {
+      "name": "PLANISWARE",
+      "lei": "969500356FAUM2X41Q59"
+    },
+    {
+      "name": "LAURENT-PERRIER",
+      "lei": "96950036OIHAEGNGJ871"
+    },
+    {
+      "name": "LINEDATA SERVICES",
+      "lei": "9695003D6KVJ0H8CL506"
+    },
+    {
+      "name": "GECINA",
+      "lei": "9695003E4MMA10IBTR26"
+    },
+    {
+      "name": "POXEL",
+      "lei": "9695003OIX0T7NX72N26"
+    },
+    {
+      "name": "GENERIX GROUP",
+      "lei": "9695003QNWHLC60H9E89"
+    },
+    {
+      "name": "HOPSCOTCH GROUPE",
+      "lei": "9695003W8NIBIV7IN278"
+    },
+    {
+      "name": "CREDIT MUTUEL ARKEA",
+      "lei": "96950041VJ1QP0B69503"
+    },
+    {
+      "name": "AUREA",
+      "lei": "96950045MCSQKLJ0OQ13"
+    },
+    {
+      "name": "MRM",
+      "lei": "96950047J5JOCUPMHI30"
+    },
+    {
+      "name": "GROUPE PARTOUCHE",
+      "lei": "9695004ANBJMIMZEYY03"
+    },
+    {
+      "name": "TELEPERFORMANCE SE",
+      "lei": "9695004GI61FHFFNRG61"
+    },
+    {
+      "name": "ALTAREIT",
+      "lei": "9695004OAPTHOKN99645"
+    },
+    {
+      "name": "SCOR SE",
+      "lei": "96950056ULJ4JI7V3752"
+    },
+    {
+      "name": "BPCE",
+      "lei": "9695005MSX1OYEMGDF46"
+    },
+    {
+      "name": "SOGECLAIR",
+      "lei": "9695005NNHRB8KW54I35"
+    },
+    {
+      "name": "SOLOCAL GROUP SE",
+      "lei": "9695005U38X1SF184325"
+    },
+    {
+      "name": "DASSAULT SYSTEMES",
+      "lei": "96950065LBWY0APQIM86"
+    },
+    {
+      "name": "NANOBIOTIX",
+      "lei": "969500667RSYIH8YL895"
+    },
+    {
+      "name": "EQUASENS",
+      "lei": "96950066I7XVFGZI8L92"
+    },
+    {
+      "name": "LA BANQUE POSTALE",
+      "lei": "96950066U5XAAIRCPA78"
+    },
+    {
+      "name": "EDENRED",
+      "lei": "9695006LOD5B2D7Y0N70"
+    },
+    {
+      "name": "AMPLITUDE SURGICAL",
+      "lei": "9695006Q1VL1OHK06336"
+    },
+    {
+      "name": "CAPGEMINI",
+      "lei": "96950077L0TN7BAROX36"
+    },
+    {
+      "name": "ABIONYX PHARMA",
+      "lei": "969500785J7VIC5YPC96"
+    },
+    {
+      "name": "FERMENTALG",
+      "lei": "9695007VNRQR6V5TMN85"
+    },
+    {
+      "name": "GETLINK S.E.",
+      "lei": "9695007ZEQ7M0OE74G82"
+    },
+    {
+      "name": "STEF",
+      "lei": "9695008BIKG0E486UL47"
+    },
+    {
+      "name": "ASSYSTEM",
+      "lei": "9695008GTTDJGF00CT88"
+    },
+    {
+      "name": "BIGBEN INTERACTIVE",
+      "lei": "9695008GVA59G8SVGO83"
+    },
+    {
+      "name": "LAB GPO",
+      "lei": "9695008J05IVNRH25N49"
+    },
+    {
+      "name": "INFOTEL",
+      "lei": "9695008JULKH9KJQLP04"
+    },
+    {
+      "name": "AGENCE FRANCAISE DE DEVELOPPEMENT",
+      "lei": "9695008K5N8MKIT4XJ91"
+    },
+    {
+      "name": "EKINOPS FRANCE",
+      "lei": "9695008N1821311KX668"
+    },
+    {
+      "name": "MANITOU BF",
+      "lei": "9695008SHP3XTT9QCM25"
+    },
+    {
+      "name": "NEURONES",
+      "lei": "9695008Y07TSG8SZCG57"
+    },
+    {
+      "name": "FNAC DARTY",
+      "lei": "96950091FL62XSLPHO35"
+    },
+    {
+      "name": "GCC",
+      "lei": "96950093ZAC66BDWZS36"
+    },
+    {
+      "name": "MAISONS DU MONDE",
+      "lei": "9695009DV2698O4ZBU71"
+    },
+    {
+      "name": "CREDIT LYONNAIS",
+      "lei": "9695009F5UPB9IITI298"
+    },
+    {
+      "name": "PIERRE ET VACANCES",
+      "lei": "9695009FXHWX468RM706"
+    },
+    {
+      "name": "JCDECAUX SE",
+      "lei": "9695009KV7AFPDEI5S30"
+    },
+    {
+      "name": "PCAS",
+      "lei": "9695009WMW72CD0E3W90"
+    },
+    {
+      "name": "VICAT",
+      "lei": "9695009YI1863TOVDP79"
+    },
+    {
+      "name": "SCHNEIDER ELECTRIC SE",
+      "lei": "969500A1YF1XUYYXS284"
+    },
+    {
+      "name": "NACON",
+      "lei": "969500A4R8HLXMZQDT80"
+    },
+    {
+      "name": "HEXAOM",
+      "lei": "969500AGQP2FXW6GMN75"
+    },
+    {
+      "name": "RALLYE",
+      "lei": "969500AI7V5V0J9TOU58"
+    },
+    {
+      "name": "AIR FRANCE - KLM",
+      "lei": "969500AQW31GYO8JZD66"
+    },
+    {
+      "name": "SOCIETE FONCIERE LYONNAISE",
+      "lei": "969500B0S40FTUVKD182"
+    },
+    {
+      "name": "GAZTRANSPORT ET TECHNIGAZ",
+      "lei": "969500BVOHVZUUFWDT54"
+    },
+    {
+      "name": "TIKEHAU CAPITAL",
+      "lei": "969500BY8TEU16U3SJ94"
+    },
+    {
+      "name": "NEOEN FRANCE",
+      "lei": "969500C0AIAGQWZGJO13"
+    },
+    {
+      "name": "PATRIMOINE ET COMMERCE",
+      "lei": "969500C2C11L0PTGRH11"
+    },
+    {
+      "name": "EURAZEO",
+      "lei": "969500C656AA39O94N60"
+    },
+    {
+      "name": "KAUFMAN & BROAD SA",
+      "lei": "969500CE0X343D8ALO86"
+    },
+    {
+      "name": "IMMOBILIERE DASSAULT SA",
+      "lei": "969500CRQJCR86DNNC50"
+    },
+    {
+      "name": "CS GROUP",
+      "lei": "969500CYVT2W6EG5BH51"
+    },
+    {
+      "name": "ABIVAX",
+      "lei": "969500D8TMNB184OJU95"
+    },
+    {
+      "name": "UNIBEL",
+      "lei": "969500DCGMF1DNOXFH76"
+    },
+    {
+      "name": "VALNEVA",
+      "lei": "969500DIVIP5VKNW4948"
+    },
+    {
+      "name": "PLASTIC OMNIUM",
+      "lei": "969500E35QZFDE7TVG55"
+    },
+    {
+      "name": "AYVENS",
+      "lei": "969500E7V019H9NP7427"
+    },
+    {
+      "name": "VITURA S.A.",
+      "lei": "969500EQZGSVHQZQE212"
+    },
+    {
+      "name": "NICOX SA",
+      "lei": "969500EZGEO9W4JXR353"
+    },
+    {
+      "name": "FORVIA",
+      "lei": "969500F0VMZLK2IULV85"
+    },
+    {
+      "name": "RENAULT",
+      "lei": "969500F7JLTX36OUI695"
+    },
+    {
+      "name": "LATECOERE",
+      "lei": "969500F9H7I22AX1D138"
+    },
+    {
+      "name": "VIRIDIEN",
+      "lei": "969500FCVQ5SLAAUJV59"
+    },
+    {
+      "name": "VIVENDI SE",
+      "lei": "969500FU4DRAEVJW7U54"
+    },
+    {
+      "name": "LNA SANTE",
+      "lei": "969500FULTKJYIRIAT87"
+    },
+    {
+      "name": "HIGH CO",
+      "lei": "969500FYLNRXCJ348W66"
+    },
+    {
+      "name": "ILIAD",
+      "lei": "969500FZ9BTRZS3JNB97"
+    },
+    {
+      "name": "SQLI",
+      "lei": "969500G42GDB5YEC2Q03"
+    },
+    {
+      "name": "JCDECAUX DEVELOPPEMENT",
+      "lei": "969500G83IPSX1HQL497"
+    },
+    {
+      "name": "GROUPE SPIE BATIGNOLLES",
+      "lei": "969500GEHCCQHWGSYG40"
+    },
+    {
+      "name": "BOURSE DIRECT",
+      "lei": "969500GFIL2Z81YKUM35"
+    },
+    {
+      "name": "EXCLUSIVE NETWORKS CORPORATE",
+      "lei": "969500GFM1C4M1KMPL74"
+    },
+    {
+      "name": "LNA INTERNATIONAL",
+      "lei": "969500GGHMYIBZ90CR14"
+    },
+    {
+      "name": "GAUMONT",
+      "lei": "969500GMPWNUM7HCZ452"
+    },
+    {
+      "name": "ARGAN 1",
+      "lei": "969500GQIUBGXU7EML92"
+    },
+    {
+      "name": "WAVESTONE",
+      "lei": "969500GSN25I3B3X6F94"
+    },
+    {
+      "name": "OSE IMMUNOTHERAPEUTICS",
+      "lei": "969500HIUWVGY6NZSM05"
+    },
+    {
+      "name": "TERACT",
+      "lei": "969500HQ6PWNILD1HE63"
+    },
+    {
+      "name": "ITESOFT",
+      "lei": "969500HZ36JO2ODTSW29"
+    },
+    {
+      "name": "RAMSAY GENERALE DE SANTE",
+      "lei": "969500I1EJGUAT223F44"
+    },
+    {
+      "name": "ATEME",
+      "lei": "969500I4RF06BPM4AN82"
+    },
+    {
+      "name": "UBISOFT ENTERTAINMENT",
+      "lei": "969500I7C8V1LBIMSM05"
+    },
+    {
+      "name": "INVENTIVA",
+      "lei": "969500I9Y690B3FZW590"
+    },
+    {
+      "name": "ALTAREA",
+      "lei": "969500ICGCY1PD6OT783"
+    },
+    {
+      "name": "AVENIR TELECOM",
+      "lei": "969500IKELAA58Q3C212"
+    },
+    {
+      "name": "NRJ GROUP",
+      "lei": "969500IQLBCOOICLAB88"
+    },
+    {
+      "name": "PAREF",
+      "lei": "969500IWD41VNMP1NT87"
+    },
+    {
+      "name": "NEXITY",
+      "lei": "969500JJ71T2DIPDVV84"
+    },
+    {
+      "name": "BALYO",
+      "lei": "969500JJRU82J0JMV072"
+    },
+    {
+      "name": "FREY",
+      "lei": "969500JTN8BU5BW6UW36"
+    },
+    {
+      "name": "ROCHE BOBOIS",
+      "lei": "969500JZSD8O83SPU920"
+    },
+    {
+      "name": "CREDIT AGRICOLE ASSURANCES",
+      "lei": "969500K2MUPSI57XK083"
+    },
+    {
+      "name": "UTI GROUP",
+      "lei": "969500KB7P0M43DNUN56"
+    },
+    {
+      "name": "VOLTALIA",
+      "lei": "969500KE938Z79ZH1N44"
+    },
+    {
+      "name": "AUBAY",
+      "lei": "969500KGFSDP6UUKIA67"
+    },
+    {
+      "name": "GROUPE CRIT",
+      "lei": "969500KI179R130T7Q32"
+    },
+    {
+      "name": "DANONE",
+      "lei": "969500KMUQ2B6CBAF162"
+    },
+    {
+      "name": "SODEXO",
+      "lei": "969500LCBOG12HXPYM84"
+    },
+    {
+      "name": "BOLLORE SE",
+      "lei": "969500LEKCHH6VV86P94"
+    },
+    {
+      "name": "VEOLIA ENVIRONNEMENT",
+      "lei": "969500LENY69X51OOT31"
+    },
+    {
+      "name": "EMEIS",
+      "lei": "969500LHIH3NT7PK1V89"
+    },
+    {
+      "name": "SOCIETE DE LA TOUR EIFFEL",
+      "lei": "969500LIJD0OW1446X30"
+    },
+    {
+      "name": "DEEZER",
+      "lei": "969500LM904RGABQUN96"
+    },
+    {
+      "name": "ELIOR GROUP",
+      "lei": "969500LYSYS0E800SQ95"
+    },
+    {
+      "name": "EXEL INDUSTRIES",
+      "lei": "969500M2EFP3ASV8WL56"
+    },
+    {
+      "name": "MAISON POMMERY & ASSOCIES",
+      "lei": "969500M5EQJVDASURW53"
+    },
+    {
+      "name": "WENDEL",
+      "lei": "969500M98ZMIZYJD5O34"
+    },
+    {
+      "name": "NEXTSTAGE",
+      "lei": "969500M995FIN8ZI5N84"
+    },
+    {
+      "name": "ORANGE",
+      "lei": "969500MCOONR8990S771"
+    },
+    {
+      "name": "RUBIS",
+      "lei": "969500MGFIKUGLTC9742"
+    },
+    {
+      "name": "LUMIBIRD",
+      "lei": "969500MLJC3ZSZP4L019"
+    },
+    {
+      "name": "L'AIR LIQUIDE SOCIETE ANONYME POUR L'ETUDE ET L'EXPLOITATION DES PROCEDES GEORGES CLAUDE",
+      "lei": "969500MMPQVHK671GT54"
+    },
+    {
+      "name": "BOUYGUES",
+      "lei": "969500MOCLNQFNZN0D63"
+    },
+    {
+      "name": "SPIE OPERATIONS",
+      "lei": "969500MPA5XEFPUJNU29"
+    },
+    {
+      "name": "VERIMATRIX",
+      "lei": "969500MQKPVEWTQIRT36"
+    },
+    {
+      "name": "GUILLEMOT CORPORATION",
+      "lei": "969500N24EZ7HPKJIV79"
+    },
+    {
+      "name": "COVIVIO HOTELS",
+      "lei": "969500N2QX5LGFFZ0I67"
+    },
+    {
+      "name": "CARVOLIX",
+      "lei": "969500N30CO4B5N2GN67"
+    },
+    {
+      "name": "REXEL",
+      "lei": "969500N6AVPA51648T62"
+    },
+    {
+      "name": "NHOA",
+      "lei": "969500NWCP1OQ4315C79"
+    },
+    {
+      "name": "BLEECKER",
+      "lei": "969500NWS9YHZ8AW0B54"
+    },
+    {
+      "name": "ACTEOS",
+      "lei": "969500O0L8I77GLC6V09"
+    },
+    {
+      "name": "WAGA ENERGY",
+      "lei": "969500O3NXA5XJF97623"
+    },
+    {
+      "name": "CATERING INTERNATIONAL & SERVICES",
+      "lei": "969500OIT7HXEIH2Z703"
+    },
+    {
+      "name": "EDENRED BUSINESS SOLUTIONS",
+      "lei": "969500OMWE3VU620TT76"
+    },
+    {
+      "name": "SAMSE",
+      "lei": "969500OP0AFORNKIGP59"
+    },
+    {
+      "name": "EIFFAGE",
+      "lei": "969500OQXKE5WDM9M994"
+    },
+    {
+      "name": "VALLOUREC",
+      "lei": "969500P2Q1B47H4MCJ34"
+    },
+    {
+      "name": "CLARANOVA S.E.",
+      "lei": "969500P3RUS57W9Z9Z70"
+    },
+    {
+      "name": "CAISSE NATIONALE DE REASSURANCE MUTUELLE AGRICOLE GROUPAMA",
+      "lei": "969500P4HYOPYINEPE06"
+    },
+    {
+      "name": "COVIVIO",
+      "lei": "969500P8M3W2XX376054"
+    },
+    {
+      "name": "KLEPIERRE",
+      "lei": "969500PB4U31KEFHZ621"
+    },
+    {
+      "name": "TRANSGENE",
+      "lei": "969500PDJW8N0FSGGK69"
+    },
+    {
+      "name": "AEROPORTS DE PARIS",
+      "lei": "969500PJMBSFHYC37989"
+    },
+    {
+      "name": "DBV TECHNOLOGIES",
+      "lei": "969500PVBQFWQKVDMD80"
+    },
+    {
+      "name": "COMPAGNIE LEBON",
+      "lei": "969500Q0TXUSFDLH3940"
+    },
+    {
+      "name": "INSTITUT NATIONAL DE LA STATISTIQUE ET DES ETUDES ECONOMIQUES",
+      "lei": "969500Q2MA9VBQ8BG884"
+    },
+    {
+      "name": "ASSYSTEM ENGINEERING AND OPERATION SERVICES",
+      "lei": "969500QK2T9PFDA3CA64"
+    },
+    {
+      "name": "CNP ASSURANCES",
+      "lei": "969500QKVPV2H8UXM738"
+    },
+    {
+      "name": "DERICHEBOURG",
+      "lei": "969500QOO4C4IPGID263"
+    },
+    {
+      "name": "BONDUELLE",
+      "lei": "969500QVHHN3NNVYRE94"
+    },
+    {
+      "name": "ACCOR",
+      "lei": "969500QZC2Q0TK11NV07"
+    },
+    {
+      "name": "TOUAX SCA - SGTR - CITE - SGT - CMTE - TAF - SLM TOUAGE INVESTISSEMENTS REUNIES",
+      "lei": "969500QZJBA9R36U9J48"
+    },
+    {
+      "name": "EXOSENS",
+      "lei": "969500R3AKTPEDO9EG76"
+    },
+    {
+      "name": "LA FRANCAISE DES JEUX",
+      "lei": "969500R4CLSQFTYYI535"
+    },
+    {
+      "name": "SRP GROUPE",
+      "lei": "969500R79R79EPOYHA40"
+    },
+    {
+      "name": "MEDINCELL S.A.",
+      "lei": "969500R79U6PXCL2FF46"
+    },
+    {
+      "name": "SECHE ENVIRONNEMENT",
+      "lei": "969500R9ENNIN33POO20"
+    },
+    {
+      "name": "MICROPOLE",
+      "lei": "969500RO0IO2QBIE5W58"
+    },
+    {
+      "name": "LHYFE",
+      "lei": "969500RTYSRSTZAJCG72"
+    },
+    {
+      "name": "PRECIA",
+      "lei": "969500RU6K8AVTCX7818"
+    },
+    {
+      "name": "SOC CENTRALE BOIS SCIERIES MANCHE",
+      "lei": "969500RWF4QUJY6HF161"
+    },
+    {
+      "name": "FORSEE POWER SAS",
+      "lei": "969500S7F4LVSHHUZB87"
+    },
+    {
+      "name": "INTERPARFUMS",
+      "lei": "969500SARWF33OPQED48"
+    },
+    {
+      "name": "UNIBAIL-RODAMCO-WESTFIELD SE",
+      "lei": "969500SHQITWXSIS7N89"
+    },
+    {
+      "name": "KEYSIGHT TECHNOLOGIES FRANCE",
+      "lei": "969500SJCEYK6O6RXV95"
+    },
+    {
+      "name": "THERMADOR GROUPE",
+      "lei": "969500SSIGMAGT008F11"
+    },
+    {
+      "name": "BPIFRANCE",
+      "lei": "969500STN7T9MRUMJ267"
+    },
+    {
+      "name": "LYSOGENE",
+      "lei": "969500T64RILK1RD0852"
+    },
+    {
+      "name": "BERTRAND CASUAL FOOD",
+      "lei": "969500THGE54QJH45009"
+    },
+    {
+      "name": "CREDIT AGRICOLE SA",
+      "lei": "969500TJ5KRTCJQWXH05"
+    },
+    {
+      "name": "SPIE SA",
+      "lei": "969500TJNS5GSFWJ8X85"
+    },
+    {
+      "name": "BUREAU VERITAS",
+      "lei": "969500TPU5T3HA5D1F11"
+    },
+    {
+      "name": "VILMORIN & CIE",
+      "lei": "969500TQ4OAZZXSUPZ18"
+    },
+    {
+      "name": "ID LOGISTICS GROUP",
+      "lei": "969500U1DQN70VMJ9P45"
+    },
+    {
+      "name": "ALTAMIR",
+      "lei": "969500U4BPYFRAOQ3Z75"
+    },
+    {
+      "name": "VUSIONGROUP",
+      "lei": "969500U51BYOMEW9M549"
+    },
+    {
+      "name": "PHAXIAM THERAPEUTICS",
+      "lei": "969500U8ZZCODU8A9374"
+    },
+    {
+      "name": "ICADE",
+      "lei": "969500UDH342QLTE1M42"
+    },
+    {
+      "name": "SAFRAN",
+      "lei": "969500UIC89GT3UL7L24"
+    },
+    {
+      "name": "ACTIA GROUP",
+      "lei": "969500UPP3G1EYL1UI19"
+    },
+    {
+      "name": "SOCIETE BIC",
+      "lei": "969500UR00DF63I0VH67"
+    },
+    {
+      "name": "PRODWAYS GROUP",
+      "lei": "969500URB8KRQ9IDBK68"
+    },
+    {
+      "name": "SOC D EXPLOSIFS PRODUITS CHIMIQUES",
+      "lei": "969500USKOS4RHAJLM09"
+    },
+    {
+      "name": "LISI",
+      "lei": "969500UU4O58BR802Y55"
+    },
+    {
+      "name": "ELIS",
+      "lei": "969500UX71LCE8MAY492"
+    },
+    {
+      "name": "JACQUET METALS",
+      "lei": "969500V8OL3NGL0GKZ37"
+    },
+    {
+      "name": "CASINO, GUICHARD-PERRACHON",
+      "lei": "969500VHL8F83GBL6L29"
+    },
+    {
+      "name": "ABEO",
+      "lei": "969500VJOAUSXLS74682"
+    },
+    {
+      "name": "LAGARDERE SA",
+      "lei": "969500VX2NV2AQQ65G45"
+    },
+    {
+      "name": "MCPHY ENERGY",
+      "lei": "969500W5X02DTT3BZS69"
+    },
+    {
+      "name": "CLARIANE",
+      "lei": "969500WEPS61H6TJM037"
+    },
+    {
+      "name": "BELIEVE",
+      "lei": "969500WGEAZ8YE4UAI86"
+    },
+    {
+      "name": "SEB SA",
+      "lei": "969500WP61NBK098AC47"
+    },
+    {
+      "name": "TELEVISION FRANCAISE 1",
+      "lei": "969500WQFC6OAQYG7E65"
+    },
+    {
+      "name": "GUERBET",
+      "lei": "969500WV1U1WQ059L135"
+    },
+    {
+      "name": "EUROPCAR MOBILITY GROUP",
+      "lei": "969500XCGTMV08D76N87"
+    },
+    {
+      "name": "SA GENFIT",
+      "lei": "969500XPWN2DMZQA5X73"
+    },
+    {
+      "name": "MARIE BRIZARD WINE AND SPIRITS",
+      "lei": "969500XQM2JOWHKWI437"
+    },
+    {
+      "name": "LEGRAND",
+      "lei": "969500XXRPGD7HCAFA90"
+    },
+    {
+      "name": "HERMES INTERNATIONAL",
+      "lei": "969500Y4IJGHJE2MTJ13"
+    },
+    {
+      "name": "ALTEN",
+      "lei": "969500Y7G9TY7Y24GN07"
+    },
+    {
+      "name": "EKINOPS",
+      "lei": "969500Y8FMHV2BHC0C87"
+    },
+    {
+      "name": "CROSSWOOD",
+      "lei": "969500YEQRY2T8Z7W336"
+    },
+    {
+      "name": "EAGLE FOOTBALL GROUP",
+      "lei": "969500YG7U0UQDEHBD60"
+    },
+    {
+      "name": "VETOQUINOL S.A",
+      "lei": "969500YP0AETQIK48R39"
+    },
+    {
+      "name": "ST DUPONT",
+      "lei": "969500YT2CGGAD8YNM04"
+    },
+    {
+      "name": "PEUGEOT INVEST",
+      "lei": "969500Z8LOO0H8JY2E60"
+    },
+    {
+      "name": "SPIE BATIGNOLLES ETPO",
+      "lei": "969500ZIB8VE0GM5YA81"
+    },
+    {
+      "name": "ADOCIA",
+      "lei": "969500ZL79KYH9PTYP78"
+    },
+    {
+      "name": "COMPAGNIE CHARGEURS INVEST",
+      "lei": "969500ZPQQLG72TQND21"
+    },
+    {
+      "name": "SOITEC",
+      "lei": "969500ZR92SQCU9TST26"
+    },
+    {
+      "name": "ETABLISSEMENTS MAUREL ET PROM",
+      "lei": "969500ZTYI9C1C594X25"
+    },
+    {
+      "name": "HSBC CONTINENTAL EUROPE",
+      "lei": "F0HUI1NY1AZMJMD8LP67"
+    },
+    {
+      "name": "AXA",
+      "lei": "F5WCUMTUM4RKZ1MAIE39"
+    },
+    {
+      "name": "LVMH MOET HENNESSY LOUIS VUITTON",
+      "lei": "IOG4E947OATN0KJYSD45"
+    },
+    {
+      "name": "NATIXIS",
+      "lei": "KX1WK48MPD4Y2NCUIZ63"
+    },
+    {
+      "name": "ENGIE",
+      "lei": "LAXUQCHT4FH58LRZDY46"
+    },
+    {
+      "name": "CREDIT INDUSTRIEL ET COMMERCIAL",
+      "lei": "N4JDFKKH2FTD8RKFXO39"
+    },
+    {
+      "name": "COMPAGNIE DE SAINT-GOBAIN",
+      "lei": "NFONVGN05Z0FMN5PEC35"
+    },
+    {
+      "name": "SOCIETE GENERALE",
+      "lei": "O2RNE8IBXP4R0TD8PU41"
+    },
+    {
+      "name": "MERSEN",
+      "lei": "OQXDLNM5DTBULYMF5U27"
+    },
+    {
+      "name": "BNP PARIBAS",
+      "lei": "R0MUWSFPU8MPRO8K5P83"
+    },
+    {
+      "name": "BANQUE FEDERATIVE DU CREDIT MUTUEL",
+      "lei": "VBHFXSYT7OG62HNT8T76"
+    }
+  ]
+}

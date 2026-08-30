@@ -1,5 +1,18 @@
 // Public Company Intelligence hub — premium financial workspace redesign.
 //
+// 2026-08-30 (GLOBAL PUBLIC MARKETS wave, UI lane) — the page gained a
+// PRIMARY market axis above everything else. Market tabs are built from
+// the market registry (lib/marketApi), in registry order: Romania first
+// and in its own group, then marquee rank, then A→Z, with the European
+// markets collapsed into one tab carrying country sub-filters.
+//
+// PM7 is the constraint that shapes the whole composition: the Romania
+// tab renders the EXISTING BVB experience unchanged — same universe
+// fetch, same panels, same order, no public_market call anywhere on that
+// path. The market registry only adds a status line above it. Every
+// other market renders <MarketSurface>, which reads the registry status
+// and never invents a figure to fill a tab.
+//
 // 5 sections per the spec, no duplicates, no Step labels, status banner
 // top-right (single source of truth for live/demo/entitlement state).
 // `selectedTicker` lifted to page state. PUB-200 — clicking a row now
@@ -21,6 +34,24 @@ import { BenchmarkingPanel } from "@/components/public-companies/BenchmarkingPan
 import { StockDetailDrawer } from "@/components/public-companies/StockDetailDrawer";
 import { PeerSuggestRail } from "@/components/public-companies/PeerSuggestRail";
 import { MarketPulseStrip } from "@/components/public-companies/MarketPulseStrip";
+import { MarketTabs } from "@/components/public-companies/MarketTabs";
+import { MarketDataStatusLine } from "@/components/public-companies/MarketDataStatusLine";
+import {
+  MarketSurface,
+  MarketRegistryGrid,
+} from "@/components/public-companies/MarketSurface";
+import "@/components/public-companies/marketI18n";
+import {
+  ALL_MARKETS_TAB_ID,
+  BUNDLED_REGISTRY,
+  MARKET_TAB_PARAM,
+  buildMarketTabs,
+  fetchMarketRegistry,
+  marketIdForSnapshot,
+  tabIdForMarket,
+  tabMarketIds,
+  type MarketEntry,
+} from "@/lib/marketApi";
 import {
   workspaceBenchMetrics,
   workspaceIndustryToSector,
@@ -218,6 +249,103 @@ export default function PublicCompanyIntelligence() {
   const liveCompanies = universeQuery.data?.companies;
   const allCompanies = liveCompanies?.length ? liveCompanies : staticBvbRows();
 
+  // ── GLOBAL MARKETS — the primary axis ──────────────────────────────
+  // The registry is CONFIGURATION (which feed serves a market, how often
+  // it refreshes, under what licence), so the bundled mirror is a
+  // legitimate first paint AND a legitimate fallback — DOD3: a market
+  // tab is never blank. `holdingsKnown` is what separates "N companies
+  // cached" from "we could not ask": an absent count is never a zero.
+  const registryQuery = useQuery({
+    queryKey: ["public-market", "registry"],
+    queryFn: fetchMarketRegistry,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 6 * 60 * 60 * 1000,
+    placeholderData: BUNDLED_REGISTRY,
+  });
+  const registry = registryQuery.data ?? BUNDLED_REGISTRY;
+  const marketTabs = useMemo(
+    () => buildMarketTabs(registry.markets),
+    [registry.markets],
+  );
+  // The home market leads the registry order, so tab 0 IS Romania —
+  // derived, never named, so the default lands correctly for whatever
+  // markets.yaml declares.
+  const homeTabId = marketTabs[0]?.id ?? ALL_MARKETS_TAB_ID;
+  const requestedMarketTab = searchParams.get(MARKET_TAB_PARAM);
+  const activeMarketTab =
+    marketTabs.find((tb) => tb.id === requestedMarketTab) ?? marketTabs[0] ?? null;
+  const activeMarketTabId = activeMarketTab?.id ?? homeTabId;
+  const requestedCountry = searchParams.get("country");
+  const activeCountryId =
+    activeMarketTab?.kind === "region" &&
+    requestedCountry &&
+    tabMarketIds(activeMarketTab).includes(requestedCountry)
+      ? requestedCountry
+      : null;
+
+  const selectMarketTab = useCallback(
+    (id: string) => {
+      const sp = new URLSearchParams(searchParams);
+      if (id === homeTabId) sp.delete(MARKET_TAB_PARAM);
+      else sp.set(MARKET_TAB_PARAM, id);
+      // Country sub-filter and any open company belong to the previous
+      // scope — carrying them across markets would show a Romanian
+      // ticker under a US tab.
+      sp.delete("country");
+      sp.delete("ticker");
+      sp.delete("range");
+      setSearchParams(sp, { replace: true });
+      setSelectedTicker(null);
+    },
+    [searchParams, setSearchParams, homeTabId],
+  );
+
+  const selectCountry = useCallback(
+    (marketId: string | null) => {
+      const sp = new URLSearchParams(searchParams);
+      if (marketId) sp.set("country", marketId);
+      else sp.delete("country");
+      setSearchParams(sp, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const scopeMarkets: MarketEntry[] = useMemo(() => {
+    if (!activeMarketTab) return [];
+    if (activeMarketTab.kind === "region" && activeCountryId) {
+      return activeMarketTab.markets.filter((m) => m.market_id === activeCountryId);
+    }
+    return activeMarketTab.markets;
+  }, [activeMarketTab, activeCountryId]);
+
+  const scopeIds = useMemo(
+    () => new Set(scopeMarkets.map((m) => m.market_id)),
+    [scopeMarkets],
+  );
+
+  // The loaded universe, narrowed to the active market scope. The
+  // universe fetch is BVB-only today, so on the Romania tab this is the
+  // identity function — PM7: the home surface receives exactly the rows
+  // it received before this wave.
+  const isAllMarketsTab = activeMarketTab?.kind === "all";
+  const scopedCompanies = useMemo(() => {
+    if (isAllMarketsTab) return allCompanies;
+    return allCompanies.filter((r) => {
+      const mid = marketIdForSnapshot(r, registry.markets);
+      return mid != null && scopeIds.has(mid);
+    });
+  }, [allCompanies, isAllMarketsTab, scopeIds, registry.markets]);
+
+  // The universe experience (search / pulse / grid / benchmarking /
+  // radar / map) renders for the HOME market and for "All". Every other
+  // market has no loaded universe today and renders <MarketSurface>,
+  // which states its registry status instead of drawing an empty grid.
+  const scopeHasHomeMarket = scopeMarkets.some((m) => m.marquee_rank === 0);
+  const showUniverse = scopeHasHomeMarket || isAllMarketsTab;
+  const homeMarket = scopeMarkets.find((m) => m.marquee_rank === 0) ?? null;
+  const isRegionOverview =
+    activeMarketTab?.kind === "region" && !activeCountryId && scopeMarkets.length > 1;
+
   // Search matches as a grid filter — MarketsOverview shows these rows
   // and a selected "Search" pill while a query is active.
   const searchFilter = useMemo<GridFilter | null>(() => {
@@ -285,9 +413,11 @@ export default function PublicCompanyIntelligence() {
       >
         {/* ── Section 1 — compact instrument header ─────────────────────
             THE INSTRUMENT: the serif hero + gradient accent became the
-            compact PageHeader (11px caps eyebrow → 19px title) with the
-            listing scope as meta chips ("BVB · RON") in the context slot.
-            The subtitle survives as one measured paragraph below. */}
+            compact PageHeader (11px caps eyebrow → 19px title). The
+            context chips used to be a hardcoded "BVB · RON"; they now
+            describe the ACTIVE market scope, because the page is no
+            longer about one exchange. The subtitle survives as one
+            measured paragraph below — Part E's global lede. */}
         <div className="min-w-0">
           <PageHeader
             eyebrow={t("pci.header.eyebrow")}
@@ -298,48 +428,142 @@ export default function PublicCompanyIntelligence() {
               </>
             }
             context={
-              <>
-                <Chip className="font-mono">BVB</Chip>
-                <Chip className="font-mono">RON</Chip>
-              </>
+              scopeMarkets.length === 1 ? (
+                <>
+                  <Chip className="font-mono">
+                    {scopeMarkets[0].exchanges.join(" · ")}
+                  </Chip>
+                  <Chip className="font-mono">{scopeMarkets[0].currency}</Chip>
+                </>
+              ) : (
+                <Chip>{t("pcm.tab.marketCount", { count: scopeMarkets.length })}</Chip>
+              )
             }
           />
-          <p className="mt-1.5 max-w-[720px] text-[12.5px] leading-relaxed text-ink-soft">
-            {t("pci.header.subtitle")}
+          {/* PART E — the global lede. Read from `pcm.lede`, NOT from
+              `pci.header.subtitle`: the locale files already own the
+              `pci` namespace and a component bundle cannot overwrite
+              them, so an edit there registers and loses silently. */}
+          <p
+            data-testid="public-markets-lede"
+            className="mt-1.5 max-w-[760px] text-[12.5px] leading-relaxed text-ink-soft"
+          >
+            {t("pcm.lede")}
           </p>
 
-          {/* ── Tab strip — Overview / Risk Radar / Map ────────────────
-                Hairline underline tabs on a full-width rule; the active
-                tab carries the accent underline. Persists to ?tab= so
-                deep links + browser back/forward work. */}
-          <div
-            role="tablist"
-            aria-label={t("pci.header.tabsAria")}
-            className="mt-5 mb-5 flex gap-5 border-b border-rule"
-            data-testid="public-intelligence-tabs"
-          >
-            <TabPill
-              active={view === "overview"}
-              onClick={() => switchView("overview")}
-              icon={LayoutGrid}
-              label={t("pci.header.tabOverview")}
-              testid="tab-overview"
-            />
-            <TabPill
-              active={view === "risk-radar"}
-              onClick={() => switchView("risk-radar")}
-              icon={Activity}
-              label={t("pci.header.tabRisk")}
-              testid="tab-risk-radar"
-            />
-            <TabPill
-              active={view === "map"}
-              onClick={() => switchView("map")}
-              icon={Globe}
-              label={t("pci.header.tabMap")}
-              testid="tab-map"
+          {/* ── PRIMARY axis — market tabs, in registry order ──────────
+                Romania first and in its own group, then marquee rank,
+                then A→Z, with Europe collapsed into one tab carrying
+                country sub-filters. Built from the registry, so a market
+                added to markets.yaml appears here with no edit. */}
+          <div className="mt-5">
+            <MarketTabs
+              tabs={marketTabs}
+              activeId={activeMarketTabId}
+              onSelect={selectMarketTab}
+              activeCountryId={activeCountryId}
+              onSelectCountry={selectCountry}
             />
           </div>
+        </div>
+
+        {/* ── Market scope body ──────────────────────────────────────── */}
+        {!showUniverse ? (
+          <div className="mt-5 space-y-5" data-testid="market-scope-surface">
+            {isRegionOverview ? (
+              /* A region with no country picked is a DIRECTORY, not five
+                 stacked panels. r2 rendered the full surface for each of
+                 the five European markets and the page became one
+                 paragraph repeated — the per-country statuses, which are
+                 the actual information, were the hardest thing to see.
+                 One compact card per country; the full panel is one
+                 click away. */
+              <>
+                <p className="max-w-[720px] text-[12.5px] leading-relaxed text-ink-soft">
+                  {t("pcm.region.overviewLede", { count: scopeMarkets.length })}
+                </p>
+                <MarketRegistryGrid
+                  markets={scopeMarkets}
+                  holdingsKnown={registry.holdingsKnown}
+                  onOpen={selectCountry}
+                />
+              </>
+            ) : (
+              scopeMarkets.map((m) => (
+                <MarketSurface
+                  key={m.market_id}
+                  market={m}
+                  holdingsKnown={registry.holdingsKnown}
+                  bundled={registry.origin === "bundled"}
+                />
+              ))
+            )}
+          </div>
+        ) : (
+        <>
+        <div className="mt-5 space-y-4">
+          {isAllMarketsTab ? (
+            /* "All" is a DIRECTORY, not a merged grid: every market with
+               its real status and its real cached count, so the shape of
+               the coverage is visible at a glance. Clicking a card opens
+               that market's tab. */
+            <MarketRegistryGrid
+              markets={registry.markets}
+              holdingsKnown={registry.holdingsKnown}
+              onOpen={(id) => selectMarketTab(tabIdForMarket(id))}
+            />
+          ) : (
+            homeMarket && (
+              <>
+                <MarketDataStatusLine
+                  market={homeMarket}
+                  holdingsKnown={registry.holdingsKnown}
+                  bundled={registry.origin === "bundled"}
+                />
+                {/* Romania keeps its deterministic-grade note — the claim
+                    that belongs to the home market and to no other. */}
+                <p
+                  data-testid="market-home-grade-note"
+                  className="max-w-[760px] text-[12px] leading-relaxed text-ink-soft"
+                >
+                  {t("pcm.ro.grade")}
+                </p>
+              </>
+            )
+          )}
+        </div>
+
+        {/* ── Section tabs — Overview / Risk Radar / Map ──────────────
+              Secondary to the market axis above. Hairline underline
+              tabs on a full-width rule; persists to ?tab= so deep links
+              + browser back/forward work. */}
+        <div
+          role="tablist"
+          aria-label={t("pci.header.tabsAria")}
+          className="mt-5 mb-5 flex gap-5 border-b border-rule"
+          data-testid="public-intelligence-tabs"
+        >
+          <TabPill
+            active={view === "overview"}
+            onClick={() => switchView("overview")}
+            icon={LayoutGrid}
+            label={t("pci.header.tabOverview")}
+            testid="tab-overview"
+          />
+          <TabPill
+            active={view === "risk-radar"}
+            onClick={() => switchView("risk-radar")}
+            icon={Activity}
+            label={t("pci.header.tabRisk")}
+            testid="tab-risk-radar"
+          />
+          <TabPill
+            active={view === "map"}
+            onClick={() => switchView("map")}
+            icon={Globe}
+            label={t("pci.header.tabMap")}
+            testid="tab-map"
+          />
         </div>
 
         {/* Risk Radar tab — short-circuit before the overview block.
@@ -348,15 +572,29 @@ export default function PublicCompanyIntelligence() {
         {view === "risk-radar" ? (
           <div className="space-y-5">
             <Suspense fallback={<TabFallback />}>
-              <RiskRadar onDrillToCategory={handleRadarDrill} />
+              {/* The radar's category SCORES are computed across the whole
+                  universe server-side; the market filter narrows which
+                  company rows are listed and says so, rather than implying
+                  the score was re-derived for the filtered set. */}
+              <RiskRadar
+                onDrillToCategory={handleRadarDrill}
+                markets={registry.markets}
+              />
             </Suspense>
           </div>
         ) : view === "map" ? (
           /* Geographic Map — Romania county choropleth. Company clicks open
              the same StockDetailDrawer via handleSelectTicker, so the drawer
-             rendered at the bottom of this page works from this tab too. */
+             rendered at the bottom of this page works from this tab too.
+             The market scope filters the ROWS only; the scoring logic is
+             untouched, and a market with no coordinates gets an honest
+             note instead of an empty map pretending to be a result. */
           <Suspense fallback={<TabFallback />}>
-            <GeographicMapPanel rows={allCompanies} onSelectTicker={handleSelectTicker} />
+            <GeographicMapPanel
+              rows={scopedCompanies}
+              onSelectTicker={handleSelectTicker}
+              markets={registry.markets}
+            />
           </Suspense>
         ) : (
         <>
@@ -364,7 +602,7 @@ export default function PublicCompanyIntelligence() {
           {/* ── Market Search — the primary entry point, first under the
                 tabs (THE INSTRUMENT B5: search prominent at top). ── */}
           <CompanySearchPanel
-            rows={allCompanies}
+            rows={scopedCompanies}
             onSelect={handleSelectTicker}
             query={searchQuery}
             onQueryChange={setSearchQuery}
@@ -372,27 +610,33 @@ export default function PublicCompanyIntelligence() {
 
           {/* ── Market pulse — aggregate day read of the live-quoted
                 universe (hidden entirely in static/demo mode). ── */}
-          <MarketPulseStrip rows={allCompanies} onSelectTicker={handleSelectTicker} />
+          <MarketPulseStrip rows={scopedCompanies} onSelectTicker={handleSelectTicker} />
 
           {/* ── Peers suggested for the user's own company. Hidden when
                 no real period is loaded. ── */}
-          <PeerSuggestRail rows={allCompanies} onSelectTicker={handleSelectTicker} />
+          <PeerSuggestRail rows={scopedCompanies} onSelectTicker={handleSelectTicker} />
 
           {/* ── Markets overview — filter chips + company cards; the
                 compare tray lives inside. Risk Radar drills land in the
                 same grid filter via `drillFilter`. ── */}
           <MarketsOverview
-            rows={allCompanies}
+            rows={scopedCompanies}
             onSelectTicker={handleSelectTicker}
             drillFilter={radarDrill}
             searchFilter={searchFilter}
             onClearSearch={() => setSearchQuery("")}
             workspace={workspaceMetrics}
+            markets={registry.markets}
+            /* Market + currency chips carry information only when the
+               grid actually spans more than one market — on a
+               single-market tab the header already says which one, and
+               88 identical "RO · RON" chips would be noise, not honesty. */
+            showMarketChips={isAllMarketsTab}
           />
 
           {/* ── Peer benchmarking — per-group stats + drill-down. ── */}
           <BenchmarkingPanel
-            universeRows={allCompanies}
+            universeRows={scopedCompanies}
             workspace={workspaceMetrics}
             workspaceSector={workspaceSector}
           />
@@ -420,8 +664,10 @@ export default function PublicCompanyIntelligence() {
             ? t("pci.footer.loading")
             : demoMode
               ? t("pci.footer.demo")
-              : t("pci.footer.sources", { bvb: allCompanies.length })}
+              : t("pci.footer.sources", { bvb: scopedCompanies.length })}
         </div>
+        </>
+        )}
       </div>
     </Shell>
   );

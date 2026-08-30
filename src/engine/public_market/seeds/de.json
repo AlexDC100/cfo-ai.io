@@ -1,0 +1,16 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "de",
+  "as_of": "2026-08-30",
+  "source": {
+    "name": "declared gap — no source",
+    "url": "https://cfo-ai.io/docs/public-market-coverage",
+    "dataset_version": "empty-awaiting_provider",
+    "retrieved_at": "2026-08-30T05:12:05Z",
+    "identity_only": true
+  },
+  "license_note": "Prices via licensed provider slot · end-of-day licence · no redistribution rights",
+  "coverage_note": "DECLARED GAP. filings.xbrl.org documents Germany as MISSING from the ESEF repository (esef.COVERAGE_GAPS = DE, IE), so there is no feed to derive a universe from, and no ticker this platform could then answer. A DAX 40 constituent list was considered and rejected: index composition is Deutsche Boerse / STOXX proprietary IP with no licence-clear machine-readable public distribution, and seeding 40 famous names we hold nothing for would turn a visible gap into 40 dead links. The file exists, dated and empty, so the gap is auditable rather than silent.",
+  "member_count": 0,
+  "members": []
+}

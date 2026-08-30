@@ -1017,6 +1017,39 @@ def is_public_summary_envelope(envelope: Any) -> bool:
     return isinstance(summary, dict) and isinstance(summary.get("indicators"), dict)
 
 
+def is_public_market_envelope(envelope: Any) -> bool:
+    """PM document-class predicate — the exact TWIN of
+    :func:`is_public_summary_envelope`, for the GLOBAL PUBLIC MARKETS
+    sibling class (``pm1`` envelopes built by ``engine.public_market``:
+    EDGAR / ESEF / provider feeds).
+
+    True when the document is structurally a public_market envelope:
+    ``doc_class == "public_market"``, ``status == "PUBLIC_MARKET"``, and
+    a dict ``figures`` map — the same shape
+    ``engine.public_market.model.is_public_market_envelope`` and
+    ``engine.serving.FactsGateway._is_market_envelope`` test.
+
+    Deliberately STRUCTURAL, not version-pinned: a future ``pm2``
+    document is still a public_market document and must still be refused
+    here. Deliberately checked on the DOCUMENT CLASS, not on the absence
+    of ``canonical_bs``: the day something attaches a canonical_bs-shaped
+    block to a market envelope for convenience, an incidental
+    NO_CANONICAL_BS refusal would silently vanish and a foreign document
+    would enter reconciliation. Named refusals survive; incidental ones
+    do not.
+
+    ONE predicate shared by every public_market structural refusal seam,
+    so the refusals can never drift apart. Never raises.
+    """
+    if not isinstance(envelope, dict):
+        return False
+    if envelope.get("doc_class") != "public_market":
+        return False
+    if envelope.get("status") != "PUBLIC_MARKET":
+        return False
+    return isinstance(envelope.get("figures"), dict)
+
+
 def _serve_mismatch() -> ReconcileRejected:
     return ReconcileRejected(
         {
@@ -1060,6 +1093,26 @@ def perform_reconcile(
                         "code": "PUBLIC_SUMMARY",
                         "detail": "public_summary envelopes are summary-level "
                         "open data — reconciliation requires a trial balance",
+                    }
+                ],
+            }
+        )
+    # PM STRUCTURAL REFUSAL — the twin of the PS1 guard above, same seam,
+    # same position (document class BEFORE any canonical_bs probe). A
+    # public_market envelope carries statement-level figures from a
+    # foreign filing regime with no debit/credit source to reconcile
+    # against; it is a SIBLING document class, never a citizen of the
+    # canonical ladder.
+    if is_public_market_envelope(envelope):
+        raise ReconcileRejected(
+            {
+                "status": "rejected",
+                "diagnosis": [
+                    {
+                        "code": "PUBLIC_MARKET",
+                        "detail": "public_market envelopes are statement-level "
+                        "public-market filings — reconciliation requires a "
+                        "trial balance",
                     }
                 ],
             }
@@ -1260,6 +1313,11 @@ def auto_reconcile_envelope(envelope: Dict[str, Any]) -> Dict[str, Any]:
                                checked FIRST on the document class so
                                the refusal survives any canonical_bs-
                                shaped block attached for convenience.
+      · "public_market_refused" — PM structural refusal, the twin of the
+                               line above: the envelope is a GLOBAL
+                               PUBLIC MARKETS filing (pm1, doc_class
+                               public_market / status PUBLIC_MARKET).
+                               Same seam, same document-class-first rule.
       · "not_minor_drift" / "llm_extraction" / "no_canonical_bs" /
         "no_provenance"      — out of scope for the auto stage.
     Never raises (a reconcile bug must not break the pipeline persist).
@@ -1269,6 +1327,9 @@ def auto_reconcile_envelope(envelope: Dict[str, Any]) -> Dict[str, Any]:
         # this function's whole body is a never-raises try).
         if is_public_summary_envelope(envelope):
             return {"outcome": "public_summary_refused"}
+        # PM — the twin refusal, same position, same never-raises rule.
+        if is_public_market_envelope(envelope):
+            return {"outcome": "public_market_refused"}
         cbs = envelope.get("canonical_bs") if isinstance(envelope, dict) else None
         if not isinstance(cbs, dict) or not isinstance(cbs.get("totals"), dict):
             return {"outcome": "no_canonical_bs"}

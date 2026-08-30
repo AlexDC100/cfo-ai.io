@@ -1,0 +1,16 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "cn",
+  "as_of": "2026-08-30",
+  "source": {
+    "name": "declared gap — no source",
+    "url": "https://cfo-ai.io/docs/public-market-coverage",
+    "dataset_version": "empty-awaiting_provider",
+    "retrieved_at": "2026-08-30T05:12:09Z",
+    "identity_only": true
+  },
+  "license_note": "Prices via licensed provider slot · end-of-day licence · no redistribution rights",
+  "coverage_note": "DECLARED GAP, awaiting_provider. No deterministic fundamentals feed is wired for mainland China (SSE/SZSE) in this package, so nothing here can name a Chinese issuer and then stand behind a number for it. An index membership list would be a universe with no feed underneath it. Empty and dated on purpose: reporting 'no results' for a Chinese ticker must not imply that a search happened.",
+  "member_count": 0,
+  "members": []
+}

@@ -34,14 +34,25 @@ import { feature as topoFeature } from "topojson-client";
 import type { Topology, GeometryCollection } from "topojson-specification";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { MapPin, ArrowLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
+import { marketIdForSnapshot, type MarketEntry } from "@/lib/marketApi";
 import { CompanyLogo } from "./CompanyLogo";
 import { BVB_HQ_COUNTY, normCounty } from "./bvbHqCounties";
+import { MarketFilterBar } from "./MarketFilterBar";
+import { useMarketName } from "./MarketTabs";
 import { staticBvbRows } from "@/lib/bvbStaticUniverse";
+import "./marketI18n";
 
 interface Props {
   rows: PublicCompanyFinancialSnapshot[];
   onSelectTicker: (ticker: string) => void;
+  /** Market registry (2026-08-30, global-markets wave). When supplied the
+   *  panel renders a market filter ABOVE the map. The filter narrows the
+   *  ROW SET only — the choropleth scoring below is untouched — and a
+   *  market with no plottable rows gets a written honest state rather
+   *  than a blank map that reads as "nothing here". */
+  markets?: MarketEntry[];
 }
 
 // ── Formatting (RON, compact) ────────────────────────────────────────────
@@ -104,11 +115,38 @@ const rampAt = (t: number): string => {
 
 type CountyFeature = Feature<Geometry> & { ckey: string; display: string };
 
-export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
+export function GeographicMapPanel({ rows: liveRows, onSelectTicker, markets }: Props) {
+  const { t } = useTranslation();
+  const marketName = useMarketName();
   // Fall back to the bundled static BVB list while the universe fetch is
   // loading/failing, so the map is never blank (financial metrics render
   // "—" on static rows; company count still colors the counties).
-  const rows = liveRows.length > 0 ? liveRows : staticBvbRows();
+  const baseRows = liveRows.length > 0 ? liveRows : staticBvbRows();
+  // ── Market filter (boundary only) ──
+  // Applied to the INPUT rows, above every existing computation. Nothing
+  // below this line changed: the county aggregation, the value scale and
+  // the fill ramp receive a row array exactly as they always did.
+  const [marketFilter, setMarketFilter] = useState<string | null>(null);
+  const rows = useMemo(
+    () =>
+      marketFilter
+        ? baseRows.filter(
+            (r) => marketIdForSnapshot(r, markets ?? undefined) === marketFilter,
+          )
+        : baseRows,
+    [baseRows, marketFilter, markets],
+  );
+  const marketOptions = useMemo(() => {
+    if (!markets?.length) return [];
+    return markets.map((m) => ({
+      market: m,
+      count: baseRows.filter((r) => marketIdForSnapshot(r, markets) === m.market_id)
+        .length,
+    }));
+  }, [markets, baseRows]);
+  const filteredMarket = marketFilter
+    ? markets?.find((m) => m.market_id === marketFilter) ?? null
+    : null;
   const [counties, setCounties] = useState<CountyFeature[] | null>(null);
   const [neighbours, setNeighbours] = useState<Feature<Geometry>[]>([]);
   const [geoError, setGeoError] = useState(false);
@@ -311,6 +349,39 @@ export function GeographicMapPanel({ rows: liveRows, onSelectTicker }: Props) {
 
   return (
     <div className="space-y-4" data-testid="geographic-map">
+      {/* ── Market filter (global-markets wave) ──────────────────────
+            Offered from the REGISTRY, so a market with zero plottable
+            rows can still be selected — and then says so in words. */}
+      {marketOptions.length > 0 && (
+        <MarketFilterBar
+          options={marketOptions}
+          activeMarketId={marketFilter}
+          onChange={setMarketFilter}
+          testId="geo-market-filter"
+        />
+      )}
+      {/* Honest state: a selected market with nothing on this map. The
+          choropleth plots Romanian county HQs; entities elsewhere plot
+          the moment coordinates ride in the payload. Until then nothing
+          is drawn rather than placed at a guess. */}
+      {filteredMarket && mappedCount === 0 && (
+        <div
+          data-testid="geo-market-empty"
+          className="rounded-md border border-rule bg-bg-2 px-3 py-2.5"
+        >
+          <div className="text-[12px] font-medium text-ink">
+            {t("pcm.map.scopeTitle", { market: marketName(filteredMarket) })}
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">
+            {t("pcm.map.scopeBody", { market: marketName(filteredMarket) })}
+          </p>
+        </div>
+      )}
+      {filteredMarket && mappedCount > 0 && mappedCount < rows.length && (
+        <p className="text-[11px] text-ink-mute" data-testid="geo-market-mixed">
+          {t("pcm.map.mixed", { mapped: mappedCount, total: rows.length })}
+        </p>
+      )}
       {/* ── Toolbar: metric chips + legend ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">

@@ -18,8 +18,15 @@ export const pciEn = {
     eyebrow: "Public Company Intelligence",
     titlePre: "Search listed companies and add them as ",
     titleGrad: "benchmark peers",
-    subtitle:
-      "Statutory financials for every company listed on the Bucharest Stock Exchange — revenue, margins, equity and valuation, from issuer disclosures and official ANAF filings, with live BVB prices. Add any company as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views.",
+    // PART E (2026-08-30) — `subtitle` is GONE from this bundle on
+    // purpose. The page lede is now `pcm.lede` in marketI18n.ts, which
+    // is the only place it can be edited and actually land: the locale
+    // files own `pci.*`, and addResourceBundle(overwrite=false) cannot
+    // displace a key they already carry. `pci.header.subtitle` still
+    // exists in en.json / ro.json carrying the retired Bucharest-only
+    // sentence — nothing renders it (grep: zero call sites). Removing it
+    // from the locale files is a cross-lane cleanup, flagged in the wave
+    // report, because those files are owned by the i18n workstream.
     tabOverview: "Overview",
     tabRisk: "Risk Radar",
     tabMap: "Geographic Map",
@@ -158,8 +165,7 @@ export const pciRo = {
     eyebrow: "Inteligență companii listate",
     titlePre: "Caută companii listate și adaugă-le ca ",
     titleGrad: "peers de benchmark",
-    subtitle:
-      "Cifre statutare pentru fiecare companie listată la Bursa de Valori București — venituri, marje, capitaluri și evaluare, din raportările emitenților și din bilanțurile oficiale ANAF, cu prețuri BVB în timp real. Adaugă orice companie ca peer de benchmark și apare lângă cifrele tale private în aceleași analize de indicatori, evaluare și risc.",
+    // subtitle: see the EN note above — the lede lives in `pcm.lede`.
     tabOverview: "Prezentare",
     tabRisk: "Radar de risc",
     tabMap: "Hartă geografică",

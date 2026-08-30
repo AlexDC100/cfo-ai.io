@@ -1,0 +1,1176 @@
+{
+ "documentInfo": {
+  "documentType": "https://xbrl.org/2021/xbrl-json",
+  "features": {
+   "xbrl:canonicalValues": true
+  },
+  "namespaces": {
+   "STD": "http://st-dupont.com/2026-03-31",
+   "ifrs-full": "https://xbrl.ifrs.org/taxonomy/2024-03-27/ifrs-full",
+   "iso4217": "http://www.xbrl.org/2003/iso4217",
+   "scheme": "http://standards.iso.org/iso/17442",
+   "xbrl": "https://xbrl.org/2021",
+   "xbrli": "http://www.xbrl.org/2003/instance"
+  },
+  "taxonomy": [
+   "http://st-dupont.com/2026-03-31/969500YT2CGGAD8YNM04-2026-03-31.xsd"
+  ]
+ },
+ "facts": {
+  "f0__s2__3__5": {
+   "value": "55810000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RevenueFromContractsWithCustomers",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__5": {
+   "value": "56838000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RevenueFromContractsWithCustomers",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__3__11": {
+   "value": "-2051000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "STD:ProfitLossFromOrdinaryOperatingActivitiesBeforeRoyalties",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__11": {
+   "value": "-1824000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "STD:ProfitLossFromOrdinaryOperatingActivitiesBeforeRoyalties",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__3__12": {
+   "value": "4909000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RevenueFromRoyalties",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__12": {
+   "value": "4673000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RevenueFromRoyalties",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__3__15": {
+   "value": "2801000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossFromOperatingActivities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__15": {
+   "value": "2492000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossFromOperatingActivities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__3__20": {
+   "value": "1793000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossBeforeTax",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__20": {
+   "value": "1948000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossBeforeTax",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__3__22": {
+   "value": "2042000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__22": {
+   "value": "3378000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__3__23": {
+   "value": "2042000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__23": {
+   "value": "3378000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__3__24": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToNoncontrollingInterests",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s2__4__24": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToNoncontrollingInterests",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s3__3__5": {
+   "value": "2042000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s3__4__5": {
+   "value": "3378000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__6": {
+   "value": "1135000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IntangibleAssetsOtherThanGoodwill",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__6": {
+   "value": "1225000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IntangibleAssetsOtherThanGoodwill",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__8": {
+   "value": "12159000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RightofuseAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__8": {
+   "value": "11238000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RightofuseAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__9": {
+   "value": "1226000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:NoncurrentFinancialAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__9": {
+   "value": "1424000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:NoncurrentFinancialAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__10": {
+   "value": "2542000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:DeferredTaxAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__10": {
+   "value": "1875000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:DeferredTaxAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__11": {
+   "value": "24760000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:NoncurrentAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__11": {
+   "value": "23800000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:NoncurrentAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__17": {
+   "value": "27000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CurrentTaxAssetsCurrent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__17": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:CurrentTaxAssetsCurrent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__19": {
+   "value": "37118000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CurrentAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__19": {
+   "value": "35736000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CurrentAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__22": {
+   "value": "61878000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Assets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__22": {
+   "value": "59536000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Assets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__27": {
+   "value": "-1141000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "STD:MiscellaneousOtherReservesAndRetainedEarningsExcludingProfitLossForReportingPeriod",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__27": {
+   "value": "-4535000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "STD:MiscellaneousOtherReservesAndRetainedEarningsExcludingProfitLossForReportingPeriod",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__29": {
+   "value": "2042000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RetainedEarningsProfitLossForReportingPeriod",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__29": {
+   "value": "3378000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RetainedEarningsProfitLossForReportingPeriod",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__30": {
+   "value": "29802000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAttributableToOwnersOfParent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__30": {
+   "value": "28147000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAttributableToOwnersOfParent",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__3__48": {
+   "value": "61878000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAndLiabilities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s4__4__48": {
+   "value": "59536000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAndLiabilities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__3__5": {
+   "value": "2042000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__4__5": {
+   "value": "3378000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__3__10": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:AdjustmentsForLossesGainsOnDisposalOfNoncurrentAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__4__10": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:AdjustmentsForLossesGainsOnDisposalOfNoncurrentAssets",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__3__23": {
+   "value": "341000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__4__23": {
+   "value": "425000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__3__27": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProceedsFromSalesOfIntangibleAssetsClassifiedAsInvestingActivities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s5__4__27": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProceedsFromSalesOfIntangibleAssetsClassifiedAsInvestingActivities",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__4__5": {
+   "value": "14156000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__5": {
+   "value": "13372000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__5": {
+   "value": "-4629000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__5": {
+   "value": "1782000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__5": {
+   "value": "24681000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__3__6": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "STD:IncreaseDecreaseInNumberOfSharesIssuedThroughProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "xbrli:shares"
+   }
+  },
+  "f0__s6__4__6": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__6": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__6": {
+   "value": "3378000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__6": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__6": {
+   "value": "3378000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__3__7": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "STD:IncreaseDecreaseInNumberOfSharesIssuedThroughIssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "xbrli:shares"
+   }
+  },
+  "f0__s6__4__7": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__7": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__7": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__7": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__7": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__4__9": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__9": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__9": {
+   "value": "-57000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__9": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__9": {
+   "value": "-57000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__4__10": {
+   "value": "14156000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__10": {
+   "value": "13372000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__10": {
+   "value": "-1308000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__10": {
+   "value": "1927000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__10": {
+   "value": "28147000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__4__16": {
+   "value": "14156000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__16": {
+   "value": "13372000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__16": {
+   "value": "-1308000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__16": {
+   "value": "1927000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__16": {
+   "value": "28147000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__3__17": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "STD:IncreaseDecreaseInNumberOfSharesIssuedThroughProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "xbrli:shares"
+   }
+  },
+  "f0__s6__4__17": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__17": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__17": {
+   "value": "2042000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__17": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__17": {
+   "value": "2042000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__3__18": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "STD:IncreaseDecreaseInNumberOfSharesIssuedThroughIssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "xbrli:shares"
+   }
+  },
+  "f0__s6__4__18": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__18": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__18": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__18": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__18": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__4__20": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__20": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__20": {
+   "value": "3000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__20": {
+   "value": "0.0",
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__20": {
+   "value": "3000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__4__21": {
+   "value": "14156000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__5__21": {
+   "value": "13372000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AdditionalPaidinCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__6__21": {
+   "value": "737000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "STD:RetainedEarningsAndMiscellaneousOtherReservesMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__7__21": {
+   "value": "1537000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:AccumulatedOtherComprehensiveIncomeMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s6__8__21": {
+   "value": "29802000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "f0__s9__6__10": {
+   "value": "S.T. Dupont S.A",
+   "dimensions": {
+    "concept": "ifrs-full:ExplanationOfChangeInNameOfReportingEntityOrOtherMeansOfIdentificationFromEndOfPrecedingReportingPeriod",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__116": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.2.6.<span class=\"ff6 ls0\"> <span class=\"_ _3b\"> </span><span class=\"ff3\">M\u00e9thodes de consolidation </span></span></span><span style=\"display:inherit;clear:left;\">Conform\u00e9ment \u00e0 IFRS <span class=\"_ _3\"></span>10, <span class=\"_ _3\"></span>\u00ab \u00c9tats financiers consolid\u00e9s \u00bb, <span class=\"_ _3\"></span>les \u00e9tats <span class=\"_ _3\"></span>financiers consolid\u00e9s du <span class=\"_ _3\"></span>Groupe comprennent les <span class=\"_ _3\"></span>comptes de <span class=\"_ _3\"></span>toutes les </span><span style=\"display:inherit;clear:left;\">entit\u00e9<span class=\"_ _0\"></span>s <span class=\"_ _1\"></span>que<span class=\"_ _0\"></span> <span class=\"_ _1\"></span>le <span class=\"_ _3\"></span>Groupe <span class=\"_ _3\"></span>contr\u00f4le <span class=\"_ _3\"></span>di<span class=\"_ _3\"></span>rectement <span class=\"_ _3\"></span>ou <span class=\"_ _1\"></span>ind<span class=\"_ _0\"></span>irectement, <span class=\"_ _3\"></span>quel <span class=\"_ _3\"></span>que <span class=\"_ _1\"></span>soit <span class=\"_ _3\"></span>son <span class=\"_ _3\"></span>niveau <span class=\"_ _1\"></span>de <span class=\"_ _3\"></span>participation <span class=\"_ _3\"></span>dans <span class=\"_ _1\"></span>les <span class=\"_ _3\"></span>capitaux <span class=\"_ _1\"></span>pro<span class=\"_ _0\"></span>pres <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>ces </span><span style=\"display:inherit;clear:left;\">entit\u00e9<span class=\"_ _0\"></span>s. <span class=\"_ _9\"></span>Une<span class=\"_ _3\"></span> <span class=\"_ _9\"></span>entit\u00e9 <span class=\"_ _9\"></span>es<span class=\"_ _3\"></span>t <span class=\"_ _9\"></span>contr\u00f4l\u00e9e <span class=\"_ _9\"></span>d\u00e8s <span class=\"_ _0\"></span>lors <span class=\"_ _9\"></span>que <span class=\"_ _0\"></span>le <span class=\"_ _9\"></span>Groupe d\u00e9<span class=\"_ _0\"></span>tient <span class=\"_ _9\"></span>le <span class=\"_ _0\"></span>pouvoir <span class=\"_ _9\"></span>sur <span class=\"_ _0\"></span>cette <span class=\"_ _9\"></span>entit\u00e9, <span class=\"_ _9\"></span>est expo<span class=\"_ _0\"></span>s\u00e9 <span class=\"_ _9\"></span>\u00e0, o<span class=\"_ _0\"></span>u <span class=\"_ _9\"></span>a droit <span class=\"_ _9\"></span>\u00e0 <span class=\"_ _9\"></span>des rendements <span class=\"_ _9\"></span>variables </span><span style=\"display:inherit;clear:left;\">du <span class=\"_ _3\"></span>fait <span class=\"_ _1\"></span>de <span class=\"_ _3\"></span>son <span class=\"_ _1\"></span>implicatio<span class=\"_ _0\"></span>n <span class=\"_ _1\"></span>dans<span class=\"_ _0\"></span> <span class=\"_ _1\"></span>cette <span class=\"_ _3\"></span>entit\u00e9, <span class=\"_ _3\"></span>et <span class=\"_ _1\"></span>lorsqu\u2019il <span class=\"_ _3\"></span>a <span class=\"_ _1\"></span>la <span class=\"_ _3\"></span>capacit\u00e9 <span class=\"_ _3\"></span>d\u2019utiliser <span class=\"_ _3\"></span>son <span class=\"_ _1\"></span>pouvoir <span class=\"_ _1\"></span>sur <span class=\"_ _3\"></span>l\u2019entit\u00e9 <span class=\"_ _1\"></span>pour <span class=\"_ _3\"></span>influer <span class=\"_ _3\"></span>sur <span class=\"_ _1\"></span>le <span class=\"_ _3\"></span>m<span class=\"_ _3\"></span>ontant <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>ces<span class=\"_ _3\"></span> </span><span style=\"display:inherit;clear:left;\">rendements. La <span class=\"_ _1\"></span>d\u00e9te<span class=\"_ _0\"></span>rmination du <span class=\"_ _1\"></span>contr\u00f4l<span class=\"_ _0\"></span>e <span class=\"_ _3\"></span>prend <span class=\"_ _3\"></span>en <span class=\"_ _1\"></span>compt<span class=\"_ _0\"></span>e <span class=\"_ _3\"></span>l\u2019existence <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>droits <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>vo<span class=\"_ _3\"></span>te <span class=\"_ _3\"></span>potentiels <span class=\"_ _3\"></span>s\u2019ils <span class=\"_ _3\"></span>sont <span class=\"_ _3\"></span>substantifs, <span class=\"_ _3\"></span>c\u2019e<span class=\"ff1 ls21\">st<span class=\"ls0\">-<span class=\"_ _3\"></span>\u00e0-</span></span>dire <span class=\"_ _3\"></span>s\u2019ils </span><span style=\"display:inherit;clear:left;\">peuvent \u00ea<span class=\"_ _0\"></span>tre exerc\u00e9s e<span class=\"_ _0\"></span>n temps utile lorsque<span class=\"_ _0\"></span> les d\u00e9cisions s<span class=\"_ _0\"></span>ur le<span class=\"ff2\">s activit\u00e9s perti<span class=\"_ _0\"></span>nentes de l\u2019enti<span class=\"_ _0\"></span>t\u00e9 doivent \u00eatre p<span class=\"_ _0\"></span>rises.<span class=\"ff1\"> </span></span></span><span style=\"display:inherit;clear:left;\">S.T. Dupont n'a aucun<span class=\"_ _0\"></span> contr\u00f4l<span class=\"_ _0\"></span>e conjoint, la nor<span class=\"_ _0\"></span>me IFRS 11 n\u2019a pas d'i<span class=\"_ _0\"></span>mpact sur l<span class=\"_ _0\"></span>e p\u00e9rim\u00e8tre d<span class=\"_ _0\"></span>e consolidatio<span class=\"_ _0\"></span>n du groupe.<span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Le p\u00e9rim\u00e8t<span class=\"_ _0\"></span>re de conso<span class=\"_ _0\"></span>lidation figure en no<span class=\"_ _0\"></span>te 6.5.3.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DescriptionOfAccountingPolicyForInvestmentsOtherThanInvestmentsAccountedForUsingEquityMethodExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__123": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.2.10.<span class=\"ff6 ls0\"> <span class=\"_ _35\"> </span><span class=\"ff3\">In<span class=\"_ _0\"></span>struments financiers </span></span></span><span style=\"display:inherit;clear:left;\">Les <span class=\"_ _9\"></span>actifs <span class=\"_ _9\"></span>et <span class=\"_ _9\"></span>pass<span class=\"_ _3\"></span>ifs <span class=\"_ _9\"></span>financiers <span class=\"_ _9\"></span>comptabilis\u00e9s <span class=\"_ _9\"></span>\u00e0 <span class=\"_ _9\"></span>la da<span class=\"_ _0\"></span>te <span class=\"_ _9\"></span>de <span class=\"_ _0\"></span>cl\u00f4ture <span class=\"_ _9\"></span>du <span class=\"_ _9\"></span>bilan <span class=\"_ _9\"></span>incl<span class=\"_ _3\"></span>uent <span class=\"_ _9\"></span>les <span class=\"_ _9\"></span>caisses, <span class=\"_ _9\"></span>les <span class=\"_ _0\"></span>soldes <span class=\"_ _9\"></span>bancaires, <span class=\"_ _9\"></span>les plac<span class=\"_ _0\"></span>ements, <span class=\"_ _9\"></span>les <span class=\"_ _9\"></span>cr\u00e9ances, </span><span style=\"display:inherit;clear:left;\">les dettes fournisseurs, les em<span class=\"_ _3\"></span>prunts et les <span class=\"_ _3\"></span>instruments d\u00e9riv\u00e9s. Les m<span class=\"_ _3\"></span>\u00e9thodes sp\u00e9cifiques de comptabilisation <span class=\"_ _3\"></span>retenues sont d\u00e9crites <span class=\"_ _3\"></span>dans </span><span style=\"display:inherit;clear:left;\">la pr\u00e9sent<span class=\"_ _0\"></span>ation des m\u00e9thode<span class=\"_ _0\"></span>s concernant cha<span class=\"_ _0\"></span>que \u00e9l\u00e9ment. </span><span style=\"display:inherit;clear:left;\">Couverture des ris<span class=\"_ _0\"></span>ques de chang<span class=\"_ _0\"></span>e<span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Le <span class=\"_ _3\"></span>Groupe comprend <span class=\"_ _3\"></span>plusieurs <span class=\"_ _3\"></span>filiales de <span class=\"_ _3\"></span>distribution <span class=\"_ _3\"></span>qui <span class=\"_ _3\"></span>facturent <span class=\"_ _3\"></span>leurs <span class=\"_ _3\"></span>clients <span class=\"_ _3\"></span>dans <span class=\"_ _3\"></span>leur <span class=\"_ _3\"></span>devise <span class=\"_ _3\"></span>commune. <span class=\"_ _3\"></span>Cepend<span class=\"_ _0\"></span>ant quelque<span class=\"_ _3\"></span>s <span class=\"_ _3\"></span>relations </span><span style=\"display:inherit;clear:left;\">commerciale<span class=\"_ _0\"></span>s sp\u00e9cif<span class=\"_ _0\"></span>iques peuvent<span class=\"_ _0\"></span> justifier une f<span class=\"_ _0\"></span>acturation <span class=\"_ _0\"></span>en devises au<span class=\"_ _0\"></span>tres ; le risque<span class=\"_ _0\"></span> de change r<span class=\"_ _0\"></span>\u00e9sultant de ces <span class=\"_ _0\"></span>transactions est<span class=\"_ _0\"></span> appr\u00e9ci\u00e9 </span><span style=\"display:inherit;clear:left;\">et couve<span class=\"_ _0\"></span>rt dans le respe<span class=\"_ _0\"></span>ct des r\u00e8gles de prud<span class=\"_ _0\"></span>ence.  </span><span style=\"display:inherit;clear:left;\">S.T. <span class=\"_ _1\"></span>Dupont <span class=\"_ _3\"></span>S<span class=\"_ _3\"></span>.A <span class=\"_ _1\"></span>peut <span class=\"_ _3\"></span>avoir <span class=\"_ _1\"></span>recours <span class=\"_ _1\"></span>\u00e0 <span class=\"_ _1\"></span>diff<span class=\"_ _0\"></span>\u00e9rents <span class=\"_ _1\"></span>instrument<span class=\"_ _0\"></span>s <span class=\"_ _1\"></span>financier<span class=\"_ _0\"></span>s <span class=\"_ _1\"></span>d\u00e9riv\u00e9s <span class=\"_ _1\"></span>pour <span class=\"_ _3\"></span>couvrir <span class=\"_ _1\"></span>ses <span class=\"_ _1\"></span>quelques <span class=\"_ _3\"></span>expo<span class=\"_ _3\"></span>sitions<span class=\"_ _0\"></span>, <span class=\"_ _1\"></span>conform<span class=\"_ _3\"></span>\u00e9ment <span class=\"_ _1\"></span>\u00e0 <span class=\"_ _3\"></span>la </span><span style=\"display:inherit;clear:left;\">charte <span class=\"_ _1\"></span>des <span class=\"_ _1\"></span>engagement<span class=\"_ _0\"></span>s <span class=\"_ _1\"></span>financiers <span class=\"_ _1\"></span>ent\u00e9ri<span class=\"_ _0\"></span>n\u00e9e <span class=\"_ _1\"></span>par <span class=\"_ _1\"></span>la <span class=\"_ _1\"></span>direction <span class=\"_ _1\"></span>du <span class=\"_ _1\"></span>Groupe <span class=\"ff2\">; <span class=\"_ _2\"></span>l\u2019utili<span class=\"_ _0\"></span>sation <span class=\"_ _1\"></span>\u00e9ventuelle <span class=\"_ _1\"></span>d\u2019inst<span class=\"_ _0\"></span>ruments <span class=\"_ _1\"></span>d\u00e9riv\u00e9s <span class=\"_ _1\"></span>n\u2019aura <span class=\"_ _1\"></span>jamais <span class=\"_ _1\"></span>un </span></span><span style=\"display:inherit;clear:left;\">caract\u00e8r<span class=\"_ _0\"></span>e <span class=\"_ _1\"></span>sp\u00e9culatif<span class=\"_ _0\"></span>, <span class=\"_ _1\"></span>mais <span class=\"_ _1\"></span>aura <span class=\"_ _1\"></span>pour<span class=\"_ _0\"></span> <span class=\"_ _1\"></span>unique <span class=\"_ _1\"></span>but <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>couvrir <span class=\"_ _1\"></span>des <span class=\"_ _1\"></span>op\u00e9rati<span class=\"_ _0\"></span>ons <span class=\"_ _1\"></span>en <span class=\"_ _1\"></span>cour<span class=\"_ _0\"></span>s <span class=\"_ _1\"></span>ou <span class=\"_ _1\"></span>futures <span class=\"_ _1\"></span>afi<span class=\"_ _0\"></span>n <span class=\"_ _1\"></span>d\u2019assurer <span class=\"_ _1\"></span>ou <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>figer <span class=\"_ _1\"></span>des <span class=\"_ _1\"></span><span class=\"ff1\">r<span class=\"_ _3\"></span>evenus <span class=\"_ _3\"></span>en<span class=\"_ _3\"></span> </span></span><span style=\"display:inherit;clear:left;\">devises d\u00e9<span class=\"_ _0\"></span>coulant des act<span class=\"_ _0\"></span>ivit\u00e9s commerc<span class=\"_ _0\"></span>iales et ind<span class=\"_ _0\"></span>ustrielles du Gro<span class=\"_ _0\"></span>upe dans le cad<span class=\"_ _0\"></span>re normal d\u2019une bo<span class=\"_ _0\"></span>nn<span class=\"ff1\">e gestion. </span></span><span style=\"display:inherit;clear:left;\">Au 31 mars 2025 et<span class=\"_ _0\"></span> au 31 mars 20<span class=\"_ _0\"></span>26, le Gr<span class=\"_ _0\"></span>oupe n\u2019a pas <span class=\"_ _0\"></span>eu recours \u00e0 des i<span class=\"_ _0\"></span>nstruments fi<span class=\"_ _0\"></span>nanciers d\u00e9riv<span class=\"_ _0\"></span>\u00e9s. <span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Couverture des ris<span class=\"_ _0\"></span>ques de tau<span class=\"_ _0\"></span>x d\u2019int\u00e9r\u00eat<span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Compte tenu d<span class=\"_ _0\"></span>u faible vol<span class=\"_ _0\"></span>ume d\u2019op\u00e9rations<span class=\"_ _0\"></span> sur taux d\u2019int<span class=\"_ _0\"></span>\u00e9r\u00eat, lorsque l<span class=\"_ _0\"></span>e Groupe rec<span class=\"_ _0\"></span>ourt \u00e0 un endettement<span class=\"_ _0\"></span> court ter<span class=\"_ _0\"></span>me \u00e0 taux v<span class=\"ff1\">ariable, il </span></span><span style=\"display:inherit;clear:left;\">peut se c<span class=\"_ _0\"></span>ouvrir ponctuell<span class=\"_ _0\"></span>ement au moyen <span class=\"_ _0\"></span>de swaps ou <span class=\"_ _0\"></span>d\u2019options de t<span class=\"_ _0\"></span>aux afin de s\u00e9c<span class=\"_ _0\"></span>uriser son co\u00fbt de fina<span class=\"_ _0\"></span>ncement ou <span class=\"_ _0\"></span>de p<span class=\"ff1\">rofiter de </span></span><span style=\"display:inherit;clear:left;\">baisses de<span class=\"_ _0\"></span> taux \u00e9ventuelle<span class=\"_ _0\"></span>s. </span><span style=\"display:inherit;clear:left;\">Les inst<span class=\"_ _0\"></span>ruments d\u00e9riv\u00e9<span class=\"_ _0\"></span>s de change et de t<span class=\"_ _0\"></span>aux sont comptabi<span class=\"_ _0\"></span>lis\u00e9s \u00e0 leur<span class=\"_ _0\"></span> juste valeur, confor<span class=\"_ _0\"></span>m\u00e9ment aux normes <span class=\"_ _0\"></span>IAS 39 et IAS 32. Pour les </span><span style=\"display:inherit;clear:left;\">couvert<span class=\"_ _0\"></span>ures de juste val<span class=\"_ _0\"></span>eur, les vari<span class=\"_ _0\"></span>ations de valeur sont<span class=\"_ _0\"></span> constat\u00e9es en r\u00e9sult<span class=\"_ _0\"></span>at ; pour les <span class=\"_ _0\"></span>couvertures de<span class=\"_ _0\"></span> flux futurs, la part efficace<span class=\"_ _0\"></span> est </span><span style=\"display:inherit;clear:left;\">enregistr<span class=\"_ _0\"></span>\u00e9e en capitau<span class=\"_ _0\"></span>x propres et la part<span class=\"_ _0\"></span> inefficace en <span class=\"_ _0\"></span>r\u00e9sultat. Si les <span class=\"_ _0\"></span>d\u00e9riv\u00e9s ne rempli<span class=\"_ _0\"></span>ssent pas les cr<span class=\"_ _0\"></span>it\u00e8res de couvert<span class=\"_ _0\"></span>ure comptable, </span><span style=\"display:inherit;clear:left;\">leurs var<span class=\"_ _0\"></span>iations de juste<span class=\"_ _0\"></span> valeur sont enregist<span class=\"_ _0\"></span>r\u00e9es directement<span class=\"_ _0\"></span> en r\u00e9sult<span class=\"_ _0\"></span>at. </span><span style=\"display:inherit;clear:left;\">Au 31 mars 2025 et<span class=\"_ _0\"></span> au 31 mars 20<span class=\"_ _0\"></span>26, le Gr<span class=\"_ _0\"></span>oupe n\u2019a pas <span class=\"_ _0\"></span>eu recours \u00e0 des i<span class=\"_ _0\"></span>nstruments fi<span class=\"_ _0\"></span>nanciers d\u00e9riv<span class=\"_ _0\"></span>\u00e9s.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DescriptionOfAccountingPolicyForFinancialAssetsExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__127-1": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.2.12.<span class=\"ff6 ls0\"> <span class=\"_ _35\"> </span><span class=\"ff3\">Immo<span class=\"_ _0\"></span>bilisations incorporelles </span></span></span><span style=\"display:inherit;clear:left;\">Ce <span class=\"_ _2\"></span>sont <span class=\"_ _2\"></span>les <span class=\"_ _2\"> </span>actifs <span class=\"_ _2\"> </span>non <span class=\"_ _2\"> </span>mon\u00e9taires <span class=\"_ _2\"> </span>identifiables, <span class=\"_ _2\"></span>sans <span class=\"_ _2\"></span>substance <span class=\"_ _2\"></span>physique, <span class=\"_ _2\"> </span>qui <span class=\"_ _2\"> </span>sont <span class=\"_ _2\"> </span>d\u00e9tenus <span class=\"_ _2\"> </span>par <span class=\"_ _2\"> </span>le <span class=\"_ _2\"> </span>G<span class=\"_ _3\"></span>roupe <span class=\"_ _2\"></span>S.T. <span class=\"_ _2\"> </span>Dupont <span class=\"_ _2\"> </span>et <span class=\"_ _2\"> </span>desti<span class=\"_ _3\"></span>n\u00e9s <span class=\"_ _2\"> </span>\u00e0 <span class=\"_ _4\"> </span>la </span><span style=\"display:inherit;clear:left;\">producti<span class=\"_ _0\"></span>on ou \u00e0 la fournitur<span class=\"_ _0\"></span>e de biens ou se<span class=\"_ _0\"></span>rvices, dont l<span class=\"_ _0\"></span>a dur\u00e9e d\u2019utilisa<span class=\"_ _0\"></span>tion pr\u00e9vue est sup<span class=\"_ _0\"></span>\u00e9rieure \u00e0 un exer<span class=\"_ _0\"></span>cice.<span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Le <span class=\"_ _1\"></span>co\u00fbt <span class=\"_ _2\"></span>d\u2019entr\u00e9e <span class=\"_ _1\"></span>des <span class=\"_ _2\"> </span>\u00e9l\u00e9ments <span class=\"_ _1\"></span>incor<span class=\"_ _3\"></span>porel<span class=\"_ _0\"></span>s <span class=\"_ _2\"></span>acquis <span class=\"_ _1\"></span>s\u00e9par\u00e9ment <span class=\"_ _2\"></span>r\u00e9pondan<span class=\"_ _0\"></span>t <span class=\"_ _2\"></span>aux <span class=\"_ _2\"></span>crit\u00e8r<span class=\"_ _0\"></span>es <span class=\"_ _1\"></span>d\u2019imm<span class=\"_ _3\"></span>obilisa<span class=\"_ _0\"></span>tions <span class=\"_ _1\"></span>correspond <span class=\"_ _2\"></span>\u00e0 <span class=\"_ _2\"></span>leur <span class=\"_ _1\"></span>prix <span class=\"_ _2\"></span>d\u2019achat, </span><span style=\"display:inherit;clear:left;\">augment\u00e9 <span class=\"_ _1\"></span>de <span class=\"_ _2\"> </span>tous <span class=\"_ _2\"></span>les <span class=\"_ _2\"></span>co\u00fbts <span class=\"_ _1\"></span>directs <span class=\"_ _2\"></span>engag\u00e9s <span class=\"_ _2\"></span>pour <span class=\"_ _1\"></span>permettre <span class=\"_ _1\"></span>\u00e0 <span class=\"_ _4\"> </span>ces <span class=\"_ _1\"></span>\u00e9<span class=\"_ _3\"></span>l\u00e9ments <span class=\"_ _1\"></span>de <span class=\"_ _2\"> </span>fonctionner <span class=\"_ _1\"></span>selon <span class=\"_ _2\"> </span>leur <span class=\"_ _2\"> </span>objet. <span class=\"_ _2\"></span> <span class=\"_ _2\"></span>Pour <span class=\"_ _2\"></span>les <span class=\"_ _1\"></span>immobil<span class=\"_ _3\"></span>isations </span><span style=\"display:inherit;clear:left;\">g\u00e9n\u00e9r\u00e9es <span class=\"_ _9\"></span>en int<span class=\"_ _0\"></span>erne, <span class=\"_ _0\"></span>le <span class=\"_ _9\"></span>co\u00fbt d\u2019entr\u00e9<span class=\"_ _0\"></span>e co<span class=\"_ _0\"></span>rrespond<span class=\"_ _0\"></span> au<span class=\"_ _0\"></span>x <span class=\"_ _0\"></span>d\u00e9penses <span class=\"_ _9\"></span>engag\u00e9es dire<span class=\"_ _0\"></span>ctement <span class=\"_ _9\"></span>attribuables <span class=\"_ _9\"></span>qui g\u00e9n\u00e8rent<span class=\"_ _0\"></span> des <span class=\"_ _9\"></span>avantages <span class=\"_ _0\"></span>\u00e9c<span class=\"ff1\">onomiques </span></span><span style=\"display:inherit;clear:left;\">futurs.  </span><span style=\"display:inherit;clear:left;\">Les <span class=\"_ _4\"> </span>immobilisatio<span class=\"_ _0\"></span>ns <span class=\"_\"> </span>incor<span class=\"_ _0\"></span>porelles <span class=\"_ _4\"> </span>sont <span class=\"_\"> </span>amor<span class=\"_ _0\"></span>ties <span class=\"_ _4\"> </span>lin\u00e9airement <span class=\"_ _4\"> </span>sur <span class=\"_ _4\"> </span>leur <span class=\"_\"> </span>dur\u00e9e <span class=\"_ _4\"> </span>d\u2019utilit\u00e9 <span class=\"_ _4\"> </span>d\u00e9termin\u00e9e <span class=\"_ _4\"> </span>selon <span class=\"_\"> </span>le<span class=\"_ _0\"></span>ur <span class=\"_\"> </span>c<span class=\"_ _0\"></span>ycle <span class=\"_ _4\"> </span>ou <span class=\"_\"> </span>leur<span class=\"_ _0\"></span>s <span class=\"_\"> </span>co<span class=\"ff1\">nditions </span></span><span style=\"display:inherit;clear:left;\">d\u2019exploitat<span class=\"_ _0\"></span>ion</span><span style=\"display:inherit;clear:left;\">Les frai<span class=\"_ _0\"></span>s de recherche s<span class=\"_ _0\"></span>ont comptabilis\u00e9<span class=\"_ _0\"></span>s en charges <span class=\"_ _0\"></span>au fur et \u00e0 mesu<span class=\"_ _0\"></span>re de leur constatat<span class=\"_ _0\"></span>ion. </span><span style=\"display:inherit;clear:left;\">Les frai<span class=\"_ _0\"></span>s de d\u00e9veloppement<span class=\"_ _0\"></span> sont inscrits <span class=\"_ _0\"></span>\u00e0 l'actif du bilan<span class=\"_ _0\"></span> lorsqu'ils satisf<span class=\"_ _0\"></span>ont l'ensemble des <span class=\"_ _0\"></span>crit\u00e8res de l<span class=\"_ _0\"></span>a norme IAS 38 \u00e0 savoir :  </span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">Le p<span class=\"_ _0\"></span>rojet e<span class=\"_ _0\"></span>st clairement ide<span class=\"_ _0\"></span>ntifi\u00e9 et les co\u00fbt<span class=\"_ _0\"></span>s qui s'y rappor<span class=\"_ _0\"></span>tent sont individualis\u00e9<span class=\"_ _0\"></span>s et suivi<span class=\"_ _0\"></span>s de fa\u00e7on fiable  </span></span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">La f<span class=\"_ _0\"></span>aisabilit\u00e9 tec<span class=\"_ _0\"></span>hnique du pro<span class=\"_ _0\"></span>jet est d\u00e9montr\u00e9e<span class=\"_ _0\"></span>  </span></span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">L'int<span class=\"_ _0\"></span>ention et l<span class=\"_ _0\"></span>a capacit\u00e9 de t<span class=\"_ _0\"></span>erminer le proje<span class=\"_ _0\"></span>t et d'utiliser ou <span class=\"_ _0\"></span>vendre les produit<span class=\"_ _0\"></span>s issus de ce proje<span class=\"_ _0\"></span>t, sont d\u00e9montr<span class=\"_ _0\"></span>\u00e9es  </span></span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">Les <span class=\"_ _0\"></span>ressources n\u00e9<span class=\"_ _0\"></span>cessaires <span class=\"_ _0\"></span>pour mener le p<span class=\"_ _0\"></span>rojet \u00e0 son terme e<span class=\"_ _0\"></span>t pour l'utiliser<span class=\"_ _0\"></span> ou le vendre<span class=\"_ _0\"></span> sont disponibl<span class=\"_ _0\"></span>es  </span></span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">Le G<span class=\"_ _0\"></span>roupe pe<span class=\"_ _0\"></span>ut d\u00e9montrer q<span class=\"_ _0\"></span>ue le projet g\u00e9n\u00e9rer<span class=\"_ _0\"></span>a des avantages \u00e9<span class=\"_ _0\"></span>conomiques fut<span class=\"_ _0\"></span>urs probables, comme l'exi<span class=\"_ _0\"></span>stence d<span class=\"_ _0\"></span>'un </span></span></span><span style=\"display:inherit;clear:left;\">march\u00e9 pote<span class=\"_ _0\"></span>ntiel pour<span class=\"_ _0\"></span> la production issue de c<span class=\"_ _0\"></span>e projet, ou <span class=\"_ _0\"></span>que son utilit\u00e9<span class=\"_ _0\"></span> en interne est d\u00e9<span class=\"_ _0\"></span>montr\u00e9e.<span class=\"_ _3\"></span> </span><span style=\"display:inherit;clear:left;\">Lorsque <span class=\"_\"> </span>les <span class=\"_\"> </span>cr<span class=\"_ _0\"></span>it\u00e8res <span class=\"_\"> </span>de <span class=\"_\"> </span>reconnaissance <span class=\"_\"> </span>\u00e0 <span class=\"_\"> </span>l\u2019acti<span class=\"_ _0\"></span>f, <span class=\"_\"> </span>\u00e9tablis <span class=\"_\"> </span>par <span class=\"_\"> </span>IAS <span class=\"_\"> </span>38 <span class=\"_\"> </span>Immobilisa<span class=\"_ _0\"></span>tions <span class=\"_\"> </span>incorpor<span class=\"_ _0\"></span>elles, <span class=\"_\"> </span>ne <span class=\"_\"> </span>sont <span class=\"_\"> </span>pas <span class=\"_\"> </span>satisfaits, <span class=\"_\"> </span>l<span class=\"ff1\">es <span class=\"_\"> </span>frais <span class=\"_\"> </span>de </span></span><span style=\"display:inherit;clear:left;\">d\u00e9velopp<span class=\"_ _0\"></span>ement sont compt<span class=\"_ _0\"></span>abilis\u00e9s en char<span class=\"_ _0\"></span>ge.  </span><span style=\"display:inherit;clear:left;\">Les <span class=\"_ _9\"></span>frais <span class=\"_ _0\"></span>de <span class=\"_ _9\"></span>d\u00e9veloppement <span class=\"_ _9\"></span>sont i<span class=\"_ _0\"></span>nscrits <span class=\"_ _9\"></span>\u00e0 l<span class=\"_ _0\"></span>\u2019actif <span class=\"_ _9\"></span>du <span class=\"_ _0\"></span>bilan <span class=\"_ _9\"></span>lorsqu\u2019ils <span class=\"_ _9\"></span>s<span class=\"_ _3\"></span>ont <span class=\"_ _9\"></span>porteurs <span class=\"_ _0\"></span>d\u2019avantages <span class=\"_ _9\"></span>\u00e9conomique<span class=\"_ _0\"></span>s <span class=\"_ _0\"></span>futurs <span class=\"_ _9\"></span>pour <span class=\"_ _0\"></span>l\u2019en<span class=\"ff1\">treprise <span class=\"_ _9\"></span>et<span class=\"_ _3\"></span> <span class=\"_ _9\"></span>amortis </span></span><span style=\"display:inherit;clear:left;\">sur une dur<span class=\"_ _0\"></span>\u00e9e de 3 ans.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DescriptionOfAccountingPolicyForIntangibleAssetsOtherThanGoodwillExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__131": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.2.13.<span class=\"ff6 ls0\"> <span class=\"_ _35\"> </span><span class=\"ff5\">\u00c9carts d\u2019<span class=\"_ _0\"></span>acquisition (Goodwill)<span class=\"ff3\"> </span></span></span></span><span style=\"display:inherit;clear:left;\">Conform\u00e9ment \u00e0 la norme IFRS 3 R\u00e9vis\u00e9e, la m\u00e9thode de l'acquisition est utilis\u00e9e pour comptabiliser l'acquisition de nouve<span class=\"_ _0\"></span>lle<span class=\"_ _3\"></span>s activit\u00e9s par </span><span style=\"display:inherit;clear:left;\">le G<span class=\"_ _0\"></span>roupe. <span class=\"_ _0\"></span>Le pr<span class=\"_ _0\"></span>ix d'une<span class=\"_ _0\"></span> acquisition <span class=\"_ _9\"></span>c<span class=\"_ _3\"></span>orresp<span class=\"_ _0\"></span>ond \u00e0 <span class=\"_ _9\"></span>la juste vale<span class=\"_ _0\"></span>ur, \u00e0 <span class=\"_ _0\"></span>la da<span class=\"_ _0\"></span>te d\u2019acqui<span class=\"_ _0\"></span>sition, <span class=\"_ _0\"></span>des <span class=\"_ _0\"></span>\u00e9l\u00e9ments <span class=\"_ _0\"></span>de r\u00e9<span class=\"_ _0\"></span>mun\u00e9r<span class=\"ff1\">ation <span class=\"_ _0\"></span>remis <span class=\"_ _0\"></span>au vend<span class=\"_ _0\"></span>eur par </span></span><span style=\"display:inherit;clear:left;\">le Groupe en \u00e9change du contr\u00f4<span class=\"_ _0\"></span>le de l\u2019acquise en excluant tout<span class=\"_ _0\"></span> \u00e9l\u00e9ment qui r\u00e9mun\u00e8re une transaction dist<span class=\"_ _0\"></span>incte de la prise de <span class=\"_ _3\"></span><span class=\"ff1\">contr\u00f4le. Les </span></span><span style=\"display:inherit;clear:left;\">\u00e9l\u00e9ments du<span class=\"_ _0\"></span> prix d\u2019acqui<span class=\"_ _0\"></span>sition comprennent<span class=\"ff1\"> <span class=\"ls16\">: </span> </span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">Les <span class=\"_ _0\"></span>actifs remis <span class=\"_ _0\"></span>au vendeur  </span></span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">Les <span class=\"_ _0\"></span>passifs e<span class=\"_ _0\"></span>ncourus ou \u00e9vent<span class=\"_ _0\"></span>uels  </span></span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff1\">Les <span class=\"_ _0\"></span>instrument<span class=\"_ _0\"></span>s de capitaux propr<span class=\"_ _0\"></span>es \u00e9mis par le<span class=\"_ _0\"></span> Groupe  </span></span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff2\">Les <span class=\"_ _0\"></span>ajustements <span class=\"_ _0\"></span>\u00e9ventuels du<span class=\"_ _0\"></span> prix d\u2019acquisition.<span class=\"ff1\"> </span></span></span></span><span style=\"display:inherit;clear:left;\">Les co\u00fbt<span class=\"_ _0\"></span>s directs li\u00e9s \u00e0 l\u2019ac<span class=\"_ _0\"></span>quisition sont c<span class=\"_ _0\"></span>omptabili<span class=\"_ _0\"></span>s\u00e9s en charge de<span class=\"_ _0\"></span> la p\u00e9riode au co<span class=\"_ _0\"></span>urs de laquelle i<span class=\"_ _0\"></span>ls sont encourus dan<span class=\"_ _0\"></span>s<span class=\"ff1\"> le poste \u00ab Autres </span></span><span style=\"display:inherit;clear:left;\">charges \u00bb, \u00e0 l<span class=\"_ _0\"></span>\u2019exception<span class=\"_ _0\"></span><span class=\"ff1\"> : </span></span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff2\">Des <span class=\"_ _0\"></span>frais d\u2019\u00e9miss<span class=\"_ _0\"></span>ion d\u2019instrument<span class=\"_ _0\"></span>s de capitaux p<span class=\"_ _0\"></span>ropres \u00e9mis e<span class=\"_ _0\"></span>n r\u00e9mun\u00e9ration d\u2019un r<span class=\"_ _0\"></span>egroupement d\u2019e<span class=\"_ _0\"></span>ntreprises qui s<span class=\"_ _0\"></span>ont d\u00e9duits </span></span></span><span style=\"display:inherit;clear:left;\">des capit<span class=\"_ _0\"></span>aux propres </span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _16\"> </span><span class=\"ff2\">Des <span class=\"_ _0\"></span>co\u00fbts li\u00e9s <span class=\"_ _0\"></span>aux dettes financ<span class=\"_ _0\"></span>i\u00e8res contract<span class=\"_ _0\"></span>\u00e9es dans le cadre<span class=\"_ _0\"></span> d\u2019un regroupement d<span class=\"_ _0\"></span>\u2019entrepr<span class=\"_ _0\"></span>ises qui sont d\u00e9du<span class=\"_ _0\"></span>its des dettes </span></span></span><span style=\"display:inherit;clear:left;\">financi\u00e8re<span class=\"_ _0\"></span>s correspond<span class=\"_ _0\"></span>antes. </span><span style=\"display:inherit;clear:left;\">Les <span class=\"_ _9\"></span>actifs i<span class=\"_ _0\"></span>dentifiables <span class=\"_ _9\"></span>acquis, les <span class=\"_ _9\"></span>passifs <span class=\"_ _0\"></span>identifiables <span class=\"_ _9\"></span>et <span class=\"_ _0\"></span>les pa<span class=\"_ _0\"></span>ssifs <span class=\"_ _9\"></span>\u00e9ventuels assu<span class=\"_ _0\"></span>m\u00e9s <span class=\"_ _0\"></span>lors <span class=\"_ _9\"></span>d'un regroup<span class=\"_ _0\"></span>ement <span class=\"_ _9\"></span>d'entreprises so<span class=\"_ _0\"></span>nt <span class=\"_ _9\"></span>in<span class=\"_ _3\"></span>itialement </span><span style=\"display:inherit;clear:left;\">\u00e9valu\u00e9s \u00e0 <span class=\"_ _0\"></span>leur juste v<span class=\"_ _0\"></span>aleur \u00e0 la date d'acquisi<span class=\"_ _0\"></span>tion.  </span><span style=\"display:inherit;clear:left;\">Lorsque l<span class=\"_ _0\"></span>e calcul de l\u2019\u00e9c<span class=\"_ _0\"></span>art d\u2019acquisition about<span class=\"_ _0\"></span>it \u00e0 une di<span class=\"_ _0\"></span>ff\u00e9rence n\u00e9gativ<span class=\"_ _0\"></span>e un profit est<span class=\"_ _0\"></span> comptabilis\u00e9<span class=\"_ _0\"></span> directement au c<span class=\"_ _0\"></span>ompte<span class=\"ff1\"> de r\u00e9sultat.  </span></span><span style=\"display:inherit;clear:left;\">Les \u00e9carts <span class=\"_ _3\"></span>d\u2019acquisition <span class=\"_ _3\"></span>positifs <span class=\"_ _3\"></span>ne <span class=\"_ _3\"></span>sont <span class=\"_ _3\"></span>pas <span class=\"_ _3\"></span>amortis. <span class=\"_ _3\"></span>Ils <span class=\"_ _3\"></span>font <span class=\"_ _3\"></span>l\u2019objet d\u2019un<span class=\"_ _3\"></span> <span class=\"_ _3\"></span>test <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>perte <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>valeur, c<span class=\"_ _3\"></span>omme <span class=\"_ _3\"></span>indiqu\u00e9 en <span class=\"_ _3\"></span>note <span class=\"_ _3\"></span>6<span class=\"_ _3\"></span>.5.5., <span class=\"_ _3\"></span>d\u00e8s <span class=\"_ _3\"></span>qu\u2019un </span><span style=\"display:inherit;clear:left;\">indice d<span class=\"_ _0\"></span>e perte de vale<span class=\"_ _0\"></span>ur a \u00e9t\u00e9 identifi\u00e9 ou <span class=\"_ _0\"></span>chaque ann\u00e9e d\u00e8<span class=\"_ _0\"></span>s lors que cell<span class=\"_ _0\"></span>e-<span class=\"ff2\">ci comprend un \u00e9car<span class=\"_ _0\"></span>t d\u2019acquisition.<span class=\"ff1\"> </span></span></span>",
+   "dimensions": {
+    "concept": "ifrs-full:DescriptionOfAccountingPolicyForIntangibleAssetsAndGoodwillExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__149": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.2.22.<span class=\"ff6 ls0\"> <span class=\"_ _35\"> </span><span class=\"ff3\">Co<span class=\"_ _0\"></span>nstatation des produits </span></span></span><span style=\"display:inherit;clear:left;\">Le chiffre d\u2019affaires net <span class=\"_ _3\"></span>repr\u00e9sente les <span class=\"_ _3\"></span>ventes livr\u00e9es de <span class=\"_ _3\"></span>produits de <span class=\"_ _3\"></span>la mar<span class=\"_ _3\"></span>que S.T. <span class=\"_ _3\"></span>Dupont, comprenant \u00e0 <span class=\"_ _3\"></span>la fois <span class=\"_ _3\"></span>les produi<span class=\"_ _3\"></span><span class=\"ff1\">ts fabriqu\u00e9s, les </span></span><span style=\"display:inherit;clear:left;\">op\u00e9rati<span class=\"_ _0\"></span>ons de n\u00e9goce e<span class=\"_ _0\"></span>t les accessoires assoc<span class=\"_ _0\"></span>i\u00e9s. </span><span style=\"display:inherit;clear:left;\">Le <span class=\"_ _3\"></span>chiffre <span class=\"_ _3\"></span>d'affaires <span class=\"_ _3\"></span>provenant <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>la <span class=\"_ _3\"></span>vente <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>biens <span class=\"_ _3\"></span>est <span class=\"_ _3\"></span>\u00e9valu\u00e9 <span class=\"_ _1\"></span>sur <span class=\"_ _3\"></span>la <span class=\"_ _3\"></span>base <span class=\"_ _1\"></span>de la<span class=\"_ _3\"></span> <span class=\"_ _3\"></span>contrepartie <span class=\"_ _3\"></span>pr\u00e9vue <span class=\"_ _3\"></span>au <span class=\"_ _1\"></span>contrat <span class=\"_ _3\"></span>avec <span class=\"_ _3\"></span>le <span class=\"_ _3\"></span>cl<span class=\"_ _3\"></span>ient <span class=\"_ _1\"></span>et <span class=\"_ _3\"></span>exclut <span class=\"_ _3\"></span>les<span class=\"_ _3\"></span> </span><span style=\"display:inherit;clear:left;\">montants <span class=\"_ _0\"></span>collect\u00e9<span class=\"_ _0\"></span>s pour le<span class=\"_ _0\"></span> compte<span class=\"_ _0\"></span> de tie<span class=\"_ _0\"></span>rs. Le <span class=\"_ _0\"></span>Groupe r<span class=\"_ _0\"></span>econna\u00eet le<span class=\"_ _0\"></span> revenu d<span class=\"_ _0\"></span>\u00e8s lo<span class=\"_ _0\"></span>rs qu\u2019il <span class=\"_ _9\"></span>a transf\u00e9r\u00e9 le <span class=\"_ _0\"></span>contr\u00f4le <span class=\"_ _0\"></span>d<span class=\"_ _3\"></span><span class=\"ff1\">u bi<span class=\"_ _0\"></span>en au <span class=\"_ _9\"></span>c<span class=\"_ _3\"></span>lient. Le<span class=\"_ _0\"></span> transfert<span class=\"_ _0\"></span> </span></span><span style=\"display:inherit;clear:left;\">du contr<span class=\"_ _0\"></span>\u00f4le du bien au cl<span class=\"_ _0\"></span>ient est r\u00e9alis\u00e9 \u00e0 une<span class=\"_ _0\"></span> date donn\u00e9e, au <span class=\"_ _0\"></span>moment de la l<span class=\"_ _0\"></span>ivraison, sel<span class=\"_ _0\"></span>on les conditions d<span class=\"_ _0\"></span>\u00e9finies avec le client. </span><span style=\"display:inherit;clear:left;\">Ce prix ne c<span class=\"_ _0\"></span>omprend pas d<span class=\"_ _0\"></span>e parts variable<span class=\"_ _0\"></span>s requ\u00e9rant d<span class=\"_ _0\"></span>e recourir \u00e0 de<span class=\"_ _0\"></span>s estimations. </span><span style=\"display:inherit;clear:left;\">Les <span class=\"_ _9\"></span>rabais, <span class=\"_ _9\"></span>remises, <span class=\"_ _0\"></span>risto<span class=\"_ _0\"></span>urnes <span class=\"_ _9\"></span>et <span class=\"_ _0\"></span>escompte <span class=\"_ _9\"></span>de r<span class=\"_ _0\"></span>\u00e8glement <span class=\"_ _9\"></span>sont <span class=\"_ _9\"></span>class\u00e9s <span class=\"_ _9\"></span>en <span class=\"_ _0\"></span>diminution <span class=\"_ _9\"></span>du <span class=\"_ _0\"></span>chiffre <span class=\"_ _9\"></span>d\u2019affaires <span class=\"_ _9\"></span>et <span class=\"_ _9\"></span>peuv<span class=\"_ _3\"></span>ent <span class=\"_ _9\"></span>faire <span class=\"_ _9\"></span>l\u2019<span class=\"_ _3\"></span>objet <span class=\"_ _9\"></span>d\u2019estimations </span><span style=\"display:inherit;clear:left;\">\u00e0 la cl\u00f4t<span class=\"_ _0\"></span>ure de l\u2019exerci<span class=\"_ _0\"></span>ce. <span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Les <span class=\"_ _1\"></span>contrat<span class=\"_ _0\"></span>s <span class=\"_ _1\"></span>conclus <span class=\"_ _1\"></span>par <span class=\"_ _3\"></span>le <span class=\"_ _1\"></span>Groupe <span class=\"_ _1\"></span>ne <span class=\"_ _1\"></span>pr\u00e9voient <span class=\"_ _1\"></span>pas <span class=\"_ _3\"></span>de<span class=\"_ _3\"></span> <span class=\"_ _1\"></span>d\u00e9lai <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>paiement <span class=\"_ _1\"></span>sup\u00e9rieur <span class=\"_ _3\"></span>\u00e0 <span class=\"_ _1\"></span>un <span class=\"_ _1\"></span>an, <span class=\"_ _1\"></span>aucune <span class=\"_ _1\"></span>composante <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>financement <span class=\"_ _2\"></span><span class=\"ff2\">n\u2019est </span></span><span style=\"display:inherit;clear:left;\">constat\u00e9<span class=\"_ _0\"></span>e \u00e0 ce titre. </span><span style=\"display:inherit;clear:left;\">Une cr\u00e9anc<span class=\"_ _0\"></span>e est comptabilis\u00e9e d\u00e8s lors qu<span class=\"_ _0\"></span>e le Groupe s\u2019est lib\u00e9r\u00e9 de se<span class=\"_ _0\"></span>s obligations, et donc \u00e0 la date de livrai<span class=\"_ _0\"></span>son des bien<span class=\"ff1\">s, date \u00e0 laquelle </span></span><span style=\"display:inherit;clear:left;\">le Group<span class=\"_ _0\"></span>e a un droit inc<span class=\"_ _0\"></span>onditionnel \u00e0 rece<span class=\"_ _0\"></span>voir un paie<span class=\"_ _0\"></span>ment. </span><span style=\"display:inherit;clear:left;\">N\u2019ayant pas de contrat signific<span class=\"_ _0\"></span>atif dont la dur\u00e9e d\u00e9passe un an, le Groupe a fait le choix d\u2019appliquer la mesure de simplific<span class=\"ff1\">ation relative aux </span></span><span style=\"display:inherit;clear:left;\">obligatio<span class=\"_ _0\"></span>ns de prestatio<span class=\"_ _0\"></span>ns non encore sat<span class=\"_ _0\"></span>isfaites \u00e0 la cl<span class=\"_ _0\"></span>\u00f4ture, en ne commun<span class=\"_ _0\"></span>iquant pas<span class=\"_ _0\"></span> d\u2019informations r<span class=\"_ _0\"></span>elatives <span class=\"ff1\">\u00e0 ces obligati<span class=\"_ _0\"></span>ons. </span></span><span style=\"display:inherit;clear:left;\">Les rede<span class=\"_ _0\"></span>vances sont comptabi<span class=\"_ _0\"></span>lis\u00e9es sur la r<span class=\"_ _0\"></span>ubrique \u201cRede<span class=\"_ _0\"></span>vances\u201d, sur la base de<span class=\"_ _0\"></span>s chiffres <span class=\"_ _0\"></span>d\u2019affaires d\u00e9clar\u00e9s.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DescriptionOfAccountingPolicyForRecognitionOfRevenue",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__155": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.2.25.<span class=\"ff6 ls0\"> <span class=\"_ _35\"> </span><span class=\"ff5\">D<span class=\"_ _0\"></span>\u00e9pr\u00e9ciations d\u2019actifs (pertes de valeur)<span class=\"ff3\"> </span></span></span></span><span style=\"display:inherit;clear:left;\">Pour <span class=\"_ _1\"></span>les <span class=\"_ _2\"></span>besoins <span class=\"_ _1\"></span>des <span class=\"_ _2\"></span>tests <span class=\"_ _1\"></span>de <span class=\"_ _2\"></span>d\u00e9pr\u00e9ciation, <span class=\"_ _1\"></span>les <span class=\"_ _2\"></span>\u00e9carts <span class=\"_ _1\"></span>d\u2019acquisitions <span class=\"_ _1\"></span>sont <span class=\"_ _2\"> </span>affect\u00e9s <span class=\"_ _1\"></span>\u00e0 <span class=\"_ _2\"> </span>chacune <span class=\"_ _2\"></span>des <span class=\"_ _1\"></span>UGT <span class=\"_ _2\"> </span>ou <span class=\"_ _2\"></span>groupe<span class=\"_ _0\"></span> <span class=\"_ _2\"></span>d\u2019UGT <span class=\"_ _2\"></span>suscept<span class=\"ff1\">ibles <span class=\"_ _1\"></span>de </span></span><span style=\"display:inherit;clear:left;\">b\u00e9n\u00e9ficier<span class=\"_ _0\"></span> des synergies <span class=\"_ _0\"></span>du regroupement.  </span><span style=\"display:inherit;clear:left;\">Une UGT <span class=\"_ _0\"></span>est <span class=\"_ _0\"></span>d\u00e9fini<span class=\"_ _0\"></span>e comme l<span class=\"_ _0\"></span>e plus<span class=\"_ _0\"></span> petit<span class=\"_ _0\"></span> groupe i<span class=\"_ _0\"></span>dentifiabl<span class=\"_ _0\"></span>e d\u2019actif<span class=\"_ _0\"></span>s qui <span class=\"_ _0\"></span>g\u00e9n\u00e8re <span class=\"_ _0\"></span>des e<span class=\"_ _0\"></span>ntr\u00e9es <span class=\"_ _0\"></span>de tr\u00e9sore<span class=\"_ _0\"></span>rie largement<span class=\"_ _0\"></span> ind<span class=\"_ _0\"></span>\u00e9penda<span class=\"ff1\">ntes de<span class=\"_ _0\"></span> celles </span></span><span style=\"display:inherit;clear:left;\">g\u00e9n\u00e9r\u00e9es <span class=\"_ _9\"></span>par d\u2019autres <span class=\"_ _0\"></span>actifs <span class=\"_ _9\"></span>ou groupes d\u2019act<span class=\"_ _0\"></span>ifs. Le<span class=\"_ _0\"></span>s UGT <span class=\"_ _0\"></span>corre<span class=\"_ _0\"></span>spondent <span class=\"_ _9\"></span>\u00e0 des zones <span class=\"_ _0\"></span>g\u00e9ographique<span class=\"_ _0\"></span>s, les <span class=\"_ _9\"></span>plus signi<span class=\"_ _0\"></span>ficatives <span class=\"_ _0\"></span>\u00e9tant l\u2019UG<span class=\"_ _0\"></span>T France<span class=\"_ _0\"></span> </span><span style=\"display:inherit;clear:left;\">et l\u2019UGT Hong<span class=\"ff1\">-Kong<span class=\"_ _0\"></span>. </span></span><span style=\"display:inherit;clear:left;\">La d\u00e9pr\u00e9ciation de l\u2019unit\u00e9 g\u00e9n\u00e9ratrice de tr\u00e9sorerie comprenant un \u00e9cart d<span class=\"_ _3\"></span>\u2019acquisiti<span class=\"_ _0\"></span>on est test\u00e9e <span class=\"_ _3\"></span>tous les ans a<span class=\"_ _3\"></span>insi que chaq<span class=\"_ _3\"></span>ue <span class=\"_ _3\"></span>fois qu\u2019il y a </span><span style=\"display:inherit;clear:left;\">indication <span class=\"_ _0\"></span>que l\u2019unit\u00e9 s\u2019est<span class=\"_ _0\"></span> d\u00e9pr\u00e9ci\u00e9e en compar<span class=\"_ _0\"></span>ant la val<span class=\"_ _0\"></span>eur comptable d<span class=\"_ _0\"></span>e l\u2019unit\u00e9 (y<span class=\"_ _0\"></span> compris l\u2019\u00e9cart d\u2019ac<span class=\"_ _0\"></span>quisiti<span class=\"ff1\">on) et sa valeur r<span class=\"_ _0\"></span>ecouvrable.  </span></span><span style=\"display:inherit;clear:left;\">Si <span class=\"_ _3\"></span>la <span class=\"_ _3\"></span>valeur <span class=\"_ _1\"></span>compt<span class=\"_ _0\"></span>able <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>l\u2019unit\u00e9 <span class=\"_ _3\"></span>exc\u00e8de <span class=\"_ _3\"></span>la <span class=\"_ _1\"></span>vale<span class=\"_ _0\"></span>ur <span class=\"_ _3\"></span>recouvrable, <span class=\"_ _3\"></span>une <span class=\"_ _1\"></span>per<span class=\"_ _0\"></span>te <span class=\"_ _1\"></span>de valeur <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>l\u2019unit\u00e9<span class=\"_ _0\"></span> <span class=\"_ _1\"></span>est<span class=\"_ _0\"></span> <span class=\"_ _3\"></span>r\u00e9partie <span class=\"_ _3\"></span>en <span class=\"_ _1\"></span>r\u00e9duct<span class=\"_ _0\"></span>ion <span class=\"_ _3\"></span>tout<span class=\"ff1\"> <span class=\"_ _1\"></span></span>d\u2019abord <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>la </span><span style=\"display:inherit;clear:left;\">valeur <span class=\"_ _9\"></span>comptable <span class=\"_ _9\"></span>de l\u2019\u00e9cart <span class=\"_ _9\"></span>d\u2019acquisition, <span class=\"_ _0\"></span>puis <span class=\"_ _9\"></span>des aut<span class=\"_ _0\"></span>res <span class=\"_ _9\"></span>actifs de <span class=\"_ _9\"></span>l\u2019unit\u00e9 <span class=\"_ _0\"></span>au pr<span class=\"_ _0\"></span>orata <span class=\"_ _9\"></span>de le<span class=\"_ _0\"></span>ur <span class=\"_ _0\"></span>valeur <span class=\"_ _9\"></span>comptable. <span class=\"_ _0\"></span>Le<span class=\"ff1\">s pert<span class=\"_ _0\"></span>es <span class=\"_ _0\"></span>de <span class=\"_ _9\"></span>valeur de<span class=\"_ _0\"></span>s <span class=\"_ _0\"></span>\u00e9carts </span></span><span style=\"display:inherit;clear:left;\">d'acquisit<span class=\"_ _0\"></span>ion ne sont p<span class=\"_ _0\"></span>as r\u00e9versibles. </span><span style=\"display:inherit;clear:left;\">La valeur r<span class=\"_ _0\"></span>ecouvrable est<span class=\"_ _0\"></span> la valeur la plus \u00e9<span class=\"_ _0\"></span>lev\u00e9e entre l<span class=\"_ _0\"></span>a juste valeur di<span class=\"_ _0\"></span>minu\u00e9e des c<span class=\"_ _0\"></span>o\u00fbts de la vente<span class=\"_ _0\"></span> et la valeur d\u2019util<span class=\"_ _0\"></span>it<span class=\"ff1\">\u00e9. <span class=\"_ _3\"></span> </span></span><span style=\"display:inherit;clear:left;\">La <span class=\"_ _9\"></span>valeur <span class=\"_ _9\"></span>d\u2019ut<span class=\"_ _3\"></span>ilit\u00e9 <span class=\"_ _9\"></span>est <span class=\"_ _9\"></span>d\u00e9<span class=\"_ _3\"></span>termin\u00e9e<span class=\"_ _0\"></span> <span class=\"_ _9\"></span>pa<span class=\"_ _3\"></span>r <span class=\"_ _0\"></span>rapport<span class=\"_ _0\"></span> <span class=\"_ _9\"></span>aux<span class=\"_ _3\"></span> <span class=\"_ _9\"></span>projections <span class=\"_ _9\"></span>\u00e0 quat<span class=\"_ _0\"></span>re <span class=\"_ _0\"></span>ans <span class=\"_ _9\"></span>de f<span class=\"_ _0\"></span>lux <span class=\"_ _9\"></span>de tr\u00e9so<span class=\"_ _0\"></span>rerie <span class=\"_ _9\"></span>futurs <span class=\"_ _0\"></span>attendus <span class=\"_ _9\"></span>\u00e9tablis <span class=\"_ _0\"></span>sur<span class=\"ff1\"> la <span class=\"_ _a\"></span>base<span class=\"_ _3\"></span> <span class=\"_ _9\"></span>des <span class=\"_ _0\"></span>budgets </span></span><span style=\"display:inherit;clear:left;\">approuv\u00e9s <span class=\"_ _1\"></span>par <span class=\"_ _2\"> </span>la <span class=\"_ _2\"> </span>Di<span class=\"_ _3\"></span>rection <span class=\"_ _1\"></span>et <span class=\"_ _2\"> </span>des <span class=\"_ _2\"> </span>p<span class=\"_ _3\"></span>lans <span class=\"_ _2\"></span>\u00e0 <span class=\"_ _2\"> </span>moyen <span class=\"_ _2\"> </span>terme <span class=\"_ _2\"> </span>et <span class=\"_ _2\"> </span>d\u2019une <span class=\"_ _2\"> </span>valeur <span class=\"_ _2\"> </span>terminale. <span class=\"_ _2\"></span>Ces <span class=\"_ _2\"></span>flux <span class=\"_ _2\"></span>de <span class=\"_ _2\"> </span>tr\u00e9sorerie <span class=\"_ _2\"></span>ne <span class=\"_ _2\"> </span>tie<span class=\"_ _3\"></span><span class=\"ff1\">nnent <span class=\"_ _2\"></span>pas <span class=\"_ _2\"></span>compte <span class=\"_ _2\"></span>des </span></span><span style=\"display:inherit;clear:left;\">investi<span class=\"_ _0\"></span>ssements de capac<span class=\"_ _0\"></span>it\u00e9 futurs et des re<span class=\"_ _0\"></span>structurations<span class=\"_ _0\"></span> dans lesquelles <span class=\"_ _0\"></span>le Groupe n\u2019e<span class=\"_ _0\"></span>st pas engag\u00e9.<span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Le <span class=\"_ _9\"></span>taux <span class=\"_ _0\"></span>d\u2019actuali<span class=\"_ _0\"></span>sation <span class=\"_ _9\"></span>retenu <span class=\"_ _9\"></span>pour ces <span class=\"_ _9\"></span>calculs <span class=\"_ _9\"></span>est <span class=\"_ _0\"></span>le <span class=\"_ _9\"></span>co\u00fbt <span class=\"_ _9\"></span>m<span class=\"_ _3\"></span>oyen <span class=\"_ _9\"></span>pond\u00e9r\u00e9 <span class=\"_ _9\"></span>du capi<span class=\"_ _0\"></span>tal. <span class=\"_ _9\"></span>Ce <span class=\"_ _0\"></span>taux <span class=\"_ _9\"></span>d\u2019actualisation <span class=\"_ _9\"></span>est <span class=\"_ _9\"></span>u<span class=\"_ _3\"></span>n <span class=\"_ _9\"></span>taux <span class=\"_ _0\"></span>apr<span class=\"ff1\">\u00e8s <span class=\"_ _0\"></span>imp\u00f4ts <span class=\"_ _9\"></span>appliqu\u00e9 </span></span><span style=\"display:inherit;clear:left;\">\u00e0 des <span class=\"_ _3\"></span>flux de <span class=\"_ _3\"></span>tr\u00e9sorerie<span class=\"_ _0\"></span> apr\u00e8s <span class=\"_ _3\"></span>imp\u00f4ts. Son <span class=\"_ _3\"></span>utilisation aboutit \u00e0 <span class=\"_ _3\"></span>des valeurs recouvrables identiques \u00e0 <span class=\"_ _3\"></span>celles ob<span class=\"_ _3\"></span>tenues en <span class=\"_ _3\"></span>appliquant<span class=\"_ _0\"></span> un <span class=\"_ _3\"></span>taux </span><span style=\"display:inherit;clear:left;\">avant imp\u00f4t<span class=\"_ _0\"></span> \u00e0 des flux de t<span class=\"_ _0\"></span>r\u00e9sorerie avant i<span class=\"_ _0\"></span>mp\u00f4t. </span><span style=\"display:inherit;clear:left;\">La juste <span class=\"_ _3\"></span>valeur diminu\u00e9e des <span class=\"_ _3\"></span>co\u00fbts de <span class=\"_ _3\"></span>la vente <span class=\"_ _3\"></span>correspond au montant qu<span class=\"_ _3\"></span>i pourrait \u00eatre <span class=\"_ _3\"></span>obtenu de <span class=\"_ _3\"></span>la <span class=\"_ _3\"></span>vente de <span class=\"_ _3\"></span>l\u2019actif ou <span class=\"_ _3\"></span>du gr<span class=\"_ _3\"></span>oupe <span class=\"_ _3\"></span>d\u2019actifs </span><span style=\"display:inherit;clear:left;\">dans des co<span class=\"_ _0\"></span>nditions de<span class=\"_ _0\"></span> concurrence normale d<span class=\"_ _0\"></span>iminu\u00e9 des <span class=\"_ _0\"></span>co\u00fbts de cessio<span class=\"_ _0\"></span>n.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DescriptionOfAccountingPolicyForImpairmentOfAssetsExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__35": {
+   "value": "<span style=\"display:inherit;clear:left;\">Au 31 mars 2026<span class=\"ff2\">, le<span class=\"_ _0\"></span>s actifs <span class=\"_ _0\"></span>immobilis\u00e9s net<span class=\"_ _0\"></span>s hors droits d\u2019ut<span class=\"_ _0\"></span>ilisation et a<span class=\"_ _0\"></span>ctifs financiers se r<span class=\"_ _0\"></span>\u00e9partissent de l<span class=\"_ _0\"></span>a fa\u00e7on suivante<span class=\"ff1\"> : </span></span></span><span style=\"display:inherit;clear:left;position:relative;height:101.0078125px;\"><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 0.365234px; width: 99.9258px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff2; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(En millier</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff2; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">s d\u2019euros)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 465.547px; top: 0.0136718px; width: 61.998px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">31/03/2026 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 568.188px; top: 0.0136718px; width: 61.998px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">31/03/2025 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 39.0762px; width: 122.678px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Immobilisations nett</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.891px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">es</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; width: 0.46875px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">   </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 63.3652px; width: 35.6836px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">France </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 517.438px; top: 63.3652px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">7 822 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 613px; top: 63.3652px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">8 065 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 86.7715px; width: 59.625px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Autres pay</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">s </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 517.438px; top: 86.7715px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 011 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 613px; top: 86.7715px; width: 27.1758px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 198</span></span></span>",
+   "dimensions": {
+    "concept": "ifrs-full:DisclosureOfProfitLossFromOperatingActivitiesExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__37": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.5.<span class=\"ff6 ls0\"> <span class=\"_ _30\"> </span><span class=\"ff5\">Ecarts d\u2019acqu<span class=\"_ _3\"></span>isition<span class=\"ff3\"> </span></span></span></span><span style=\"display:inherit;clear:left;position:relative;height:253.359375px;\"><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 0.0136718px; width: 104.93px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff5; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(En milli</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff5; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">ers d\u2019euros) </span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 257.453px; top: 0.0136718px; width: 86.6602px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">STD MARKETING </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 395.172px; top: 0.0136718px; width: 24.7266px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">STD  </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 486.062px; top: 0.0136718px; width: 57.9141px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">STD IBERIA </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 636.953px; top: 0.0136718px; width: 37.9512px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">TOTAL  </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 267.641px; top: 14.6074px; width: 67.2188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">HONG KONG </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 389.234px; top: 14.6074px; width: 36.082px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">France </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 29.3574px; width: 89.8184px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">VALEURS BRUTES</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 47.0137px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2025</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 320.922px; top: 47.0137px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 302 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 426.844px; top: 47.0137px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">2 439 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 544.391px; top: 47.0137px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">492</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 642.703px; top: 47.0137px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">4 233 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 63.5527px; width: 63.1875px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Mouvement </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 344px; top: 63.5527px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 449.922px; top: 63.5527px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 558.281px; top: 63.5527px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.781px; top: 63.5527px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 82.4668px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2026</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 320.922px; top: 82.4668px; width: 29.9062px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 302</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 426.844px; top: 82.4668px; width: 29.9062px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">2 439</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 544.391px; top: 82.4668px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">492</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 642.703px; top: 82.4668px; width: 29.9062px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">4 233</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 113.232px; width: 82.793px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">DEPRECIATIONS</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 129.803px; width: 76.9746px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2025 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 313.547px; top: 129.803px; width: 37.2129px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(1 302) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 419.469px; top: 129.803px; width: 37.2129px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(2 439) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 536.516px; top: 129.803px; width: 28.377px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(492) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 635.328px; top: 129.803px; width: 37.2129px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(4 233) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 145.67px; width: 63.1934px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Mouvement</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 344px; top: 145.67px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 449.922px; top: 145.67px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 558.281px; top: 145.67px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.781px; top: 145.67px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 160.045px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2026</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 313.547px; top: 160.045px; width: 37.4297px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(1 302) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 419.469px; top: 160.045px; width: 37.4297px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(2 439) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 536.516px; top: 160.045px; width: 28.6816px; white-space: pre; word-spacing: 0px; letter-spacing: 0.01725px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(492)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 635.328px; top: 160.045px; width: 37.4297px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(4 233) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 190.686px; width: 121.096px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Valeur nette co</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">mptable </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 206.357px; width: 76.9805px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2025</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 344px; top: 206.357px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 449.922px; top: 206.357px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 558.281px; top: 206.357px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.781px; top: 206.357px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 222.217px; width: 63.1934px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Mouvement</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 344px; top: 222.217px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 449.922px; top: 222.217px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 558.281px; top: 222.217px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.781px; top: 222.217px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 238.748px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2026</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 344px; top: 238.748px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 449.922px; top: 238.748px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 558.281px; top: 238.748px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.781px; top: 238.748px; width: 6.42773px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">-</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span></span><span style=\"display:inherit;clear:left;\">Les \u00e9cart<span class=\"_ _0\"></span>s d\u2019acquisition so<span class=\"_ _0\"></span>nt int\u00e9gralement d<span class=\"_ _0\"></span>\u00e9pr\u00e9ci\u00e9<span class=\"_ _0\"></span>s.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DisclosureOfIntangibleAssetsAndGoodwillExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__41": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.6.<span class=\"ff4\"> <span class=\"_ _e5\"> </span><span class=\"ff3\">Tests de valeurs sur ac<span class=\"_ _3\"></span>tifs immobilis\u00e9s<span class=\"_ _3\"></span></span></span> </span><span style=\"display:inherit;clear:left;\">Le Gr<span class=\"_ _0\"></span>oupe <span class=\"_ _0\"></span>appr\u00e9cie <span class=\"_ _0\"></span>l'existence <span class=\"_ _9\"></span>d'indic<span class=\"_ _3\"></span>es <span class=\"_ _0\"></span>de per<span class=\"_ _0\"></span>te <span class=\"_ _0\"></span>de valeur<span class=\"_ _0\"></span> \u00e0 <span class=\"_ _0\"></span>chaque cl<span class=\"_ _0\"></span>\u00f4ture, \u00e0 pa<span class=\"_ _0\"></span>rtir <span class=\"_ _0\"></span>d'un e<span class=\"_ _0\"></span>xamen combi<span class=\"_ _0\"></span>n\u00e9 d'ind<span class=\"_ _0\"></span>ices <span class=\"_ _0\"></span>externes et<span class=\"_ _0\"></span> internes <span class=\"_ _9\"></span>au </span><span style=\"display:inherit;clear:left;\">sens d'IAS 36.12 :<span class=\"_ _0\"></span> </span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _3c\"> </span><span class=\"ffa fs0\">Indices <span class=\"_ _3\"></span>externes<span class=\"ff1\"> <span class=\"_ _3\"></span>: <span class=\"_ _3\"></span>\u00e9volution <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>l'attractivit\u00e9 <span class=\"_ _3\"></span>commerciale des <span class=\"_ _1\"></span>emplac<span class=\"_ _0\"></span>ements <span class=\"_ _3\"></span>(fr\u00e9quentation, <span class=\"_ _3\"></span>dynamique <span class=\"_ _3\"></span>de <span class=\"_ _3\"></span>l'art\u00e8re), <span class=\"_ _3\"></span>conditions </span></span></span></span><span style=\"display:inherit;clear:left;\">de <span class=\"_ _3d\"> </span>re<span class=\"_ _0\"></span>nouvelle<span class=\"_ _0\"></span>ment <span class=\"_\"> </span>ou <span class=\"_ _3d\"> </span>risque <span class=\"_ _3d\"> </span>de <span class=\"_\"> </span>r\u00e9siliation <span class=\"_\"> </span>des <span class=\"_ _3d\"> </span>baux, <span class=\"_\"> </span>valeur <span class=\"_ _3d\"> </span>de <span class=\"_\"> </span>march\u00e9 <span class=\"_\"> </span>des <span class=\"_ _3d\"> </span>droits <span class=\"_\"> </span>au <span class=\"_ _3d\"> </span>bail <span class=\"_\"> </span>comparables, <span class=\"_ _3d\"> </span>env<span class=\"_ _0\"></span>ironnement </span><span style=\"display:inherit;clear:left;\">macro\u00e9cono<span class=\"_ _0\"></span>mique des march\u00e9<span class=\"_ _0\"></span>s concern\u00e9s <span class=\"_ _0\"></span>et \u00e9volution du<span class=\"_ _0\"></span> taux d'actualisati<span class=\"_ _0\"></span>on ; </span><span style=\"display:inherit;clear:left;\">\u2022<span class=\"ff4\"> <span class=\"_ _3c\"> </span><span class=\"ffa fs0\">Indices internes<span class=\"_ _0\"></span><span class=\"ff1\"> : performance de chaque point de vente rapport\u00e9e au budget et \u00e0 l'exercice pr\u00e9c\u00e9dent (chiffre<span class=\"_ _0\"></span> d'affaires, marge </span></span></span></span><span style=\"display:inherit;clear:left;\">de co<span class=\"_ _0\"></span>ntribution, <span class=\"_ _0\"></span>r\u00e9sultat <span class=\"_ _0\"></span>d'exploitat<span class=\"_ _0\"></span>ion), \u00e9carts <span class=\"_ _9\"></span>par<span class=\"_ _3\"></span> rap<span class=\"_ _0\"></span>port aux <span class=\"_ _9\"></span>plans d'affaires ay<span class=\"_ _0\"></span>ant serv<span class=\"_ _0\"></span>i de <span class=\"_ _0\"></span>base au<span class=\"_ _0\"></span>x tests an<span class=\"_ _0\"></span>t\u00e9rieurs, d\u00e9cisio<span class=\"_ _0\"></span>ns </span><span style=\"display:inherit;clear:left;\">de fermet<span class=\"_ _0\"></span>ure, transfert o<span class=\"_ _0\"></span>u restructuratio<span class=\"_ _0\"></span>n d'un point de v<span class=\"_ _0\"></span>ente, et \u00e9l\u00e9ment<span class=\"_ _0\"></span>s d'obsolesc<span class=\"_ _0\"></span>ence des agenc<span class=\"_ _0\"></span>ements. </span><span style=\"display:inherit;clear:left;\">Au cours de<span class=\"_ _0\"></span> l\u2019exercice 2025<span class=\"ff1\">-</span>26, aucu<span class=\"_ _9\"></span>n indice de perte de val<span class=\"_ _0\"></span>eur n\u2019a \u00e9t\u00e9 r<span class=\"_ _0\"></span>elev\u00e9.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DisclosureOfImpairmentOfAssetsExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__40": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.7.<span class=\"ff6 ls0\"> <span class=\"_ _30\"> </span><span class=\"ff3\">Immobilisations incor<span class=\"_ _3\"></span>porelles </span></span></span><span style=\"display:inherit;clear:left;position:relative;height:432.09375px;\"><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 309.703px; top: 0.0136718px; width: 150.768px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Recherche et D\u00e9</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">veloppement</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 479.109px; top: 0.0136718px; width: 122.391px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Solutions infor</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">matiques</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 628.484px; top: 0.0136718px; width: 28.3066px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Total</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 23.2324px; width: 102.205px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff5; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(En milli</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff5; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">ers d\u2019euros)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 42.3262px; width: 78.8145px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">VALEUR BRUTE</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 60.5137px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2024</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 445.562px; top: 60.5137px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">908</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 570.703px; top: 60.5137px; width: 36.0117px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">10 600 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 636.766px; top: 60.5137px; width: 36.0117px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">11 508 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 78.6777px; width: 61.541px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Acquisiti</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">ons </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 78.6777px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 586px; top: 78.6777px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">425</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 651.891px; top: 78.6777px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">425</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 95.9668px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2025</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 445.562px; top: 95.9668px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">908</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 570.703px; top: 95.9668px; width: 36.0176px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">11 025</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 636.766px; top: 95.9668px; width: 36.0176px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">11 933</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 118.818px; width: 61.541px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Acquisiti</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">ons </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 118.818px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 586px; top: 118.818px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">341</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 651.891px; top: 118.818px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">341</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 134.475px; width: 130.102px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Cessions o</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">u mise au rebut </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 134.475px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 584.203px; top: 134.475px; width: 22.2656px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(35) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 650.266px; top: 134.475px; width: 22.2656px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(35) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 152.287px; width: 78.627px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Effet de c</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">hange </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 152.287px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 599.312px; top: 152.287px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.797px; top: 152.287px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 168.49px; width: 35.0156px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Autres </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 168.49px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 590.312px; top: 168.49px; width: 16.1543px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(1) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 656.922px; top: 168.49px; width: 16.1543px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(1) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 185.061px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2026</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 445.562px; top: 184.342px; width: 21.0879px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">908</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 570.703px; top: 184.342px; width: 36.0176px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">11 330</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 636.766px; top: 184.342px; width: 36.0176px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">12 238</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 220.201px; width: 243.34px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">AMORTISSEMENTS &amp;</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> DEPRECIAT</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">IONS CUMUL</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">ES</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 243.951px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2024</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 438.359px; top: 243.951px; width: 28.6816px; white-space: pre; word-spacing: 0px; letter-spacing: 0.01725px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(908)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 568.719px; top: 243.951px; width: 37.4297px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(9 420)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 628.484px; top: 243.951px; width: 43.541px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(10 328)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 267.521px; width: 50.127px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Dotatio</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">ns </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 267.521px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 578.047px; top: 267.521px; width: 28.377px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(380) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 644.875px; top: 267.521px; width: 28.377px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(380) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 283.373px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2025</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 438.359px; top: 283.373px; width: 28.6816px; white-space: pre; word-spacing: 0px; letter-spacing: 0.01725px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(908)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 568.719px; top: 283.373px; width: 37.4297px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(9 800)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 628.484px; top: 283.373px; width: 43.541px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(10 708)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 301.006px; width: 50.127px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Dotatio</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">ns </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 301.006px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 578.047px; top: 301.006px; width: 28.377px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(430) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 644.875px; top: 301.006px; width: 28.377px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(430) </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 318.818px; width: 43.6348px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Reprise</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">s </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 317.193px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 592.25px; top: 317.928px; width: 14.9707px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">35</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 656.922px; top: 317.928px; width: 14.9707px; white-space: pre; word-spacing: 0px; letter-spacing: 0.00558px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">35</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 334.115px; width: 78.627px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Effet de c</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">hange </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 334.115px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 599.312px; top: 334.115px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.797px; top: 334.115px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 349.795px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2026</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 438.359px; top: 349.436px; width: 28.6816px; white-space: pre; word-spacing: 0px; letter-spacing: 0.01725px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(908)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 562.969px; top: 349.436px; width: 43.6289px; white-space: pre; word-spacing: 0px; letter-spacing: 0.01725px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(10</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0.00558px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">195)</span></span><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 628.484px; top: 349.436px; width: 43.6289px; white-space: pre; word-spacing: 0px; letter-spacing: 0.01725px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(11</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0.00558px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">103)</span></span><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 385.076px; width: 142.02px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">VALEUR NETTE </span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">COMPTABLE</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 401.279px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2025</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 401.279px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 576.812px; top: 401.279px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 225 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 642.625px; top: 401.279px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 225 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 417.482px; width: 78.1055px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Au 31/03/2026</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 460.141px; top: 417.482px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 576.812px; top: 417.482px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 135 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 642.625px; top: 417.482px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 135 </span></span></span><span style=\"display:inherit;clear:left;\">La rubr<span class=\"_ _0\"></span>ique <span class=\"_ _0\"></span>\u00ab Recherche <span class=\"_ _0\"></span>et <span class=\"_ _0\"></span>D\u00e9veloppement \u00bb <span class=\"_ _0\"></span>comprend <span class=\"_ _9\"></span>les frais e<span class=\"_ _0\"></span>ngag\u00e9s pour <span class=\"_ _9\"></span>la conception <span class=\"_ _9\"></span>e<span class=\"_ _3\"></span>t l<span class=\"_ _0\"></span>a fabric<span class=\"_ _0\"></span>ation de n<span class=\"_ _0\"></span>ouvelle<span class=\"_ _0\"></span>s lignes <span class=\"_ _0\"></span>de <span class=\"_ _0\"></span>produits </span><span style=\"display:inherit;clear:left;\">ou de nouv<span class=\"_ _0\"></span>elles technol<span class=\"_ _0\"></span>ogies s\u2019y rapportant<span class=\"_ _0\"></span> (amortis sur 3 <span class=\"_ _0\"></span>ans).<span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">La <span class=\"_ _3\"></span>rubrique<span class=\"_ _0\"></span> <span class=\"_ _3\"></span>\u00ab Solutions informatiques <span class=\"_ _3\"></span>\u00bb <span class=\"_ _3\"></span>corresp<span class=\"_ _0\"></span>ond <span class=\"_ _3\"></span>essentielle<span class=\"_ _0\"></span>ment <span class=\"_ _3\"></span>\u00e0 <span class=\"_ _3\"></span>des <span class=\"_ _3\"></span>logiciels mis <span class=\"_ _3\"></span>en <span class=\"_ _3\"></span>service, des <span class=\"_ _3\"></span>am\u00e9liorations et <span class=\"_ _3\"></span>maintenance li\u00e9s <span class=\"_ _3\"></span>\u00e0 </span><span style=\"display:inherit;clear:left;\">l\u2019ERP. Les acquisi<span class=\"_ _0\"></span>tions d<span class=\"_ _0\"></span>e l\u2019exercice se compose<span class=\"_ _0\"></span>nt principa<span class=\"_ _0\"></span>lement de lic<span class=\"_ _0\"></span>ences et de<span class=\"_ _0\"></span> logiciels.<span class=\"ff1\"> </span></span><span style=\"display:inherit;clear:left;\">Les <span class=\"_ _3\"></span>acquisitions <span class=\"_ _3\"></span>en <span class=\"_ _1\"></span>solutions <span class=\"_ _3\"></span>informatiques <span class=\"_ _3\"></span>de <span class=\"_ _1\"></span>l\u2019exerci<span class=\"_ _0\"></span>ce <span class=\"_ _1\"></span>(341 <span class=\"_ _3\"></span>milliers <span class=\"_ _3\"></span>d\u2019euros) <span class=\"_ _1\"></span>concer<span class=\"_ _0\"></span>nent <span class=\"_ _3\"></span>principalement <span class=\"_ _3\"></span>la <span class=\"_ _1\"></span>mise <span class=\"_ _1\"></span>\u00e0 <span class=\"_ _3\"></span>jour <span class=\"_ _1\"></span>et<span class=\"_ _0\"></span> <span class=\"_ _1\"></span>l\u2019\u00e9volution <span class=\"_ _3\"></span>d<span class=\"_ _3\"></span>e </span><span style=\"display:inherit;clear:left;\">l\u2019ERP, le <span class=\"_ _9\"></span>renforcement de <span class=\"_ _9\"></span>la<span class=\"_ _3\"></span> cy<span class=\"_ _0\"></span>bers\u00e9curit\u00e9, <span class=\"_ _0\"></span>ainsi que <span class=\"_ _0\"></span>le <span class=\"_ _0\"></span>d\u00e9ploiement de<span class=\"_ _0\"></span> nouvel<span class=\"_ _0\"></span>les solutio<span class=\"_ _0\"></span>ns analyt<span class=\"_ _0\"></span>iques et <span class=\"_ _0\"></span>e<span class=\"ff1\">-com<span class=\"_ _3\"></span>merce. <span class=\"_ _0\"></span>Ils vi<span class=\"_ _0\"></span>sent <span class=\"_ _0\"></span>\u00e0 am\u00e9liorer </span></span><span style=\"display:inherit;clear:left;\">la <span class=\"_ _0\"></span>performance <span class=\"_ _9\"></span>des process<span class=\"_ _0\"></span>us <span class=\"_ _0\"></span>m\u00e9tiers, l<span class=\"_ _0\"></span>a <span class=\"_ _0\"></span>qualit\u00e9 <span class=\"_ _9\"></span>d<span class=\"_ _3\"></span>es <span class=\"_ _9\"></span>donn<span class=\"_ _3\"></span>\u00e9es <span class=\"_ _0\"></span>et <span class=\"_ _0\"></span>la <span class=\"_ _0\"></span>s\u00e9curit\u00e9 de<span class=\"_ _0\"></span>s <span class=\"_ _0\"></span>syst\u00e8mes. <span class=\"_ _9\"></span>Ces projets <span class=\"_ _9\"></span>s\u2019inscrivent dans <span class=\"_ _9\"></span>la st<span class=\"ff1\">rat\u00e9gie <span class=\"_ _0\"></span>du <span class=\"_ _9\"></span>g<span class=\"_ _3\"></span>roupe </span></span><span style=\"display:inherit;clear:left;\">de moderni<span class=\"_ _0\"></span>sation digital<span class=\"_ _0\"></span>e et de continuit<span class=\"_ _0\"></span>\u00e9 op\u00e9ratio<span class=\"_ _0\"></span>nnelle.</span>",
+   "dimensions": {
+    "concept": "ifrs-full:DisclosureOfIntangibleAssetsExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "f0__s9__6__52": {
+   "value": "<span style=\"display:inherit;clear:left;\">6.5.10.<span class=\"ff6\"> <span class=\"_ _e6\"> </span></span>Actifs financiers non c<span class=\"_ _3\"></span>ourants </span><span style=\"display:inherit;clear:left;position:relative;height:67.0390625px;\"><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 0.0058593px; width: 99.9258px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">(En </span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff2; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">millier</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff2; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">s d\u2019euros)</span><span class=\"pp-font-color-override-1\" style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\"> </span></span></span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 527.656px; top: 0.373047px; width: 61.998px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">31/03/2026 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 610.312px; top: 0.373047px; width: 61.998px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">31/03/2025 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 20.3496px; width: 171.111px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Autres immobil</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">isations</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> financi\u00e8res </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 559.516px; top: 20.3496px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 226 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 642.891px; top: 20.3496px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 424 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 36.5371px; width: 112.131px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Instruments </span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">financiers </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 583.078px; top: 36.5371px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 665.75px; top: 36.5371px; width: 6.42188px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff1; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">- </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 0px; top: 52.4199px; width: 177.193px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">Total actifs f</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\">inanciers non courants</span><span style=\"word-spacing: 0px; letter-spacing: 0px; display: inline-block; margin-left: -0.41004px; width: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"></span><span style=\"display: inline-block;\"> </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 559.516px; top: 52.4199px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 226 </span></span><span class=\"pp-font-color-override-1\" style=\"position: absolute; display: inline-block; left: 642.891px; top: 52.4199px; width: 29.9004px; white-space: pre; word-spacing: 0px; letter-spacing: 0px; margin-left: 0px; font-size: 12.06px; font-family: ff3; -webkit-text-stroke: 0.1809px rgba(0, 0, 0, 0);\"><span style=\"display: inline-block;\">1 424 </span></span></span><span style=\"display:inherit;clear:left;\">Les acti<span class=\"_ _0\"></span>fs financiers au<span class=\"_ _0\"></span> 31 mars 2026 <span class=\"ff2\">s\u2019\u00e9l\u00e8vent<span class=\"_ _0\"></span> \u00e0 1,2 million <span class=\"_ _0\"></span>d\u2019euros et sont princ<span class=\"_ _0\"></span>ipalement compo<span class=\"_ _0\"></span>s\u00e9s de d\u00e9p\u00f4ts et<span class=\"_ _0\"></span> cautionnement.<span class=\"ff1\"> </span></span></span>",
+   "dimensions": {
+    "concept": "ifrs-full:DisclosureOfFinancialAssetsHeldForTradingExplanatory",
+    "language": "fr",
+    "entity": "scheme:969500YT2CGGAD8YNM04",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  }
+ }
+}

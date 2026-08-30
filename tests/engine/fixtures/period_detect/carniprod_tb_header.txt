@@ -1,0 +1,4 @@
+CARNIPROD SRL
+CUI RO1234567
+BALANTA DE VERIFICARE la data de 31.12.2025
+Cont      Denumire cont                 Sold initial D   Sold initial C   Rulaj D   Rulaj C   Sume totale D   Sume totale C   Sold final D   Sold final C

@@ -1,0 +1,3218 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "uk",
+  "as_of": "2026-08-29",
+  "source": {
+    "name": "filings.xbrl.org ESEF filings index, joined to GLEIF Level 1 legal names",
+    "url": "https://filings.xbrl.org/api/filings?filter=country eq GB",
+    "dataset_version": "filings.xbrl.org country=GB count=2897 + GLEIF golden copy 2026-08-29T16:00:00Z",
+    "retrieved_at": "2026-08-30T05:11:21Z",
+    "names_from": "https://api.gleif.org/api/v1/lei-records",
+    "identity_only": true
+  },
+  "license_note": "Filings index: at present, there are no restrictions on the ways that the data can be used (filings.xbrl.org/docs/about). Legal names: The data available through the Access Service are provided under the CC0 licence, see CC0 1.0 Universal (CC0 1.0). (gleif.org/en/meta/lei-data-terms-of-use, retrieved 2026-08-30)",
+  "coverage_note": "The entities that have actually filed ESEF reports for country GB, keyed by the LEI the filings index publishes and named from GLEIF — identity only, NO figures. This is FEED COVERAGE, not index membership: a national index list would name companies this platform holds nothing for, while this file names exactly the companies the ESEF feed can speak about. Index constituent lists were considered and rejected as a source — they are the index providers' proprietary IP with no licence-clear machine-readable public distribution, and the free copies are HTML tables. Members carry no ticker because the feed publishes none, which is exactly why this market's registry status is fundamentals_only: the figures exist, the ticker lookup does not. 2897 filing rows yielded 800 distinct entities, 0 of which had no GLEIF Level 1 record at fetch time and are therefore absent rather than named by guess.",
+  "member_count": 800,
+  "members": [
+    {
+      "name": "SEPLAT ENERGY PLC",
+      "lei": "029200711C4S4CB2E982"
+    },
+    {
+      "name": "ABERDEEN GROUP PLC",
+      "lei": "0TMBS544NMO7GLCE7H90"
+    },
+    {
+      "name": "CREDIT AGRICOLE CORPORATE AND INVESTMENT BANK",
+      "lei": "1VUV7VQFKUOQSJ21A208"
+    },
+    {
+      "name": "O'KEY GROUP S.A.",
+      "lei": "213800133YYU23T4L791"
+    },
+    {
+      "name": "ASTON MARTIN LAGONDA GLOBAL HOLDINGS PLC",
+      "lei": "213800167WOVOK5ZC776"
+    },
+    {
+      "name": "DIALIGHT PLC",
+      "lei": "2138001AD31KKD29Z495"
+    },
+    {
+      "name": "JOHNSON MATTHEY PLC",
+      "lei": "2138001AVBSD1HSC6Z10"
+    },
+    {
+      "name": "R8 CAPITAL INVESTMENTS PLC",
+      "lei": "2138001BLO7EORII7E91"
+    },
+    {
+      "name": "CUSTODIAN PROPERTY INCOME REIT PLC",
+      "lei": "2138001BOD1J5XK1CX76"
+    },
+    {
+      "name": "CURRYS PLC",
+      "lei": "2138001E12GWLLDQQF16"
+    },
+    {
+      "name": "TRAVIS PERKINS PLC",
+      "lei": "2138001I27OUBAF22K83"
+    },
+    {
+      "name": "RIGHTMOVE PLC",
+      "lei": "2138001JXGCFKBXYB828"
+    },
+    {
+      "name": "WH SMITH PLC",
+      "lei": "2138001KJNGUJ34G7X91"
+    },
+    {
+      "name": "VISTRY GROUP PLC",
+      "lei": "2138001KOWN7CG9SLK53"
+    },
+    {
+      "name": "STANDARD LIFE PLC",
+      "lei": "2138001P49OLAEU33T68"
+    },
+    {
+      "name": "EASYJET PLC",
+      "lei": "2138001S47XKWIB7TH90"
+    },
+    {
+      "name": "KEELE RESIDENTIAL FUNDING PLC",
+      "lei": "2138001SNIYIJQNFL123"
+    },
+    {
+      "name": "TECHNOLOGY MINERALS PLC",
+      "lei": "2138001U1U2XY5UYA479"
+    },
+    {
+      "name": "LMP BUDE LIMITED",
+      "lei": "2138001XRCB89W6XTR23"
+    },
+    {
+      "name": "EAST STAR RESOURCES PLC",
+      "lei": "2138001Y6SMQC8DX2B40"
+    },
+    {
+      "name": "SCHRODERS PLC",
+      "lei": "2138001YYBULX5SZ2H24"
+    },
+    {
+      "name": "SEVERFIELD PLC",
+      "lei": "21380025AWPR781CY104"
+    },
+    {
+      "name": "GLENCORE PLC",
+      "lei": "2138002658CPO9NBH955"
+    },
+    {
+      "name": "ASSURA LIMITED",
+      "lei": "21380026T19N2Y52XF72"
+    },
+    {
+      "name": "THALASSA HOLDINGS LTD",
+      "lei": "2138002739WFQPLBEQ42"
+    },
+    {
+      "name": "AMICORP FS (UK) PLC",
+      "lei": "21380028AUYWGMYXQA57"
+    },
+    {
+      "name": "NEOTERRA GROUP PLC",
+      "lei": "2138002A5GU9BFS2I491"
+    },
+    {
+      "name": "INTERNATIONAL PUBLIC PARTNERSHIPS LIMITED",
+      "lei": "2138002AJT55TI5M4W30"
+    },
+    {
+      "name": "OXFORD TECHNOLOGY 2 VENTURE CAPITAL TRUST PLC",
+      "lei": "2138002COY2EXJDHWB30"
+    },
+    {
+      "name": "CALEDONIA INVESTMENTS PLC",
+      "lei": "2138002FX1MYCA5ZZH32"
+    },
+    {
+      "name": "UNITED UTILITIES GROUP PLC",
+      "lei": "2138002IEYQAOC88ZJ59"
+    },
+    {
+      "name": "TRUSTPILOT GROUP PLC",
+      "lei": "2138002ILUNMGNPSGG46"
+    },
+    {
+      "name": "TESCO PLC",
+      "lei": "2138002P5RNKC5W2JZ46"
+    },
+    {
+      "name": "MOYLE INTERCONNECTOR (FINANCING) PUBLIC LIMITED COMPANY",
+      "lei": "2138002P98CV22GBM646"
+    },
+    {
+      "name": "KIER GROUP PLC",
+      "lei": "2138002RKCU2OM4Y7O48"
+    },
+    {
+      "name": "MEDICLINIC GROUP LIMITED",
+      "lei": "2138002S5BSBIZTD5I60"
+    },
+    {
+      "name": "IMI PLC",
+      "lei": "2138002W9Q21PF751R30"
+    },
+    {
+      "name": "WISDOM MARINE LINES CO., LIMITED",
+      "lei": "2138002Y4SAHF7NM3W37"
+    },
+    {
+      "name": "APAX GLOBAL ALPHA LIMITED",
+      "lei": "21380031LQE8CU8NU843"
+    },
+    {
+      "name": "Galp Energia, SGPS, S.A.",
+      "lei": "2138003319Y7NM75FG53"
+    },
+    {
+      "name": "THE PRS REIT PLC",
+      "lei": "21380037Q91HU97WZX58"
+    },
+    {
+      "name": "HILL & SMITH PLC",
+      "lei": "2138003A3ISGQZBOWI83"
+    },
+    {
+      "name": "IG GROUP HOLDINGS PLC",
+      "lei": "2138003A5Q1M7ANOUD76"
+    },
+    {
+      "name": "ATLAS METALS GROUP PLC",
+      "lei": "2138003C24H79U5QZH21"
+    },
+    {
+      "name": "FUNDING CIRCLE HOLDINGS PLC",
+      "lei": "2138003EK6UAINBBUS19"
+    },
+    {
+      "name": "TULLOW OIL PLC",
+      "lei": "2138003EYHWO75RKS857"
+    },
+    {
+      "name": "INTERTEK GROUP PLC",
+      "lei": "2138003GAT25WW1RN369"
+    },
+    {
+      "name": "WORKSPACE GROUP PLC",
+      "lei": "2138003GUZRFIN3UT430"
+    },
+    {
+      "name": "PPHE HOTEL GROUP LIMITED",
+      "lei": "2138003H1BZGR6KM5823"
+    },
+    {
+      "name": "INTERNATIONAL WORKPLACE GROUP PLC",
+      "lei": "2138003LWDII27UTAG52"
+    },
+    {
+      "name": "STHREE PLC",
+      "lei": "2138003NEBX5VRP3EX50"
+    },
+    {
+      "name": "IBSTOCK PLC",
+      "lei": "2138003QHTNX34CN9V93"
+    },
+    {
+      "name": "HELICAL PLC",
+      "lei": "2138003SBD2Z7WV2MP70"
+    },
+    {
+      "name": "COATS GROUP PLC",
+      "lei": "2138003SPYWGAITNFY17"
+    },
+    {
+      "name": "FERRO-ALLOY RESOURCES LIMITED",
+      "lei": "2138003T5CF6U9W7Z780"
+    },
+    {
+      "name": "PETS AT HOME GROUP PLC",
+      "lei": "2138003Y9ULD24PD3J93"
+    },
+    {
+      "name": "ROS AGRO PLC",
+      "lei": "21380042L8XBX2MYNI64"
+    },
+    {
+      "name": "PETROFAC LIMITED",
+      "lei": "2138004624W8CKCSJ177"
+    },
+    {
+      "name": "RENISHAW P L C",
+      "lei": "21380048ADXM6Z67CT18"
+    },
+    {
+      "name": "DIGNITY PLC",
+      "lei": "21380049687CNAYKV483"
+    },
+    {
+      "name": "ACCELER8 VENTURES PLC",
+      "lei": "2138004B1HKZP1OR2C72"
+    },
+    {
+      "name": "COVENTRY BUILDING SOCIETY",
+      "lei": "2138004G59FXEAZ6IO10"
+    },
+    {
+      "name": "NEWRIVER REIT PLC",
+      "lei": "2138004GX1VAUMH66L31"
+    },
+    {
+      "name": "PEARSON PLC",
+      "lei": "2138004JBXWWJKIURC57"
+    },
+    {
+      "name": "CASTINGS PUBLIC LIMITED COMPANY",
+      "lei": "2138004LKVACAUE94W70"
+    },
+    {
+      "name": "SMITHS NEWS PLC",
+      "lei": "2138004O33ONVOOQXB02"
+    },
+    {
+      "name": "INVESTMENT COMPANY PLC(THE)",
+      "lei": "2138004PBWN5WM2XST62"
+    },
+    {
+      "name": "PREMIER MITON GLOBAL RENEWABLES TRUST PLC",
+      "lei": "2138004SR19RBRGX6T68"
+    },
+    {
+      "name": "CRODA INTERNATIONAL PUBLIC LIMITED COMPANY",
+      "lei": "2138004WCNBFJEEOXV26"
+    },
+    {
+      "name": "SAGA PLC",
+      "lei": "2138004WWUJN94K2LH95"
+    },
+    {
+      "name": "JOHNSON SERVICE GROUP PLC",
+      "lei": "2138004WZUPWV53KWV11"
+    },
+    {
+      "name": "XPS PENSIONS GROUP PLC",
+      "lei": "2138004Y8OBPJEAACJ11"
+    },
+    {
+      "name": "AMEDEO AIR FOUR PLUS LIMITED",
+      "lei": "21380056PDNOTWERG107"
+    },
+    {
+      "name": "ITHACA ENERGY PLC",
+      "lei": "21380057TNFLXPXBIP34"
+    },
+    {
+      "name": "AO WORLD PLC",
+      "lei": "2138005FFOAJIUZY4375"
+    },
+    {
+      "name": "ATERIAN PLC",
+      "lei": "2138005GAARIE1JMP262"
+    },
+    {
+      "name": "Genuit Group plc",
+      "lei": "2138005IF1N2RKJ6KO18"
+    },
+    {
+      "name": "NATWEST GROUP PLC",
+      "lei": "2138005O9XJIJN4JPN90"
+    },
+    {
+      "name": "SOLVONIS THERAPEUTICS PLC",
+      "lei": "2138005PH7OJRCRPUD88"
+    },
+    {
+      "name": "THE DIVERSE INCOME TRUST PLC",
+      "lei": "2138005QFXYHJM551U45"
+    },
+    {
+      "name": "RM PLC",
+      "lei": "2138005RKUCIEKLXWM61"
+    },
+    {
+      "name": "THE SAGE GROUP PLC.",
+      "lei": "2138005RN5XYLTF8G138"
+    },
+    {
+      "name": "OXFORD CANNABINOID TECHNOLOGIES HOLDINGS PLC",
+      "lei": "2138005SRWT4998BCE35"
+    },
+    {
+      "name": "SANNE GROUP PLC",
+      "lei": "2138005UBLKEZRITH576"
+    },
+    {
+      "name": "CENTAUR MEDIA PLC",
+      "lei": "2138005WK87G7DQRQI62"
+    },
+    {
+      "name": "MJ GLEESON PLC",
+      "lei": "21380064K7N2W7FD6434"
+    },
+    {
+      "name": "THG PLC",
+      "lei": "21380066N3SV9O8IDP37"
+    },
+    {
+      "name": "SHELL PLC",
+      "lei": "21380068P1DRHMJ8KU70"
+    },
+    {
+      "name": "S4 CAPITAL PLC",
+      "lei": "21380068SP9V65KPQN68"
+    },
+    {
+      "name": "PLAYTECH PLC",
+      "lei": "21380068TTB6Z9ZEU548"
+    },
+    {
+      "name": "THE LAW DEBENTURE CORPORATION P.L.C.",
+      "lei": "2138006E39QX7XV6PP21"
+    },
+    {
+      "name": "ASEANA PROPERTIES LIMITED",
+      "lei": "2138006H7PF4CNUEVT05"
+    },
+    {
+      "name": "STELRAD GROUP PLC",
+      "lei": "2138006LKVGN16PTVA73"
+    },
+    {
+      "name": "TOTAL GRAPHITE PLC",
+      "lei": "2138006PQV9F72H17783"
+    },
+    {
+      "name": "BARRATT REDROW PLC",
+      "lei": "2138006R85VEOF5YNK29"
+    },
+    {
+      "name": "SABRE INSURANCE GROUP PLC",
+      "lei": "2138006RXRQ8P8VKGV98"
+    },
+    {
+      "name": "TP ICAP GROUP PLC",
+      "lei": "2138006YAA7IRVKKGE63"
+    },
+    {
+      "name": "ME GROUP INTERNATIONAL PLC",
+      "lei": "2138006YJ65EKBYYYX41"
+    },
+    {
+      "name": "SHAWBROOK GROUP PLC",
+      "lei": "21380071539WSMTM4410"
+    },
+    {
+      "name": "NORTHERN POWERGRID (NORTHEAST) PLC",
+      "lei": "21380072EMKFDZSTLD28"
+    },
+    {
+      "name": "ROUND HILL MUSIC ROYALTY FUND LIMITED",
+      "lei": "213800752UO1CJTV8C39"
+    },
+    {
+      "name": "VERTU CAPITAL LIMITED",
+      "lei": "213800759LA8YJLVXQ49"
+    },
+    {
+      "name": "STV GROUP PLC",
+      "lei": "21380075GOOTTBDNDJ58"
+    },
+    {
+      "name": "CARCLO PLC",
+      "lei": "21380078MEM399JPI956"
+    },
+    {
+      "name": "GRAINGER PLC",
+      "lei": "2138007CEIRKZMNI2979"
+    },
+    {
+      "name": "SUPERMARKET INCOME REIT PLC",
+      "lei": "2138007FOINJKAM7L537"
+    },
+    {
+      "name": "HALMA PUBLIC LIMITED COMPANY",
+      "lei": "2138007FRGLUR9KGBT40"
+    },
+    {
+      "name": "CLARKSON PLC",
+      "lei": "2138007G6BGTEHI3OT22"
+    },
+    {
+      "name": "VIDENDUM PLC",
+      "lei": "2138007H5DQ4X8YOCF14"
+    },
+    {
+      "name": "INTEGRATED DIAGNOSTICS HOLDINGS PLC",
+      "lei": "2138007JN9NUWKKTS790"
+    },
+    {
+      "name": "KAVANGO RESOURCES PLC",
+      "lei": "2138007PZJFATXWUTS29"
+    },
+    {
+      "name": "SLF Realisation Fund Limited",
+      "lei": "2138007S3YRY3IUU4W39"
+    },
+    {
+      "name": "ASHTEAD GROUP PUBLIC LIMITED COMPANY",
+      "lei": "2138007UTBN8X9K1A235"
+    },
+    {
+      "name": "NOSTRUM OIL & GAS PLC",
+      "lei": "2138007VWEP4MM3J8B29"
+    },
+    {
+      "name": "GLOBAL PORTS INVESTMENTS PLC",
+      "lei": "2138007WMNVQAVLMP351"
+    },
+    {
+      "name": "INVESTEC PLC",
+      "lei": "2138007Z3U5GWDN3MY22"
+    },
+    {
+      "name": "INTERCONTINENTAL HOTELS GROUP PLC",
+      "lei": "2138007ZFQYRUSLU3J98"
+    },
+    {
+      "name": "RCB BONDS PLC",
+      "lei": "21380081925ENBZ6KM68"
+    },
+    {
+      "name": "HSBC UK BANK PLC",
+      "lei": "21380081EP12LC86CB82"
+    },
+    {
+      "name": "MORGAN SINDALL GROUP PLC",
+      "lei": "2138008339ULDGZRB345"
+    },
+    {
+      "name": "CONDUIT HOLDINGS LIMITED",
+      "lei": "21380085AE62D1BXSF19"
+    },
+    {
+      "name": "PENSIONBEE GROUP PLC",
+      "lei": "2138008663P5FHPGZV74"
+    },
+    {
+      "name": "TAYLOR WIMPEY PLC",
+      "lei": "21380089BTRXTD8S3R66"
+    },
+    {
+      "name": "ICG-LONGBOW SENIOR SECURED UK PROPERTY DEBT INVESTMENTS LIMITED",
+      "lei": "2138008BKBH3OP2CA764"
+    },
+    {
+      "name": "GEORGINA ENERGY PLC",
+      "lei": "2138008HMWNFOBOHGW65"
+    },
+    {
+      "name": "HOSTMORE PLC",
+      "lei": "2138008IAVFFCVTG1L66"
+    },
+    {
+      "name": "TATE & LYLE PUBLIC LIMITED COMPANY",
+      "lei": "2138008K14474WPKZ244"
+    },
+    {
+      "name": "HEMOGENYX PHARMACEUTICALS PLC",
+      "lei": "2138008L93GYU5GN6179"
+    },
+    {
+      "name": "ENQUEST PLC",
+      "lei": "2138008LJU6WFQWOXJ73"
+    },
+    {
+      "name": "COMPASS GROUP PLC",
+      "lei": "2138008M6MH9OZ6U2T68"
+    },
+    {
+      "name": "LAMPRELL LIMITED",
+      "lei": "2138008NUMXRMIEDF538"
+    },
+    {
+      "name": "DIPLOMA PLC",
+      "lei": "2138008OGI7VYG8FGR19"
+    },
+    {
+      "name": "публичное акционерное общество \"НОВАТЭК\"",
+      "lei": "2138008R6GCRVBDFA581"
+    },
+    {
+      "name": "BIFFA PLC",
+      "lei": "2138008RB4WDK7HYYS91"
+    },
+    {
+      "name": "HUNTING PLC",
+      "lei": "2138008S5FL78ITZRN66"
+    },
+    {
+      "name": "REDROW LIMITED",
+      "lei": "2138008WJZBBA7EYEL28"
+    },
+    {
+      "name": "LXI LIMITED",
+      "lei": "2138008YZGXOKAXQVI45"
+    },
+    {
+      "name": "HARGREAVES LANSDOWN LIMITED",
+      "lei": "2138008ZCE93ZDSESG90"
+    },
+    {
+      "name": "WATCHES OF SWITZERLAND GROUP PLC",
+      "lei": "2138008ZOT5K9PJW7168"
+    },
+    {
+      "name": "ZENTRA GROUP PLC",
+      "lei": "2138008ZZUCCE4UZHY23"
+    },
+    {
+      "name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"НОВОЛИПЕЦКИЙ МЕТАЛЛУРГИЧЕСКИЙ КОМБИНАТ\"",
+      "lei": "213800913TPW32I84456"
+    },
+    {
+      "name": "PLAZA CENTERS N.V.",
+      "lei": "21380092Z2CWL9KOOM34"
+    },
+    {
+      "name": "CAPITAL & REGIONAL PLC",
+      "lei": "21380097W74N9OYF5Z25"
+    },
+    {
+      "name": "WHITBREAD PLC",
+      "lei": "21380099VMZKRMN3EX36"
+    },
+    {
+      "name": "Sealand Capital Galaxy Limited",
+      "lei": "2138009EB25MJIULQO19"
+    },
+    {
+      "name": "COPENHAGEN CAPITAL A/S",
+      "lei": "2138009GSW8ZDUU33943"
+    },
+    {
+      "name": "VK COMPANY LIMITED",
+      "lei": "2138009IXUP41SPL5B50"
+    },
+    {
+      "name": "PALACE CAPITAL PLC",
+      "lei": "2138009JDFQOXJFCJQ05"
+    },
+    {
+      "name": "JARDINE MATHESON HOLDINGS LIMITED",
+      "lei": "2138009KENVUNWOLPK41"
+    },
+    {
+      "name": "TOPPS TILES PLC",
+      "lei": "2138009NA4K1NTLN7Q97"
+    },
+    {
+      "name": "THE BERKELEY GROUP HOLDINGS PLC",
+      "lei": "2138009OQSSLVVHQAL78"
+    },
+    {
+      "name": "AEP PLANTATIONS PLC",
+      "lei": "2138009ROZICGP42QP19"
+    },
+    {
+      "name": "THE GO-AHEAD GROUP LIMITED",
+      "lei": "2138009TF1SYOMQLBJ60"
+    },
+    {
+      "name": "APTITUDE SOFTWARE GROUP PLC",
+      "lei": "2138009VHA1WI2VKMA28"
+    },
+    {
+      "name": "BALANCED COMMERCIAL PROPERTY TRUST LIMITED",
+      "lei": "213800A2B1H4ULF3K397"
+    },
+    {
+      "name": "CLS HOLDINGS PLC",
+      "lei": "213800A357TKB2TD9U78"
+    },
+    {
+      "name": "HOME REIT PLC",
+      "lei": "213800A53AOVH3FCGG44"
+    },
+    {
+      "name": "MOBICO GROUP PLC",
+      "lei": "213800A8IQEMY8PA5X34"
+    },
+    {
+      "name": "QUANEX EXTRUDED SOLUTIONS LTD",
+      "lei": "213800AAFUV5PKGQU848"
+    },
+    {
+      "name": "WORSLEY INVESTORS LIMITED",
+      "lei": "213800AF85VEZMDMF931"
+    },
+    {
+      "name": "ROTORK P.L.C.",
+      "lei": "213800AH5RZIHGWRJ718"
+    },
+    {
+      "name": "AQUILA ENERGY EFFICIENCY TRUST PLC",
+      "lei": "213800AJ3TY3OJCQQC53"
+    },
+    {
+      "name": "TRIPLE POINT VENTURE VCT PLC",
+      "lei": "213800AOOAQA5XQDEA89"
+    },
+    {
+      "name": "ZEGONA COMMUNICATIONS PLC",
+      "lei": "213800ASI1VZL2ED4S65"
+    },
+    {
+      "name": "CARETRUST UK LIMITED",
+      "lei": "213800AX3FHPMJL4IJ53"
+    },
+    {
+      "name": "KIN AND CARTA HOLDCO LIMITED",
+      "lei": "213800B32KQM8CENCR16"
+    },
+    {
+      "name": "ZIGUP PLC",
+      "lei": "213800B3ZUTDOZYVJB41"
+    },
+    {
+      "name": "ZOTEFOAMS PLC",
+      "lei": "213800B6P256B5XN8D32"
+    },
+    {
+      "name": "MEDICA GROUP LIMITED",
+      "lei": "213800B8XE5FUSZF5Z16"
+    },
+    {
+      "name": "LUCECO PLC",
+      "lei": "213800BBFZK4W4P98U76"
+    },
+    {
+      "name": "THE UNITE GROUP PLC",
+      "lei": "213800BBUUWVDH9YI827"
+    },
+    {
+      "name": "LIVING REIT PLC",
+      "lei": "213800BERVBS2HFTBC58"
+    },
+    {
+      "name": "DP Eurasia B.V.",
+      "lei": "213800BHW8PKOQW21X96"
+    },
+    {
+      "name": "ESKEN LIMITED",
+      "lei": "213800BINQVRZFKA3E89"
+    },
+    {
+      "name": "WORLD CHESS PLC",
+      "lei": "213800BKR3RT23F9DN71"
+    },
+    {
+      "name": "DISCOVERIE GROUP PLC",
+      "lei": "213800BMDLQU1VEEAN68"
+    },
+    {
+      "name": "GLOBAL PORTS HOLDING LIMITED",
+      "lei": "213800BMNG6351VR5X06"
+    },
+    {
+      "name": "Doric Nimrod Air Three Limited",
+      "lei": "213800BMYMCBKT5W8M49"
+    },
+    {
+      "name": "PENNPETRO ENERGY PLC",
+      "lei": "213800BNN7UN97NVP509"
+    },
+    {
+      "name": "EPE SPECIAL OPPORTUNITIES LIMITED",
+      "lei": "213800BQKN9C23A7LK98"
+    },
+    {
+      "name": "WAREHOUSE REIT PLC",
+      "lei": "213800BQUD83TYQCWN28"
+    },
+    {
+      "name": "POLLEN STREET LIMITED",
+      "lei": "213800BSSM76JMYMSO76"
+    },
+    {
+      "name": "PINEAPPLE POWER CORPORATION PLC",
+      "lei": "213800BTD7JL99MTGQ68"
+    },
+    {
+      "name": "LONDON FINANCE & INVESTMENT GROUP P.L.C.",
+      "lei": "213800BV1J4DJE2SY849"
+    },
+    {
+      "name": "DERWENT LONDON PLC",
+      "lei": "213800BXKQ9KZNUR1M61"
+    },
+    {
+      "name": "EZZ STEEL",
+      "lei": "213800C3H4JQ6S15VS50"
+    },
+    {
+      "name": "ALFA FINANCIAL SOFTWARE HOLDINGS PLC",
+      "lei": "213800C5UOZHUTNUGA28"
+    },
+    {
+      "name": "FULLER SMITH & TURNER PLC",
+      "lei": "213800C7ACOFMRCQQW76"
+    },
+    {
+      "name": "ICFG LIMITED",
+      "lei": "213800C7BC4EZQAEBT76"
+    },
+    {
+      "name": "FERREXPO PLC",
+      "lei": "213800CEDKSNUTPAQZ41"
+    },
+    {
+      "name": "J D WETHERSPOON PLC",
+      "lei": "213800CHWARFAAN7UB85"
+    },
+    {
+      "name": "RENEWI LIMITED",
+      "lei": "213800CNEIDZBL17KU22"
+    },
+    {
+      "name": "BAKKAVOR GROUP LIMITED",
+      "lei": "213800COL7AD54YU9949"
+    },
+    {
+      "name": "WIZZ AIR HOLDINGS PLC",
+      "lei": "213800COXGZCORLJZA85"
+    },
+    {
+      "name": "UIL LIMITED",
+      "lei": "213800CTZ7TEIE7YM468"
+    },
+    {
+      "name": "VALUE AND INDEXED PROPERTY INCOME TRUST PLC",
+      "lei": "213800CU1PIC7GAER820"
+    },
+    {
+      "name": "MOUNTVIEW ESTATES PLC",
+      "lei": "213800CWH9IB4DTEYG96"
+    },
+    {
+      "name": "SECURE TRUST BANK PUBLIC LIMITED COMPANY",
+      "lei": "213800CXIBLC2TMIGI76"
+    },
+    {
+      "name": "BELLWAY P L C",
+      "lei": "213800CY4L3HST4FGZ98"
+    },
+    {
+      "name": "INTEGRAFIN HOLDINGS PLC",
+      "lei": "213800CYIZKXK9PQYE87"
+    },
+    {
+      "name": "RESIDENTIAL SECURE INCOME PLC",
+      "lei": "213800D24WA531LAR763"
+    },
+    {
+      "name": "GLOBALTRANS INVESTMENT PLC",
+      "lei": "213800D6EVVEJJW3MD09"
+    },
+    {
+      "name": "MHP SE",
+      "lei": "213800D7DXFXGA292757"
+    },
+    {
+      "name": "CHELVERTON UK DIVIDEND TRUST PLC",
+      "lei": "213800DAF47EJ2HT4P78"
+    },
+    {
+      "name": "HELIOS TOWERS PLC",
+      "lei": "213800DGC7GS4XCHCU30"
+    },
+    {
+      "name": "DE LA RUE LIMITED",
+      "lei": "213800DH741LZWIJXP78"
+    },
+    {
+      "name": "MEARS GROUP PLC",
+      "lei": "213800DHCALLH8IRJV57"
+    },
+    {
+      "name": "IFOREX FINANCIAL TRADING HOLDINGS LTD.",
+      "lei": "213800DHYQM8426F7F96"
+    },
+    {
+      "name": "NCC GROUP PLC",
+      "lei": "213800DJCGZRB6523934"
+    },
+    {
+      "name": "BREEDON GROUP PLC",
+      "lei": "213800DQGNQE3X76WS92"
+    },
+    {
+      "name": "NON-STANDARD FINANCE PLC",
+      "lei": "213800DVBNIJ1J2OF119"
+    },
+    {
+      "name": "JTC PLC",
+      "lei": "213800DVUG4KLF2ASK33"
+    },
+    {
+      "name": "ECCLESIASTICAL INSURANCE OFFICE PUBLIC LIMITED COMPANY",
+      "lei": "213800E5HL2O1FU4I690"
+    },
+    {
+      "name": "ULTRA ELECTRONICS HOLDINGS PLC",
+      "lei": "213800E68EATZGAJIP64"
+    },
+    {
+      "name": "ROLLS-ROYCE HOLDINGS PLC",
+      "lei": "213800EC7997ZBLZJH69"
+    },
+    {
+      "name": "PORVAIR PLC",
+      "lei": "213800ECKHS8LAQO3C45"
+    },
+    {
+      "name": "CHESTERFIELD RESOURCES PLC",
+      "lei": "213800EF8I2TT767IU35"
+    },
+    {
+      "name": "THUNGELA RESOURCES",
+      "lei": "213800EGYK3BN3SRIF27"
+    },
+    {
+      "name": "GREENX METALS LIMITED",
+      "lei": "213800EHCGNYSCN9T108"
+    },
+    {
+      "name": "SYNTHOMER PLC",
+      "lei": "213800EHT3TI1KPQQJ56"
+    },
+    {
+      "name": "NORCROS PLC",
+      "lei": "213800EIMJZZA1GBIE18"
+    },
+    {
+      "name": "MARKS AND SPENCER GROUP P.L.C.",
+      "lei": "213800EJP14A79ZG1X44"
+    },
+    {
+      "name": "HOMESERVE LIMITED",
+      "lei": "213800EKBJTGNMXEDF11"
+    },
+    {
+      "name": "Doric Nimrod Air Two Limited",
+      "lei": "213800ENH57LLS7MEM48"
+    },
+    {
+      "name": "VOLUTION GROUP PLC",
+      "lei": "213800EPT84EQCDHO768"
+    },
+    {
+      "name": "BRAEMAR PLC",
+      "lei": "213800EV6IKTTHJ83C19"
+    },
+    {
+      "name": "BAY CAPITAL PLC",
+      "lei": "213800F59868OZQU6E56"
+    },
+    {
+      "name": "GRESHAM TECHNOLOGIES LIMITED",
+      "lei": "213800F71LW7L4Y7QL29"
+    },
+    {
+      "name": "HIGHCROFT INVESTMENTS PLC",
+      "lei": "213800F867TBILNX3B27"
+    },
+    {
+      "name": "PANTHER METALS PLC",
+      "lei": "213800FE99O4CN3DJU27"
+    },
+    {
+      "name": "TAYLOR MARITIME LIMITED",
+      "lei": "213800FELXGYTYJBBG50"
+    },
+    {
+      "name": "DIRECT LINE INSURANCE GROUP PLC",
+      "lei": "213800FF2R23ALJQOP04"
+    },
+    {
+      "name": "ADMIRAL GROUP PLC",
+      "lei": "213800FGVM7Z9EJB2685"
+    },
+    {
+      "name": "BRITISH AMERICAN TOBACCO P.L.C.",
+      "lei": "213800FKA5MF17RJKT63"
+    },
+    {
+      "name": "באטמ תקשורת מתקדמת בע\"מ",
+      "lei": "213800FLQUB9J289RU66"
+    },
+    {
+      "name": "EMPIRIC STUDENT PROPERTY PLC",
+      "lei": "213800FPF38IBPRFPU87"
+    },
+    {
+      "name": "J SMART & CO (CONTRACTORS) P L C",
+      "lei": "213800FQZ9V3LKCRFL13"
+    },
+    {
+      "name": "HAMMERSON PLC",
+      "lei": "213800G1C9KKVVDN1A60"
+    },
+    {
+      "name": "DAVICTUS PLC",
+      "lei": "213800G2DW1Z2HQV6C85"
+    },
+    {
+      "name": "TREATT PLC",
+      "lei": "213800G4OJM9F7G9LG39"
+    },
+    {
+      "name": "4IMPRINT GROUP PLC",
+      "lei": "213800G95T751RN2CT94"
+    },
+    {
+      "name": "SUPERDRY LIMITED",
+      "lei": "213800GAQMT2WL7BW361"
+    },
+    {
+      "name": "DFS FURNITURE PLC",
+      "lei": "213800GDSOBNKS1U1P93"
+    },
+    {
+      "name": "CARDIFF PROPERTY PUBLIC LIMITED COMPANY(THE)",
+      "lei": "213800GE3FA4C52C1N05"
+    },
+    {
+      "name": "LONDON & ASSOCIATED PROPERTIES PLC",
+      "lei": "213800GLCG54Q578EX51"
+    },
+    {
+      "name": "ENTAIN PLC",
+      "lei": "213800GNI3K45LQR8L28"
+    },
+    {
+      "name": "REACH PLC",
+      "lei": "213800GNI5XF3XOATR61"
+    },
+    {
+      "name": "KAINOS GROUP PLC",
+      "lei": "213800H2PQMIF3OVZY47"
+    },
+    {
+      "name": "PENSANA PLC",
+      "lei": "213800H4QP6T9499RU64"
+    },
+    {
+      "name": "HENRY BOOT PLC",
+      "lei": "213800H5873O9TC3XT22"
+    },
+    {
+      "name": "EVOKE PLC",
+      "lei": "213800H84UJQYSVF9750"
+    },
+    {
+      "name": "ASOS PLC",
+      "lei": "213800H8DBB8JSKDW630"
+    },
+    {
+      "name": "AIQ LIMITED",
+      "lei": "213800HDDO9LNNBAYH53"
+    },
+    {
+      "name": "IP GROUP PLC",
+      "lei": "213800HG22UM138WFG43"
+    },
+    {
+      "name": "SOLGOLD PLC",
+      "lei": "213800HGFADQBMIEVI76"
+    },
+    {
+      "name": "TITANIUM RUTH HOLDCO LIMITED",
+      "lei": "213800HK59N7H979QU33"
+    },
+    {
+      "name": "KEYSIGHT TECHNOLOGIES (SPIRENT SERVICES) LIMITED",
+      "lei": "213800HKCUNWP1916L38"
+    },
+    {
+      "name": "TRAINLINE PLC",
+      "lei": "213800HO26VXTFJ4MO71"
+    },
+    {
+      "name": "RAINBOW RARE EARTHS LIMITED",
+      "lei": "213800HONYSAXTG6KS11"
+    },
+    {
+      "name": "NANOCO GROUP PLC",
+      "lei": "213800HOSJEZO1KOCV33"
+    },
+    {
+      "name": "NORTHERN VENTURE TRUST PLC",
+      "lei": "213800HR3R4WFICYFN46"
+    },
+    {
+      "name": "ARGENT BIOPHARMA LIMITED",
+      "lei": "213800HRE3FQJ6RK4H10"
+    },
+    {
+      "name": "JD SPORTS FASHION PLC",
+      "lei": "213800HROV6Y9MUU8375"
+    },
+    {
+      "name": "ALPHA PLUS HOLDINGS PLC",
+      "lei": "213800HSHJAS427TVJ65"
+    },
+    {
+      "name": "PETERSHILL PARTNERS PLC",
+      "lei": "213800HTCF8A7XM22A32"
+    },
+    {
+      "name": "FEVARA PLC",
+      "lei": "213800HTIKPQV98RA653"
+    },
+    {
+      "name": "MADE.COM GROUP PLC",
+      "lei": "213800HTMSVKO71K6O71"
+    },
+    {
+      "name": "W.A.G PAYMENT SOLUTIONS PLC",
+      "lei": "213800HU63CWV5J8YK95"
+    },
+    {
+      "name": "GENFLOW BIOSCIENCES PLC",
+      "lei": "213800HVOFXRXVEGDN62"
+    },
+    {
+      "name": "MCBRIDE PLC",
+      "lei": "213800HX7FMPA2CIEF02"
+    },
+    {
+      "name": "CONTANGO HOLDINGS PLC",
+      "lei": "213800HZ69B3QHCUGX36"
+    },
+    {
+      "name": "BALTIC CLASSIFIEDS GROUP PLC",
+      "lei": "213800I1RPHCFSSQS969"
+    },
+    {
+      "name": "HEADLAM GROUP PLC",
+      "lei": "213800I4AZZUJEYX9O90"
+    },
+    {
+      "name": "GREGGS PLC",
+      "lei": "213800I71QMUFJ64IW20"
+    },
+    {
+      "name": "XP POWER LIMITED",
+      "lei": "213800I7RWQ3FV72EZ26"
+    },
+    {
+      "name": "ABRDN EUROPEAN LOGISTICS INCOME PLC",
+      "lei": "213800I9IYIKKNRT3G50"
+    },
+    {
+      "name": "SPIRE HEALTHCARE GROUP PLC",
+      "lei": "213800IBJPW3SE2RA350"
+    },
+    {
+      "name": "NATIONAL WESTMINSTER BANK PUBLIC LIMITED COMPANY",
+      "lei": "213800IBT39XQ9C4CP71"
+    },
+    {
+      "name": "ATRATO ONSITE ENERGY PLC",
+      "lei": "213800IE1PPREDIIZB62"
+    },
+    {
+      "name": "WICKES GROUP PLC",
+      "lei": "213800IEX9ZXJRAOL133"
+    },
+    {
+      "name": "GULF MARINE SERVICES PLC",
+      "lei": "213800IGS2QE89SAJF77"
+    },
+    {
+      "name": "HEIQ LIMITED",
+      "lei": "213800IGT65IMJDO4S03"
+    },
+    {
+      "name": "INTERNATIONAL PERSONAL FINANCE PLC",
+      "lei": "213800II1O44IRKUZB59"
+    },
+    {
+      "name": "DP AIRCRAFT I LIMITED",
+      "lei": "213800IJ1Q9HI499AE41"
+    },
+    {
+      "name": "HELLENIC DYNAMICS PLC",
+      "lei": "213800IM978BOB5QZA69"
+    },
+    {
+      "name": "WM MORRISON SUPERMARKETS LIMITED",
+      "lei": "213800IN6LSRGTZSOS29"
+    },
+    {
+      "name": "MOLTEN VENTURES PLC",
+      "lei": "213800IPCR3SAYJWSW10"
+    },
+    {
+      "name": "AVAST LIMITED",
+      "lei": "213800IR8G8LCZH4BO27"
+    },
+    {
+      "name": "OXFORD NANOPORE TECHNOLOGIES PLC",
+      "lei": "213800IRWQ2Q6M2CDW55"
+    },
+    {
+      "name": "CAPAI PLC",
+      "lei": "213800IVPZ932NP24O44"
+    },
+    {
+      "name": "TRIPLE POINT INCOME VCT PLC",
+      "lei": "213800IXD8S5WY88L245"
+    },
+    {
+      "name": "X5 RETAIL GROUP N.V.",
+      "lei": "213800J17UJJJDGUVF56"
+    },
+    {
+      "name": "CINEWORLD GROUP PLC",
+      "lei": "213800J2J3TOOI176M73"
+    },
+    {
+      "name": "OXFORD INSTRUMENTS PLC",
+      "lei": "213800J364EZD6UCE231"
+    },
+    {
+      "name": "DECHRA PHARMACEUTICALS LIMITED",
+      "lei": "213800J4UVB5OWG8VX82"
+    },
+    {
+      "name": "HGCAPITAL TRUST PLC",
+      "lei": "213800J7QUJJBEFSIN38"
+    },
+    {
+      "name": "JAMES FISHER AND SONS PUBLIC LIMITED COMPANY",
+      "lei": "213800J975E5OYR6S216"
+    },
+    {
+      "name": "FRASERS GROUP PLC",
+      "lei": "213800JEGHHEAXIJDX34"
+    },
+    {
+      "name": "LEGAL & GENERAL GROUP PLC",
+      "lei": "213800JH9QQWHLO99821"
+    },
+    {
+      "name": "MITCHELLS & BUTLERS PLC",
+      "lei": "213800JHYNDNB1NS2W10"
+    },
+    {
+      "name": "CADOGAN ENERGY SOLUTIONS PLC",
+      "lei": "213800JIBKL29FAK1213"
+    },
+    {
+      "name": "MICHAEL PAGE PLC",
+      "lei": "213800JK5ZEQW4AB8G71"
+    },
+    {
+      "name": "SOLIDCORE RESOURCES PLC",
+      "lei": "213800JKJ5HJWYS4GR61"
+    },
+    {
+      "name": "AVON TECHNOLOGIES PLC",
+      "lei": "213800JM1AN62REBWA71"
+    },
+    {
+      "name": "GREAT PORTLAND ESTATES P L C",
+      "lei": "213800JMEDD2Q4N1MC42"
+    },
+    {
+      "name": "YOUNG & CO'S BREWERY PLC",
+      "lei": "213800JMZDORXCMKFW06"
+    },
+    {
+      "name": "UK COMMERCIAL PROPERTY REIT LIMITED",
+      "lei": "213800JN4FQ1A9G8EU25"
+    },
+    {
+      "name": "JERSEY ELECTRICITY PLC",
+      "lei": "213800JPIP5BZKFOHK40"
+    },
+    {
+      "name": "EDISTON PROPERTY INVESTMENT COMPANY PLC",
+      "lei": "213800JRL87EGX9TUI28"
+    },
+    {
+      "name": "ORIENT TELECOMS PLC",
+      "lei": "213800JSIBTMDYPPKQ68"
+    },
+    {
+      "name": "Публичное акционерное общество \"Акционерная финансовая корпорация \"Система\"",
+      "lei": "213800JSZ2UUK4QQK694"
+    },
+    {
+      "name": "BERKELEY ENERGIA LIMITED",
+      "lei": "213800JX3V4TPO7TCJ08"
+    },
+    {
+      "name": "HILTON FOOD GROUP PLC",
+      "lei": "213800JY7VJFS2OOX355"
+    },
+    {
+      "name": "SVM UK EMERGING FUND PLC",
+      "lei": "213800K1T8DHOPEWW568"
+    },
+    {
+      "name": "FUTURE PLC",
+      "lei": "213800K2581YRLEXV353"
+    },
+    {
+      "name": "NORTHERN 2 VCT PLC",
+      "lei": "213800K2EJ4CM6G9K687"
+    },
+    {
+      "name": "NARF INDUSTRIES PLC",
+      "lei": "213800K484JECP4RK284"
+    },
+    {
+      "name": "ON THE BEACH GROUP PLC",
+      "lei": "213800K51Y9BZY7F9R69"
+    },
+    {
+      "name": "AVATION PLC",
+      "lei": "213800KA972GUP1B6I78"
+    },
+    {
+      "name": "PRINCES GROUP PLC",
+      "lei": "213800KB9M4576T4AU36"
+    },
+    {
+      "name": "KINGFISHER PLC",
+      "lei": "213800KBMEV7I92FY281"
+    },
+    {
+      "name": "HOWDEN JOINERY GROUP PLC",
+      "lei": "213800KC1LJOJTY3JP45"
+    },
+    {
+      "name": "APPLIED NUTRITION PLC",
+      "lei": "213800KCP1IDX51ZHE47"
+    },
+    {
+      "name": "BRIDGEPOINT GROUP PLC",
+      "lei": "213800KFNMVI8PDZX472"
+    },
+    {
+      "name": "ESURE GROUP PLC",
+      "lei": "213800KOI3F5LM54PT80"
+    },
+    {
+      "name": "MANDARIN ORIENTAL INTERNATIONAL LIMITED",
+      "lei": "213800KQ1UMKZ1JXJR80"
+    },
+    {
+      "name": "OAKLEY CAPITAL INVESTMENTS LIMITED",
+      "lei": "213800KW6MZUK12CQ815"
+    },
+    {
+      "name": "DIAGEO CAPITAL PLC",
+      "lei": "213800L23DJLALFC4O95"
+    },
+    {
+      "name": "TRITAX BIG BOX REIT PLC",
+      "lei": "213800L6X88MIYPVR714"
+    },
+    {
+      "name": "NORTHERN ELECTRIC PLC",
+      "lei": "213800L7HZMXLTISFT69"
+    },
+    {
+      "name": "PREDATOR OIL & GAS HOLDINGS PLC",
+      "lei": "213800L7QXFURBFLDS54"
+    },
+    {
+      "name": "SHERBORNE INVESTORS (GUERNSEY) C LIMITED",
+      "lei": "213800L8QL59OCFOCB40"
+    },
+    {
+      "name": "BYTES TECHNOLOGY GROUP PLC",
+      "lei": "213800LA4DZLFBAC9O33"
+    },
+    {
+      "name": "GAMMA COMMUNICATIONS PLC",
+      "lei": "213800LAQZXPRIZUEH50"
+    },
+    {
+      "name": "SOUTH32 LIMITED",
+      "lei": "213800LAZNPXSBKVHR17"
+    },
+    {
+      "name": "BARCLAYS PLC",
+      "lei": "213800LBQA1Y9L22JB70"
+    },
+    {
+      "name": "MOH NIPPON PLC",
+      "lei": "213800LD3K77KC1EVD56"
+    },
+    {
+      "name": "WISE PLC",
+      "lei": "213800LD9XCHIC1C4V71"
+    },
+    {
+      "name": "BP P.L.C.",
+      "lei": "213800LH1BZH3DI6G760"
+    },
+    {
+      "name": "ASHTEAD TECHNOLOGY HOLDINGS PLC",
+      "lei": "213800LHEWVY66RPGR58"
+    },
+    {
+      "name": "ROBERT WALTERS PLC",
+      "lei": "213800LIE15BDEN3VW43"
+    },
+    {
+      "name": "OCADO GROUP PLC",
+      "lei": "213800LO8F61YB8MBC74"
+    },
+    {
+      "name": "SCS GROUP LIMITED",
+      "lei": "213800LOXNVJIB4C7B98"
+    },
+    {
+      "name": "MONDI PLC",
+      "lei": "213800LOZA69QFDC9N34"
+    },
+    {
+      "name": "GOLDEN ROCK GLOBAL PLC",
+      "lei": "213800LQDN7P5PV83Q46"
+    },
+    {
+      "name": "RC365 HOLDING LIMITED",
+      "lei": "213800LQJTQSFR2XY322"
+    },
+    {
+      "name": "BT GROUP PLC",
+      "lei": "213800LRO7NS5CYQMN21"
+    },
+    {
+      "name": "CONVATEC GROUP PLC",
+      "lei": "213800LS272L4FIDOH92"
+    },
+    {
+      "name": "МЕЖДУНАРОДНАЯ КОМПАНИЯ ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"ЭН+ ГРУП\"",
+      "lei": "213800LUFXVT8CKW5113"
+    },
+    {
+      "name": "PURETECH HEALTH PLC",
+      "lei": "213800LVPDNO2Z9T9I39"
+    },
+    {
+      "name": "MACFARLANE GROUP PLC",
+      "lei": "213800LVRYDERSJAAZ73"
+    },
+    {
+      "name": "ECORA ROYALTIES PLC",
+      "lei": "213800LXSV317746JZ71"
+    },
+    {
+      "name": "ST. JAMES'S PLACE PLC",
+      "lei": "213800M993ICXOMBCP87"
+    },
+    {
+      "name": "RATHBONES GROUP PLC",
+      "lei": "213800MBTHM6UE8ZQP29"
+    },
+    {
+      "name": "LLOYDS BANK CORPORATE MARKETS PLC",
+      "lei": "213800MBWEIJDM5CU638"
+    },
+    {
+      "name": "TRIAD GROUP PLC",
+      "lei": "213800MDNBFVEQEN1G84"
+    },
+    {
+      "name": "ALTYNGOLD PLC",
+      "lei": "213800MELPBPHIR1PO04"
+    },
+    {
+      "name": "ANEMOI INTERNATIONAL LTD.",
+      "lei": "213800MIKNEVN81JIR76"
+    },
+    {
+      "name": "SMITHS GROUP PLC",
+      "lei": "213800MJL6IPZS3ASA11"
+    },
+    {
+      "name": "ELIXIRR INTERNATIONAL PLC",
+      "lei": "213800MKY7OHMVAKW681"
+    },
+    {
+      "name": "ALTERNATIVE INCOME REIT PLC",
+      "lei": "213800MPBIJS12Q88F71"
+    },
+    {
+      "name": "GALLIFORD TRY HOLDINGS PLC",
+      "lei": "213800MR6DRHCJIV8113"
+    },
+    {
+      "name": "UPLAND RESOURCES LIMITED",
+      "lei": "213800MRG7ISJEK8YA38"
+    },
+    {
+      "name": "MITIE GROUP PLC",
+      "lei": "213800MTCLTKEHWZMJ03"
+    },
+    {
+      "name": "CRITICAL METALS PLC",
+      "lei": "213800MU3B7CS88PY290"
+    },
+    {
+      "name": "NORTHERN 3 VCT PLC",
+      "lei": "213800MWOA6W221PI432"
+    },
+    {
+      "name": "XAAR PLC",
+      "lei": "213800MXEC3KAOBBPO57"
+    },
+    {
+      "name": "ANTOFAGASTA PLC",
+      "lei": "213800MY6QVH4FVLD628"
+    },
+    {
+      "name": "POD POINT GROUP HOLDINGS PLC",
+      "lei": "213800MY9U5MEDG21D89"
+    },
+    {
+      "name": "ASSOCIATED BRITISH ENGINEERING PLC",
+      "lei": "213800MYKAWRRE9C9U05"
+    },
+    {
+      "name": "SOFTCAT PLC",
+      "lei": "213800N42YZLR9GLVC42"
+    },
+    {
+      "name": "GOODWIN PLC",
+      "lei": "213800N4T1NMSJ57B322"
+    },
+    {
+      "name": "CERES POWER HOLDINGS PLC",
+      "lei": "213800N7AAHSXQUOA733"
+    },
+    {
+      "name": "CORPUS RESOURCES PLC",
+      "lei": "213800NFARY38KGRAH47"
+    },
+    {
+      "name": "NATIONAL WORLD LIMITED",
+      "lei": "213800NL4ICLKYSYU749"
+    },
+    {
+      "name": "FORESIGHT GROUP HOLDINGS LIMITED",
+      "lei": "213800NNT42FFIZB1T09"
+    },
+    {
+      "name": "MACAU PROPERTY OPPORTUNITIES FUND LIMITED",
+      "lei": "213800NOAO11OWIMLR72"
+    },
+    {
+      "name": "DFI RETAIL GROUP HOLDINGS LIMITED",
+      "lei": "213800NOTG41PZVNNX48"
+    },
+    {
+      "name": "SEED CAPITAL SOLUTIONS PLC",
+      "lei": "213800NRFXJG9H18LA29"
+    },
+    {
+      "name": "ASA INTERNATIONAL GROUP PLC",
+      "lei": "213800NSIUMXPDHUEO94"
+    },
+    {
+      "name": "GSTECHNOLOGIES LTD",
+      "lei": "213800NWJ4UQG2R3X823"
+    },
+    {
+      "name": "BOS (SHARED APPRECIATION MORTGAGES) NO. 4 PLC",
+      "lei": "213800O3BYMB525IPQ72"
+    },
+    {
+      "name": "APERTURA ENERGY PLC",
+      "lei": "213800O4A398G6GL7270"
+    },
+    {
+      "name": "FORTERRA PLC",
+      "lei": "213800O5DD6ATBVJAD23"
+    },
+    {
+      "name": "DWF GROUP PLC",
+      "lei": "213800O9QREOHTOGQ266"
+    },
+    {
+      "name": "HOSTELWORLD GROUP PLC",
+      "lei": "213800OC94PF2D675H41"
+    },
+    {
+      "name": "LONDONMETRIC PROPERTY PLC",
+      "lei": "213800OCERWWPQDURL87"
+    },
+    {
+      "name": "T CLARKE PUBLIC LIMITED COMPANY",
+      "lei": "213800OIP8MU5I7BK123"
+    },
+    {
+      "name": "Публичное акционерное общество \"Северсталь\"",
+      "lei": "213800OKDPTV6K4ONO53"
+    },
+    {
+      "name": "МЕЖДУНАРОДНАЯ КОМПАНИЯ ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"ЛЕНТА\"",
+      "lei": "213800OMCE8QATH73N15"
+    },
+    {
+      "name": "MCKAY SECURITIES P L C",
+      "lei": "213800OPY9L5UDCSZN71"
+    },
+    {
+      "name": "DIGITAL 9 INFRASTRUCTURE PLC",
+      "lei": "213800OQLX64UNS38U92"
+    },
+    {
+      "name": "PHOENIX SPREE DEUTSCHLAND LIMITED",
+      "lei": "213800OR6IIJPG98AG39"
+    },
+    {
+      "name": "VESUVIUS PLC",
+      "lei": "213800ORZ521W585SY02"
+    },
+    {
+      "name": "AUGMENTUM FINTECH PLC",
+      "lei": "213800OTQ44T555I8S71"
+    },
+    {
+      "name": "ARIX BIOSCIENCE PLC",
+      "lei": "213800OVT3AHQCXNIX43"
+    },
+    {
+      "name": "BOSTON INTERNATIONAL HOLDINGS PLC",
+      "lei": "213800OVVYT6ZUJUXD69"
+    },
+    {
+      "name": "SOCIETATEA ENERGETICĂ ELECTRICA S.A.",
+      "lei": "213800P4SUNUM5AUDX61"
+    },
+    {
+      "name": "URBAN LOGISTICS REIT LIMITED",
+      "lei": "213800P6ODJW2UFNDC37"
+    },
+    {
+      "name": "DARKTRACE LIMITED",
+      "lei": "213800PC5S5P9CSNFC89"
+    },
+    {
+      "name": "CENTAMIN LIMITED",
+      "lei": "213800PDI9G7OUKLPV84"
+    },
+    {
+      "name": "BURBERRY GROUP PLC",
+      "lei": "213800PE1KEFCNFR1R50"
+    },
+    {
+      "name": "CASTELNAU GROUP LIMITED",
+      "lei": "213800PED8RFUBMK1T64"
+    },
+    {
+      "name": "WILMINGTON PLC",
+      "lei": "213800PFUQT4HHFYZJ63"
+    },
+    {
+      "name": "CIVITAS SOCIAL HOUSING LIMITED",
+      "lei": "213800PGBG84J8GM6F95"
+    },
+    {
+      "name": "ROSS GROUP PLC",
+      "lei": "213800PIS2QRIKPZB546"
+    },
+    {
+      "name": "COSTAIN GROUP PLC",
+      "lei": "213800PKIJBZ2EDTKC88"
+    },
+    {
+      "name": "HYDROGEN CAPITAL GROWTH LIMITED",
+      "lei": "213800PMTT98U879SF45"
+    },
+    {
+      "name": "WILDCAT GOLD PLC",
+      "lei": "213800PPETBUU3UZRU78"
+    },
+    {
+      "name": "AMIGO HOLDINGS PLC",
+      "lei": "213800PUHEBLCWDW9T74"
+    },
+    {
+      "name": "BUNZL PUBLIC LIMITED COMPANY",
+      "lei": "213800Q1Q9DV4L78UM09"
+    },
+    {
+      "name": "ULTIMATE PRODUCTS PLC",
+      "lei": "213800Q5GWTVIW6KJW33"
+    },
+    {
+      "name": "GRAND VISION MEDIA HOLDINGS PLC",
+      "lei": "213800Q5L7DJW9MNP897"
+    },
+    {
+      "name": "MARSTON'S PLC",
+      "lei": "213800Q6RP3ZJ2CZR962"
+    },
+    {
+      "name": "DOMINO'S PIZZA GROUP PLC",
+      "lei": "213800Q6ZKHAOV48JL75"
+    },
+    {
+      "name": "BOS (SHARED APPRECIATION MORTGAGES) NO. 1 PLC",
+      "lei": "213800QAIQV5HVMMGI53"
+    },
+    {
+      "name": "LONDON STOCK EXCHANGE GROUP PLC",
+      "lei": "213800QAUUUP6I445N30"
+    },
+    {
+      "name": "HAYS PLC",
+      "lei": "213800QC8AWD4BO8TH08"
+    },
+    {
+      "name": "SSP GROUP PLC",
+      "lei": "213800QGNIWTXFMENJ24"
+    },
+    {
+      "name": "BLUEBIRD MINING VENTURES LTD",
+      "lei": "213800QLGKFZHML52C51"
+    },
+    {
+      "name": "AUTOTRADER GROUP PLC",
+      "lei": "213800QLK9BZILB1DI86"
+    },
+    {
+      "name": "DR. MARTENS PLC",
+      "lei": "213800QPT8YM6NQZPH28"
+    },
+    {
+      "name": "AFRICAN PIONEER PLC",
+      "lei": "213800QQF8O18CMJPW43"
+    },
+    {
+      "name": "GULF KEYSTONE PETROLEUM LIMITED",
+      "lei": "213800QTAQOSSTNTPO15"
+    },
+    {
+      "name": "A.G. BARR P.L.C.",
+      "lei": "213800QWTXXXF8BNEC87"
+    },
+    {
+      "name": "S & U PLC",
+      "lei": "213800QZ1X2A7J64SQ31"
+    },
+    {
+      "name": "HARWORTH GROUP PLC",
+      "lei": "213800R8JSSGK2KPFG21"
+    },
+    {
+      "name": "GB GROUP PLC",
+      "lei": "213800RBAFZIBCV7XR29"
+    },
+    {
+      "name": "GEM DIAMONDS LIMITED",
+      "lei": "213800RC2PGGMZQG8L67"
+    },
+    {
+      "name": "ALPHA GROUP INTERNATIONAL PLC",
+      "lei": "213800RESM1FPUXY6K31"
+    },
+    {
+      "name": "GREAT SOUTHERN COPPER PLC",
+      "lei": "213800RF6N9WA8PZH313"
+    },
+    {
+      "name": "LIFE SCIENCE REIT PLC",
+      "lei": "213800RG7JNX7K8F7525"
+    },
+    {
+      "name": "INCHCAPE PLC",
+      "lei": "213800RGEH1MPPNM2T57"
+    },
+    {
+      "name": "CHILL BRANDS GROUP PLC",
+      "lei": "213800RGK8LNU9RGMT89"
+    },
+    {
+      "name": "MELROSE INDUSTRIES PLC",
+      "lei": "213800RGNXXZY2M7TR85"
+    },
+    {
+      "name": "EUROCELL PLC",
+      "lei": "213800RH62IQ7S9OFQ55"
+    },
+    {
+      "name": "CREST NICHOLSON HOLDINGS PLC",
+      "lei": "213800ROIFXRRRKVQD25"
+    },
+    {
+      "name": "GAMES WORKSHOP GROUP PLC",
+      "lei": "213800RP9QJQYGWHNT41"
+    },
+    {
+      "name": "SEVERN TRENT PLC",
+      "lei": "213800RPBXRETY4A4C59"
+    },
+    {
+      "name": "BISICHI PLC",
+      "lei": "213800RRWN6ZBPW2ZV03"
+    },
+    {
+      "name": "HBOS PLC",
+      "lei": "213800RS21X7UUH5QU25"
+    },
+    {
+      "name": "WORLDSEC LIMITED",
+      "lei": "213800RSLE74B1NP4X17"
+    },
+    {
+      "name": "PROCOOK GROUP PLC",
+      "lei": "213800RWZMK3ARHMUN52"
+    },
+    {
+      "name": "TARGET HEALTHCARE REIT PLC",
+      "lei": "213800RXPY9WULUSBC04"
+    },
+    {
+      "name": "PICTON PROPERTY INCOME LIMITED",
+      "lei": "213800RYE59K9CKR4497"
+    },
+    {
+      "name": "OXFORD BIOMEDICA PLC",
+      "lei": "213800S1GVQNXQ15K851"
+    },
+    {
+      "name": "PARAGON BANKING GROUP PLC",
+      "lei": "213800S1TDKIB1IUTS72"
+    },
+    {
+      "name": "MARSHALLS PLC",
+      "lei": "213800S21IFC367J5V62"
+    },
+    {
+      "name": "SANCUS LENDING GROUP LIMITED",
+      "lei": "213800S2XOO3YSEGCA26"
+    },
+    {
+      "name": "QINETIQ GROUP PLC",
+      "lei": "213800S8OBDOZMCMUW34"
+    },
+    {
+      "name": "BOS (SHARED APPRECIATION MORTGAGES) NO. 2 PLC",
+      "lei": "213800SKPWJOLQCQVX80"
+    },
+    {
+      "name": "TEN ENTERTAINMENT GROUP PLC",
+      "lei": "213800SL9HJUQ5BGPX17"
+    },
+    {
+      "name": "ALINA HOLDINGS PLC",
+      "lei": "213800SOAIB9JVCV4D57"
+    },
+    {
+      "name": "VIETNAM ENTERPRISE INVESTMENTS LIMITED.",
+      "lei": "213800SYT3T4AGEVW864"
+    },
+    {
+      "name": "CINDRIGO HOLDINGS LIMITED",
+      "lei": "213800T424TYEZ5PLE75"
+    },
+    {
+      "name": "LSL PROPERTY SERVICES PLC",
+      "lei": "213800T4VM5VR3C7S706"
+    },
+    {
+      "name": "TBC BANK GROUP PLC",
+      "lei": "213800T6NS9N2WQ3B328"
+    },
+    {
+      "name": "WALKER CRIPS GROUP LIMITED",
+      "lei": "213800T71F7VD5ANZI55"
+    },
+    {
+      "name": "CORDIANT DIGITAL INFRASTRUCTURE LIMITED",
+      "lei": "213800T8RBBWZQ7FTF84"
+    },
+    {
+      "name": "VODAFONE GROUP PUBLIC LIMITED COMPANY",
+      "lei": "213800TB53ELEUKM7Q61"
+    },
+    {
+      "name": "PEMBRIDGE RESOURCES PLC",
+      "lei": "213800TBL26T6GO88M13"
+    },
+    {
+      "name": "VP PLC",
+      "lei": "213800TBQKKQR7UXZP80"
+    },
+    {
+      "name": "INTERNATIONAL DISTRIBUTION SERVICES LIMITED",
+      "lei": "213800TCZZU84G8Z2M70"
+    },
+    {
+      "name": "TT ELECTRONICS PLC",
+      "lei": "213800TJGBW5VFHQEV54"
+    },
+    {
+      "name": "CO-OPERATIVE GROUP LIMITED",
+      "lei": "213800TKR59ER8Z69V16"
+    },
+    {
+      "name": "PERSONAL GROUP HOLDINGS PLC",
+      "lei": "213800TN8BH2YYWAH345"
+    },
+    {
+      "name": "VIVO ENERGY LIMITED",
+      "lei": "213800TR7V9QN896AU56"
+    },
+    {
+      "name": "LOOKERS PLC",
+      "lei": "213800TSB8PJEACDAV33"
+    },
+    {
+      "name": "BABCOCK INTERNATIONAL GROUP PLC",
+      "lei": "213800TSKOLX4EU6L377"
+    },
+    {
+      "name": "CARD FACTORY PLC",
+      "lei": "213800TTSOPFVCKPFQ11"
+    },
+    {
+      "name": "THE RANK GROUP PLC",
+      "lei": "213800TXKD6XZWOFTE12"
+    },
+    {
+      "name": "OCEAN WILSONS HOLDINGS LIMITED",
+      "lei": "213800U1K395G8PK4I21"
+    },
+    {
+      "name": "ETALON GROUP PLC",
+      "lei": "213800U2O9SKHOYSDY32"
+    },
+    {
+      "name": "KENDRICK RESOURCES PLC",
+      "lei": "213800U66STYS4VQZH68"
+    },
+    {
+      "name": "SPEEDY HIRE PLC",
+      "lei": "213800U78SIYAZDYXM61"
+    },
+    {
+      "name": "AUCTION TECHNOLOGY GROUP PLC",
+      "lei": "213800U8Q9K2XI3WRE39"
+    },
+    {
+      "name": "VANQUIS BANKING GROUP PLC",
+      "lei": "213800U93SZC44VXN635"
+    },
+    {
+      "name": "CHEMRING GROUP PLC",
+      "lei": "213800U9A54VQJ5P2J41"
+    },
+    {
+      "name": "TRIPLE POINT ENERGY TRANSITION PLC",
+      "lei": "213800UDP142E67X9X28"
+    },
+    {
+      "name": "B&M EUROPEAN VALUE RETAIL PLC",
+      "lei": "213800UK7ZRLY2K1X530"
+    },
+    {
+      "name": "DCC ENERGY PUBLIC LIMITED COMPANY",
+      "lei": "213800UPS1QEE4TD3T45"
+    },
+    {
+      "name": "MEDCAW INVESTMENTS PLC",
+      "lei": "213800UTM4MRTZHJ8C21"
+    },
+    {
+      "name": "BARCLAYS BANK UK PLC",
+      "lei": "213800UUGANOMFJ9X769"
+    },
+    {
+      "name": "VICTREX PLC",
+      "lei": "213800UYNPHAUNHPXL67"
+    },
+    {
+      "name": "PENNON GROUP PLC",
+      "lei": "213800V1CCTS41GWH423"
+    },
+    {
+      "name": "INDIVIOR PLC",
+      "lei": "213800V3NCQTY7IED471"
+    },
+    {
+      "name": "THE RESTAURANT GROUP LIMITED",
+      "lei": "213800V4LJ2FXMQKKA46"
+    },
+    {
+      "name": "ASIA STRATEGIC HOLDINGS LIMITED",
+      "lei": "213800V5GJPLFU4F6636"
+    },
+    {
+      "name": "LAND SECURITIES GROUP PLC",
+      "lei": "213800V8IAVKS37D6B88"
+    },
+    {
+      "name": "BODYCOTE PLC",
+      "lei": "213800V93QFW53NB7Y29"
+    },
+    {
+      "name": "MOONPIG GROUP PLC",
+      "lei": "213800VAYO5KCAXZHK83"
+    },
+    {
+      "name": "CMC MARKETS PLC",
+      "lei": "213800VB75KAZBFH5U07"
+    },
+    {
+      "name": "TECHNOLOGIES NEW ENERGY PLC",
+      "lei": "213800VBVRGDTYL9Y928"
+    },
+    {
+      "name": "THE GYM GROUP PLC",
+      "lei": "213800VCU9TBANZIN455"
+    },
+    {
+      "name": "SIG PLC",
+      "lei": "213800VDC1BKJEZ8PV53"
+    },
+    {
+      "name": "ASCENTIAL PLC",
+      "lei": "213800VDXQDA7KD2IQ21"
+    },
+    {
+      "name": "CHESNARA PLC",
+      "lei": "213800VFRMBRTSZ3SJ06"
+    },
+    {
+      "name": "J SAINSBURY PLC",
+      "lei": "213800VGZAAJIKJ9Y484"
+    },
+    {
+      "name": "AJ BELL PLC",
+      "lei": "213800VNKA7DPWXWJJ36"
+    },
+    {
+      "name": "THE SMARTER WEB COMPANY PLC",
+      "lei": "213800VQO9FUG4PZMP73"
+    },
+    {
+      "name": "PINEWOOD TECHNOLOGIES GROUP PLC",
+      "lei": "213800VRSPZFOGMMIS18"
+    },
+    {
+      "name": "BEAZLEY PLC",
+      "lei": "213800VTOMUWD41GIT12"
+    },
+    {
+      "name": "EVEREST GLOBAL PLC",
+      "lei": "213800VWEF19LQCNB917"
+    },
+    {
+      "name": "CLOSE BROTHERS GROUP PLC",
+      "lei": "213800W73SYHR14I3X91"
+    },
+    {
+      "name": "BIG YELLOW GROUP PLC",
+      "lei": "213800W7Q4V2ZI8LIW31"
+    },
+    {
+      "name": "DUNELM GROUP PLC",
+      "lei": "213800WCOWEI3T5DUV19"
+    },
+    {
+      "name": "NEO ENERGY METALS PLC",
+      "lei": "213800WE14587VRQ5Y10"
+    },
+    {
+      "name": "TRIFAST PLC",
+      "lei": "213800WFIVE6RWK3CR22"
+    },
+    {
+      "name": "SPIRAX GROUP PLC",
+      "lei": "213800WFVZQMHOZP2W17"
+    },
+    {
+      "name": "MOTORPOINT GROUP PLC",
+      "lei": "213800WG8RSE45I3MF22"
+    },
+    {
+      "name": "SAFESTORE HOLDINGS PLC",
+      "lei": "213800WGA3YSJC1YOH73"
+    },
+    {
+      "name": "ARGO BLOCKCHAIN PLC",
+      "lei": "213800WPCCYSDYY26J54"
+    },
+    {
+      "name": "NEXT PLC",
+      "lei": "213800WQD8ECPZP9PH98"
+    },
+    {
+      "name": "BROOKS MACDONALD GROUP PLC",
+      "lei": "213800WRDF8LB8MIEX37"
+    },
+    {
+      "name": "POTTER & MOORE PLC",
+      "lei": "213800WROWAJUBGSAJ57"
+    },
+    {
+      "name": "ONESAVINGS BANK PLC",
+      "lei": "213800WTQKOQI8ELD692"
+    },
+    {
+      "name": "THARISA PLC",
+      "lei": "213800WW4YWMVVZIJM90"
+    },
+    {
+      "name": "SAVILLS PLC",
+      "lei": "213800WXICGMBWHTA933"
+    },
+    {
+      "name": "FRAGRANT PROSPERITY HOLDINGS LIMITED",
+      "lei": "213800WZ5CZJXHTI7U71"
+    },
+    {
+      "name": "PETRA DIAMONDS LIMITED",
+      "lei": "213800X4QZIAVSA12860"
+    },
+    {
+      "name": "METRO BANK PLC",
+      "lei": "213800X5WU57YL9GPK89"
+    },
+    {
+      "name": "SYNCONA LIMITED",
+      "lei": "213800X8MBI5VQITLW60"
+    },
+    {
+      "name": "AMALA FOODS PLC",
+      "lei": "213800XAECC5GN8ZOU38"
+    },
+    {
+      "name": "HOLLYWOOD BOWL GROUP PLC",
+      "lei": "213800XB8YZNGJYDEZ97"
+    },
+    {
+      "name": "SEGRO PUBLIC LIMITED COMPANY",
+      "lei": "213800XC35KGM9NFC641"
+    },
+    {
+      "name": "HONGKONG LAND HOLDINGS LIMITED",
+      "lei": "213800XCHYNRPAYGXW28"
+    },
+    {
+      "name": "CAPITAL LIMITED",
+      "lei": "213800XG175G91JW8W37"
+    },
+    {
+      "name": "CEIBA INVESTMENTS LIMITED",
+      "lei": "213800XGY151JV5B1E88"
+    },
+    {
+      "name": "AVEVA GROUP LIMITED",
+      "lei": "213800XHATUM2LFMKG16"
+    },
+    {
+      "name": "PERSIMMON PUBLIC LIMITED COMPANY",
+      "lei": "213800XI72Y57UWN6F31"
+    },
+    {
+      "name": "HIPGNOSIS SONGS FUND LIMITED",
+      "lei": "213800XJIPNDVKXMOC11"
+    },
+    {
+      "name": "LION FINANCE GROUP PLC",
+      "lei": "213800XKDG12NQG8VC53"
+    },
+    {
+      "name": "MD MEDICAL GROUP INVESTMENTS PLC",
+      "lei": "213800XKI6VHY4JBS612"
+    },
+    {
+      "name": "DOWLAIS GROUP PLC",
+      "lei": "213800XM8WOFLY6VPC92"
+    },
+    {
+      "name": "WITAN INVESTMENT TRUST PLC",
+      "lei": "213800XMW68XFT6D1X59"
+    },
+    {
+      "name": "H. CLARKSON & COMPANY LIMITED",
+      "lei": "213800XQ9VCJI269GL16"
+    },
+    {
+      "name": "TOWN CENTRE SECURITIES PLC",
+      "lei": "213800XRCH9RW2RIZD79"
+    },
+    {
+      "name": "DAR GLOBAL PLC",
+      "lei": "213800XRFXQ1KEWACW80"
+    },
+    {
+      "name": "NETWORK INTERNATIONAL HOLDINGS LIMITED",
+      "lei": "213800XVRNKWENNLKK60"
+    },
+    {
+      "name": "PRIMARY HEALTH PROPERTIES PLC",
+      "lei": "213800Y5CJHXOATK7X11"
+    },
+    {
+      "name": "ALLIED MINDS PLC",
+      "lei": "213800YB4G7YN21NLL72"
+    },
+    {
+      "name": "ICONIC LABS PLC",
+      "lei": "213800YCXZV6RSHGGT04"
+    },
+    {
+      "name": "CARACAL GOLD PLC",
+      "lei": "213800YH9S57GVOPU624"
+    },
+    {
+      "name": "AQUILA SERVICES GROUP PLC",
+      "lei": "213800YHTDDQX5MZZW83"
+    },
+    {
+      "name": "RIO TINTO PLC",
+      "lei": "213800YOEO5OQ72G2R82"
+    },
+    {
+      "name": "HARBOUR ENERGY PLC",
+      "lei": "213800YPC42DYBKVPF97"
+    },
+    {
+      "name": "FDM GROUP (HOLDINGS) PLC",
+      "lei": "213800YR62D7GUZLMZ71"
+    },
+    {
+      "name": "DIVERSIFIED ENERGY COMPANY LIMITED",
+      "lei": "213800YR9TFRVHPGOS67"
+    },
+    {
+      "name": "R.E.A. HOLDINGS PLC",
+      "lei": "213800YXL94R94RYG150"
+    },
+    {
+      "name": "CVC INCOME & GROWTH LIMITED",
+      "lei": "213800Z42Y242CIWJ785"
+    },
+    {
+      "name": "SPECTRIS PLC",
+      "lei": "213800Z4CO2CZO3M3T10"
+    },
+    {
+      "name": "ADALAN VENTURES PLC",
+      "lei": "213800Z4MI9KSZA2VW72"
+    },
+    {
+      "name": "WINCANTON LIMITED",
+      "lei": "213800Z5WTW8QKOHWQ82"
+    },
+    {
+      "name": "BOS (SHARED APPRECIATION MORTGAGES) NO. 3 PLC",
+      "lei": "213800Z6WDE14TNLVS18"
+    },
+    {
+      "name": "SCOTTISH POWER UK PLC",
+      "lei": "213800Z8E41VG2MEKQ11"
+    },
+    {
+      "name": "OSB GROUP PLC",
+      "lei": "213800ZBKL9BHSL2K459"
+    },
+    {
+      "name": "PREMIER FOODS PLC",
+      "lei": "213800ZD5I8XHNMCJA67"
+    },
+    {
+      "name": "HANSARD GLOBAL PLC",
+      "lei": "213800ZJ9F2EA3Q24K05"
+    },
+    {
+      "name": "CAPRICORN ENERGY PLC",
+      "lei": "213800ZJEUQ8ZOC9AL24"
+    },
+    {
+      "name": "VIRGIN MONEY UK PLC",
+      "lei": "213800ZK9VGCYYR6O495"
+    },
+    {
+      "name": "CAFFYNS PUBLIC LIMITED COMPANY",
+      "lei": "213800ZKS5B1M3YXVV76"
+    },
+    {
+      "name": "BLOOMSBURY PUBLISHING PLC",
+      "lei": "213800ZL2PEC4C6UOQ53"
+    },
+    {
+      "name": "CLOUDBREAK DISCOVERY PLC",
+      "lei": "213800ZLZVEPOS7YID88"
+    },
+    {
+      "name": "RICARDO PLC",
+      "lei": "213800ZNYAY35F4XB814"
+    },
+    {
+      "name": "GREENCOAT UK WIND PLC",
+      "lei": "213800ZPBBK8H51RX165"
+    },
+    {
+      "name": "METLEN ENERGY & METALS PLC",
+      "lei": "213800ZSR3HVKMMPVG86"
+    },
+    {
+      "name": "SMITH & NEPHEW PLC",
+      "lei": "213800ZTMDN8S67S1H61"
+    },
+    {
+      "name": "DIAGEO PLC",
+      "lei": "213800ZVIELEA55JMJ32"
+    },
+    {
+      "name": "ALPHAWAVE IP GROUP PLC",
+      "lei": "213800ZXTO21EU4VMH37"
+    },
+    {
+      "name": "SUPPLY@ME CAPITAL PLC",
+      "lei": "213800ZY2C2TI2C5WQ61"
+    },
+    {
+      "name": "HIRO METAVERSE ACQUISITIONS I SA",
+      "lei": "222100X27S5HMALJTB53"
+    },
+    {
+      "name": "Публичное акционерное общество \"ФосАгро\"",
+      "lei": "25340053KRUNNYUWF472"
+    },
+    {
+      "name": "Публичное акционерное общество \"Федеральная гидрогенерирующая компания - РусГидро\"",
+      "lei": "2534005TJN9DX4YWVT97"
+    },
+    {
+      "name": "Публичное акционерное общество \"Группа ЛСР\"",
+      "lei": "25340067LEEMJ79K8X43"
+    },
+    {
+      "name": "Публичное акционерное общество \"Магнит\"",
+      "lei": "2534009KKPTVL99W2Y12"
+    },
+    {
+      "name": "Публичное акционерное общество \"Федеральная сетевая компания - Россети\"",
+      "lei": "253400FZQ7Z49QZNSG30"
+    },
+    {
+      "name": "публичное акционерное общество \"Татнефть\" имени В.Д. Шашина",
+      "lei": "253400PAT768SVJMV121"
+    },
+    {
+      "name": "Публичное акционерное общество \"Акрон\"",
+      "lei": "253400R9KWF00G0V2542"
+    },
+    {
+      "name": "Банк ВТБ (публичное акционерное общество)",
+      "lei": "253400V1H6ART1UQ0N98"
+    },
+    {
+      "name": "Публичное акционерное общество \"Магнитогорский металлургический комбинат\"",
+      "lei": "253400XSJ4C01YMCXG44"
+    },
+    {
+      "name": "JOINT STOCK COMPANY \"AIR ASTANA\"",
+      "lei": "2549000TO500ZGSE7T26"
+    },
+    {
+      "name": "Brit Group Holdings Limited",
+      "lei": "2549001PN147CNOEX642"
+    },
+    {
+      "name": "АКЦИОНЕРНОЕ ОБЩЕСТВО КASPI.KZ",
+      "lei": "2549003YU6FARG8OAZ13"
+    },
+    {
+      "name": "Man Group PLC",
+      "lei": "2549003YWC1DW6LALB09"
+    },
+    {
+      "name": "VALEURA ENERGY INC.",
+      "lei": "2549003ZBCOPPO06GY48"
+    },
+    {
+      "name": "THE MAGNUM ICE CREAM COMPANY N.V.",
+      "lei": "25490052LLF3XH6G9847"
+    },
+    {
+      "name": "Woodside Energy Group Ltd",
+      "lei": "2549005ZC5RXAOO7FH41"
+    },
+    {
+      "name": "InvestAcc Group Limited",
+      "lei": "2549008KZ7HM27V4O637"
+    },
+    {
+      "name": "SOCIETATEA NATIONALA DE GAZE NATURALE \"ROMGAZ\" SA",
+      "lei": "2549009R7KJ38D9RW354"
+    },
+    {
+      "name": "JSC Halyk Savings Bank of Kazakhstan",
+      "lei": "254900A5MFKWK5468712"
+    },
+    {
+      "name": "Seraphine Group PLC",
+      "lei": "254900CQ8TMKUDD0L296"
+    },
+    {
+      "name": "HMS Hydraulic Machines & Systems Group PLC",
+      "lei": "254900DDFETNLASV8M53"
+    },
+    {
+      "name": "GRUPO CLARIN S A",
+      "lei": "254900FY8R51KBIIVA82"
+    },
+    {
+      "name": "MAC Alpha Limited",
+      "lei": "254900LOBYWJWYSAB947"
+    },
+    {
+      "name": "RESOLUTE MINING LIMITED",
+      "lei": "254900MP8JONT590XY28"
+    },
+    {
+      "name": "Coiled Therapeutics PLC",
+      "lei": "254900P4SISIWOR9RH34"
+    },
+    {
+      "name": "CABLEVISION HOLDING S. A.",
+      "lei": "254900SFRPHMM26ZOQ87"
+    },
+    {
+      "name": "M&G PLC",
+      "lei": "254900TWUJUQ44TQJY84"
+    },
+    {
+      "name": "Asian Energy Impact Trust PLC",
+      "lei": "254900V23329JCBR9G82"
+    },
+    {
+      "name": "AdvancedAdvT Limited",
+      "lei": "254900WYO35S1T334A28"
+    },
+    {
+      "name": "Marwyn Acquisition Company III Limited",
+      "lei": "254900YT8SO8JT2LGD15"
+    },
+    {
+      "name": "AIRTEL AFRICA PLC",
+      "lei": "254900ZNZDQL6OWQH623"
+    },
+    {
+      "name": "HONGKONG AND SHANGHAI BANKING CORPORATION LIMITED -THE-",
+      "lei": "2HI3YI5320L3RW6NJ957"
+    },
+    {
+      "name": "华泰证券股份有限公司",
+      "lei": "3003009ABT0UCWO79Q77"
+    },
+    {
+      "name": "3I GROUP PLC",
+      "lei": "35GDVHRBMFE7NWATNM84"
+    },
+    {
+      "name": "Transnet SOC Ltd",
+      "lei": "378900B07CD6F01EA796"
+    },
+    {
+      "name": "DS SMITH LIMITED",
+      "lei": "39RSBE4RCI4M15BLWH36"
+    },
+    {
+      "name": "ALLIED IRISH BANKS PUBLIC LIMITED COMPANY",
+      "lei": "3U8WV1YX2VMUHH7Z1Q21"
+    },
+    {
+      "name": "WEST BROMWICH BUILDING SOCIETY",
+      "lei": "45WSBJJYVGC91LG3H515"
+    },
+    {
+      "name": "CARNIVAL UK LTD.",
+      "lei": "4DR1VPDQMHD3N3QW8W95"
+    },
+    {
+      "name": "STAGECOACH GROUP LIMITED",
+      "lei": "4L663LRNTBQ008OK2N07"
+    },
+    {
+      "name": "MORGAN STANLEY & CO. INTERNATIONAL PLC",
+      "lei": "4PQUHN3JPFGFNF3BB653"
+    },
+    {
+      "name": "TEMENOS AG",
+      "lei": "5067007NW6550481FH64"
+    },
+    {
+      "name": "CK INFRASTRUCTURE HOLDINGS LIMITED",
+      "lei": "5299005U11RQ1C27MR12"
+    },
+    {
+      "name": "BBGI Global Infrastructure S.A.",
+      "lei": "529900CV0RWCOP5YHK95"
+    },
+    {
+      "name": "Kuntarahoitus Oyj",
+      "lei": "529900HEKOENJHPNN480"
+    },
+    {
+      "name": "ENDEAVOUR MINING PLC",
+      "lei": "529900NI5MXQ91GHXR07"
+    },
+    {
+      "name": "TotalEnergies SE",
+      "lei": "529900S21EQ1BO4ESM68"
+    },
+    {
+      "name": "TUI AG",
+      "lei": "529900SL2WSPV293B552"
+    },
+    {
+      "name": "GSK PLC",
+      "lei": "5493000HZTVUYLO1D793"
+    },
+    {
+      "name": "RECORD PLC",
+      "lei": "5493000VJ55ZTYGX4322"
+    },
+    {
+      "name": "MONY GROUP PLC",
+      "lei": "54930016B7VO33FBE722"
+    },
+    {
+      "name": "NOVA LJUBLJANSKA BANKA d.d., Ljubljana",
+      "lei": "5493001BABFV7P27OW30"
+    },
+    {
+      "name": "FOXTONS GROUP PLC",
+      "lei": "5493001HCMG6R1MYKC59"
+    },
+    {
+      "name": "TI FLUID SYSTEMS LIMITED",
+      "lei": "5493001T9RXVD6OAWY46"
+    },
+    {
+      "name": "Prudential Public Limited Company",
+      "lei": "5493001Z3ZE83NGK8Y12"
+    },
+    {
+      "name": "GENUS PLC",
+      "lei": "54930022EOITNKSIGH56"
+    },
+    {
+      "name": "SENIOR PLC",
+      "lei": "5493002HQHWN5JQHKQ51"
+    },
+    {
+      "name": "CONTOURGLOBAL LIMITED",
+      "lei": "5493002I3A4J5TFOR115"
+    },
+    {
+      "name": "LANCASHIRE HOLDINGS LIMITED",
+      "lei": "5493002UNUYXLHOWF752"
+    },
+    {
+      "name": "Partners Group Private Equity Limited",
+      "lei": "54930038LU8RDPFFVJ57"
+    },
+    {
+      "name": "JUPITER FUND MANAGEMENT PLC",
+      "lei": "5493003DJ1G01IMQ7S28"
+    },
+    {
+      "name": "RECKITT BENCKISER GROUP PLC",
+      "lei": "5493003JFSMOJG48V108"
+    },
+    {
+      "name": "BLACKROCK ENERGY AND RESOURCES INCOME TRUST PLC",
+      "lei": "54930040ALEAVPMMDC31"
+    },
+    {
+      "name": "INDUSTRIALS REIT LIMITED",
+      "lei": "5493004JYL71EMLTB211"
+    },
+    {
+      "name": "PAYPOINT PLC",
+      "lei": "5493004YKWI8U0GDD138"
+    },
+    {
+      "name": "STARWOOD EUROPEAN REAL ESTATE FINANCE LIMITED",
+      "lei": "5493004YMVUQ9Z7JGZ50"
+    },
+    {
+      "name": "EVRAZ PLC",
+      "lei": "5493005B7DAN39RXLK23"
+    },
+    {
+      "name": "ZCCM INVESTMENTS HOLDINGS PLC",
+      "lei": "5493005OY00M9G3XSY51"
+    },
+    {
+      "name": "AB \"IGNITIS GRUPĖ\"",
+      "lei": "5493005RZJHJT5PNHY10"
+    },
+    {
+      "name": "JUST GROUP PLC",
+      "lei": "5493006456YEZEELRR90"
+    },
+    {
+      "name": "BANCO SANTANDER S.A.",
+      "lei": "5493006QMFDDMYWIAM13"
+    },
+    {
+      "name": "INFORMA PLC",
+      "lei": "5493006VM2LKUPSEDU20"
+    },
+    {
+      "name": "トヨタ自動車株式会社",
+      "lei": "5493006W3QUS5LMH6R84"
+    },
+    {
+      "name": "HISCOX LTD",
+      "lei": "5493007JXOLJ0QCY2D70"
+    },
+    {
+      "name": "ESSENTRA PLC",
+      "lei": "5493007MOZNA03BVNE96"
+    },
+    {
+      "name": "HALFORDS GROUP PLC",
+      "lei": "54930086FKBWWJIOBI79"
+    },
+    {
+      "name": "АКЦИОНЕРНОЕ ОБЩЕСТВО «НАЦИОНАЛЬНАЯ АТОМНАЯ КОМПАНИЯ «КАЗАТОМПРОМ»",
+      "lei": "5493008JG5TXJP2JSY44"
+    },
+    {
+      "name": "QUILTER PLC",
+      "lei": "54930092XIVK28RZGM95"
+    },
+    {
+      "name": "SCHRODER EUROPEAN REAL ESTATE INVESTMENT TRUST PLC",
+      "lei": "549300BHT1Z8NI4RLD52"
+    },
+    {
+      "name": "THE QUARTO GROUP INC.",
+      "lei": "549300BJ2WPX3QUATW58"
+    },
+    {
+      "name": "HIKMA PHARMACEUTICALS PUBLIC LIMITED COMPANY",
+      "lei": "549300BNS685UXH4JI75"
+    },
+    {
+      "name": "TR PROPERTY INVESTMENT TRUST PLC",
+      "lei": "549300BPGCCN3ETPQD32"
+    },
+    {
+      "name": "CITY OF LONDON INVESTMENT GROUP PLC",
+      "lei": "549300BV85TFYXK2Y635"
+    },
+    {
+      "name": "Публичное акционерное общество \"Российские сети\"",
+      "lei": "549300BVSSKP13UVXI08"
+    },
+    {
+      "name": "REGIONAL REIT LIMITED",
+      "lei": "549300D8G4NKLRIKBX73"
+    },
+    {
+      "name": "PHAROS ENERGY PLC",
+      "lei": "549300DDKLXYLLO4N524"
+    },
+    {
+      "name": "FIRSTGROUP PLC",
+      "lei": "549300DEJZCPWA4HKM93"
+    },
+    {
+      "name": "IMPERIAL BRANDS PLC",
+      "lei": "549300DFVPOB67JL3A42"
+    },
+    {
+      "name": "NESTLE HOLDINGS, INC.",
+      "lei": "549300EAEU8YV8MQXP30"
+    },
+    {
+      "name": "Coca-Cola HBC AG",
+      "lei": "549300EFP3TNG7JGVE49"
+    },
+    {
+      "name": "FIX PRICE GROUP PLC",
+      "lei": "549300EXJV1RPGZNH608"
+    },
+    {
+      "name": "Публичное акционерное общество \"Полюс\"",
+      "lei": "549300FUXVT7TF6ZKV71"
+    },
+    {
+      "name": "NINETY ONE PLC",
+      "lei": "549300G0TJCT3K15ZG14"
+    },
+    {
+      "name": "ABRDN PROPERTY INCOME TRUST LIMITED",
+      "lei": "549300HHFBWZRKC7RW84"
+    },
+    {
+      "name": "TED BAKER PLC",
+      "lei": "549300HN14450OU4IL77"
+    },
+    {
+      "name": "RSA INSURANCE GROUP LIMITED",
+      "lei": "549300HOGQ7E0TY86138"
+    },
+    {
+      "name": "SOUTH EAST WATER LIMITED",
+      "lei": "549300IC82VDT8CYDH51"
+    },
+    {
+      "name": "GENEL ENERGY PLC",
+      "lei": "549300IVCJDWC3LR8F94"
+    },
+    {
+      "name": "HOCHSCHILD MINING PLC",
+      "lei": "549300JK10TVQ3CCJQ89"
+    },
+    {
+      "name": "FRESNILLO PLC",
+      "lei": "549300JXWH1UV5J0XV81"
+    },
+    {
+      "name": "WEIR PLC",
+      "lei": "549300KDR56WHY9I3D10"
+    },
+    {
+      "name": "SSE PLC",
+      "lei": "549300KI75VYLLMSK856"
+    },
+    {
+      "name": "RS GROUP PLC",
+      "lei": "549300KVXDURRKVW7R37"
+    },
+    {
+      "name": "NOTTINGHAM BUILDING SOCIETY",
+      "lei": "549300L5FZ06J1914B44"
+    },
+    {
+      "name": "Публичное акционерное общество \"Нефтяная компания \"ЛУКОЙЛ\"",
+      "lei": "549300LCJ1UJXHYBWI24"
+    },
+    {
+      "name": "CRANSWICK PLC",
+      "lei": "549300LDZLPU51XOSK43"
+    },
+    {
+      "name": "ELEMENTIS PLC",
+      "lei": "549300LQIH685LI2ML36"
+    },
+    {
+      "name": "WPP PLC",
+      "lei": "549300LSGBXPYHXGDT93"
+    },
+    {
+      "name": "COCA-COLA EUROPACIFIC PARTNERS PLC",
+      "lei": "549300LTH67W4GWMRF57"
+    },
+    {
+      "name": "CRH PUBLIC LIMITED COMPANY",
+      "lei": "549300MIDJNNTH068E74"
+    },
+    {
+      "name": "UNILEVER PLC",
+      "lei": "549300MKFYEKVRWML317"
+    },
+    {
+      "name": "ACG METALS LIMITED",
+      "lei": "549300NXL2KSHKJXTU29"
+    },
+    {
+      "name": "ICG PLC",
+      "lei": "549300OGASR5WRKJ8R68"
+    },
+    {
+      "name": "DPM BH HOLDINGS LIMITED",
+      "lei": "549300OHAH2GL1DP0L61"
+    },
+    {
+      "name": "CARDIFF UNIVERSITY",
+      "lei": "549300OORZW54UVPSL54"
+    },
+    {
+      "name": "BRITISH TELECOMMUNICATIONS LIMITED",
+      "lei": "549300OWFMSO9NYV4H90"
+    },
+    {
+      "name": "JOHN WOOD GROUP LIMITED",
+      "lei": "549300PLYY6I10B6S323"
+    },
+    {
+      "name": "LLOYDS BANKING GROUP PLC",
+      "lei": "549300PPXHEU2JF0AM85"
+    },
+    {
+      "name": "HALEON PLC",
+      "lei": "549300PSB3WWEODCUP19"
+    },
+    {
+      "name": "SERCO GROUP PLC",
+      "lei": "549300PT2CIHYN5GWJ21"
+    },
+    {
+      "name": "RTW BIOTECH OPPORTUNITIES LTD",
+      "lei": "549300Q7EXQQH6KF7Z84"
+    },
+    {
+      "name": "TELECOM PLUS PLC",
+      "lei": "549300QGHDX5UKE58G86"
+    },
+    {
+      "name": "ATALAYA MINING PLC",
+      "lei": "549300QNQPXVRXGXOX56"
+    },
+    {
+      "name": "KELLER GROUP PLC",
+      "lei": "549300QO4MBL43UHSN10"
+    },
+    {
+      "name": "Real Estate Credit Investments Limited",
+      "lei": "549300QRGEEMB5OOLX86"
+    },
+    {
+      "name": "ENERGEAN PLC",
+      "lei": "549300RVMKU0CYUZBB05"
+    },
+    {
+      "name": "ANGLO AMERICAN PLC",
+      "lei": "549300S9XF92D1X8ME43"
+    },
+    {
+      "name": "NEWCASTLE BUILDING SOCIETY",
+      "lei": "549300T1JIP3LZ5TZ694"
+    },
+    {
+      "name": "SHAFTESBURY CAPITAL PLC",
+      "lei": "549300TTXXZ1SHUI0D54"
+    },
+    {
+      "name": "ASHMORE GROUP PLC",
+      "lei": "549300U3L59WB4YI2X12"
+    },
+    {
+      "name": "OMV PETROM SA",
+      "lei": "549300UKYDM6L8HEPU79"
+    },
+    {
+      "name": "VPC SPECIALTY LENDING INVESTMENTS PLC",
+      "lei": "549300UPEXC5DQB81P34"
+    },
+    {
+      "name": "RENTOKIL INITIAL PLC",
+      "lei": "549300VN4WV7Z6T14K68"
+    },
+    {
+      "name": "RELX PLC",
+      "lei": "549300WSX3VBUFFJOO66"
+    },
+    {
+      "name": "Malibu Life Holdings Limited",
+      "lei": "549300WXTCG65AQ7V644"
+    },
+    {
+      "name": "PLUS500 LTD",
+      "lei": "549300X8NGW9C5OJZU13"
+    },
+    {
+      "name": "NATIONWIDE BUILDING SOCIETY",
+      "lei": "549300XFX12G42QIKN82"
+    },
+    {
+      "name": "Международная компания публичное акционерное общество \"Т-Технологии\"",
+      "lei": "549300XQRN9MR54V1W18"
+    },
+    {
+      "name": "COMPUTACENTER PLC",
+      "lei": "549300XSXUZ1I19DB105"
+    },
+    {
+      "name": "LIONTRUST ASSET MANAGEMENT PLC",
+      "lei": "549300XVXU6S7PLCL855"
+    },
+    {
+      "name": "DRAX GROUP PLC",
+      "lei": "549300YPSNTXR4ZHSR98"
+    },
+    {
+      "name": "POLAR CAPITAL GLOBAL HEALTHCARE TRUST PLC",
+      "lei": "549300YV7J2TWLE7PV84"
+    },
+    {
+      "name": "Schroder Real Estate Investment Trust Limited",
+      "lei": "549300ZIJJTMTIIQJP67"
+    },
+    {
+      "name": "ELECTRICITY NORTH WEST LIMITED",
+      "lei": "549300ZM2QCFG22BOJ03"
+    },
+    {
+      "name": "HYVE GROUP LIMITED",
+      "lei": "549300ZOQOW485BCD047"
+    },
+    {
+      "name": "SME CREDIT REALISATION FUND LIMITED",
+      "lei": "549300ZQIYQVNIZGOW60"
+    },
+    {
+      "name": "STATNETT SF",
+      "lei": "5967007LIEEXZXHAI017"
+    },
+    {
+      "name": "AIB GROUP PUBLIC LIMITED COMPANY",
+      "lei": "635400AKJBGNS5WNQL34"
+    },
+    {
+      "name": "GRAFTON GROUP PUBLIC LIMITED COMPANY",
+      "lei": "635400BE9SBAG61DJ963"
+    },
+    {
+      "name": "BANK OF IRELAND GROUP PLC",
+      "lei": "635400C8EK6DRI12LJ39"
+    },
+    {
+      "name": "Smurfit Kappa Group Limited",
+      "lei": "635400CPLP8H5ITDVT56"
+    },
+    {
+      "name": "Aminex PLC",
+      "lei": "635400CSEBJAYPUUFC95"
+    },
+    {
+      "name": "Cairn Homes Public Limited Company",
+      "lei": "635400DPX6WP2KKDOA83"
+    },
+    {
+      "name": "PERMANENT TSB GROUP HOLDINGS PUBLIC LIMITED COMPANY",
+      "lei": "635400DTNHVYGZODKQ93"
+    },
+    {
+      "name": "Flutter Entertainment Public Limited Company",
+      "lei": "635400EG4YIJLJMZJ782"
+    },
+    {
+      "name": "Kenmare Resources Public Limited Company",
+      "lei": "635400ETHWP1EKJMDO16"
+    },
+    {
+      "name": "Irish Continental Group plc",
+      "lei": "635400FQKB6QXERQOC74"
+    },
+    {
+      "name": "Greencore Group plc",
+      "lei": "635400GGBEWULJXM5868"
+    },
+    {
+      "name": "Kingspan Group plc",
+      "lei": "635400HM7V74SUB9OG75"
+    },
+    {
+      "name": "F.B.D. Holdings Public Limited Company",
+      "lei": "635400HNBZBITDHQJG48"
+    },
+    {
+      "name": "BANK OF CYPRUS HOLDINGS PUBLIC LIMITED COMPANY",
+      "lei": "635400L14KNHZXPUZM19"
+    },
+    {
+      "name": "Dalata Hotel Group Public Limited Company",
+      "lei": "635400L2CWET7ONOBJ04"
+    },
+    {
+      "name": "BRITVIC LIMITED",
+      "lei": "635400L3NVMYD4BVCI53"
+    },
+    {
+      "name": "C & C GROUP PUBLIC LIMITED COMPANY",
+      "lei": "635400LNUHA2LDXXV850"
+    },
+    {
+      "name": "Glenveagh Properties Public Limited Company",
+      "lei": "635400QUQ2YYGMOAK834"
+    },
+    {
+      "name": "Experian plc",
+      "lei": "635400RXXHHYT1JTSZ26"
+    },
+    {
+      "name": "Glanbia plc",
+      "lei": "635400SRMCBHVMSKJS84"
+    },
+    {
+      "name": "KERRY GROUP PUBLIC LIMITED COMPANY",
+      "lei": "635400TLVVBNXLFHWC59"
+    },
+    {
+      "name": "SKIPTON BUILDING SOCIETY",
+      "lei": "66AGRETLUXS4YO5MUH35"
+    },
+    {
+      "name": "Just Eat Takeaway.com B.V.",
+      "lei": "724500FVZIBSSQ7SHI95"
+    },
+    {
+      "name": "RHI Magnesita N.V.",
+      "lei": "724500UWG6A61XNA3Y36"
+    },
+    {
+      "name": "Ålandsbanken Abp",
+      "lei": "7437006WYM821IJ3MN73"
+    },
+    {
+      "name": "Elenia Verkko Oyj",
+      "lei": "743700XGU4ZB5G4RPK50"
+    },
+    {
+      "name": "INVESTEC BANK PLC",
+      "lei": "84S0VF8TSMH0T6D4K848"
+    },
+    {
+      "name": "Critical Mineral Resources Plc",
+      "lei": "8945007F59CSJFZGR252"
+    },
+    {
+      "name": "CAB Payments Holdings PLC",
+      "lei": "8945007OZHZDN4LW1G21"
+    },
+    {
+      "name": "Elering AS",
+      "lei": "894500CHL8J099IKJ580"
+    },
+    {
+      "name": "Pollen Street Group Limited",
+      "lei": "894500LP94M98N8CY487"
+    },
+    {
+      "name": "FIRST CLASS METALS PLC",
+      "lei": "894500V981ZTFLGVOZ38"
+    },
+    {
+      "name": "THEWORKS.CO.UK PLC",
+      "lei": "894500W7PWBCCWBN9R03"
+    },
+    {
+      "name": "NATIONAL GRID PLC",
+      "lei": "8R95QZMKZLJX5Q2XR704"
+    },
+    {
+      "name": "BAE SYSTEMS PLC",
+      "lei": "8SVCSVKSGDWMW2QHOH83"
+    },
+    {
+      "name": "INTERNATIONAL CONSOLIDATED AIRLINES GROUP, S.A.",
+      "lei": "959800TZHQRUSH1ESL13"
+    },
+    {
+      "name": "CANAL+",
+      "lei": "9695000537F9F73BXN18"
+    },
+    {
+      "name": "THE BEAUTY TECH GROUP PLC",
+      "lei": "9845005838FE7756E729"
+    },
+    {
+      "name": "London BTC Company Limited",
+      "lei": "9845006607892CED8456"
+    },
+    {
+      "name": "FAIRVIEW INTERNATIONAL PLC",
+      "lei": "98450074P7666D400758"
+    },
+    {
+      "name": "METRO BANK HOLDINGS PLC",
+      "lei": "984500CDDEAD6C2EDQ64"
+    },
+    {
+      "name": "FIRST TIN PLC",
+      "lei": "984500CSA7TBE3FB7C63"
+    },
+    {
+      "name": "RASPBERRY PI HOLDINGS PLC",
+      "lei": "984500F5FB0E4FEBED17"
+    },
+    {
+      "name": "DELIVEROO LIMITED",
+      "lei": "984500F6537F74DDEE77"
+    },
+    {
+      "name": "에스케이텔레콤 주식회사",
+      "lei": "9884003WEA1PHW006037"
+    },
+    {
+      "name": "현대자동차 (주)",
+      "lei": "9884004RQX8PRBXQ8S60"
+    },
+    {
+      "name": "삼성전자(주)",
+      "lei": "9884007ER46L6N7EI764"
+    },
+    {
+      "name": "(주)하나투어",
+      "lei": "988400CYMN8PVIM47U40"
+    },
+    {
+      "name": "NIBC Bank N.V.",
+      "lei": "B64D6Y3LBJS4ANNPCU93"
+    },
+    {
+      "name": "CAPITA PLC",
+      "lei": "CMIGEWPLHL4M7ZV0IZ88"
+    },
+    {
+      "name": "BALFOUR BEATTY PLC",
+      "lei": "CT4UIJ3TUKGYYHMENQ17"
+    },
+    {
+      "name": "CENTRICA PLC",
+      "lei": "E26EDV109X6EEPBKVH76"
+    },
+    {
+      "name": "Royal Bank of Canada",
+      "lei": "ES7IP3U3RHIGC71XBU11"
+    },
+    {
+      "name": "BUSINESS ENTITY DATA B.V.",
+      "lei": "EVK05KS7XY1DEII3R011"
+    },
+    {
+      "name": "BARCLAYS BANK PLC",
+      "lei": "G5GSEF7VJP5I7OUK5573"
+    },
+    {
+      "name": "ASSOCIATED BRITISH FOODS PLC",
+      "lei": "GBQKSY6W7G0OHCQ8OQ72"
+    },
+    {
+      "name": "LLOYDS BANK PLC",
+      "lei": "H7FNTJ4851HG0EXQ1Z70"
+    },
+    {
+      "name": "TOYOTA CREDIT CANADA INC.",
+      "lei": "HJZQGXYTVV2NWJZLPW74"
+    },
+    {
+      "name": "MORGAN ADVANCED MATERIALS PLC",
+      "lei": "I4K14LL95N2PHDL7EG85"
+    },
+    {
+      "name": "AUSTRALIA AND NEW ZEALAND BANKING GROUP LIMITED",
+      "lei": "JHE42UYNWWTJB8YTTU19"
+    },
+    {
+      "name": "NATIXIS",
+      "lei": "KX1WK48MPD4Y2NCUIZ63"
+    },
+    {
+      "name": "BLACKROCK WORLD MINING TRUST PLC",
+      "lei": "LNFFPBEUZJBOSR6PW155"
+    },
+    {
+      "name": "HSBC HOLDINGS PLC",
+      "lei": "MLU0ZO3ML4LN2LL2TL39"
+    },
+    {
+      "name": "HSBC BANK PLC",
+      "lei": "MP6I5ZYZBEU3UXPYFY54"
+    },
+    {
+      "name": "LEEDS BUILDING SOCIETY",
+      "lei": "O8VR8MK4M5SM9ZVEFS35"
+    },
+    {
+      "name": "BANK OF SCOTLAND PLC",
+      "lei": "OQ3T05P7YR8P5YJEVI93"
+    },
+    {
+      "name": "RIT CAPITAL PARTNERS PLC",
+      "lei": "P31Q1NLTW35JJGHA4667"
+    },
+    {
+      "name": "SANTANDER UK PLC",
+      "lei": "PTCQB104N23FMNK2RZ28"
+    },
+    {
+      "name": "ASTRAZENECA PLC",
+      "lei": "PY6ZZQWO2IZFZC3IOL08"
+    },
+    {
+      "name": "The Governor and Company of the Bank of Ireland",
+      "lei": "Q2GQA2KF6XJ24W42G291"
+    },
+    {
+      "name": "STANDARD CHARTERED BANK",
+      "lei": "RILFO74KP1CM8P6PCT96"
+    },
+    {
+      "name": "NATWEST MARKETS PLC",
+      "lei": "RR3QWICWWIPCS8A4S074"
+    },
+    {
+      "name": "BRITISH LAND COMPANY PUBLIC LIMITED COMPANY(THE)",
+      "lei": "RV5B68J2GV3QGMRPW209"
+    },
+    {
+      "name": "STANDARD CHARTERED PLC",
+      "lei": "U4LOSYZ7YG4W3S5F2G91"
+    },
+    {
+      "name": "YORKSHIRE BUILDING SOCIETY",
+      "lei": "WXD0EHQRPI7HKN3I5T57"
+    },
+    {
+      "name": "BHP GROUP LIMITED",
+      "lei": "WZE1WSENV6JSZFK0JC28"
+    },
+    {
+      "name": "ROLLS-ROYCE PLC",
+      "lei": "X57JK1U580XATGR67572"
+    },
+    {
+      "name": "PZ CUSSONS PLC",
+      "lei": "XB3CXKKKED7OMV80FY35"
+    },
+    {
+      "name": "AVIVA PLC",
+      "lei": "YF0Y5B0IB8SM0ZFG9G81"
+    },
+    {
+      "name": "MEGGITT PLC",
+      "lei": "YMFO3TKB4UAWQTDZJJ31"
+    },
+    {
+      "name": "BUPA FINANCE PLC.",
+      "lei": "ZIMCVQHUFZ8GVHENP290"
+    },
+    {
+      "name": "ITV PLC",
+      "lei": "ZLECI7ED2QMWFGYCXZ59"
+    }
+  ]
+}

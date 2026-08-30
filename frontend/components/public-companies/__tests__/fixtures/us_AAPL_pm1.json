@@ -1,0 +1,274 @@
+{
+  "envelope": {
+    "content_hash": "sha256:3a2d2e71bbc2b1227a5285d8005cde08e526d0de22cfc2a480b3b0e9309cc29b",
+    "doc_class": "public_market",
+    "entity": {
+      "cik": "0000320193",
+      "cik_int": 320193,
+      "name": "Apple Inc.",
+      "source": "sec_edgar",
+      "ticker": "AAPL"
+    },
+    "entity_id": "pme-2290d248286fbd60",
+    "figures": {
+      "equity": {
+        "currency": "USD",
+        "fiscal": {
+          "end": "2025-09-27",
+          "fp": "FY",
+          "fy": 2025,
+          "start": null
+        },
+        "minor_unit": "cent",
+        "provenance": {
+          "accession": "0000320193-25-000079",
+          "accession_or_version": "0000320193-25-000079",
+          "as_of": "2025-09-27",
+          "concept": "StockholdersEquity",
+          "dataset_version": "0000320193-25-000079",
+          "fetched_at": "2026-08-30T04:59:44Z",
+          "filed": "2025-10-31",
+          "form": "10-K",
+          "fp": "FY",
+          "fy": 2025,
+          "source": "sec_edgar_companyfacts",
+          "taxonomy": "us-gaap",
+          "unit": "USD"
+        },
+        "value_minor": 7373300000000
+      },
+      "net_income": {
+        "currency": "USD",
+        "fiscal": {
+          "end": "2025-09-27",
+          "fp": "FY",
+          "fy": 2025,
+          "start": "2024-09-29"
+        },
+        "minor_unit": "cent",
+        "provenance": {
+          "accession": "0000320193-25-000079",
+          "accession_or_version": "0000320193-25-000079",
+          "as_of": "2025-09-27",
+          "concept": "NetIncomeLoss",
+          "dataset_version": "0000320193-25-000079",
+          "fetched_at": "2026-08-30T04:59:44Z",
+          "filed": "2025-10-31",
+          "form": "10-K",
+          "fp": "FY",
+          "fy": 2025,
+          "source": "sec_edgar_companyfacts",
+          "taxonomy": "us-gaap",
+          "unit": "USD"
+        },
+        "value_minor": 11201000000000
+      },
+      "revenue": {
+        "currency": "USD",
+        "fiscal": {
+          "end": "2025-09-27",
+          "fp": "FY",
+          "fy": 2025,
+          "start": "2024-09-29"
+        },
+        "minor_unit": "cent",
+        "provenance": {
+          "accession": "0000320193-25-000079",
+          "accession_or_version": "0000320193-25-000079",
+          "as_of": "2025-09-27",
+          "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+          "dataset_version": "0000320193-25-000079",
+          "fetched_at": "2026-08-30T04:59:44Z",
+          "filed": "2025-10-31",
+          "form": "10-K",
+          "fp": "FY",
+          "fy": 2025,
+          "source": "sec_edgar_companyfacts",
+          "taxonomy": "us-gaap",
+          "unit": "USD"
+        },
+        "value_minor": 41616100000000
+      },
+      "shares_outstanding": {
+        "fiscal": {
+          "end": "2026-07-17",
+          "fp": "Q3",
+          "fy": 2026,
+          "start": null
+        },
+        "provenance": {
+          "accession": "0000320193-26-000020",
+          "accession_or_version": "0000320193-26-000020",
+          "as_of": "2026-07-17",
+          "concept": "EntityCommonStockSharesOutstanding",
+          "dataset_version": "0000320193-26-000020",
+          "fetched_at": "2026-08-30T04:59:44Z",
+          "filed": "2026-07-31",
+          "form": "10-Q",
+          "fp": "Q3",
+          "fy": 2026,
+          "source": "sec_edgar_companyfacts",
+          "taxonomy": "dei",
+          "unit": "shares"
+        },
+        "unit": "shares",
+        "value": 14594180000
+      },
+      "total_assets": {
+        "currency": "USD",
+        "fiscal": {
+          "end": "2025-09-27",
+          "fp": "FY",
+          "fy": 2025,
+          "start": null
+        },
+        "minor_unit": "cent",
+        "provenance": {
+          "accession": "0000320193-25-000079",
+          "accession_or_version": "0000320193-25-000079",
+          "as_of": "2025-09-27",
+          "concept": "Assets",
+          "dataset_version": "0000320193-25-000079",
+          "fetched_at": "2026-08-30T04:59:44Z",
+          "filed": "2025-10-31",
+          "form": "10-K",
+          "fp": "FY",
+          "fy": 2025,
+          "source": "sec_edgar_companyfacts",
+          "taxonomy": "us-gaap",
+          "unit": "USD"
+        },
+        "value_minor": 35924100000000
+      },
+      "total_debt": {
+        "components": [
+          {
+            "accession": "0000320193-25-000079",
+            "concept": "LongTermDebtCurrent",
+            "end": "2025-09-27",
+            "filed": "2025-10-31",
+            "form": "10-K",
+            "value_minor": 1235000000000
+          },
+          {
+            "accession": "0000320193-25-000079",
+            "concept": "CommercialPaper",
+            "end": "2025-09-27",
+            "filed": "2025-10-31",
+            "form": "10-K",
+            "value_minor": 797900000000
+          },
+          {
+            "accession": "0000320193-25-000079",
+            "concept": "LongTermDebtNoncurrent",
+            "end": "2025-09-27",
+            "filed": "2025-10-31",
+            "form": "10-K",
+            "value_minor": 7832800000000
+          }
+        ],
+        "currency": "USD",
+        "fiscal": {
+          "end": "2025-09-27",
+          "fp": "FY",
+          "fy": 2025,
+          "start": null
+        },
+        "minor_unit": "cent",
+        "provenance": {
+          "accession": "0000320193-25-000079",
+          "accession_or_version": "0000320193-25-000079",
+          "as_of": "2025-09-27",
+          "concept": "composite(short_term_debt+long_term_debt)",
+          "dataset_version": "0000320193-25-000079",
+          "fetched_at": "2026-08-30T04:59:44Z",
+          "filed": "2025-10-31",
+          "form": "10-K",
+          "fp": "FY",
+          "fy": 2025,
+          "source": "sec_edgar_companyfacts",
+          "taxonomy": "us-gaap",
+          "unit": "USD"
+        },
+        "value_minor": 9865700000000
+      }
+    },
+    "fiscal_anchor": {
+      "latest_annual_end": "2025-09-27",
+      "latest_fy": 2025
+    },
+    "market": {
+      "accounting_standard": "US_GAAP",
+      "currency": "USD",
+      "display_name": "United States",
+      "exchanges": [
+        "NYSE",
+        "NASDAQ"
+      ],
+      "fundamentals_source": "sec_edgar_companyfacts",
+      "license_notes": "\"Current max request rate: 10 requests/second.\" · \"Please declare your user agent\" (https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data, retrieved 2026-08-29)",
+      "market_id": "us",
+      "price_source": "licensed_provider_slot",
+      "refresh_cadence": "on_filing",
+      "status": "live"
+    },
+    "market_id": "us",
+    "meta": {
+      "cache_reason": "not_attempted",
+      "cached": false
+    },
+    "provenance": {
+      "accession_or_version": "0000320193-25-000079",
+      "as_of": "2025-09-27",
+      "dataset_version": "0000320193-25-000079",
+      "fetched_at": "2026-08-30T04:59:44Z",
+      "source": "sec_edgar_companyfacts",
+      "user_agent": "cfo-ai.io engine (contact: ad.crestin@gmail.com)"
+    },
+    "refusals": [],
+    "schema_version": "public_market.edgar.v1",
+    "segments": {
+      "reason": "segment data is not present in the EDGAR companyfacts dataset; requires per-filing XBRL parsing",
+      "status": "UNAVAILABLE"
+    },
+    "status": "PUBLIC_MARKET",
+    "version": "pm1"
+  },
+  "market": {
+    "accounting_standard": "US_GAAP",
+    "coverage_note": "Keyless and official: ticker -> CIK -> companyfacts -> figures with per-figure accessions. USD units only in v1 — an FX-denominated filer refuses rather than mixing currencies. Cash is deliberately not extracted, so enterprise_value refuses by design rather than subtracting a zero it never saw.",
+    "currency": "USD",
+    "display_name": "United States",
+    "exchanges": [
+      "NYSE",
+      "NASDAQ"
+    ],
+    "fundamentals_source": "sec_edgar_companyfacts",
+    "group": "marquee",
+    "license_notes": "\"Current max request rate: 10 requests/second.\" · \"Please declare your user agent\" (https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data, retrieved 2026-08-29)",
+    "market_id": "us",
+    "marquee_rank": 1,
+    "price_source": "licensed_provider_slot",
+    "refresh_cadence": "on_filing",
+    "status": "live"
+  },
+  "presentation": {
+    "accounting_standard": "US_GAAP",
+    "as_of": "2025-09-27",
+    "currency": "USD",
+    "delay_note": null,
+    "license_line": "\"Current max request rate: 10 requests/second.\" · \"Please declare your user agent\" (https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data, retrieved 2026-08-29)",
+    "market_id": "us",
+    "market_name": "United States",
+    "market_status": "live",
+    "price_line_en": "No licensed price feed for this market — fundamentals only",
+    "price_line_ro": "Fără flux de prețuri licențiat pentru această piață — doar indicatori",
+    "refusal_count": 0,
+    "source_line": "sec_edgar_companyfacts · 0000320193-25-000079 · 2025-09-27",
+    "status": "PUBLIC_MARKET",
+    "trust_en": "Public filing data · United States · US_GAAP · as of 2025-09-27",
+    "trust_ro": "Date din raportări publice · United States · US_GAAP · la 2025-09-27",
+    "version": "pm1"
+  },
+  "status": "PUBLIC_MARKET"
+}

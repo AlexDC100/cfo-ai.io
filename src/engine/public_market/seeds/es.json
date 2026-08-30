@@ -1,0 +1,558 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "es",
+  "as_of": "2026-08-29",
+  "source": {
+    "name": "filings.xbrl.org ESEF filings index, joined to GLEIF Level 1 legal names",
+    "url": "https://filings.xbrl.org/api/filings?filter=country eq ES",
+    "dataset_version": "filings.xbrl.org country=ES count=542 + GLEIF golden copy 2026-08-29T16:00:00Z",
+    "retrieved_at": "2026-08-30T05:11:57Z",
+    "names_from": "https://api.gleif.org/api/v1/lei-records",
+    "identity_only": true
+  },
+  "license_note": "Filings index: at present, there are no restrictions on the ways that the data can be used (filings.xbrl.org/docs/about). Legal names: The data available through the Access Service are provided under the CC0 licence, see CC0 1.0 Universal (CC0 1.0). (gleif.org/en/meta/lei-data-terms-of-use, retrieved 2026-08-30)",
+  "coverage_note": "The entities that have actually filed ESEF reports for country ES, keyed by the LEI the filings index publishes and named from GLEIF — identity only, NO figures. This is FEED COVERAGE, not index membership: a national index list would name companies this platform holds nothing for, while this file names exactly the companies the ESEF feed can speak about. Index constituent lists were considered and rejected as a source — they are the index providers' proprietary IP with no licence-clear machine-readable public distribution, and the free copies are HTML tables. Members carry no ticker because the feed publishes none, which is exactly why this market's registry status is fundamentals_only: the figures exist, the ticker lookup does not. 542 filing rows yielded 135 distinct entities, 0 of which had no GLEIF Level 1 record at fetch time and are therefore absent rather than named by guess.",
+  "member_count": 135,
+  "members": [
+    {
+      "name": "RENTA 4 BANCO SA",
+      "lei": "213800IMKAUV5KW28586"
+    },
+    {
+      "name": "TECNICAS REUNIDAS SA",
+      "lei": "213800JEZBUPZKWJGF49"
+    },
+    {
+      "name": "BERKELEY ENERGIA LIMITED",
+      "lei": "213800JX3V4TPO7TCJ08"
+    },
+    {
+      "name": "APPLUS SERVICES, S.A.",
+      "lei": "213800M9XCA6NR98E873"
+    },
+    {
+      "name": "ENAGAS, S.A.",
+      "lei": "213800OU3FQKGM4M2U23"
+    },
+    {
+      "name": "Corporacion Acciona Energias Renovables SA",
+      "lei": "254900UPX0OEHTKB9Y44"
+    },
+    {
+      "name": "AmRest Holdings SE",
+      "lei": "259400T6ZDQIMDBGDN42"
+    },
+    {
+      "name": "EDP RENEWABLES SOCIEDAD ANONIMA",
+      "lei": "529900MUFAH07Q1TAX06"
+    },
+    {
+      "name": "Acciona SA",
+      "lei": "54930002KP75TLLLNO21"
+    },
+    {
+      "name": "OPEN BANK SOCIEDAD ANONIMA",
+      "lei": "5493000LM0MZ4JPMGM90"
+    },
+    {
+      "name": "DISTRIBUIDORA INTERNACIONAL DE ALIMENTACION SA",
+      "lei": "54930063C6K2TNFL6H10"
+    },
+    {
+      "name": "BANKIA SA",
+      "lei": "549300685QG7DJS55M76"
+    },
+    {
+      "name": "BANCO SANTANDER S.A.",
+      "lei": "5493006QMFDDMYWIAM13"
+    },
+    {
+      "name": "UNICAJA BANCO SA",
+      "lei": "5493007SJLLCTM6J6M37"
+    },
+    {
+      "name": "CELLNEX TELECOM SA",
+      "lei": "5493008T4YG3AQUI7P67"
+    },
+    {
+      "name": "REDEIA CORPORACION SA",
+      "lei": "5493009HMD0C90GUV498"
+    },
+    {
+      "name": "TELEFONICA SA",
+      "lei": "549300EEJH4FEPDBBR25"
+    },
+    {
+      "name": "FERTIBERIA CORPORATE SL",
+      "lei": "549300EQ15OJK3S3LL42"
+    },
+    {
+      "name": "COX ABG GROUP SA",
+      "lei": "549300GJVY6K3NC8MA89"
+    },
+    {
+      "name": "ENDESA SA",
+      "lei": "549300LHK07F2CHV4X31"
+    },
+    {
+      "name": "PROSEGUR COMPAÑIA DE SEGURIDAD, S.A.",
+      "lei": "549300N94L4D5NDBFG97"
+    },
+    {
+      "name": "IBERCAJA BANCO S.A.",
+      "lei": "549300OLBL49CW8CT155"
+    },
+    {
+      "name": "PUIG BRANDS S.A.",
+      "lei": "549300OVHNSX30L1AQ94"
+    },
+    {
+      "name": "INDUSTRIA DE DISEÑO TEXTIL, S.A.",
+      "lei": "549300TTCXZOGZM2EY83"
+    },
+    {
+      "name": "IBERDROLA SA",
+      "lei": "5QK37QC7NWOJ8D7WVQ45"
+    },
+    {
+      "name": "LIBERBANK S.A.",
+      "lei": "635400XT3V7WHLSFYY25"
+    },
+    {
+      "name": "CAIXABANK SA",
+      "lei": "7CUNS533WID6K7DGFI87"
+    },
+    {
+      "name": "DEUTSCHE BANK TRUST COMPANY AMERICAS",
+      "lei": "8EWQ2UQKS07AKK8ANH81"
+    },
+    {
+      "name": "NATURHOUSE HEALTH, S.A.",
+      "lei": "95980007WW7TNTYX8B36"
+    },
+    {
+      "name": "LOGISTA INTEGRAL SA",
+      "lei": "9598000ANNAL42UJ7X28"
+    },
+    {
+      "name": "NUEVA EXPRESION TEXTIL SA",
+      "lei": "9598000XPMA4HRVG3Z89"
+    },
+    {
+      "name": "COLONIAL SFL SOCIMI SA",
+      "lei": "95980020140005007414"
+    },
+    {
+      "name": "ALMIRALL S.A.",
+      "lei": "95980020140005007996"
+    },
+    {
+      "name": "DESARROLLOS ESPECIALES DE SISTEMAS DE ANCLAJE S.A.",
+      "lei": "95980020140005019442"
+    },
+    {
+      "name": "MEDIASET ESPAÑA COMUNICACION SA",
+      "lei": "95980020140005021479"
+    },
+    {
+      "name": "FLUIDRA S.A.",
+      "lei": "95980020140005026620"
+    },
+    {
+      "name": "FOMENTO DE CONSTRUCCIONES Y CONTRATAS S.A.",
+      "lei": "95980020140005178328"
+    },
+    {
+      "name": "MIQUEL Y COSTAS & MIQUEL S.A.",
+      "lei": "95980020140005204809"
+    },
+    {
+      "name": "GLOBAL DOMINION ACCESS SA",
+      "lei": "95980020140005225955"
+    },
+    {
+      "name": "CONSTRUCCIONES Y AUXILIAR DE FERROCARRILES, S.A.",
+      "lei": "95980020140005275134"
+    },
+    {
+      "name": "INDRA SISTEMAS, S.A.",
+      "lei": "95980020140005308793"
+    },
+    {
+      "name": "ENCE ENERGIA Y CELULOSA S.A.",
+      "lei": "95980020140005309084"
+    },
+    {
+      "name": "DEOLEO SA",
+      "lei": "95980020140005319366"
+    },
+    {
+      "name": "BORGES AGRICULTURAL & INDUSTRIAL NUTS SA",
+      "lei": "95980020140005350309"
+    },
+    {
+      "name": "CIE AUTOMOTIVE SA",
+      "lei": "95980020140005381252"
+    },
+    {
+      "name": "OBRASCON HUARTE LAIN, S.A.",
+      "lei": "95980020140005395317"
+    },
+    {
+      "name": "VIDRALA SA",
+      "lei": "95980020140005399488"
+    },
+    {
+      "name": "MINERALES Y PRODUCTOS DERIVADOS SA",
+      "lei": "95980020140005436930"
+    },
+    {
+      "name": "LIWE ESPAÑOLA S.A.",
+      "lei": "95980020140005449734"
+    },
+    {
+      "name": "GESTAMP AUTOMOCION SA",
+      "lei": "95980020140005484363"
+    },
+    {
+      "name": "ELECNOR SA",
+      "lei": "95980020140005491250"
+    },
+    {
+      "name": "ATRESMEDIA CORPORACION DE MEDIOS DE COMUNICACION, S.A.",
+      "lei": "95980020140005491929"
+    },
+    {
+      "name": "ACS ACTIVIDADES DE CONSTRUCCION Y SERVICIOS, S.A.",
+      "lei": "95980020140005558665"
+    },
+    {
+      "name": "ACERINOX SA",
+      "lei": "95980020140005582721"
+    },
+    {
+      "name": "AIRTIFICIAL INTELLIGENCE STRUCTURES SA",
+      "lei": "95980020140005635004"
+    },
+    {
+      "name": "ADOLFO DOMINGUEZ SA",
+      "lei": "95980020140005666335"
+    },
+    {
+      "name": "VISCOFAN SA",
+      "lei": "95980020140005684765"
+    },
+    {
+      "name": "VOCENTO SA",
+      "lei": "95980020140005692525"
+    },
+    {
+      "name": "MAPFRE S.A.",
+      "lei": "95980020140005693107"
+    },
+    {
+      "name": "TUBACEX, S.A.",
+      "lei": "95980020140005703680"
+    },
+    {
+      "name": "GENERAL DE ALQUILER DE MAQUINARIA, S.A",
+      "lei": "95980020140005731713"
+    },
+    {
+      "name": "FERROVIAL SA",
+      "lei": "95980020140005757903"
+    },
+    {
+      "name": "DURO FELGUERA SA",
+      "lei": "95980020140005772356"
+    },
+    {
+      "name": "LIBERTAS 7 SOCIEDAD ANONIMA",
+      "lei": "95980020140005821826"
+    },
+    {
+      "name": "LABORATORIOS FARMACEUTICOS ROVI S.A",
+      "lei": "95980020140005936480"
+    },
+    {
+      "name": "UNION CATALANA DE VALORES S.A.",
+      "lei": "95980020140005945792"
+    },
+    {
+      "name": "TUBOS REUNIDOS S.A.",
+      "lei": "95980020140005953746"
+    },
+    {
+      "name": "HELIOS RE SOCIMI SA",
+      "lei": "9598002PHMH00MHN3741"
+    },
+    {
+      "name": "GRUPO EMPRESARIAL SAN JOSE, SA",
+      "lei": "9598002SMUBZZBE58976"
+    },
+    {
+      "name": "TALGO SA",
+      "lei": "95980037JECHVQDJDT59"
+    },
+    {
+      "name": "LABORATORIO REIG JOFRE S.A.",
+      "lei": "9598003MRMJHA81QJF20"
+    },
+    {
+      "name": "AYCO GRUPO INMOBILIARIO, S.A.",
+      "lei": "95980049KFSE6UNLSJ86"
+    },
+    {
+      "name": "AMADEUS IT GROUP SOCIEDAD ANONIMA",
+      "lei": "9598004A3FTY3TEHHN09"
+    },
+    {
+      "name": "SIEMENS GAMESA RENEWABLE ENERGY SA",
+      "lei": "9598004BR8D81D3M1D64"
+    },
+    {
+      "name": "AEDAS HOMES SA",
+      "lei": "9598005H67MP8U20RW81"
+    },
+    {
+      "name": "PROSEGUR CASH, S.A.",
+      "lei": "9598005HY5DEFPU2SM35"
+    },
+    {
+      "name": "BODEGAS RIOJANAS SOCIEDAD ANONIMA",
+      "lei": "9598006DQSU4NU073U58"
+    },
+    {
+      "name": "ALANTRA PARTNERS, S.A.",
+      "lei": "95980078NDTDLTDH6130"
+    },
+    {
+      "name": "LINEA DIRECTA ASEGURADORA SOCIEDAD ANONIMA COMPAÑIA DE SEGUROS Y REASEGUROS",
+      "lei": "95980079E2NBJT967T79"
+    },
+    {
+      "name": "AZKOYEN SA",
+      "lei": "959800AXZW3EBUY24W90"
+    },
+    {
+      "name": "MOBILIARIA MONESA S.A.",
+      "lei": "959800BWQT8L5QURPM06"
+    },
+    {
+      "name": "CORPORACION FINANCIERA ALBA, S.A.",
+      "lei": "959800CJH35NNZQQW653"
+    },
+    {
+      "name": "CLINICA BAVIERA SA",
+      "lei": "959800CR1BA43ZK65T94"
+    },
+    {
+      "name": "INNOVATIVE SOLUTIONS ECOSYSTEM SA",
+      "lei": "959800DFMSYQLT3P0W53"
+    },
+    {
+      "name": "NICOLAS CORREA S.A.",
+      "lei": "959800EXHG00L95ZAK22"
+    },
+    {
+      "name": "COMPAÑIA LEVANTINA DE EDIFICACION Y OBRAS PUBLICAS SA",
+      "lei": "959800FJKW0UGKWEKN36"
+    },
+    {
+      "name": "INMOCEMENTO S.A.",
+      "lei": "959800FQZ6YAVHJPVE12"
+    },
+    {
+      "name": "NEINOR HOMES SA",
+      "lei": "959800FW4JL65YWSQ217"
+    },
+    {
+      "name": "FAES FARMA SA",
+      "lei": "959800FXZQY7U3P1G969"
+    },
+    {
+      "name": "MONTEBALITO, S.A.",
+      "lei": "959800GQ29X3QTKYUM69"
+    },
+    {
+      "name": "AMPER, S.A.",
+      "lei": "959800GZESQUFLUH5402"
+    },
+    {
+      "name": "GRUPO CATALANA OCCIDENTE, S.A.",
+      "lei": "959800H2P9S8MS95DT42"
+    },
+    {
+      "name": "ECOENER, S.A.",
+      "lei": "959800HBGZWHX69PE419"
+    },
+    {
+      "name": "ATRYS HEALTH, S.A.",
+      "lei": "959800HHEE9W4TZA8627"
+    },
+    {
+      "name": "GRIFOLS S.A.",
+      "lei": "959800HSSNXWRKBK4N60"
+    },
+    {
+      "name": "EROSKI SCOOP",
+      "lei": "959800J76YJMWZP6S661"
+    },
+    {
+      "name": "CEMENTOS MOLINS S.A.",
+      "lei": "959800JRJW1CZ63R8P20"
+    },
+    {
+      "name": "MELIA HOTELS INTERNATIONAL SA",
+      "lei": "959800JRKSZ6YZD4EL80"
+    },
+    {
+      "name": "ARIMA REAL ESTATE SOCIMI, S.A.",
+      "lei": "959800K5R280DP2B5694"
+    },
+    {
+      "name": "OPDENERGY HOLDING SA",
+      "lei": "959800KT1FVNZ7HC1R25"
+    },
+    {
+      "name": "SOLTEC POWER HOLDINGS SA",
+      "lei": "959800L6L2B2GGN73292"
+    },
+    {
+      "name": "MERLIN PROPERTIES SOCIMI, S.A.",
+      "lei": "959800L8KD863DP30X04"
+    },
+    {
+      "name": "MINOR HOTELS EUROPE & AMERICAS SA",
+      "lei": "959800LM1RW3PKJ4A296"
+    },
+    {
+      "name": "GRENERGY RENOVABLES SA",
+      "lei": "959800M1FVPL5BMW3R13"
+    },
+    {
+      "name": "PRIM, S.A.",
+      "lei": "959800M75M81U0Y2UX24"
+    },
+    {
+      "name": "AUDAX RENOVABLES S.A.",
+      "lei": "959800MAFGMXMGJHCH48"
+    },
+    {
+      "name": "RENTA CORPORACION REAL ESTATE S.A.",
+      "lei": "959800N1575U0SRS5Z65"
+    },
+    {
+      "name": "ZELESTRA CORPORACION SA",
+      "lei": "959800NAFTNQ5VSH4K06"
+    },
+    {
+      "name": "EBRO FOODS, S.A.",
+      "lei": "959800NW6DLQT89M3240"
+    },
+    {
+      "name": "SQUIRREL MEDIA S.A.",
+      "lei": "959800NZ03Z4U0519L24"
+    },
+    {
+      "name": "SOLARIA ENERGIA Y MEDIO AMBIENTE SA",
+      "lei": "959800PM2YJU406K2789"
+    },
+    {
+      "name": "LINGOTES ESPECIALES, S.A.",
+      "lei": "959800PV7FH0KLXNKE66"
+    },
+    {
+      "name": "COMPAÑÍA ESPAÑOLA DE VIVIENDAS EN ALQUILER S.A.",
+      "lei": "959800QETXHEMRSX9V59"
+    },
+    {
+      "name": "PHARMA MAR, S.A.",
+      "lei": "959800QWKZ45ZQC2AV58"
+    },
+    {
+      "name": "AENA S.M.E. SA",
+      "lei": "959800R7QMXKF0NFMT29"
+    },
+    {
+      "name": "URBAS GRUPO FINANCIERO SA",
+      "lei": "959800R7U7E76YMJG243"
+    },
+    {
+      "name": "GRUPO EZENTIS SA",
+      "lei": "959800RCPA4USH4RFB78"
+    },
+    {
+      "name": "IBERPAPEL GESTION, S.A.",
+      "lei": "959800RG37G8456RGX60"
+    },
+    {
+      "name": "REALIA BUSINESS, S.A.",
+      "lei": "959800RGBUGJA3UVZZ88"
+    },
+    {
+      "name": "URBAR INGENIEROS, S.A.",
+      "lei": "959800TVV5HTKGAPCW40"
+    },
+    {
+      "name": "INTERNATIONAL CONSOLIDATED AIRLINES GROUP, S.A.",
+      "lei": "959800TZHQRUSH1ESL13"
+    },
+    {
+      "name": "PROMOTORA DE INFORMACIONES, S.A.",
+      "lei": "959800U3NGPXSCQHQW54"
+    },
+    {
+      "name": "NYESA VALORES CORPORACION SA",
+      "lei": "959800V35MGZXBNZP485"
+    },
+    {
+      "name": "INMOBILIARIA DEL SUR, S.A.",
+      "lei": "959800WGUAJ7RBWZRY77"
+    },
+    {
+      "name": "SACYR SA",
+      "lei": "959800XKAB9VNAVN9425"
+    },
+    {
+      "name": "ECOLUMBER S.A.",
+      "lei": "959800XL1Q2FK0S18W48"
+    },
+    {
+      "name": "EDREAMS ODIGEO SA",
+      "lei": "959800Y8LQ5MR2YZ4N96"
+    },
+    {
+      "name": "ERCROS S.A.",
+      "lei": "959800Z611RK76NEVF32"
+    },
+    {
+      "name": "METROVACESA SA",
+      "lei": "959800ZQW44V5U3SEZ73"
+    },
+    {
+      "name": "REPSOL SA",
+      "lei": "BSYCX13Y0NOTV14V9N85"
+    },
+    {
+      "name": "BANCO BILBAO VIZCAYA ARGENTARIA SOCIEDAD ANONIMA",
+      "lei": "K8MS7FD7N5Z2WQ51AZ71"
+    },
+    {
+      "name": "INSTITUTO DE CREDITO OFICIAL, EPE",
+      "lei": "PJQDPSI1D8J2Q1IM3G17"
+    },
+    {
+      "name": "BANCO DE SABADELL S.A.",
+      "lei": "SI5RG2M0WQQLZCXKRM20"
+    },
+    {
+      "name": "NATURGY ENERGY GROUP SA",
+      "lei": "TL2N6M87CW970S5SV098"
+    },
+    {
+      "name": "BANKINTER SOCIEDAD ANONIMA",
+      "lei": "VWMYAEQSTOPNV0SUGU82"
+    }
+  ]
+}

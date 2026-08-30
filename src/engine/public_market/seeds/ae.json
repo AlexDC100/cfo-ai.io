@@ -1,0 +1,16 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "ae",
+  "as_of": "2026-08-30",
+  "source": {
+    "name": "declared gap — no source",
+    "url": "https://cfo-ai.io/docs/public-market-coverage",
+    "dataset_version": "empty-awaiting_provider",
+    "retrieved_at": "2026-08-30T05:12:09Z",
+    "identity_only": true
+  },
+  "license_note": "Prices via licensed provider slot · end-of-day licence · no redistribution rights",
+  "coverage_note": "DECLARED GAP, awaiting_provider. No deterministic fundamentals feed is wired for the UAE (ADX/DFM) in this package. UAIFRS filers appear in the wider filings index, but nothing in this codebase has parsed one, so there is no basis for a universe here. Empty and dated on purpose.",
+  "member_count": 0,
+  "members": []
+}

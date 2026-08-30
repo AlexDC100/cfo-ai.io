@@ -22,8 +22,9 @@
 // collapses any previously expanded ticker (same or different card). Keeps
 // the page focused on one drill-down at a time.
 
-import { useState } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   Boxes,
@@ -43,6 +44,7 @@ import {
   type RiskCategory,
   type RiskRadarCategory,
   type RiskRadarResponse,
+  type FeedStatus,
   type StructuralCorrelation,
   RISK_CATEGORY_BLURB,
   RISK_CATEGORY_LABEL,
@@ -54,6 +56,10 @@ import {
   CompanyExposureDetail,
   ExposureBar,
 } from "@/components/public-companies/CompanyExposureDetail";
+import { countryCodesForMarket, type MarketEntry } from "@/lib/marketApi";
+import { MarketFilterBar } from "@/components/public-companies/MarketFilterBar";
+import { useMarketName } from "@/components/public-companies/MarketTabs";
+import "@/components/public-companies/marketI18n";
 
 interface Props {
   /** Click handler fired when the user clicks a card's category header.
@@ -61,6 +67,16 @@ interface Props {
    *  to the affected tickers. NOT fired by ticker-row clicks (those expand
    *  CompanyExposureDetail inline instead). */
   onDrillToCategory?: (category: RiskCategory, tickers: string[]) => void;
+  /** Market registry (2026-08-30, global-markets wave). When supplied the
+   *  radar renders a market filter that narrows the COMPANY ROWS on every
+   *  card.
+   *
+   *  What it deliberately does NOT do: re-score anything. Category scores
+   *  arrive already computed across the whole universe, and silently
+   *  redrawing a 0-100 bar next to a filtered row list would imply the
+   *  score belongs to the filtered set. The scope note says so in words
+   *  instead. */
+  markets?: MarketEntry[];
 }
 
 const CATEGORY_ICON: Record<RiskCategory, typeof Globe> = {
@@ -103,7 +119,10 @@ const SOURCE_TINT: Record<ExposureSource, string> = {
   bvb_override: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
 };
 
-export function RiskRadar({ onDrillToCategory }: Props) {
+export function RiskRadar({ onDrillToCategory, markets }: Props) {
+  const { t } = useTranslation();
+  const marketName = useMarketName();
+  const [marketFilter, setMarketFilter] = useState<string | null>(null);
   const radarQuery = useQuery({
     queryKey: ["intelligence", "risk-radar"],
     queryFn: fetchRiskRadar,
@@ -140,6 +159,89 @@ export function RiskRadar({ onDrillToCategory }: Props) {
   const { categories, feed_status, computed_at } = radarQuery.data;
 
   return (
+    <RiskRadarBody
+      categories={categories}
+      feedStatus={feed_status}
+      computedAt={computed_at}
+      expanded={expanded}
+      setExpanded={setExpanded}
+      onDrillToCategory={onDrillToCategory}
+      markets={markets}
+      marketFilter={marketFilter}
+      setMarketFilter={setMarketFilter}
+      t={t}
+      marketName={marketName}
+    />
+  );
+}
+
+/** Split out so the market-filter memos live under the hooks rules —
+ *  RiskRadar itself early-returns on loading/error, which would make a
+ *  hook after those returns conditional. */
+function RiskRadarBody({
+  categories,
+  feedStatus,
+  computedAt,
+  expanded,
+  setExpanded,
+  onDrillToCategory,
+  markets,
+  marketFilter,
+  setMarketFilter,
+  t,
+  marketName,
+}: {
+  categories: Record<RiskCategory, RiskRadarCategory>;
+  feedStatus: FeedStatus;
+  computedAt: string;
+  expanded: { category: RiskCategory; ticker: string } | null;
+  setExpanded: Dispatch<
+    SetStateAction<{ category: RiskCategory; ticker: string } | null>
+  >;
+  onDrillToCategory?: (category: RiskCategory, tickers: string[]) => void;
+  markets?: MarketEntry[];
+  marketFilter: string | null;
+  setMarketFilter: (id: string | null) => void;
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  marketName: (m: MarketEntry) => string;
+}) {
+  const feed_status = feedStatus;
+  const computed_at = computedAt;
+
+  // Countries accepted by the active filter. `country` on a radar row is
+  // an ISO-ish code, and every registry market_id IS its ISO-3166 alpha-2
+  // code — so the mapping is derived, never a hand-kept table.
+  const acceptedCountries = useMemo(() => {
+    if (!marketFilter || !markets) return null;
+    const m = markets.find((x) => x.market_id === marketFilter);
+    if (!m) return null;
+    return new Set(countryCodesForMarket(m));
+  }, [marketFilter, markets]);
+
+  const marketOptions = useMemo(() => {
+    if (!markets?.length) return [];
+    const seen = new Map<string, Set<string>>();
+    for (const cat of Object.values(categories)) {
+      for (const row of cat?.affected_tickers_rich ?? []) {
+        const code = (row.country || "").toUpperCase();
+        if (!seen.has(code)) seen.set(code, new Set());
+        seen.get(code)!.add(row.ticker);
+      }
+    }
+    return markets.map((m) => {
+      const tickers = new Set<string>();
+      for (const code of countryCodesForMarket(m)) {
+        for (const tk of seen.get(code) ?? []) tickers.add(tk);
+      }
+      return { market: m, count: tickers.size };
+    });
+  }, [markets, categories]);
+
+  const filteredMarket = marketFilter
+    ? markets?.find((m) => m.market_id === marketFilter) ?? null
+    : null;
+
+  return (
     <div className="space-y-4">
       {/* ── Header strip ──────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -155,6 +257,27 @@ export function RiskRadar({ onDrillToCategory }: Props) {
         </div>
         <FeedStatusBadge status={feed_status} computedAt={computed_at} />
       </div>
+
+      {/* ── Market filter (global-markets wave) ───────────────────────
+            Narrows the company rows on every card. Offered from the
+            registry so a market with no rows can still be selected and
+            then says so, per card. */}
+      {marketOptions.length > 0 && (
+        <MarketFilterBar
+          options={marketOptions}
+          activeMarketId={marketFilter}
+          onChange={setMarketFilter}
+          testId="radar-market-filter"
+        />
+      )}
+      {filteredMarket && (
+        <p
+          data-testid="radar-market-scope-note"
+          className="text-[11px] leading-relaxed text-ink-mute max-w-[720px]"
+        >
+          {t("pcm.radar.scopeNote", { market: marketName(filteredMarket) })}
+        </p>
+      )}
 
       {/* ── Card grid: 1 col mobile, 2 col tablet, 4 col desktop ─────── */}
       <div
@@ -185,6 +308,12 @@ export function RiskRadar({ onDrillToCategory }: Props) {
                   ? () => onDrillToCategory(cat, data.affected_tickers)
                   : undefined
               }
+              acceptedCountries={acceptedCountries}
+              emptyScopeLabel={
+                filteredMarket
+                  ? t("pcm.radar.empty", { market: marketName(filteredMarket) })
+                  : null
+              }
             />
           );
         })}
@@ -206,6 +335,12 @@ interface RadarCardProps {
   expandedTicker: string | null;
   onExpandTicker: (ticker: string) => void;
   onCategoryHeaderClick?: () => void;
+  /** Active market filter, as accepted country codes. null = no filter.
+   *  Narrows the company ROWS only; the card's score bar continues to
+   *  report the universe-wide figure it was computed from. */
+  acceptedCountries?: Set<string> | null;
+  /** Sentence to show when the filter leaves this card with no rows. */
+  emptyScopeLabel?: string | null;
 }
 
 function RadarCard({
@@ -215,11 +350,16 @@ function RadarCard({
   expandedTicker,
   onExpandTicker,
   onCategoryHeaderClick,
+  acceptedCountries,
+  emptyScopeLabel,
 }: RadarCardProps) {
   const Icon = CATEGORY_ICON[category];
   const sevText = severityToTextClass(data.level);
   const sevBg = severityToBgClass(data.level);
-  const rich: AffectedTickerRich[] = data.affected_tickers_rich ?? [];
+  const allRich: AffectedTickerRich[] = data.affected_tickers_rich ?? [];
+  const rich: AffectedTickerRich[] = acceptedCountries
+    ? allRich.filter((r) => acceptedCountries.has((r.country || "").toUpperCase()))
+    : allRich;
   const correlations: StructuralCorrelation[] = data.structural_correlations ?? [];
   const expandedRow = rich.find((r) => r.ticker === expandedTicker);
 
@@ -343,6 +483,16 @@ function RadarCard({
               </div>
             )}
           </div>
+        </div>
+      ) : acceptedCountries && allRich.length > 0 ? (
+        // The filter emptied this card. Say that in words — a card that
+        // simply drops its company list looks like a card with no
+        // exposures, which is a different claim entirely.
+        <div
+          className="mb-3 text-[10.5px] leading-relaxed text-ink-mute"
+          data-testid={`risk-radar-scope-empty-${category}`}
+        >
+          {emptyScopeLabel}
         </div>
       ) : (
         // Back-compat: legacy bare-list when affected_tickers_rich not present

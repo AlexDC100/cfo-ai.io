@@ -81,6 +81,10 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
     # outages (every hub page 500, every funnel event dropped) behind
     # 244 green tests. This gate fakes nothing.
     ("public-e2e", [PY, "scripts/check_public_e2e.py"]),
+    # PM1-PM7 — GLOBAL PUBLIC MARKETS. Real registry, real sqlite store, real
+    # router, real SEC bytes; --no-replay because PM7's corpus check is the
+    # `corpus-replay` gate above and must not run twice per battery.
+    ("public-market-gates", [PY, "scripts/check_public_market_gates.py", "--no-replay"]),
     ]
     if not engine_only:
         gates += [

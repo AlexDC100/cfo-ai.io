@@ -1,0 +1,918 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "it",
+  "as_of": "2026-08-29",
+  "source": {
+    "name": "filings.xbrl.org ESEF filings index, joined to GLEIF Level 1 legal names",
+    "url": "https://filings.xbrl.org/api/filings?filter=country eq IT",
+    "dataset_version": "filings.xbrl.org country=IT count=872 + GLEIF golden copy 2026-08-29T16:00:00Z",
+    "retrieved_at": "2026-08-30T05:11:43Z",
+    "names_from": "https://api.gleif.org/api/v1/lei-records",
+    "identity_only": true
+  },
+  "license_note": "Filings index: at present, there are no restrictions on the ways that the data can be used (filings.xbrl.org/docs/about). Legal names: The data available through the Access Service are provided under the CC0 licence, see CC0 1.0 Universal (CC0 1.0). (gleif.org/en/meta/lei-data-terms-of-use, retrieved 2026-08-30)",
+  "coverage_note": "The entities that have actually filed ESEF reports for country IT, keyed by the LEI the filings index publishes and named from GLEIF — identity only, NO figures. This is FEED COVERAGE, not index membership: a national index list would name companies this platform holds nothing for, while this file names exactly the companies the ESEF feed can speak about. Index constituent lists were considered and rejected as a source — they are the index providers' proprietary IP with no licence-clear machine-readable public distribution, and the free copies are HTML tables. Members carry no ticker because the feed publishes none, which is exactly why this market's registry status is fundamentals_only: the figures exist, the ticker lookup does not. 872 filing rows yielded 225 distinct entities, 0 of which had no GLEIF Level 1 record at fetch time and are therefore absent rather than named by guess.",
+  "member_count": 225,
+  "members": [
+    {
+      "name": "OLIDATA S.P.A.",
+      "lei": "2138007MZQWFJBPCXA35"
+    },
+    {
+      "name": "BIALETTI INDUSTRIE S.P.A.",
+      "lei": "213800V41GEZTRIJT462"
+    },
+    {
+      "name": "ITWAY S.P.A.",
+      "lei": "213800VELZNZPB4AAD87"
+    },
+    {
+      "name": "D'AMICO INTERNATIONAL SHIPPING S.A.",
+      "lei": "2221005IWV4R4EP4D553"
+    },
+    {
+      "name": "INTESA SANPAOLO SPA",
+      "lei": "2W8N8UU78PMDQKZENC08"
+    },
+    {
+      "name": "BB Biotech AG",
+      "lei": "391200MBZQNPFHIVKO34"
+    },
+    {
+      "name": "AUTOGRILL S.P.A.",
+      "lei": "5299003D9N2698I3C257"
+    },
+    {
+      "name": "BUZZI SPA",
+      "lei": "5299003DX5YLKSVJ6K59"
+    },
+    {
+      "name": "SARAS S.P.A. O IN FORMA ESTESA SARAS S.P.A. - RAFFINERIE SARDE",
+      "lei": "5299005KJSU2AQUJUH84"
+    },
+    {
+      "name": "EDISON S.P.A.",
+      "lei": "529900WS2E20BA5J4L49"
+    },
+    {
+      "name": "PRYSMIAN S.P.A.",
+      "lei": "529900X0H1IO3RS1A464"
+    },
+    {
+      "name": "LEONARDO - SOCIETA' PER AZIONI",
+      "lei": "529900X4EEX1U9LN3U39"
+    },
+    {
+      "name": "Prysmian Group North Europe AB",
+      "lei": "529900XU5693SRXKDO71"
+    },
+    {
+      "name": "NEXI SPA",
+      "lei": "5493000P70CQRQG8SN85"
+    },
+    {
+      "name": "BRUNELLO CUCINELLI S.P.A.",
+      "lei": "5493003CX2RZ0FOBH256"
+    },
+    {
+      "name": "CIR S.P.A. - COMPAGNIE INDUSTRIALI RIUNITE",
+      "lei": "5493003VOSQJSPCM0T38"
+    },
+    {
+      "name": "SALVATORE FERRAGAMO S.P.A.",
+      "lei": "5493005GRP0FEE3NRI35"
+    },
+    {
+      "name": "SOGEFI S.P.A.",
+      "lei": "5493005HPJ40IY377O47"
+    },
+    {
+      "name": "BREMBO N.V.",
+      "lei": "549300BLWVJN2BAT0A44"
+    },
+    {
+      "name": "FINECOBANK BANCA FINECO S.P.A.",
+      "lei": "549300L7YCATGO57ZE10"
+    },
+    {
+      "name": "IRCE S.P.A",
+      "lei": "549300O7SBDSNG4IB582"
+    },
+    {
+      "name": "SAIPEM S.P.A.",
+      "lei": "549300PHV8MBDHWB8X12"
+    },
+    {
+      "name": "ACEA S.P.A.",
+      "lei": "549300Q3448N041CTH56"
+    },
+    {
+      "name": "LOTTOMATICA GROUP S.P.A.",
+      "lei": "549300R72LKEGT4EX026"
+    },
+    {
+      "name": "ANIMA HOLDING S.P.A.",
+      "lei": "549300T1EREIRH8ICX03"
+    },
+    {
+      "name": "UNICREDIT, SOCIETA' PER AZIONI",
+      "lei": "549300TRUWO2CD2G5692"
+    },
+    {
+      "name": "WEBUILD S.P.A.",
+      "lei": "549300UKR289DF4UXQ47"
+    },
+    {
+      "name": "TELECOM ITALIA SPA O TIM S.P.A.",
+      "lei": "549300W384M3RI3VXU42"
+    },
+    {
+      "name": "ASSICURAZIONI GENERALI SOCIETA' PER AZIONI",
+      "lei": "549300X5UKJVE386ZB61"
+    },
+    {
+      "name": "TENARIS S.A.",
+      "lei": "549300Y7C05BKC4HZB40"
+    },
+    {
+      "name": "BANCA MEDIOLANUM SPA",
+      "lei": "7LVZJ6XRIE7VNZ4UBX81"
+    },
+    {
+      "name": "SOMEC SPA",
+      "lei": "81560001692D0424C949"
+    },
+    {
+      "name": "PIAGGIO & C. S.P.A.",
+      "lei": "8156000256C2431C2E92"
+    },
+    {
+      "name": "ARNOLDO MONDADORI EDITORE SPA",
+      "lei": "815600049A1F9AFE6666"
+    },
+    {
+      "name": "SESA S.P.A.",
+      "lei": "81560005C031D4E76707"
+    },
+    {
+      "name": "SIT S.P.A.",
+      "lei": "81560009D520343E0A68"
+    },
+    {
+      "name": "PHILOGEN S.P.A.",
+      "lei": "81560009EA1577917768"
+    },
+    {
+      "name": "BEGHELLI S.P.A.",
+      "lei": "8156000B22320A2F5365"
+    },
+    {
+      "name": "CAIRO COMMUNICATION S.P.A.",
+      "lei": "8156000BA1E707067579"
+    },
+    {
+      "name": "ALKEMY S.P.A.",
+      "lei": "8156000DFBA84513F952"
+    },
+    {
+      "name": "DE' LONGHI S.P.A.",
+      "lei": "8156000E09A52C4F8A38"
+    },
+    {
+      "name": "CALTAGIRONE SOCIETA' PER AZIONI",
+      "lei": "815600110244AC18B089"
+    },
+    {
+      "name": "CAREL INDUSTRIES S.P.A.",
+      "lei": "815600115DA6E507AE33"
+    },
+    {
+      "name": "EL.EN. - S.P.A.",
+      "lei": "81560012F663E89E7085"
+    },
+    {
+      "name": "GREENTHESIS S.P.A.",
+      "lei": "81560013C60D757C6523"
+    },
+    {
+      "name": "GVS S.P.A.",
+      "lei": "81560013EACB40B52D17"
+    },
+    {
+      "name": "DEA CAPITAL SPA",
+      "lei": "81560015D3D3E34A6B66"
+    },
+    {
+      "name": "TAMBURI INVESTMENT PARTNERS S.P.A. IN VIA BREVE T.I.P. S.P.A. OV VERO TIP S.P.A.",
+      "lei": "81560017CF8066680595"
+    },
+    {
+      "name": "ORSERO S.P.A.",
+      "lei": "8156001895E0F4E7A803"
+    },
+    {
+      "name": "OVS SPA",
+      "lei": "8156001A772766DCAA71"
+    },
+    {
+      "name": "IREN S.P.A.",
+      "lei": "8156001EBD33FD474E60"
+    },
+    {
+      "name": "ZEST SOCIETA' PER AZIONI",
+      "lei": "8156001F4745B0CB0760"
+    },
+    {
+      "name": "SNAM S.P.A.",
+      "lei": "8156002278562044AF79"
+    },
+    {
+      "name": "CLASS EDITORI S.P.A.",
+      "lei": "81560022EE962F731A95"
+    },
+    {
+      "name": "ITALIAN WINE BRANDS S.P.A. O IN FORMA ABBREVIATA IWB SPA",
+      "lei": "815600251190FB2E7172"
+    },
+    {
+      "name": "AZIMUT HOLDING S.P.A.",
+      "lei": "81560025690EF8540635"
+    },
+    {
+      "name": "BANCO DI DESIO E DELLA BRIANZA SOCIETA' PER AZIONI",
+      "lei": "81560026D234790EB288"
+    },
+    {
+      "name": "SAFILO GROUP S.P.A.",
+      "lei": "81560026FA1A26642782"
+    },
+    {
+      "name": "FIERA MILANO S.P.A.",
+      "lei": "81560026FB4FD48C6110"
+    },
+    {
+      "name": "EXPRIVIA S.P.A. IN FORMA ALTERNATIVA: AIS S.P.A., AISOFTW@RE S.P. A., ARTIFICIAL INTELLIGENCE SOFTWARE S.P.A.",
+      "lei": "81560028375CEF68C972"
+    },
+    {
+      "name": "DIASORIN S.P.A.",
+      "lei": "8156002878BDF0EE4348"
+    },
+    {
+      "name": "\"CASSA DEPOSITI E PRESTITI SOCIETA' PER AZIONI\" (DENOMINATA ANCHE : \"CDP S.P.A.)",
+      "lei": "81560029E2CE4D14F425"
+    },
+    {
+      "name": "ENERVIT S.P.A.",
+      "lei": "8156002B06C3A4C0F436"
+    },
+    {
+      "name": "PIERREL S.P.A.",
+      "lei": "8156002BC7CB6E3BD403"
+    },
+    {
+      "name": "MONDO TV S.P.A. ICC",
+      "lei": "8156002CEF151B2FAE86"
+    },
+    {
+      "name": "\"RATTI S.P.A. SOCIETA' BENEFIT\" O IN FORMA ABBREVIATA \"RATTI S.P.A. SB\"",
+      "lei": "8156002ED0F23DC0D147"
+    },
+    {
+      "name": "BE SHAPING THE FUTURE S.P.A.",
+      "lei": "8156002FE7E41A35C731"
+    },
+    {
+      "name": "INDEL B S.P.A.",
+      "lei": "8156002FF3087F1D0E94"
+    },
+    {
+      "name": "GPI S.P.A.",
+      "lei": "815600320CCB55749A30"
+    },
+    {
+      "name": "POSTE ITALIANE - SOCIETA' PER AZIONI",
+      "lei": "815600354DEDBD0BA991"
+    },
+    {
+      "name": "SAES GETTERS S.P.A.",
+      "lei": "81560035783FD9E2E641"
+    },
+    {
+      "name": "S.S. LAZIO - S.P.A.",
+      "lei": "81560036DCCA48CA0F08"
+    },
+    {
+      "name": "MET.EXTRA GROUP S.P.A.",
+      "lei": "81560036F9C346EA6D15"
+    },
+    {
+      "name": "SERI INDUSTRIAL S.P.A.",
+      "lei": "81560039520A59BAAB20"
+    },
+    {
+      "name": "BRIOSCHI SVILUPPO IMMOBILIARE S.P.A.",
+      "lei": "8156004110BB8D445B46"
+    },
+    {
+      "name": "UNIDATA S.P.A.",
+      "lei": "81560042E27150979C13"
+    },
+    {
+      "name": "TXT E-SOLUTIONS S.P.A.",
+      "lei": "81560044F0823D572303"
+    },
+    {
+      "name": "ERG S.P.A.",
+      "lei": "8156004604684CA44A90"
+    },
+    {
+      "name": "COIMA RES SICAF IN GESTIONE ESTERNA S.P.A.",
+      "lei": "815600466855546A2E98"
+    },
+    {
+      "name": "ENAV S.P.A.",
+      "lei": "81560048ECF8D2059980"
+    },
+    {
+      "name": "CREDITO EMILIANO S.P.A. ABBREVIABILE IN CREDEMBANCA E IN CREDEM",
+      "lei": "8156004B244AA70DE787"
+    },
+    {
+      "name": "INTERCOS S.P.A.",
+      "lei": "8156004C3711C92F7648"
+    },
+    {
+      "name": "AEROPORTO GUGLIELMO MARCONI DI BOLOGNA S.P.A.",
+      "lei": "8156004CC118B7885065"
+    },
+    {
+      "name": "PRIMA INDUSTRIE - S.P.A.",
+      "lei": "8156004D03EAA217DB61"
+    },
+    {
+      "name": "\"MOLTIPLY GROUP S.P.A.\", OVVERO, IN BREVE, \"MOL GROUP S.P.A.\" O ANCHE \"GRUPPO MOL S.P.A.\"",
+      "lei": "8156004E40D6A02C5046"
+    },
+    {
+      "name": "EUROGROUP LAMINATIONS S.P.A.",
+      "lei": "8156004FC8565D73AE78"
+    },
+    {
+      "name": "NEWPRINCES S.P.A.",
+      "lei": "815600511D7D0F6A5955"
+    },
+    {
+      "name": "BFF BANK S.P.A.",
+      "lei": "815600522538355AE429"
+    },
+    {
+      "name": "VINCENZO ZUCCHI - SOCIETA' PER AZIONI",
+      "lei": "81560052ACB913425086"
+    },
+    {
+      "name": "BANCA IFIS S.P.A.",
+      "lei": "8156005420362AE59184"
+    },
+    {
+      "name": "DOMUS ITALIA S.P.A.",
+      "lei": "81560054B48979390098"
+    },
+    {
+      "name": "UNIEURO S.P.A.",
+      "lei": "815600583BE5BC67EB82"
+    },
+    {
+      "name": "FINCANTIERI S.P.A.",
+      "lei": "8156005BDF49128B6239"
+    },
+    {
+      "name": "UNIPOL ASSICURAZIONI S.P.A.",
+      "lei": "8156005CE5E7340CCA86"
+    },
+    {
+      "name": "IL SOLE 24 ORE S.P.A.",
+      "lei": "8156005CF920F2A40C13"
+    },
+    {
+      "name": "MITTEL S.P.A.",
+      "lei": "8156005D6ADE56371580"
+    },
+    {
+      "name": "TOSCANA AEROPORTI S.P.A.",
+      "lei": "8156005DBE6CA468DD09"
+    },
+    {
+      "name": "CY4GATE S.P.A.",
+      "lei": "8156005DEB4D90F3E360"
+    },
+    {
+      "name": "NEODECORTECH S.P.A.",
+      "lei": "8156005E235E751B6662"
+    },
+    {
+      "name": "MEDIOCREDITO CENTRALE - BANCA DEL MEZZOGIORNO S.P.A.",
+      "lei": "81560064085A02B2B297"
+    },
+    {
+      "name": "INFRASTRUTTURE WIRELESS ITALIANE S.P.A. O, IN FORMA ABBREVIATA, INWIT S.P.A.",
+      "lei": "81560066183FE361C071"
+    },
+    {
+      "name": "OPS ITALIA S.P.A.",
+      "lei": "81560069517A53E0F607"
+    },
+    {
+      "name": "TESMEC SPA",
+      "lei": "81560069957E4ACDD336"
+    },
+    {
+      "name": "SANLORENZO S.P.A. IN SIGLA SL S.P.A.",
+      "lei": "8156006C71E895860132"
+    },
+    {
+      "name": "VALSOIA S.P.A. (IN FORMA ESTESA \"VALSOIA - BONTA' E SALUTE - S.P.A.\" O IN SIGLA ANCHE \"V.B.S. S.P.A.\")",
+      "lei": "8156006CA80A76A7B556"
+    },
+    {
+      "name": "RISANAMENTO SPA",
+      "lei": "81560070BFE803A30458"
+    },
+    {
+      "name": "TECHNOPROBE S.P.A.",
+      "lei": "8156007154CD8334D053"
+    },
+    {
+      "name": "PIOVAN S.P.A.",
+      "lei": "8156007367A2044B7685"
+    },
+    {
+      "name": "B&C SPEAKERS S.P.A.",
+      "lei": "81560073B19D33D7DD18"
+    },
+    {
+      "name": "ABITARE IN S.P.A.",
+      "lei": "81560076BBCFC45A0964"
+    },
+    {
+      "name": "THE ITALIAN SEA GROUP S.P.A.",
+      "lei": "8156007833AB49068789"
+    },
+    {
+      "name": "DOVALUE S.P.A.",
+      "lei": "8156007AF7DB5FE05555"
+    },
+    {
+      "name": "CALEFFI - S.P.A.",
+      "lei": "8156007BF621CA1B1630"
+    },
+    {
+      "name": "ESPRINET S.P.A.",
+      "lei": "8156007E3375956ADD08"
+    },
+    {
+      "name": "ANTARES VISION S.P.A.",
+      "lei": "815600807B866042D307"
+    },
+    {
+      "name": "\"BANCA FINNAT EURAMERICA S.P.A.\" E, IN FORMA ABBREVIATA \"BANCA FINNAT S.P.A.\" O ANCHE \"BANCA EURAMERICA S.P.A.\"",
+      "lei": "815600835712F7BA2869"
+    },
+    {
+      "name": "LA DORIA S.P.A.",
+      "lei": "815600857F45E3102897"
+    },
+    {
+      "name": "MONRIF S.P.A.",
+      "lei": "8156008B5A6D3D9AF935"
+    },
+    {
+      "name": "CELLULARLINE S.P.A.",
+      "lei": "8156008B8E5062681624"
+    },
+    {
+      "name": "CEMBRE S.P.A.",
+      "lei": "8156008BFBC06F53DD56"
+    },
+    {
+      "name": "SECO S.P.A.",
+      "lei": "8156008C44408AB6D716"
+    },
+    {
+      "name": "BORGOSESIA S.P.A.",
+      "lei": "8156008D2857B5A0B033"
+    },
+    {
+      "name": "BASIC NET S.P.A.",
+      "lei": "8156008E82BF2BFE0A35"
+    },
+    {
+      "name": "AVIO S.P.A.",
+      "lei": "8156008F25C4B0E7C860"
+    },
+    {
+      "name": "ALERION CLEAN POWER S.P.A. IN FORMA ABBREVIATA ALERION S.P.A.",
+      "lei": "81560090173FFC67B069"
+    },
+    {
+      "name": "BANCA GENERALI - SOCIETA' PER AZIONI O IN FORMA ABBREVIATA: GENERBANCA",
+      "lei": "815600903231FA2E7698"
+    },
+    {
+      "name": "\"FINE FOODS & PHARMACEUTICALS N.T.M. S.P.A.\"",
+      "lei": "8156009111DEE8553765"
+    },
+    {
+      "name": "TINEXTA S.P.A.",
+      "lei": "815600925CD848EDBA96"
+    },
+    {
+      "name": "CIVITANAVI SYSTEMS SPA",
+      "lei": "815600933B80FBBBD242"
+    },
+    {
+      "name": "HERA S.P.A.",
+      "lei": "8156009414FD99443B48"
+    },
+    {
+      "name": "F.I.L.A - FABBRICA ITALIANA LAPIS ED AFFINI - SOCIETA' PER AZIONI SIGLABILE IN FORMA F.I.L.A. S.P.A. O IN FORMA ABBREVIATA CON LA DICITURA ANTICIPATA DAL SIMBOLO DEL GIGLIO STILIZZATO",
+      "lei": "81560094A389646CAF21"
+    },
+    {
+      "name": "OPENJOBMETIS SPA AGENZIA PER IL LAVORO",
+      "lei": "81560094D50B119C1486"
+    },
+    {
+      "name": "SOL S.P.A.",
+      "lei": "81560096A9AEBBBD4B25"
+    },
+    {
+      "name": "AEFFE S.P.A.",
+      "lei": "81560096E0DA76818C96"
+    },
+    {
+      "name": "DIGITAL VALUE S.P.A.",
+      "lei": "81560096F26ACF910809"
+    },
+    {
+      "name": "NADARA ITALY S.P.A.",
+      "lei": "81560097DD19407C3F80"
+    },
+    {
+      "name": "DEXELANCE S.P.A.",
+      "lei": "8156009C6B018FE67A34"
+    },
+    {
+      "name": "\"TERNA - RETE ELETTRICA NAZIONALE SOCIETA' PER AZIONI\" (IN FORMA ABBREVIATA \"TERNA S.P.A.\")",
+      "lei": "8156009E94ED54DE7C31"
+    },
+    {
+      "name": "BASTOGI S.P.A.",
+      "lei": "8156009F95C37526C483"
+    },
+    {
+      "name": "ILLIMITY BANK S.P.A. IN FORMA ABBREVIATA \"ILLIMITY S.P.A.\"",
+      "lei": "815600A029117B20DD63"
+    },
+    {
+      "name": "DATALOGIC S.P.A.",
+      "lei": "815600A033443037ED66"
+    },
+    {
+      "name": "PIRELLI & C. S.P.A.",
+      "lei": "815600A0C9AFC1F2A709"
+    },
+    {
+      "name": "JUVENTUS F.C. - S.P.A. O JUVENTUS FOOTBALL CLUB S.P.A.",
+      "lei": "815600A253A0AF58C166"
+    },
+    {
+      "name": "\"EMAK S.P.A.\"",
+      "lei": "815600A9C09D82FF2B66"
+    },
+    {
+      "name": "GEOX S.P.A.",
+      "lei": "815600AA4525479C8138"
+    },
+    {
+      "name": "WIIT S.P.A.",
+      "lei": "815600AB2BDB42BC0E81"
+    },
+    {
+      "name": "FNM S.P.A.",
+      "lei": "815600AB6FA8AADC8739"
+    },
+    {
+      "name": "ASCOPIAVE S.P.A.",
+      "lei": "815600ABFF26D15A4920"
+    },
+    {
+      "name": "EUROTECH S.P.A.",
+      "lei": "815600B283DC6683D832"
+    },
+    {
+      "name": "PLC S.P.A.",
+      "lei": "815600B52696027B9056"
+    },
+    {
+      "name": "BANCA SISTEMA S.P.A.",
+      "lei": "815600B5C61A10BBB451"
+    },
+    {
+      "name": "IMMSI S.P.A.",
+      "lei": "815600B5D89DAB660021"
+    },
+    {
+      "name": "BESTBE HOLDING S.P.A.",
+      "lei": "815600B6FCC29FEC5087"
+    },
+    {
+      "name": "A2A ENERGIA S.P.A.",
+      "lei": "815600B7FD80E48C1896"
+    },
+    {
+      "name": "TECHNOGYM S.P.A.",
+      "lei": "815600B9149F66E77F76"
+    },
+    {
+      "name": "AEDES SOCIETA' ANONIMA LIGURE PER IMPRESE E COSTRUZIONI PER AZION I",
+      "lei": "815600BACF507EC30687"
+    },
+    {
+      "name": "COMER INDUSTRIES S.P.A.",
+      "lei": "815600BEB2A5426B0084"
+    },
+    {
+      "name": "REVO INSURANCE S.P.A., IN BREVE REVO S.P.A.",
+      "lei": "815600BF2EA41687F764"
+    },
+    {
+      "name": "COMPAGNIA IMMOBILIARE AZIONARIA S.P.A.",
+      "lei": "815600C194D5A5391443"
+    },
+    {
+      "name": "AQUAFIL S.P.A.",
+      "lei": "815600C36B3D0988AB30"
+    },
+    {
+      "name": "I GRANDI VIAGGI S.P.A.",
+      "lei": "815600C3BB196D235455"
+    },
+    {
+      "name": "BIESSE S.P.A.",
+      "lei": "815600C41423BF4CC386"
+    },
+    {
+      "name": "GABETTI PROPERTY SOLUTIONS S.P.A.",
+      "lei": "815600C51E545058C757"
+    },
+    {
+      "name": "KME GROUP S.P.A.",
+      "lei": "815600C52EB6EBC14590"
+    },
+    {
+      "name": "\"INTERPUMP GROUP S.P.A.\"",
+      "lei": "815600C79D0F31F4D395"
+    },
+    {
+      "name": "GAROFALO HEALTH CARE S.P.A.",
+      "lei": "815600C851C90CAE6438"
+    },
+    {
+      "name": "LANDI RENZO S.P.A.",
+      "lei": "815600C8A87E9162B043"
+    },
+    {
+      "name": "SERVIZI ITALIA S.P.A.",
+      "lei": "815600C8F6D5ACBA9F86"
+    },
+    {
+      "name": "Ariston Holding N.V.",
+      "lei": "815600CC86D25A205563"
+    },
+    {
+      "name": "INDUSTRIE DE NORA S.P.A.",
+      "lei": "815600CD933CB2F89862"
+    },
+    {
+      "name": "BIOERA S.P.A.",
+      "lei": "815600CE609AFE44D992"
+    },
+    {
+      "name": "EUKEDOS S.P.A.",
+      "lei": "815600CEF28BF58C1651"
+    },
+    {
+      "name": "EQUITA GROUP S.P.A.",
+      "lei": "815600CF5C54AA9C0721"
+    },
+    {
+      "name": "GAS PLUS S.P.A.",
+      "lei": "815600CF7B5169BBF109"
+    },
+    {
+      "name": "IMMOBILIARE GRANDE DISTRIBUZIONE SOCIETA' DI INVESTIMENTO IMMOBIL IARE QUOTATA S.P.A. IN FORMA ABBREVIATA IGD SIIQ S.P.A.",
+      "lei": "815600CF8C0389D0E272"
+    },
+    {
+      "name": "OPS RETAIL S.P.A.",
+      "lei": "815600D2F3EFE8C1F084"
+    },
+    {
+      "name": "CALTAGIRONE EDITORE SOCIETA' PER AZIONI",
+      "lei": "815600D3D12A6EAC9004"
+    },
+    {
+      "name": "PIQUADRO S.P.A.",
+      "lei": "815600D3E9B19E14FC79"
+    },
+    {
+      "name": "DIGITAL BROS S.P.A.",
+      "lei": "815600D581F8552C4F54"
+    },
+    {
+      "name": "MAIRE S.P.A.",
+      "lei": "815600D85A61200A1B83"
+    },
+    {
+      "name": "RIZZOLI CORRIERE DELLA SERA MEDIAGROUP SPA O IN FORMA ABBREVIATA RCS MEDIAGROUP SPA O RCS S.P.A.",
+      "lei": "815600D87CFDAE412862"
+    },
+    {
+      "name": "FIDIA - S.P.A.",
+      "lei": "815600D946B58C2B1D55"
+    },
+    {
+      "name": "TOD'S S.P.A.",
+      "lei": "815600DA4FA5A5D4CD58"
+    },
+    {
+      "name": "B.F. S.P.A.",
+      "lei": "815600DADF851874C681"
+    },
+    {
+      "name": "REPLY S.P.A.",
+      "lei": "815600DAEFB0388F3521"
+    },
+    {
+      "name": "SALCEF GROUP S.P.A.",
+      "lei": "815600DB65870B3F2A12"
+    },
+    {
+      "name": "SABAF S.P.A.",
+      "lei": "815600DC9FA897709242"
+    },
+    {
+      "name": "DEDA S.P.A.",
+      "lei": "815600DCA061A9ED8305"
+    },
+    {
+      "name": "GENERTEL S.P.A.",
+      "lei": "815600DEEE5337E9A213"
+    },
+    {
+      "name": "ZIGNAGO VETRO S.P.A. CON LA SIGLA \"Z.V. S.P.A.\"",
+      "lei": "815600DFC29A91FF0C71"
+    },
+    {
+      "name": "UNIPOLSAI ASSICURAZIONI S.P.A.",
+      "lei": "815600E31C4E7006AB54"
+    },
+    {
+      "name": "BANCO BPM SOCIETA' PER AZIONI",
+      "lei": "815600E4E6DCD2D25E30"
+    },
+    {
+      "name": "GEFRAN S.P.A.",
+      "lei": "815600E4FE816F540F98"
+    },
+    {
+      "name": "ITALMOBILIARE SOCIETA' PER AZIONI O IN FORMA ABBREVIATA ITALMOBILIARE SPA",
+      "lei": "815600E546497667D288"
+    },
+    {
+      "name": "LENERGIA S.P.A.",
+      "lei": "815600E787F3B6565561"
+    },
+    {
+      "name": "\"LU-VE - S.P.A.\"",
+      "lei": "815600E90F75EE920594"
+    },
+    {
+      "name": "INFOCAMERE - SOCIETA' CONSORTILE DI INFORMATICA DELLE CAMERE DI COMMERCIO ITALIANE PER AZIONI",
+      "lei": "815600EAD78C57FCE690"
+    },
+    {
+      "name": "PININFARINA S.P.A.",
+      "lei": "815600EB5D56D95BA637"
+    },
+    {
+      "name": "MONCLER S.P.A.",
+      "lei": "815600EBD7FB00525B20"
+    },
+    {
+      "name": "NEXT RE - SOCIETA' A RESPONSABILITA' LIMITATA",
+      "lei": "815600EE49F8DB9B8491"
+    },
+    {
+      "name": "\"SOFTLAB - SOCIETA' PER AZIONI\" IN BREVE \"SOFTLAB S.P.A.\"",
+      "lei": "815600EE82868C20A274"
+    },
+    {
+      "name": "NET INSURANCE S.P.A.",
+      "lei": "815600EED4C522727110"
+    },
+    {
+      "name": "ELICA S.P.A.",
+      "lei": "815600F231566A38BC43"
+    },
+    {
+      "name": "ITALGAS S.P.A.",
+      "lei": "815600F25FF44EF1FA76"
+    },
+    {
+      "name": "FERRETTI S.P.A.",
+      "lei": "815600F40754716D2D91"
+    },
+    {
+      "name": "ITALIAN EXHIBITION GROUP S.P.A.",
+      "lei": "815600F4A5F5D3BCD688"
+    },
+    {
+      "name": "PHARMANUTRA S.P.A.",
+      "lei": "815600F8217BC7733697"
+    },
+    {
+      "name": "OPS ECOM S.P.A.",
+      "lei": "815600F910BDB1C1EC14"
+    },
+    {
+      "name": "ACINQUE S.P.A.",
+      "lei": "815600FA7D9BAD18E930"
+    },
+    {
+      "name": "RECORDATI INDUSTRIA CHIMICA E FARMACEUTICA S.P.A. IN BREVE RECORDATI S.P.A.",
+      "lei": "815600FBF92FD3531704"
+    },
+    {
+      "name": "TRIBOO S.P.A.",
+      "lei": "815600FD458593DC6962"
+    },
+    {
+      "name": "BEEWIZE S.P.A.",
+      "lei": "815600FDE04504053372"
+    },
+    {
+      "name": "TREVI - FINANZIARIA INDUSTRIALE S.P.A.",
+      "lei": "815600FE9E92D9D6C309"
+    },
+    {
+      "name": "ALTEA GREEN POWER S.P.A.",
+      "lei": "984500EABB1DC7902E40"
+    },
+    {
+      "name": "ENI S.P.A.",
+      "lei": "BUCRF72VH5RBN7X3VL35"
+    },
+    {
+      "name": "BANCA CARIGE S.P.A.",
+      "lei": "F1T87K3OQ2OV1UORLH26"
+    },
+    {
+      "name": "BANCA POPOLARE DI SONDRIO SOCIETA' PER AZIONI",
+      "lei": "J48C8PCSJVUBR8KCW529"
+    },
+    {
+      "name": "BANCA MONTE DEI PASCHI DI SIENA S.P.A.",
+      "lei": "J4CP7MHCXR8DAQMKIL78"
+    },
+    {
+      "name": "BPER BANCA S.P.A.",
+      "lei": "N747OI7JINV7RUUH6190"
+    },
+    {
+      "name": "ICCREA BANCA SPA - ISTITUTO CENTRALE DEL CREDITO COOPERATIVO E PIU' BREVEMENTE ICCREA BANCA SPA",
+      "lei": "NNVPP80YIZGEY2314M97"
+    },
+    {
+      "name": "MEDIOBANCA - BANCA DI CREDITO FINANZIARIO S.P.A.",
+      "lei": "PSNL19R2RXX5U3QWHI44"
+    },
+    {
+      "name": "BANCA PROFILO S.P.A.",
+      "lei": "RRAN7P32P0W0YY4XQW79"
+    },
+    {
+      "name": "BANCA INVESTIS S.P.A.",
+      "lei": "RY3KI4Q2655O2GIL8D68"
+    },
+    {
+      "name": "ENEL - SPA",
+      "lei": "WOCMU6HCI0OJWNPRZS33"
+    },
+    {
+      "name": "AMPLIFON S.P.A.",
+      "lei": "ZYXJDNVM2JI3VBM8G556"
+    }
+  ]
+}

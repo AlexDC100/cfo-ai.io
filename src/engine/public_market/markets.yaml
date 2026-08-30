@@ -1,0 +1,221 @@
+# ─────────────────────────────────────────────────────────────────────
+# public_market — THE MARKET REGISTRY, AS DATA.
+#
+# This file is the ONLY place a market id may be enumerated. Every other
+# module in engine.public_market reads markets through registry.py; the
+# N7-style guard in tests/engine/test_public_market_spine.py token-scans
+# the package and fails on any quoted market id or `market_id ==`
+# comparison outside registry.py (adapters' own module-level constants
+# are allowlisted there, each with a written reason).
+#
+# STATUS VOCABULARY — what the platform can honestly produce TODAY:
+#
+#   live               a ticker goes in, a deterministic figure comes out,
+#                      end to end, with provenance. No hand-holding.
+#   fundamentals_only  a deterministic feed carries the figures and the
+#                      extractor works, but the market is not addressable
+#                      by ticker yet (no ticker -> filing resolution) —
+#                      so the company route refuses with a typed refusal
+#                      that names the missing capability.
+#   awaiting_provider  no feed at all for this market today. The card
+#                      exists so the gap is VISIBLE, never so a number
+#                      can be invented to fill it.
+#
+# The status of every ESEF market below is derived from what esef.py can
+# ACTUALLY deliver, read module-by-module (not from ambition):
+#   · it discovers filings by COUNTRY (build_filings_query_url) and
+#     extracts four real figures per filing (extract_core_facts,
+#     calibrated on committed real bytes) — so figures exist;
+#   · it has NO ticker -> LEI -> filing resolution, so /company/{market}/
+#     {ticker} cannot be served      -> fundamentals_only, never live;
+#   · filings.xbrl.org documents Germany and Ireland as MISSING from the
+#     repository (esef.COVERAGE_GAPS) -> DE is awaiting_provider, not
+#     fundamentals_only. A market with no feed must not borrow the label
+#     of a market that has one.
+#
+# license_notes are recorded VERBATIM where the adapter recorded them
+# (edgar.py's SEC fair-access lines, esef.TERMS_OF_USE_LINE,
+# prices._LICENSED_EOD, public_summary's data.gov.ro line). A test
+# asserts byte-equality against those module constants so the two copies
+# cannot drift.
+# ─────────────────────────────────────────────────────────────────────
+schema: public_market_registry_v1
+
+markets:
+
+  # ── the home market: its own group, always first ──────────────────
+  # PM7: BVB / public_ro is UNTOUCHED by this package. The entry exists
+  # so Romania leads the ordering and so `fundamentals_source` names the
+  # pipeline that really serves it — engine.public_market must never
+  # fetch, cache or re-derive a Romanian figure.
+  - market_id: ro
+    display_name: Romania — Bucharest Stock Exchange
+    exchanges: [BVB]
+    currency: RON
+    accounting_standard: RAS/IFRS
+    price_source: none
+    fundamentals_source: public_ro
+    refresh_cadence: annual_dataset
+    license_notes: >-
+      Conține informații publice · data.gov.ro / Ministerul Finanțelor ·
+      licența CC BY 4.0
+    marquee_rank: 0
+    status: live
+    coverage_note: >-
+      Served by the existing public_ro storefront (public_summary class),
+      not by this package. price_source is none by design: BVB quotes are
+      not licensed here and prices.py deliberately omits RO so the home
+      market can never be claimed twice.
+
+  # ── marquee: US, DE, UK, FR, IT, ES, CN, AE ───────────────────────
+  - market_id: us
+    display_name: United States
+    exchanges: [NYSE, NASDAQ]
+    currency: USD
+    accounting_standard: US_GAAP
+    price_source: licensed_provider_slot
+    fundamentals_source: sec_edgar_companyfacts
+    refresh_cadence: on_filing
+    license_notes: >-
+      "Current max request rate: 10 requests/second." · "Please declare
+      your user agent" (https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data,
+      retrieved 2026-08-29)
+    marquee_rank: 1
+    status: live
+    coverage_note: >-
+      Keyless and official: ticker -> CIK -> companyfacts -> figures with
+      per-figure accessions. USD units only in v1 — an FX-denominated
+      filer refuses rather than mixing currencies. Cash is deliberately
+      not extracted, so enterprise_value refuses by design rather than
+      subtracting a zero it never saw.
+
+  - market_id: de
+    display_name: Germany
+    exchanges: [XETRA]
+    currency: EUR
+    accounting_standard: IFRS
+    price_source: licensed_provider_slot
+    fundamentals_source: none
+    refresh_cadence: none
+    license_notes: >-
+      Prices via licensed provider slot · end-of-day licence · no
+      redistribution rights
+    marquee_rank: 2
+    status: awaiting_provider
+    coverage_note: >-
+      filings.xbrl.org documents Germany as MISSING from the ESEF
+      repository (esef.COVERAGE_GAPS). There is no feed for DE today, so
+      the honest status is awaiting_provider — NOT fundamentals_only,
+      which would imply figures exist and are merely unaddressable.
+
+  - market_id: uk
+    display_name: United Kingdom
+    exchanges: [LSE]
+    currency: GBP
+    accounting_standard: IFRS
+    price_source: licensed_provider_slot
+    fundamentals_source: filings.xbrl.org
+    refresh_cadence: on_filing
+    license_notes: >-
+      At present, there are no restrictions on the ways that the data can
+      be used. (filings.xbrl.org/docs/about, retrieved 2026-08-29)
+    marquee_rank: 3
+    status: fundamentals_only
+    coverage_note: >-
+      UKSEF filings are in the repository and the xBRL-JSON extractor
+      runs on them, but there is no ticker -> LEI resolution, so the
+      company route refuses. Extraction is calibrated on one real FR
+      filing; the same code path serves UK uncalibrated.
+
+  - market_id: fr
+    display_name: France
+    exchanges: [Euronext Paris]
+    currency: EUR
+    accounting_standard: IFRS
+    price_source: licensed_provider_slot
+    fundamentals_source: filings.xbrl.org
+    refresh_cadence: on_filing
+    license_notes: >-
+      At present, there are no restrictions on the ways that the data can
+      be used. (filings.xbrl.org/docs/about, retrieved 2026-08-29)
+    marquee_rank: 4
+    status: fundamentals_only
+    coverage_note: >-
+      The ONE calibrated ESEF market: revenue/profit/assets/equity are
+      extracted from committed real bytes (S.T. Dupont S.A, FY ending
+      2026-03-31). Still fundamentals_only, because discovery is by
+      country and no ticker -> filing resolution exists.
+
+  - market_id: it
+    display_name: Italy
+    exchanges: [Borsa Italiana]
+    currency: EUR
+    accounting_standard: IFRS
+    price_source: licensed_provider_slot
+    fundamentals_source: filings.xbrl.org
+    refresh_cadence: on_filing
+    license_notes: >-
+      At present, there are no restrictions on the ways that the data can
+      be used. (filings.xbrl.org/docs/about, retrieved 2026-08-29)
+    marquee_rank: 5
+    status: fundamentals_only
+    coverage_note: >-
+      In the ESEF repository and on the same extractor path as FR, but
+      uncalibrated (no committed real IT filing) and not addressable by
+      ticker.
+
+  - market_id: es
+    display_name: Spain
+    exchanges: [BME]
+    currency: EUR
+    accounting_standard: IFRS
+    price_source: licensed_provider_slot
+    fundamentals_source: filings.xbrl.org
+    refresh_cadence: on_filing
+    license_notes: >-
+      At present, there are no restrictions on the ways that the data can
+      be used. (filings.xbrl.org/docs/about, retrieved 2026-08-29)
+    marquee_rank: 6
+    status: fundamentals_only
+    coverage_note: >-
+      In the ESEF repository and on the same extractor path as FR, but
+      uncalibrated (no committed real ES filing) and not addressable by
+      ticker.
+
+  - market_id: cn
+    display_name: China
+    exchanges: [SSE, SZSE, HKEX]
+    currency: CNY
+    accounting_standard: CAS_IFRS
+    price_source: licensed_provider_slot
+    fundamentals_source: none
+    refresh_cadence: none
+    license_notes: >-
+      Prices via licensed provider slot · end-of-day licence · no
+      redistribution rights
+    marquee_rank: 7
+    status: awaiting_provider
+    coverage_note: >-
+      No deterministic feed today. currency is recorded as CNY because a
+      single field cannot express this group honestly — HKEX lists in
+      HKD; the provider integration must carry per-exchange currency
+      rather than let one label stand for both.
+
+  - market_id: ae
+    display_name: United Arab Emirates
+    exchanges: [DFM, ADX]
+    currency: AED
+    accounting_standard: IFRS
+    price_source: licensed_provider_slot
+    fundamentals_source: none
+    refresh_cadence: none
+    license_notes: >-
+      Prices via licensed provider slot · end-of-day licence · no
+      redistribution rights
+    marquee_rank: 8
+    status: awaiting_provider
+    coverage_note: >-
+      UAIFRS-programme rows do appear in the filings.xbrl.org index (a
+      committed fixture contains two), but nothing in this repo has ever
+      extracted a figure from one — so AE claims no feed until a real AE
+      filing is parsed end to end.

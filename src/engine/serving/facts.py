@@ -63,7 +63,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from . import access_log  # E1 access-log seam (append-only, never raises)
 
@@ -78,7 +78,8 @@ ENVELOPE_VERSION = "sv1"
 #: reads this list via AST and greps the whole engine + frontend for the
 #: names — any reference outside src/engine/serving/ (and the allowlist)
 #: fails CI.
-PRIVATE_SNAPSHOT_FIELDS = ["_raw_totals", "_adjusted_totals", "_summary_indicators"]
+PRIVATE_SNAPSHOT_FIELDS = ["_raw_totals", "_adjusted_totals", "_summary_indicators",
+                           "_market"]
 
 #: The two result-row ids of the served balance sheet (kept literal so
 #: the gateway never imports the serve module at import time; the value
@@ -124,6 +125,77 @@ class LockedRatio:
     upsell_key: str
     locked: bool = True
     reason: str = "needs_trial_balance"
+
+
+@dataclass(frozen=True)
+class MarketRefusal:
+    """PM — a typed REFUSAL on the public_market tier: the metric cannot
+    be computed because an INPUT IS ABSENT from the deterministic feed.
+
+    Distinct from both siblings, deliberately:
+      · :class:`MissingFactError` is "this tier has never carried that
+        concept" (callers degrade quietly);
+      · :class:`LockedRatio` is "the value exists but the open-data tier
+        cannot carry it — upload a trial balance" (callers upsell);
+      · ``MarketRefusal`` is "the feed did not publish input X, so the
+        number does not exist to be shown" (callers render the gap and
+        NAME the missing input).
+
+    Returned, never raised — a card that must display "enterprise value
+    unavailable: no cash figure in this feed" needs the reason, not a
+    stack trace. NEVER carries any numeric value: a refusal with a
+    number in it is a partial answer, and a partial market metric is
+    indistinguishable from a wrong one.
+    """
+
+    metric_id: str
+    code: str
+    missing: Tuple[str, ...] = ()
+    detail: str = ""
+
+    @property
+    def refused(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True)
+class MarketRatio:
+    """A market ratio as an EXACT integer pair — division happens only at
+    :meth:`to_float`, the serialization boundary, exactly like
+    :meth:`Fact.to_float`. The gateway itself does no float arithmetic,
+    so a P/E is reproducible to the last cent of its inputs."""
+
+    ratio_id: str
+    numerator_minor: int
+    denominator_minor: int
+    currency: str
+    provenance: Dict[str, Any]
+
+    def to_float(self) -> float:
+        return self.numerator_minor / float(self.denominator_minor)
+
+
+#: Market metric ids, in render order for ``market_metrics()``.
+_MARKET_METRICS = ("price", "market_cap", "enterprise_value", "pe", "ev_ebitda")
+
+#: Refusal codes this tier emits. Stable strings — surfaces group on them.
+MARKET_REFUSAL_INPUT_ABSENT = "input_absent"
+MARKET_REFUSAL_PRICE_ABSENT = "price_absent"
+MARKET_REFUSAL_CURRENCY_MISMATCH = "currency_mismatch"
+MARKET_REFUSAL_NON_POSITIVE = "non_positive_denominator"
+
+#: Figure names the market accessors read out of a pm1 envelope. Named
+#: here so a feed that starts publishing one of the absent ones (cash,
+#: ebitda) lights the metric up with no further code change.
+_MARKET_FIGURE_PRICE = "price"
+_MARKET_FIGURE_SHARES = "shares_outstanding"
+_MARKET_FIGURE_NET_INCOME = "net_income"
+_MARKET_FIGURE_TOTAL_DEBT = "total_debt"
+_MARKET_FIGURE_CASH = "cash_and_equivalents"
+_MARKET_FIGURE_EBITDA = "ebitda"
+_MARKET_FIGURE_REVENUE = "revenue"
+_MARKET_FIGURE_TOTAL_ASSETS = "total_assets"
+_MARKET_FIGURE_EQUITY = "equity"
 
 
 #: The account-level ratios a public summary can never compute
@@ -195,12 +267,20 @@ class FactsGateway(object):
     #: indicators) served from ``envelope["public_summary"]`` (ps1).
     #: Never enters the canonical status ladder / reconcile / consensus.
     TIER_SUMMARY = "public_summary"
+    #: Fourth tier — GLOBAL PUBLIC MARKETS (pm1 envelopes from
+    #: ``engine.public_market``: EDGAR / ESEF / provider feeds). A
+    #: SIBLING of the summary tier, not a rung of the canonical ladder:
+    #: it never enters reconcile / packs / consensus, it carries no
+    #: balance verdict, and every metric it cannot compute is a typed
+    #: :class:`MarketRefusal` rather than a derived number.
+    TIER_MARKET = "public_market"
 
     def __init__(self, *, tier: str, served: Optional[Dict[str, Any]],
                  raw_cbs: Optional[Dict[str, Any]],
                  methodology: Dict[str, Any],
                  snapshot_id: Optional[str], currency: str,
-                 summary: Optional[Dict[str, Any]] = None) -> None:
+                 summary: Optional[Dict[str, Any]] = None,
+                 market: Optional[Dict[str, Any]] = None) -> None:
         self.tier = tier
         self._served = served
         self._raw_cbs = raw_cbs
@@ -211,8 +291,18 @@ class FactsGateway(object):
         self._summary_indicators = dict(
             (self._summary or {}).get("indicators") or {}
         )
+        #: The whole pm1 envelope on the market tier (figures live on it
+        #: with per-figure provenance); None on every other tier.
+        self._market = market if isinstance(market, dict) else None
         # Concept -> Optional[int] cents, resolved once at construction.
-        if tier == self.TIER_SUMMARY:
+        if tier == self.TIER_MARKET:
+            # A market feed publishes statement TOTALS it actually saw.
+            # Liabilities are deliberately NOT derived as assets − equity:
+            # a subtraction that always "works" is exactly how a feed gap
+            # becomes a confident wrong total.
+            self._raw_totals = self._market_totals_cents(self._market or {})
+            self._adjusted_totals = dict(self._raw_totals)
+        elif tier == self.TIER_SUMMARY:
             # No reconciliation machinery exists for public summaries:
             # raw == adjusted by construction.
             self._raw_totals = self._summary_totals_cents(self._summary or {})
@@ -240,6 +330,22 @@ class FactsGateway(object):
             return None
         snapshot_id = cls._snapshot_id_of(envelope)
         access_log.record_access(doc=snapshot_id, accessor="FactsGateway.from_envelope")
+        # MARKET probe (PM): a pm1 public_market envelope resolves to the
+        # market tier and NOTHING else. Structural (doc_class + status +
+        # figures), never version-pinned, so a pm2 document is still
+        # refused entry to the canonical path. The currency comes from
+        # the DOCUMENT (a US filing is USD whatever the caller's display
+        # preference says) — passing `currency` cannot relabel a figure.
+        if cls._is_market_envelope(envelope):
+            return cls(
+                tier=cls.TIER_MARKET,
+                served=None,
+                raw_cbs=None,
+                methodology={},
+                snapshot_id=snapshot_id or cls._market_snapshot_id_of(envelope),
+                currency=cls._market_currency_of(envelope, currency),
+                market=envelope,
+            )
         # SUMMARY probe FIRST (PS): a public_summary envelope resolves to
         # the summary tier even if a canonical_bs-shaped block was ever
         # attached for convenience — public open data must never be
@@ -302,6 +408,108 @@ class FactsGateway(object):
         provenance = summary.get("provenance") or {}
         value = provenance.get("content_hash") if isinstance(provenance, dict) else None
         return str(value) if value else None
+
+    # ── Market tier (PM: pm1 public_market envelopes) ──────────────────
+
+    @staticmethod
+    def _is_market_envelope(envelope: Any) -> bool:
+        """Structural pm1 probe — the same shape
+        ``engine.public_market.model.is_public_market_envelope`` and
+        ``engine.api._reconcile.is_public_market_envelope`` test. Kept
+        literal here (no import) for the same reason ``_RESULT_ROW_IDS``
+        is literal: the gateway must stay importable without the
+        public_market package. A test locks the three copies together."""
+        if not isinstance(envelope, dict):
+            return False
+        if envelope.get("doc_class") != "public_market":
+            return False
+        if envelope.get("status") != "PUBLIC_MARKET":
+            return False
+        return isinstance(envelope.get("figures"), dict)
+
+    @staticmethod
+    def _market_snapshot_id_of(envelope: Dict[str, Any]) -> Optional[str]:
+        """pm1 stamps its own top-level ``content_hash`` (canonical
+        sorted-key digest of the document)."""
+        value = envelope.get("content_hash")
+        return str(value) if value else None
+
+    @classmethod
+    def _market_currency_of(cls, envelope: Dict[str, Any],
+                            fallback: str) -> str:
+        """The document's own currency: the registry-stamped ``market``
+        block first, then any monetary figure's currency. Falls back to
+        the caller's value only when the document names none — and the
+        accessors still refuse on a currency mismatch, so a wrong
+        fallback can never silently relabel a figure."""
+        market = envelope.get("market")
+        if isinstance(market, dict):
+            value = market.get("currency")
+            if isinstance(value, str) and value:
+                return value
+        figures = envelope.get("figures")
+        if isinstance(figures, dict):
+            for name in sorted(figures):
+                figure = figures[name]
+                if isinstance(figure, dict):
+                    value = figure.get("currency")
+                    if isinstance(value, str) and value:
+                        return value
+        return fallback
+
+    @classmethod
+    def _market_totals_cents(cls, envelope: Dict[str, Any]
+                             ) -> Dict[str, Optional[int]]:
+        """Statement totals the market feed ACTUALLY published, in
+        integer minor units. Everything else stays None — and
+        ``_total`` turns None into :class:`MissingFactError`, never a
+        zero. Notably ``liabilities`` / ``equity_plus_liabilities`` /
+        ``current_*`` are absent for EDGAR companyfacts: the feed does
+        not tag them, and assets − equity is a derivation, not a fact."""
+        out: Dict[str, Optional[int]] = {k: None for k in _TOTAL_CONCEPTS}
+        out["assets"] = cls._market_figure_minor(
+            envelope, _MARKET_FIGURE_TOTAL_ASSETS)
+        out["equity"] = cls._market_figure_minor(envelope, _MARKET_FIGURE_EQUITY)
+        return out
+
+    @staticmethod
+    def _market_figure(envelope: Any, name: str) -> Optional[Dict[str, Any]]:
+        if not isinstance(envelope, dict):
+            return None
+        figures = envelope.get("figures")
+        if not isinstance(figures, dict):
+            return None
+        figure = figures.get(name)
+        return figure if isinstance(figure, dict) else None
+
+    @classmethod
+    def _market_figure_minor(cls, envelope: Any, name: str) -> Optional[int]:
+        """Integer minor units of one MONETARY market figure, or None.
+
+        A non-int ``value_minor`` returns None rather than being coerced:
+        a float in a minor-units field is a rounding bug, and rounding it
+        here would launder it into a served number."""
+        figure = cls._market_figure(envelope, name)
+        if figure is None:
+            return None
+        value = figure.get("value_minor")
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
+
+    @classmethod
+    def _market_figure_count(cls, envelope: Any, name: str) -> Optional[int]:
+        """Integer COUNT of one non-monetary market figure (shares).
+        A separate accessor on purpose: a share count must never travel
+        through the minor-units path, where 14 594 180 000 shares would
+        read as 145 941 800.00 of something."""
+        figure = cls._market_figure(envelope, name)
+        if figure is None:
+            return None
+        value = figure.get("value")
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
 
     @classmethod
     def _totals_cents(cls, cbs: Optional[Dict[str, Any]],
@@ -506,7 +714,20 @@ class FactsGateway(object):
 
         Summary tier: ``derived.net_result`` (ingest-precomputed) or
         I18 − I19 (Profit net − Pierdere neta, both non-negative
-        columns); REFUSES when both result columns are absent."""
+        columns); REFUSES when both result columns are absent.
+
+        Market tier: the feed's own ``net_income`` figure, verbatim in
+        minor units — never derived from revenue and expenses, which the
+        feed may have tagged for different periods."""
+        if self.tier == self.TIER_MARKET:
+            cents = self._market_figure_minor(
+                self._market, _MARKET_FIGURE_NET_INCOME)
+            if cents is None:
+                raise MissingFactError(
+                    "public_market feed carries no %s figure"
+                    % _MARKET_FIGURE_NET_INCOME
+                )
+            return self._fact(cents, line_id=_MARKET_FIGURE_NET_INCOME)
         if self.tier == self.TIER_SUMMARY:
             cents = self._summary_ron_cents(
                 ((self._summary or {}).get("derived") or {}).get("net_result")
@@ -539,7 +760,16 @@ class FactsGateway(object):
         """Net revenue (methodology ``totals.revenue_net``) plus a
         ``pl_other_income``-placed reconciliation delta. Summary tier:
         I13 (Cifra de afaceri neta) — its own resolution, deliberately
-        NOT the methodology path's asymmetric positive-delta rule."""
+        NOT the methodology path's asymmetric positive-delta rule.
+
+        Market tier: the feed's own ``revenue`` figure, verbatim."""
+        if self.tier == self.TIER_MARKET:
+            cents = self._market_figure_minor(self._market, _MARKET_FIGURE_REVENUE)
+            if cents is None:
+                raise MissingFactError(
+                    "public_market feed carries no %s figure" % _MARKET_FIGURE_REVENUE
+                )
+            return self._fact(cents, line_id=_MARKET_FIGURE_REVENUE)
         if self.tier == self.TIER_SUMMARY:
             cents = self._summary_ron_cents(
                 self._summary_indicators.get("I13"), "I13")
@@ -558,6 +788,17 @@ class FactsGateway(object):
         reconciliation delta by construction (revenue is unchanged,
         net_result shrinks). Summary tier: I15 (Cheltuieli totale) —
         the file's own column, not an implied figure."""
+        if self.tier == self.TIER_MARKET:
+            # revenue − net_income across a market feed is NOT expenses:
+            # the two figures can come from different filings, different
+            # fiscal spans and different concept chains, so the
+            # subtraction would produce a confident number nobody
+            # published. The market tier refuses instead.
+            raise MissingFactError(
+                "expenses is not a served concept on the public_market tier — "
+                "revenue − net_income would be a derived total the feed never "
+                "published (tier=%s)" % self.tier
+            )
         if self.tier == self.TIER_SUMMARY:
             cents = self._summary_ron_cents(
                 self._summary_indicators.get("I15"), "I15")
@@ -633,6 +874,244 @@ class FactsGateway(object):
             return []
         return [LockedRatio(ratio_id=rid, upsell_key=key)
                 for rid, key in _SUMMARY_LOCKED_RATIOS]
+
+    # ── Market-tier accessors (PM: pm1 public_market envelopes only) ───
+    #
+    # Every one of these is DETERMINISTIC INTEGER ARITHMETIC over feed
+    # values. No AI touches a digit here — the AI lane carries freshness,
+    # narrative and resolution, never a number on a market card.
+    #
+    # Each returns either a value object or a typed :class:`MarketRefusal`
+    # naming the missing input. None of them ever substitutes a zero, and
+    # none of them ever partially computes: enterprise value without a
+    # cash figure is not "enterprise value minus nothing", it is a
+    # refusal, because the market has no way to tell the difference
+    # between a company with no cash and a feed that never tagged it.
+
+    def _require_market_tier(self, metric_id: str) -> None:
+        if self.tier != self.TIER_MARKET:
+            raise MissingFactError(
+                "%s requires a public_market serving (tier=%s)"
+                % (metric_id, self.tier)
+            )
+
+    def _market_refuse(self, metric_id: str, code: str,
+                       missing: Tuple[str, ...] = (),
+                       detail: str = "") -> "MarketRefusal":
+        return MarketRefusal(metric_id=metric_id, code=code,
+                             missing=tuple(missing), detail=detail)
+
+    def _market_provenance(self, *figure_names: str) -> Dict[str, Any]:
+        """Provenance for a COMPOSED market metric: the snapshot plus the
+        exact figures it consumed. A derived number must be able to name
+        every input it stood on."""
+        return {"snapshot_id": self._snapshot_id,
+                "line_id": None,
+                "inputs": list(figure_names)}
+
+    def _market_currency_conflict(self, *figure_names: str) -> Optional[str]:
+        """The first figure whose currency disagrees with the document's,
+        or None. Mixing currencies in a market cap is the single easiest
+        way to publish a number that is wrong by a factor of five."""
+        for name in figure_names:
+            figure = self._market_figure(self._market, name)
+            if figure is None:
+                continue
+            currency = figure.get("currency")
+            if isinstance(currency, str) and currency and currency != self._currency:
+                return name
+        return None
+
+    def market_price(self) -> Union[Fact, "MarketRefusal"]:
+        """The last labeled price, in integer minor units.
+
+        The price block's ABSENCE is a DESIGNED state (keyless mode — the
+        platform holds no market-data licence), so this refuses with
+        ``price_absent`` rather than raising: "no licensed price" is a
+        thing the card says out loud, not an error."""
+        self._require_market_tier("market_price")
+        block = (self._market or {}).get("price")
+        if not isinstance(block, dict):
+            return self._market_refuse(
+                "price", MARKET_REFUSAL_PRICE_ABSENT, (_MARKET_FIGURE_PRICE,),
+                "no price block on this envelope — keyless (fundamentals-only) "
+                "mode, or no licensed feed for this market",
+            )
+        minor = block.get("price_minor")
+        if isinstance(minor, bool) or not isinstance(minor, int):
+            return self._market_refuse(
+                "price", MARKET_REFUSAL_INPUT_ABSENT, (_MARKET_FIGURE_PRICE,),
+                "price block carries no integer price_minor",
+            )
+        currency = block.get("currency")
+        if isinstance(currency, str) and currency and currency != self._currency:
+            return self._market_refuse(
+                "price", MARKET_REFUSAL_CURRENCY_MISMATCH, (_MARKET_FIGURE_PRICE,),
+                "price is quoted in %s but the document's currency is %s"
+                % (currency, self._currency),
+            )
+        return self._fact(minor, line_id=_MARKET_FIGURE_PRICE)
+
+    def market_cap(self) -> Union[Fact, "MarketRefusal"]:
+        """price × shares outstanding, exactly, in integer minor units.
+
+        Both inputs are integers (price in minor units, shares as a
+        count), so the product is exact — no float ever enters."""
+        self._require_market_tier("market_cap")
+        price = self.market_price()
+        if isinstance(price, MarketRefusal):
+            return self._market_refuse(
+                "market_cap", price.code, price.missing, price.detail)
+        shares = self._market_figure_count(self._market, _MARKET_FIGURE_SHARES)
+        if shares is None:
+            return self._market_refuse(
+                "market_cap", MARKET_REFUSAL_INPUT_ABSENT,
+                (_MARKET_FIGURE_SHARES,),
+                "the feed published no share count — a market cap without one "
+                "would be a guess at the company's size",
+            )
+        return Fact(price.amount_minor * shares, self._currency,
+                    self._market_provenance(_MARKET_FIGURE_PRICE,
+                                            _MARKET_FIGURE_SHARES))
+
+    def enterprise_value(self) -> Union[Fact, "MarketRefusal"]:
+        """market cap + total debt − cash, in integer minor units.
+
+        Refuses when ANY leg is absent. In particular the EDGAR
+        companyfacts feed does not carry a cash figure today, so this
+        refuses on ``cash_and_equivalents`` by design — treating that
+        absence as zero would silently overstate enterprise value by the
+        whole cash balance, which for a large filer is tens of billions.
+        """
+        self._require_market_tier("enterprise_value")
+        cap = self.market_cap()
+        if isinstance(cap, MarketRefusal):
+            return self._market_refuse(
+                "enterprise_value", cap.code, cap.missing, cap.detail)
+        debt = self._market_figure_minor(self._market, _MARKET_FIGURE_TOTAL_DEBT)
+        cash = self._market_figure_minor(self._market, _MARKET_FIGURE_CASH)
+        missing = []
+        if debt is None:
+            missing.append(_MARKET_FIGURE_TOTAL_DEBT)
+        if cash is None:
+            missing.append(_MARKET_FIGURE_CASH)
+        if missing:
+            return self._market_refuse(
+                "enterprise_value", MARKET_REFUSAL_INPUT_ABSENT, tuple(missing),
+                "the feed published no %s — ABSENT is not ZERO, so enterprise "
+                "value is refused rather than computed from a assumed balance"
+                % " and no ".join(missing),
+            )
+        conflict = self._market_currency_conflict(
+            _MARKET_FIGURE_TOTAL_DEBT, _MARKET_FIGURE_CASH)
+        if conflict is not None:
+            return self._market_refuse(
+                "enterprise_value", MARKET_REFUSAL_CURRENCY_MISMATCH, (conflict,),
+                "%s is denominated in a different currency than the document" % conflict,
+            )
+        return Fact(cap.amount_minor + debt - cash, self._currency,
+                    self._market_provenance(
+                        _MARKET_FIGURE_PRICE, _MARKET_FIGURE_SHARES,
+                        _MARKET_FIGURE_TOTAL_DEBT, _MARKET_FIGURE_CASH))
+
+    def pe(self) -> Union["MarketRatio", "MarketRefusal"]:
+        """market cap ÷ net income, as an exact integer pair.
+
+        A non-positive denominator is REFUSED, not computed: a "P/E" over
+        a loss is not a small number, it is a category error, and
+        rendering one would be worse than rendering nothing."""
+        self._require_market_tier("pe")
+        cap = self.market_cap()
+        if isinstance(cap, MarketRefusal):
+            return self._market_refuse("pe", cap.code, cap.missing, cap.detail)
+        earnings = self._market_figure_minor(self._market, _MARKET_FIGURE_NET_INCOME)
+        if earnings is None:
+            return self._market_refuse(
+                "pe", MARKET_REFUSAL_INPUT_ABSENT, (_MARKET_FIGURE_NET_INCOME,),
+                "the feed published no net income figure",
+            )
+        conflict = self._market_currency_conflict(_MARKET_FIGURE_NET_INCOME)
+        if conflict is not None:
+            return self._market_refuse(
+                "pe", MARKET_REFUSAL_CURRENCY_MISMATCH, (conflict,),
+                "net income is denominated in a different currency than the price",
+            )
+        if earnings <= 0:
+            return self._market_refuse(
+                "pe", MARKET_REFUSAL_NON_POSITIVE, (_MARKET_FIGURE_NET_INCOME,),
+                "net income is not positive — a P/E over a loss is undefined, "
+                "not small",
+            )
+        return MarketRatio(
+            ratio_id="pe", numerator_minor=cap.amount_minor,
+            denominator_minor=earnings, currency=self._currency,
+            provenance=self._market_provenance(
+                _MARKET_FIGURE_PRICE, _MARKET_FIGURE_SHARES,
+                _MARKET_FIGURE_NET_INCOME),
+        )
+
+    def ev_ebitda(self) -> Union["MarketRatio", "MarketRefusal"]:
+        """enterprise value ÷ EBITDA, as an exact integer pair.
+
+        EBITDA is not a tagged concept in the statement feeds wired
+        today, so this refuses on ``ebitda`` until a feed publishes one.
+        Deriving EBITDA from a summary feed (operating income plus a
+        depreciation line that may not exist) is exactly the kind of
+        model-shaped number this document class refuses to invent."""
+        self._require_market_tier("ev_ebitda")
+        ev = self.enterprise_value()
+        if isinstance(ev, MarketRefusal):
+            return self._market_refuse(
+                "ev_ebitda", ev.code, ev.missing, ev.detail)
+        ebitda = self._market_figure_minor(self._market, _MARKET_FIGURE_EBITDA)
+        if ebitda is None:
+            return self._market_refuse(
+                "ev_ebitda", MARKET_REFUSAL_INPUT_ABSENT, (_MARKET_FIGURE_EBITDA,),
+                "the feed published no EBITDA figure and this tier never "
+                "reconstructs one",
+            )
+        conflict = self._market_currency_conflict(_MARKET_FIGURE_EBITDA)
+        if conflict is not None:
+            return self._market_refuse(
+                "ev_ebitda", MARKET_REFUSAL_CURRENCY_MISMATCH, (conflict,),
+                "EBITDA is denominated in a different currency than the price",
+            )
+        if ebitda <= 0:
+            return self._market_refuse(
+                "ev_ebitda", MARKET_REFUSAL_NON_POSITIVE, (_MARKET_FIGURE_EBITDA,),
+                "EBITDA is not positive — the multiple is undefined",
+            )
+        return MarketRatio(
+            ratio_id="ev_ebitda", numerator_minor=ev.amount_minor,
+            denominator_minor=ebitda, currency=self._currency,
+            provenance=self._market_provenance(
+                _MARKET_FIGURE_PRICE, _MARKET_FIGURE_SHARES,
+                _MARKET_FIGURE_TOTAL_DEBT, _MARKET_FIGURE_CASH,
+                _MARKET_FIGURE_EBITDA),
+        )
+
+    def market_metrics(self) -> "Dict[str, Any]":
+        """Every market metric in render order, each resolved to its
+        value object OR its typed refusal. The surface iterates this
+        instead of calling five accessors and try/excepting each — the
+        refusals are first-class cards, not error handling.
+
+        Empty dict on every non-market tier."""
+        if self.tier != self.TIER_MARKET:
+            return {}
+        resolvers = {
+            "price": self.market_price,
+            "market_cap": self.market_cap,
+            "enterprise_value": self.enterprise_value,
+            "pe": self.pe,
+            "ev_ebitda": self.ev_ebitda,
+        }
+        return dict((metric, resolvers[metric]()) for metric in _MARKET_METRICS)
+
+    def market_refusals(self) -> List["MarketRefusal"]:
+        """Only the refused market metrics, in render order."""
+        return [value for value in self.market_metrics().values()
+                if isinstance(value, MarketRefusal)]
 
     def ebitda(self) -> Fact:
         """Reported EBITDA (methodology ``ebitda.reported``) plus a

@@ -19,6 +19,14 @@ by scripts/check_import_boundary.py):
     tier's presenter (parallel to the canonical ladder, never in it).
   · :class:`LockedRatio` — the PS5 typed paywall refusal returned by
     account-level accessors on the public-summary tier.
+  · :func:`present_public_market` / :data:`PUBLIC_MARKET_VERSION`
+    ("pm1") / :data:`PUBLIC_MARKET_STATUS` — the GLOBAL PUBLIC MARKETS
+    tier's presenter (a fourth, parallel presentation status; never in
+    the canonical ladder, never in reconcile/packs/consensus).
+  · :class:`MarketRefusal` / :class:`MarketRatio` — the PM typed
+    input-absent refusal and the exact-integer ratio pair returned by
+    the market accessors (price / market_cap / enterprise_value / pe /
+    ev_ebitda).
 
 See facts.py's module docstring for the raw_* accessor boundary (audit /
 receipt / undo surfaces only).
@@ -30,9 +38,16 @@ from .facts import (
     Fact,
     FactsGateway,
     LockedRatio,
+    MarketRatio,
+    MarketRefusal,
     MissingFactError,
     additive_serve_violations,
     assert_additive_serve,
+)
+from .public_market import (
+    PUBLIC_MARKET_STATUS,
+    PUBLIC_MARKET_VERSION,
+    present_public_market,
 )
 from .public_summary import (
     PUBLIC_SUMMARY_STATUS,
@@ -47,13 +62,18 @@ __all__ = [
     "Fact",
     "FactsGateway",
     "LockedRatio",
+    "MarketRatio",
+    "MarketRefusal",
     "MissingFactError",
     "MACHINE_STATUSES",
+    "PUBLIC_MARKET_STATUS",
+    "PUBLIC_MARKET_VERSION",
     "PUBLIC_SUMMARY_STATUS",
     "PUBLIC_SUMMARY_VERSION",
     "SURFACES",
     "additive_serve_violations",
     "assert_additive_serve",
+    "present_public_market",
     "present_public_summary",
     "present_status",
 ]

@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
 import { UNIVERSE_SECTORS } from "@/lib/publicCompanyUniverse";
+import { marketIdForSnapshot, type MarketEntry } from "@/lib/marketApi";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sparkline } from "@/components/dashboard/Sparkline";
@@ -61,6 +62,7 @@ import {
   type WorkspaceBenchMetrics,
 } from "./pciData";
 import "./pciI18n";
+import "./marketI18n";
 
 /** An active filter on the company grid — set by clicking a filter chip
  *  (toggled off by clicking the same chip again), or pushed in from
@@ -84,6 +86,14 @@ interface Props {
   /** "Compania ta" metrics for the compare sheet — null when no real
    *  period is loaded. */
   workspace?: WorkspaceBenchMetrics | null;
+  /** Market registry (2026-08-30, global-markets wave). Used only to
+   *  label a card with the market it belongs to. */
+  markets?: MarketEntry[];
+  /** Render the market + currency chips on each card. The page sets this
+   *  when the visible grid actually spans more than one market: on a
+   *  single-market tab the page header already declares the market, and
+   *  repeating it on every card is noise rather than information. */
+  showMarketChips?: boolean;
 }
 
 // ── Smart screens ────────────────────────────────────────────────────────
@@ -136,6 +146,8 @@ export function MarketsOverview({
   searchFilter,
   onClearSearch,
   workspace,
+  markets,
+  showMarketChips = false,
 }: Props) {
   const { t } = useTranslation();
 
@@ -328,6 +340,8 @@ export function MarketsOverview({
         standouts={standouts}
         compareSel={compareSel}
         onToggleCompare={toggleCompare}
+        markets={markets}
+        showMarketChips={showMarketChips}
         filters={
           <div data-testid="markets-explore">
             <div className="text-[10.5px] uppercase tracking-[0.14em] font-semibold text-ink-soft mb-2">
@@ -528,6 +542,8 @@ function CompanyGrid({
   compareSel,
   onToggleCompare,
   filters,
+  markets,
+  showMarketChips,
 }: {
   rows: PublicCompanyFinancialSnapshot[];
   onSelect: (ticker: string) => void;
@@ -536,6 +552,8 @@ function CompanyGrid({
   compareSel: string[];
   onToggleCompare: (ticker: string) => void;
   filters?: ReactNode;
+  markets?: MarketEntry[];
+  showMarketChips?: boolean;
 }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(0);
@@ -582,6 +600,8 @@ function CompanyGrid({
               standout={standouts.get(r.ticker)}
               compareSelected={compareSel.includes(r.ticker)}
               onToggleCompare={() => onToggleCompare(r.ticker)}
+              markets={markets}
+              showMarketChips={showMarketChips}
             />
           ))}
         </div>
@@ -646,6 +666,8 @@ function CompanyCard({
   standout,
   compareSelected,
   onToggleCompare,
+  markets,
+  showMarketChips,
 }: {
   row: PublicCompanyFinancialSnapshot;
   onSelect: () => void;
@@ -653,14 +675,22 @@ function CompanyCard({
   standout?: Standout;
   compareSelected: boolean;
   onToggleCompare: () => void;
+  markets?: MarketEntry[];
+  showMarketChips?: boolean;
 }) {
   const { t } = useTranslation();
   const displayTicker = r.ticker.replace(/\.BVB$/, "");
+  const marketId = marketIdForSnapshot(r, markets ?? undefined);
   const pending = isPendingRow(r);
   const hasPrice = typeof r.price === "number" && Number.isFinite(r.price);
   const hasChange =
     typeof r.priceChangePct === "number" && Number.isFinite(r.priceChangePct);
   const changeUp = (r.priceChangePct ?? 0) >= 0;
+  // The universe snapshot's own timestamp, date-only. Absent → no stamp.
+  const priceAsOf =
+    hasPrice && typeof r.lastUpdated === "string" && r.lastUpdated
+      ? r.lastUpdated.slice(0, 10)
+      : null;
 
   // 30-day sparkline from the existing price-history endpoint (1M range,
   // cached 30 min per ticker). Missing/failed history → no sparkline row.
@@ -737,17 +767,50 @@ function CompanyCard({
         </button>
       </div>
 
-      {/* Sector chip. */}
-      {(r.sector || r.industry) && (
-        <div className="flex min-w-0">
-          <span
-            className="
-              inline-flex max-w-full items-center rounded-full border border-rule bg-bg-2
-              px-2 py-0.5 text-[10px] font-medium text-ink-soft truncate
-            "
-          >
-            {r.sector ?? r.industry}
-          </span>
+      {/* Sector chip, plus the market + currency chips when the grid
+          spans more than one market. `marketIdForSnapshot` returns null
+          for an exchange the registry does not know — the chip is then
+          omitted rather than guessed, because a wrong market chip
+          attaches the wrong currency and the wrong licence to a real
+          number. The currency chip always reads the row's OWN currency
+          field, never the market's, so a foreign-currency filer is
+          labelled by what it actually reports. */}
+      {(r.sector || r.industry || (showMarketChips && (marketId || r.currency))) && (
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          {showMarketChips && marketId && (
+            <span
+              data-testid={`company-card-market-${r.ticker}`}
+              aria-label={`${t("pcm.card.marketAria")}: ${marketId.toUpperCase()}`}
+              className="
+                inline-flex shrink-0 items-center rounded-full border border-rule bg-surface
+                px-2 py-0.5 font-mono text-[10px] font-medium text-ink-soft
+              "
+            >
+              {marketId.toUpperCase()}
+            </span>
+          )}
+          {showMarketChips && r.currency && (
+            <span
+              data-testid={`company-card-currency-${r.ticker}`}
+              aria-label={`${t("pcm.card.currencyAria")}: ${r.currency}`}
+              className="
+                inline-flex shrink-0 items-center rounded-full border border-rule bg-surface
+                px-2 py-0.5 font-mono text-[10px] font-medium text-ink-soft
+              "
+            >
+              {r.currency}
+            </span>
+          )}
+          {(r.sector || r.industry) && (
+            <span
+              className="
+                inline-flex max-w-full min-w-0 items-center rounded-full border border-rule bg-bg-2
+                px-2 py-0.5 text-[10px] font-medium text-ink-soft truncate
+              "
+            >
+              {r.sector ?? r.industry}
+            </span>
+          )}
         </div>
       )}
 
@@ -822,6 +885,18 @@ function CompanyCard({
                   fractionDigits={2}
                   className={`ml-1.5 text-[11px] ${changeUp ? "text-success" : "text-alert"}`}
                 />
+              )}
+              {/* As-of stamp — rendered ONLY when the payload carries
+                  one. A price with no as-of is a price whose age we do
+                  not know, and inventing "today" would be the exact
+                  fabrication this surface refuses. */}
+              {priceAsOf && (
+                <div
+                  data-testid={`company-card-price-asof-${r.ticker}`}
+                  className="text-[9.5px] text-ink-mute"
+                >
+                  {t("pcm.card.asOf", { date: priceAsOf })}
+                </div>
               )}
             </>
           ) : (

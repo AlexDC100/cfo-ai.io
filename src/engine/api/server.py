@@ -213,6 +213,19 @@ def create_app(
         app.include_router(_public_ro_router())
     except Exception:  # noqa: BLE001 — storefront is additive, never fatal
         logger.exception("[server] public RO storefront not mounted")
+    # GLOBAL PUBLIC MARKETS — /api/public/markets/* (the market registry
+    # with per-market status, and one company's pm1 document per market).
+    # A SIBLING document class of public_summary: status PUBLIC_MARKET,
+    # never entering packs / reconcile / consensus, every figure carrying
+    # its own provenance from a deterministic feed. Import is guarded for
+    # the same reason as the RO storefront above: a partially-provisioned
+    # deployment (no public_market.db yet, a half-landed sibling lane)
+    # must never take the whole API down.
+    try:
+        from engine.public_market.router import build_router as _public_market_router
+        app.include_router(_public_market_router())
+    except Exception:  # noqa: BLE001 — additive surface, never fatal
+        logger.exception("[server] public market surface not mounted")
     # WS4 — deep diagnostic endpoint. /health stays as the simple
     # liveness probe (Caddy / docker healthcheck); /api/health pings DB
     # + Stripe + FX, returns 503 if DB is down so deploy.sh fails the

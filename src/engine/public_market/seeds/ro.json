@@ -1,0 +1,16 @@
+{
+  "schema": "public_market_seed_v1",
+  "market_id": "ro",
+  "as_of": "2026-08-30",
+  "source": {
+    "name": "declared gap — no source",
+    "url": "https://cfo-ai.io/docs/public-market-coverage",
+    "dataset_version": "empty-live",
+    "retrieved_at": "2026-08-30T05:12:14Z",
+    "identity_only": true
+  },
+  "license_note": "Conține informații publice · data.gov.ro / Ministerul Finanțelor · licența CC BY 4.0",
+  "coverage_note": "PM7. Romania is the home market and is served end to end by the existing public_ro storefront (public_summary document class, data.gov.ro filings). This package must never hold a Romanian entity: one company answered by two document classes is two sources of truth and, eventually, two different numbers. The file is deliberately empty and universe.load_into_store() REFUSES a home-market seed that carries members, so this invariant is enforced by code and not only by convention.",
+  "member_count": 0,
+  "members": []
+}

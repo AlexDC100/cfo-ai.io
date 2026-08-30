@@ -1,0 +1,54 @@
+{
+  "_comment": [
+    "Real cases from the 2026-08-30 production audit",
+    "(scripts/audit_period_assignment.py, read-only run against the live DB).",
+    "`stored_period_end` / `period_end_hint` are what the DB actually holds —",
+    "every mismatch has hint == stored, which is the proof that the frontend",
+    "wrote the DROP TARGET's date into the human-confirmation channel.",
+    "`expected_proposed_period_end` is what a hint-free detection service must",
+    "propose from the document's OWN evidence; null means ABSENT (no signal),",
+    "which must force an explicit human choice and must never become today."
+  ],
+  "cases": [
+    {
+      "id": "carniprod_2025_filed_under_2017",
+      "note": "The reported case. A 2025 file was dropped on the open 2017 period.",
+      "filename": "Carniprod Trial Balance 2025.xlsx",
+      "extracted": null,
+      "stored_period_end": "2017-12-31",
+      "period_end_hint": "2017-12-31",
+      "expected_proposed_period_end": "2025-12-31",
+      "expected_signal_used": "filename"
+    },
+    {
+      "id": "scandia_realestate_collides_in_2025_12",
+      "note": "Second reported case: month 2025-12 holds two source files from different companies. This one genuinely belongs there.",
+      "filename": "Balanta Scandia RealEstate_31.12.2025.xls",
+      "extracted": null,
+      "stored_period_end": "2025-12-31",
+      "period_end_hint": "2025-12-31",
+      "expected_proposed_period_end": "2025-12-31",
+      "expected_signal_used": "filename"
+    },
+    {
+      "id": "agras_2050_legacy_row",
+      "note": "Legacy rows minted before the _sane_period_end clamp. Surfaced, never rewritten. The service must REFUSE 2050 rather than propose it.",
+      "filename": "agras_tb_2050.xlsx",
+      "extracted": null,
+      "stored_period_end": "2050-12-31",
+      "period_end_hint": "2050-12-31",
+      "expected_proposed_period_end": null,
+      "expected_signal_used": "none"
+    },
+    {
+      "id": "no_filename_date_signal",
+      "note": "One of the 5 audited files carrying NO filename date signal at all. Content detection is its only evidence; with none supplied the answer is ABSENT, never today.",
+      "filename": "balanta verificare.xlsx",
+      "extracted": null,
+      "stored_period_end": "2025-06-30",
+      "period_end_hint": "2025-06-30",
+      "expected_proposed_period_end": null,
+      "expected_signal_used": "none"
+    }
+  ]
+}
