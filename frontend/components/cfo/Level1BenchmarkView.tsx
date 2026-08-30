@@ -309,7 +309,10 @@ function BigKPI({ label, value, fmt, tone = "neutral" }: BigKPIProps) {
 
 function fmtVal(v: number | null | undefined, fmt: "currency" | "pct" | "ratio" | "int"): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  if (fmt === "pct") return `${(v * 100).toFixed(1)}%`;
+  // Values arrive in PERCENT units from the benchmark engine (its
+  // compute normalizes by the stored row's unit). Multiplying here
+  // double-scaled every margin — the production "1553.0%" bug.
+  if (fmt === "pct") return `${v.toFixed(1)}%`;
   if (fmt === "ratio") return `${v.toFixed(2)}×`;
   if (fmt === "int") return Math.round(v).toLocaleString();
   // currency — abbreviate large numbers

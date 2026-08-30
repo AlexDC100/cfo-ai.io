@@ -143,8 +143,19 @@ def compute_company_metrics(
             v = float(value)
         except (TypeError, ValueError):
             continue
-        # Convert ratio-stored margins to percentages for comparison.
-        if name in ("ebitda_margin", "net_margin", "gross_margin"):
+        # Convert ratio-stored values to display percentages — driven by
+        # the ROW'S OWN unit, not a name list. The name-trio fallback
+        # survives for legacy rows fetched without a unit column. This
+        # closed a real production display bug (2026-08-30): a period
+        # whose operating recompute below could not run kept the
+        # x100-by-name value, and the FE's own x100 doubled it —
+        # "EBITDA margin 1553.0%". One unit convention per name, decided
+        # HERE, and the FE renders pct values verbatim.
+        unit = row.get("unit")
+        display_fmt = (METRIC_DISPLAY.get(name) or {}).get("fmt")
+        if unit == "ratio" and display_fmt == "pct":
+            v = v * 100.0
+        elif unit is None and name in ("ebitda_margin", "net_margin", "gross_margin"):
             v = v * 100.0
         out[name] = v
 

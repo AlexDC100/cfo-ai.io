@@ -65,7 +65,7 @@ def _load_period_signals(jwt: str, period_id: str) -> Dict[str, float]:
         metrics_rows = client.select(
             "calculated_metrics",
             filters={"period_id": f"eq.{period_id}"},
-            columns="name,value",
+            columns="name,value,unit",
         )
         line_items = client.select(
             "statement_line_items",

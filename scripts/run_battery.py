@@ -87,6 +87,9 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
             # Global-positioning gates (2026-08-29): Hungary never in a headline
     # (G2), certification verbs never beside global claims (G3). G1 is
     # the existing pack-drift hash freeze; G4/G5 live in vitest.
+    # Unit-declaration gate — makes the 2026-08-30 "1553.0%" double-scale
+    # collision unwritable at the producer (see check_metric_units.py).
+    ("metric-units", [PY, "scripts/check_metric_units.py"]),
     ("global-positioning", ["node", "scripts/check_global_positioning.mjs"]),
     ("tsc", ["npx", "tsc", "--noEmit"]),
             ("npm-build", ["npm", "run", "build"]),
