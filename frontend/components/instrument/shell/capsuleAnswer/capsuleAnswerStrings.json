@@ -122,14 +122,17 @@
           "trend": "Is the move in {{metric}} a trend or a one-off?",
           "drivers": "Which accounts drove the change in {{metric}}?",
           "gap_fix": "What data would I need to close the gap in this answer?",
-          "evidence": "Show every figure behind this answer."
-        }
+          "evidence": "Show every figure behind this answer.",
+          "interpret": "What does {{metric}} mean for this business in this period?"
+        },
+        "interpret": "What does this mean?"
       },
       "questionChip": "Your question",
       "writing": "Writing the interpretation…",
       "newQuestion": "New question",
       "tier0": {
-        "open": "Enter"
+        "open": "Enter",
+        "note": "Answered from this period's own figures — no model call."
       }
     }
   },
@@ -256,14 +259,17 @@
           "trend": "Mișcarea din {{metric}} este o tendință sau o întâmplare?",
           "drivers": "Ce conturi au determinat variația din {{metric}}?",
           "gap_fix": "De ce date am nevoie ca să acopăr golul din răspunsul acesta?",
-          "evidence": "Arată toate cifrele din spatele acestui răspuns."
-        }
+          "evidence": "Arată toate cifrele din spatele acestui răspuns.",
+          "interpret": "Ce înseamnă {{metric}} pentru afacerea ta în această perioadă?"
+        },
+        "interpret": "Ce înseamnă asta?"
       },
       "questionChip": "Întrebarea ta",
       "writing": "Scriem interpretarea…",
       "newQuestion": "Întrebare nouă",
       "tier0": {
-        "open": "Enter"
+        "open": "Enter",
+        "note": "Răspuns direct din cifrele perioadei — fără apel la model."
       }
     }
   }

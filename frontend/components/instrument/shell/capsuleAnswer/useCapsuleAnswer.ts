@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   answerToNativeText,
   edgeGenerationTransport,
+  evidenceToNativeText,
   newTurn,
   runAnswerTurn,
   type CapsuleTurn,
@@ -25,6 +26,8 @@ import {
   type RetrievalContext,
   type ToolTransport,
 } from "./capsuleRetrieval";
+import { tier0Turn } from "./capsuleTier0Turn";
+import type { Tier0Answer } from "@/lib/capsuleTier0";
 import { engineToolTransport } from "./capsuleToolsApi";
 import {
   collapseThread,
@@ -48,6 +51,17 @@ export interface CapsuleAnswerApi {
   turns: readonly CapsuleTurn[];
   busy: boolean;
   ask: (question: string) => void;
+  /**
+   * Answer WITHOUT the model, from a Tier-0 resolution the caller
+   * already has in hand.
+   *
+   * Returns true when the turn was taken. False means "Tier 0 does not
+   * answer this" and the caller must fall through to `ask` — which is
+   * the ONLY path in this hook that reaches a transport. The separation
+   * is the point: `answerLocally` has no `AbortController`, no
+   * `runAnswerTurn`, no `generate`, so it cannot spend even by mistake.
+   */
+  answerLocally: (question: string, tier0: Tier0Answer | null) => boolean;
   retry: (turn: CapsuleTurn) => void;
   /** Escape — keeps the thread alive for its grace window. */
   collapse: () => void;
@@ -135,6 +149,18 @@ export function useCapsuleAnswer(opts: UseCapsuleAnswerOptions): CapsuleAnswerAp
     [run, thread.turns],
   );
 
+  const answerLocally = useCallback(
+    (question: string, tier0: Tier0Answer | null) => {
+      const q = question.trim();
+      if (!q || busyRef.current) return false;
+      const turn = tier0Turn(newId(), q, tier0, Date.now());
+      if (!turn) return false;
+      pushTurn(turn);
+      return true;
+    },
+    [],
+  );
+
   const retry = useCallback(
     (turn: CapsuleTurn) => {
       if (busyRef.current) return;
@@ -157,9 +183,12 @@ export function useCapsuleAnswer(opts: UseCapsuleAnswerOptions): CapsuleAnswerAp
         .filter((t) => t.status === "done")
         .map((t) => ({
           question: t.question,
+          // A figures-only turn (Tier 0, or a deterministic fallback)
+          // has no blocks. Handing chat an EMPTY answer would move the
+          // question across and drop the figures that answered it.
           answer: t.blocks.length
             ? answerToNativeText(t.blocks, t.evidence)
-            : "",
+            : evidenceToNativeText(t.evidence),
         })),
     [thread.turns],
   );
@@ -168,5 +197,14 @@ export function useCapsuleAnswer(opts: UseCapsuleAnswerOptions): CapsuleAnswerAp
   // billing tokens for an answer nobody will read.
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  return { turns: thread.turns, busy, ask, retry, collapse, open, transcript };
+  return {
+    turns: thread.turns,
+    busy,
+    ask,
+    answerLocally,
+    retry,
+    collapse,
+    open,
+    transcript,
+  };
 }

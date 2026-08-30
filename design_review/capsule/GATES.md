@@ -1,4 +1,4 @@
-# THE CAPSULE — GATES K1–K9, AND THE STALE-GATE CENSUS
+# THE CAPSULE — GATES K1–K10, AND THE STALE-GATE CENSUS
 
 > **The law (permanent):** the Capsule leads with ASK, answers before it
 > talks, grows out of the control the reader clicked, and never invents a
@@ -43,6 +43,7 @@ Four enforcement layers, cheapest first.
 |---|---|---|---|
 | Static | `scripts/check_capsule_ask.mjs` | `node scripts/check_capsule_ask.mjs` (~0.4 s) — battery gate **`capsule-ask`** | K1 copy, K8 number, S1–S3 census |
 | Unit (jsdom) | `frontend/lib/__tests__/capsuleAskGates.test.ts` | `npx vitest run frontend/lib/__tests__/capsuleAskGates.test.ts` (~1 s) | K2 counter, K3, K4, K5, K9 |
+| Unit (jsdom, real component) | `frontend/components/instrument/shell/__tests__/capsuleSpendBoundary.test.tsx` | `npx vitest run …/capsuleSpendBoundary.test.tsx` (~2 s) | **K10** — the SPEND boundary, measured by driving the real palette |
 | Live DOM | `e2e/design/capsule.spec.ts` | `npx playwright test e2e/design/capsule.spec.ts --project=chromium` (~4.5 min; needs vite :5173 + engine :8000 `PUBLIC_TEST_MODE`) | K1–K9, all of them |
 | Producer | `tests/engine/test_capsule_gates.py` | battery gate **`capsule-gates`** | C1-E, C2-E, C3-E, C5-E, C6-E, C9-E (unchanged by this wave) |
 
@@ -54,18 +55,31 @@ a running stack.
 
 ---
 
-## STATUS, AS MEASURED — 2026-08-30
+## STATUS, AS MEASURED — 2026-08-30 (second pass)
 
 ```
 node scripts/check_capsule_ask.mjs   →  PASS   (exit 0)
-npx vitest run …/capsuleAskGates     →  11 passed · 1 failed   (K3 coverage)
-npx playwright test …/capsule.spec   →  23 passed · 2 failed   (K1 aria-label, K6 centre)
-npx tsc --noEmit                     →  exit 0
+node scripts/check_tsc.mjs           →  PASS   (101 known, 0 new, 1 HEALED)
+node scripts/check_design_lint.mjs   →  PASS
+node scripts/check_stale_gates.mjs   →  PASS   (32 known, 0 new)
+npx vitest run …/capsuleAskGates     →  12 passed · 1 failed   (K3 coverage — see below)
+npx vitest run …/capsuleSpendBoundary→   9 passed             (K10, new)
+npx playwright test …/capsule.spec   →  27 passed · 0 failed
+.venv/bin/python scripts/run_battery →  PASS   30/30
 ```
 
-Three REDs stand, and all three are **real product findings, not harness
-faults**. They are stated at the bottom of this file as cross-lane needs.
-None of them was made green by moving a threshold.
+**Two of the three REDs recorded in the first pass were STALE, and this
+is recorded rather than quietly deleted:**
+
+* **K1 (aria-label)** — now GREEN on the live DOM. The ask-first rebuild
+  gave `header-command-bar` `aria-label={t("header.capsule.aria")}`.
+* **K6 (centre drift 28.0 px)** — now GREEN, measured live at **2.0 px**.
+  The lane that reported the RED had run in parallel with the fix and
+  measured the pre-anchor build. Proven, not assumed: removing the
+  anchor from `capsuleMorph` reproduces **exactly 28.0 px, with the
+  overlay's centre at 720 = the viewport's centre** (see K6 below).
+* **K3 (coverage)** — still RED, for a different and now fully-stated
+  reason. See K3 below.
 
 ---
 
@@ -195,6 +209,15 @@ plant sessions.
 ---
 
 ## K3 — TIER-0 COVERAGE
+
+> **SUPERSEDED by the second pass (2026-08-30).** The corpus described
+> below was DERIVED at run time and then `.slice(0, 30)`, while the speed
+> lane pinned a different 34 — one gate, two numbers. It is now one
+> pinned corpus of 72 (`frontend/lib/capsuleAskCorpus.ts`) and one
+> figure. The reasoning about *where the questions come from* is still
+> correct and was carried forward; the denominator is not. Read
+> "K3 — ONE CORPUS, ONE FIGURE, AND AN HONEST RED" at the bottom of this
+> file for the current state.
 
 **≥60% of the 30-question corpus answered with ZERO model calls, each
 under 100 ms.**
@@ -671,6 +694,10 @@ need; not this lane's file.
 
 ## CROSS-LANE NEEDS — the three REDs, and four reports
 
+> **NOTE — 2026-08-30 second pass: RED 1 is also SUPERSEDED.** K1 is GREEN
+> on the live DOM; `header-command-bar` now carries
+> `aria-label={t("header.capsule.aria")}`.
+
 ### RED 1 — K1-d: the capsule's accessible name is still "Search"
 
 `aria-label="Search"`, `title="Search (Ctrl+K)"` on
@@ -682,6 +709,12 @@ runtime); `capsule.spec.ts` §K1 asserts it live.
 
 ### RED 2 — K6: the overlay is centred on the viewport, not on the capsule
 
+> **SUPERSEDED — 2026-08-30 second pass. This RED was STALE.** Measured
+> live after the anchor landed: **2.0 px** of drift, inline `left` present
+> and equal to `anchoredLeft`. This lane had run in parallel with the fix
+> and measured the pre-anchor build; removing the anchor reproduces
+> **28.0 px** to the decimal. See "K6 — WHICH LANE WAS RIGHT" below.
+
 Measured **0.0 px from the viewport's centre, 28.0 px from the
 capsule's.** **Owner: the morph lane.** Origin the geometry on the
 capsule's box — its centre and its edges — rather than on `left-1/2`.
@@ -689,6 +722,13 @@ The vertical gap (23.5 px) and CLS (0.0000) are already inside budget;
 this is the last piece of "no morph" still measurable.
 
 ### RED 3 — K3: Tier-0 coverage 56.7%, floor 60%
+
+> **SUPERSEDED — 2026-08-30 second pass.** The named gap was real and is
+> CLOSED in the deterministic router (`howtoResidue`) and honoured by the
+> surface (`routerNav`). The 56.7% itself was measured over a
+> `.slice(0, 30)` of a derived list; there is now one pinned corpus of 72
+> and one figure, **51.4%, still RED, with zero real coverage gaps.** See
+> "K3 — ONE CORPUS, ONE FIGURE, AND AN HONEST RED" below.
 
 3.3 points short — one question. **Owner: the speed lane.** The single
 real gap is *"how do i export the balance sheet"*, which is arguably an
@@ -733,3 +773,319 @@ one string the fixture resolves to
 branch a `data-narrative-fact={fact}` span, as the money branch already
 has. When that lands, delete the constant — **the gate gets stricter for
 free.**
+
+---
+
+# SECOND PASS — 2026-08-30
+
+Three REDs were handed to this pass. What follows is what was measured,
+what was built, and which lane was right where the lanes disagreed.
+
+---
+
+## K10 — THE SPEND BOUNDARY (new gate)
+
+**For every Tier-0-resolvable question, pressing Enter issues ZERO
+requests to the model seams and takes ZERO chat reservations.**
+
+`frontend/components/instrument/shell/__tests__/capsuleSpendBoundary.test.tsx`
+
+### The defect, reproduced before anything was changed
+
+```
+routeQuery("total assets")  →  lane "navigate", rows ["ask"],
+                               willCallModel(r, 0) === TRUE
+```
+
+and `CommandPalette.enterAnswerMode` called `askModel(q)` unconditionally.
+`resolveTier0` ran in a `useMemo` and fed `CapsuleTier0Preview` as the
+reader typed — **nothing consulted it at the Enter boundary.** So a
+question Tier 0 answers in 0.013 ms with full provenance took a chat
+reservation and billed a model call the moment the user pressed Enter.
+
+### Why K3 and K9 were green while this shipped
+
+They measure the RESOLVER and the ROUTER **in isolation**. "The resolver
+can answer this for free" is not "the product answers this for free", and
+the gap between those two claims is where the money went. K10 measures
+the second one: it renders the real `CommandPalette`, types, presses
+Enter, and counts what reaches
+
+* `POST …/api/capsule/tools/…` (the engine tool endpoint)
+* `POST …/functions/v1/chat-llm` (the Edge Function)
+
+plus the **real** `capsuleAskGuard` ledger, read back through
+`checkCapsuleAsk` — no spy and no mock, the guard's own memory.
+
+### The plant — run, observed, reverted
+
+Reverted the short-circuit in `enterAnswerMode` (the pre-fix state):
+
+```diff
+-      if (answer.answerLocally(q, resolveTier0(q, factIndex))) {
+-        rememberCapsuleQuestion(orgKey, q);
+-        return;
+-      }
+       askModel(q);
+```
+
+```
+✓ K10.a — the detector fires on a question that MUST reach the model
+× K10.b — "total assets" — zero reservations, zero model-seam requests
+    → K10: pressing Enter on "total assets" reached a model seam. …
+× K10.b — "how much cash do we have" …
+× K10.b — "what is our working capital" …
+× K10.b — "cifra de afaceri" …
+× K10.b — "is it balanced" …
+× K10.c — renders the fact card, a provenance dot, the citation footer and chips
+× K10.c — offers a chip that routes to Tier 1 — and only that chip spends
+✓ K10.d — a navigation question with a question mark on it
+Tests  7 failed | 2 passed (9)
+```
+
+Restored → **9 passed**. K10.a and K10.d staying green under the plant is
+the point: the detector is not indiscriminate, it fires on the thing.
+
+The same plant, run against the LIVE stack through
+`capsule.spec.ts` §K3 "pressing ENTER on a Tier-0 question still spends
+nothing", names the two real requests:
+
+```
+[K3 enter] spends=2 · POST http://127.0.0.1:8000/api/capsule/tools/get_facts
+                    · POST https://…supabase.co/functions/v1/chat-llm
+```
+
+### A second defect the new gate found on its first extension
+
+K10.d originally asserted only the ROUTE half of the how-to redirect.
+Adding the ACTION half — `"how do i upload a trial balance"` — went RED
+immediately: the redirect resolved to `capsule.upload`, `routerNav`
+looked the command up in `items`, and **`items` is filtered by
+substring-of-the-query.** No palette label contains that whole sentence,
+so the row did not exist and Enter fell through to the model. The route
+half never hit it, because a route row is built from the router's own
+`to`; a command has no `to`, only an executor.
+
+Fixed by hoisting the five command rows into `actionItems` (unfiltered);
+`items` filters from it and `routerNav` looks up by identity. A gate that
+finds a defect the first time it is widened is a gate pointed at
+something real.
+
+### What was built
+
+* `capsuleAnswer/capsuleTier0Turn.ts` — turns a `Tier0Answer` into a
+  finished `CapsuleTurn`. No prose, no new numbers, no absent-as-zero,
+  and facts bound through `capsuleRetrieval`'s own `freeName` so one
+  naming authority governs both tiers. A compare binds `_a` / `_b` /
+  `_delta`, which is what `comparisonsFrom` already reads.
+* `useCapsuleAnswer.answerLocally()` — pushes that turn. It has no
+  `AbortController`, no `runAnswerTurn` and no generator, so it cannot
+  spend even by mistake.
+* `CapsuleTurn.tier0` — deliberately NOT `deterministic`. Both carry
+  figures and no prose; they mean opposite things to a reader
+  ("the assistant's wording was rejected" vs "no assistant was needed"),
+  and collapsing them would put an apology under an answer that has
+  nothing to apologise for.
+* A Tier-0 answer is a FULL answer: fact card, provenance dot, citation
+  footer, follow-up chips, and a `capsule-tier0-note` saying where it
+  came from.
+* **The `interpret` chip** — the deliberate door from Tier 0 to Tier 1.
+  It is not `local`, so it goes through the same paid path as any other
+  question; it appears only on a Tier-0 turn; it is ranked above every
+  other chip because on such a turn it is the only one that adds
+  something the panel does not already show. EN + RO copy in
+  `capsuleAnswerStrings.json`.
+* Copy and the chat hand-off now fall back to `evidenceToNativeText` when
+  a turn has no blocks — a figures-only turn used to hand the reader
+  their own question with nothing under it.
+
+---
+
+## K3 — ONE CORPUS, ONE FIGURE, AND AN HONEST RED
+
+### The two-corpora finding
+
+The coverage claim was measured twice, over two different sets:
+
+| Lane | Set | Reported |
+|---|---|---|
+| speed | `capsuleTier0Fixtures.ts`, 34 pinned | 64.7% |
+| gates | derived at run time, then `.slice(0, 30)` | 56.7% |
+
+Two numbers for one gate means neither is the number. The derived one was
+not even stable: this pass added three how-to fixtures to
+`capsuleRouterFixtures.ts` for an unrelated reason, and because router
+fixtures sort ahead of the suggestion strings, the slice silently swapped
+three questions out of the denominator. **The percentage moved without
+the surface changing at all.**
+
+`capsuleTier0Fixtures.ts` is deleted. There is now **one** corpus:
+`frontend/lib/capsuleAskCorpus.ts` — pinned, 72 questions, the UNION of
+everything both lanes read, each line carrying the file / fixture id /
+strings key it came from:
+
+| | Source | n |
+|---|---|---|
+| A | production log (`chat_messages`, read-only) | 3 |
+| B | `ANSWER_FIXTURES` (retrieval branches) | 12 |
+| C | `CAPSULE_ROUTER_FIXTURES`, `ask` lane | 14 |
+| D | the brief's metric classes, EN + RO | 19 |
+| E | `capsuleEmpty.suggest.*` — the chips the product itself offers | 24 |
+
+One question was deliberately excluded: the bare opener `"how do i"`. It
+is a PREFIX, not a question — nobody presses Enter on it — and K9 already
+drives every prefix of every fixture. `TIER0_PINS` (34) is a **view** of
+this corpus, and the suite asserts every pin names a query the corpus
+contains, so a second corpus cannot grow back.
+
+### What "coverage" now means
+
+The old predicate was `resolveTier0(q) !== null` — the resolver alone.
+The gate's own title says ZERO MODEL CALLS, and there are **two**
+deterministic ways to reach an answer without one: Tier 0 resolves it, or
+the router resolves it to a destination whose row `willCallModel` declares
+free. The second was always true and was never counted.
+
+### The measured figure
+
+```
+[K3] zero-spend coverage 51.4% (37/72) over CAPSULE_ASK_CORPUS ·
+     tier-0 35 · router 2 · max 5.71ms ·
+     judgement-by-design 35 · real gaps 0
+```
+
+**RED against the 60% floor, and the floor was not moved.**
+
+The reason is stated in the failure message and matters more than the
+number: **there are ZERO real coverage gaps.** Every one of the 35 misses
+is a question that wants a judgement, and Tier 0 answering one would be
+inventing an opinion. This figure cannot be raised by coverage work — only
+by making the surface wrong.
+
+What moved is the DENOMINATOR. 24 of the 72 are the product's own
+suggestion chips, which exist to START a model conversation and are
+judgement-shaped by design; the old `.slice(0, 30)` kept six of them.
+Whether a 60% zero-spend floor belongs against *this* population is an
+owner's call. This lane will not move it to make its own gate green.
+
+### The one real gap that WAS closed
+
+`"how do i export the balance sheet"` — the interrogative form of an
+action query. The imperative `"export the balance sheet"` classified
+`navigate` and cost nothing; the question form classified `ask` and
+billed a model call to reach the same page.
+
+Fixed in the deterministic router (`howtoResidue` in `capsuleRouter.ts`):
+strip the how-to opener and classify the RESIDUE with the rules already
+written — no second rule table, no new precedence tier. A residue
+carrying an ADVICE VERB (`improve`, `reduce`, `fix`, `read`, …) stays a
+question, because route tokens are also ordinary nouns and
+`"how do i reduce inventory"` must not open the Inventory page.
+
+The surface honours it through `classification.redirected` →
+`routerNav` in `CommandPalette` (the palette's own Enter rule is "exact
+name, or ask", so the router being right about the lane was not enough).
+
+Pinned on its own, so it stays visible while the aggregate is red:
+
+```
+✓ K3 — the interrogative form of an action query costs nothing
+```
+
+Six fixtures added to `capsuleRouterFixtures.ts` (now 46), covering both
+halves of the rule.
+
+---
+
+## K6 — WHICH LANE WAS RIGHT
+
+**The surface lane was right. The gates lane's RED was stale.**
+
+Measured on the live DOM, 1440×900, `/dashboard`:
+
+```
+[K6 anchor] inline left "330px" · expected 330px · panel 330.0×720
+            · pill 410.0×560 · viewport 1440
+[K6 centre] capsule centre 692 · overlay centre 690 · viewport centre 720
+            · drift 2.0px · gap 23.5px
+[K6 width]  1440: capsule 538 overlay 720 · 1120: capsule 538 overlay 720
+[K6 CLS]    open 0.0000 · close 0.0000 · stream 0.0000
+```
+
+The residual 2.0 px is not drift in the morph: the anchor measures
+`header-capsule` (the pill) and the centre gate measures
+`header-command-bar` (the button inside it, which starts after the trust
+dot). Against the pill the panel's centre is **exact** — 690 = 690.
+
+### The stale RED, reproduced on demand
+
+Removing the anchor from `capsuleMorph` (`const anchor: CSSProperties = {}`)
+reproduces the gates lane's number to the decimal:
+
+```
+[K6 anchor] inline left "" · expected 330px · panel 360.0×720 …
+[K6 centre] capsule centre 692 · overlay centre 720 · viewport centre 720
+            · drift 28.0px · gap 23.5px
+```
+
+**28.0 px, with the overlay's centre exactly on the viewport's.** That is
+the pre-anchor build, and it is what the gates lane measured.
+
+### The anchor is now asserted to be INVOKED, not merely correct
+
+`anchoredLeft` was once "written, exported, unit-tested and never called"
+— Radix mounts `Dialog.Content` one commit after `open` flips, so a
+layout effect keyed on `[open]` ran with a null node and never ran again.
+The centre gate would catch that, but only as a number, and a number has
+many causes. The new gate names the cause: the panel must carry an
+**inline `left`**, equal to what `anchoredLeft` computes from the same
+two boxes — recomputed in the page rather than imported, so the assertion
+is a second opinion and not the implementation checking itself.
+
+Its plant is the same one above: with the anchor removed, the inline
+`style` attribute is empty and the gate says so in those words.
+
+`ANCHORS` gained `morphTrigger` (`header-capsule`) and it is proven live
+in the anchor-liveness test, per the anchor law.
+
+---
+
+## THE BLAST RADIUS OF TIER 0, AND THREE FALSE GREENS IT EXPOSED
+
+Once Enter stopped reaching the model for `"what are total assets"`,
+seven gates in `capsule.spec.ts` were measuring something other than what
+they claimed. Four FAILED loudly — ANCHORS, K4, K5 and K9/C3 wait for a
+`capsule-figure-row`, and a one-fact Tier-0 answer renders its figure in
+the FACT CARD with nothing left for the list ("one answer, one number").
+
+**Three PASSED VACUOUSLY, which is worse:**
+
+* **K9/C1** stubbed a FABRICATED answer that was never requested.
+* **K9/C5** stubbed a GAP payload that was never fetched.
+* **K9/C2** watched a tool endpoint that was never called.
+
+Each would have kept passing with the invariant it guards removed.
+
+Fixed by aiming the model-path gates at the model path: a documented
+`TIER1_QUESTION = "why are total assets at this level"`. Same metric,
+same retrieval plan (`get_facts`), so every stub in the file still
+applies — only the tier changes, which is what those gates meant to
+exercise all along. The Tier-0 path keeps its own question in K3, where
+it is the subject.
+
+The e2e K3 block's own comment used to enshrine the defect —
+
+> "Enter is the ESCALATION to Tier 1, which is allowed to spend because
+> the reader asked for more."
+
+— and has been rewritten. The reader never asked for more; they pressed
+Enter on the answer in front of them. Escalation is still deliberate: it
+is the `interpret` chip, one keystroke away and explicitly chosen.
+
+---
+
+## WHAT IS STILL RED, AND WHY
+
+**One gate: K3's aggregate, at 51.4% against a 60% floor, with zero real
+coverage gaps.** Stated in full above. The floor was not moved, the
+corpus was not shrunk, and no miss was reclassified to reach it.

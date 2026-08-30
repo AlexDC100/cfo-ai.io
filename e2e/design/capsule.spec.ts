@@ -90,10 +90,22 @@ const ANCHORS = {
   answerBody: '[data-testid="capsule-answer-body"]',
   /** The header's account trigger — how the app-shell header is found. */
   accountTrigger: '[data-testid="account-menu-trigger"]',
+  /** THE PILL THE MORPH ACTUALLY MEASURES.
+   *
+   *  Not the same element as `trigger`: `header-command-bar` is the inner
+   *  BUTTON, `header-capsule` is the pill around it (trust dot + button +
+   *  ⌘K hint). `capsuleMorph.CAPSULE_TRIGGER_SELECTOR` names this one, so
+   *  a gate that wants to know whether the anchor RAN has to read the box
+   *  the anchor read — not a sibling that happens to be nearby. */
+  morphTrigger: '[data-testid="header-capsule"]',
 } as const;
 
 /** Anchors that MUST resolve in the live DOM with the surface closed. */
-const ANCHORS_CLOSED: ReadonlyArray<keyof typeof ANCHORS> = ["trigger", "accountTrigger"];
+const ANCHORS_CLOSED: ReadonlyArray<keyof typeof ANCHORS> = [
+  "trigger",
+  "accountTrigger",
+  "morphTrigger",
+];
 /** Anchors that MUST resolve with the surface open and nothing typed. */
 const ANCHORS_OPEN: ReadonlyArray<keyof typeof ANCHORS> = ["overlay", "input"];
 /** Anchors that MUST resolve once an answer has been asked for. */
@@ -369,6 +381,35 @@ async function stubTools(page: Page, payload: unknown = TOOL_PAYLOAD): Promise<v
  * deliberately: if the surface regresses to needing it, every gate that
  * asks a question fails, which is the correct blast radius.
  */
+/**
+ * A QUESTION TIER 0 MUST REFUSE — for the gates whose subject is the
+ * MODEL path.
+ *
+ * "what are total assets" used to reach the model. It does not any more:
+ * the Enter boundary answers it from the local fact index with no
+ * reservation and no request (`CommandPalette.enterAnswerMode`). That is
+ * the whole point of Tier 0, it is gated by K3 below and by
+ * `frontend/components/instrument/shell/__tests__/capsuleSpendBoundary.test.tsx`,
+ * and it broke seven gates in this file in two different ways:
+ *
+ *   FOUR FAILED — ANCHORS, K4, K5 and K9/C3 wait for a
+ *   `capsule-figure-row`, and a one-fact Tier-0 answer renders its
+ *   figure in the FACT CARD with nothing left for the list ("one answer,
+ *   one number").
+ *
+ *   THREE PASSED VACUOUSLY, which is worse. K9/C1 stubs a FABRICATED
+ *   answer that was never requested; K9/C5 stubs a GAP payload that was
+ *   never fetched; K9/C2 watches a tool endpoint that was never called.
+ *   Each would have kept passing with the invariant it guards removed.
+ *
+ * So the model-path gates ask for an INTERPRETATION of the same metric.
+ * The retrieval plan is identical (`get_facts`), so every stub in this
+ * file still applies — only the tier changes, which is exactly what
+ * these gates meant to exercise all along. The Tier-0 path keeps its own
+ * question, in K3, where it is the subject.
+ */
+const TIER1_QUESTION = "why are total assets at this level";
+
 async function ask(page: Page, question: string): Promise<Locator> {
   const input = surfaceInput(page);
   await input.click({ timeout: ACTION_MS });
@@ -414,7 +455,7 @@ test.describe("ANCHORS — every selector this file asserts on can actually matc
     }
     expect(dead, "ANCHOR LAW: an open-state anchor matches nothing.").toEqual([]);
 
-    await ask(page, "what are total assets");
+    await ask(page, TIER1_QUESTION);
     // WAIT, do not snapshot. `ask()` returns when the answer surface is
     // visible; the figures resolve a beat later. Counting at that instant
     // reported a live anchor as dead — the false RED that mirrors the
@@ -618,17 +659,32 @@ test.describe("K2 — what the reader sees before typing is a glance, not a menu
 test.describe("K3 — a lookup question is answered without reaching the model", () => {
   test.setTimeout(150_000);
 
-  // WHERE TIER 0 ACTUALLY LIVES, corrected against the built surface.
+  // WHERE TIER 0 LIVES — AND WHERE THE LAW HAD TO MOVE TO.
   //
   // A first draft of this gate typed a question, pressed Enter, and
-  // waited for a figure row. It failed with two model calls — and the
-  // gate was wrong, not the product. The speed lane put Tier 0 BEFORE
-  // Enter: the answer resolves from the in-memory index AS YOU TYPE and
-  // renders in `capsule-tier0`; Enter is the ESCALATION to Tier 1, which
-  // is allowed to spend because the reader asked for more.
+  // waited for a figure row. It failed with two model calls, and the
+  // conclusion drawn at the time was that the gate was wrong: Tier 0
+  // resolves AS YOU TYPE into `capsule-tier0`, and Enter is "the
+  // ESCALATION to Tier 1, which is allowed to spend because the reader
+  // asked for more."
   //
-  // So the law is stated where it is true: the instant answer costs
-  // nothing, and pressing Enter is a separate, deliberate act.
+  // That conclusion was the defect, written down. `enterAnswerMode`
+  // called `askModel` unconditionally, so pressing Enter on a question
+  // Tier 0 had ALREADY ANSWERED took a chat reservation and issued a
+  // model request — for a figure the client was displaying at that
+  // moment, in 0.013 ms, with provenance. The reader never asked for
+  // more; they pressed Enter on the answer in front of them.
+  //
+  // So the law is stated in BOTH places now, because the contract —
+  // "INSTANT, ZERO MODEL CALLS, works offline / credits-down" — has to
+  // hold at the boundary where it costs money:
+  //
+  //   · while typing        the answer resolves and nothing is spent
+  //   · ON ENTER            the answer OPENS and nothing is spent
+  //
+  // Escalation is still available and still deliberate: it is the
+  // `interpret` follow-up chip on the answer, one keystroke away and
+  // explicitly chosen.
   const TIER0 = '[data-testid="capsule-tier0"]';
 
   test("a headline-metric question answers WHILE TYPING, with ZERO spend", async ({ page }) => {
@@ -668,6 +724,60 @@ test.describe("K3 — a lookup question is answered without reaching the model",
       `K3: resolving a Tier-0 question spent. Requests observed:\n  ${spends.join("\n  ")}`,
     ).toEqual([]);
     expect(ms, `K3: tier-0 answer took ${ms}ms`).toBeLessThan(1500);
+  });
+
+  test("pressing ENTER on a Tier-0 question still spends nothing", async ({ page }) => {
+    // Deliberately NOT stubbed, for the same reason as above: an
+    // unrouted request would be a REAL one, and the counter records it.
+    const spends: string[] = [];
+    page.on("request", (req) => {
+      if (SPEND_RE.test(req.url())) spends.push(`${req.method()} ${req.url()}`);
+    });
+    await boot(page);
+    await openSurface(page);
+
+    const input = surfaceInput(page);
+    await input.click({ timeout: ACTION_MS });
+    await input.fill("total assets", { timeout: ACTION_MS });
+    await page.waitForTimeout(400);
+    await input.press("Enter", { timeout: ACTION_MS });
+
+    const answer = page.locator(ANCHORS.answer);
+    await expect(answer).toBeVisible({ timeout: 20_000 });
+    // The canvas is up. Give any stray dispatch a beat to land, or this
+    // gate passes by being early rather than by being right.
+    await page.waitForTimeout(1500);
+
+    // eslint-disable-next-line no-console
+    console.log(`[K3 enter] spends=${spends.length}${spends.length ? " · " + spends.join(" · ") : ""}`);
+
+    expect(
+      spends,
+      `K3: pressing Enter on a question Tier 0 had already answered reached ` +
+        `the model. The figure was on screen, resolved from the local index ` +
+        `with provenance — paying for it is paying twice. Requests observed:` +
+        `\n  ${spends.join("\n  ")}`,
+    ).toEqual([]);
+
+    // A TIER-0 ANSWER IS A FULL ANSWER, not a preview that dead-ends.
+    await expect(answer.locator('[data-testid="capsule-fact-card"]')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(answer.locator('[data-testid="capsule-citation"]').first()).toBeVisible();
+    await expect(
+      answer.locator('[data-testid="capsule-followup-chip"][data-kind="interpret"]'),
+      "K3: the Tier-0 answer offered no deliberate route to the " +
+        "interpretation. The cheap honest answer must not be a dead end, or " +
+        "the reader retypes the question and pays for it anyway.",
+    ).toBeVisible({ timeout: 10_000 });
+    expect(
+      await unprovenancedFigures(answer, [
+        ...ALLOWED_IDENTIFIERS,
+        ...KNOWN_UNATTRIBUTED_DIMENSIONLESS,
+      ]),
+      "K3/C3: the Tier-0 ANSWER (not the preview) put a number on screen " +
+        "that names no source.",
+    ).toEqual([]);
   });
 
   test("the Tier-0 answer carries a figure with provenance, not a bare number", async ({ page }) => {
@@ -729,7 +839,7 @@ test.describe("K4 — the figure lands before the first word of prose", () => {
       { figureSel: ANCHORS.figureRow, bodySel: ANCHORS.answerBody },
     );
 
-    await ask(page, "what are total assets");
+    await ask(page, TIER1_QUESTION);
     await expect(page.locator(ANCHORS.figureRow).first()).toBeVisible({ timeout: 20_000 });
     await page.waitForTimeout(1200);
 
@@ -801,7 +911,7 @@ test.describe("K5 — measured, not promised", () => {
 
     await input.fill("");
     const tAsk = Date.now();
-    const answer = await ask(page, "what are total assets");
+    const answer = await ask(page, TIER1_QUESTION);
     await expect(answer.locator(ANCHORS.figureRow).first()).toBeVisible({ timeout: 20_000 });
     const firstFigure = Date.now() - tAsk;
 
@@ -873,6 +983,77 @@ test.describe("K6 — the overlay grows out of the capsule, and nothing jumps", 
     const ov = await overlay.boundingBox();
     return { cap: cap!, ov: ov! };
   }
+
+  // ── THE ANCHOR MUST BE INVOKED, NOT MERELY CORRECT ──────────────────
+  //
+  // `anchoredLeft` was written, exported and unit-tested — and never
+  // called. Radix mounts `Dialog.Content` one commit AFTER `open` flips,
+  // so a layout effect keyed on `[open]` ran while the node ref was
+  // still null, took its early return, and never ran again. The panel
+  // kept its `sm:mx-auto` fallback, the inline `style` attribute was
+  // empty, and the maths every unit test agreed with governed nothing.
+  //
+  // The centre test below would ALSO have caught that — but only as a
+  // number, and a number has many possible causes. This one names the
+  // cause: an inline `left`, written by the hook, equal to what
+  // `anchoredLeft` computes from the SAME two boxes it read. Recomputed
+  // here in the page rather than imported, so the assertion is a second
+  // opinion and not the implementation checking itself.
+  test("the anchor actually RAN — the panel carries the left it computed", async ({ page }) => {
+    await boot(page);
+    await openSurface(page);
+
+    const probe = await page.evaluate(
+      ({ overlaySel, triggerSel, margin }) => {
+        const panel = document.querySelector(overlaySel) as HTMLElement | null;
+        const pill = document.querySelector(triggerSel) as HTMLElement | null;
+        if (!panel || !pill) return null;
+        const p = panel.getBoundingClientRect();
+        const t = pill.getBoundingClientRect();
+        // `anchoredLeft`, restated: centre the panel under the pill, then
+        // clamp into the viewport with a margin.
+        const ideal = t.left + t.width / 2 - p.width / 2;
+        const max = Math.max(margin, window.innerWidth - p.width - margin);
+        const expected = Math.round(Math.min(Math.max(ideal, margin), max));
+        return {
+          inlineLeft: panel.style.left,
+          inlineMarginLeft: panel.style.marginLeft,
+          expected,
+          panelLeft: p.left,
+          panelWidth: p.width,
+          pillLeft: t.left,
+          pillWidth: t.width,
+          viewport: window.innerWidth,
+        };
+      },
+      { overlaySel: ANCHORS.overlay, triggerSel: ANCHORS.morphTrigger, margin: 8 },
+    );
+
+    expect(probe, "K6: overlay or capsule pill not in the DOM").not.toBeNull();
+    // eslint-disable-next-line no-console
+    console.log(
+      `[K6 anchor] inline left "${probe!.inlineLeft}" · expected ` +
+        `${probe!.expected}px · panel ${probe!.panelLeft.toFixed(1)}×` +
+        `${probe!.panelWidth.toFixed(0)} · pill ${probe!.pillLeft.toFixed(1)}×` +
+        `${probe!.pillWidth.toFixed(0)} · viewport ${probe!.viewport}`,
+    );
+
+    expect(
+      probe!.inlineLeft,
+      "K6: the overlay carries NO inline `left`. `useCapsuleMorph` never " +
+        "wrote one, so the panel is sitting where `sm:mx-auto` put it — " +
+        "centred on the VIEWPORT — and `anchoredLeft` is dead code that " +
+        "every unit test still agrees with. This is the exact shape of the " +
+        "defect: written, exported, unit-tested and never called.",
+    ).not.toBe("");
+
+    expect(
+      Math.abs(parseFloat(probe!.inlineLeft) - probe!.expected),
+      `K6: the inline left (${probe!.inlineLeft}) is not what \`anchoredLeft\` ` +
+        `computes from the live boxes (${probe!.expected}px). The hook ran but ` +
+        `measured something other than the capsule's pill.`,
+    ).toBeLessThanOrEqual(1);
+  });
 
   test("the overlay is centred on the CAPSULE, not on the viewport", async ({ page }) => {
     await boot(page);
@@ -1009,7 +1190,7 @@ test.describe("K6 — the overlay grows out of the capsule, and nothing jumps", 
 
     await openSurface(page);
     await arm();
-    await ask(page, "what are total assets");
+    await ask(page, TIER1_QUESTION);
     await page.waitForTimeout(1500);
     const onStream = await readCls();
 
@@ -1083,7 +1264,7 @@ test.describe("K7 — the overlay is exactly as tall as what it holds", () => {
     await input.fill("zzzqqq");
     await snap("no-match");
     await input.fill("");
-    await ask(page, "what are total assets");
+    await ask(page, TIER1_QUESTION);
     await snap("answer");
 
     // eslint-disable-next-line no-console
@@ -1234,7 +1415,7 @@ test.describe("K9/C3 — every figure in an answer traces to a fact", () => {
     await stubGeneration(page, GROUNDED_ANSWER);
     await boot(page);
     await openSurface(page);
-    const answer = await ask(page, "what are total assets");
+    const answer = await ask(page, TIER1_QUESTION);
 
     await expect(answer.locator(ANCHORS.figureRow).first()).toBeVisible({ timeout: 15_000 });
     const offenders = await unprovenancedFigures(answer, [
@@ -1252,7 +1433,7 @@ test.describe("K9/C3 — every figure in an answer traces to a fact", () => {
     await stubGeneration(page, FABRICATED_ANSWER);
     await boot(page);
     await openSurface(page);
-    const answer = await ask(page, "what are total assets");
+    const answer = await ask(page, TIER1_QUESTION);
     await page.waitForTimeout(1500);
 
     const body = answer.locator(ANCHORS.answerBody);
@@ -1285,7 +1466,7 @@ test.describe("K9/C5 — missing data is stated, never filled in", () => {
     await stubGeneration(page, GROUNDED_ANSWER);
     await boot(page);
     await openSurface(page);
-    const answer = await ask(page, "what are total assets for October");
+    const answer = await ask(page, `${TIER1_QUESTION} for October`);
     await page.waitForTimeout(1500);
 
     const shown = (await answer.innerText()).trim();
@@ -1329,7 +1510,7 @@ test.describe("K9/C2 — the surface is READ-ONLY at the wire", () => {
     await stubGeneration(page, GROUNDED_ANSWER);
     await boot(page);
     await openSurface(page);
-    await ask(page, "what are total assets");
+    await ask(page, TIER1_QUESTION);
     await page.waitForTimeout(1200);
     expect(
       writes,

@@ -1,11 +1,15 @@
 // THE CAPSULE — TIER-0 GATE (A1).
 //
-// The coverage fixture set is asserted line by line, and the resulting
-// coverage is MEASURED and printed rather than asserted against the
-// target. A gate that says `expect(coverage).toBeGreaterThan(0.6)` stops
-// telling you anything the moment it passes; this one prints the number
-// every run, so a regression from 73% to 62% is visible instead of
-// merely still-green.
+// The pins are asserted line by line: for each of the 34 questions the
+// speed lane committed to, what `resolveTier0` must return. They are a
+// VIEW of `lib/capsuleAskCorpus.ts` — the ONE corpus — and the first
+// test here proves that, so a pin cannot drift into naming a question
+// nobody measures.
+//
+// THIS FILE REPORTS NO COVERAGE PERCENTAGE. It used to, over its own 34
+// questions, while the gates lane reported a different percentage over a
+// different 30 — one gate, two numbers, neither of them the number. The
+// single measured figure now lives in `capsuleAskGates.test.ts` §K3.
 //
 // The workspace under test is the same two REAL served periods the fact
 // index suite uses (`fixtures/capsuleTier0/`, captured from the golden
@@ -44,11 +48,11 @@ import {
   type FactIndex,
 } from "@/lib/capsuleFactIndex";
 import {
-  CAPSULE_TIER0_FIXTURES,
-  TIER0_ANSWERED,
-  TIER0_HANDLED,
-  TIER0_COVERAGE_TARGET,
-} from "@/lib/capsuleTier0Fixtures";
+  CAPSULE_ASK_CORPUS,
+  TIER0_PINS,
+  TIER0_PINS_ANSWERED,
+  TIER0_PINS_HANDLED,
+} from "@/lib/capsuleAskCorpus";
 import { resetLatency, snapshotLatency, LAT_SPECULATIVE, hasMark, LAT_CAPSULE_OPEN }
   from "@/lib/capsuleLatency";
 import { foldQuery } from "@/lib/capsuleRouter";
@@ -89,20 +93,28 @@ const singlePeriod: FactIndex = buildFactIndex({
 // The fixture gate + the measured coverage
 // ══════════════════════════════════════════════════════════════════════
 
-describe("Tier-0 coverage fixtures", () => {
-  it("has thirty-four questions across the three honest sources", () => {
-    expect(CAPSULE_TIER0_FIXTURES).toHaveLength(34);
-    const bySource = CAPSULE_TIER0_FIXTURES.reduce<Record<string, number>>((acc, f) => {
-      acc[f.source] = (acc[f.source] ?? 0) + 1;
-      return acc;
-    }, {});
-    // The production log really is this thin — three distinct strings.
-    expect(bySource.production_log).toBe(3);
-    expect(bySource.router_fixture).toBeGreaterThanOrEqual(10);
+describe("Tier-0 pins — what the resolver must DO with each question", () => {
+  it("every pin names a question the ONE corpus actually contains", () => {
+    // The pins are a VIEW of `CAPSULE_ASK_CORPUS`, not a second corpus.
+    // Without this assertion a pin could quietly drift into naming a
+    // question nobody measures, which is how two corpora start.
+    const corpus = new Set(
+      CAPSULE_ASK_CORPUS.map((e) => e.query.trim().toLowerCase()),
+    );
+    const orphans = TIER0_PINS.map((p) => p.query).filter(
+      (q) => !corpus.has(q.trim().toLowerCase()),
+    );
+    expect(
+      orphans,
+      "a pinned question is not in CAPSULE_ASK_CORPUS — pins are a view " +
+        "of the corpus, so a pin that names something else is the second " +
+        "corpus growing back.",
+    ).toEqual([]);
+    expect(TIER0_PINS).toHaveLength(34);
   });
 
-  for (const fixture of CAPSULE_TIER0_FIXTURES) {
-    it(`[${fixture.source}] ${fixture.query}`, () => {
+  for (const fixture of TIER0_PINS) {
+    it(`${fixture.query}`, () => {
       const answer = resolveTier0(fixture.query, index);
       if (fixture.expect === null) {
         expect(answer, fixture.note).toBeNull();
@@ -124,38 +136,29 @@ describe("Tier-0 coverage fixtures", () => {
     });
   }
 
-  it("MEASURED coverage — reported, not asserted against the target", () => {
+  // NO SECOND COVERAGE PERCENTAGE HERE, ON PURPOSE.
+  //
+  // This suite used to print its own "MEASURED coverage" report over its
+  // own 34 questions while the gates lane printed a different one over a
+  // different 30. That is how one gate came to have two numbers. The
+  // single reported figure now lives in `capsuleAskGates.test.ts` §K3,
+  // measured over `CAPSULE_ASK_CORPUS`.
+  //
+  // What survives here is the part that was never a percentage: an
+  // EQUALITY between the pins and the resolver. It fails the moment the
+  // resolver stops doing what a pin says, which is the actionable
+  // signal; the aggregate is the gate's job.
+  it("the pins and the resolver agree, line for line", () => {
     let answered = 0;
     let handled = 0;
-    const missed: string[] = [];
-    for (const fixture of CAPSULE_TIER0_FIXTURES) {
-      const answer = resolveTier0(fixture.query, index);
-      if (answer === null) {
-        missed.push(fixture.query);
-        continue;
-      }
+    for (const pin of TIER0_PINS) {
+      const answer = resolveTier0(pin.query, index);
+      if (answer === null) continue;
       handled += 1;
       if (!answer.refused) answered += 1;
     }
-    const n = CAPSULE_TIER0_FIXTURES.length;
-    const report = [
-      "",
-      `── TIER-0 COVERAGE (measured over ${n} real-shaped questions) ──`,
-      `  answered with facts, zero model calls : ${answered}/${n}` +
-        ` = ${((answered / n) * 100).toFixed(1)}%`,
-      `  handled (answer OR honest refusal)    : ${handled}/${n}` +
-        ` = ${((handled / n) * 100).toFixed(1)}%`,
-      `  routed to the model (correctly)       : ${n - handled}/${n}`,
-      `  brief's target                        : ${(TIER0_COVERAGE_TARGET * 100).toFixed(0)}%`,
-      "",
-    ].join("\n");
-    // eslint-disable-next-line no-console
-    console.log(report);
-
-    // The fixture file and the resolver must agree about which lines are
-    // Tier-0 — that is the real assertion. The percentage is evidence.
-    expect(answered).toBe(TIER0_ANSWERED.length);
-    expect(handled).toBe(TIER0_HANDLED.length);
+    expect(answered).toBe(TIER0_PINS_ANSWERED.length);
+    expect(handled).toBe(TIER0_PINS_HANDLED.length);
   });
 });
 

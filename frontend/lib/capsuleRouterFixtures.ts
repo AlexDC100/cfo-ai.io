@@ -1,7 +1,7 @@
 // THE CAPSULE — the router's fixture set (gate C4).
 //
-// Forty queries a real operator of this product actually types, each
-// pinned to the lane it must land in. The gate asserts 100%: not "most
+// Forty-six queries a real operator of this product actually types,
+// each pinned to the lane it must land in. The gate asserts 100%: not "most
 // of them", not "no regressions" — every line, every run. A router that
 // is right 90% of the time is a router that sends one question in ten to
 // the wrong surface, and the ones it gets wrong are the interesting
@@ -18,6 +18,10 @@
 //     balance sheet balanced" is a question that names a page) must
 //     return BOTH the page and the Ask row, never one at the other's
 //     expense.
+//   · HOW-TO — the interrogative form of an action query ("how do i
+//     export the balance sheet") lands in the lane its IMPERATIVE lands
+//     in, because the imperative already navigates for free and a
+//     question mark is not worth a model call.
 //
 // EN and RO both appear throughout, because this product is used in
 // both and a router tuned only on English quietly demotes half the
@@ -129,6 +133,41 @@ export const CAPSULE_ROUTER_FIXTURES: readonly CapsuleRouterFixture[] =
       note: "definition question — the help lane answers it, not a route" },
     { query: "ce înseamnă datorie netă", lane: "ask",
       note: "RO definition question" },
+
+    // ── HOW-TO (6) — the interrogative form of an action query ────────
+    //
+    // The defect this section was written for: "export the balance
+    // sheet" classified NAVIGATE and cost nothing, while "how do i
+    // export the balance sheet" classified ASK and billed a model call
+    // to reach the same page. The question form of a navigation query is
+    // still a navigation query, and the navigation lane's promise is
+    // that it never spends.
+    //
+    // The last two lines are the other half of the same rule, and they
+    // are why the redirection is safe: route tokens are also ordinary
+    // nouns, so a residue carrying an ADVICE VERB stays a question.
+    // Without them the redirection would answer "how do i reduce
+    // inventory" with the Inventory page.
+    { query: "how do i export the balance sheet", lane: "navigate",
+      note: "THE defect: the imperative navigates for free, so the "
+          + "interrogative must too — same destination, same zero cost" },
+    { query: "how do i upload a trial balance", lane: "action",
+      note: "the residue is verb + object, so the redirection lands on "
+          + "the COMMAND rather than on a page" },
+    { query: "cum pot să export raportul", lane: "action",
+      note: "RO how-to with diacritics; 'raportul' still reaches the "
+          + "stem 'raport' through the action rule's substring match" },
+    { query: "how do i improve cash flow", lane: "ask",
+      note: "names a route token, but 'improve' is a request for a "
+          + "judgement — the model is the right home and the "
+          + "redirection must refuse it" },
+    { query: "how do i reduce inventory", lane: "ask",
+      note: "'inventory' is a destination AND an ordinary noun; without "
+          + "the advice-verb guard this would open a page instead of "
+          + "answering the question" },
+    { query: "how do i", lane: "ask",
+      note: "the opener with nothing behind it is not yet a question "
+          + "about anything — it must not redirect to a random route" },
   ]);
 
 /** The subset whose Enter key must never reach a model. */

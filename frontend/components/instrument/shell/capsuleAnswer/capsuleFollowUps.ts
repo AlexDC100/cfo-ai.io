@@ -44,6 +44,7 @@ export type CapsuleFollowUpKind =
   | "drivers"
   | "evidence"
   | "gap_fix"
+  | "interpret"
   | "trend";
 
 export interface CapsuleFollowUp {
@@ -108,6 +109,17 @@ export interface FollowUpInput {
   /** True when generation failed. A failed turn offers RETRY, which the
    *  degraded panel already owns — so this returns nothing at all. */
   degraded: boolean;
+  /**
+   * True when TIER 0 answered this turn locally, with no model call.
+   *
+   * This is the one input that ADDS a paid chip rather than withholding
+   * one, and that is deliberate. A Tier-0 turn is a figure with its
+   * provenance and no interpretation, so the reader who wants the
+   * interpretation needs a way to ask for it — and it has to be an
+   * explicit act, because it is the keystroke that starts spending. The
+   * `interpret` chip is that act: one keystroke away, never automatic.
+   */
+  tier0?: boolean;
 }
 
 /**
@@ -121,6 +133,7 @@ export interface FollowUpInput {
 export function buildFollowUps(input: FollowUpInput): CapsuleFollowUp[] {
   const { evidence, citedFacts, degraded } = input;
   if (degraded) return [];
+  const tier0 = Boolean(input.tier0);
 
   const out: CapsuleFollowUp[] = [];
   const money = moneyFacts(evidence);
@@ -141,7 +154,31 @@ export function buildFollowUps(input: FollowUpInput): CapsuleFollowUp[] {
     });
   }
 
-  // 2. COMPARISON — only from a single-period answer. Two periods are
+  // 2. INTERPRETATION — the deliberate door from Tier 0 to Tier 1.
+  //
+  //    A Tier-0 turn holds the figure and no reading of it. That is the
+  //    honest shape of a lookup, and it is also exactly the moment a
+  //    reader most often wants a sentence. This chip is how they ask for
+  //    one: it is NOT `local`, so activating it goes through the same
+  //    paid path any other question does — a reservation, a request, a
+  //    guarded answer. Ranked above the rest because on a Tier-0 turn it
+  //    is the only chip that adds something the panel does not already
+  //    show.
+  //
+  //    It appears ONLY on a Tier-0 turn. Offering it on a model answer
+  //    would be offering to interpret an interpretation.
+  if (tier0 && metric) {
+    out.push({
+      id: "capsule.followUp.interpret",
+      kind: "interpret",
+      labelKey: "capsuleAnswer.followUp.interpret",
+      labelParams: {},
+      metricKey: metric,
+      priority: 95,
+    });
+  }
+
+  // 3. COMPARISON — only from a single-period answer. Two periods are
   //    already a comparison; a third question about "last year" would
   //    re-ask what is on screen.
   if (periods === 1 && metric) {
@@ -155,7 +192,7 @@ export function buildFollowUps(input: FollowUpInput): CapsuleFollowUp[] {
     });
   }
 
-  // 3. TREND — the mirror case. Two periods on screen means a direction
+  // 4. TREND — the mirror case. Two periods on screen means a direction
   //    exists, so "is this a trend or a one-off" is a real question with
   //    a real answer behind it.
   if (periods >= 2 && metric) {
@@ -169,7 +206,7 @@ export function buildFollowUps(input: FollowUpInput): CapsuleFollowUp[] {
     });
   }
 
-  // 4. DRIVERS — needs money. "Which accounts drove it" has no answer
+  // 5. DRIVERS — needs money. "Which accounts drove it" has no answer
   //    for a dimensionless fact, because accounts do not add up to a
   //    ratio; they add up to the operands.
   if (money.length > 0 && metric) {
@@ -183,7 +220,7 @@ export function buildFollowUps(input: FollowUpInput): CapsuleFollowUp[] {
     });
   }
 
-  // 5. EVIDENCE — local, free, and only when something is still hidden.
+  // 6. EVIDENCE — local, free, and only when something is still hidden.
   //    `citedFacts` is what the prose named; the panel holds more.
   const total = Object.keys(evidence.factMeta).length;
   const cited = new Set(citedFacts).size;

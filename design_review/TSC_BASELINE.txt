@@ -28,7 +28,6 @@ frontend/components/public-companies/RiskRadar.tsx|TS2353|Object literal may onl
 frontend/components/public-companies/RiskRadar.tsx|TS2353|Object literal may only specify known properties, and 'sec_filing' does not exist in type 'Record<ExposureSource, string>'.
 frontend/components/public-companies/__tests__/peerAddCohort.test.tsx|TS2352|Conversion of type '{ ticker: string; companyName: string; exchange: string; sector: string; currency: string; mode: "live"; netMargin: number; debtToEquity: number; latestPeriod: string; lastUpdated: string; source: "bvb"; confidence: number; missingFields: undefined[]; }' to type 'PublicCompanyFinancialSnapshot' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
 frontend/hooks/useCouncilStream.ts|TS2339|Property 'stats' does not exist on type '{ active?: boolean; stats?: string; } | { active: boolean; }'.
-frontend/lib/__tests__/capsuleAskGates.test.ts|TS2367|This comparison appears to be unintentional because the types '"action" | "navigate" | "entity"' and '"ambiguous"' have no overlap.
 frontend/lib/__tests__/marketApi.test.ts|TS2339|Property 'refusal' does not exist on type 'MarketCompanyResult'.
 frontend/lib/__tests__/marketApi.test.ts|TS2339|Property 'refusal' does not exist on type 'MarketCompanyResult'.
 frontend/lib/__tests__/marketApi.test.ts|TS2339|Property 'refusal' does not exist on type 'MarketCompanyResult'.

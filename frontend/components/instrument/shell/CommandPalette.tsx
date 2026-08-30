@@ -35,6 +35,25 @@
 // entities and actions cannot reach it at all, and the gate asserts that
 // by counting network requests rather than by reading this comment.
 //
+// TWO THINGS NOW STAND IN FRONT OF `askModel`, and both are here rather
+// than in the router because this is where Enter is pressed:
+//
+//   TIER 0     `enterAnswerMode` resolves the question against the local
+//              fact index FIRST and, when it resolves, pushes a finished
+//              turn instead of asking. No reservation, no request. The
+//              preview above the rows used to show that answer for free
+//              and then charge for arriving at it; it no longer can.
+//   HOW-TO     the router resolves "how do i export the balance sheet"
+//              to the imperative inside it and stamps
+//              `classification.redirected`; `routerNav` turns that stamp
+//              into the destination Enter opens. A navigation question
+//              with a question mark on it stays navigation.
+//
+// `capsuleSpendBoundary.test.tsx` measures this by driving the real
+// component and counting requests to the two model seams, because
+// measuring the resolver in isolation is a different claim from
+// measuring the surface — that gap is exactly how this defect survived.
+//
 // ══ THE GLASS ═══════════════════════════════════════════════════════════
 //
 // This is the one surface in the app allowed resting depth, and it earns
@@ -187,6 +206,21 @@ type Primary =
 
 // Snapshot of the concept catalog — the registry never mutates at runtime.
 const ALL_CONCEPTS: Concept[] = Object.values(CONCEPTS_BY_KEY);
+
+/** Router `commandId` → the palette row that runs it.
+ *
+ *  A cross-lane map, and deliberately a small explicit one: the router
+ *  publishes commands as DATA (`CAPSULE_ACTIONS`) and this file builds
+ *  the rows that execute them, so something has to join the two. A miss
+ *  is survivable — the redirect falls back to "no navigation", which is
+ *  the behaviour before the join existed. */
+const COMMAND_ITEM_ID: Record<string, string> = {
+  "capsule.upload": "act-upload",
+  "capsule.export": "act-export",
+  "capsule.theme": "act-theme",
+  "capsule.newChat": "act-ask",
+  "capsule.toggleSidebar": "act-rail",
+};
 
 /** True when the focus is somewhere the reader is already typing — the
  *  type-to-open shortcut must never steal a character from a form. */
@@ -412,18 +446,57 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     [answer, askAvailability.available, userKey, orgKey],
   );
 
+  /**
+   * ENTER — AND THE SPEND BOUNDARY.
+   *
+   * ── The defect this shape exists to close ────────────────────────────
+   *
+   * `resolveTier0` ran in a memo above and fed `CapsuleTier0Preview` as
+   * the reader typed, so the answer was on screen, in 0.013ms, with its
+   * provenance — and then Enter called `askModel` unconditionally. The
+   * question Tier 0 had already answered took a chat reservation and
+   * issued a model request anyway. The preview was free; arriving at the
+   * same figure was billed.
+   *
+   * The Tier-0 contract is "INSTANT, ZERO MODEL CALLS, works
+   * offline/credits-down", and this line is the only place in the app
+   * where that contract can be kept or broken, because it is the only
+   * place where pressing Enter costs money.
+   *
+   * ── Why it is a full turn and not a bigger preview ───────────────────
+   *
+   * `answerLocally` pushes a FINISHED TURN into the same thread the
+   * model path writes to, so the reader gets the fact card, the
+   * provenance dot, the citation footer and the follow-up chips — the
+   * whole canvas. A Tier-0 answer is an answer. The `interpret` chip on
+   * it is the deliberate door to Tier 1: one keystroke, explicitly
+   * chosen, and the only way from here to a paid call for this question.
+   *
+   * ── The order of the two calls ───────────────────────────────────────
+   *
+   * `answerLocally` first, `askModel` only on its `false`. Not the other
+   * way round and not in parallel: `askModel` reserves before it
+   * dispatches, so any arrangement where both run has already spent
+   * budget by the time the local answer lands.
+   */
   const enterAnswerMode = useCallback(
     (question: string) => {
       answer.open();
       setMode("answer");
       onOpenChange(true);
       const q = question.trim();
-      if (q) {
-        setQuery("");
-        askModel(q);
+      if (!q) return;
+      setQuery("");
+      // The SAME resolution the preview showed, re-run against the same
+      // index — pure, synchronous, no network. Re-running is cheaper
+      // than threading the memo's value through, and it cannot be stale.
+      if (answer.answerLocally(q, resolveTier0(q, factIndex))) {
+        rememberCapsuleQuestion(orgKey, q);
+        return;
       }
+      askModel(q);
     },
-    [answer, onOpenChange, askModel],
+    [answer, onOpenChange, askModel, factIndex, orgKey],
   );
 
   useEffect(() => {
@@ -512,50 +585,21 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   }, [skus]);
   const companies = useMemo(() => staticBvbRows(), []);
 
-  const items: PaletteItem[] = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const match = (...hay: Array<string | null | undefined>) =>
-      !q || hay.some((h) => (h ?? "").toLowerCase().includes(q));
-    const out: PaletteItem[] = [];
-
-    // Pages — the rail's own destinations plus Settings.
-    for (const g of groups) {
-      for (const item of g.items) {
-        const label = t(item.labelKey);
-        if (match(label, g.label)) {
-          out.push({
-            id: `page-${item.to}`,
-            group: t("shell.palette.pages"),
-            label,
-            hint: g.label,
-            icon: item.icon,
-            kbd: item.shortcutKey ? `${mod}${item.shortcutKey}` : undefined,
-            destination: true,
-            run: () => {
-              recordJump(orgKey, `page-${item.to}`);
-              go(item.to);
-            },
-          });
-        }
-      }
-    }
-    const settingsLabel = t("sidebar.settings");
-    if (match(settingsLabel)) {
-      out.push({
-        id: "page-/settings",
-        group: t("shell.palette.pages"),
-        label: settingsLabel,
-        icon: SettingsIcon,
-        destination: true,
-        run: () => {
-          recordJump(orgKey, "page-/settings");
-          go("/settings");
-        },
-      });
-    }
-
-    // Actions.
-    const actions: PaletteItem[] = [
+  /**
+   * THE COMMANDS, UNFILTERED.
+   *
+   * Hoisted out of `items` because `items` filters every row by
+   * substring-of-the-query, and `routerNav` needs to find a command by
+   * IDENTITY. Caught by K10.d: "how do i upload a trial balance"
+   * classifies as the upload ACTION and no palette row survived the
+   * filter — no label contains that whole sentence — so the redirect
+   * found nothing and Enter fell through to the model. The route half
+   * of the redirect never hit this because it builds its own row from
+   * the router's `to`; a command has no `to`, only an executor, and the
+   * executor lives here.
+   */
+  const actionItems: PaletteItem[] = useMemo(
+    () => [
       {
         id: "act-upload",
         group: t("shell.palette.actions"),
@@ -614,8 +658,57 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
           close();
         },
       },
-    ];
-    for (const a of actions) if (match(a.label, a.hint)) out.push(a);
+    ],
+    // `go`/`close`/`setTheme`/`onOpenAi` are render-local closures,
+    // behaviorally constant — the same exemption `items` below carries.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t, mod, resolvedTheme],
+  );
+
+  const items: PaletteItem[] = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const match = (...hay: Array<string | null | undefined>) =>
+      !q || hay.some((h) => (h ?? "").toLowerCase().includes(q));
+    const out: PaletteItem[] = [];
+
+    // Pages — the rail's own destinations plus Settings.
+    for (const g of groups) {
+      for (const item of g.items) {
+        const label = t(item.labelKey);
+        if (match(label, g.label)) {
+          out.push({
+            id: `page-${item.to}`,
+            group: t("shell.palette.pages"),
+            label,
+            hint: g.label,
+            icon: item.icon,
+            kbd: item.shortcutKey ? `${mod}${item.shortcutKey}` : undefined,
+            destination: true,
+            run: () => {
+              recordJump(orgKey, `page-${item.to}`);
+              go(item.to);
+            },
+          });
+        }
+      }
+    }
+    const settingsLabel = t("sidebar.settings");
+    if (match(settingsLabel)) {
+      out.push({
+        id: "page-/settings",
+        group: t("shell.palette.pages"),
+        label: settingsLabel,
+        icon: SettingsIcon,
+        destination: true,
+        run: () => {
+          recordJump(orgKey, "page-/settings");
+          go("/settings");
+        },
+      });
+    }
+
+    // Actions — the list itself lives above (`actionItems`).
+    for (const a of actionItems) if (match(a.label, a.hint)) out.push(a);
 
     // Glossary — ported from the old ⌘K dialog.
     if (match(t("panels.search.browseGlossary"), "glossary", "metrics", "learn")) {
@@ -742,7 +835,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     // re-created per render but behaviorally constant — listing them would
     // defeat the memo without changing results.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, groups, periods, categories, skus, companies, resolvedTheme, locale, t, mod, orgKey]);
+  }, [query, groups, periods, categories, skus, companies, actionItems, resolvedTheme, locale, t, mod, orgKey]);
 
   // ── ZONE 3: the four destinations the reader actually uses ───────────
   //
@@ -785,6 +878,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   //
   // `askForced` (Tab) overrides even that. `activeIdx >= 0` overrides
   // everything: an explicitly selected row is an explicit instruction.
+  const routed = useMemo(() => routeQuery(query), [query]);
+
   const exactNav = useMemo(() => {
     const folded = foldQuery(query);
     if (!folded) return null;
@@ -793,14 +888,56 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     // balance sheet balanced" is not a request for the balance sheet
     // page, and the router's precedence table already knows that. The
     // exact-name test below is the second condition, not the only one.
-    if (routeQuery(query).classification.lane === "ask") return null;
+    if (routed.classification.lane === "ask") return null;
     return (
       items.find((i) => {
         if (foldQuery(i.label) === folded) return i.destination || Boolean(i.exactTokens);
         return (i.exactTokens ?? []).some((tok) => foldQuery(tok) === folded);
       }) ?? null
     );
-  }, [items, query]);
+  }, [items, query, routed]);
+
+  /**
+   * THE INTERROGATIVE FORM OF AN ACTION QUERY.
+   *
+   * "export the balance sheet" is an exact-enough destination phrase and
+   * navigates for free. "how do i export the balance sheet" is the same
+   * instruction with an opener in front — and it used to reach the model,
+   * because the palette's own Enter rule is "exact name, or ask", and a
+   * question is never an exact name.
+   *
+   * The router now resolves that opener away and stamps
+   * `classification.redirected`. This reads that stamp and nothing else:
+   * without it, honouring the router's navigate lane in general would
+   * change Enter for every partial route match ("cash" would open the
+   * cash-flow page instead of asking about cash), which is a different
+   * decision and not this one.
+   */
+  const routerNav = useMemo<PaletteItem | null>(() => {
+    if (!routed.classification.redirected) return null;
+    const row = routed.rows.find((r) => r.kind === "route" || r.kind === "action");
+    if (!row) return null;
+    if (row.kind === "action" && row.commandId) {
+      // `actionItems`, NOT `items`: `items` is filtered by
+      // substring-of-the-query and a how-to sentence matches no label.
+      return actionItems.find((i) => i.id === COMMAND_ITEM_ID[row.commandId!]) ?? null;
+    }
+    if (row.kind !== "route" || !row.to) return null;
+    const to = row.to;
+    return {
+      id: row.id,
+      group: t("shell.palette.pages"),
+      label: row.labelKey ? t(row.labelKey) : to,
+      destination: true,
+      run: () => {
+        recordJump(orgKey, row.id);
+        go(to);
+      },
+    };
+    // `go` is a render-local closure over `params`/`navigate`; listing it
+    // would defeat the memo without changing behaviour.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routed, actionItems, t, orgKey]);
 
   const primary: Primary = useMemo(() => {
     if (activeIdx >= 0 && items[activeIdx]) {
@@ -808,9 +945,10 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     }
     const q = query.trim();
     if (!q) return { kind: "none" };
-    if (exactNav && !askForced) return { kind: "nav", item: exactNav };
+    const nav = exactNav ?? routerNav;
+    if (nav && !askForced) return { kind: "nav", item: nav };
     return { kind: "ask", question: q };
-  }, [activeIdx, items, query, exactNav, askForced]);
+  }, [activeIdx, items, query, exactNav, routerNav, askForced]);
 
   useEffect(() => {
     if (activeIdx >= items.length) setActiveIdx(-1);

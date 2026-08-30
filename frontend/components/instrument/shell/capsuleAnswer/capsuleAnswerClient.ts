@@ -94,6 +94,17 @@ export interface CapsuleTurn {
   /** True when the model's prose was refused and the answer is the
    *  evidence alone. */
   deterministic: boolean;
+  /**
+   * True when this turn was answered by TIER 0 — the local fact index —
+   * with no reservation taken and no request issued.
+   *
+   * Deliberately separate from `deterministic`. Both turns carry figures
+   * and no prose, but they mean opposite things to a reader: a
+   * deterministic turn is "the assistant's wording was rejected", a
+   * Tier-0 turn is "no assistant was needed". Collapsing them would put
+   * an apology under an answer that has nothing to apologise for.
+   */
+  tier0?: boolean;
   regenerated: boolean;
   violations: GuardViolation[];
   degraded: AiFailureKind | null;
@@ -112,6 +123,7 @@ export function newTurn(id: string, question: string, startedAt: number): Capsul
     visuals: [],
     citedFacts: [],
     deterministic: false,
+    tier0: false,
     regenerated: false,
     violations: [],
     degraded: null,

@@ -488,14 +488,19 @@ export async function runPlan(
 
 // ── merge ──────────────────────────────────────────────────────────────
 
-function digitTokens(source: string | null | undefined): string[] {
+export function digitTokens(source: string | null | undefined): string[] {
   if (!source) return [];
   return source.match(/[\p{L}]*\d[\p{L}\d./-]*/gu) ?? [];
 }
 
 /** Pick a free binding name. Deterministic: the same payload order
- *  always yields the same names. */
-function freeName(base: string, taken: Record<string, unknown>): string {
+ *  always yields the same names.
+ *
+ *  Exported so the Tier-0 turn builder binds its facts by the SAME rule
+ *  the tool merge uses. Two naming disciplines would mean a `revenue`
+ *  placeholder could mean one thing on a model answer and another on a
+ *  local one. */
+export function freeName(base: string, taken: Record<string, unknown>): string {
   if (!(base in taken)) return base;
   for (let n = 2; n < 64; n += 1) {
     const candidate = `${base}__${n}`;

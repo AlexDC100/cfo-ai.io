@@ -66,7 +66,11 @@ import type { TraceableSource } from "@/lib/traceableSource";
 
 import "./capsuleAnswerI18n";
 import { codeCopy, hasCopy, metricLabel } from "./capsuleAnswerI18n";
-import { answerToNativeText, type CapsuleTurn } from "./capsuleAnswerClient";
+import {
+  answerToNativeText,
+  evidenceToNativeText,
+  type CapsuleTurn,
+} from "./capsuleAnswerClient";
 import type { CapsuleEvidence } from "./capsuleAnswerTypes";
 import { CapsuleFactCard, pickHeadline } from "./CapsuleFactCard";
 import { CapsuleVisuals, FigureList } from "./CapsuleFigures";
@@ -308,8 +312,15 @@ function Actions({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
+  // A figures-only turn (Tier 0, or a deterministic fallback) has no
+  // blocks, so resolving them yields an empty string — and Copy handed
+  // the reader their own question with nothing under it. The figure list
+  // IS the answer on those turns, so that is what gets copied.
   const nativeText = useCallback(
-    () => answerToNativeText(turn.blocks, turn.evidence),
+    () =>
+      turn.blocks.length > 0
+        ? answerToNativeText(turn.blocks, turn.evidence)
+        : evidenceToNativeText(turn.evidence),
     [turn.blocks, turn.evidence],
   );
 
@@ -464,9 +475,10 @@ function Turn({
             citedFacts: turn.citedFacts,
             deterministic: turn.deterministic,
             degraded: Boolean(turn.degraded),
+            tier0: Boolean(turn.tier0),
           })
         : [],
-    [done, evidence, turn.citedFacts, turn.deterministic, turn.degraded],
+    [done, evidence, turn.citedFacts, turn.deterministic, turn.degraded, turn.tier0],
   );
 
   // The toggle renders whenever there IS evidence. A zero-fact turn
@@ -570,6 +582,17 @@ function Turn({
       {done && !turn.degraded && turn.deterministic && (
         <p className="mt-2 text-[12px] italic text-ink-soft" data-testid="capsule-fallback-note">
           {t("capsuleAnswer.fallbackNote")}
+        </p>
+      )}
+
+      {/* A Tier-0 turn says where it came from, in one line. Not an
+          apology — the opposite of the fallback note above it: the
+          figure is on screen with its provenance and nothing was asked
+          of a model to put it there. The `interpret` chip at the bottom
+          is how the reader asks for the reading. */}
+      {done && turn.tier0 && (
+        <p className="mt-2 text-[12px] text-ink-soft" data-testid="capsule-tier0-note">
+          {t("capsuleAnswer.tier0.note")}
         </p>
       )}
 

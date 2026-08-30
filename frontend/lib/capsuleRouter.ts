@@ -124,6 +124,23 @@ export interface CapsuleClassification {
   normalized: string;
   /** Word count of the folded query. */
   words: number;
+
+  // ── additive ────────────────────────────────────────────────────────
+  /**
+   * Set when an interrogative was resolved to the imperative inside it
+   * ("how do i export the balance sheet" → "export the balance sheet").
+   *
+   * The surface reads this to know Enter must NAVIGATE rather than ask,
+   * even though the query is not an exact destination name. Without it
+   * the router would classify the query as navigation and the palette
+   * would still send it to the model, because the palette's own Enter
+   * rule is "exact name or ask" — the two would agree on the lane and
+   * disagree on the spend.
+   */
+  redirected?: "route" | "action";
+  /** The imperative the redirection recovered, folded. Present only
+   *  alongside `redirected`; carried for the gate's failure message. */
+  residue?: string;
 }
 
 export interface CapsuleRouterResult {
@@ -327,6 +344,79 @@ export const ASK_LEAD_PHRASES: readonly string[] = Object.freeze([
 export const ASK_SHAPE_TOKENS: readonly string[] = Object.freeze([
   " vs ", " versus ", " fata de ", " compared to ",
 ]);
+
+// ─── The interrogative form of an action query ─────────────────────────
+//
+// "how do i export the balance sheet" is the imperative "export the
+// balance sheet" wearing four words of politeness. The imperative is
+// NAVIGATION and costs nothing; the question form used to open the ask
+// lane and bill a model call to arrive at the same page. That is a
+// navigation question with a question mark on it, and the navigation
+// lane's promise — "stays instant and never burns a model call" — has
+// to survive the question mark.
+//
+// The mechanism is deliberately the smallest one that can work: strip
+// the opener, classify the RESIDUE with the rules already written, and
+// adopt that lane. No second rule table for destinations, no new
+// precedence tier — the same `matchRoutes` / `matchActions` decide, so a
+// destination added as data is reachable in both forms at once.
+
+/** Openers that wrap a destination or a command in a question, EN + RO
+ *  (folded). Longest-first at use, so "how do i" strips before "how do". */
+export const ASK_HOWTO_OPENERS: readonly string[] = Object.freeze([
+  "how do i", "how do we", "how do you", "how can i", "how can we",
+  "how do", "how can", "how to",
+  "where do i find", "where can i find", "where do i", "where can i",
+  "cum pot sa", "cum fac sa", "cum pot", "cum fac", "cum sa",
+  "cum ajung la", "unde pot sa", "unde gasesc", "unde pot", "unde vad",
+]);
+
+/** Longest first — "how do i" must win over "how do". */
+const HOWTO_OPENERS_SORTED: readonly string[] = Object.freeze(
+  [...ASK_HOWTO_OPENERS].sort((a, b) => b.length - a.length),
+);
+
+/**
+ * Verbs that turn a destination phrase back into a request for advice.
+ *
+ * This is the guard that keeps the redirection honest. "inventory",
+ * "profit" and "cash flow" are route tokens AND ordinary nouns, so
+ * "how do i reduce inventory" would otherwise resolve to the Inventory
+ * page — an instant answer to a question nobody asked. A residue
+ * carrying any of these stays a question and reaches the model, which is
+ * the right home for it.
+ */
+export const HOWTO_ADVICE_VERBS: readonly string[] = Object.freeze([
+  "improve", "fix", "reduce", "increase", "grow", "lower", "raise",
+  "solve", "optimize", "optimise", "understand", "read", "interpret",
+  "explain", "calculate", "compute", "forecast", "estimate", "avoid",
+  "prevent", "handle", "manage",
+  "imbunatatesc", "imbunatati", "repar", "reduc", "cresc", "rezolv",
+  "optimizez", "inteleg", "citesc", "interpretez", "explic", "calculez",
+  "estimez", "evit", "gestionez",
+]);
+
+/**
+ * The imperative hiding inside an interrogative, or null.
+ *
+ * Null on three counts, each of which is a refusal rather than a miss:
+ *   · the query does not open with a how-to / where-to phrase
+ *   · the opener is the whole query ("how do i" alone is not a question
+ *     about anything yet)
+ *   · the residue carries an advice verb, so the reader wants a
+ *     judgement and not a destination
+ */
+export function howtoResidue(folded: string): string | null {
+  for (const opener of HOWTO_OPENERS_SORTED) {
+    if (!folded.startsWith(`${opener} `)) continue;
+    const residue = folded.slice(opener.length + 1).trim();
+    if (!residue) return null;
+    const words = residue.split(" ");
+    if (words.some((w) => HOWTO_ADVICE_VERBS.includes(w))) return null;
+    return residue;
+  }
+  return null;
+}
 
 /** A query longer than this is no longer a "short noun phrase", so a
  *  merely-contained route token does not make it navigation. */
@@ -548,6 +638,10 @@ export function classify(
  * Precedence, in this order and for this reason:
  *   1. ASK TRIGGER — an explicit question stays a question even when it
  *      happens to contain a route word ("is the balance sheet balanced").
+ *      ONE exception, and it is the interrogative form of an action
+ *      query: "how do i export the balance sheet" is the imperative
+ *      "export the balance sheet" with an opener in front, and the
+ *      imperative already navigates for free. See `howtoResidue`.
  *   2. EXACT ROUTE — a query that IS a destination name is navigation,
  *      even when it also looks like a ticker ("ALERTS").
  *   3. ENTITY SHAPE — a code is a code; nothing else in this product
@@ -614,7 +708,30 @@ export function routeQuery(
     entityRows.push(entityRow(shape.rule, shape.match, SCORE_EXACT));
   }
 
-  if (trigger) {
+  // The interrogative form of an action query, resolved BEFORE the ask
+  // branch claims it. `howtoRoutes` / `howtoActions` classify the
+  // RESIDUE rather than the whole query, so the rows the reader gets are
+  // the rows the imperative would have produced.
+  const howto = trigger ? howtoResidue(folded) : null;
+  const howtoActions = howto ? matchActions(howto, actions) : [];
+  const howtoRoutes = howto ? matchRoutes(howto, routes) : [];
+  const howtoLane: "route" | "action" | null = howtoActions.length
+    ? "action"
+    : howtoRoutes.length && wordCount(howto ?? "") <= NAVIGATE_MAX_WORDS
+    ? "route"
+    : null;
+
+  if (howtoLane === "action") {
+    lane = "action";
+    reasons.push(`howto_action:${howtoActions[0].rule.id}`);
+    primary.push(...howtoActions.map(actionRow));
+    secondary.push(...howtoRoutes.map(routeRow), ...entityRows);
+  } else if (howtoLane === "route") {
+    lane = "navigate";
+    reasons.push(`howto_route:${howtoRoutes[0].rule.id}`);
+    primary.push(...howtoRoutes.map(routeRow));
+    secondary.push(...actionRows, ...entityRows);
+  } else if (trigger) {
     lane = "ask";
     reasons.push(`ask:${trigger}`);
     primary.push(...routeRows, ...actionRows, ...entityRows);
@@ -655,9 +772,15 @@ export function routeQuery(
       : secondary.length > 0 || (lane !== "navigate" && routeRows.length > 0);
   if (ambiguous) reasons.push("ambiguous");
 
-  return finalize(query, {
+  const classification: CapsuleClassification = {
     lane, ambiguous, reasons, normalized: folded, words,
-  }, primary, secondary, ctx);
+  };
+  if (howtoLane && howto) {
+    classification.redirected = howtoLane;
+    classification.residue = howto;
+  }
+
+  return finalize(query, classification, primary, secondary, ctx);
 }
 
 function finalize(

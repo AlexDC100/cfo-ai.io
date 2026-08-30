@@ -1,6 +1,6 @@
 // THE CAPSULE — intent-router gates.
 //
-//   C4   the forty-query fixture set, at 100%. Not "most", not "no
+//   C4   the forty-six-query fixture set, at 100%. Not "most", not "no
 //        regressions" — every line, every run.
 //   INV-1 exactly one Ask row, always at index 0 or 1, reachable in one
 //        keystroke by ArrowDown or Tab from anywhere.
@@ -45,11 +45,11 @@ beforeEach(() => {
 
 // ── C4 — the fixture set ────────────────────────────────────────────
 
-describe("C4 — the forty-query fixture set", () => {
-  it("has exactly forty distinct queries covering all four lanes", () => {
-    expect(CAPSULE_ROUTER_FIXTURES).toHaveLength(40);
+describe("C4 — the forty-six-query fixture set", () => {
+  it("has exactly forty-six distinct queries covering all four lanes", () => {
+    expect(CAPSULE_ROUTER_FIXTURES).toHaveLength(46);
     const queries = CAPSULE_ROUTER_FIXTURES.map((f) => f.query);
-    expect(new Set(queries).size).toBe(40);
+    expect(new Set(queries).size).toBe(46);
     const lanes = new Set(CAPSULE_ROUTER_FIXTURES.map((f) => f.lane));
     expect([...lanes].sort()).toEqual(["action", "ask", "entity", "navigate"]);
   });
@@ -65,7 +65,7 @@ describe("C4 — the forty-query fixture set", () => {
     },
   );
 
-  it("classifies all forty with no misses (the aggregate the gate is for)", () => {
+  it("classifies all forty-six with no misses (the aggregate the gate is for)", () => {
     const misses = CAPSULE_ROUTER_FIXTURES.filter(
       (f) => run(f.query).classification.lane !== f.lane,
     );

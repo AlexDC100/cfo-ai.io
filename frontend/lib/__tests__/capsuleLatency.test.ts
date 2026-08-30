@@ -54,7 +54,7 @@ import {
 } from "@/lib/capsuleLatency";
 import { buildFactIndex } from "@/lib/capsuleFactIndex";
 import { resolveTier0, createSpeculativeResolver } from "@/lib/capsuleTier0";
-import { CAPSULE_TIER0_FIXTURES } from "@/lib/capsuleTier0Fixtures";
+import { CAPSULE_ASK_CORPUS } from "@/lib/capsuleAskCorpus";
 import type { Statements } from "@/lib/financialReport";
 
 import carniprodJson from "./fixtures/capsuleTier0/period_carniprod_fy2025.json";
@@ -260,9 +260,9 @@ describe("measured latency — the lane's published numbers", () => {
     const index = buildFactIndex(snapshot());
     const RESOLVE_PASSES = 30;
     for (let pass = 0; pass < RESOLVE_PASSES; pass += 1) {
-      for (const fixture of CAPSULE_TIER0_FIXTURES) {
+      for (const entry of CAPSULE_ASK_CORPUS) {
         mark("bench.start");
-        resolveTier0(fixture.query, index);
+        resolveTier0(entry.query, index);
         measure(LAT_TIER0_PAINT, "bench.start");
       }
     }
@@ -296,8 +296,8 @@ describe("measured latency — the lane's published numbers", () => {
       line(LAT_FIRST_TOKEN, "first model token"),
       "",
       `  Tier-0 resolve ran ${RESOLVE_PASSES} passes over ` +
-        `${CAPSULE_TIER0_FIXTURES.length} questions = ` +
-        `${RESOLVE_PASSES * CAPSULE_TIER0_FIXTURES.length} calls; n above is the`,
+        `${CAPSULE_ASK_CORPUS.length} questions = ` +
+        `${RESOLVE_PASSES * CAPSULE_ASK_CORPUS.length} calls; n above is the`,
       `  last ${MAX_SAMPLES} (the ring window), which is the distribution by design.`,
       "",
       "  NOT MEASURED HERE: the paint half of Tier-0 first paint (no DOM",
