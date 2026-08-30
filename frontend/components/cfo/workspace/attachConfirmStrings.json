@@ -19,7 +19,6 @@
       "monthRange": "Pick a month between 2000 and {{year}}.",
       "existing": "Or pick a period you already have",
       "newPeriod": "No period for {{month}} yet — a new one will be created.",
-      "attachesTo": "Attaches to {{month}}",
       "tag": {
         "dropped": "You dropped it here",
         "chosen": "You were adding this",
@@ -28,7 +27,7 @@
       "replacing": {
         "title": "Replacing",
         "meta": "{{month}} · uploaded {{date}}",
-        "note": "The file you replace is kept and marked inactive — nothing is deleted."
+        "note": "The file you're replacing is kept — the new one becomes this period's source once it is analyzed."
       },
       "mismatch": {
         "title": "This file looks like {{detected}}",
@@ -47,7 +46,7 @@
         "replace": "Replace file"
       },
       "cancel": "Cancel",
-      "noFile": "Choose a file first."
+      "menuReplace": "Replace file…"
     }
   },
   "ro": {
@@ -70,7 +69,6 @@
       "monthRange": "Alege o lună între 2000 și {{year}}.",
       "existing": "Sau alege o perioadă pe care o ai deja",
       "newPeriod": "Nu există încă o perioadă pentru {{month}} — se va crea una nouă.",
-      "attachesTo": "Se atașează la {{month}}",
       "tag": {
         "dropped": "Aici ai lăsat fișierul",
         "chosen": "Asta adăugai",
@@ -79,7 +77,7 @@
       "replacing": {
         "title": "Înlocuiești",
         "meta": "{{month}} · încărcat {{date}}",
-        "note": "Fișierul înlocuit rămâne, marcat inactiv — nu se șterge nimic."
+        "note": "Fișierul înlocuit rămâne — cel nou devine sursa perioadei după analiză."
       },
       "mismatch": {
         "title": "Fișierul pare a fi {{detected}}",
@@ -98,7 +96,7 @@
         "replace": "Înlocuiește fișierul"
       },
       "cancel": "Anulează",
-      "noFile": "Alege întâi un fișier."
+      "menuReplace": "Înlocuiește fișierul…"
     }
   }
 }

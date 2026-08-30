@@ -246,6 +246,15 @@ describe("entitiesConflict — the production Agras/Scandia case", () => {
     ).toBe(true);
   });
 
+  it("flags the audited 2025-12 collision (Agras / Scandia in one month)", () => {
+    expect(
+      entitiesConflict(
+        { name: "AGRAS SRL", cui: null, evidence: null },
+        { name: "SCANDIA REALESTATE SRL", cui: null, evidence: null },
+      ),
+    ).toBe(true);
+  });
+
   it("does not flag the same company written differently", () => {
     expect(
       entitiesConflict(

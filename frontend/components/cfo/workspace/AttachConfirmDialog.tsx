@@ -332,10 +332,13 @@ export function AttachConfirmDialog({
             </div>
           ) : (
             <div className="space-y-1">
+              {/* r2: this sentence is the entire justification for the
+                  pre-filled month, so it carries body weight — at caption
+                  weight it read as a footnote under the filename. */}
               <div
                 data-testid="attach-confirm-evidence"
                 className={`flex items-start gap-2 text-[12.5px] ${
-                  detectedMonth ? "text-ink-soft" : "text-caution"
+                  detectedMonth ? "text-ink" : "text-caution"
                 }`}
               >
                 <Search size={14} strokeWidth={1.75} className="shrink-0 mt-px text-ink-mute" />
@@ -377,7 +380,15 @@ export function AttachConfirmDialog({
               max={maxMonth}
               onChange={(e) => setMonth(e.target.value)}
               data-testid="attach-confirm-month"
-              className="w-full h-8 px-3 rounded-sm border border-rule bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50"
+              // r2: while the document told us nothing and nothing has been
+              // chosen, the empty native month field reads as broken rather
+              // than as required — carry the same caution colour as the line
+              // that just asked for it.
+              className={`w-full h-8 px-3 rounded-sm border bg-surface text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50 ${
+                !reading && !detectedMonth && !monthValid
+                  ? "border-caution/60"
+                  : "border-rule"
+              }`}
             />
             {!monthValid && month !== "" && (
               <p className="mt-1.5 text-[11.5px] text-caution">
@@ -414,8 +425,13 @@ export function AttachConfirmDialog({
                       onClick={() => setMonth(key)}
                       data-testid={`attach-confirm-period-${p.period_id}`}
                       aria-pressed={selected}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                        selected ? "bg-brand/[0.07]" : "hover:bg-bg-2/50"
+                      // r2: the left accent rule (the workspace nav's own
+                      // idiom) makes the list read as a shortcut INTO the
+                      // month field above, not as a second control.
+                      className={`w-full flex items-center gap-2 border-l-2 px-3 py-2 text-left transition-colors ${
+                        selected
+                          ? "border-brand bg-brand/[0.07]"
+                          : "border-transparent hover:bg-bg-2/50"
                       }`}
                     >
                       <CalendarDays
@@ -525,12 +541,19 @@ export function AttachConfirmDialog({
           >
             {t("attachConfirm.cancel")}
           </button>
+          {/* r2: when the entity guard is up, "Attach to a new period" is the
+              recommended action. This one steps down to secondary so the two
+              don't read as equals the moment the acknowledgement is ticked. */}
           <button
             type="button"
             onClick={() => confirm("chosen")}
             disabled={!canSubmit}
             data-testid="attach-confirm-submit"
-            className="inline-flex items-center gap-1.5 h-8 px-4 rounded-sm bg-brand text-paper text-[12.5px] font-medium hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
+            className={`inline-flex items-center gap-1.5 h-8 px-4 rounded-sm text-[12.5px] font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro ${
+              entityConflict
+                ? "border border-rule text-ink hover:bg-bg-2"
+                : "bg-brand text-paper hover:bg-brand-dark"
+            }`}
           >
             {reading && <Loader2 size={14} className="animate-spin" />}
             {t(`attachConfirm.confirm.${mode}`)}

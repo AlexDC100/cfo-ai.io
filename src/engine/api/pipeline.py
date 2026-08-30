@@ -55,6 +55,7 @@ from . import _period_detect
 # orphaned; the actual re-filing is delegated back to stage_persist via
 # the hint, so there is no second implementation of "which period".
 from . import _period_move
+from . import _ratio_units
 from . import _reconcile
 from . import _supabase
 from . import _usage_limits
@@ -2404,11 +2405,42 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     candidates: List[Dict[str, Any]] = []
 
+    # The currency the period's books are actually in, and the currency
+    # LABEL these rule strings hard-code. They are the same for every
+    # production period today (all 128 are RON) but they are different
+    # CONCEPTS: `stmt_currency` is what the numbers mean, `_AUTHORED_LABEL`
+    # is what the f-strings below type. Templatizing against the authored
+    # label is what lets a non-RON period drop the wrong word instead of
+    # rendering a EUR magnitude under a RON tag.
+    stmt_currency = str(s.get("currency") or "RON").upper()
+    _AUTHORED_LABEL = "RON"
+
+    def _q(value: float, name: Optional[str] = None) -> "_ratio_units.Quantity":
+        """A money operand in the period's own currency, at unit scale.
+        Every ratio below is computed from two of these — identical
+        currency, identical scale — or it raises rather than coerces."""
+        return _ratio_units.money(value, stmt_currency, name=name)
+
     def _add(rule_key: str, severity: str, category: str, title: str, body: str,
              facts: Dict[str, float]) -> None:
         """Append a candidate alert. Same rule_key can only land once per
-        period (deduped before persist)."""
-        candidates.append({
+        period (deduped before persist).
+
+        TYPED PLACEHOLDERS (2026-08-30). Alongside the plain strings, each
+        candidate carries `title_template` / `body_template`, in which
+        every cited MONEY figure — and its hard-coded currency label — has
+        been replaced by `{{money:<fact>}}`, plus `fact_units`, the unit of
+        every cited fact. The renderer resolves those through the same
+        money path as the rest of the UI, so one claim can no longer mix a
+        native figure with a converted one (the Critical-461 defect).
+
+        Additive on purpose: `title` / `body` stay byte-identical and
+        remain the fallback for stored rows that predate this, and
+        `render_native(template) == body` byte-for-byte (gated in
+        tests/engine/test_ratio_units.py::test_g13...). Templatizing is
+        derived, never hand-authored, so the two cannot drift apart.
+        """
+        candidate: Dict[str, Any] = {
             "alert_key": f"{rule_key}:{period_id}",
             "rule_key": rule_key,
             "severity": severity,
@@ -2417,7 +2449,17 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
             "body": body,
             "facts_cited": facts,
             "industry": industry_key,
-        })
+        }
+        try:
+            candidate["fact_units"] = _ratio_units.units_for(facts)
+            candidate["source_currency"] = stmt_currency
+            candidate["title_template"] = _ratio_units.templatize(
+                title, facts, _AUTHORED_LABEL)
+            candidate["body_template"] = _ratio_units.templatize(
+                body, facts, _AUTHORED_LABEL)
+        except Exception:  # pragma: no cover — never block an alert on prose
+            logger.warning("[pipeline] templatize failed for %s", rule_key, exc_info=True)
+        candidates.append(candidate)
 
     # ── R1. Data quality — BS imbalance ──────────────────────────────────
     drift = abs(bs_delta) if bs_delta else abs(total_assets - total_liabilities - total_equity)

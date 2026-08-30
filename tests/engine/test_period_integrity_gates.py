@@ -49,10 +49,13 @@ W3  Mismatch + entity surfacing fire on the EXACT live cases, pinned
     gate that reports mismatch either way is vacuous.
 
 W4  A moved document recomputes BOTH periods; no orphaned snapshot is
-    served. Half of this is landed (the snapshot self-identifies the
-    period it was filed under, which is what makes an orphan
-    detectable); the move seam itself is Part D and the gate is RED
-    until it exists — deliberately, see GATES.md.
+    served. Two halves: the snapshot SELF-IDENTIFIES the period it was
+    filed under (which is what makes an orphan detectable), and the
+    correction seam exists, exposes an orphan predicate, and takes its
+    target month explicitly — W1's law applied to the correction path.
+    The behavioural depth belongs to the move lane's own suite
+    (`tests/engine/test_period_move.py`) and is deliberately not
+    duplicated; this file only refuses to let that proof vanish.
     PLANT: `test_w4_plant_self_identification_is_not_vacuous` — a
     record whose `resolved_period_end` disagrees with the period it was
     filed under is exactly an orphan, and is rejected.
@@ -90,7 +93,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
-from engine.api import _period_detect, pipeline
+from engine.api import _period_detect
 from engine.api._period_detect import CONFIDENCE, SIGNALS, detect_period
 from engine.api.pipeline import (
     _detect_period_end_from_filename,
@@ -225,20 +228,27 @@ def _local_initializers(ident: str, text: str) -> List[str]:
 
 
 def _expression_carries_a_period_row_date(expr: str, text: str) -> Optional[str]:
-    """The offending sub-expression, or None when the value is clean.
+    """The offending evidence, or None when the value is clean.
 
     Direct first (`p.period_end`), then up to `_MAX_HOPS` local
-    `const`/`let` hops so a renamed alias can't launder the same value."""
+    `const`/`let` hops so a renamed alias can't launder the same value.
+
+    When the offence is reached through a hop, EVERY binding of that
+    name in the file that carries a period-row date is reported, not
+    just the first: the scanner has no scope analysis, so naming one
+    binding would point the reader at a declaration that may not be the
+    one this call site actually reads."""
     seen = set()
     frontier = [expr]
     for _hop in range(_MAX_HOPS + 1):
+        offences = [c for c in frontier if _PERIOD_ROW_DATE.search(c)]
+        if offences:
+            return " | ".join(_flatten(o) for o in offences)
         nxt: List[str] = []
         for candidate in frontier:
             if candidate in seen:
                 continue
             seen.add(candidate)
-            if _PERIOD_ROW_DATE.search(candidate):
-                return candidate
             ident = candidate.strip()
             if re.match(r"^[A-Za-z_$][\w$]*$", ident):
                 nxt.extend(_local_initializers(ident, text))
@@ -246,6 +256,20 @@ def _expression_carries_a_period_row_date(expr: str, text: str) -> Optional[str]
             break
         frontier = nxt
     return None
+
+
+def _flatten(expr: str) -> str:
+    return re.sub(r"\s+", " ", expr).strip()
+
+
+#: A TypeScript type annotation rather than a value. `period_end_hint:
+#: string | null;` inside an interface DESCRIBES the column; it does not
+#: write it, and a gate that confused the two would push callers into
+#: being vaguer about the shape they handle.
+_TS_PRIMITIVE = r"(?:string|number|boolean|Date|null|undefined|any|unknown)"
+_TS_TYPE_ONLY = re.compile(
+    r"^\s*%s(?:\s*\|\s*%s)*\s*;?\s*$" % (_TS_PRIMITIVE, _TS_PRIMITIVE)
+)
 
 
 def scan_upload_hint_law(text: str) -> List[Tuple[str, str]]:
@@ -396,15 +420,33 @@ def test_w1_only_the_upload_helper_writes_the_period_end_hint_column():
         # and reads (`row.period_end_hint`) are not writes.
         text = _strip_comments(path.read_text("utf-8", errors="ignore"))
         for m in re.finditer(r"(?<![.\w])period_end_hint\s*:", text):
+            line_end = text.find("\n", m.start())
+            rest = text[m.end():line_end if line_end != -1 else len(text)]
+            if _TS_TYPE_ONLY.match(rest):
+                # `period_end_hint: string | null;` in an interface —
+                # a shape declaration, not a write. Describing the
+                # column's type is how a caller stays honest about it.
+                continue
             line_start = text.rfind("\n", 0, m.start()) + 1
             writers.append(
-                "%s: %s" % (rel, text[line_start:text.find("\n", m.start())].strip())
+                "%s: %s" % (rel, text[line_start:line_end].strip())
             )
     assert not writers, (
         "W1 VIOLATED — the `period_end_hint` column is written outside "
         "lib/supabase.ts's uploadDocument:\n    " + "\n    ".join(writers)
         + "\n  One writer keeps the law enforceable in one place."
     )
+
+
+def test_w1_plant_the_column_writer_check_tells_writes_from_declarations():
+    """PLANT — a real write is caught; an interface field describing the
+    column's type is not. Confusing the two would push callers into
+    being vaguer about the shape they handle, which helps nobody."""
+    assert not _TS_TYPE_ONLY.match(" period_end_hint")  # sanity: not a type
+    assert _TS_TYPE_ONLY.match(" string | null;")
+    assert _TS_TYPE_ONLY.match(" string;")
+    assert not _TS_TYPE_ONLY.match(" p.period_end,")
+    assert not _TS_TYPE_ONLY.match(" confirmedEnd,")
 
 
 def test_w1_detection_service_has_no_channel_for_ui_state():
@@ -851,26 +893,33 @@ def _move_module():
 
 
 def _named(module, *needles: str):
-    """Public callables on `module` whose name contains every needle."""
+    """Public FUNCTIONS on `module` whose name contains every needle.
+
+    Functions only — a dataclass named `MovePlan` is a shape, not a
+    seam, and letting one satisfy the discovery would make these gates
+    pass on a module that performs no move."""
     out = []
     for name in dir(module):
-        if name.startswith("__"):
+        if name.startswith("_"):
+            continue
+        value = getattr(module, name)
+        if not inspect.isfunction(value):
             continue
         lowered = name.lower()
-        if all(n in lowered for n in needles) and callable(getattr(module, name)):
-            out.append(getattr(module, name))
+        if all(n in lowered for n in needles):
+            out.append(value)
     return out
 
 
 def test_w4_move_to_period_seam_exists():
-    """RED UNTIL PART D LANDS — deliberately; see design_review/period/
-    GATES.md.
+    """Written RED and kept that way until the correction path existed.
 
     The audit's own closing line tells the operator to correct wrong
     rows "through the UI's move-to-period path (Part D), which re-runs
-    both periods". Until that path exists there is no supported way to
-    fix a misfiled document, so this gate states the finish line rather
-    than pretending it is reached."""
+    both periods" — so without that path a misfiled document could be
+    SURFACED but never fixed. The failure text is kept as the message
+    rather than trimmed, so this gate still reads as the spec if the
+    seam is ever removed."""
     module = _move_module()
     if module is None:
         pytest.fail("W4 NOT SATISFIABLE — no move-to-period seam exists yet.\n" + W4_SPEC)

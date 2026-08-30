@@ -45,7 +45,7 @@ import {
   Building2,
   Loader2,
   Moon,
-  Sun,
+  SunMedium,
   User as UserIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -389,7 +389,7 @@ export function Sidebar({
               disabled={noWorkspace && !ALWAYS_ENABLED.has("/settings")}
             />
             <SidebarAction
-              icon={isTerminal ? Sun : Moon}
+              icon={isTerminal ? SunMedium : Moon}
               label={
                 themeMounted
                   ? isTerminal

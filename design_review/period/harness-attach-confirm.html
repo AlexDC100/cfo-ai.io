@@ -1,0 +1,130 @@
+<!doctype html>
+<!--
+  Screenshot harness for the ATTACH/REPLACE CONFIRM STEP (Part C).
+
+  WHY A HARNESS AND NOT THE APP: the test-mode preview workspace is mid
+  onboarding, so /workspace renders the wizard and has no period rows to
+  drop a file on. Finishing that wizard would CREATE a workspace in the
+  shared preview database (see CLAUDE.md memory: "test-mode junk
+  workspaces incident"), so the shots are taken against fixtures instead.
+
+  It mounts the REAL component through the running Vite dev server — real
+  tokens, real i18n, real Radix dialog — with only the two seams stubbed
+  (`inspect`, `resolvePeriodEntity`), which is exactly how the unit tests
+  drive it. Kept for the next round: it is a review artifact under
+  design_review/, not app code, and Vite's build only ever reads
+  index.html, so it never reaches a bundle.
+
+  Drive it: /design_review/period/harness-attach-confirm.html?state=detected
+  States: detected | absent | mismatch | entity | replace
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Attach confirm — screenshot harness</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import "/frontend/index.css";
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import "/frontend/i18n/index.ts";
+      import { AttachConfirmDialog } from "/frontend/components/cfo/workspace/AttachConfirmDialog.tsx";
+
+      const state = new URLSearchParams(location.search).get("state") ?? "detected";
+
+      const PERIODS = [
+        {
+          period_id: "p-2025-12",
+          period_label: "2025-12-31",
+          period_start: null,
+          period_end: "2025-12-31",
+          documents: [
+            {
+              id: "doc-scandia",
+              filename: "Scandia RealEstate TB.xlsx",
+              status: "analyzed",
+              uploaded_at: "2026-01-14T09:00:00Z",
+            },
+          ],
+        },
+        {
+          period_id: "p-2025-09",
+          period_label: "2025-09-30",
+          period_start: null,
+          period_end: "2025-09-30",
+          documents: [],
+        },
+        {
+          period_id: "p-2017-12",
+          period_label: "2017-12-31",
+          period_start: null,
+          period_end: "2017-12-31",
+          documents: [],
+        },
+      ];
+
+      const DETECTED = {
+        proposedPeriodEnd: "2025-12-31",
+        confidence: 0.85,
+        signalUsed: "closing_balance",
+        evidenceSnippet: "BALANTA DE VERIFICARE la data de 31.12.2025",
+        candidates: [],
+        origin: "engine",
+      };
+      const ABSENT = {
+        proposedPeriodEnd: null,
+        confidence: 0,
+        signalUsed: "none",
+        evidenceSnippet: null,
+        candidates: [],
+        origin: "engine",
+      };
+      const CARNIPROD = {
+        name: "S.C. CARNIPROD S.R.L.",
+        cui: "1234567",
+        evidence: "S.C. CARNIPROD S.R.L.",
+      };
+
+      const file = new File(["balanta"], "Carniprod Trial Balance 2025.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const detection = state === "absent" ? ABSENT : DETECTED;
+      const entity = state === "absent" ? { name: null, cui: null, evidence: null } : CARNIPROD;
+
+      const props = {
+        open: true,
+        mode: state === "replace" ? "replace" : "attach",
+        file,
+        periods: PERIODS,
+        context:
+          state === "replace"
+            ? { periodId: "p-2025-12", periodEnd: "2025-12-31", reason: "replacing" }
+            : { periodId: "p-2017-12", periodEnd: "2017-12-31", reason: "dropped" },
+        replacing:
+          state === "replace"
+            ? {
+                id: "doc-scandia",
+                filename: "Scandia RealEstate TB.xlsx",
+                status: "analyzed",
+                uploaded_at: "2026-01-14T09:00:00Z",
+              }
+            : null,
+        onConfirm: () => {},
+        onCancel: () => {},
+        inspect: async () => ({ detection, entity }),
+        resolvePeriodEntity: async (periodId) =>
+          state === "entity" && periodId === "p-2025-12"
+            ? { name: "SCANDIA REALESTATE SRL", cui: null, evidence: null }
+            : null,
+      };
+
+      document.body.className = "bg-bg";
+      createRoot(document.getElementById("root")).render(
+        React.createElement(AttachConfirmDialog, props),
+      );
+    </script>
+  </body>
+</html>

@@ -72,7 +72,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 logger = logging.getLogger("engine.period_move")
 
@@ -214,18 +214,20 @@ def pick_rebuild_document(
     if not live:
         return None
 
-    def key(doc: Dict[str, Any]) -> Tuple[int, str, str]:
-        analyzed = 0 if (doc.get("status") or "").lower() == "analyzed" else 1
-        stamp = doc.get("updated_at") or doc.get("created_at") or ""
-        return (analyzed, _invert(str(stamp)), str(doc.get("id") or ""))
+    def stamp(doc: Dict[str, Any]) -> str:
+        return str(doc.get("updated_at") or doc.get("created_at") or "")
 
-    return str(sorted(live, key=key)[0].get("id"))
+    def analyzed(doc: Dict[str, Any]) -> int:
+        return 0 if (doc.get("status") or "").lower() == "analyzed" else 1
 
-
-def _invert(text: str) -> str:
-    """Sort key that orders strings DESCENDING inside an ascending sort,
-    without a second sort pass. ISO timestamps only."""
-    return "".join(chr(0x10FFFD - ord(ch)) if ord(ch) < 0x10FFFD else ch for ch in text)
+    # Stable sorts, least significant key first — the plain way to mix
+    # ascending and descending orders without inventing an inverted string
+    # key. Order: analyzed before unanalyzed, newer before older, id last
+    # so two runs on the same rows can never disagree.
+    ordered = sorted(live, key=lambda d: str(d.get("id") or ""))
+    ordered = sorted(ordered, key=stamp, reverse=True)
+    ordered = sorted(ordered, key=analyzed)
+    return str(ordered[0].get("id"))
 
 
 # ── the plan (pure) ───────────────────────────────────────────────────
@@ -334,15 +336,28 @@ def find_orphaned_snapshots(
             attached.setdefault(str(period_id), []).append(doc_id)
 
     findings: List[Dict[str, Any]] = []
-    known_period_ids = set()
+    known_period_ids = {str(p.get("id") or "") for p in periods}
+
+    # A period carrying an envelope is decidable from what we already
+    # read. Only the ones WITHOUT an envelope need a derivative probe to
+    # tell "empty container" from "still serving line items", so the
+    # probe runs over that (normally tiny) set in ONE query per table
+    # rather than two queries per period.
+    probe_ids = {
+        str(p.get("id") or "")
+        for p in periods
+        if not isinstance(p.get("assembled_canonical_v1"), dict)
+    }
+    probe_ids.update(
+        pid for pid in {str(p) for p in audit_period_ids if p} if pid
+    )
+    with_derivatives = _periods_with_derivatives(client, probe_ids)
 
     for period in periods:
         period_id = str(period.get("id") or "")
-        known_period_ids.add(period_id)
         attached_ids = attached.get(period_id, [])
         has_envelope = isinstance(period.get("assembled_canonical_v1"), dict)
-        derived = _derivative_counts(client, period_id)
-        if not has_envelope and not sum(derived.values()):
+        if not has_envelope and period_id not in with_derivatives:
             # An empty container is an invitation to attach, not a
             # defect. ABSENT != ZERO.
             continue
@@ -370,28 +385,39 @@ def find_orphaned_snapshots(
     for period_id in {str(p) for p in audit_period_ids if p}:
         if period_id in known_period_ids:
             continue
-        derived = _derivative_counts(client, period_id)
-        if sum(derived.values()):
+        if period_id in with_derivatives:
             findings.append(
                 {
                     "period_id": period_id,
                     "period_end": None,
                     "reason": "derivatives_without_period",
-                    "derivative_rows": derived,
                 }
             )
 
     return findings
 
 
-def _derivative_counts(client: Any, period_id: str) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
+def _periods_with_derivatives(client: Any, period_ids: Iterable[str]) -> Set[str]:
+    """Which of `period_ids` still have derived rows. One query per
+    table, always filtered by period: these tables carry no `org_id`, so
+    an unfiltered read would cross tenants and would grow with the whole
+    database."""
+    wanted = sorted({str(p) for p in period_ids if p})
+    found: Set[str] = set()
+    if not wanted:
+        return found
+    joined = ",".join(wanted)
     for table in ("statement_line_items", "calculated_metrics"):
         rows = client.select(
-            table, filters={"period_id": "eq.%s" % period_id}, limit=1
+            table,
+            filters={"period_id": "in.(%s)" % joined},
+            columns="period_id",
         )
-        counts[table] = len(rows or [])
-    return counts
+        for row in rows or []:
+            period_id = row.get("period_id")
+            if period_id:
+                found.add(str(period_id))
+    return found
 
 
 # ── the write path ────────────────────────────────────────────────────

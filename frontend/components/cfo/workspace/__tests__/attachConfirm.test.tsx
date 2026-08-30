@@ -388,3 +388,27 @@ describe("PeriodsSection — the drop target is never a hint", () => {
     expect(opts.periodEndHint).not.toBe("2017-12-31");
   });
 });
+
+// ─── the regression lock ─────────────────────────────────────────────────
+// This defect was invisible for months because the wrong value LOOKED
+// right at the call site (`periodEndHint: p.period_end` reads as "the
+// period's end"). A behavioural test proves today's code; this one makes
+// the old shape impossible to type back in without a red suite.
+
+describe("PeriodsSection — only a confirmed month may become a hint", () => {
+  it("has exactly one periodEndHint, fed by the confirm step's result", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(
+      resolve(process.cwd(), "frontend/components/cfo/workspace/PeriodsSection.tsx"),
+      "utf-8",
+    );
+    // Ignore the comment block that quotes the old, wrong call.
+    const code = src
+      .split(/\r?\n/)
+      .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))
+      .join("\n");
+    const hints = code.match(/periodEndHint\s*:\s*[^,\n]+/g) ?? [];
+    expect(hints).toEqual(["periodEndHint: result.periodEnd"]);
+  });
+});

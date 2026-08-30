@@ -399,6 +399,13 @@ export function entitiesConflict(
   return true;
 }
 
+/** Positive identities only. A period's company does not change, so a
+ *  resolved name is worth keeping across month toggles; a NULL is not
+ *  cached, because "no analysis yet" becomes "analysed" the moment the
+ *  upload we are about to make finishes, and a cached null would silence
+ *  the entity guard for the rest of the session. */
+const _entityCache = new Map<string, EntityIdentity>();
+
 /**
  * The identity of what a period ALREADY holds, read off that period's own
  * analysis (the engine's report carries the company it extracted). Null
@@ -408,6 +415,8 @@ export async function resolvePeriodEntity(
   periodId: string | null | undefined,
 ): Promise<EntityIdentity | null> {
   if (!periodId) return null;
+  const cached = _entityCache.get(periodId);
+  if (cached) return cached;
   try {
     const res = await fetchPeriodFromApi(periodId);
     if (res.kind !== "ok") return null;
@@ -419,7 +428,9 @@ export async function resolvePeriodEntity(
     const cui =
       statements && typeof statements.cui === "string" ? statements.cui : null;
     if (!name && !cui) return null;
-    return { name, cui, evidence: null };
+    const entity: EntityIdentity = { name, cui, evidence: null };
+    _entityCache.set(periodId, entity);
+    return entity;
   } catch {
     return null;
   }

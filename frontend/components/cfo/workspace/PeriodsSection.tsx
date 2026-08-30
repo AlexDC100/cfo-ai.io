@@ -13,8 +13,9 @@
 //     analyzed. The only exposed per-row control is a subtle "Attach" link
 //     on empty rows.
 //   · ROW CLICK sets that period active (?period=<id>) — same mental model
-//     as the rest of the app. Dropping a file on a row attaches it to that
-//     period (upload + periodEndHint + enqueue, the existing flow).
+//     as the rest of the app. Dropping a file on a row opens the CONFIRM
+//     STEP (AttachConfirmDialog); only what the human confirms there is
+//     uploaded, and only that becomes `periodEndHint`.
 //   · Months sharing one calendar month render as a flat group: an
 //     explanatory header, then sub-rows whose PRIMARY identity is their main
 //     document's filename (the month lives in the header only).
@@ -37,6 +38,24 @@
 // Data mutations stay on existing code paths: createEmptyPeriod /
 // updatePeriodEnd / deleteEmptyPeriod (direct RLS), cfoApi.deletePeriod
 // (engine soft-delete), uploadDocument + enqueue for attach.
+//
+// ─── PERIOD-ASSIGNMENT FIX (2026-08-30) — why the confirm step exists ────
+// `documents.period_end_hint` is a CONFIRMATION channel. The engine's
+// stage_persist ranks it ABOVE its own (correct) detection, deliberately,
+// because the hint is supposed to mean "a human confirmed that THIS
+// document belongs to THIS month". This file used to fill it with the DROP
+// TARGET's date — `periodEndHint: p.period_end` — a number read off a row,
+// never off the document. So the engine discarded correct detections: the
+// production audit found "Carniprod Trial Balance 2025.xlsx" stored under
+// 2017-12 with hint=2017-12-31, and one month holding two different
+// companies' books. Every mismatched row carried `hint == stored`, which is
+// the signature of this bug.
+//
+// THE RULE NOW: no upload from this file may carry a periodEndHint that did
+// not come back from AttachConfirmDialog's result. The drop target is an
+// entry point, not evidence. Pinned by
+// __tests__/attachConfirm.test.tsx ("only a confirmed month may become a
+// hint"), which fails on the pre-fix shape.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -52,6 +71,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -85,10 +105,41 @@ import {
   isImplausiblePeriod,
   updatePeriodEnd,
   type OrgPeriod,
+  type OrgPeriodDocument,
   type OrgPeriodsPayload,
 } from "@/lib/orgPeriods";
 import { getSupabase } from "@/lib/supabase";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import {
+  AttachConfirmDialog,
+  type AttachConfirmResult,
+  type AttachContext,
+  type AttachMode,
+} from "./AttachConfirmDialog";
+// ── PERIOD FILING — correction path + honest display (2026-08-30) ──────
+// The confirm step above stops NEW uploads being misfiled. These pieces
+// fix the rows already in the database, and make a wrong one visible in
+// the first place:
+//   · PeriodFileRow      per-file role (this period's SOURCE vs an
+//                        ATTACHMENT, read from the engine's own pointer)
+//                        + BOTH dates + the "Move to another period…" menu
+//   · PeriodFilingChip   the engine's persisted verdict when a period's
+//                        date disagrees with its document — read, never
+//                        recomputed here
+//   · MoveFileDialog     the correction itself, grounded in what the
+//                        engine reads off the document
+import { MoveFileDialog, type MoveTarget } from "./MoveFileDialog";
+import { PeriodFileRow } from "./PeriodFileRow";
+import {
+  PeriodFilingChip,
+  PeriodFilingReviewDialog,
+  type ReviewTarget,
+} from "./PeriodFilingReview";
+import {
+  resolveSourceDocumentId,
+  usePeriodFiling,
+  verdictAppliesTo,
+} from "./periodFiling";
 import "./wsSetI18n";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -127,6 +178,16 @@ interface MonthGroup {
   /** "YYYY-MM" */
   key: string;
   periods: OrgPeriod[];
+}
+
+/** A file waiting on the confirm step. Every route into an upload —
+ *  drop, kebab attach, add-with-file, replace — becomes one of these, so
+ *  there is exactly ONE place a periodEndHint can be born. */
+interface ConfirmRequest {
+  file: File;
+  mode: AttachMode;
+  context: AttachContext | null;
+  replacing: OrgPeriodDocument | null;
 }
 
 const rowMotion = {
@@ -203,6 +264,22 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
   /** Row currently hovered by a file drag — drop-target feedback. */
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [attachBusyId, setAttachBusyId] = useState<string | null>(null);
+  /** The file waiting on the confirm step — the ONLY road to an upload. */
+  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
+  /** "Replace file" picks a file through this hidden input; the row + doc
+   *  it was invoked from wait here until the picker resolves. */
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const replaceTargetRef = useRef<{ period: OrgPeriod; doc: OrgPeriodDocument } | null>(null);
+  // ── period filing ──────────────────────────────────────────────────────
+  /** The engine's own record per period: which file its numbers come from,
+   *  and its verdict on the period's date. Absent for pre-2026-08-30 rows
+   *  — the chip renders nothing there rather than an invented all-clear. */
+  const filing = usePeriodFiling(orgId);
+  const filingFor = (p: OrgPeriod) => filing.data?.[p.period_id];
+  /** The file the user asked to re-file. */
+  const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
+  /** The period whose date verdict the user opened. */
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
 
   const label = (p: OrgPeriod) =>
     formatPeriodMonth(p.period_end, locale) ?? formatPeriodMonthLoose(p.period_end, locale) ?? p.period_label;
@@ -214,6 +291,9 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
     void qc.invalidateQueries({ queryKey: ["org-periods"] });
     void qc.invalidateQueries({ queryKey: ["periods-with-documents"] });
     void qc.invalidateQueries({ queryKey: ["workspace-docs", orgId] });
+    // The filing facts (analysis source + the engine's date verdict) move
+    // whenever a period does — a move rewrites both ends.
+    void qc.invalidateQueries({ queryKey: ["period-filing", orgId] });
   };
 
   // ── set active (row click) — the app-wide `?period=` param ──────────────
@@ -389,16 +469,59 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
     }
   }
 
-  // ── drag & drop attach (reuses the upload + periodEndHint + enqueue path) ─
-  async function attachFileToPeriod(p: OrgPeriod, file: File) {
+  // ── attach / replace — via the confirm step, never directly ─────────────
+
+  /** Dropping a file on a row (or picking one from its kebab) no longer
+   *  uploads anything. It opens the confirm step with the row as CONTEXT;
+   *  the month comes from the document, and the human confirms it. */
+  function requestAttach(p: OrgPeriod, file: File, reason: AttachContext["reason"]) {
     if (!p.period_end || isImplausiblePeriod(p.period_end)) return;
-    const lbl = label(p);
-    setAttachBusyId(p.period_id);
+    setConfirmReq({
+      file,
+      mode: "attach",
+      context: { periodId: p.period_id, periodEnd: p.period_end, reason },
+      replacing: null,
+    });
+  }
+
+  /** Kebab → "Replace file": open the OS picker, then the same confirm
+   *  step with the replaced document shown. */
+  function requestReplace(p: OrgPeriod) {
+    const docs = p.documents ?? [];
+    const doc = pickActiveSourceDoc(docs) ?? docs[0] ?? null;
+    if (!doc) return;
+    replaceTargetRef.current = { period: p, doc };
+    replaceInputRef.current?.click();
+  }
+
+  /**
+   * The ONE upload path. `result` came back from AttachConfirmDialog, so
+   * `result.periodEnd` is a month a human confirmed against THIS
+   * document's own evidence — the only thing `period_end_hint` is allowed
+   * to carry. Passing a row's date here would re-introduce the bug this
+   * whole part exists to fix.
+   */
+  async function runConfirmedAttach(req: ConfirmRequest, result: AttachConfirmResult) {
+    const file = req.file;
+    const lbl =
+      formatPeriodMonth(result.periodEnd, locale) ??
+      formatPeriodMonthLoose(result.periodEnd, locale) ??
+      result.periodEnd;
+    setAttachBusyId(result.periodId ?? req.context?.periodId ?? "pending");
     try {
+      // A month with no period yet: create the container first, so the
+      // hint below adopts that row instead of minting a sibling.
+      if (!result.periodId) {
+        const created = await createEmptyPeriod(orgId, result.periodEnd);
+        if ("error" in created) throw new Error(created.error);
+        refreshPeriodLists();
+      }
       const { uploadDocument, subscribeToDocumentStatus } = await import("@/lib/supabase");
       const { row, error } = await uploadDocument(file, {
         scope: "financial",
-        periodEndHint: p.period_end,
+        // ── THE FIX ──────────────────────────────────────────────────
+        // Human-confirmed, document-derived. Never `p.period_end`.
+        periodEndHint: result.periodEnd,
       });
       if (!row) throw new Error(error ?? t("errors.uploadFailed"));
       const enq = await uploadEnqueue.enqueue(row.id);
@@ -441,48 +564,84 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
         e.preventDefault();
         setDragOverId(null);
         const f = e.dataTransfer.files?.[0];
-        if (f) void attachFileToPeriod(p, f);
+        if (f) requestAttach(p, f, "dropped");
       },
     };
   }
 
   // ── row pieces ───────────────────────────────────────────────────────────
 
-  /** File list under a row — one legible line per file (≤3), full name in the
-   *  title attr; an "Activ" badge marks the doc pickActiveSourceDoc resolves
-   *  to once analyzed. "+N" past 3 files. */
+  /** File list under a row — one PeriodFileRow per file (≤3, then "+N").
+   *
+   *  Each row states its ROLE and both of its dates, and carries the menu
+   *  that re-files it. The role comes from the engine's declared
+   *  `source_document_id`; `pickActiveSourceDoc` survives only as the
+   *  fallback for periods written before that pointer was surfaced, and
+   *  the badge is suppressed entirely in that case — a guess must not be
+   *  dressed as a fact, which is precisely how one month ended up
+   *  silently presenting two companies' books as one analysis.
+   *
+   *  Empty rows return the invitation to attach rather than nothing. */
   function renderFileList(p: OrgPeriod, opts: { noActive?: boolean } = {}) {
     const docs = p.documents ?? [];
-    if (docs.length === 0) return null;
-    const activeDoc = opts.noActive ? null : pickActiveSourceDoc(docs);
-    const activeDocId = activeDoc?.status === "analyzed" ? activeDoc.id : null;
-    // Active doc first so its badge is never hidden behind the "+N" overflow.
-    const ordered = activeDocId
-      ? [activeDoc!, ...docs.filter((d) => d.id !== activeDocId)]
+    if (docs.length === 0) {
+      if (opts.noActive) return null;
+      return (
+        <div
+          data-testid={`pf-empty-${p.period_id}`}
+          className="mt-1 text-[11px] text-ink-mute"
+        >
+          {t("pf.noFiles")}
+        </div>
+      );
+    }
+    const facts = filingFor(p);
+    const heuristic = pickActiveSourceDoc(docs);
+    const heuristicId = heuristic?.status === "analyzed" ? heuristic.id : null;
+    const { id: sourceId, declared } = resolveSourceDocumentId(
+      facts,
+      docs.map((d) => d.id),
+      heuristicId,
+    );
+    // Show roles only when there is a distinction to draw AND the engine
+    // actually declared the source.
+    const showRole = !opts.noActive && declared && docs.length > 1;
+    const activeId = opts.noActive ? null : sourceId;
+    // Source first so its badge is never hidden behind the "+N" overflow.
+    const ordered = activeId
+      ? [
+          ...docs.filter((d) => d.id === activeId),
+          ...docs.filter((d) => d.id !== activeId),
+        ]
       : docs;
     const shown = ordered.slice(0, 3);
     const extra = ordered.length - shown.length;
     return (
       <div className="mt-1 space-y-0.5 min-w-0">
         {shown.map((d) => (
-          <div
-            key={d.id}
-            title={d.filename ?? undefined}
-            data-testid={`wsset-period-file-${d.id}`}
-            className="flex items-center gap-1.5 min-w-0"
-          >
-            <FileSpreadsheet size={12} strokeWidth={1.5} className="shrink-0 text-ink-mute" />
-            <span className="truncate max-w-[36ch] text-[11.5px] text-ink-soft">
-              {d.filename ?? d.id}
-            </span>
-            {d.id === activeDocId && (
-              <span
-                data-testid={`wsset-period-file-active-${d.id}`}
-                className="shrink-0 inline-flex items-center rounded-full bg-brand/15 text-brand-d px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.08em]"
-              >
-                {t("wsSet.periods.active")}
-              </span>
-            )}
+          <div key={d.id} data-testid={`wsset-period-file-${d.id}`}>
+            <PeriodFileRow
+              orgId={orgId}
+              file={d}
+              isSource={d.id === activeId}
+              showRole={showRole}
+              // The record describes the period's analysis source and
+              // nothing else. Attaching it to a sibling would put words in
+              // a document's mouth.
+              detection={
+                verdictAppliesTo(facts, d.id)
+                  ? facts?.period_detection ?? null
+                  : null
+              }
+              onMove={(file) =>
+                setMoveTarget({
+                  id: file.id,
+                  name: file.filename ?? file.id,
+                  currentMonth: (p.period_end ?? "").slice(0, 7) || null,
+                })
+              }
+              onChanged={refreshPeriodLists}
+            />
           </div>
         ))}
         {extra > 0 && (
@@ -495,6 +654,25 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
         )}
       </div>
     );
+  }
+
+  /** Open the date review for a period, aimed at the file the engine's
+   *  record actually describes. */
+  function openReview(p: OrgPeriod) {
+    const facts = filingFor(p);
+    if (!facts) return;
+    const docs = p.documents ?? [];
+    const doc =
+      docs.find((d) => d.id === facts.source_document_id) ??
+      pickActiveSourceDoc(docs) ??
+      docs[0] ??
+      null;
+    if (!doc) return;
+    setReviewTarget({
+      facts,
+      documentId: doc.id,
+      documentName: doc.filename ?? doc.id,
+    });
   }
 
   /** Status chip: "N files" / muted-amber "No files". */
@@ -549,6 +727,16 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
                 <Paperclip size={14} strokeWidth={1.75} />
                 {t("wsSet.periods.attach")}
               </DropdownMenuItem>
+              {(p.documents ?? []).length > 0 && (
+                <DropdownMenuItem
+                  onSelect={() => requestReplace(p)}
+                  data-testid={`wsset-period-replace-${p.period_id}`}
+                  className="gap-2"
+                >
+                  <RefreshCw size={14} strokeWidth={1.75} />
+                  {t("attachConfirm.menuReplace")}
+                </DropdownMenuItem>
+              )}
             </>
           )}
           <DropdownMenuItem
@@ -623,6 +811,9 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
               </span>
             )}
             {renderStatusChip(p)}
+            {/* The engine's verdict on this period's date, when it made
+                one. Silent otherwise — no record is not an all-clear. */}
+            <PeriodFilingChip facts={filingFor(p)} onReview={() => openReview(p)} />
             {isDrop && (
               <span className="text-[10.5px] font-medium text-brand-d">
                 {t("wsSet.periods.dropToAttach")}
@@ -653,20 +844,21 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
   }
 
   /** A sub-row inside a duplicate-month group. The month lives in the group
-   *  header, so the row's PRIMARY identity is its main document's filename.
-   *  Secondary line: file count (>1) and upload date. Click = set active. */
+   *  header, so the row's PRIMARY identity is its files — and this is the
+   *  shape the audited failure takes (one month, two companies' books), so
+   *  the file rows go here in full: role, both dates, and the move menu.
+   *  Click = set active. */
   function renderDupSubRow(p: OrgPeriod) {
     const docs = p.documents ?? [];
     const activeDoc = pickActiveSourceDoc(docs);
     const mainDoc = activeDoc ?? docs[0] ?? null;
     const isActive = activePeriod.id === p.period_id;
     const isDrop = dragOverId === p.period_id;
-    const metaParts: string[] = [];
-    if (docs.length > 1) metaParts.push(t("ws.fileCount", { count: docs.length }));
+    // Upload date used to live on this line; it now sits on the file row
+    // NEXT TO the document's own date, where the two can be told apart.
     const uploaded = mainDoc?.uploaded_at
       ? formatDateTime(mainDoc.uploaded_at, { dateStyle: "medium" })
       : "";
-    if (uploaded) metaParts.push(uploaded);
     return (
       <motion.div
         {...rowMotion}
@@ -715,13 +907,38 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
                 {t("wsSet.periods.active")}
               </span>
             )}
+            <PeriodFilingChip facts={filingFor(p)} onReview={() => openReview(p)} />
           </div>
-          {metaParts.length > 0 && (
-            <div className="mt-0.5 text-[11px] text-ink-mute truncate">
-              {metaParts.join(" · ")}
-            </div>
+          {docs.length > 1 ? (
+            renderFileList(p)
+          ) : (
+            uploaded && (
+              <div className="mt-0.5 text-[11px] text-ink-mute truncate">
+                {t("pf.uploaded", { date: uploaded })}
+              </div>
+            )
           )}
         </div>
+        {/* One-file sub-rows keep the filename as their title, so the file
+            row would only echo it — the move menu is reached from the
+            period kebab instead. */}
+        {docs.length === 1 && mainDoc && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMoveTarget({
+                id: mainDoc.id,
+                name: mainDoc.filename ?? mainDoc.id,
+                currentMonth: (p.period_end ?? "").slice(0, 7) || null,
+              });
+            }}
+            data-testid={`pf-subrow-move-${p.period_id}`}
+            className="shrink-0 text-[11.5px] font-medium text-ink-mute underline decoration-rule underline-offset-2 hover:text-ink transition-colors"
+          >
+            {t("pf.move")}
+          </button>
+        )}
         {attachBusyId === p.period_id && (
           <Loader2 size={14} className="shrink-0 animate-spin text-ink-mute" />
         )}
@@ -917,6 +1134,36 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
         onMerge={performMerge}
       />
 
+      {/* ── the correction path ──────────────────────────────────────────
+          Both of these re-file ONE document under a month the user
+          confirmed for it, through the engine's move endpoint. Neither
+          touches `financial_periods` directly: the engine re-runs the
+          pipeline for both ends and audits itself for orphaned analysis
+          before it answers. */}
+      <MoveFileDialog
+        orgId={orgId}
+        target={moveTarget}
+        onClose={() => setMoveTarget(null)}
+        onMoved={refreshPeriodLists}
+      />
+      <PeriodFilingReviewDialog
+        orgId={orgId}
+        target={reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        onMoved={refreshPeriodLists}
+        onChooseMonth={(rt) => {
+          // The review hands off to the picker rather than dead-ending —
+          // especially in the "date unknown" case, where the engine has
+          // no month to offer and only a person can supply one.
+          setReviewTarget(null);
+          setMoveTarget({
+            id: rt.documentId,
+            name: rt.documentName,
+            currentMonth: (rt.facts.period_end ?? "").slice(0, 7) || null,
+          });
+        }}
+      />
+
       <AddPeriodDialogV2
         open={addOpen || !!attachTarget}
         onOpenChange={(o) => {
@@ -928,6 +1175,54 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
         takenMonths={takenMonths}
         orgId={orgId}
         attachPeriod={attachTarget}
+        onNeedsConfirm={(req) => {
+          setAddOpen(false);
+          setAttachTarget(null);
+          setConfirmReq(req);
+        }}
+      />
+
+      {/* "Replace file" file picker — invisible; the confirm step is what
+          the user actually sees. */}
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept=".pdf,.xlsx,.xls,.csv"
+        className="hidden"
+        data-testid="wsset-period-replace-input"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          const target = replaceTargetRef.current;
+          e.target.value = "";
+          replaceTargetRef.current = null;
+          if (!f || !target) return;
+          setConfirmReq({
+            file: f,
+            mode: "replace",
+            context: {
+              periodId: target.period.period_id,
+              periodEnd: target.period.period_end,
+              reason: "replacing",
+            },
+            replacing: target.doc,
+          });
+        }}
+      />
+
+      {/* THE CONFIRM STEP — the only source of a periodEndHint. */}
+      <AttachConfirmDialog
+        open={!!confirmReq}
+        mode={confirmReq?.mode ?? "attach"}
+        file={confirmReq?.file ?? null}
+        periods={periods}
+        context={confirmReq?.context ?? null}
+        replacing={confirmReq?.replacing ?? null}
+        onCancel={() => setConfirmReq(null)}
+        onConfirm={(result) => {
+          const req = confirmReq;
+          setConfirmReq(null);
+          if (req) void runConfirmedAttach(req, result);
+        }}
       />
       {uploadEnqueue.dialog}
     </div>
@@ -1080,10 +1375,16 @@ function RenamePeriodDialog({
 // Month-year picker ONLY (input type="month", min 2000-01, max Dec of next
 // year), pre-selected to the next missing month; Enter confirms; duplicate
 // months are blocked outright — a month that exists is managed from the list,
-// never re-created. In attach mode the dialog targets an EXISTING period: the
-// month is fixed and the file is required; the upload carries periodEndHint so
-// the pipeline adopts that same row.
-// Data paths unchanged: createEmptyPeriod + uploadDocument/enqueue.
+// never re-created.
+//
+// FILE-LESS ONLY (2026-08-30). Creating an EMPTY period from a typed month is
+// still this dialog's job — a container has no document to disagree with. But
+// the moment a FILE is staged, the month stops being a container name and
+// becomes a claim about that document's contents, and this dialog has not read
+// it. So it hands the file to the confirm step (`onNeedsConfirm`) with the
+// typed month as CONTEXT, and never uploads. It used to upload with
+// `periodEndHint: periodEnd` — the typed month — which is the same
+// UI-state-as-confirmation defect the drop path had.
 
 function AddPeriodDialogV2({
   open,
@@ -1091,12 +1392,14 @@ function AddPeriodDialogV2({
   takenMonths,
   orgId,
   attachPeriod,
+  onNeedsConfirm,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   takenMonths: string[];
   orgId: string;
   attachPeriod: OrgPeriod | null;
+  onNeedsConfirm: (req: ConfirmRequest) => void;
 }) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -1145,52 +1448,39 @@ function AddPeriodDialogV2({
 
   async function submit() {
     if (!canSubmit) return;
-    setBusy(true);
     const periodEnd = attachMode
       ? attachPeriod!.period_end ?? lastDayIso(month)
       : lastDayIso(month);
-    const lbl = formatPeriodMonth(periodEnd, locale) ?? formatPeriodMonthLoose(periodEnd, locale) ?? month;
 
+    // A staged file goes to the confirm step, which reads the document and
+    // asks the human. Nothing is created or uploaded here — creating the
+    // container first would leave an empty month behind whenever the
+    // document turns out to cover a different one.
+    if (file) {
+      onNeedsConfirm({
+        file,
+        mode: "attach",
+        context: {
+          periodId: attachPeriod?.period_id ?? null,
+          periodEnd,
+          reason: "chosen",
+        },
+        replacing: null,
+      });
+      return;
+    }
+
+    setBusy(true);
+    const lbl = formatPeriodMonth(periodEnd, locale) ?? formatPeriodMonthLoose(periodEnd, locale) ?? month;
     try {
       if (!attachMode) {
         const created = await createEmptyPeriod(orgId, periodEnd);
         if ("error" in created) throw new Error(created.error);
       }
       refreshPeriodLists();
-
-      if (file) {
-        const { uploadDocument, subscribeToDocumentStatus } = await import("@/lib/supabase");
-        const { row, error } = await uploadDocument(file, {
-          scope: "financial",
-          periodEndHint: periodEnd,
-        });
-        if (!row) throw new Error(error ?? t("errors.uploadFailed"));
-        const enq = await uploadEnqueue.enqueue(row.id);
-        if (enq.kind !== "queued") {
-          onOpenChange(false);
-          setBusy(false);
-          return;
-        }
-        toast.success(t("ws.periodAddedAnalyzing", { label: lbl, file: file.name }));
-        const unsub = subscribeToDocumentStatus(row.id, (next) => {
-          if (next.status === "analyzed") {
-            unsub();
-            refreshPeriodLists();
-            if (next.period_id) {
-              void qc.resetQueries({ queryKey: periodQueryKey(next.period_id) });
-            }
-            toast.success(t("ws.periodReady", { label: lbl }));
-          } else if (next.status === "failed") {
-            unsub();
-            refreshPeriodLists();
-            toast.error(t("ws.cantAnalyzeFile"), { description: next.error ?? undefined });
-          }
-        });
-      } else {
-        toast.success(t("ws.periodAdded", { label: lbl }), {
-          description: t("ws.noFileYet"),
-        });
-      }
+      toast.success(t("ws.periodAdded", { label: lbl }), {
+        description: t("ws.noFileYet"),
+      });
       onOpenChange(false);
       setBusy(false);
     } catch (err) {
