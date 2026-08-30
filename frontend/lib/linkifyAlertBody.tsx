@@ -15,6 +15,7 @@
 // walks the AST and emits inert text + <TraceableNumber> nodes.
 
 import type { ReactNode } from "react";
+import { Money } from "@/components/ui/Money";
 import { TraceableNumber } from "@/components/cfo/TraceableNumber";
 import type { TraceableSource } from "@/lib/traceableSource";
 
@@ -63,7 +64,10 @@ export const FACT_TO_SOURCE: Record<string, TraceableSource> = {
  *  resolved number + the TraceableSource it links to. */
 export type LinkifiedPart =
   | { kind: "text"; value: string }
-  | { kind: "link"; value: number; source: TraceableSource };
+  // `source` is OPTIONAL: a cited money fact always renders through the
+  // currency path, but only some facts have a statement row to jump to.
+  // Clickability and currency are independent concerns (2026-08-30).
+  | { kind: "link"; value: number; source?: TraceableSource };
 
 /** Pure parser: scans the body, matches RON figures against facts_cited
  *  within 0.5% tolerance, and emits a flat array of inert-text and
@@ -122,10 +126,24 @@ export function parseLinkifiedBody(
       ? FACT_TO_SOURCE[matchedFact]
       : undefined;
 
-    if (!source) {
-      // No bucket mapping → leave as plain text. (The match still
-      // advances lastIndex via the regex's exec, so surrounding
-      // text is preserved when we flush at end-of-loop or end-of-body.)
+    // ONE CURRENCY PER RENDERED CLAIM (2026-08-30, severity-max fix).
+    //
+    // This used to `continue` when a fact had no FACT_TO_SOURCE bucket,
+    // leaving the figure as plain text WITH its "RON" label — while a
+    // sibling figure in the SAME sentence that did have a bucket got
+    // converted to the display currency. The live 461 note read
+    // "holds RON 7,692,203 — 19.6% of total assets 7.467.122,25 €":
+    // two currencies in one claim, which makes a correct ratio
+    // unverifiable and invites a cross-currency reading of it.
+    //
+    // The source bucket decides CLICKABILITY. It must never decide the
+    // currency a figure renders in. So: any figure we recognised as a
+    // cited money fact becomes a money part; `source` merely stays
+    // undefined when there is nowhere to navigate to.
+    if (!matchedFact) {
+      // Not a cited fact at all — we cannot assert it is money (it may
+      // be a count, a year, a basis-point figure). Leave it untouched
+      // rather than guess a currency onto it.
       continue;
     }
 
@@ -171,13 +189,23 @@ export function linkifyAlertBody(
       {parts.map((part, i) =>
         part.kind === "text" ? (
           <span key={i}>{part.value}</span>
-        ) : (
+        ) : part.source ? (
           <TraceableNumber
             key={i}
             value={part.value}
             format="currency"
             source={part.source}
             sourceCurrency="RON"
+            className="text-ink font-medium"
+          />
+        ) : (
+          // Cited money with nowhere to navigate: same conversion path,
+          // same display currency, just not clickable. Rendering it as
+          // raw text here is what produced the two-currency claim.
+          <Money
+            key={i}
+            value={part.value}
+            fromCurrency="RON"
             className="text-ink font-medium"
           />
         ),
