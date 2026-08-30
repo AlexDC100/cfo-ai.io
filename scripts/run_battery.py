@@ -77,6 +77,13 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
         # (tests/engine/test_findings_gates.py); plant log:
         # design_review/findings/GATES.md
         ("finding-specificity", [PY, "scripts/check_finding_specificity.py"]),
+        # C1-C9 — THE CAPSULE, engine half: no figure in the language
+        # channel handed to the model, no reachable write tool, provenance
+        # on every value, a named gap instead of the month next door, and
+        # ratios invariant across currencies. Named separately from
+        # `pytest` because a fabricated figure fails silently, so its gate
+        # must not. Plant log: design_review/capsule/GATES.md
+        ("capsule-gates", [PY, "-m", "pytest", "tests/engine/test_capsule_gates.py", "-q"]),
         ("determinism", [PY, "scripts/verify_determinism.py"]),
         ("bs-drift", [PY, "scripts/measure_bs_drift.py"]),
         ("error-budget", [PY, "scripts/measure_error_budget.py"]),

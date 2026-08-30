@@ -1,0 +1,70 @@
+{
+  "en": {
+    "capsuleRouter": {
+      "group": {
+        "pages": "Pages",
+        "actions": "Actions",
+        "entities": "Open",
+        "ask": "Ask"
+      },
+      "ask": {
+        "row": "Ask about “{{query}}”",
+        "rowEmpty": "Ask a question",
+        "hint": "Answered from this period's figures"
+      },
+      "route": {
+        "balanceSheet": "Balance sheet",
+        "profitLoss": "Profit & loss",
+        "cashFlow": "Cash flow",
+        "report": "Full report",
+        "history": "Multi-year history"
+      },
+      "action": {
+        "upload": "Upload a document",
+        "export": "Export the data",
+        "theme": "Switch theme",
+        "newChat": "New chat",
+        "toggleSidebar": "Toggle the sidebar"
+      },
+      "entity": {
+        "ticker": "Listed company",
+        "account": "Account",
+        "cui": "Company (CUI)"
+      }
+    }
+  },
+  "ro": {
+    "capsuleRouter": {
+      "group": {
+        "pages": "Pagini",
+        "actions": "Acțiuni",
+        "entities": "Deschide",
+        "ask": "Întreabă"
+      },
+      "ask": {
+        "row": "Întreabă despre „{{query}}”",
+        "rowEmpty": "Pune o întrebare",
+        "hint": "Răspuns din cifrele acestei perioade"
+      },
+      "route": {
+        "balanceSheet": "Bilanț",
+        "profitLoss": "Profit și pierdere",
+        "cashFlow": "Flux de numerar",
+        "report": "Raport complet",
+        "history": "Istoric pe ani"
+      },
+      "action": {
+        "upload": "Încarcă un document",
+        "export": "Exportă datele",
+        "theme": "Schimbă tema",
+        "newChat": "Conversație nouă",
+        "toggleSidebar": "Comută bara laterală"
+      },
+      "entity": {
+        "ticker": "Companie listată",
+        "account": "Cont",
+        "cui": "Companie (CUI)"
+      }
+    }
+  }
+}

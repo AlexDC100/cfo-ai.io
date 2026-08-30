@@ -32,6 +32,7 @@ from ..pipeline import run_pipeline
 from ..storage import PostgresAdapter, create_engine_from_url
 from ._benchmarks import build_router as create_benchmarks_router
 from ._billing import build_router as create_billing_router
+from ._capsule_tools import build_router as create_capsule_router
 from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
 from ._health import build_router as create_health_router
@@ -248,6 +249,11 @@ def create_app(
     # {"cards": []} when the table is missing and PUT returns 503, so the FE
     # simply stays device-local — the same outcome as the 404, minus the noise.
     app.include_router(create_dashboard_router())
+    # THE CAPSULE — read-only tool layer for the inline AI surface
+    # (GET /api/capsule/tools, POST /api/capsule/tools/{name}). The
+    # registry is a frozen allowlist of eight READS; there is no route
+    # here that mutates anything (see _capsule_tools.py's C2 contract).
+    app.include_router(create_capsule_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

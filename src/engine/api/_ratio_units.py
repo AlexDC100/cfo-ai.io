@@ -235,6 +235,17 @@ _MONEY_FACTS = frozenset([
     "cash_from_operating", "capex_real", "capitalized_construction",
     "free_cash_flow",
     "trade_rec", "rec_provisions", "affiliate_income", "net_income",
+    # ── Capsule tool-layer metrics (2026-08-30) ────────────────────────
+    # The inline answer surface serves these through the SAME facts
+    # gateway the dashboard reads, so they are money by the gateway's own
+    # declaration — not by inference from magnitude. Undeclared they
+    # resolved to UNIT_UNKNOWN, which is a refusal: the Capsule would
+    # have declined to render eight legitimate figures. Adding a name
+    # here is a deliberate act; the gate in test_ratio_units.py still
+    # fails any rule that cites a name absent from this set.
+    "equity", "equity_plus_liabilities",
+    "current_assets", "current_liabilities", "working_capital",
+    "net_result", "expenses", "difference",
 ])
 
 _RATIO_FACTS = frozenset([

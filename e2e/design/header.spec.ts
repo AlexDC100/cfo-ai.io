@@ -121,11 +121,12 @@ async function countHeaderInteractive(page: Page): Promise<HeaderCensus> {
       }
       return true;
     });
-    // ...and the radiogroup itself counts once.
-    const groups = [...headerEl.querySelectorAll('[role="radiogroup"]')].filter(
-      (el) => visible(el) && !inOverlay(el),
-    );
-    topLevel.push(...groups);
+    // NOTE: the radiogroup is NOT pushed again here. `sel` already
+    // contains [role="radiogroup"], so the group is in `all` and
+    // survives the filter on its own; appending it a second time
+    // double-counted the dial and reported 6 for a 5-control header —
+    // a gate reporting a violation that does not exist is worse than no
+    // gate, because the next person silences it.
     return {
       count: topLevel.length,
       items: topLevel.map((el) => ({
@@ -278,7 +279,7 @@ test.describe("H5 — every relocated control is ≤2 interactions from /dashboa
 
   test("currency: 2 interactions, persists across reload", async ({ page }) => {
     await boot(page);
-    const trigger = page.getByTestId("currency-menu-trigger");
+    const trigger = page.getByTestId("account-menu-trigger");
     await trigger.click(); // 1
     const eur = page.getByTestId("currency-menu-eur");
     await expect(eur, "H5: currency option not reachable after opening the menu").toBeVisible();
@@ -289,11 +290,11 @@ test.describe("H5 — every relocated control is ≤2 interactions from /dashboa
     await page.waitForTimeout(SETTLE_MS);
     await dismissPublicTestBanner(page);
     await expect(
-      page.getByTestId("currency-menu-trigger"),
+      page.getByTestId("account-menu-trigger"),
       "H5 regression: currency did not persist across reload",
     ).toContainText("EUR");
     // restore
-    await page.getByTestId("currency-menu-trigger").click();
+    await page.getByTestId("account-menu-trigger").click();
     await page.getByTestId("currency-menu-ron").click();
   });
 
@@ -321,8 +322,8 @@ test.describe("H5 — every relocated control is ≤2 interactions from /dashboa
 
   test("period switch: 2 interactions via the ContextObject", async ({ page }) => {
     await boot(page);
-    await page.getByTestId("context-object").click(); // 1
-    const popover = page.getByTestId("context-object-popover");
+    await page.getByTestId("header-capsule").click(); // 1
+    const popover = page.getByTestId("command-palette");
     await expect(popover, "H5: ContextObject popover did not open").toBeVisible();
     const rows = popover.locator("button");
     const n = await rows.count();
@@ -340,8 +341,8 @@ test.describe("H6 — header a11y", () => {
   test("Escape closes each header popover and returns focus", async ({ page }) => {
     await boot(page);
     for (const [trigger, content] of [
-      ["currency-menu-trigger", null],
-      ["context-object", "context-object-popover"],
+      ["account-menu-trigger", null],
+      ["header-capsule", "command-palette"],
       ["account-menu-trigger", null],
     ] as const) {
       const t = page.getByTestId(trigger);

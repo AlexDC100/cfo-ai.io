@@ -1,0 +1,210 @@
+{
+  "en": {
+    "capsuleEmpty": {
+      "context": {
+        "label": "Context",
+        "period": "Period",
+        "noPeriod": "No period loaded",
+        "noPeriodHint": "Search, navigation and actions work. Upload a document to ground the answers.",
+        "unverified": "Not verified",
+        "unverifiedHint": "This period carries no balance verdict, so none is shown.",
+        "unattached": "Periods without a file: {{n}}",
+        "findings": "Findings surfaced: {{n}}"
+      },
+      "trust": {
+        "balanced": "Balanced",
+        "reconciled": "Reconciled",
+        "needs_review": "Needs review",
+        "minor_drift": "Minor drift",
+        "material_imbalance": "Material imbalance",
+        "unverified": "Not verified"
+      },
+      "suggest": {
+        "heading": "From this workspace",
+        "empty": "Nothing to suggest from this workspace yet.",
+        "unattached": {
+          "simple": "{{period}} has no file yet — what should I upload?",
+          "pro": "{{period}} is unattached — which document unlocks the statements?"
+        },
+        "finding": {
+          "simple": "Why did {{subject}} get flagged this month?",
+          "pro": "{{subject}} — what drove it, and what does the first fix cost?"
+        },
+        "trust": {
+          "imbalance": {
+            "simple": "Why doesn't {{period}} balance?",
+            "pro": "{{period}} — where does the imbalance sit, and on which side?"
+          },
+          "drift": {
+            "simple": "Is the drift in {{period}} something to worry about?",
+            "pro": "{{period}} drift — material, or rounding I can sign off?"
+          },
+          "reconciled": {
+            "simple": "What was adjusted to make {{period}} balance?",
+            "pro": "{{period}} reconciliation — placement, origin and rationale?"
+          }
+        },
+        "covenant": {
+          "dscr": {
+            "simple": "Can I still cover the loan payments?",
+            "pro": "DSCR headroom at current run-rate?"
+          },
+          "interestCover": {
+            "simple": "Can I keep paying the interest?",
+            "pro": "Interest cover headroom at current run-rate?"
+          },
+          "leverage": {
+            "simple": "Is my debt getting heavy for the business?",
+            "pro": "Net debt / EBITDA headroom against a typical senior test?"
+          },
+          "liquidity": {
+            "simple": "Do I have enough to cover the next few months?",
+            "pro": "Current-ratio headroom against a typical liquidity test?"
+          }
+        },
+        "silence": {
+          "simple": "Nothing was flagged — what did you check?",
+          "pro": "Clean month — which rules ran, and how close were the margins?"
+        }
+      },
+      "basis": {
+        "unattached": "From this workspace's period list",
+        "finding": "From this period's Anomaly Radar",
+        "trust": "From the balance verdict on this period",
+        "covenant": "Compared with a typical Romanian facility test — not your loan documents",
+        "silence": "From the checks that ran on this period"
+      },
+      "recents": {
+        "heading": "Recent questions",
+        "clear": "Clear",
+        "clearLabel": "Clear recent questions",
+        "recallHint": "Press ↑ to recall your last question"
+      },
+      "degraded": {
+        "askRow": "CFO AI is unavailable — search still works",
+        "heading": "CFO AI is unavailable",
+        "body": "Search, navigation and actions are unaffected, and your figures are unchanged.",
+        "detailsLabel": "Why",
+        "retry": "Retry"
+      },
+      "throttle": {
+        "askRow": "Too many questions at once — search still works",
+        "heading": "One moment",
+        "body": "Several questions arrived in quick succession. Nothing is downgraded — the same model answers the next one, a few seconds from now.",
+        "ready": "Ready in {{seconds}}s"
+      },
+      "scope": {
+        "books": "From {{period}}",
+        "booksNoPeriod": "From your books",
+        "general": "Not from your books",
+        "mixed": "Partly from your books",
+        "generalHint": "General finance knowledge — this answer cites no figure from your period.",
+        "mixedHint": "Some of this answer is general knowledge, not figures from your period."
+      }
+    }
+  },
+  "ro": {
+    "capsuleEmpty": {
+      "context": {
+        "label": "Context",
+        "period": "Perioadă",
+        "noPeriod": "Nicio perioadă încărcată",
+        "noPeriodHint": "Căutarea, navigarea și acțiunile funcționează. Încarcă un document ca răspunsurile să aibă temei.",
+        "unverified": "Neverificată",
+        "unverifiedHint": "Perioada aceasta nu are un verdict de echilibru, așa că nu îți arătăm niciunul.",
+        "unattached": "Perioade fără fișier: {{n}}",
+        "findings": "Constatări afișate: {{n}}"
+      },
+      "trust": {
+        "balanced": "Echilibrat",
+        "reconciled": "Reconciliat",
+        "needs_review": "Necesită verificare",
+        "minor_drift": "Abatere minoră",
+        "material_imbalance": "Dezechilibru semnificativ",
+        "unverified": "Neverificat"
+      },
+      "suggest": {
+        "heading": "Din spațiul tău de lucru",
+        "empty": "Deocamdată nu avem ce să îți sugerăm din spațiul tău de lucru.",
+        "unattached": {
+          "simple": "{{period}} nu are încă niciun fișier — ce ar trebui să încarc?",
+          "pro": "{{period}} este neatașată — ce document deblochează situațiile?"
+        },
+        "finding": {
+          "simple": "De ce a fost semnalat {{subject}} luna aceasta?",
+          "pro": "{{subject}} — ce l-a determinat și cât costă primul pas de remediere?"
+        },
+        "trust": {
+          "imbalance": {
+            "simple": "De ce nu se echilibrează {{period}}?",
+            "pro": "{{period}} — unde stă dezechilibrul și pe ce parte?"
+          },
+          "drift": {
+            "simple": "Abaterea din {{period}} este ceva de care să îmi fac griji?",
+            "pro": "Abaterea din {{period}} — semnificativă sau doar rotunjire?"
+          },
+          "reconciled": {
+            "simple": "Ce s-a ajustat ca {{period}} să se echilibreze?",
+            "pro": "Reconcilierea din {{period}} — plasare, origine și motivare?"
+          }
+        },
+        "covenant": {
+          "dscr": {
+            "simple": "Îmi mai pot acoperi ratele la credit?",
+            "pro": "Ce marjă are DSCR la ritmul actual?"
+          },
+          "interestCover": {
+            "simple": "Pot să plătesc în continuare dobânda?",
+            "pro": "Ce marjă are acoperirea dobânzii la ritmul actual?"
+          },
+          "leverage": {
+            "simple": "Datoria devine prea grea pentru firmă?",
+            "pro": "Ce marjă are datoria netă / EBITDA față de un test bancar obișnuit?"
+          },
+          "liquidity": {
+            "simple": "Am destui bani pentru lunile următoare?",
+            "pro": "Ce marjă are lichiditatea curentă față de un test bancar obișnuit?"
+          }
+        },
+        "silence": {
+          "simple": "Nu s-a semnalat nimic — ce ai verificat?",
+          "pro": "Lună curată — ce reguli au rulat și cât de aproape au fost pragurile?"
+        }
+      },
+      "basis": {
+        "unattached": "Din lista de perioade a spațiului tău de lucru",
+        "finding": "Din Radarul de anomalii al acestei perioade",
+        "trust": "Din verdictul de echilibru al acestei perioade",
+        "covenant": "Comparat cu un test bancar românesc obișnuit — nu cu contractele tale de credit",
+        "silence": "Din verificările care au rulat pe această perioadă"
+      },
+      "recents": {
+        "heading": "Întrebări recente",
+        "clear": "Șterge",
+        "clearLabel": "Șterge întrebările recente",
+        "recallHint": "Apasă ↑ ca să revii la ultima întrebare"
+      },
+      "degraded": {
+        "askRow": "CFO AI nu este disponibil — căutarea funcționează în continuare",
+        "heading": "CFO AI nu este disponibil",
+        "body": "Căutarea, navigarea și acțiunile nu sunt afectate, iar cifrele tale rămân neschimbate.",
+        "detailsLabel": "De ce",
+        "retry": "Reîncearcă"
+      },
+      "throttle": {
+        "askRow": "Prea multe întrebări deodată — căutarea funcționează în continuare",
+        "heading": "O clipă",
+        "body": "Au venit mai multe întrebări una după alta. Nu coborâm nimic — răspunde același model, peste câteva secunde.",
+        "ready": "Gata în {{seconds}}s"
+      },
+      "scope": {
+        "books": "Din {{period}}",
+        "booksNoPeriod": "Din registrele tale",
+        "general": "Nu din registrele tale",
+        "mixed": "Parțial din registrele tale",
+        "generalHint": "Cunoștințe generale de finanțe — răspunsul nu citează nicio cifră din perioada ta.",
+        "mixedHint": "O parte din răspuns este cunoaștere generală, nu cifre din perioada ta."
+      }
+    }
+  }
+}
