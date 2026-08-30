@@ -26,6 +26,23 @@ import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { useActiveLocale } from "@/lib/locale";
 import { currentMonthEnd, formatPeriodMonth } from "@/lib/orgPeriods";
 
+/** "Workspace · Dec 2025" as a plain string — the Capsule renders the
+ *  identity inline instead of mounting the whole popover component.
+ *  Same sources, same formatting, same D11 rule: formatted labels only,
+ *  never the ?period UUID. */
+export function useCapsuleLabel(): string {
+  const locale = useActiveLocale();
+  const workspaceName = useWorkspaceName();
+  const { selectedEnd } = usePeriodStepper();
+  const periodLabel =
+    formatPeriodMonth(selectedEnd, locale) ??
+    formatPeriodMonth(currentMonthEnd(), locale);
+  const name = (workspaceName ?? "").trim();
+  const full = name ? `${name} \u00b7 ${periodLabel}` : periodLabel;
+  // 24ch truncation per the directive; the title attr carries the rest.
+  return full.length > 24 ? full.slice(0, 23).trimEnd() + "\u2026" : full;
+}
+
 export function ContextObject() {
   const { t } = useTranslation();
   const locale = useActiveLocale();

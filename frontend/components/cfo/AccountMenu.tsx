@@ -52,6 +52,12 @@ import { usePlanState, type PlanState } from "@/lib/planState";
 import { formatTokens, tokenUsage } from "@/lib/tokenUsage";
 import { useLearningMode, type LearningMode } from "@/stores/learningMode";
 import { useTheme, type Theme } from "@/theme";
+// QUICK SETTINGS (2026-08-30 Capsule directive): the display-currency
+// selector and the Simple|Pro dial moved OUT of the header and land
+// here. Both are self-contained (their own stores), so they need no
+// prop threading — they simply mount inside the menu.
+import { CurrencyToggle } from "./CurrencyToggle";
+import { ModeSwitch } from "@/components/instrument/shell/ModeSwitch";
 
 // ─────────────────────────────────────────────────────────────────────
 // Public component — wires hooks + DropdownMenu, used in TopHeader.
@@ -363,6 +369,22 @@ export function AccountMenuContent({
           </div>
         </section>
       )}
+
+      {/* ── View mode (moved from the header, 2026-08-30) ── */}
+      <section className="px-2 py-2 border-t border-rule/60" data-testid="account-menu-viewmode">
+        <SectionHeader label={t("modes.switch.label")} />
+        <div className="px-1">
+          <ModeSwitch className="w-full justify-center" />
+        </div>
+      </section>
+
+      {/* ── Display currency (moved from the header, 2026-08-30) ── */}
+      <section className="px-2 py-2 border-t border-rule/60" data-testid="account-menu-currency">
+        <SectionHeader label={t("settings.currency", "Display currency")} />
+        <div className="px-1">
+          <CurrencyToggle />
+        </div>
+      </section>
 
       {/* ── Theme (2026-08-12 — restored; dark-only pin removed) ── */}
       {theme && onSetTheme && (

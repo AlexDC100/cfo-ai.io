@@ -31,13 +31,24 @@ const OPTIONS: Array<{ value: ViewMode; labelKey: string }> = [
   { value: "pro", labelKey: "modes.switch.pro" },
 ];
 
+/** Cross-device adoption for the view mode, with NO UI.
+ *
+ *  The switch itself moved out of the header into the avatar menu
+ *  (2026-08-30 Capsule directive), and that menu's content only mounts
+ *  while the dropdown is OPEN — so the sync had to be re-seated
+ *  somewhere always-mounted. TopHeader calls this hook directly. */
+export function useViewModeSync(): void {
+  const mode = useViewMode();
+  // Hands a differing remote value to the lib, which re-notifies every
+  // useViewMode() subscriber. adoptRemoteViewMode validates and
+  // deliberately does NOT echo back via setPref.
+  usePrefSync<string>("user", "view_mode", mode, adoptRemoteViewMode);
+}
+
 export function ModeSwitch({ className }: { className?: string }) {
   const { t } = useTranslation();
   const mode = useViewMode();
-  // Cross-device adoption — hands a differing remote value to the lib,
-  // which re-notifies every useViewMode() subscriber. adoptRemoteViewMode
-  // validates and deliberately does NOT echo back via setPref.
-  usePrefSync<string>("user", "view_mode", mode, adoptRemoteViewMode);
+  useViewModeSync();
 
   return (
     <div

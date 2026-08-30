@@ -29,7 +29,18 @@ import { Amount } from "@/components/instrument/Amount";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { factsFrom, type ServedFacts } from "@/lib/servedFacts";
 
-export function TrustChip() {
+/** Tone -> dot colour. Mirrors the Chip tones so the dot and the
+ *  receipt's chip can never disagree. */
+const TONE_DOT: Record<ChipTone, string> = {
+  neutral: "text-ink-mute",
+  accent: "text-brand-d dark:text-brand-l",
+  success: "text-success",
+  caution: "text-caution",
+  alert: "text-alert",
+  info: "text-info",
+};
+
+export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {}) {
   const { t, i18n } = useTranslation();
   const period = useActivePeriod();
   const [open, setOpen] = useState(false);
@@ -86,17 +97,35 @@ export function TrustChip() {
 
   return (
     <>
-      <button
-        type="button"
-        data-testid="trust-chip"
-        aria-label={t("shell.trust.openReceipt")}
-        onClick={() => setOpen(true)}
-        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
-      >
-        <Chip tone={tone} dot className="cursor-pointer whitespace-nowrap">
-          {label}
-        </Chip>
-      </button>
+      {variant === "dot" ? (
+        // CAPSULE DOT (2026-08-30): the verdict as a 7px dot, no text —
+        // the full sentence rides aria-label + title so the information
+        // is not lost, only the header real estate. Same receipt sheet
+        // below: trust parity is structural here, never re-worded.
+        <button
+          type="button"
+          data-testid="trust-dot"
+          aria-label={label}
+          title={label}
+          onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+          className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${TONE_DOT[tone]}`}
+        >
+          <span aria-hidden className="h-[7px] w-[7px] rounded-full bg-current" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          data-testid="trust-chip"
+          aria-label={t("shell.trust.openReceipt")}
+          onClick={() => setOpen(true)}
+          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+        >
+          <Chip tone={tone} dot className="cursor-pointer whitespace-nowrap">
+            {label}
+          </Chip>
+        </button>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
