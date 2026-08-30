@@ -1,0 +1,2673 @@
+{
+  "assembled_bands": {
+    "bands": {
+      "asset_turnover": {
+        "direction": "higher",
+        "healthy": 1.0,
+        "strong": 1.5,
+        "watch": 0.5
+      },
+      "cash_ratio": {
+        "direction": "higher",
+        "healthy": 0.2,
+        "strong": 0.5,
+        "watch": 0.1
+      },
+      "ccc": {
+        "direction": "lower",
+        "healthy": 60,
+        "strong": 30,
+        "watch": 90
+      },
+      "core_ebitda_margin": {
+        "direction": "higher",
+        "healthy": 0.15,
+        "strong": 0.25,
+        "watch": 0.08
+      },
+      "current_ratio": {
+        "direction": "higher",
+        "healthy": 1.5,
+        "strong": 2.0,
+        "watch": 1.0
+      },
+      "debt_to_assets": {
+        "direction": "lower",
+        "healthy": 0.5,
+        "strong": 0.3,
+        "watch": 0.65
+      },
+      "debt_to_ebitda": {
+        "direction": "lower",
+        "healthy": 3.0,
+        "strong": 2.0,
+        "watch": 4.5
+      },
+      "debt_to_equity": {
+        "direction": "lower",
+        "healthy": 1.0,
+        "strong": 0.5,
+        "watch": 2.0
+      },
+      "dio": {
+        "direction": "lower",
+        "healthy": 60,
+        "strong": 30,
+        "watch": 100
+      },
+      "dpo": {
+        "direction": "higher",
+        "healthy": 45,
+        "strong": 60,
+        "watch": 30
+      },
+      "dscr": {
+        "direction": "higher",
+        "healthy": 1.25,
+        "strong": 1.5,
+        "watch": 1.0
+      },
+      "dscr_with_lt_principal": {
+        "direction": "higher",
+        "healthy": 1.25,
+        "strong": 1.5,
+        "watch": 1.0
+      },
+      "dso": {
+        "direction": "lower",
+        "healthy": 45,
+        "strong": 30,
+        "watch": 75
+      },
+      "ebitda_margin": {
+        "direction": "higher",
+        "healthy": 0.15,
+        "strong": 0.25,
+        "watch": 0.08
+      },
+      "ebitda_to_interest": {
+        "direction": "higher",
+        "healthy": 4.0,
+        "strong": 8.0,
+        "watch": 2.0
+      },
+      "equity_ratio": {
+        "direction": "higher",
+        "healthy": 0.3,
+        "strong": 0.5,
+        "watch": 0.15
+      },
+      "gross_margin": {
+        "direction": "higher",
+        "healthy": 0.25,
+        "strong": 0.4,
+        "watch": 0.15
+      },
+      "interest_coverage": {
+        "direction": "higher",
+        "healthy": 3.0,
+        "strong": 6.0,
+        "watch": 1.5
+      },
+      "inventory_turnover": {
+        "direction": "higher",
+        "healthy": 6,
+        "strong": 12,
+        "watch": 3
+      },
+      "lt_debt_to_equity": {
+        "direction": "lower",
+        "healthy": 0.6,
+        "strong": 0.3,
+        "watch": 1.2
+      },
+      "net_debt_to_ebitda": {
+        "direction": "lower",
+        "healthy": 3.0,
+        "strong": 1.5,
+        "watch": 4.5
+      },
+      "net_margin": {
+        "direction": "higher",
+        "healthy": 0.08,
+        "strong": 0.15,
+        "watch": 0.03
+      },
+      "operating_margin": {
+        "direction": "higher",
+        "healthy": 0.1,
+        "strong": 0.2,
+        "watch": 0.04
+      },
+      "quick_ratio": {
+        "direction": "higher",
+        "healthy": 1.0,
+        "strong": 1.5,
+        "watch": 0.7
+      },
+      "roa": {
+        "direction": "higher",
+        "healthy": 0.05,
+        "strong": 0.1,
+        "watch": 0.02
+      },
+      "roe": {
+        "direction": "higher",
+        "healthy": 0.12,
+        "strong": 0.2,
+        "watch": 0.06
+      },
+      "roic": {
+        "direction": "higher",
+        "healthy": 0.1,
+        "strong": 0.15,
+        "watch": 0.05
+      }
+    },
+    "disclosure": "Verdict bands are general-SME defaults — not calibrated to the resolved industry's seeded distribution. Industry-specific bands activate when the period's resolved CAEN has matching rows in industry_benchmarks; that wiring is scheduled for a follow-up engine pass.",
+    "industry_resolved": null,
+    "source": "general_sme_fallback"
+  },
+  "assembled_bs": {
+    "accounts_payable": 6455119.8,
+    "accounts_receivable": 254961.33,
+    "ap": 6455119.8,
+    "ap_dividends": 0.0,
+    "ap_other": 10551325.8,
+    "ar_doubtful_gross": 521628.39,
+    "ar_intercompany": 90140.24,
+    "ar_net": 254961.33,
+    "ar_other": 1665033.99,
+    "ar_provisions": 0.0,
+    "bs_balance_delta": 0.0,
+    "cash": 1138011.63,
+    "cash_fx_component": 10290.45,
+    "current_year_pnl": 3205212.62,
+    "intangibles": 108768.52,
+    "intangibles_net": 108768.52,
+    "inventory": 6795205.57,
+    "investments": 57588647.56,
+    "long_term_debt": 27859009.64,
+    "lt_debt": 27859009.64,
+    "other_current_assets": 1755174.23,
+    "other_current_liabilities": 10551325.8,
+    "other_equity": 1612330.31,
+    "other_equity_non_revaluation": 1488287.59,
+    "other_non_current_assets": 57588647.56,
+    "other_non_current_liabilities": 0.0,
+    "ppe_advances": 0.0,
+    "ppe_investment_net": 0.0,
+    "ppe_net": 2448863.0,
+    "ppe_under_construction": 2487.8,
+    "property_plant_equipment": 2448863.0,
+    "retained_earnings": 13775033.67,
+    "revaluation_reserves": 124042.72,
+    "share_capital": 6631600.0,
+    "short_term_debt": 0.0,
+    "st_debt": 0.0,
+    "total_assets": 70089631.84,
+    "total_current_assets": 9705031.58,
+    "total_current_liabilities": 17006445.6,
+    "total_debt": 27859009.64,
+    "total_equity": 25224176.6,
+    "total_liabilities": 44865455.24,
+    "total_non_current_assets": 60384600.26,
+    "total_non_current_liabilities": 27859009.64
+  },
+  "assembled_canonical_v1": {
+    "canonical_bs": {
+      "diagnosis": [],
+      "difference": 0.0,
+      "envelope_version": "sv1",
+      "excluded": [
+        {
+          "code": "121",
+          "reason": "profit_control_account_121"
+        },
+        {
+          "code": "581",
+          "reason": "transit_account_581"
+        }
+      ],
+      "extraction": {
+        "header_row_index": 0,
+        "method": "deterministic",
+        "number_locale": "anglo",
+        "parser_version": "tb_parser_v5",
+        "sheet": "Anon_5e9826c8c9",
+        "source_format": "saga_10_col"
+      },
+      "invariants": {
+        "assets_eq_row_sum": true,
+        "el_eq_row_sum": true,
+        "identity_holds": true,
+        "p121_cross_check": {
+          "cls7_minus_cls6": 1161957.98,
+          "ok": false,
+          "p121": 3205212.62
+        },
+        "result_basis": "sf_closing_column",
+        "source_conservation": true
+      },
+      "mapping_version": "ro_omfp1802_v2",
+      "needs_review": false,
+      "reconcile_offer": false,
+      "rows": [
+        {
+          "account_codes": [
+            "211"
+          ],
+          "amount": 23218.0,
+          "id": "ppe_land",
+          "label": "Land",
+          "label_key": "bs.row.ppe_land",
+          "leaf_ids": [
+            "2111.01"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "212"
+          ],
+          "amount": 1864345.1,
+          "id": "ppe_buildings",
+          "label": "Buildings",
+          "label_key": "bs.row.ppe_buildings",
+          "leaf_ids": [
+            "212"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "2131",
+            "2132",
+            "2133"
+          ],
+          "amount": 3457290.79,
+          "id": "ppe_machinery_equipment",
+          "label": "Machinery & equipment",
+          "label_key": "bs.row.ppe_machinery_equipment",
+          "leaf_ids": [
+            "2131",
+            "2132",
+            "2133"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "214"
+          ],
+          "amount": 766041.87,
+          "id": "ppe_furniture_office",
+          "label": "Furniture & office equipment",
+          "label_key": "bs.row.ppe_furniture_office",
+          "leaf_ids": [
+            "214"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "231"
+          ],
+          "amount": 2487.8,
+          "id": "ppe_under_construction",
+          "label": "PPE under construction",
+          "label_key": "bs.row.ppe_under_construction",
+          "leaf_ids": [
+            "231.014"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "2812",
+            "2813",
+            "2814"
+          ],
+          "amount": -3664520.56,
+          "id": "accumulated_depreciation_ppe",
+          "label": "Accumulated depreciation (PPE)",
+          "label_key": "bs.row.accumulated_depreciation_ppe",
+          "leaf_ids": [
+            "2812",
+            "2813",
+            "2814"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "205",
+            "208"
+          ],
+          "amount": 1139866.85,
+          "id": "intangibles_other",
+          "label": "Other intangibles",
+          "label_key": "bs.row.intangibles_other",
+          "leaf_ids": [
+            "205",
+            "208"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "2805",
+            "2808"
+          ],
+          "amount": -1031098.33,
+          "id": "accumulated_amortization_intangibles",
+          "label": "Accumulated amortization (intangibles)",
+          "label_key": "bs.row.accumulated_amortization_intangibles",
+          "leaf_ids": [
+            "2805",
+            "2808"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "261"
+          ],
+          "amount": 57444486.05,
+          "id": "financial_investments_affiliates",
+          "label": "Investments in affiliates",
+          "label_key": "bs.row.financial_investments_affiliates",
+          "leaf_ids": [
+            "261.001",
+            "261.002"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "2678"
+          ],
+          "amount": 144161.51,
+          "id": "other_non_current_assets",
+          "label": "Other non-current assets",
+          "label_key": "bs.row.other_non_current_assets",
+          "leaf_ids": [
+            "2678.09",
+            "2678.21",
+            "2678.24",
+            "2678.30",
+            "2678.51",
+            "2678.52"
+          ],
+          "opening": null,
+          "section": "non_current_assets"
+        },
+        {
+          "account_codes": [
+            "5121",
+            "5125",
+            "5311",
+            "54"
+          ],
+          "amount": 1127721.18,
+          "id": "cash_operating",
+          "label": "Cash in operating currency",
+          "label_key": "bs.row.cash_operating",
+          "leaf_ids": [
+            "5121.07",
+            "5121.14",
+            "5121.17",
+            "5121.18",
+            "5125.01",
+            "5125.02",
+            "5125.04",
+            "5125.08",
+            "5125.09",
+            "5125.10",
+            "5125.11",
+            "5125.12",
+            "5125.16",
+            "5125.17",
+            "5125.18",
+            "5125.19",
+            "5125.20",
+            "5125.21",
+            "5125.22",
+            "5125.23",
+            "5125.25",
+            "5125.28",
+            "5125.30",
+            "5311.01",
+            "5311.07",
+            "5311.09",
+            "5311.10",
+            "5311.16",
+            "5311.22",
+            "5311.24",
+            "5311.25",
+            "5311.26",
+            "5311.27",
+            "5311.28",
+            "5311.30",
+            "5311.32",
+            "5311.43",
+            "5311.45",
+            "5311.47",
+            "5311.57",
+            "5311.58",
+            "5311.63",
+            "5311.99",
+            "542"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "5124",
+            "5314"
+          ],
+          "amount": 10290.45,
+          "id": "cash_fx",
+          "label": "Cash in foreign currency",
+          "label_key": "bs.row.cash_fx",
+          "leaf_ids": [
+            "5124.04",
+            "5314.01"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "50"
+          ],
+          "amount": 1225000.0,
+          "id": "short_term_investments",
+          "label": "Short-term investments",
+          "label_key": "bs.row.short_term_investments",
+          "leaf_ids": [
+            "5081.02"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "4111",
+            "418"
+          ],
+          "amount": 956521.15,
+          "id": "ar_trade_gross",
+          "label": "Trade receivables (gross)",
+          "label_key": "bs.row.ar_trade_gross",
+          "leaf_ids": [
+            "4111.01",
+            "4111.02",
+            "4111.03",
+            "4111.07",
+            "4111.10",
+            "4111.11",
+            "4111.20",
+            "418"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "4118"
+          ],
+          "amount": 521628.39,
+          "id": "ar_doubtful_gross",
+          "label": "Doubtful receivables (gross)",
+          "label_key": "bs.row.ar_doubtful_gross",
+          "leaf_ids": [
+            "4118.01",
+            "4118.02",
+            "4118.03",
+            "4118.04",
+            "4118.05",
+            "4118.06",
+            "4118.07"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "491",
+            "496"
+          ],
+          "amount": -1223188.21,
+          "id": "ar_provisions",
+          "label": "AR allowance",
+          "label_key": "bs.row.ar_provisions",
+          "leaf_ids": [
+            "491",
+            "496"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "461"
+          ],
+          "amount": 90140.24,
+          "id": "ar_intercompany",
+          "label": "Intercompany receivables",
+          "label_key": "bs.row.ar_intercompany",
+          "leaf_ids": [
+            "461.14",
+            "461.15",
+            "461.18",
+            "461.24",
+            "461.32",
+            "461.33",
+            "461.54",
+            "461.57",
+            "461.59",
+            "461.63",
+            "461.64"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "4428"
+          ],
+          "amount": 11247.93,
+          "id": "ar_tax_recoverable",
+          "label": "Tax recoverable",
+          "label_key": "bs.row.ar_tax_recoverable",
+          "leaf_ids": [
+            "4428.26",
+            "4428.94",
+            "4428.96"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "4091",
+            "4092"
+          ],
+          "amount": 144621.25,
+          "id": "ar_supplier_advances",
+          "label": "Supplier advances",
+          "label_key": "bs.row.ar_supplier_advances",
+          "leaf_ids": [
+            "4091.01",
+            "4091.33",
+            "4092.07"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "481",
+            "532"
+          ],
+          "amount": 45843.63,
+          "id": "ar_other",
+          "label": "Other receivables",
+          "label_key": "bs.row.ar_other",
+          "leaf_ids": [
+            "481",
+            "5328.01"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "3"
+          ],
+          "amount": -1229164.37,
+          "id": "inventory_raw_materials",
+          "label": "Raw materials",
+          "label_key": "bs.row.inventory_raw_materials",
+          "leaf_ids": [
+            "378.51",
+            "378.52",
+            "378.53",
+            "378.59",
+            "378.60",
+            "378.76",
+            "378.77",
+            "378.79",
+            "378.82",
+            "378.83",
+            "378.86",
+            "378.87",
+            "378.88",
+            "378.89",
+            "378.90",
+            "378.91",
+            "378.92",
+            "378.93",
+            "378.94",
+            "378.95",
+            "378.96",
+            "378.98"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "302",
+            "303"
+          ],
+          "amount": 93284.56,
+          "id": "inventory_consumables",
+          "label": "Auxiliary consumables",
+          "label_key": "bs.row.inventory_consumables",
+          "leaf_ids": [
+            "3028.01",
+            "3028.02",
+            "3028.03",
+            "3028.04",
+            "303.002",
+            "303.003",
+            "303.004",
+            "303.01"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "371"
+          ],
+          "amount": 7917059.01,
+          "id": "inventory_merchandise_resale",
+          "label": "Merchandise for resale",
+          "label_key": "bs.row.inventory_merchandise_resale",
+          "leaf_ids": [
+            "371.01",
+            "371.201",
+            "371.30",
+            "371.50",
+            "371.51",
+            "371.52",
+            "371.53",
+            "371.59",
+            "371.60",
+            "371.76",
+            "371.77",
+            "371.79",
+            "371.82",
+            "371.83",
+            "371.86",
+            "371.87",
+            "371.88",
+            "371.89",
+            "371.90",
+            "371.91",
+            "371.92",
+            "371.93",
+            "371.94",
+            "371.95",
+            "371.96",
+            "371.98"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "381"
+          ],
+          "amount": 140526.37,
+          "id": "inventory_packaging",
+          "label": "Packaging",
+          "label_key": "bs.row.inventory_packaging",
+          "leaf_ids": [
+            "381.001"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "397",
+            "398"
+          ],
+          "amount": -126500.0,
+          "id": "inventory_provisions",
+          "label": "Inventory allowance",
+          "label_key": "bs.row.inventory_provisions",
+          "leaf_ids": [
+            "397",
+            "398"
+          ],
+          "opening": null,
+          "section": "current_assets"
+        },
+        {
+          "account_codes": [
+            "471"
+          ],
+          "amount": 238321.18,
+          "id": "prepaid_expenses_st",
+          "label": "Prepaid expenses (ST)",
+          "label_key": "bs.row.prepaid_expenses_st",
+          "leaf_ids": [
+            "471.001",
+            "471.004",
+            "471.005",
+            "471.008",
+            "471.009"
+          ],
+          "opening": null,
+          "section": "prepaid_expenses"
+        },
+        {
+          "account_codes": [
+            "1012"
+          ],
+          "amount": 6631600.0,
+          "id": "share_capital",
+          "label": "Share capital",
+          "label_key": "bs.row.share_capital",
+          "leaf_ids": [
+            "1012.01"
+          ],
+          "opening": null,
+          "section": "equity"
+        },
+        {
+          "account_codes": [
+            "105"
+          ],
+          "amount": 124042.72,
+          "id": "revaluation_reserves",
+          "label": "Revaluation reserves",
+          "label_key": "bs.row.revaluation_reserves",
+          "leaf_ids": [
+            "1051.01"
+          ],
+          "opening": null,
+          "section": "equity"
+        },
+        {
+          "account_codes": [
+            "1061"
+          ],
+          "amount": 1326320.0,
+          "id": "legal_reserves",
+          "label": "Legal reserves",
+          "label_key": "bs.row.legal_reserves",
+          "leaf_ids": [
+            "1061.01"
+          ],
+          "opening": null,
+          "section": "equity"
+        },
+        {
+          "account_codes": [
+            "1068"
+          ],
+          "amount": 161967.59,
+          "id": "other_reserves",
+          "label": "Other reserves",
+          "label_key": "bs.row.other_reserves",
+          "leaf_ids": [
+            "1068.01"
+          ],
+          "opening": null,
+          "section": "equity"
+        },
+        {
+          "account_codes": [
+            "117",
+            "1171"
+          ],
+          "amount": 15565657.17,
+          "id": "retained_earnings_prior_years",
+          "label": "Retained earnings (prior years)",
+          "label_key": "bs.row.retained_earnings_prior_years",
+          "leaf_ids": [
+            "1171.00",
+            "1171.07",
+            "1175"
+          ],
+          "opening": null,
+          "section": "equity"
+        },
+        {
+          "account_codes": [
+            "1174"
+          ],
+          "amount": -1790623.5,
+          "id": "accumulated_losses_prior_years",
+          "label": "Accumulated losses (prior years)",
+          "label_key": "bs.row.accumulated_losses_prior_years",
+          "leaf_ids": [
+            "1174"
+          ],
+          "opening": null,
+          "section": "equity"
+        },
+        {
+          "account_codes": [
+            "121"
+          ],
+          "amount": 3205212.62,
+          "id": "current_year_profit",
+          "label": "Current year profit",
+          "label_key": "bs.row.current_year_profit",
+          "leaf_ids": [
+            "121"
+          ],
+          "opening": null,
+          "section": "equity"
+        },
+        {
+          "account_codes": [
+            "1621"
+          ],
+          "amount": 27721615.92,
+          "id": "lt_debt_bank",
+          "label": "Long-term bank debt",
+          "label_key": "bs.row.lt_debt_bank",
+          "leaf_ids": [
+            "1621.01",
+            "1621.02",
+            "1621.03",
+            "1621.81"
+          ],
+          "opening": null,
+          "section": "non_current_liabilities"
+        },
+        {
+          "account_codes": [
+            "167"
+          ],
+          "amount": 137393.72,
+          "id": "lt_debt_other",
+          "label": "Long-term other debt",
+          "label_key": "bs.row.lt_debt_other",
+          "leaf_ids": [
+            "167.11",
+            "167.201",
+            "167.401"
+          ],
+          "opening": null,
+          "section": "non_current_liabilities"
+        },
+        {
+          "account_codes": [
+            "401",
+            "404"
+          ],
+          "amount": 6467389.55,
+          "id": "ap_trade",
+          "label": "Trade payables",
+          "label_key": "bs.row.ap_trade",
+          "leaf_ids": [
+            "401.01",
+            "401.03",
+            "401.110",
+            "404"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "451",
+            "461"
+          ],
+          "amount": 7537695.83,
+          "id": "ap_intercompany",
+          "label": "Intercompany payables",
+          "label_key": "bs.row.ap_intercompany",
+          "leaf_ids": [
+            "4511",
+            "461.06"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "442",
+            "4428",
+            "444",
+            "446"
+          ],
+          "amount": 1276479.28,
+          "id": "ap_tax",
+          "label": "Tax payables",
+          "label_key": "bs.row.ap_tax",
+          "leaf_ids": [
+            "4423",
+            "4428.201",
+            "4428.51",
+            "4428.52",
+            "4428.53",
+            "4428.59",
+            "4428.60",
+            "4428.76",
+            "4428.77",
+            "4428.79",
+            "4428.82",
+            "4428.83",
+            "4428.86",
+            "4428.87",
+            "4428.88",
+            "4428.89",
+            "4428.90",
+            "4428.91",
+            "4428.92",
+            "4428.93",
+            "4428.95",
+            "4428.98",
+            "444",
+            "446.04",
+            "446.05",
+            "446.09"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "421"
+          ],
+          "amount": 387730.0,
+          "id": "ap_personnel_salaries",
+          "label": "Salaries payable",
+          "label_key": "bs.row.ap_personnel_salaries",
+          "leaf_ids": [
+            "421"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "431",
+            "4315",
+            "4316",
+            "436"
+          ],
+          "amount": 204291.0,
+          "id": "ap_personnel_social",
+          "label": "Social contributions payable",
+          "label_key": "bs.row.ap_personnel_social",
+          "leaf_ids": [
+            "4313.01",
+            "4313.02",
+            "4315",
+            "4316",
+            "436"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "427",
+            "4281"
+          ],
+          "amount": 831452.79,
+          "id": "ap_personnel_other",
+          "label": "Other personnel payables",
+          "label_key": "bs.row.ap_personnel_other",
+          "leaf_ids": [
+            "427.01",
+            "4281.01",
+            "4281.02",
+            "4281.03"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "462",
+            "473"
+          ],
+          "amount": 137926.74,
+          "id": "ap_other",
+          "label": "Other current payables",
+          "label_key": "bs.row.ap_other",
+          "leaf_ids": [
+            "462.016",
+            "473.01"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "419"
+          ],
+          "amount": 175750.16,
+          "id": "customer_advances",
+          "label": "Customer advances",
+          "label_key": "bs.row.customer_advances",
+          "leaf_ids": [
+            "419.01"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        },
+        {
+          "account_codes": [
+            "408"
+          ],
+          "amount": -12269.75,
+          "id": "accrued_expenses",
+          "label": "Accrued expenses",
+          "label_key": "bs.row.accrued_expenses",
+          "leaf_ids": [
+            "408.001",
+            "408.231"
+          ],
+          "opening": null,
+          "section": "current_liabilities"
+        }
+      ],
+      "schema": "bs_v2",
+      "sections": [
+        {
+          "id": "non_current_assets",
+          "subtotal": 60146279.08
+        },
+        {
+          "id": "current_assets",
+          "subtotal": 9705031.58
+        },
+        {
+          "id": "prepaid_expenses",
+          "subtotal": 238321.18
+        },
+        {
+          "id": "equity",
+          "subtotal": 25224176.6
+        },
+        {
+          "id": "provisions",
+          "subtotal": 0.0
+        },
+        {
+          "id": "non_current_liabilities",
+          "subtotal": 27859009.64
+        },
+        {
+          "id": "current_liabilities",
+          "subtotal": 17006445.6
+        },
+        {
+          "id": "deferred_income",
+          "subtotal": 0.0
+        }
+      ],
+      "source_anchor": {
+        "anchor_status": "NO_ANCHOR",
+        "closing_result": {
+          "basis": "sf",
+          "codes": [
+            "121"
+          ],
+          "p121_cents": 320521262,
+          "pl_net_cents": 0
+        },
+        "file_totals_include_off_balance": false,
+        "imbalanced_pairs": [],
+        "pairs": {
+          "rc": {
+            "delta_credit": null,
+            "delta_debit": null,
+            "extracted_credit": 1030803154.71,
+            "extracted_debit": 1030803154.71,
+            "file_credit": null,
+            "file_debit": null
+          },
+          "rl": {
+            "delta_credit": null,
+            "delta_debit": null,
+            "extracted_credit": 89936754.46,
+            "extracted_debit": 89936754.46,
+            "file_credit": null,
+            "file_debit": null
+          },
+          "sf": {
+            "delta_credit": null,
+            "delta_debit": null,
+            "extracted_credit": 79153785.88,
+            "extracted_debit": 79153785.88,
+            "file_credit": null,
+            "file_debit": null
+          },
+          "si": {
+            "delta_credit": null,
+            "delta_debit": null,
+            "extracted_credit": 82618633.41,
+            "extracted_debit": 82618633.41,
+            "file_credit": null,
+            "file_debit": null
+          }
+        },
+        "source_balanced": null,
+        "totals_row_found": false,
+        "totals_row_index": null
+      },
+      "status": "BALANCED",
+      "status_presentation": {
+        "display_en": "Balanced",
+        "display_key": "bs.status.balanced",
+        "display_ro": "Echilibrat",
+        "machine": "BALANCED",
+        "micro_caption": null
+      },
+      "totals": {
+        "assets": 70089631.84,
+        "current_assets": 9705031.58,
+        "current_liabilities": 17006445.6,
+        "equity": 25224176.6,
+        "equity_plus_liabilities": 70089631.84,
+        "liabilities": 44865455.24
+      },
+      "unmapped": []
+    },
+    "methodology": {
+      "ebitda": {
+        "adjusted": -506705.8,
+        "cash": 220162.84,
+        "reported": 220162.84,
+        "strict": -506705.8
+      },
+      "errors": [],
+      "industry_key_applied": "default",
+      "methodology_id": "ro_ras_2025_v1",
+      "methodology_version": "1.0.0",
+      "missing_buckets": [
+        "deferred_income_lt.net",
+        "deferred_tax_assets.net",
+        "deferred_tax_liabilities.net",
+        "financial_liabilities_st.net",
+        "income_tax.net",
+        "investment_property.net",
+        "other_non_current_liabilities.net",
+        "pension_liabilities.net",
+        "provisions_lt.net",
+        "provisions_st.net",
+        "right_of_use_assets.net"
+      ],
+      "ratios": {
+        "asset_turnover": {
+          "band": null,
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 1.134408
+        },
+        "capex_intensity": {
+          "band": null,
+          "direction": "neutral",
+          "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
+          "unit": "ratio",
+          "value": 0.019554
+        },
+        "cash_conversion_cycle": {
+          "band": null,
+          "direction": "lower_is_better",
+          "note": "",
+          "unit": "days",
+          "value": -39.532895
+        },
+        "cash_ratio": {
+          "band": [
+            0.1,
+            0.3
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.138948
+        },
+        "current_ratio": {
+          "band": [
+            1.2,
+            2.0
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.584681
+        },
+        "days_inventory_outstanding": {
+          "band": [
+            30,
+            70
+          ],
+          "direction": "lower_is_better",
+          "note": "",
+          "unit": "days",
+          "value": 38.36228
+        },
+        "days_payable_outstanding": {
+          "band": [
+            30,
+            60
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "days",
+          "value": 79.065601
+        },
+        "days_sales_outstanding": {
+          "band": [
+            30,
+            60
+          ],
+          "direction": "lower_is_better",
+          "note": "",
+          "unit": "days",
+          "value": 1.170426
+        },
+        "debt_to_assets": {
+          "band": null,
+          "direction": "lower_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.397477
+        },
+        "debt_to_equity": {
+          "band": [
+            0.0,
+            1.0
+          ],
+          "direction": "lower_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 1.104457
+        },
+        "dscr_approx": {
+          "band": null,
+          "direction": "higher_is_better",
+          "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
+          "unit": "ratio",
+          "value": 0.033486
+        },
+        "ebitda_margin_cash": {
+          "band": null,
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.002769
+        },
+        "ebitda_margin_reported": {
+          "band": [
+            0.08,
+            0.15
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.002769
+        },
+        "ebitda_to_interest": {
+          "band": [
+            4.0,
+            10.0
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.071195
+        },
+        "equity_ratio": {
+          "band": [
+            0.3,
+            0.6
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.359885
+        },
+        "gross_margin": {
+          "band": null,
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.186855
+        },
+        "interest_coverage": {
+          "band": [
+            3.0,
+            8.0
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": -0.43158
+        },
+        "inventory_turnover": {
+          "band": null,
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 9.514554
+        },
+        "lt_debt_to_equity": {
+          "band": null,
+          "direction": "lower_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 1.104457
+        },
+        "net_debt_to_ebitda": {
+          "band": [
+            0.0,
+            3.0
+          ],
+          "direction": "lower_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 115.805183
+        },
+        "net_margin": {
+          "band": [
+            0.03,
+            0.08
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.013634
+        },
+        "quick_ratio": {
+          "band": [
+            0.7,
+            1.2
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.185115
+        },
+        "return_on_assets": {
+          "band": [
+            0.05,
+            0.1
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.015466
+        },
+        "return_on_equity": {
+          "band": [
+            0.1,
+            0.2
+          ],
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "ratio",
+          "value": 0.042976
+        },
+        "working_capital": {
+          "band": null,
+          "direction": "higher_is_better",
+          "note": "",
+          "unit": "currency",
+          "value": -7063092.84
+        }
+      },
+      "schema_version": "canonical_v1.0.0",
+      "totals": {
+        "current_assets": 9943352.76,
+        "current_liabilities": 17006445.6,
+        "gross_profit": 14856912.02,
+        "net_debt": 25495998.01,
+        "operating_profit_reported": -1334609.42,
+        "revenue_net": 79510264.65,
+        "total_assets": 70089631.84,
+        "total_debt": 27859009.64,
+        "total_equity": 25224176.6,
+        "total_liabilities": 44865455.24
+      }
+    },
+    "pack_provenance": {
+      "jurisdiction": "RO",
+      "mapping_version": "ro_omfp1802_v2",
+      "pack": "omfp1802@v1",
+      "pack_hash": "36e3fb50e0cc541c81db3c0e87f943998c013a4ffd3704347f362d9f78990e16"
+    },
+    "period_detection": {
+      "confidence": 1.0,
+      "detected": {
+        "candidates": [],
+        "confidence": 0.0,
+        "evidence_snippet": null,
+        "proposed_period_end": null,
+        "signal_used": "none"
+      },
+      "evidence_snippet": "user-confirmed period end: 2025-12-31",
+      "hint": "2025-12-31",
+      "mismatch": false,
+      "resolved_period_end": "2025-12-31",
+      "signal_used": "user_confirmed"
+    },
+    "provenance": {
+      "content_hash": "sha256-f30f652d21b51674a6c325e56305fe7c667a4438b843a03667b18d61ca174651",
+      "original_filename": "input.xlsx",
+      "source_document_id": "doc-saga_10_col_retail",
+      "written_at": "<normalized>"
+    },
+    "round_trip_check": {
+      "basis": "methodology_totals",
+      "max_deviation_pct": 0.0,
+      "passed": true,
+      "tolerance_pct": 0.5,
+      "worst": ""
+    },
+    "schema_version": "canonical_v1.0.0",
+    "source_data_quality": {
+      "raw_imbalance_abs": 0.0,
+      "raw_imbalance_pct": 0.0,
+      "sum_closing_credit": 79153785.88,
+      "sum_closing_debit": 79153785.88,
+      "warn": false,
+      "warn_threshold_pct": 2.0
+    },
+    "unmapped": []
+  },
+  "assembled_cf": {
+    "affiliate_change": -0.0,
+    "approximation_notes": [
+      "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
+      "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS."
+    ],
+    "bank_loan_drawdowns": 0.0,
+    "bank_loan_repayments": -2785900.96,
+    "capex_other_approx": -122443.15,
+    "capex_real": -0.0,
+    "capex_total": -122443.15,
+    "capitalized_construction": -0.0,
+    "cash_from_financing": -6809617.61,
+    "cash_from_investing": 5353164.44,
+    "cash_from_operating": 5109521.75,
+    "cash_used_in_financing": -6809617.61,
+    "cash_used_in_investing": 5353164.44,
+    "cf_before_wc": 5118171.45,
+    "cip_change": -1243.9,
+    "closing_cash_actual": 1138011.63,
+    "delta_inventory": -339760.28,
+    "delta_lt_debt": -2785900.96,
+    "delta_receivables": -12748.07,
+    "delta_st_bank": 0.0,
+    "delta_tax_pay": 21102.65,
+    "delta_trade_pay": 322755.99,
+    "depreciation": 1476837.65,
+    "dividends_declared_but_unpaid": false,
+    "dividends_paid": -1602606.31,
+    "dividends_received": 5453923.78,
+    "free_cash_flow": 5109521.75,
+    "interest_paid": -2421110.34,
+    "interest_received": 22927.71,
+    "is_approximated": true,
+    "net_change_in_cash": 3653068.58,
+    "net_profit": 3205212.62,
+    "net_wc_change": -8649.7,
+    "provision_movement": 436121.18,
+    "working_capital_change": -8649.7
+  },
+  "assembled_piotroski": {
+    "checks": [
+      {
+        "detail": "3,205,213 RON",
+        "key": "ni_positive",
+        "label": "Net income positive",
+        "result": "pass"
+      },
+      {
+        "detail": "4.57% on 70,089,632 RON total assets",
+        "key": "roa_positive",
+        "label": "ROA positive",
+        "result": "pass"
+      },
+      {
+        "detail": "5,109,522 RON",
+        "key": "cfo_positive",
+        "label": "Cash from operating positive",
+        "result": "pass"
+      },
+      {
+        "detail": "CFO 5,109,522 > NI 3,205,213",
+        "key": "cfo_gt_ni",
+        "label": "CFO greater than net income (earnings quality)",
+        "result": "pass"
+      },
+      {
+        "detail": "Prior-period data unavailable for YoY comparison.",
+        "key": "roa_improving",
+        "label": "ROA improving year-over-year",
+        "result": "uncertain"
+      },
+      {
+        "detail": "Prior-period data unavailable for YoY comparison.",
+        "key": "debt_declining",
+        "label": "Long-term debt declining",
+        "result": "uncertain"
+      },
+      {
+        "detail": "Prior-period data unavailable for YoY comparison.",
+        "key": "no_share_issuance",
+        "label": "No share issuance",
+        "result": "uncertain"
+      },
+      {
+        "detail": "Prior-period data unavailable for YoY comparison.",
+        "key": "margin_improving",
+        "label": "Operating margin improving",
+        "result": "uncertain"
+      },
+      {
+        "detail": "Prior-period data unavailable for YoY comparison.",
+        "key": "asset_turnover_improving",
+        "label": "Asset turnover improving",
+        "result": "uncertain"
+      }
+    ],
+    "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
+    "has_prior_period": false,
+    "score": 4,
+    "score_max": 9
+  },
+  "assembled_pl": {
+    "adjusted_ebitda": -506705.8,
+    "capitalized_own_work_memo": 0.0,
+    "cogs": 63376621.45,
+    "core_ebitda": -103684.94,
+    "cost_of_goods_sold": 63376621.45,
+    "depreciation": 1476837.65,
+    "discounts_received": 1923.78,
+    "ebit": -1256674.81,
+    "ebitda": 220162.84,
+    "ebitda_adjusted": 5674086.62,
+    "ebitda_cash": 220162.84,
+    "ebitda_operating_view": 222086.62,
+    "ebitda_operational": 220162.84,
+    "ebitda_statutory": 220162.84,
+    "ebitda_statutory_with_711": 220162.84,
+    "financial_expense": 671267.28,
+    "financial_expense_total": 3092377.62,
+    "financial_income": 5511010.41,
+    "financial_income_other": 5453923.78,
+    "free_cash_flow_proxy": 4682050.27,
+    "fx_gain": 34158.92,
+    "fx_loss": 671267.28,
+    "gross_profit": 16133643.2,
+    "income_tax": 0.0,
+    "interest_expense": 2421110.34,
+    "interest_income": 22927.71,
+    "inventory_variation_memo": 0.0,
+    "net_financial_result": 2418632.79,
+    "net_income_operational": 1161957.98,
+    "net_income_statutory": 3205212.62,
+    "operating_ebit": -1254751.03,
+    "operating_ebitda": 222086.62,
+    "opex_excluding_cogs_and_da": 16640349.0,
+    "opex_third_party": 703258.2,
+    "opex_total": 16640349.0,
+    "other_income_758": 245913.17,
+    "other_income_781_reversals": 77934.61,
+    "other_op_income_lump": 648934.03,
+    "pretax": 1161957.98,
+    "revenue": 79510264.65,
+    "tax": 0.0,
+    "total_operating_expense": 81493808.1,
+    "total_operating_revenue": 79512188.43,
+    "total_operating_revenue_statutory": 79512188.43
+  },
+  "balanceSheet": {
+    "accountsPayable": 6455119.8,
+    "accountsReceivable": 254961.33,
+    "cash": 1138011.63,
+    "intangibles": 108768.52,
+    "inventory": 6795205.57,
+    "longTermDebt": 27859009.64,
+    "otherCurrentAssets": 1755174.23,
+    "otherCurrentLiabilities": 10551325.8,
+    "otherEquity": 1612330.31,
+    "otherNonCurrentAssets": 57588647.56,
+    "otherNonCurrentLiabilities": 0.0,
+    "propertyPlantEquipment": 2448863.0,
+    "retainedEarnings": 16980246.29,
+    "shareCapital": 6631600.0,
+    "shortTermDebt": 0.0
+  },
+  "canonical_bs": {
+    "diagnosis": [],
+    "difference": 0.0,
+    "envelope_version": "sv1",
+    "excluded": [
+      {
+        "code": "121",
+        "reason": "profit_control_account_121"
+      },
+      {
+        "code": "581",
+        "reason": "transit_account_581"
+      }
+    ],
+    "extraction": {
+      "header_row_index": 0,
+      "method": "deterministic",
+      "number_locale": "anglo",
+      "parser_version": "tb_parser_v5",
+      "sheet": "Anon_5e9826c8c9",
+      "source_format": "saga_10_col"
+    },
+    "invariants": {
+      "assets_eq_row_sum": true,
+      "el_eq_row_sum": true,
+      "identity_holds": true,
+      "p121_cross_check": {
+        "cls7_minus_cls6": 1161957.98,
+        "ok": false,
+        "p121": 3205212.62
+      },
+      "result_basis": "sf_closing_column",
+      "source_conservation": true
+    },
+    "mapping_version": "ro_omfp1802_v2",
+    "needs_review": false,
+    "reconcile_offer": false,
+    "rows": [
+      {
+        "account_codes": [
+          "211"
+        ],
+        "amount": 23218.0,
+        "id": "ppe_land",
+        "label": "Land",
+        "label_key": "bs.row.ppe_land",
+        "leaf_ids": [
+          "2111.01"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "212"
+        ],
+        "amount": 1864345.1,
+        "id": "ppe_buildings",
+        "label": "Buildings",
+        "label_key": "bs.row.ppe_buildings",
+        "leaf_ids": [
+          "212"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "2131",
+          "2132",
+          "2133"
+        ],
+        "amount": 3457290.79,
+        "id": "ppe_machinery_equipment",
+        "label": "Machinery & equipment",
+        "label_key": "bs.row.ppe_machinery_equipment",
+        "leaf_ids": [
+          "2131",
+          "2132",
+          "2133"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "214"
+        ],
+        "amount": 766041.87,
+        "id": "ppe_furniture_office",
+        "label": "Furniture & office equipment",
+        "label_key": "bs.row.ppe_furniture_office",
+        "leaf_ids": [
+          "214"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "231"
+        ],
+        "amount": 2487.8,
+        "id": "ppe_under_construction",
+        "label": "PPE under construction",
+        "label_key": "bs.row.ppe_under_construction",
+        "leaf_ids": [
+          "231.014"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "2812",
+          "2813",
+          "2814"
+        ],
+        "amount": -3664520.56,
+        "id": "accumulated_depreciation_ppe",
+        "label": "Accumulated depreciation (PPE)",
+        "label_key": "bs.row.accumulated_depreciation_ppe",
+        "leaf_ids": [
+          "2812",
+          "2813",
+          "2814"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "205",
+          "208"
+        ],
+        "amount": 1139866.85,
+        "id": "intangibles_other",
+        "label": "Other intangibles",
+        "label_key": "bs.row.intangibles_other",
+        "leaf_ids": [
+          "205",
+          "208"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "2805",
+          "2808"
+        ],
+        "amount": -1031098.33,
+        "id": "accumulated_amortization_intangibles",
+        "label": "Accumulated amortization (intangibles)",
+        "label_key": "bs.row.accumulated_amortization_intangibles",
+        "leaf_ids": [
+          "2805",
+          "2808"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "261"
+        ],
+        "amount": 57444486.05,
+        "id": "financial_investments_affiliates",
+        "label": "Investments in affiliates",
+        "label_key": "bs.row.financial_investments_affiliates",
+        "leaf_ids": [
+          "261.001",
+          "261.002"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "2678"
+        ],
+        "amount": 144161.51,
+        "id": "other_non_current_assets",
+        "label": "Other non-current assets",
+        "label_key": "bs.row.other_non_current_assets",
+        "leaf_ids": [
+          "2678.09",
+          "2678.21",
+          "2678.24",
+          "2678.30",
+          "2678.51",
+          "2678.52"
+        ],
+        "opening": null,
+        "section": "non_current_assets"
+      },
+      {
+        "account_codes": [
+          "5121",
+          "5125",
+          "5311",
+          "54"
+        ],
+        "amount": 1127721.18,
+        "id": "cash_operating",
+        "label": "Cash in operating currency",
+        "label_key": "bs.row.cash_operating",
+        "leaf_ids": [
+          "5121.07",
+          "5121.14",
+          "5121.17",
+          "5121.18",
+          "5125.01",
+          "5125.02",
+          "5125.04",
+          "5125.08",
+          "5125.09",
+          "5125.10",
+          "5125.11",
+          "5125.12",
+          "5125.16",
+          "5125.17",
+          "5125.18",
+          "5125.19",
+          "5125.20",
+          "5125.21",
+          "5125.22",
+          "5125.23",
+          "5125.25",
+          "5125.28",
+          "5125.30",
+          "5311.01",
+          "5311.07",
+          "5311.09",
+          "5311.10",
+          "5311.16",
+          "5311.22",
+          "5311.24",
+          "5311.25",
+          "5311.26",
+          "5311.27",
+          "5311.28",
+          "5311.30",
+          "5311.32",
+          "5311.43",
+          "5311.45",
+          "5311.47",
+          "5311.57",
+          "5311.58",
+          "5311.63",
+          "5311.99",
+          "542"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "5124",
+          "5314"
+        ],
+        "amount": 10290.45,
+        "id": "cash_fx",
+        "label": "Cash in foreign currency",
+        "label_key": "bs.row.cash_fx",
+        "leaf_ids": [
+          "5124.04",
+          "5314.01"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "50"
+        ],
+        "amount": 1225000.0,
+        "id": "short_term_investments",
+        "label": "Short-term investments",
+        "label_key": "bs.row.short_term_investments",
+        "leaf_ids": [
+          "5081.02"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "4111",
+          "418"
+        ],
+        "amount": 956521.15,
+        "id": "ar_trade_gross",
+        "label": "Trade receivables (gross)",
+        "label_key": "bs.row.ar_trade_gross",
+        "leaf_ids": [
+          "4111.01",
+          "4111.02",
+          "4111.03",
+          "4111.07",
+          "4111.10",
+          "4111.11",
+          "4111.20",
+          "418"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "4118"
+        ],
+        "amount": 521628.39,
+        "id": "ar_doubtful_gross",
+        "label": "Doubtful receivables (gross)",
+        "label_key": "bs.row.ar_doubtful_gross",
+        "leaf_ids": [
+          "4118.01",
+          "4118.02",
+          "4118.03",
+          "4118.04",
+          "4118.05",
+          "4118.06",
+          "4118.07"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "491",
+          "496"
+        ],
+        "amount": -1223188.21,
+        "id": "ar_provisions",
+        "label": "AR allowance",
+        "label_key": "bs.row.ar_provisions",
+        "leaf_ids": [
+          "491",
+          "496"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "461"
+        ],
+        "amount": 90140.24,
+        "id": "ar_intercompany",
+        "label": "Intercompany receivables",
+        "label_key": "bs.row.ar_intercompany",
+        "leaf_ids": [
+          "461.14",
+          "461.15",
+          "461.18",
+          "461.24",
+          "461.32",
+          "461.33",
+          "461.54",
+          "461.57",
+          "461.59",
+          "461.63",
+          "461.64"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "4428"
+        ],
+        "amount": 11247.93,
+        "id": "ar_tax_recoverable",
+        "label": "Tax recoverable",
+        "label_key": "bs.row.ar_tax_recoverable",
+        "leaf_ids": [
+          "4428.26",
+          "4428.94",
+          "4428.96"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "4091",
+          "4092"
+        ],
+        "amount": 144621.25,
+        "id": "ar_supplier_advances",
+        "label": "Supplier advances",
+        "label_key": "bs.row.ar_supplier_advances",
+        "leaf_ids": [
+          "4091.01",
+          "4091.33",
+          "4092.07"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "481",
+          "532"
+        ],
+        "amount": 45843.63,
+        "id": "ar_other",
+        "label": "Other receivables",
+        "label_key": "bs.row.ar_other",
+        "leaf_ids": [
+          "481",
+          "5328.01"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "3"
+        ],
+        "amount": -1229164.37,
+        "id": "inventory_raw_materials",
+        "label": "Raw materials",
+        "label_key": "bs.row.inventory_raw_materials",
+        "leaf_ids": [
+          "378.51",
+          "378.52",
+          "378.53",
+          "378.59",
+          "378.60",
+          "378.76",
+          "378.77",
+          "378.79",
+          "378.82",
+          "378.83",
+          "378.86",
+          "378.87",
+          "378.88",
+          "378.89",
+          "378.90",
+          "378.91",
+          "378.92",
+          "378.93",
+          "378.94",
+          "378.95",
+          "378.96",
+          "378.98"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "302",
+          "303"
+        ],
+        "amount": 93284.56,
+        "id": "inventory_consumables",
+        "label": "Auxiliary consumables",
+        "label_key": "bs.row.inventory_consumables",
+        "leaf_ids": [
+          "3028.01",
+          "3028.02",
+          "3028.03",
+          "3028.04",
+          "303.002",
+          "303.003",
+          "303.004",
+          "303.01"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "371"
+        ],
+        "amount": 7917059.01,
+        "id": "inventory_merchandise_resale",
+        "label": "Merchandise for resale",
+        "label_key": "bs.row.inventory_merchandise_resale",
+        "leaf_ids": [
+          "371.01",
+          "371.201",
+          "371.30",
+          "371.50",
+          "371.51",
+          "371.52",
+          "371.53",
+          "371.59",
+          "371.60",
+          "371.76",
+          "371.77",
+          "371.79",
+          "371.82",
+          "371.83",
+          "371.86",
+          "371.87",
+          "371.88",
+          "371.89",
+          "371.90",
+          "371.91",
+          "371.92",
+          "371.93",
+          "371.94",
+          "371.95",
+          "371.96",
+          "371.98"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "381"
+        ],
+        "amount": 140526.37,
+        "id": "inventory_packaging",
+        "label": "Packaging",
+        "label_key": "bs.row.inventory_packaging",
+        "leaf_ids": [
+          "381.001"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "397",
+          "398"
+        ],
+        "amount": -126500.0,
+        "id": "inventory_provisions",
+        "label": "Inventory allowance",
+        "label_key": "bs.row.inventory_provisions",
+        "leaf_ids": [
+          "397",
+          "398"
+        ],
+        "opening": null,
+        "section": "current_assets"
+      },
+      {
+        "account_codes": [
+          "471"
+        ],
+        "amount": 238321.18,
+        "id": "prepaid_expenses_st",
+        "label": "Prepaid expenses (ST)",
+        "label_key": "bs.row.prepaid_expenses_st",
+        "leaf_ids": [
+          "471.001",
+          "471.004",
+          "471.005",
+          "471.008",
+          "471.009"
+        ],
+        "opening": null,
+        "section": "prepaid_expenses"
+      },
+      {
+        "account_codes": [
+          "1012"
+        ],
+        "amount": 6631600.0,
+        "id": "share_capital",
+        "label": "Share capital",
+        "label_key": "bs.row.share_capital",
+        "leaf_ids": [
+          "1012.01"
+        ],
+        "opening": null,
+        "section": "equity"
+      },
+      {
+        "account_codes": [
+          "105"
+        ],
+        "amount": 124042.72,
+        "id": "revaluation_reserves",
+        "label": "Revaluation reserves",
+        "label_key": "bs.row.revaluation_reserves",
+        "leaf_ids": [
+          "1051.01"
+        ],
+        "opening": null,
+        "section": "equity"
+      },
+      {
+        "account_codes": [
+          "1061"
+        ],
+        "amount": 1326320.0,
+        "id": "legal_reserves",
+        "label": "Legal reserves",
+        "label_key": "bs.row.legal_reserves",
+        "leaf_ids": [
+          "1061.01"
+        ],
+        "opening": null,
+        "section": "equity"
+      },
+      {
+        "account_codes": [
+          "1068"
+        ],
+        "amount": 161967.59,
+        "id": "other_reserves",
+        "label": "Other reserves",
+        "label_key": "bs.row.other_reserves",
+        "leaf_ids": [
+          "1068.01"
+        ],
+        "opening": null,
+        "section": "equity"
+      },
+      {
+        "account_codes": [
+          "117",
+          "1171"
+        ],
+        "amount": 15565657.17,
+        "id": "retained_earnings_prior_years",
+        "label": "Retained earnings (prior years)",
+        "label_key": "bs.row.retained_earnings_prior_years",
+        "leaf_ids": [
+          "1171.00",
+          "1171.07",
+          "1175"
+        ],
+        "opening": null,
+        "section": "equity"
+      },
+      {
+        "account_codes": [
+          "1174"
+        ],
+        "amount": -1790623.5,
+        "id": "accumulated_losses_prior_years",
+        "label": "Accumulated losses (prior years)",
+        "label_key": "bs.row.accumulated_losses_prior_years",
+        "leaf_ids": [
+          "1174"
+        ],
+        "opening": null,
+        "section": "equity"
+      },
+      {
+        "account_codes": [
+          "121"
+        ],
+        "amount": 3205212.62,
+        "id": "current_year_profit",
+        "label": "Current year profit",
+        "label_key": "bs.row.current_year_profit",
+        "leaf_ids": [
+          "121"
+        ],
+        "opening": null,
+        "section": "equity"
+      },
+      {
+        "account_codes": [
+          "1621"
+        ],
+        "amount": 27721615.92,
+        "id": "lt_debt_bank",
+        "label": "Long-term bank debt",
+        "label_key": "bs.row.lt_debt_bank",
+        "leaf_ids": [
+          "1621.01",
+          "1621.02",
+          "1621.03",
+          "1621.81"
+        ],
+        "opening": null,
+        "section": "non_current_liabilities"
+      },
+      {
+        "account_codes": [
+          "167"
+        ],
+        "amount": 137393.72,
+        "id": "lt_debt_other",
+        "label": "Long-term other debt",
+        "label_key": "bs.row.lt_debt_other",
+        "leaf_ids": [
+          "167.11",
+          "167.201",
+          "167.401"
+        ],
+        "opening": null,
+        "section": "non_current_liabilities"
+      },
+      {
+        "account_codes": [
+          "401",
+          "404"
+        ],
+        "amount": 6467389.55,
+        "id": "ap_trade",
+        "label": "Trade payables",
+        "label_key": "bs.row.ap_trade",
+        "leaf_ids": [
+          "401.01",
+          "401.03",
+          "401.110",
+          "404"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "451",
+          "461"
+        ],
+        "amount": 7537695.83,
+        "id": "ap_intercompany",
+        "label": "Intercompany payables",
+        "label_key": "bs.row.ap_intercompany",
+        "leaf_ids": [
+          "4511",
+          "461.06"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "442",
+          "4428",
+          "444",
+          "446"
+        ],
+        "amount": 1276479.28,
+        "id": "ap_tax",
+        "label": "Tax payables",
+        "label_key": "bs.row.ap_tax",
+        "leaf_ids": [
+          "4423",
+          "4428.201",
+          "4428.51",
+          "4428.52",
+          "4428.53",
+          "4428.59",
+          "4428.60",
+          "4428.76",
+          "4428.77",
+          "4428.79",
+          "4428.82",
+          "4428.83",
+          "4428.86",
+          "4428.87",
+          "4428.88",
+          "4428.89",
+          "4428.90",
+          "4428.91",
+          "4428.92",
+          "4428.93",
+          "4428.95",
+          "4428.98",
+          "444",
+          "446.04",
+          "446.05",
+          "446.09"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "421"
+        ],
+        "amount": 387730.0,
+        "id": "ap_personnel_salaries",
+        "label": "Salaries payable",
+        "label_key": "bs.row.ap_personnel_salaries",
+        "leaf_ids": [
+          "421"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "431",
+          "4315",
+          "4316",
+          "436"
+        ],
+        "amount": 204291.0,
+        "id": "ap_personnel_social",
+        "label": "Social contributions payable",
+        "label_key": "bs.row.ap_personnel_social",
+        "leaf_ids": [
+          "4313.01",
+          "4313.02",
+          "4315",
+          "4316",
+          "436"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "427",
+          "4281"
+        ],
+        "amount": 831452.79,
+        "id": "ap_personnel_other",
+        "label": "Other personnel payables",
+        "label_key": "bs.row.ap_personnel_other",
+        "leaf_ids": [
+          "427.01",
+          "4281.01",
+          "4281.02",
+          "4281.03"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "462",
+          "473"
+        ],
+        "amount": 137926.74,
+        "id": "ap_other",
+        "label": "Other current payables",
+        "label_key": "bs.row.ap_other",
+        "leaf_ids": [
+          "462.016",
+          "473.01"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "419"
+        ],
+        "amount": 175750.16,
+        "id": "customer_advances",
+        "label": "Customer advances",
+        "label_key": "bs.row.customer_advances",
+        "leaf_ids": [
+          "419.01"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      },
+      {
+        "account_codes": [
+          "408"
+        ],
+        "amount": -12269.75,
+        "id": "accrued_expenses",
+        "label": "Accrued expenses",
+        "label_key": "bs.row.accrued_expenses",
+        "leaf_ids": [
+          "408.001",
+          "408.231"
+        ],
+        "opening": null,
+        "section": "current_liabilities"
+      }
+    ],
+    "schema": "bs_v2",
+    "sections": [
+      {
+        "id": "non_current_assets",
+        "subtotal": 60146279.08
+      },
+      {
+        "id": "current_assets",
+        "subtotal": 9705031.58
+      },
+      {
+        "id": "prepaid_expenses",
+        "subtotal": 238321.18
+      },
+      {
+        "id": "equity",
+        "subtotal": 25224176.6
+      },
+      {
+        "id": "provisions",
+        "subtotal": 0.0
+      },
+      {
+        "id": "non_current_liabilities",
+        "subtotal": 27859009.64
+      },
+      {
+        "id": "current_liabilities",
+        "subtotal": 17006445.6
+      },
+      {
+        "id": "deferred_income",
+        "subtotal": 0.0
+      }
+    ],
+    "source_anchor": {
+      "anchor_status": "NO_ANCHOR",
+      "closing_result": {
+        "basis": "sf",
+        "codes": [
+          "121"
+        ],
+        "p121_cents": 320521262,
+        "pl_net_cents": 0
+      },
+      "file_totals_include_off_balance": false,
+      "imbalanced_pairs": [],
+      "pairs": {
+        "rc": {
+          "delta_credit": null,
+          "delta_debit": null,
+          "extracted_credit": 1030803154.71,
+          "extracted_debit": 1030803154.71,
+          "file_credit": null,
+          "file_debit": null
+        },
+        "rl": {
+          "delta_credit": null,
+          "delta_debit": null,
+          "extracted_credit": 89936754.46,
+          "extracted_debit": 89936754.46,
+          "file_credit": null,
+          "file_debit": null
+        },
+        "sf": {
+          "delta_credit": null,
+          "delta_debit": null,
+          "extracted_credit": 79153785.88,
+          "extracted_debit": 79153785.88,
+          "file_credit": null,
+          "file_debit": null
+        },
+        "si": {
+          "delta_credit": null,
+          "delta_debit": null,
+          "extracted_credit": 82618633.41,
+          "extracted_debit": 82618633.41,
+          "file_credit": null,
+          "file_debit": null
+        }
+      },
+      "source_balanced": null,
+      "totals_row_found": false,
+      "totals_row_index": null
+    },
+    "status": "BALANCED",
+    "status_presentation": {
+      "display_en": "Balanced",
+      "display_key": "bs.status.balanced",
+      "display_ro": "Echilibrat",
+      "machine": "BALANCED",
+      "micro_caption": null
+    },
+    "totals": {
+      "assets": 70089631.84,
+      "current_assets": 9705031.58,
+      "current_liabilities": 17006445.6,
+      "equity": 25224176.6,
+      "equity_plus_liabilities": 70089631.84,
+      "liabilities": 44865455.24
+    },
+    "unmapped": []
+  },
+  "companyName": "Retail Case SRL",
+  "currency": "RON",
+  "incomeStatement": {
+    "capitalizedOwnWork": 0.0,
+    "costOfGoodsSold": 63376621.45,
+    "depreciationAmortization": 1476837.65,
+    "financialExpense": 671267.28,
+    "financialIncome": 5511010.41,
+    "interestExpense": 2421110.34,
+    "inventoryVariationMemo": 0.0,
+    "operatingExpenses": 16640349.0,
+    "otherIncome": 726868.64,
+    "revenue": 79510264.65,
+    "taxExpense": 0.0
+  },
+  "industry": null,
+  "periodLabel": "FY 2024",
+  "subAggregates": {
+    "ap_dividends": 0.0,
+    "ar_doubtful": 521628.39,
+    "ar_intercompany": 90140.24,
+    "ar_provisions": 0.0,
+    "cash_fx": 10290.45,
+    "current_year_pnl": 3205212.62,
+    "equity_revaluation": 124042.72,
+    "financial_income": 5453923.78,
+    "fx_gain": 34158.92,
+    "fx_loss": 671267.28,
+    "interest_expense": 2421110.34,
+    "interest_income": 22927.71,
+    "opex_third_party": 703258.2,
+    "ppe_advances": 0.0,
+    "ppe_investment": 0.0,
+    "ppe_under_construction": 2487.8,
+    "retained_earnings": 13775033.67
+  },
+  "supplementary": {
+    "periodDays": 365
+  }
+}

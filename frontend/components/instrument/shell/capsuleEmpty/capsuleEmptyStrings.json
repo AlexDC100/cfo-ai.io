@@ -65,6 +65,16 @@
         "silence": {
           "simple": "Nothing was flagged — what did you check?",
           "pro": "Clean month — which rules ran, and how close were the margins?"
+        },
+        "move": {
+          "up": {
+            "simple": "What pushed {{subject}} up this period?",
+            "pro": "{{subject}} moved up — which drivers, and is it repeatable?"
+          },
+          "down": {
+            "simple": "What pulled {{subject}} down this period?",
+            "pro": "{{subject}} moved down — which drivers, and how much is structural?"
+          }
         }
       },
       "basis": {
@@ -72,7 +82,8 @@
         "finding": "From this period's Anomaly Radar",
         "trust": "From the balance verdict on this period",
         "covenant": "Compared with a typical Romanian facility test — not your loan documents",
-        "silence": "From the checks that ran on this period"
+        "silence": "From the checks that ran on this period",
+        "move": "From the change this period's checks measured"
       },
       "recents": {
         "heading": "Recent questions",
@@ -100,6 +111,24 @@
         "mixed": "Partly from your books",
         "generalHint": "General finance knowledge — this answer cites no figure from your period.",
         "mixedHint": "Some of this answer is general knowledge, not figures from your period."
+      },
+      "placeholder": {
+        "ask": "Ask about {{period}} — or jump anywhere",
+        "askNoPeriod": "Ask anything — or jump anywhere",
+        "aria": "Ask a question, or jump to a page"
+      },
+      "strip": {
+        "noPeriod": "No period loaded",
+        "noPeriodAction": "Upload a document",
+        "unverified": "Not verified",
+        "unattached_one": "{{count}} period without a file",
+        "unattached_other": "{{count}} periods without a file",
+        "findings_one": "{{count}} finding",
+        "findings_other": "{{count}} findings"
+      },
+      "jump": {
+        "heading": "Jump to…",
+        "hint": "Type to search everything"
       }
     }
   },
@@ -169,6 +198,16 @@
         "silence": {
           "simple": "Nu s-a semnalat nimic — ce ai verificat?",
           "pro": "Lună curată — ce reguli au rulat și cât de aproape au fost pragurile?"
+        },
+        "move": {
+          "up": {
+            "simple": "Ce a împins {{subject}} în sus perioada asta?",
+            "pro": "{{subject}} a crescut — din ce cauze și se poate repeta?"
+          },
+          "down": {
+            "simple": "Ce a tras {{subject}} în jos perioada asta?",
+            "pro": "{{subject}} a scăzut — din ce cauze și cât e structural?"
+          }
         }
       },
       "basis": {
@@ -176,7 +215,8 @@
         "finding": "Din Radarul de anomalii al acestei perioade",
         "trust": "Din verdictul de echilibru al acestei perioade",
         "covenant": "Comparat cu un test bancar românesc obișnuit — nu cu contractele tale de credit",
-        "silence": "Din verificările care au rulat pe această perioadă"
+        "silence": "Din verificările care au rulat pe această perioadă",
+        "move": "Din variația măsurată de verificările acestei perioade"
       },
       "recents": {
         "heading": "Întrebări recente",
@@ -204,6 +244,26 @@
         "mixed": "Parțial din registrele tale",
         "generalHint": "Cunoștințe generale de finanțe — răspunsul nu citează nicio cifră din perioada ta.",
         "mixedHint": "O parte din răspuns este cunoaștere generală, nu cifre din perioada ta."
+      },
+      "placeholder": {
+        "ask": "Întreabă despre {{period}} — sau sari oriunde",
+        "askNoPeriod": "Întreabă orice — sau sari oriunde",
+        "aria": "Pune o întrebare sau sari la o pagină"
+      },
+      "strip": {
+        "noPeriod": "Nicio perioadă încărcată",
+        "noPeriodAction": "Încarcă un document",
+        "unverified": "Neverificată",
+        "unattached_one": "{{count}} perioadă fără fișier",
+        "unattached_few": "{{count}} perioade fără fișier",
+        "unattached_other": "{{count}} de perioade fără fișier",
+        "findings_one": "{{count}} constatare",
+        "findings_few": "{{count}} constatări",
+        "findings_other": "{{count}} de constatări"
+      },
+      "jump": {
+        "heading": "Sari la…",
+        "hint": "Scrie ca să cauți peste tot"
       }
     }
   }

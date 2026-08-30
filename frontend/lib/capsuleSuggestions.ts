@@ -51,6 +51,7 @@ import type { Finding, FindingsReport } from "@/lib/findings";
 export type CapsuleSuggestionKind =
   | "unattached"
   | "finding"
+  | "move"
   | "trust"
   | "covenant"
   | "silence";
@@ -100,6 +101,26 @@ export interface CapsuleMetricSeed {
   unit: string | null;
 }
 
+/**
+ * A period-over-period MOVE, reduced to the two things a question needs:
+ * WHAT moved and WHICH WAY.
+ *
+ * `magnitude` exists only to rank one move against another and is never
+ * rendered — S1 forbids a figure in a row, and the size of a delta is a
+ * figure whatever unit it wears. The direction is a WORD ("up" / "down"),
+ * so the row can say "moved up" without stating by how much; the amount
+ * is what the reader opens the answer to find out.
+ */
+export interface CapsuleMoveSeed {
+  /** Stable id — the finding key or metric name the move came from. */
+  key: string;
+  /** A LABEL. Same guard as `CapsuleFindingSeed.subject`. */
+  subject: string;
+  direction: "up" | "down";
+  /** Absolute size, for ranking ONLY. Never reaches a label param. */
+  magnitude: number;
+}
+
 export interface CapsuleUnattachedPeriod {
   periodId: string;
   /** Formatted month label ("Dec 2025") — never a period id (D11). */
@@ -127,6 +148,10 @@ export interface CapsuleWorkspaceSnapshot {
   metrics: readonly CapsuleMetricSeed[];
   /** Periods in this workspace with no financial document attached. */
   unattached: readonly CapsuleUnattachedPeriod[];
+  /** Period-over-period moves the engine already computed, ranked by the
+   *  caller or by `seedMoves`. Empty when nothing in this workspace
+   *  states a delta — there is no branch that manufactures one. */
+  moves: readonly CapsuleMoveSeed[];
 }
 
 export const EMPTY_SNAPSHOT: CapsuleWorkspaceSnapshot = Object.freeze({
@@ -137,6 +162,7 @@ export const EMPTY_SNAPSHOT: CapsuleWorkspaceSnapshot = Object.freeze({
   silence: false,
   metrics: Object.freeze([]) as readonly CapsuleMetricSeed[],
   unattached: Object.freeze([]) as readonly CapsuleUnattachedPeriod[],
+  moves: Object.freeze([]) as readonly CapsuleMoveSeed[],
 });
 
 /** Three. The empty state is a glance, not a menu. */
@@ -224,6 +250,47 @@ export function seedFindings(report: FindingsReport | null): CapsuleFindingSeed[
     if (!subject) continue;
     out.push({ key: f.key, severity: f.effectiveSeverity, subject });
   }
+  return out;
+}
+
+/**
+ * The period-over-period moves a `FindingsReport` already states.
+ *
+ * The contract's `impact` element is the only place in this payload that
+ * carries a SIGNED DELTA against a baseline — which is exactly what "how
+ * much did this move" means. Reading it here rather than recomputing a
+ * delta from two snapshots is deliberate: the engine decided what the
+ * baseline was, and a second opinion computed on the client would be a
+ * different claim wearing the same words.
+ *
+ * Rules, all of them refusals:
+ *   · no `delta`, or a non-finite one → NO seed. ABSENT is not ZERO, and
+ *     a zero delta is not a move.
+ *   · no figure-free label → NO seed (S1), same as `seedFindings`.
+ *   · the magnitude is carried for RANKING and never for rendering.
+ *
+ * Sorted by magnitude descending, then by key, so the same report always
+ * yields the same order (S4).
+ */
+export function seedMoves(report: FindingsReport | null): CapsuleMoveSeed[] {
+  if (!report) return [];
+  const out: CapsuleMoveSeed[] = [];
+  for (const f of report.surfaced) {
+    const impact = f.elements.impact;
+    const delta = impact?.delta;
+    if (typeof delta !== "number" || !Number.isFinite(delta) || delta === 0) continue;
+    const subject = pickLabel([impact?.metric_label]);
+    if (!subject) continue;
+    out.push({
+      key: f.key,
+      subject,
+      direction: delta > 0 ? "up" : "down",
+      magnitude: Math.abs(delta),
+    });
+  }
+  out.sort(
+    (a, b) => b.magnitude - a.magnitude || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  );
   return out;
 }
 
@@ -324,13 +391,18 @@ const SEVERITY_PRIORITY: Record<CapsuleFindingSeed["severity"], number> = {
 const UNATTACHED_PRIORITY = 80;
 const COVENANT_PRIORITY = 65;
 const SILENCE_PRIORITY = 40;
+// Below the top finding (90) and above the covenant DEFAULT test (65):
+// a real move measured on this workspace outranks a generic bank test,
+// and is outranked by a rule that actually fired.
+const MOVE_PRIORITY = 78;
 
 const KIND_ORDER: Record<CapsuleSuggestionKind, number> = {
   unattached: 0,
   finding: 1,
-  trust: 2,
-  covenant: 3,
-  silence: 4,
+  move: 2,
+  trust: 3,
+  covenant: 4,
+  silence: 5,
 };
 
 // ─── The builder ───────────────────────────────────────────────────────
@@ -341,6 +413,8 @@ const KIND_ORDER: Record<CapsuleSuggestionKind, number> = {
  * Candidate set, each contributing AT MOST ONE row:
  *   · unattached — the newest period with no document attached
  *   · finding    — the top surfaced Anomaly Radar row, as a question
+ *   · move       — the largest period-over-period move the contract
+ *                  stated, skipped when it restates the finding above
  *   · trust      — the active period's balance verdict, when it is not
  *                  a clean BALANCED
  *   · covenant   — the tightest DEFAULT covenant test (S2)
@@ -387,6 +461,28 @@ export function buildCapsuleSuggestions(
       labelParams: { subject: finding.subject },
       basisKey: "capsuleEmpty.basis.finding",
       priority: SEVERITY_PRIORITY[finding.severity] ?? SEVERITY_PRIORITY.info,
+      mode,
+    });
+  }
+
+  // 2b. The largest period-over-period move, as a question about WHAT
+  //     moved and WHICH WAY. Never how much — that is the answer.
+  //
+  //     Skipped when the top finding is already about the same subject:
+  //     "Why did gross margin get flagged?" and "What moved gross margin
+  //     down?" are one question asked twice, and two of three slots is
+  //     too high a price for a rephrasing.
+  const move = s.moves.find(
+    (m) => !finding || m.subject.toLowerCase() !== finding.subject.toLowerCase(),
+  );
+  if (move) {
+    out.push({
+      id: `capsule.suggest.move.${move.key}`,
+      kind: "move",
+      labelKey: `capsuleEmpty.suggest.move.${move.direction}.${mode}`,
+      labelParams: { subject: move.subject },
+      basisKey: "capsuleEmpty.basis.move",
+      priority: MOVE_PRIORITY,
       mode,
     });
   }
@@ -464,6 +560,10 @@ export interface CapsuleContextModel {
   /** Count of surfaced findings — a count is not a figure; it is never
    *  money and never converts. */
   findingCount: number;
+  /** The first period still waiting for a document, so the context strip
+   *  can make the count a DESTINATION rather than a statistic. Null when
+   *  nothing is unattached. */
+  unattachedFirst: CapsuleUnattachedPeriod | null;
 }
 
 /** The context zone's model. Pure; same rules as the suggestions. */
@@ -478,5 +578,6 @@ export function buildCapsuleContext(
     unverified: s.hasPeriod && (s.trustBand === null || s.trustBand === "unverified"),
     unattachedCount: s.unattached.length,
     findingCount: s.findings.length,
+    unattachedFirst: s.unattached[0] ?? null,
   };
 }

@@ -23,7 +23,7 @@
 //     props-driven rendering. Lets the test render the panel without
 //     depending on Radix portal mounting under jsdom.
 
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -58,6 +58,92 @@ import { useTheme, type Theme } from "@/theme";
 // prop threading — they simply mount inside the menu.
 import { CurrencyToggle } from "./CurrencyToggle";
 import { ModeSwitch } from "@/components/instrument/shell/ModeSwitch";
+// THE BELL'S FOLD (2026-08-30, Part E): below `lg` the header drops the
+// notifications bell to hold its 3-control budget, so the avatar becomes
+// its home — the panel gets the row, the trigger gets the count.
+import { NotificationsMenu } from "./NotificationsMenu";
+import { fetchAlerts, type AlertSeverity } from "@/lib/supabase";
+import "./headerI18n";
+
+// ─────────────────────────────────────────────────────────────────────
+// The fold's two small hooks
+// ─────────────────────────────────────────────────────────────────────
+
+/** Tailwind's `lg` breakpoint, as a hook. Drives WHERE the bell lives —
+ *  the CSS classes decide what paints, this decides whether we spend a
+ *  request on the badge count at all. */
+function useBelowLg(): boolean {
+  const [below, setBelow] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 1024,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const onChange = () => setBelow(window.innerWidth < 1024);
+    mql.addEventListener("change", onChange);
+    onChange();
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return below;
+}
+
+/** Severities that earn the badge. MIRRORS NotificationsMenu's `BADGED`
+ *  ladder deliberately — the avatar badge must never disagree with the
+ *  bell it replaces. The constant is not exported from there; when this
+ *  and that file next move together, export it and delete this copy
+ *  (recorded as a cross-lane item in design_review/header/GATES.md).
+ *  This is NOT a second alert engine: it reads the same persisted
+ *  org-scoped rows through the same `fetchAlerts` gateway. */
+const BADGED_SEVERITIES: AlertSeverity[] = ["critical", "high", "medium"];
+
+/** Unread count for the avatar badge. Fetches ONLY when `enabled` — at
+ *  `lg` and up the bell is mounted and already owns this read, so the
+ *  fold costs no duplicate request at any width. */
+function useAlertBadgeCount(enabled: boolean): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) {
+      setCount(0);
+      return;
+    }
+    let live = true;
+    void fetchAlerts()
+      .then((rows) => {
+        if (live) setCount(rows.filter((a) => BADGED_SEVERITIES.includes(a.severity)).length);
+      })
+      .catch(() => {
+        // Honest-absent: a failed read shows NO badge rather than a
+        // fabricated zero-that-looks-like-a-verdict. Same posture as
+        // usePlanState.
+        if (live) setCount(0);
+      });
+    return () => {
+      live = false;
+    };
+  }, [enabled]);
+  return count;
+}
+
+/** The count bubble painted on the avatar. `lg:hidden` — at desktop the
+ *  bell carries its own badge and this would be the duplicate. */
+function AvatarBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      aria-hidden
+      data-testid="account-menu-badge"
+      className="
+        lg:hidden absolute -top-0.5 -right-0.5
+        min-w-[15px] h-[15px] px-1
+        inline-flex items-center justify-center rounded-full
+        bg-red-600 text-white text-[9.5px] font-semibold leading-none tabular-nums
+        ring-2 ring-bg
+      "
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Public component — wires hooks + DropdownMenu, used in TopHeader.
@@ -77,8 +163,20 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
   // persistence; ThemePrefSync mirrors it to user_prefs.theme.
   const { theme, setTheme, mounted: themeMounted } = useTheme();
   const [open, setOpen] = useState(false);
+  // The bell's fold — see the hooks above. Hooks must run before the
+  // early return below, so they sit here unconditionally.
+  const belowLg = useBelowLg();
+  const alertCount = useAlertBadgeCount(belowLg && !!user);
 
   if (!user) return null;
+
+  const accountAria =
+    belowLg && alertCount > 0
+      ? t("header.account.withAlerts", {
+          name: displayName ?? user.email,
+          count: alertCount,
+        })
+      : `Account menu · ${displayName ?? user.email}`;
 
   // When an `onOpen` handler is supplied, the avatar becomes a plain button
   // that runs it (the top bar wires this to open the Command Center — the
@@ -88,12 +186,12 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
     return (
       <button
         type="button"
-        aria-label={`Account · ${displayName ?? user.email}`}
+        aria-label={accountAria}
         title={displayName ?? user.email ?? "Account"}
         data-testid="account-menu-trigger"
         onClick={onOpen}
         className="
-          ml-1 inline-flex items-center justify-center
+          relative ml-1 inline-flex items-center justify-center
           h-9 w-9 rounded-full
           bg-brand text-paper
           text-[12px] font-semibold tracking-tight
@@ -103,6 +201,7 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
         "
       >
         {initials ?? <UserIcon size={14} strokeWidth={1.75} />}
+        <AvatarBadge count={alertCount} />
       </button>
     );
   }
@@ -141,11 +240,11 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
          *  trigger itself stays compact. */}
         <button
           type="button"
-          aria-label={`Account menu · ${displayName ?? user.email}`}
+          aria-label={accountAria}
           title={displayName ?? user.email ?? "Account"}
           data-testid="account-menu-trigger"
           className="
-            ml-1 inline-flex items-center justify-center
+            relative ml-1 inline-flex items-center justify-center
             h-9 w-9 rounded-full
             bg-brand text-paper
             text-[12px] font-semibold tracking-tight
@@ -155,6 +254,7 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
           "
         >
           {initials ?? <UserIcon size={14} strokeWidth={1.75} />}
+          <AvatarBadge count={alertCount} />
         </button>
       </DropdownMenuTrigger>
 
@@ -185,6 +285,10 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
             navigate("/pricing");
           }}
           onSignOut={() => void handleSignOut()}
+          // Below `lg` the header has no bell — this row is its home.
+          // Passed as a slot so AccountMenuContent stays pure/props-only
+          // and its existing bare-render tests keep working.
+          notificationsSlot={<NotificationsMenu variant="row" />}
         />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -213,6 +317,10 @@ export interface AccountMenuContentProps {
   onNavigateSettings: () => void;
   onNavigateBilling: () => void;
   onSignOut: () => void;
+  /** THE BELL'S FOLD (2026-08-30, Part E). Rendered `lg:hidden`: at
+   *  desktop the header still carries the bell, below `lg` this row is
+   *  the only home. Optional so bare-render tests stay unchanged. */
+  notificationsSlot?: ReactNode;
 }
 
 export function AccountMenuContent({
@@ -226,6 +334,7 @@ export function AccountMenuContent({
   onNavigateSettings,
   onNavigateBilling,
   onSignOut,
+  notificationsSlot,
 }: AccountMenuContentProps) {
   const { t } = useTranslation();
   return (
@@ -333,6 +442,18 @@ export function AccountMenuContent({
           testId="account-menu-me"
         />
       </section>
+
+      {/* ── Notifications (below lg — the bell's fold, 2026-08-30) ──
+          The avatar's badge mirrors this row's count; the row opens the
+          same dialog the header bell opens at desktop widths. */}
+      {notificationsSlot && (
+        <section
+          className="lg:hidden px-2 py-2 border-t border-rule/60"
+          data-testid="account-menu-notifications"
+        >
+          {notificationsSlot}
+        </section>
+      )}
 
       {/* ── Learning mode (2026-08-04 — from the header's Learn pill) ── */}
       {learningMode && onSetLearningMode && (

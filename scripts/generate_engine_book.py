@@ -79,7 +79,8 @@ OWNED_PAGES = (
     "threat_model.md",
 )
 FOREIGN_PAGES = (
-    "assertions.md", "mutation.md", "ai_payload_audit.md", "error_budget.md"
+    "assertions.md", "mutation.md", "ai_payload_audit.md", "error_budget.md",
+    "testing_conventions.md"
 )
 
 
@@ -865,6 +866,9 @@ def render_index() -> str:
     )
     lines.append(
         "| [assertions.md](assertions.md) | A-### assert catalog with witness tests | assertions agent (hand-maintained) |"
+    )
+    lines.append(
+        "| [testing_conventions.md](testing_conventions.md) | TC-### testing rules, each naming the incident that produced it — real-output fixtures, proven-RED gates, census canaries | hand-maintained |"
     )
     lines.append(
         "| [mutation.md](mutation.md) | Mutation-testing results and policy | mutation agent (hand-maintained) |"

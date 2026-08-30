@@ -5,7 +5,9 @@
 //
 // ── What the host mounts ──────────────────────────────────────────────
 //
-//   <CapsuleEmptyState onPick={…} />          with the input empty
+//   <CapsuleEmptyState … />                   with the input empty —
+//                                             the THREE zones (context
+//                                             strip / ask / jump)
 //   <CapsuleAskRowNotice block={…} />         inside the Ask ROW, in place
 //                                             of its own label, when
 //                                             `block` is non-null
@@ -34,16 +36,20 @@ export {
   type CapsulePickSource,
 } from "./CapsuleEmptyState";
 
-export { CapsuleContextZone, type CapsuleContextZoneProps } from "./CapsuleContextZone";
+export {
+  CapsuleContextStrip,
+  type CapsuleContextStripProps,
+} from "./CapsuleContextStrip";
 export {
   CapsuleSuggestionList,
   type CapsuleSuggestionListProps,
 } from "./CapsuleSuggestionList";
 export {
-  CapsuleRecentQuestions,
-  RECENT_PILLS,
-  type CapsuleRecentQuestionsProps,
-} from "./CapsuleRecentQuestions";
+  CapsuleJumpList,
+  MAX_JUMPS,
+  type CapsuleJumpItem,
+  type CapsuleJumpListProps,
+} from "./CapsuleJumpList";
 export {
   CapsuleAskRowNotice,
   CapsuleAskUnavailable,
@@ -91,6 +97,11 @@ export {
   useCapsuleRecents,
   type CapsuleRecall,
 } from "./capsuleRecents";
+// `useCapsuleRecents` survives for the recall list itself; the visible
+// RECENT-QUESTIONS ROW does not. Recents are now reached with ⌘K then
+// ArrowUp — a shell-style recall — because a list of things you already
+// asked is something you reach for, not something you read every time
+// the surface opens. `CapsuleRecentQuestions` was deleted, not hidden.
 
 export { useCapsuleKeys, type CapsuleKeys } from "./capsuleKeys";
 export { useCapsuleSnapshot, type CapsuleSnapshotResult } from "./useCapsuleSnapshot";

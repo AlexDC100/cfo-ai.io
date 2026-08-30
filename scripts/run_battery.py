@@ -120,6 +120,17 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
     # Unit-declaration gate — makes the 2026-08-30 "1553.0%" double-scale
     # collision unwritable at the producer (see check_metric_units.py).
     ("metric-units", [PY, "scripts/check_metric_units.py"]),
+    # Companion to metric-units: that gate checks a PRODUCER declares a
+    # unit on the row it writes; this one checks every metric a SURFACE
+    # can request is known to the registry, so a legitimate figure can
+    # never resolve to UNIT_UNKNOWN and be refused at render.
+    ("metric-declared", [PY, "scripts/check_metric_declared.py"]),
+    # A gate aimed at an element that no longer exists passes for the
+    # wrong reason. This is a STATIC census, so it runs in the battery
+    # even though the Playwright suite it audits needs a live server —
+    # which is the point: that suite is not in the battery, so nothing
+    # else would have noticed the drift.
+    ("stale-gates", ["node", "scripts/check_stale_gates.mjs"]),
     # U1/U3 — NARRATIVE UNITS. A note that reads "holds RON 7,692,203 — 19.6%
     # of total assets 7.467.122,25 €" is one claim in two currencies; the
     # ratio was correct and the sentence still made it unverifiable. This

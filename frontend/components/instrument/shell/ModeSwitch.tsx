@@ -20,6 +20,7 @@ import { usePrefSync } from "@/lib/prefs";
 import { cn } from "@/lib/utils";
 import {
   adoptRemoteViewMode,
+  getViewMode,
   setViewMode,
   useViewMode,
   type ViewMode,
@@ -30,6 +31,50 @@ const OPTIONS: Array<{ value: ViewMode; labelKey: string }> = [
   { value: "simple", labelKey: "modes.switch.simple" },
   { value: "pro", labelKey: "modes.switch.pro" },
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// THE DIAL'S SECOND HOME — the ⌘K palette.
+//
+// 2026-08-30, Part E: the dial left the header (H1 budget = 4). Its
+// homes are now (1) avatar quick-settings, (2) Settings > Appearance,
+// (3) the ⌘K command palette. This lane owns ModeSwitch.tsx but NOT
+// CommandPalette.tsx, so the action is published here as a descriptor
+// the palette lane pushes into its `actions` array verbatim:
+//
+//     import { MODE_PALETTE_ACTION, toggleViewMode } from "./ModeSwitch";
+//     ...
+//     {
+//       id: MODE_PALETTE_ACTION.id,
+//       group: t("shell.palette.actions"),
+//       label: t(MODE_PALETTE_ACTION.labelKey, {
+//         mode: t(`modes.switch.${MODE_PALETTE_ACTION.nextMode()}`),
+//       }),
+//       hint: t(MODE_PALETTE_ACTION.hintKey),
+//       icon: SlidersHorizontal,
+//       run: () => { toggleViewMode(); close(); },
+//     },
+//
+// Until that lands, `toggleViewMode()` is still the one mutation path,
+// so nothing here is a stub — the behaviour exists and is unit-tested;
+// only the palette ROW is pending. e2e/design/header.spec.ts states
+// that pending wiring out loud rather than passing vacuously.
+// ─────────────────────────────────────────────────────────────────────
+
+/** Flip Simple <-> Pro and return the new mode. The one mutation the
+ *  palette action (and any future shortcut) needs. */
+export function toggleViewMode(): ViewMode {
+  const next: ViewMode = getViewMode() === "pro" ? "simple" : "pro";
+  setViewMode(next);
+  return next;
+}
+
+export const MODE_PALETTE_ACTION = {
+  id: "act-view-mode",
+  labelKey: "modes.switch.paletteLabel",
+  hintKey: "modes.switch.hint",
+  /** The mode the action would switch TO — for the row's label. */
+  nextMode: (): ViewMode => (getViewMode() === "pro" ? "simple" : "pro"),
+} as const;
 
 /** Cross-device adoption for the view mode, with NO UI.
  *

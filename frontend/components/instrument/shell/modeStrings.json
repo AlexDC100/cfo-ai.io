@@ -5,12 +5,13 @@
         "label": "View mode",
         "simple": "Simple",
         "pro": "Pro",
-        "hint": "Simple tells the story of your numbers in plain language. Pro shows the full instrument — every statement, ratio and reconciliation. Same figures in both."
+        "hint": "Simple tells the story of your numbers in plain language. Pro shows the full instrument — every statement, ratio and reconciliation. Same figures in both.",
+        "paletteLabel": "Switch to {{mode}} view"
       },
       "onboarding": {
         "eyebrow": "Welcome to CFO AI",
         "title": "What describes you best?",
-        "subtitle": "This only sets how your numbers are presented — a plain-language story, or the full instrument. You can switch anytime from the header or Settings.",
+        "subtitle": "This only sets how your numbers are presented — a plain-language story, or the full instrument. You can switch anytime from your account menu or Settings.",
         "owner_title": "I run a business",
         "owner_desc": "Clear answers about cash, profit and debt, in plain language. Starts in Simple view.",
         "accountant_title": "I'm an accountant or CFO",
@@ -27,12 +28,13 @@
         "label": "Mod de afișare",
         "simple": "Simplu",
         "pro": "Pro",
-        "hint": "Simplu îți spune povestea cifrelor pe înțelesul tău. Pro arată instrumentul complet — fiecare situație, indicator și reconciliere. Aceleași cifre în ambele."
+        "hint": "Simplu îți spune povestea cifrelor pe înțelesul tău. Pro arată instrumentul complet — fiecare situație, indicator și reconciliere. Aceleași cifre în ambele.",
+        "paletteLabel": "Comută pe modul {{mode}}"
       },
       "onboarding": {
         "eyebrow": "Bine ai venit la CFO AI",
         "title": "Ce te descrie cel mai bine?",
-        "subtitle": "Alegerea stabilește doar cum îți sunt prezentate cifrele — o poveste pe limba ta sau instrumentul complet. Poți comuta oricând din antet sau din Setări.",
+        "subtitle": "Alegerea stabilește doar cum îți sunt prezentate cifrele — o poveste pe limba ta sau instrumentul complet. Poți comuta oricând din meniul contului sau din Setări.",
         "owner_title": "Conduc o afacere",
         "owner_desc": "Răspunsuri clare despre bani, profit și datorii, pe limba ta. Pornești în modul Simplu.",
         "accountant_title": "Sunt contabil sau CFO",

@@ -109,7 +109,18 @@
         "current_ratio": "Current ratio",
         "equity_ratio": "Equity ratio",
         "net_margin": "Net margin"
-      }
+      },
+      "followUp": {
+        "heading": "Next",
+        "compare_prior": "vs last year?",
+        "trend": "Trend or one-off?",
+        "drivers": "Which accounts drove it?",
+        "evidence": "Show the evidence",
+        "gap_fix": "What would fill the gap?"
+      },
+      "questionChip": "Your question",
+      "writing": "Writing the interpretation…",
+      "newQuestion": "New question"
     }
   },
   "ro": {
@@ -222,7 +233,18 @@
         "current_ratio": "Lichiditate curentă",
         "equity_ratio": "Rata capitalului propriu",
         "net_margin": "Marja netă"
-      }
+      },
+      "followUp": {
+        "heading": "Mai departe",
+        "compare_prior": "față de anul trecut?",
+        "trend": "Tendință sau întâmplare?",
+        "drivers": "Ce conturi au determinat asta?",
+        "evidence": "Arată dovezile",
+        "gap_fix": "Ce ar completa golul?"
+      },
+      "questionChip": "Întrebarea ta",
+      "writing": "Scriem interpretarea…",
+      "newQuestion": "Întrebare nouă"
     }
   }
 }

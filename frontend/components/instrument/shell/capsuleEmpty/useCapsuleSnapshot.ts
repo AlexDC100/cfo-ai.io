@@ -32,7 +32,9 @@ import {
   EMPTY_SNAPSHOT,
   pickLabel,
   seedFindings,
+  seedMoves,
   type CapsuleMetricSeed,
+  type CapsuleMoveSeed,
   type CapsuleUnattachedPeriod,
   type CapsuleWorkspaceSnapshot,
 } from "@/lib/capsuleSuggestions";
@@ -54,10 +56,14 @@ export function useCapsuleSnapshot(): CapsuleSnapshotResult {
   // ONE report per rows identity — `buildFindingsReport` parses and ranks
   // every contract row, so building it twice for two derived values would
   // double that work on every render of an open palette.
-  const { findings, silence } = useMemo(() => {
+  const { findings, moves, silence } = useMemo(() => {
     const report = buildFindingsReport(period.alerts);
     return {
       findings: seedFindings(report),
+      // The contract's own signed deltas, ranked. `seedMoves` refuses a
+      // row with no delta, so a workspace that states no change yields
+      // no move question rather than an invented one.
+      moves: seedMoves(report) as readonly CapsuleMoveSeed[],
       // Silence is a RESULT: the contract ran, produced checks, and
       // surfaced nothing. A period with no contract rows at all is not
       // silent — it is unanalysed, and says so elsewhere.
@@ -114,12 +120,22 @@ export function useCapsuleSnapshot(): CapsuleSnapshotResult {
     }
     return {
       hasPeriod: true,
-      periodLabel: pickLabel([formatPeriodMonth(period.periodEnd, locale), period.label]),
+      // THE MONTH, OR NOTHING.
+      //
+      // `period.label` is the friendly WORKSPACE name — usually the
+      // company — and it used to sit here as a fallback. When a period
+      // carries no `period_end` the strip then read
+      // "Period · Meridian Industries SRL", which states that a company
+      // name is a month. Caught in the r0 screenshot loop. A period with
+      // no resolvable month now has NO name, and the surface says so in
+      // words (`hasPeriod` stays true, so it is never called unloaded).
+      periodLabel: pickLabel([formatPeriodMonth(period.periodEnd, locale)]),
       trustBand: trust.band,
       findings,
       silence,
       metrics,
       unattached,
+      moves,
     };
   }, [
     period.id,
@@ -129,6 +145,7 @@ export function useCapsuleSnapshot(): CapsuleSnapshotResult {
     locale,
     trust.band,
     findings,
+    moves,
     silence,
     metrics,
     unattached,

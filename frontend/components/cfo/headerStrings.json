@@ -1,0 +1,30 @@
+{
+  "en": {
+    "header": {
+      "coach": {
+        "title": "Simple / Pro moved",
+        "body": "The view-mode dial now lives in your account menu, and in the command palette.",
+        "dismiss": "Got it",
+        "aria": "Tip: the Simple and Pro view-mode switch moved into the account menu"
+      },
+      "account": {
+        "withAlerts_one": "Account menu · {{name}} · {{count}} alert needs attention",
+        "withAlerts_other": "Account menu · {{name}} · {{count}} alerts need attention"
+      }
+    }
+  },
+  "ro": {
+    "header": {
+      "coach": {
+        "title": "Simplu / Pro s-a mutat",
+        "body": "Comutatorul de mod este acum în meniul contului tău și în paleta de comenzi.",
+        "dismiss": "Am înțeles",
+        "aria": "Sfat: comutatorul Simplu / Pro s-a mutat în meniul contului"
+      },
+      "account": {
+        "withAlerts_one": "Meniul contului · {{name}} · {{count}} alertă are nevoie de atenție",
+        "withAlerts_other": "Meniul contului · {{name}} · {{count}} alerte au nevoie de atenție"
+      }
+    }
+  }
+}

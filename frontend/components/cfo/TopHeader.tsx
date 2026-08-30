@@ -1,12 +1,19 @@
-// THE INSTRUMENT — the command deck header (Part C).
+// THE INSTRUMENT — the command deck header (Part C · Part E).
 //
-//   ┌──────────────────────────────────────────────────────────────────┐
-//   │ ☰ ◇        [ ● CFO · Dec 2025            🔍 ⌘K ]        🔔 ⓤ    │
-//   └──────────────────────────────────────────────────────────────────┘
+//   ≥1024   ┌──────────────────────────────────────────────────────────┐
+//           │ ◇        [ ● CFO · Dec 2025          🔍 ⌘K ]      🔔 ⓤ  │
+//           └──────────────────────────────────────────────────────────┘
+//   <1024   ┌──────────────────────────────────────────────────────────┐
+//           │ ☰        [ ● CFO · Dec 2025               🔍 ]        ⓤ  │
+//           └──────────────────────────────────────────────────────────┘
 //
-// THE LAW (2026-08-30, owner directive): the desktop header holds
+// THE LAW (2026-08-30, owner directive, Part E): the desktop header holds
 // EXACTLY FOUR interactive elements — brand mark · THE CAPSULE ·
-// notifications · avatar. No text labels outside the Capsule.
+// notifications · avatar. Below `lg` it holds EXACTLY THREE: the nav
+// hamburger takes the left slot (the brand mark is `lg:flex` — two
+// left-hand controls on the narrowest screen was the duplication), and
+// the bell folds into the avatar, whose badge mirrors the unread count.
+// No text labels outside the Capsule.
 //
 // What left the header, and where it went:
 //   · "Balanced · machine-computed" TEXT  -> the Capsule's 7px status
@@ -14,28 +21,37 @@
 //     receipt sheet, so no trust information was lost — only its width.
 //   · "Ask CFO AI" button -> the sidebar's accent row + ⌘J + the palette.
 //   · Currency (EUR/RON)  -> avatar quick-settings + Settings.
-//   · Simple|Pro dial     -> avatar quick-settings.
-// The Capsule itself opens the ⌘K palette, which already carries recent
+//   · Simple|Pro dial     -> avatar quick-settings + Settings + the ⌘K
+//     palette action (see MODE_PALETTE_ACTION in ModeSwitch.tsx). It was
+//     briefly restored to the bar on 2026-08-30 and is out again under
+//     Part E: it is the one control here that is NOT needed on every
+//     screen of every session, and it was the fifth element. A one-time
+//     coach mark (below) tells returning users where it went.
+//   · Bell (<1024 only)   -> the avatar menu's Notifications row, with
+//     the unread count mirrored onto the avatar itself.
+// The Capsule opens the ⌘K palette, which already carries recent
 // periods, workspace switching and the actions those controls used to
 // occupy header space for.
 //
 // 56px, hairline bottom rule. SOLID at rest; translucency + blur appear
 // only once content actually scrolls beneath.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Menu, Search } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
 import { BackendStatusIndicator } from "./BackendStatusIndicator";
 import { NotificationsMenu } from "./NotificationsMenu";
-import { ModeSwitch, useViewModeSync } from "@/components/instrument/shell/ModeSwitch";
+import { useViewModeSync } from "@/components/instrument/shell/ModeSwitch";
 import { TrustChip } from "@/components/instrument/shell/TrustChip";
 import { useCapsuleLabel } from "@/components/instrument/shell/ContextObject";
 import { modKeyLabel } from "@/components/instrument/shell/shellI18n";
 import "@/components/instrument/shell/shellI18n";
+import "./headerI18n";
 import { useBackendStatus } from "@/lib/useBackendStatus";
 import { useAuth } from "@/lib/auth";
 
@@ -68,6 +84,118 @@ function useScrolled(threshold = 8): boolean {
   return scrolled;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// THE RELOCATION COACH MARK
+//
+// One-time, Escape-dismissible, never re-shown once dismissed (gate H6
+// arms itself on it). Deliberately narrow in who sees it:
+//
+//   · it is PORTALED TO <body>, never rendered inside <header> — a hint
+//     about a control is not a header control, and the H1 census must
+//     not have to special-case it away. Wrapper is pointer-events-none;
+//     only the card itself takes clicks, at z-30 (under the header's
+//     z-40 and under every Radix portal), so it cannot swallow a click
+//     meant for the avatar menu it points at.
+//   · it arms ONLY for a user who actually holds an explicit view-mode
+//     choice (`cfo-view-mode-v1` present) — i.e. someone who used the
+//     dial while it was in the bar and would otherwise find it gone.
+//     A first-run user never operated it and is not told about a
+//     control they never touched.
+// ─────────────────────────────────────────────────────────────────────
+
+const COACH_KEY = "cfo:header-mode-coachmark-v1";
+const VIEW_MODE_KEY = "cfo-view-mode-v1";
+
+function coachShouldArm(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.localStorage.getItem(COACH_KEY)) return false;
+    return window.localStorage.getItem(VIEW_MODE_KEY) != null;
+  } catch {
+    // Storage blocked — we cannot know whether it was dismissed, and a
+    // hint that re-shows forever is worse than no hint.
+    return false;
+  }
+}
+
+function ModeCoachMark() {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState<boolean>(coachShouldArm);
+
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    try {
+      window.localStorage.setItem(COACH_KEY, "dismissed");
+    } catch {
+      /* storage blocked — the mark is gone for this session regardless */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismiss();
+    };
+    // Opening the account menu IS the acknowledgement — the hint points
+    // there, so reaching it retires the hint.
+    const onPointerDown = (e: Event) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.('[data-testid="account-menu-trigger"]')) dismiss();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [open, dismiss]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed inset-0 z-30"
+      data-coachmark="header-mode"
+      data-testid="header-coach-mark"
+    >
+      <div
+        role="status"
+        aria-label={t("header.coach.aria")}
+        className="
+          pointer-events-auto absolute right-3 top-[60px] w-[264px]
+          rounded-lg border border-rule bg-surface p-3 shadow-lg
+        "
+      >
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-medium text-ink">
+              {t("header.coach.title")}
+            </div>
+            <p className="mt-1 text-[12px] leading-snug text-ink-soft">
+              {t("header.coach.body")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label={t("header.coach.dismiss")}
+            data-testid="header-coach-mark-dismiss"
+            className="
+              -mr-1 -mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center
+              rounded-sm text-ink-mute transition-colors duration-micro
+              hover:bg-bg-2 hover:text-ink
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+            "
+          >
+            <X size={14} strokeWidth={1.75} />
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // onOpenAi stays in Props (AppShell still passes it) but is no longer
 // destructured: Ask CFO AI left the header for the sidebar + ⌘J + the
 // palette, so the header no longer owns that entry point.
@@ -79,7 +207,7 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
   // Engine status is diagnostic chrome — surface it only when something
   // is actually wrong. A permanently-green dot is noise.
   const backend = useBackendStatus();
-  // The Simple|Pro dial moved into the avatar menu, whose content only
+  // The Simple|Pro dial lives in the avatar menu, whose content only
   // mounts while open — so its cross-device sync is seated here, where
   // it is always mounted on every authed screen.
   useViewModeSync();
@@ -111,38 +239,30 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
       }}
     >
       <div className="h-full px-3 sm:px-4 flex items-center gap-1.5 sm:gap-2">
-        {/* Mobile hamburger — 44px touch target per Apple HIG */}
+        {/* LEFT SLOT — exactly ONE control at any width.
+            <lg: the nav hamburger (44px touch target per Apple HIG).
+            ≥lg: the brand mark (the rail is already pinned open, so a
+            hamburger would open nothing). Rendering both below lg was
+            two left-hand "go somewhere" controls competing on the
+            narrowest screen; the drawer carries the product identity
+            there, and /dashboard stays 2 interactions away through it. */}
         <button
           onClick={onOpenSidebar}
+          data-testid="header-nav-toggle"
           aria-label={t("topbar.openNav")}
           className="lg:hidden inline-flex items-center justify-center h-11 w-11 -ml-2 rounded-sm text-ink-soft hover:text-ink hover:bg-bg-2 active:bg-bg-2/70 transition-colors duration-micro"
         >
           <Menu size={20} strokeWidth={1.75} />
         </button>
 
-        {/* Compact brand mark. Icon-only below `sm`. */}
         <button
           onClick={() => navigate("/dashboard")}
-          className="flex items-center shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="header-brand"
+          className="hidden lg:flex items-center shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t("topbar.goToDashboard")}
         >
-          <span className="sm:hidden inline-flex"><Logo size={24} iconOnly /></span>
-          <span className="hidden sm:inline-flex"><Logo size={24} iconOnly /></span>
+          <Logo size={24} iconOnly />
         </button>
-
-        {/* THE DIAL — Simple | Pro. Restored to the header by owner
-            directive (2026-08-30): it had been relocated to the avatar
-            menu under the 4-element law, and the owner wanted it back
-            in sight ("it was a nice touch"). It ALSO stays in the
-            avatar menu + Settings, which is what keeps it reachable on
-            phones where this instance is hidden. The header budget is
-            therefore 5, not 4 — recorded as an owner amendment in
-            design_review/header/GATES.md rather than silently bent. */}
-        {signedIn && (
-          <div className="hidden md:block shrink-0 ml-1">
-            <ModeSwitch />
-          </div>
-        )}
 
         {/* ── THE CAPSULE ────────────────────────────────────────────
             One pill: status dot · workspace · period · search · ⌘K.
@@ -193,19 +313,23 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
 
         {/* RIGHT CLUSTER */}
 
-        {/* Engine-down indicator only. */}
+        {/* Engine-down indicator only. It is a <span>, not a control —
+            it spends no budget. */}
         {backend === "disconnected" && <BackendStatusIndicator />}
 
-        {/* Notifications bell — desktop only (on phones the bell lives
-            inside the nav sheet). */}
+        {/* Notifications bell — ≥lg only. Below that it folds into the
+            avatar menu's Notifications row and the avatar's own badge
+            (see AccountMenu), which is what keeps the count visible
+            without a fourth control on a phone-width bar. */}
         {signedIn && (
-          <div className="hidden sm:inline-flex">
+          <div className="hidden lg:inline-flex">
             <NotificationsMenu />
           </div>
         )}
 
-        {/* Avatar — the account menu hosts Learning mode, Billing,
-            Settings and sign-out. */}
+        {/* Avatar — the account menu hosts the Simple|Pro dial, display
+            currency, Learning mode, Theme, Billing, Settings, sign-out,
+            and (below lg) Notifications. */}
         {signedIn ? (
           <AccountMenu onOpen={onOpenAccount} />
         ) : (
@@ -217,6 +341,10 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
           </button>
         )}
       </div>
+
+      {/* Portaled to <body> — outside <header>, so it never enters the
+          H1 census. */}
+      {signedIn && <ModeCoachMark />}
     </header>
   );
 }

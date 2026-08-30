@@ -226,7 +226,7 @@ export function FigureList({
 
 // ── mini-visual: the comparison ────────────────────────────────────────
 
-function DeltaChip({
+export function DeltaChip({
   meta,
   evidence,
   direction,

@@ -1,19 +1,31 @@
-// THE CAPSULE — the three suggestions.
+// THE CAPSULE — ZONE 2: the ask suggestions.
 //
 // Rows are QUESTIONS computed from this workspace (lib/capsuleSuggestions),
-// never a canned starter set. Two consequences visible here:
+// never a canned starter set. Three consequences visible here:
 //
 //   · when the state yields two, TWO render. There is no placeholder row,
 //     no "try asking…" filler, and no third slot held open;
-//   · every row carries its BASIS line — where the question came from.
-//     The covenant row's basis says the test is a typical Romanian
-//     facility, not the user's loan documents, because it is.
+//   · when it yields NONE, this renders nothing at all — not a heading
+//     with an apology under it. The ask-first surface's whole claim is
+//     that its rows are earned, and an empty heading un-earns them;
+//   · every row carries its BASIS — where the question came from. The
+//     covenant row's basis says the test is a typical Romanian facility,
+//     not the user's loan documents, because it is.
 //
-// Picking a row does NOT send it. It fills the Capsule's input, exactly
-// like the chat empty state's cards, so the user confirms or edits first —
-// and so a suggestion can never spend a model call on its own.
+// ── Why the basis moved onto the same line ────────────────────────────
+//
+// It used to sit under the question as a second line, making each row
+// ~44px of a 5-section stack. The row is now a single 40px line: question
+// left, basis right, muted and truncated, with the full text in `title`.
+// The honesty is unchanged — the sentence is still there, still per-row —
+// and the surface got a third of its height back.
+//
+// Picking a row does NOT send it. It hands the resolved text to the host,
+// which puts it in the input, so the user confirms or edits first — and
+// so a suggestion can never spend a model call on its own.
 
 import { useTranslation } from "react-i18next";
+import { CornerDownLeft } from "lucide-react";
 
 import "./capsuleEmptyI18n";
 import type { CapsuleSuggestion } from "@/lib/capsuleSuggestions";
@@ -44,13 +56,15 @@ export function CapsuleSuggestionList({
 
   return (
     <div data-testid="capsule-suggestions">
-      <div className="px-4 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
+      <div className="px-4 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
         {t("capsuleEmpty.suggest.heading")}
       </div>
       <ul>
         {suggestions.map((s, i) => {
           const idx = indexOffset + i;
           const question = t(s.labelKey, s.labelParams);
+          const basis = t(s.basisKey);
+          const active = idx === activeIndex;
           return (
             <li key={s.id}>
               <button
@@ -59,18 +73,32 @@ export function CapsuleSuggestionList({
                 data-kind={s.kind}
                 data-idx={idx}
                 role="option"
-                aria-selected={idx === activeIndex}
+                aria-selected={active}
+                title={`${question} — ${basis}`}
                 onClick={() => onPick(question, s)}
                 className={`
-                  flex w-full flex-col items-start gap-0.5 px-4 py-2 text-left
+                  group flex h-10 w-full items-center gap-3 px-4 text-left
                   transition-colors duration-micro
-                  ${idx === activeIndex ? "bg-bg-2" : "hover:bg-bg-2/60"}
+                  ${active ? "bg-bg-2" : "hover:bg-bg-2/60"}
                 `}
               >
-                <span className="w-full truncate text-[13px] text-ink">{question}</span>
-                <span className="w-full truncate text-[11px] text-ink-mute">
-                  {t(s.basisKey)}
+                <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+                  {question}
                 </span>
+                <span className="hidden max-w-[42%] shrink-0 truncate text-[11px] text-ink-mute sm:inline">
+                  {basis}
+                </span>
+                {/* The affordance the row is FOR: this text goes in the
+                    box, it is not dispatched. Shown on the row the
+                    keyboard owns so the promise is where the eye is. */}
+                <CornerDownLeft
+                  size={12}
+                  strokeWidth={1.75}
+                  aria-hidden
+                  className={`shrink-0 text-ink-mute transition-opacity duration-micro ${
+                    active ? "opacity-100" : "opacity-0 group-hover:opacity-60"
+                  }`}
+                />
               </button>
             </li>
           );

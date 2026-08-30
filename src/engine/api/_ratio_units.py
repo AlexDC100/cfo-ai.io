@@ -246,6 +246,12 @@ _MONEY_FACTS = frozenset([
     "equity", "equity_plus_liabilities",
     "current_assets", "current_liabilities", "working_capital",
     "net_result", "expenses", "difference",
+    # Found by scripts/check_metric_declared.py, which enumerates the
+    # Capsule's own frozen METRICS registry rather than guessing: the
+    # scenario tool cites a money delta, and total_expenses is a served
+    # metric. Both were resolving to UNIT_UNKNOWN — a refusal — so the
+    # surface held the figure and declined to render it.
+    "scenario_result_delta", "total_expenses",
 ])
 
 _RATIO_FACTS = frozenset([

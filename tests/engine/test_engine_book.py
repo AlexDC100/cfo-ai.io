@@ -92,7 +92,11 @@ def test_owned_pages_exist_and_carry_generated_header(book):
 
 def test_generator_never_writes_agent_owned_pages(book):
     assert set(book.FOREIGN_PAGES) == {
-        "assertions.md", "mutation.md", "ai_payload_audit.md", "error_budget.md"
+        "assertions.md", "mutation.md", "ai_payload_audit.md", "error_budget.md",
+        # Hand-maintained: the TC-### testing rules. Listed here so adding
+        # a hand-maintained page stays a deliberate two-file act — the
+        # generator must never overwrite one.
+        "testing_conventions.md",
     }
     pages = book.generate()
     for foreign in book.FOREIGN_PAGES:

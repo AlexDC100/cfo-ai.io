@@ -110,6 +110,17 @@ roles:
     prompt_version: narrative_v1
     max_tokens: 4096
     temperature: 0
+    # DELIBERATE caps, not inherited defaults (2026-08-30). This role
+    # writes the briefing AND backs finding sharpening, so it is the
+    # busiest judgment role in the product. Sized for a single-tenant
+    # VPS at roughly one full re-narration of every period per day with
+    # headroom: a trip means the day's narration is exhausted, the
+    # deterministic template carries all seven contract elements, and
+    # serving is unaffected. Raise it here, visibly, rather than by
+    # falling through to the global default.
+    breaker:
+      max_calls_per_day: 300
+      max_tokens_per_day: 3000000
 
   structural_interpreter_a:
     # AI-first-reader Part A — column-semantics-first framing of the
