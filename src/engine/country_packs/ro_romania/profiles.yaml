@@ -1,0 +1,644 @@
+# ─────────────────────────────────────────────────────────────────────────
+# COMPANY PROFILES + DETECTOR THRESHOLDS — Romania (OMFP 1802 / RAS)
+#
+# THIS FILE IS DATA. It is the only place a profile name, a profile
+# detection rule, a detector's applicability or a detector's threshold
+# may be written down. Detector modules read it through
+# `engine.api._company_profile` and NEVER compare a profile id to a
+# string literal — `tests/engine/test_company_profile.py` token-scans
+# them for exactly that and fails the build if one appears.
+#
+# WHY IT IS DATA. The baseline this replaces fired 11 rules with one
+# threshold table keyed by `industry_key`, so a property vehicle and a
+# food manufacturer were graded on the same Debt/EBITDA comfort zone
+# unless someone remembered to add an `elif`. The ladder belongs in a
+# table, and the table belongs here.
+#
+# ABSENT != ZERO. Every detection rule below is evaluated against facts
+# that may be genuinely missing. A missing input yields the `unknown`
+# signal state, never a `0.0` that reads as "we checked and there is
+# none". A profile that cannot be inferred resolves to
+# `unclassified_operator`, which is a stated refusal, not a default.
+# ─────────────────────────────────────────────────────────────────────────
+
+version: ro_profiles_v1
+jurisdiction: RO
+currency: RON
+
+# ═════════════════════════════════════════════════════════════════════════
+# 1. SIZE BANDS
+#    Banded on revenue AND on total assets; the company takes the HIGHER
+#    of the two bands, because a small-revenue company sitting on a large
+#    asset base is not a small company for anything a finding cares about
+#    (covenants, lender attention, audit scope).
+#    Ids are prefixed `band_` so they cannot collide with an English word
+#    in an unrelated string literal and produce a false N7 hit.
+# ═════════════════════════════════════════════════════════════════════════
+size_bands:
+  - id: band_micro
+    adjective_en: "micro-cap"
+    adjective_ro: "micro"
+    label_en: "micro-cap company"
+    label_ro: "companie micro"
+    revenue_max: 2000000          # RON — below the RO micro-entity line
+    assets_max: 2000000
+    rank: 0
+  - id: band_small
+    adjective_en: "small"
+    adjective_ro: "mic"
+    label_en: "small company"
+    label_ro: "companie mică"
+    revenue_max: 40000000
+    assets_max: 40000000
+    rank: 1
+  - id: band_mid
+    adjective_en: "mid-size"
+    adjective_ro: "mediu"
+    label_en: "mid-size company"
+    label_ro: "companie medie"
+    revenue_max: 250000000
+    assets_max: 250000000
+    rank: 2
+  - id: band_large
+    adjective_en: "large"
+    adjective_ro: "mare"
+    label_en: "large company"
+    label_ro: "companie mare"
+    revenue_max: null             # open-ended top band
+    assets_max: null
+    rank: 3
+
+# ═════════════════════════════════════════════════════════════════════════
+# 2. STRUCTURAL PROFILES
+#    Inferred from the ACCOUNT MIX when no CAEN is known, and used to
+#    corroborate the CAEN when one is. Every `requires` key names a
+#    derived share the profile builder computes from the period's own
+#    canonical views; a share whose inputs are absent evaluates to
+#    UNKNOWN and the rule simply does not match (it never matches on a
+#    fabricated zero).
+#    Evaluated in descending `priority`; first match wins, so the
+#    narrower profiles are listed with the higher numbers.
+# ═════════════════════════════════════════════════════════════════════════
+structural_profiles:
+  - id: property_rental
+    label_en: "property-rental vehicle"
+    label_ro: "vehicul de închiriere imobiliară"
+    priority: 90
+    requires:
+      ppe_share_of_assets_min: 0.55
+      asset_turnover_max: 0.35          # revenue / total assets
+      inventory_share_of_assets_max: 0.10
+    describes: >-
+      A single- or few-asset property holder: the balance sheet is the
+      business, the P&L is rent, and leverage is measured against the
+      asset rather than against earnings.
+
+  - id: holding_vehicle
+    label_en: "holding vehicle"
+    label_ro: "vehicul de tip holding"
+    priority: 85
+    requires:
+      investments_share_of_assets_min: 0.40
+      asset_turnover_max: 0.15
+    describes: >-
+      Value sits in participations, not in operations; earnings arrive as
+      distributions from the entities below it.
+
+  - id: inventory_operator
+    label_en: "inventory-heavy operator"
+    label_ro: "operator cu stocuri mari"
+    priority: 70
+    requires:
+      inventory_share_of_assets_min: 0.18
+      asset_turnover_min: 0.60
+    describes: >-
+      Working capital is dominated by goods: input prices, stock aging
+      and supplier terms move the result more than anything on the
+      financing line.
+
+  - id: receivables_operator
+    label_en: "receivables-heavy operator"
+    label_ro: "operator cu creanțe mari"
+    priority: 65
+    requires:
+      receivables_share_of_assets_min: 0.35
+      asset_turnover_min: 0.50
+    describes: >-
+      Cash is lent to customers by default; collection quality is the
+      liquidity story.
+
+  - id: asset_operator
+    label_en: "fixed-asset-heavy operator"
+    label_ro: "operator cu active fixe mari"
+    priority: 55
+    requires:
+      ppe_share_of_assets_min: 0.45
+      asset_turnover_min: 0.35
+    describes: >-
+      Capital-intensive production: the replacement cycle and the
+      depreciation profile drive both capex and covenant headroom.
+
+  - id: service_operator
+    label_en: "service operator"
+    label_ro: "operator de servicii"
+    priority: 40
+    requires:
+      inventory_share_of_assets_max: 0.08
+      ppe_share_of_assets_max: 0.35
+      asset_turnover_min: 0.50
+    describes: >-
+      People, not stock: the cost base is payroll and third-party
+      services, and the balance sheet is thin.
+
+  - id: unclassified_operator
+    label_en: "operator (structure not inferable)"
+    label_ro: "operator (structură neidentificabilă)"
+    priority: 0
+    # THE STATED REFUSAL. `fallback: true` is what the loader looks for,
+    # so the builder never needs to name this id in code.
+    fallback: true
+    requires: {}
+    describes: >-
+      The account mix did not match a profile. Stated, not guessed —
+      profile-tuned thresholds fall back to their defaults and every
+      finding carries the reduced-confidence caveat.
+
+# ═════════════════════════════════════════════════════════════════════════
+# 3. CAEN → STRUCTURAL PROFILE
+#    Used only when a CAEN is actually known. It CORROBORATES the
+#    structural inference; where the two disagree the structural read
+#    wins (the books beat the registry entry) and the disagreement is
+#    recorded on the profile so a finding can carry it as a caveat.
+#    Keys are 2-digit CAEN Rev 2 divisions.
+# ═════════════════════════════════════════════════════════════════════════
+caen_division_profiles:
+  "01": inventory_operator
+  "10": inventory_operator
+  "11": inventory_operator
+  "13": inventory_operator
+  "20": inventory_operator
+  "22": asset_operator
+  "23": asset_operator
+  "24": asset_operator
+  "25": asset_operator
+  "28": asset_operator
+  "29": asset_operator
+  "35": asset_operator
+  "41": inventory_operator
+  "42": asset_operator
+  "43": service_operator
+  "45": inventory_operator
+  "46": inventory_operator
+  "47": inventory_operator
+  "49": asset_operator
+  "52": asset_operator
+  "55": asset_operator
+  "56": service_operator
+  "58": service_operator
+  "62": service_operator
+  "63": service_operator
+  "64": holding_vehicle
+  "68": property_rental
+  "69": service_operator
+  "70": holding_vehicle
+  "71": service_operator
+  "73": service_operator
+  "77": asset_operator
+  "82": service_operator
+  "86": service_operator
+
+# ═════════════════════════════════════════════════════════════════════════
+# 4. STRUCTURE SIGNALS
+#    THREE-STATE: present / absent / unknown. `source_facts` names the
+#    canonical facts the builder reads; when NONE of them is available
+#    the signal is `unknown` — a finding may then cite it as a caveat but
+#    may never assert its absence.
+# ═════════════════════════════════════════════════════════════════════════
+signals:
+  - id: related_party
+    label_en: "related-party balances on the books"
+    label_ro: "solduri cu părți afiliate"
+    source_facts: [ar_intercompany, intercompany_loans]
+    present_when_abs_above: 0
+  - id: bank_debt
+    label_en: "bank debt outstanding"
+    label_ro: "datorii bancare"
+    source_facts: [total_debt, bank_debt_total]
+    present_when_abs_above: 0
+  - id: lease_obligations
+    label_en: "lease obligations"
+    label_ro: "obligații din leasing"
+    source_facts: [lease_liabilities]
+    present_when_abs_above: 0
+    # No canonical lease field exists yet. The signal therefore resolves
+    # to `unknown` on every current period, which is the honest answer —
+    # NOT `absent`. When the field lands the signal starts answering
+    # without a code change.
+  - id: fx_exposure
+    label_en: "foreign-currency exposure"
+    label_ro: "expunere valutară"
+    source_facts: [cash_fx_component, cash_fx, fx_gain, fx_loss]
+    present_when_abs_above: 0
+  - id: employee_scale
+    label_en: "payroll-bearing workforce"
+    label_ro: "forță de muncă salarizată"
+    source_facts: [personnel_expense, exp_64]
+    present_when_abs_above: 0
+  - id: capitalised_own_work
+    label_en: "capitalised own work"
+    label_ro: "producție de imobilizări"
+    source_facts: [capitalized_own_work_memo]
+    present_when_abs_above: 0
+  - id: revaluation_reserve
+    label_en: "revaluation reserve in equity"
+    label_ro: "rezerve din reevaluare"
+    source_facts: [revaluation_reserves, equity_revaluation]
+    present_when_abs_above: 0
+
+# ═════════════════════════════════════════════════════════════════════════
+# 5. FINANCING CONTEXT
+#    Ordered; first match wins. Decides who the reader of a leverage
+#    finding actually is — a lender, a related-party financier, or a
+#    shareholder with no external creditor at all.
+# ═════════════════════════════════════════════════════════════════════════
+financing_contexts:
+  - id: fin_bank_levered
+    label_en: "bank-financed"
+    label_ro: "finanțat bancar"
+    requires_signals: [bank_debt]
+    requires:
+      debt_share_of_assets_min: 0.10
+    audience: "the lending bank's credit committee"
+  - id: fin_related_party_funded
+    label_en: "related-party funded"
+    label_ro: "finanțat de părți afiliate"
+    requires_signals: [related_party]
+    requires:
+      related_party_share_of_assets_min: 0.10
+    audience: "the group treasury and the statutory auditor"
+  - id: fin_lightly_levered
+    label_en: "lightly levered"
+    label_ro: "îndatorare redusă"
+    requires_signals: [bank_debt]
+    requires: {}
+    audience: "the shareholder and any incoming lender"
+  - id: fin_unlevered
+    label_en: "unlevered"
+    label_ro: "neîndatorat"
+    requires_signals: []
+    requires: {}
+    audience: "the shareholder"
+
+# ═════════════════════════════════════════════════════════════════════════
+# 6. DETECTORS — applicability + thresholds + why-here copy
+#
+#    `applies_to.profiles: [all]` or an explicit list of structural
+#    profile ids. `requires_signals` gates on the three-state signals: a
+#    detector requiring `bank_debt` does not run when the signal is
+#    `absent`, and runs WITH A CAVEAT when it is `unknown`.
+#
+#    `thresholds.default` is the parameter set; `thresholds.by_profile`
+#    overrides per structural profile. Every value is addressed by the
+#    profile accessor as
+#      profiles.yaml#detectors.<detector>.thresholds.by_profile.<p>.<k>
+#    and that string is what a Finding records as its threshold source,
+#    so a reader can always find the number that judged them.
+#
+#    `why_here` is the profile-derived rationale. Tokens available:
+#      {profile_label} {size_label} {sector_label} {financing_label}
+#      {financing_audience} {signal_labels} {scope}
+#    EVERY template must contain {profile_label} — the contract's
+#    why-here validator requires the rationale to mention a company
+#    anchor, and the guard test asserts the token is present here so a
+#    new detector cannot ship a company-agnostic sentence.
+# ═════════════════════════════════════════════════════════════════════════
+detectors:
+
+  - detector: data_quality_bs_imbalance
+    category: data_quality
+    applies_to: {profiles: [all]}
+    thresholds:
+      units: {warn_share: percent, critical_share: percent}
+      labels:
+        warn_share: "balance-sheet drift tolerance"
+        critical_share: "material drift ceiling"
+      default: {warn_share: 0.01, critical_share: 0.05}
+    why_here:
+      default: >-
+        Every figure a {profile_label} is judged on — coverage, gearing,
+        working capital — is derived from these totals, so an unexplained
+        {scope} propagates into all of them before {financing_audience}
+        ever sees a ratio.
+
+  - detector: data_quality_pnl_zero
+    category: data_quality
+    applies_to: {profiles: [all]}
+    thresholds:
+      units: {min_assets: money}
+      labels: {min_assets: "material asset-base floor"}
+      default: {min_assets: 1000000}
+    why_here:
+      default: >-
+        A {profile_label} with an asset base this size does not trade at
+        zero revenue; the gap is an extraction defect, and every earnings
+        metric {financing_audience} would read is empty until it is
+        closed.
+
+  - detector: leverage_debt_to_ebitda
+    category: leverage
+    applies_to:
+      profiles: [all]
+      requires_signals: [bank_debt]
+    thresholds:
+      units: {high: ratio, critical: ratio}
+      labels:
+        high: "Debt/EBITDA comfort ceiling"
+        critical: "Debt/EBITDA covenant alarm"
+      default: {high: 4.0, critical: 6.0}
+      by_profile:
+        property_rental: {high: 8.0, critical: 12.0}
+        asset_operator: {high: 5.0, critical: 7.0}
+        inventory_operator: {high: 4.0, critical: 6.0}
+        receivables_operator: {high: 3.5, critical: 5.5}
+        service_operator: {high: 3.0, critical: 5.0}
+        holding_vehicle: {high: 6.0, critical: 9.0}
+    why_here:
+      default: >-
+        Earnings cover is the test a {profile_label} is refinanced on:
+        {financing_audience} sizes facilities off EBITDA, and at this
+        multiple the next renewal is negotiated from a position of
+        weakness rather than choice.
+      by_profile:
+        property_rental: >-
+          A {profile_label} is underwritten on the asset and on rent
+          cover, so a high EBITDA multiple is normal — the level that
+          matters here is the one at which {financing_audience} switches
+          from LTV to earnings cover, and this period is past it.
+
+  - detector: leverage_net_debt_ebitda
+    category: leverage
+    applies_to:
+      profiles: [all]
+      requires_signals: [bank_debt]
+    thresholds:
+      units: {high: ratio, critical: ratio}
+      labels:
+        high: "Net Debt/EBITDA comfort ceiling"
+        critical: "Net Debt/EBITDA covenant alarm"
+      default: {high: 3.0, critical: 4.5}
+      by_profile:
+        property_rental: {high: 7.0, critical: 10.0}
+        asset_operator: {high: 4.0, critical: 6.0}
+        service_operator: {high: 2.5, critical: 4.0}
+    why_here:
+      default: >-
+        Net of cash, a {profile_label} at this multiple has no buffer
+        left between an ordinary trading month and a covenant test, and
+        {financing_audience} measures it quarterly.
+
+  - detector: equity_below_half_capital
+    category: compliance
+    applies_to: {profiles: [all]}
+    thresholds:
+      units: {equity_to_capital_max: ratio}
+      labels: {equity_to_capital_max: "art. 153^24 equity-to-capital floor"}
+      default: {equity_to_capital_max: 0.5}
+    why_here:
+      default: >-
+        Romanian Company Law art. 153^24 attaches to the registered
+        capital of this company, not to its sector: for a {profile_label}
+        the administrator's convening duty is triggered by the figure
+        itself, and the deadline runs from the approval of these
+        accounts.
+
+  - detector: equity_quality_revaluation_reserves
+    category: data_quality
+    applies_to:
+      profiles: [property_rental, asset_operator, inventory_operator,
+                 holding_vehicle, unclassified_operator]
+      requires_signals: [revaluation_reserve]
+    thresholds:
+      units: {share_of_equity_high: percent}
+      labels: {share_of_equity_high: "revaluation share of equity ceiling"}
+      default: {share_of_equity_high: 0.25}
+      by_profile:
+        property_rental: {share_of_equity_high: 0.40}
+    why_here:
+      default: >-
+        Book equity is how a {profile_label} demonstrates solvency to
+        {financing_audience}; the part of it created by writing assets up
+        has never been cash, and is the first thing discounted in a
+        gearing covenant.
+
+  - detector: concentration_related_party
+    category: data_quality
+    applies_to:
+      profiles: [all]
+      requires_signals: [related_party]
+    thresholds:
+      units: {share_of_assets_medium: percent, share_of_assets_high: percent}
+      labels:
+        share_of_assets_medium: "related-party share of total assets (elevated)"
+        share_of_assets_high: "related-party share of total assets (high)"
+      default: {share_of_assets_medium: 0.10, share_of_assets_high: 0.20}
+      by_profile:
+        holding_vehicle: {share_of_assets_medium: 0.35, share_of_assets_high: 0.60}
+        property_rental: {share_of_assets_medium: 0.15, share_of_assets_high: 0.30}
+    why_here:
+      default: >-
+        For a {profile_label} this balance is not a customer receivable —
+        it is capital lent inside the group with no contractual maturity
+        on the face of the books, and {financing_audience} haircuts it in
+        full when measuring the covenants.
+      by_profile:
+        holding_vehicle: >-
+          Intra-group lending is the operating model of a
+          {profile_label}, so the level alone is not the finding; the
+          finding is that it has passed the point where the entity's own
+          solvency depends on counterparties it does not control.
+
+  - detector: receivables_allowance_quality
+    category: working_capital
+    applies_to:
+      profiles: [receivables_operator, inventory_operator, service_operator,
+                 asset_operator, unclassified_operator]
+    thresholds:
+      units: {allowance_share_high: percent}
+      labels: {allowance_share_high: "allowance share of gross receivables ceiling"}
+      default: {allowance_share_high: 0.15}
+      by_profile:
+        receivables_operator: {allowance_share_high: 0.10}
+    why_here:
+      default: >-
+        Receivables are the working-capital engine of a {profile_label};
+        an allowance at this level says the ledger carries balances the
+        company has already stopped believing in, and they still sit in
+        the current-asset total {financing_audience} reads.
+
+  - detector: liquidity_cash_tight
+    category: liquidity
+    applies_to: {profiles: [all]}
+    thresholds:
+      units: {cash_ratio_low: ratio}
+      labels: {cash_ratio_low: "cash-ratio floor"}
+      default: {cash_ratio_low: 0.10}
+      by_profile:
+        property_rental: {cash_ratio_low: 0.05}
+        inventory_operator: {cash_ratio_low: 0.12}
+    why_here:
+      default: >-
+        A {profile_label} settles payroll and suppliers on a fixed
+        calendar; at this cash ratio a single delayed collection cycle is
+        funded by a revolver rather than by the balance sheet.
+
+  - detector: input_cost_exposure
+    category: margin
+    applies_to:
+      profiles: [inventory_operator, asset_operator]
+    thresholds:
+      units: {share_of_revenue_high: percent}
+      labels: {share_of_revenue_high: "input-cost share of revenue ceiling"}
+      default: {share_of_revenue_high: 0.30}
+      by_profile:
+        inventory_operator: {share_of_revenue_high: 0.35}
+    why_here:
+      default: >-
+        Input cost is the largest single line a {profile_label} carries,
+        and it is repriced by suppliers faster than the company can
+        reprice its own customers — the margin, not the volume, is what
+        moves.
+
+  - detector: affiliate_income_dependency
+    category: opportunity
+    applies_to:
+      profiles: [all]
+      requires_signals: [related_party]
+    thresholds:
+      units: {share_of_net_income_high: percent}
+      labels: {share_of_net_income_high: "affiliate share of net income ceiling"}
+      default: {share_of_net_income_high: 0.15}
+      by_profile:
+        holding_vehicle: {share_of_net_income_high: 0.60}
+    why_here:
+      default: >-
+        Earnings a {profile_label} does not itself generate can be
+        switched off by a decision taken in another entity's general
+        meeting; {financing_audience} treats that portion as
+        non-recurring.
+
+  - detector: asset_maturity
+    category: leverage
+    applies_to:
+      profiles: [asset_operator, inventory_operator, property_rental]
+    thresholds:
+      units: {accumulated_depreciation_share_high: percent}
+      labels:
+        accumulated_depreciation_share_high: "accumulated-depreciation share of gross PP&E ceiling"
+      default: {accumulated_depreciation_share_high: 0.55}
+      by_profile:
+        property_rental: {accumulated_depreciation_share_high: 0.65}
+    why_here:
+      default: >-
+        The productive assets of a {profile_label} are the collateral and
+        the capacity at the same time; at this depreciation share the
+        replacement cycle lands inside the tenor of the facilities
+        {financing_audience} has already committed.
+
+  - detector: fx_exposure
+    category: liquidity
+    applies_to:
+      profiles: [all]
+      requires_signals: [fx_exposure]
+    thresholds:
+      units: {fx_cash_share_high: percent}
+      labels: {fx_cash_share_high: "FX share of cash ceiling"}
+      default: {fx_cash_share_high: 0.10}
+    why_here:
+      default: >-
+        A {profile_label} reporting in RON carries this position at the
+        closing rate, so a move between the balance-sheet date and
+        settlement lands in the financial result — the line
+        {financing_audience} strips out of EBITDA but not out of the
+        interest-cover test.
+
+  - detector: cash_dividends_declared_unpaid
+    category: liquidity
+    applies_to: {profiles: [all]}
+    thresholds:
+      units: {min_amount: money}
+      labels: {min_amount: "declared-dividend materiality floor"}
+      default: {min_amount: 1000}
+    why_here:
+      default: >-
+        A declared dividend is a creditor of the company, ranking ahead
+        of the shareholder who declared it; for a {profile_label} it sits
+        in current liabilities and consumes the same liquidity that funds
+        the operating cycle.
+
+  - detector: fcf_negative
+    category: liquidity
+    applies_to: {profiles: [all]}
+    thresholds:
+      units: {development_capex_share: percent}
+      labels: {development_capex_share: "development share of capex"}
+      default: {development_capex_share: 0.70}
+    why_here:
+      default: >-
+        Whether a {profile_label} is investing or bleeding is decided by
+        which account absorbed the capex; {financing_audience} funds the
+        first and prices the second.
+
+  - detector: earnings_quality_capitalized_own_work
+    category: data_quality
+    applies_to:
+      profiles: [all]
+      requires_signals: [capitalised_own_work]
+    thresholds:
+      units: {share_of_revenue_high: percent}
+      labels: {share_of_revenue_high: "capitalised own work share of revenue ceiling"}
+      default: {share_of_revenue_high: 0.50}
+    why_here:
+      default: >-
+        Capitalised own work lifts the statutory EBITDA of a
+        {profile_label} without any cash arriving; the covenant
+        definition {financing_audience} uses is the statutory one, so the
+        gap between the two views is worth stating before it is
+        discovered in a compliance certificate.
+
+  - detector: valuation_ebitda_non_positive
+    category: data_quality
+    applies_to: {profiles: [all]}
+    thresholds:
+      units: {ebitda_max: money}
+      labels: {ebitda_max: "EBITDA positivity floor"}
+      default: {ebitda_max: 0.0}
+    why_here:
+      default: >-
+        Earnings multiples are undefined for a {profile_label} at
+        non-positive EBITDA; asset and revenue methods carry the
+        valuation instead, and saying so is more useful to
+        {financing_audience} than a multiple computed on a negative
+        denominator.
+
+# ═════════════════════════════════════════════════════════════════════════
+# 7. CONFIDENCE CAVEATS
+#    Reusable caveat copy, keyed by the data-quality condition the
+#    profile builder detects. A detector picks the ids that apply; the
+#    Finding's confidence element renders them.
+# ═════════════════════════════════════════════════════════════════════════
+confidence_caveats:
+  approximated_cash_flow: >-
+    Cash-flow lines are indirect-method approximations because no prior
+    period was supplied; working-capital movements carry a wide band.
+  unclassified_profile: >-
+    The account mix did not resolve to a structural profile, so this
+    threshold is the cross-profile default rather than a tuned one.
+  caen_structure_disagreement: >-
+    The registered CAEN and the account mix point at different profiles;
+    the account mix was used and the registry entry may be stale.
+  signal_unknown: >-
+    One input this rule would normally weigh is not present in the
+    period's canonical views, so its absence could not be confirmed.
+  balance_sheet_drift: >-
+    The balance sheet does not close exactly; figures drawn from the
+    totals inherit that drift.
