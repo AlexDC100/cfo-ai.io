@@ -189,11 +189,18 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
   if (acf) {
     lines.push("");
     lines.push("Cash flow highlights:");
-    pushIfBool(lines, "Approximated (single-period upload)", acf.is_approximated);
-    pushIf(lines, "Cash from operating", acf.cash_from_operating as number | undefined);
-    pushIf(lines, "Cash used in investing", acf.cash_used_in_investing as number | undefined);
-    pushIf(lines, "Cash used in financing", acf.cash_used_in_financing as number | undefined);
-    pushIf(lines, "Net change in cash", acf.net_change_in_cash as number | undefined);
+    // `assembled_cf` mixes numbers and booleans in one record, so each read
+    // is `number | boolean`. These lines become the context string the
+    // assistant reasons over — a boolean reaching a money line would put
+    // "Cash from operating: true" in front of the model. The four reads
+    // below used to be `as number | undefined` casts, which asserted the
+    // union away instead of resolving it; `acfNum`/`acfBool` narrow for
+    // real, so a shape change is caught rather than asserted past.
+    pushIfBool(lines, "Approximated (single-period upload)", acfBool(acf.is_approximated));
+    pushIf(lines, "Cash from operating", acfNum(acf.cash_from_operating));
+    pushIf(lines, "Cash used in investing", acfNum(acf.cash_used_in_investing));
+    pushIf(lines, "Cash used in financing", acfNum(acf.cash_used_in_financing));
+    pushIf(lines, "Net change in cash", acfNum(acf.net_change_in_cash));
   }
 
   if (p.briefing && p.briefing.trim()) {
@@ -229,6 +236,17 @@ function fmtNum(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n);
 }
+/** Narrow one `assembled_cf` field. The view is heterogeneous by design
+ *  (numeric flows beside `is_approximated`), so an indexed read is a union;
+ *  absent or wrong-typed becomes undefined, and `pushIf` then omits the
+ *  line entirely rather than showing the assistant a made-up figure. */
+function acfNum(v: number | boolean | undefined): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+function acfBool(v: number | boolean | undefined): boolean | undefined {
+  return typeof v === "boolean" ? v : undefined;
+}
+
 function pushIf(lines: string[], label: string, val: number | undefined | null): void {
   if (val === undefined || val === null || !Number.isFinite(val)) return;
   lines.push(`  · ${label}: ${fmtNum(val)}`);

@@ -290,27 +290,26 @@ describe("degraded (A2)", () => {
   });
 });
 
-describe("the follow-up input", () => {
-  it("Enter asks, Shift+Enter does not", async () => {
-    const turn = await turnFor("assets");
-    const props = renderPanel([turn]);
-    const input = screen.getByTestId("capsule-followup");
-    fireEvent.change(input, { target: { value: "and equity?" } });
-    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
-    expect(props.onAsk).not.toHaveBeenCalled();
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(props.onAsk).toHaveBeenCalledWith("and equity?");
-  });
-
-  it("refuses to fire while a turn is still running", async () => {
-    const turn = await turnFor("assets");
-    const props = renderPanel([turn], { busy: true });
-    const input = screen.getByTestId("capsule-followup");
-    fireEvent.change(input, { target: { value: "and equity?" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(props.onAsk).not.toHaveBeenCalled();
-  });
-});
+// ── THE FOLLOW-UP INPUT MOVED, AND SO DID ITS GATES ───────────────────
+//
+// The panel used to own a composer of its own, docked under the thread,
+// and two tests here drove it: "Enter asks, Shift+Enter does not" and
+// "refuses to fire while a turn is still running".
+//
+// The craft pass deleted that composer. There is now ONE composer on the
+// surface — the host's — and the question and the follow-up are typed
+// into the same DOM node, which is what makes the answer state a
+// continuation rather than a mode switch.
+//
+// Both claims are still gated, at the level where the code now lives, in
+// `../../__tests__/capsuleSpendBoundary.test.tsx` (K10.e / K10.f). They
+// are STRONGER there: that file drives the real `CommandPalette` and
+// counts requests at the model seams, so "Shift+Enter does not ask" is
+// measured as "no reservation and no network call" rather than as "a
+// callback prop was not invoked".
+//
+// They were moved, not dropped. If you are here because you deleted the
+// host gates, put them back.
 
 describe("while the answer is being built", () => {
   it("shows the retrieval trace, not an empty box", () => {

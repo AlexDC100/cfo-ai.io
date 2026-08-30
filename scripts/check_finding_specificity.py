@@ -102,6 +102,13 @@ FIXTURES = (SRC / "engine" / "country_packs" / "ro_romania" / "fixtures"
 #: `scandia_frozen_fy2025` is here and not in the single-period suite's
 #: own list on purpose: it is the third production workspace the
 #: BEFORE/AFTER table is drawn from, so the lint must cover it.
+#: (fixture, rule_id) pairs the live engine surfaces today. A census
+#: that no longer finds these is not measuring the findings surface.
+DISCOVERY_CANARIES = (
+    ("scandia_fy2025", "liquidity_cash_tight"),
+    ("scandia_fy2025", "input_cost_exposure"),
+)
+
 FIXTURE_NAMES = (
     "scandia_fy2025",
     "scandia_frozen_fy2025",
@@ -608,6 +615,32 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         }, indent=2, sort_keys=True))
         return 1 if (violations or calibration) else 0
 
+    # ── WORK CENSUS + DISCOVERY CANARY ──────────────────────────────
+    # Every check below is a loop over `scored`. With `scored` empty
+    # there are no violations, no swap pairs, and the closing "OK —
+    # every surfaced finding carries two figures…" is printed over
+    # NOTHING. That sentence is the tsc green: true, and evidence of
+    # zero work. So the census is asserted before the verdict.
+    #
+    # Canaries are (fixture, rule_id) pairs the real engine produces
+    # today. They are load-bearing findings, not markers planted for
+    # the gate: if the fixture stops surfacing them, either the rule
+    # died or the harness stopped running the fixture, and both are
+    # defects this gate must not sleep through.
+    fired = set((item.fixture, item.rule_id) for item in scored)
+    missing_canary = [c for c in DISCOVERY_CANARIES if c not in fired]
+    if missing_canary or not scored:
+        print("F2 SPECIFICITY: DISCOVERY BROKEN")
+        print("  collected %d finding(s) over %d fixture(s)"
+              % (len(scored), len(FIXTURE_NAMES)))
+        for fixture, rule_id in missing_canary:
+            print("  canary NOT surfaced: %s/%s" % (fixture, rule_id))
+        print("  A lint over an empty set passes every law it states. "
+              "Fix the harness or retarget the canary — do not let it "
+              "report a clean census.")
+        return 1
+    print("GATE-WORK finding-specificity units=%d floor=20 label=surfaced-findings"
+          % len(scored))
     print("F2 SPECIFICITY — %d surfaced finding(s) over %d fixture(s)"
           % (dist["count"], len(FIXTURE_NAMES)))
     print("  score/%.1f   min %.2f  mean %.3f  max %.2f  at-full %d"

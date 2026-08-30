@@ -1,10 +1,29 @@
-// THE CAPSULE — the empty state. THREE ZONES, and no fourth.
+// THE CAPSULE — the resting state. TWO ZONES, and no third.
 //
 //   1. CONTEXT STRIP  one line — which period, its verdict, what is
 //                     missing, and the missing thing is a button
-//   2. ASK            up to three questions computed from THIS
+//   2. ASK            up to three question CHIPS computed from THIS
 //                     workspace. Zero is a legal answer
-//   3. JUMP           four destinations under one label, last
+//
+// ── The craft pass removed a zone ─────────────────────────────────────
+//
+// There used to be a third: four destinations under a "Jump to…" label.
+// It is gone from the RESTING surface, and this is the one subtraction
+// in the pass that costs something, so it is worth stating plainly.
+//
+// What it bought: the resting card is now context + chips + composer,
+// and every pixel above the composer is a sentence the reader could say.
+// That is the whole claim of an ask-first surface, and four navigation
+// rows sitting under the questions were the last thing contradicting it
+// — same 40px geometry as the suggestions, same muted right-hand text,
+// so the eye read one undifferentiated list of eight.
+//
+// What it costs: at rest, nothing on screen says you can also jump.
+// The mitigation is that navigation is one keystroke away and always
+// was — the router answers every character for free, and the first
+// keystroke paints the destinations under their own label. `MAX_JUMPS`,
+// `rankByUsage` and `CapsuleJumpList` are all still here and still
+// wired; the host renders them the moment there is a query.
 //
 // ── What was removed, and where it went ───────────────────────────────
 //
@@ -69,10 +88,14 @@ export interface CapsuleEmptyStateViewProps {
   context: CapsuleContextModel;
   trustLabel: string | null;
   suggestions: readonly CapsuleSuggestion[];
-  /** Zone 3. The host ranks these; this file only renders them. */
-  jumps: readonly CapsuleJumpItem[];
+  /** The former zone 3. The live host now passes NOTHING here — see the
+   *  module header. Kept in the contract because the ranking, the cap
+   *  and the row component are all still live behind the first
+   *  keystroke, and a view that cannot render them would make that
+   *  impossible to prove from one place. */
+  jumps?: readonly CapsuleJumpItem[];
   onPick: (question: string, source: CapsulePickSource) => void;
-  onJump: (item: CapsuleJumpItem) => void;
+  onJump?: (item: CapsuleJumpItem) => void;
   onFixUnattached?: (periodId: string) => void;
   onUpload?: () => void;
   /** Non-null renders the calm notice. Never carries an error string —
@@ -91,7 +114,7 @@ export function CapsuleEmptyStateView({
   context,
   trustLabel,
   suggestions,
-  jumps,
+  jumps = [],
   onPick,
   onJump,
   onFixUnattached,
@@ -126,20 +149,25 @@ export function CapsuleEmptyStateView({
         activeIndex={activeIndex}
         indexOffset={indexOffset}
       />
+      {/* ONE MUTED LINE, not a section. It is the honest answer to
+          "what should I ask?" when the workspace has nothing to
+          volunteer, and an honest answer that occupies a heading, a
+          rule and a block of its own is a section apologising. */}
       {showEmptyLine && (
         <p
           data-testid="capsule-suggestions-empty"
-          className="px-4 pb-1 pt-2.5 text-[12px] leading-relaxed text-ink-soft"
+          className="px-3.5 pb-1 pt-1 text-[11.5px] leading-snug text-ink-soft"
         >
           {t("capsuleEmpty.suggest.empty")}
         </p>
       )}
-      {/* Zone 3 continues the SAME flat keyboard order zone 2 started, so
-          ArrowDown walks suggestions then jumps without a discontinuity —
-          and the offset is derived, never a second hard-coded base. */}
+      {/* Renders nothing for an empty list, which is what the live host
+          passes. The flat keyboard order still continues from the chips
+          above, derived rather than hard-coded, for any caller that does
+          supply rows. */}
       <CapsuleJumpList
         items={jumps}
-        onPick={onJump}
+        onPick={onJump ?? (() => {})}
         activeIndex={activeIndex}
         indexOffset={indexOffset + suggestions.length}
       />
@@ -150,8 +178,8 @@ export function CapsuleEmptyStateView({
 
 export interface CapsuleEmptyStateProps {
   onPick: (question: string, source: CapsulePickSource) => void;
-  jumps: readonly CapsuleJumpItem[];
-  onJump: (item: CapsuleJumpItem) => void;
+  jumps?: readonly CapsuleJumpItem[];
+  onJump?: (item: CapsuleJumpItem) => void;
   onFixUnattached?: (periodId: string) => void;
   onUpload?: () => void;
   /** Wired to whatever the host can re-run. Omitted, no Retry renders. */

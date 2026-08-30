@@ -1,0 +1,73 @@
+{
+  "question": "what are our total assets",
+  "periodId": "3f2a1c88-0000-4000-8000-0000000c0ffe",
+  "company": "Scandia Food SRL",
+  "themes": {
+    "light": {
+      "answer": {
+        "label": "Total assets",
+        "figure": "52.764.717,79 RON",
+        "factKey": "total_assets",
+        "moneyAttr": "total_assets",
+        "dotTarget": "bs/totalAssets",
+        "citation": "Period · Dec 2025Source file · prod_scandia_frozen_31.12.2025.xlsxBalanced"
+      },
+      "landedShipped": {
+        "url": "/dashboard?period=3f2a1c88-0000-4000-8000-0000000c0ffe&tab=bs&highlight=totalAssets",
+        "tabParam": "bs",
+        "rowFound": false,
+        "rowText": null,
+        "pulsed": false,
+        "heading": "P&L — Scandia Food SRL — 2025-12-31 (RON)",
+        "highlightStillInUrl": true
+      },
+      "landedCorrected": {
+        "url": "/dashboard?period=3f2a1c88-0000-4000-8000-0000000c0ffe&tab=balance_sheet",
+        "rowFound": true,
+        "rowText": "TOTAL ASSETS52.764.717,7952.764.717,790",
+        "heading": "Balance Sheet Map",
+        "inViewport": true
+      },
+      "amount": {
+        "text": "+14.7%",
+        "renderer": "Amount",
+        "hasProvenance": true
+      },
+      "spendRequests": 0,
+      "spendUrls": []
+    },
+    "dark": {
+      "answer": {
+        "label": "Total assets",
+        "figure": "52.764.717,79 RON",
+        "factKey": "total_assets",
+        "moneyAttr": "total_assets",
+        "dotTarget": "bs/totalAssets",
+        "citation": "Period · Dec 2025Source file · prod_scandia_frozen_31.12.2025.xlsxBalanced"
+      },
+      "landedShipped": {
+        "url": "/dashboard?period=3f2a1c88-0000-4000-8000-0000000c0ffe&tab=bs&highlight=totalAssets",
+        "tabParam": "bs",
+        "rowFound": false,
+        "rowText": null,
+        "pulsed": false,
+        "heading": "P&L — Scandia Food SRL — 2025-12-31 (RON)",
+        "highlightStillInUrl": true
+      },
+      "landedCorrected": {
+        "url": "/dashboard?period=3f2a1c88-0000-4000-8000-0000000c0ffe&tab=balance_sheet",
+        "rowFound": true,
+        "rowText": "TOTAL ASSETS52.764.717,7952.764.717,790",
+        "heading": "Balance Sheet Map",
+        "inViewport": true
+      },
+      "amount": {
+        "text": "+14.7%",
+        "renderer": "Amount",
+        "hasProvenance": true
+      },
+      "spendRequests": 0,
+      "spendUrls": []
+    }
+  }
+}

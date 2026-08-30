@@ -1,0 +1,88 @@
+e2e/currency-coverage.spec.ts::CUR-FIX-G — currency coverage › RON / EUR / USD propagate across every money surface
+e2e/currency-coverage.spec.ts::CUR-FIX-G — currency coverage › subscription/billing prices DO NOT convert with the toggle
+e2e/design/axe-dark.spec.ts::D1 axe (Terminal theme) — serious/critical a11y violations › axe clean (dark): /chat
+e2e/design/axe-dark.spec.ts::D1 axe (Terminal theme) — serious/critical a11y violations › axe clean (dark): /dashboard/scenarios
+e2e/design/axe-dark.spec.ts::D1 axe (Terminal theme) — serious/critical a11y violations › axe clean (dark): /settings
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /benchmark
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /chat
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /dashboard
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /dashboard/scenarios
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /dashboard/variance
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /products
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /public-companies
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /settings
+e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /workspace
+e2e/design/header.spec.ts::H2 — no header action duplicates a sidebar destination › no Ask-CFO-AI control at header level — checked by behaviour, not by testid
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (dark) › axe clean [simple/dark]: /chat
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (dark) › axe clean [simple/dark]: /dashboard
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (dark) › axe clean [simple/dark]: /dashboard/scenarios
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /benchmark
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /chat
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /dashboard
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /dashboard/scenarios
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /dashboard/variance
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /products
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /public-companies
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /settings
+e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /workspace
+e2e/f61-demo-variance.prod.spec.ts::F6.1 demo + variance-nav removal @ cfo-ai.io › /dashboard/variance route is NOT orphaned — still loads
+e2e/f61-demo-variance.prod.spec.ts::F6.1 demo + variance-nav removal @ cfo-ai.io › dashboard greets with the Meridian demo + Snapshot/Trend toggle
+e2e/f61-demo-variance.prod.spec.ts::F6.1 demo + variance-nav removal @ cfo-ai.io › sidebar no longer has Budget vs Actual, but keeps Scenarios/Benchmark
+e2e/golden-path.spec.ts::Dashboard is financial-first, not inventory-first
+e2e/learning-balance-sheet-trace.spec.ts::F5.0 Wave 3 — Balance Sheet trace › All 12 map chips are present and clickable
+e2e/learning-balance-sheet-trace.spec.ts::F5.0 Wave 3 — Balance Sheet trace › BalanceSheetMap renders with 3 columns + affordance text
+e2e/learning-balance-sheet-trace.spec.ts::F5.0 Wave 3 — Balance Sheet trace › Cash chip → plain English + 5121/5124/531 source accounts
+e2e/learning-balance-sheet-trace.spec.ts::F5.0 Wave 3 — Balance Sheet trace › GUIDE ME pill renders on BS header
+e2e/learning-balance-sheet-trace.spec.ts::F5.0 Wave 3 — Balance Sheet trace › Total Assets row label is a clickable button + opens formula
+e2e/learning-balance-sheet-trace.spec.ts::F5.0 Wave 3 — Balance Sheet trace › Total Equity & Liabilities row label is clickable
+e2e/learning-glossary.spec.ts::F5.0 — Cmd+K SearchDialog → glossary integration › Browse glossary entry opens the drawer
+e2e/learning-glossary.spec.ts::F5.0 — metric glossary drawer › opens via TopHeader trigger + search + pick
+e2e/learning-guide-overlay.spec.ts::F5.0 Wave 3 — Guide overlay UX › Closing the guide persists across reload (no auto-open)
+e2e/learning-guide-overlay.spec.ts::F5.0 Wave 3 — Guide overlay UX › Esc closes the BS guide
+e2e/learning-guide-overlay.spec.ts::F5.0 Wave 3 — Guide overlay UX › Next advances the BS guide
+e2e/learning-guide-overlay.spec.ts::F5.0 Wave 3 — Guide overlay UX › Valuation guide overlay also responds to Esc
+e2e/learning-keyboard-accessibility.spec.ts::F5.0 Phase 5 — Keyboard accessibility › Enter key on focused Cash chip opens popover
+e2e/learning-keyboard-accessibility.spec.ts::F5.0 Phase 5 — Keyboard accessibility › Esc closes popover (single press pops one level)
+e2e/learning-keyboard-accessibility.spec.ts::F5.0 Phase 5 — Keyboard accessibility › LearnableRowLabel buttons are keyboard-activatable
+e2e/learning-keyboard-accessibility.spec.ts::F5.0 Phase 5 — Keyboard accessibility › Map chips are real buttons (keyboard-reachable)
+e2e/learning-keyboard-accessibility.spec.ts::F5.0 Phase 5 — Keyboard accessibility › Popover close button is keyboard-reachable
+e2e/learning-landing-onboarding.spec.ts::F5.0 Phase 9 — Landing + first-run packaging › Landing bundle ships LearningLayerSection strings
+e2e/learning-landing-onboarding.spec.ts::F5.0 Phase 9 — Landing + first-run packaging › LearningCoach lights up on first-time dashboard load
+e2e/learning-landing-onboarding.spec.ts::F5.0 Phase 9 — Landing + first-run packaging › Maybe-later dismisses the coach + sticks across reload
+e2e/learning-mobile-bottom-sheet.spec.ts::F5.0 Phase 5 — Mobile bottom-sheet popover › Cash chip → vaul bottom-sheet anchored to bottom of viewport
+e2e/learning-mobile-bottom-sheet.spec.ts::F5.0 Phase 5 — Mobile bottom-sheet popover › Mobile popover renders the same content stack as desktop
+e2e/learning-mode-toggle.spec.ts::F5.0 — learning mode toggle › toggling to off persists + resetAll returns to guided
+e2e/learning-mode-toggle.spec.ts::F5.0 — learning mode toggle › toggling to subtle persists across reload
+e2e/learning-page-guides.spec.ts::F5.0 — page guide spotlight tour › Balance Sheet guide opens + Esc closes
+e2e/learning-page-guides.spec.ts::F5.0 — page guide spotlight tour › Esc closes the guide
+e2e/learning-page-guides.spec.ts::F5.0 — page guide spotlight tour › P&L guide reveals data-guide markers after Next
+e2e/learning-performance.spec.ts::F5.0 Phase 5 — Performance › Cash chip click → popover mounted within 200ms
+e2e/learning-performance.spec.ts::F5.0 Phase 5 — Performance › No longtask > 50ms during 3-level drill
+e2e/learning-plain-english.spec.ts::F5.0 — plain-English popover layer › guided mode: EBITDA shows In plain English block above Formally
+e2e/learning-plain-english.spec.ts::F5.0 — plain-English popover layer › off mode: plain-English block is hidden
+e2e/learning-popover-recursion.spec.ts::F5.0 Wave 1 — Popover recursion regression gate › Back button on depth 1 pops to depth 0
+e2e/learning-popover-recursion.spec.ts::F5.0 Wave 1 — Popover recursion regression gate › Esc on top of stack pops one level (not all)
+e2e/learning-popover-recursion.spec.ts::F5.0 Wave 1 — Popover recursion regression gate › depth-0 popover has formula + plain-English + Ask CFO AI footer
+e2e/learning-popover-recursion.spec.ts::F5.0 Wave 1 — Popover recursion regression gate › depth-1 popover (drill from formula) still renders formula or source
+e2e/learning-products.spec.ts::F5.0 Phase 8 — Products / SKU learning › Bucket KPI labels are LearnableRowLabel buttons
+e2e/learning-products.spec.ts::F5.0 Phase 8 — Products / SKU learning › Click Protect KPI label → protect_bucket_count concept popover
+e2e/learning-products.spec.ts::F5.0 Phase 8 — Products / SKU learning › Drawer KPI tile labels (NIV revenue / Category share) open their popovers
+e2e/learning-products.spec.ts::F5.0 Phase 8 — Products / SKU learning › Drawer Real margin label → real_margin concept popover
+e2e/learning-products.spec.ts::F5.0 Phase 8 — Products / SKU learning › Drawer breakdown labels (SG&A / Capital cost) open their popovers
+e2e/learning-products.spec.ts::F5.0 Phase 8 — Products / SKU learning › Drawer status badge → sku_classification concept popover
+e2e/learning-products.spec.ts::F5.0 Phase 8 — Products / SKU learning › SKU drawer opens from row click
+e2e/learning-public-companies.spec.ts::F5.0 Phase 4.5 + Wave 4 — Public Companies learning › AAPL drawer → Open full analysis → live dashboard (NOT toast)
+e2e/learning-public-companies.spec.ts::F5.0 Phase 4.5 + Wave 4 — Public Companies learning › All 4 headline KPI tiles render as LearnableMetricCard
+e2e/learning-public-companies.spec.ts::F5.0 Phase 4.5 + Wave 4 — Public Companies learning › Click EBITDA tile → popover with plain-English + formula + Ask CFO AI
+e2e/learning-public-companies.spec.ts::F5.0 Phase 4.5 + Wave 4 — Public Companies learning › Click Revenue tile → popover with revenue plain-English
+e2e/learning-public-companies.spec.ts::F5.0 Phase 4.5 + Wave 4 — Public Companies learning › GUIDE ME pill renders on AAPL dashboard
+e2e/learning-public-companies.spec.ts::F5.0 Phase 4.5 + Wave 4 — Public Companies learning › Source pill — Nasdaq Sharadar SF1 — renders in header
+e2e/learning-recommendations.spec.ts::F5.0 Phase 7 — Recommendations explainability › Ask CFO AI footer button is present on cards
+e2e/learning-recommendations.spec.ts::F5.0 Phase 7 — Recommendations explainability › Each fact label and value renders as text or LearnableRowLabel button
+e2e/learning-recommendations.spec.ts::F5.0 Phase 7 — Recommendations explainability › Recommendation_impact label opens its concept popover
+e2e/learning-recommendations.spec.ts::F5.0 Phase 7 — Recommendations explainability › Recommendations tab renders at least one card with Triggered by block
+e2e/learning-recommendations.spec.ts::F5.0 Phase 7 — Recommendations explainability › Severity pill clicks open alert_severity concept popover
+e2e/learning-valuation-bridge.spec.ts::F5.0 Wave 3 — Valuation bridge › Click Cash → popover with 5121/5124/531 source accounts
+e2e/learning-valuation-bridge.spec.ts::F5.0 Wave 3 — Valuation bridge › Click Gross Debt → popover with 162/167/519 source accounts

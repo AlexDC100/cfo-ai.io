@@ -12,9 +12,12 @@
 //     one number, not a 12-row breakdown). Synthesised PL/BS/CF sections
 //     are therefore coarse-grained — the high-level totals match SF1
 //     exactly, but per-line drill-down is bucket-level only.
-//   · Cash flow is REAL (SF1 reports OCF/ICF/FCF directly), so we mark
-//     `isApproximated = false` — different from the private path's
-//     indirect-method reconstruction.
+//   · Operating cash flow is REAL — SF1 reports it directly, no
+//     indirect-method reconstruction. INVESTING and FINANCING are a
+//     different story: SF1 has them, but the engine's headline block does
+//     not forward them (see the accessors below), so the statement is
+//     marked `isApproximated = true` and those sections are withheld
+//     rather than shown as zero.
 //   · Currency is always USD for US-listed tickers (Sharadar's coverage).
 //     The downstream `<Money>` + `useAmountFormatter` chain handles the
 //     RON/EUR/USD display conversion automatically.
@@ -30,6 +33,60 @@ import type {
 } from "@/lib/cfStructure";
 import type { Statements } from "@/lib/financialReport";
 import type { PublicCompanyEnvelope, PublicCompanyPeriod } from "@/lib/publicCompanyApi";
+
+type Headline = PublicCompanyPeriod["headline"];
+
+// ── WHAT `headline` ACTUALLY CARRIES ────────────────────────────────────
+//
+// This adapter used to read `headline.total_liabilities`,
+// `headline.investing_cash_flow` and `headline.financing_cash_flow`.
+// The engine emits none of them. `engine/public/normalizer.py` builds the
+// headline dict from exactly ten keys — revenue, ebitda, ebit, net_income,
+// total_assets, total_equity, total_debt, cash, operating_cash_flow,
+// free_cash_flow — even though `adapter.Fundamentals` carries all three of
+// the missing ones. So every read returned `undefined`, `?? 0` turned that
+// into a hard zero, and the zero was rendered as a fact:
+//
+//   · BS "Total equity and liabilities" = equity alone, so `balanceCheck`
+//     was off by the company's ENTIRE liability stack (AAPL FY2024: $308bn).
+//   · BS "Total non-current liabilities" went NEGATIVE (0 − short-term debt).
+//   · CF investing and financing sections rendered 0.00 while the statement
+//     claimed `isApproximated: false` and `drift: 0` — a fabricated clean
+//     reconciliation.
+//
+// That is ABSENT rendered as ZERO, which this codebase treats as a defect
+// class in its own right, not a rounding matter. Two different remedies,
+// because the two cases are genuinely different:
+
+/** Total liabilities, via the balance-sheet identity A = L + E.
+ *
+ *  This is a DERIVATION, not an estimate: both inputs are headline fields
+ *  the engine really does emit, and the identity is exact by construction
+ *  (verified against `Fundamentals.total_liabilities` for AAPL FY2024 —
+ *  364,980 − 56,950 = 308,030, to the RON). Returns null when either input
+ *  is absent, so a missing total can never masquerade as zero. */
+function totalLiabilities(h: Headline | null | undefined): number | null {
+  if (!h) return null;
+  if (h.total_assets == null || h.total_equity == null) return null;
+  return h.total_assets - h.total_equity;
+}
+
+/** Investing / financing cash flow are NOT recoverable from the envelope —
+ *  no identity reaches them and no leaf carries them (the only cash-flow
+ *  leaf the normalizer emits is `cash_operating`). They return null, and
+ *  `buildCF` degrades to the honesty rail rather than printing a zero.
+ *
+ *  Fixing this properly is an ENGINE change: forward the three fields that
+ *  already exist on `Fundamentals` into the headline dict. Reported as a
+ *  cross-lane need rather than papered over here. */
+function investingCashFlow(h: Headline | null | undefined): number | null {
+  void h;
+  return null;
+}
+function financingCashFlow(h: Headline | null | undefined): number | null {
+  void h;
+  return null;
+}
 
 
 /** Returns null when the envelope has no periods (subscription_required path). */
@@ -166,6 +223,11 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
   const p = prior?.headline ?? null;
   const asOf = formatDate(cur.fiscal_period_end);
   const comparativeDate = prior ? formatDate(prior.fiscal_period_end) : asOf;
+  // Derived by identity — see `totalLiabilities`. Previously read off a
+  // headline key the engine never emits, which zeroed the whole
+  // equity-and-liabilities side and broke `balanceCheck`.
+  const totalLiabilitiesCur = totalLiabilities(c);
+  const totalLiabilitiesPrior = totalLiabilities(p);
 
   const currentAssets: BSSection = {
     header: "CURRENT ASSETS",
@@ -221,11 +283,11 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
       bsLine("Long-term debt", leaf(cur, "bank_loans_lt"), leaf(prior, "bank_loans_lt")),
     ],
     subtotalLabel: "Total non-current liabilities",
-    subtotalOpening: (p?.total_liabilities ?? 0) - (stDebtPrior > 0 ? stDebtPrior : 0),
-    subtotalClosing: (c.total_liabilities ?? 0) - (stDebt > 0 ? stDebt : 0),
+    subtotalOpening: (totalLiabilitiesPrior ?? 0) - (stDebtPrior > 0 ? stDebtPrior : 0),
+    subtotalClosing: (totalLiabilitiesCur ?? 0) - (stDebt > 0 ? stDebt : 0),
     subtotalDelta:   delta(
-      (c.total_liabilities ?? 0) - (stDebt > 0 ? stDebt : 0),
-      (p?.total_liabilities ?? 0) - (stDebtPrior > 0 ? stDebtPrior : 0),
+      (totalLiabilitiesCur ?? 0) - (stDebt > 0 ? stDebt : 0),
+      (totalLiabilitiesPrior ?? 0) - (stDebtPrior > 0 ? stDebtPrior : 0),
     ),
   };
 
@@ -245,11 +307,11 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
   };
 
   const totalEquityLiab = {
-    opening: (p?.total_liabilities ?? 0) + (p?.total_equity ?? 0),
-    closing: (c.total_liabilities ?? 0) + (c.total_equity ?? 0),
+    opening: (totalLiabilitiesPrior ?? 0) + (p?.total_equity ?? 0),
+    closing: (totalLiabilitiesCur ?? 0) + (c.total_equity ?? 0),
     delta:   delta(
-      (c.total_liabilities ?? 0) + (c.total_equity ?? 0),
-      (p?.total_liabilities ?? 0) + (p?.total_equity ?? 0),
+      (totalLiabilitiesCur ?? 0) + (c.total_equity ?? 0),
+      (totalLiabilitiesPrior ?? 0) + (p?.total_equity ?? 0),
     ),
   };
 
@@ -278,10 +340,39 @@ function buildCF(entity: string, period: string, currency: string, p: PublicComp
   // expose the per-account movements.
   const wcPlug = ocf - (h.net_income ?? 0) - da;
 
-  const investing: CFInvestingLine[] = [
-    { label: "Capital expenditure",     accounts: "capex",     amount: -(leaf(p, "cfi_capex") ?? 0) },
-    { label: "Other investing flows",   accounts: "other",     amount: (h.investing_cash_flow ?? 0) + (leaf(p, "cfi_capex") ?? 0) },
-  ];
+  // Investing / financing are absent from the envelope (see the accessors
+  // at the top of this file). Absent is not zero: when they are missing we
+  // publish NO investing/financing lines and flag the statement as
+  // incomplete, instead of rendering 0.00 next to a `drift: 0` that was
+  // only zero because both unknown legs had been silently set to zero.
+  const icf = investingCashFlow(h);
+  const fcf = financingCashFlow(h);
+  const capex = leaf(p, "cfi_capex");
+
+  const investing: CFInvestingLine[] = [];
+  if (capex != null) {
+    investing.push({ label: "Capital expenditure", accounts: "capex", amount: -capex });
+  }
+  if (icf != null) {
+    investing.push({
+      label: "Other investing flows",
+      accounts: "other",
+      amount: icf + (capex ?? 0),
+    });
+  }
+
+  const flowsUnavailable = icf == null || fcf == null;
+  const approximationNotes = flowsUnavailable
+    ? [
+        "Investing and financing cash flows are not carried in this data " +
+        "feed's headline block, so those sections are shown as unavailable " +
+        "rather than as zero. Operating cash flow is reported directly by " +
+        "the issuer and is exact.",
+      ]
+    : [];
+
+  // Only claim a reconciliation when every leg is actually known.
+  const netChangeInCash = flowsUnavailable ? 0 : ocf + (icf as number) + (fcf as number);
 
   return {
     entity,
@@ -299,23 +390,23 @@ function buildCF(entity: string, period: string, currency: string, p: PublicComp
     },
     investing: {
       items: investing,
-      cashUsedInInvesting: h.investing_cash_flow ?? 0,
+      cashUsedInInvesting: icf ?? 0,
     },
     financing: {
       bankLoanDrawdowns: 0,
       bankLoanRepayments: 0,
       dividendsPaid: 0,
-      cashFromFinancing: h.financing_cash_flow ?? 0,
+      cashFromFinancing: fcf ?? 0,
     },
     reconciliation: {
-      netChangeInCash: ocf + (h.investing_cash_flow ?? 0) + (h.financing_cash_flow ?? 0),
+      netChangeInCash,
       openingCash: 0,
       closingCashComputed: h.cash ?? 0,
       closingCashActual: h.cash ?? 0,
       drift: 0,
     },
-    isApproximated: false,
-    approximationNotes: [],
+    isApproximated: flowsUnavailable,
+    approximationNotes,
     notes: [
       "Cash flow is reported directly by the issuer (10-K / 10-Q) and ingested via Sharadar SF1 — no indirect-method reconstruction.",
     ],
@@ -334,7 +425,11 @@ function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, p
   // items, we surface what we have and zero the rest.
   const stDebt = Math.max(0, (c.total_debt ?? 0) - (leaf(cur, "bank_loans_lt") ?? 0));
   const ltDebt = leaf(cur, "bank_loans_lt") ?? 0;
-  const otherCurLiab = Math.max(0, (c.total_liabilities ?? 0) - stDebt - ltDebt);
+  // Derived by identity — reading the (never-emitted) headline key made
+  // this 0, which understated current liabilities by the whole non-debt
+  // liability stack and so INFLATED every liquidity ratio computeRatios
+  // derives from it (current, quick, debt-to-assets).
+  const otherCurLiab = Math.max(0, (totalLiabilities(c) ?? 0) - stDebt - ltDebt);
 
   const bs = {
     cash: c.cash ?? 0,

@@ -21,7 +21,14 @@
 import type { ReactNode } from "react";
 
 export interface SourceTextProps {
-  children: ReactNode;
+  /** Optional because of the `<Trans components={{ c1: <SourceText … /> }}>`
+   *  idiom: react-i18next clones the placeholder element and injects the
+   *  translated children itself, so the call site legitimately writes no
+   *  children. Every direct use still passes them; the component renders
+   *  `{children}`, which is a no-op when absent. Widened deliberately —
+   *  the alternative was a cast at the one call site, which would have
+   *  hidden the same thing with less explanation. */
+  children?: ReactNode;
   /** BCP-47 language tag for the wrapped content. Default 'ro' (Romanian). */
   lang?: string;
   className?: string;

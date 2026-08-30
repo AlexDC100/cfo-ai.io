@@ -238,9 +238,35 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // `statements.assembled_bs`; else fall back to the existing aggregated
   // shape on `statements.balanceSheet`.
   const assembledBs = (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs;
-  const bsField = (k: keyof BSFacts, fallback: number) =>
-    assembledBs && typeof assembledBs[k as string] === "number"
-      ? (assembledBs[k as string] as number)
+  // `assembled_bs` is the ENGINE's canonical BS view, whose key space is a
+  // DIFFERENT vocabulary from `BSFacts` above — `ar_intercompany` there is
+  // `intercompany_loans` here, `ap` is `suppliers`, `total_debt` is
+  // `bank_debt_total`, `ppe_investment_net` is `investment_property_net`,
+  // `ap_dividends` is `dividends_payable`.
+  //
+  // This helper was annotated `keyof BSFacts`, which named the wrong side
+  // of that translation. It typechecked only for the handful of names that
+  // happen to spell the same in both, and it actively invited the bug:
+  // passing a real `BSFacts` key compiles clean and then MISSES on every
+  // lookup, so the fact silently falls back to the locally-computed value
+  // forever with nothing raised. Verified against real engine output —
+  // none of `intercompany_loans`, `investment_property_net`, `suppliers`,
+  // `dividends_payable`, `bank_debt_total` exists in `assembled_bs`.
+  //
+  // Naming the engine's key space makes the miss a compile error instead.
+  // A key must be added here deliberately, which is the point.
+  type CanonicalBsKey =
+    | "cash" | "cash_fx_component" | "ar_net" | "ar_intercompany"
+    | "prepayments" | "ppe_investment_net" | "ap" | "ap_dividends"
+    | "total_debt" | "revaluation_reserves" | "retained_earnings";
+
+  // The `typeof === "number"` guard is not redundant despite the
+  // `Record<string, number>` annotation: this is parsed JSON, so an absent
+  // key really does read `undefined` at runtime (`prepayments`, for one,
+  // is genuinely absent from the engine view today).
+  const bsField = (k: CanonicalBsKey, fallback: number) =>
+    assembledBs && typeof assembledBs[k] === "number"
+      ? assembledBs[k]
       : fallback;
 
   const balanceSheet = statements.balanceSheet;

@@ -252,16 +252,40 @@ _MONEY_FACTS = frozenset([
     # metric. Both were resolving to UNIT_UNKNOWN — a refusal — so the
     # surface held the figure and declined to render it.
     "scenario_result_delta", "total_expenses",
+    # ── Benchmark + market surfaces (2026-08-30) ──────────────────────
+    # Found by an adversarial audit, not by the gate that was supposed to
+    # find them: check_metric_declared only read CALL SHAPES, so a plain
+    # module-level registry was invisible to it. These four are declared
+    # `fmt: "currency"` in _benchmark_engine.METRIC_DISPLAY and were
+    # resolving to UNIT_UNKNOWN — a refusal — so the surface held the
+    # figure and declined to render it.
+    "total_operating_revenue", "ebitda_cash", "ebitda_operating",
+    "net_income_operating",
+    # serving/facts._MARKET_METRICS: all five were undeclared. A listed
+    # company's price and capitalisation are money like any other.
+    "price", "market_cap", "enterprise_value",
 ])
 
 _RATIO_FACTS = frozenset([
     "debt_to_ebitda", "net_debt_ebitda", "threshold", "ratio", "cash_ratio",
+    # Market multiples from serving/facts._MARKET_METRICS. A multiple is
+    # dimensionless: it must never be handed to a currency formatter, and
+    # UNIT_UNKNOWN would have refused it outright.
+    "pe", "ev_ebitda",
 ])
 
 _PERCENT_FACTS = frozenset([
     "pct_of_assets", "pct_of_equity", "pct_of_rental_revenue",
     "materials_pct", "prov_pct", "affiliate_dep", "asset_maturity",
     "fx_cash_pct",
+    # The cost-structure ratios from _benchmark_engine.METRIC_DISPLAY,
+    # every one declared `fmt: "pct"` there. Note the shape: they end in
+    # `_revenue`, NOT `_pct`, so the house suffix convention
+    # (`endswith("_pct")`) never applied to them — which is exactly how
+    # ten of seventeen rows in one registry went undeclared unnoticed.
+    "cogs_pct_revenue", "opex_energy_pct_revenue",
+    "opex_personnel_pct_revenue", "opex_external_services_pct_revenue",
+    "opex_rent_pct_revenue", "depreciation_pct_revenue",
 ])
 
 

@@ -1,0 +1,352 @@
+{
+  "_filed_reference": {
+    "fy2023": {
+      "total_liabilities": 290437000000.0
+    },
+    "fy2024": {
+      "financing_cash_flow": -121983000000.0,
+      "investing_cash_flow": 2935000000.0,
+      "total_liabilities": 308030000000.0
+    }
+  },
+  "dimension": "ARY",
+  "periods": [
+    {
+      "aggregates": {
+        "cash_and_equivalents": {
+          "leaves": [
+            "cash_operating"
+          ],
+          "net": 29943000000.0
+        },
+        "inventory_net": {
+          "leaves": [
+            "inventory_merchandise_resale"
+          ],
+          "net": 7286000000.0
+        },
+        "trade_receivables_net": {
+          "leaves": [
+            "ar_trade_gross"
+          ],
+          "net": 33410000000.0
+        }
+      },
+      "currency": "USD",
+      "dimension": "ARY",
+      "fiscal_period_end": "2024-09-28",
+      "headline": {
+        "cash": 29943000000.0,
+        "ebit": 123216000000.0,
+        "ebitda": 134661000000.0,
+        "free_cash_flow": 108807000000.0,
+        "net_income": 93736000000.0,
+        "operating_cash_flow": 118254000000.0,
+        "revenue": 391035000000.0,
+        "total_assets": 364980000000.0,
+        "total_debt": 106629000000.0,
+        "total_equity": 56950000000.0
+      },
+      "leaves": {
+        "ar_trade_gross": {
+          "magnitude": 33410000000.0,
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 33410000000.0,
+          "sign_meaning": "asset_positive",
+          "source_field": "sharadar:receivables"
+        },
+        "cash_operating": {
+          "magnitude": 29943000000.0,
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 29943000000.0,
+          "sign_meaning": "asset_positive",
+          "source_field": "sharadar:cash"
+        },
+        "inventory_merchandise_resale": {
+          "magnitude": 7286000000.0,
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 7286000000.0,
+          "sign_meaning": "asset_positive",
+          "source_field": "sharadar:inventory"
+        }
+      },
+      "market_metrics": {
+        "as_of": "2024-09-28",
+        "currency": "USD",
+        "dividend_yield": 0.0044,
+        "enterprise_value": 3527000000000.0,
+        "ev_ebit": 28.6,
+        "ev_ebitda": 26.2,
+        "ev_revenue": 9.02,
+        "market_cap": 3450000000000.0,
+        "pb_ratio": 60.6,
+        "pe_ratio": 36.8,
+        "ps_ratio": 8.82
+      },
+      "normalizer_version": "nasdaq_v1.0.0",
+      "round_trip_check": {
+        "max_deviation_pct": 0.0,
+        "passed": true,
+        "tolerance_pct": 0.5,
+        "total_assets": 364980000000.0,
+        "total_liab_plus_equity": 364980000000.0
+      },
+      "schema_version": "canonical_v1.0.0",
+      "source": "nasdaq_sharadar_sf1",
+      "ticker": "AAPL",
+      "unmapped": [
+        {
+          "amount": 45680000000.0,
+          "canonical_attempted": "ppe_grossbook_buildings",
+          "code": "sharadar:ppe",
+          "name": "ppe",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 20879000000.0,
+          "canonical_attempted": "bank_loans_st",
+          "code": "sharadar:st_debt_synthetic",
+          "name": "st_debt_synthetic",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 85750000000.0,
+          "canonical_attempted": "bank_loans_lt",
+          "code": "sharadar:long_term_debt",
+          "name": "long_term_debt",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": -19154000000.0,
+          "canonical_attempted": "retained_earnings_accumulated",
+          "code": "sharadar:retained_earnings",
+          "name": "retained_earnings",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 76104000000.0,
+          "canonical_attempted": "share_capital_paid_in",
+          "code": "sharadar:equity_minus_re_synthetic",
+          "name": "equity_minus_re_synthetic",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 391035000000.0,
+          "canonical_attempted": "revenue_main_product",
+          "code": "sharadar:revenue",
+          "name": "revenue",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 210352000000.0,
+          "canonical_attempted": "cogs_materials",
+          "code": "sharadar:cogs",
+          "name": "cogs",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 11445000000.0,
+          "canonical_attempted": "depreciation_total",
+          "code": "sharadar:da_synthetic",
+          "name": "da_synthetic",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 118254000000.0,
+          "canonical_attempted": "cfo_total",
+          "code": "sharadar:operating_cash_flow",
+          "name": "operating_cash_flow",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 2935000000.0,
+          "canonical_attempted": "cfi_total",
+          "code": "sharadar:investing_cash_flow",
+          "name": "investing_cash_flow",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": -121983000000.0,
+          "canonical_attempted": "cff_total",
+          "code": "sharadar:financing_cash_flow",
+          "name": "financing_cash_flow",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": -9447000000.0,
+          "canonical_attempted": "cfi_capex",
+          "code": "sharadar:capex",
+          "name": "capex",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        }
+      ]
+    },
+    {
+      "aggregates": {
+        "cash_and_equivalents": {
+          "leaves": [
+            "cash_operating"
+          ],
+          "net": 29965000000.0
+        },
+        "inventory_net": {
+          "leaves": [
+            "inventory_merchandise_resale"
+          ],
+          "net": 6331000000.0
+        },
+        "trade_receivables_net": {
+          "leaves": [
+            "ar_trade_gross"
+          ],
+          "net": 29508000000.0
+        }
+      },
+      "currency": "USD",
+      "dimension": "ARY",
+      "fiscal_period_end": "2023-09-30",
+      "headline": {
+        "cash": 29965000000.0,
+        "ebit": 114301000000.0,
+        "ebitda": 125820000000.0,
+        "free_cash_flow": 99584000000.0,
+        "net_income": 96995000000.0,
+        "operating_cash_flow": 110543000000.0,
+        "revenue": 383285000000.0,
+        "total_assets": 352583000000.0,
+        "total_debt": 111088000000.0,
+        "total_equity": 62146000000.0
+      },
+      "leaves": {
+        "ar_trade_gross": {
+          "magnitude": 29508000000.0,
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 29508000000.0,
+          "sign_meaning": "asset_positive",
+          "source_field": "sharadar:receivables"
+        },
+        "cash_operating": {
+          "magnitude": 29965000000.0,
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 29965000000.0,
+          "sign_meaning": "asset_positive",
+          "source_field": "sharadar:cash"
+        },
+        "inventory_merchandise_resale": {
+          "magnitude": 6331000000.0,
+          "ras_line_items_count": 1,
+          "ras_line_items_sum_signed": 6331000000.0,
+          "sign_meaning": "asset_positive",
+          "source_field": "sharadar:inventory"
+        }
+      },
+      "market_metrics": null,
+      "normalizer_version": "nasdaq_v1.0.0",
+      "round_trip_check": {
+        "max_deviation_pct": 0.0,
+        "passed": true,
+        "tolerance_pct": 0.5,
+        "total_assets": 352583000000.0,
+        "total_liab_plus_equity": 352583000000.0
+      },
+      "schema_version": "canonical_v1.0.0",
+      "source": "nasdaq_sharadar_sf1",
+      "ticker": "AAPL",
+      "unmapped": [
+        {
+          "amount": 43715000000.0,
+          "canonical_attempted": "ppe_grossbook_buildings",
+          "code": "sharadar:ppe",
+          "name": "ppe",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 15807000000.0,
+          "canonical_attempted": "bank_loans_st",
+          "code": "sharadar:st_debt_synthetic",
+          "name": "st_debt_synthetic",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 95281000000.0,
+          "canonical_attempted": "bank_loans_lt",
+          "code": "sharadar:long_term_debt",
+          "name": "long_term_debt",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": -214000000.0,
+          "canonical_attempted": "retained_earnings_accumulated",
+          "code": "sharadar:retained_earnings",
+          "name": "retained_earnings",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 62360000000.0,
+          "canonical_attempted": "share_capital_paid_in",
+          "code": "sharadar:equity_minus_re_synthetic",
+          "name": "equity_minus_re_synthetic",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 383285000000.0,
+          "canonical_attempted": "revenue_main_product",
+          "code": "sharadar:revenue",
+          "name": "revenue",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 214137000000.0,
+          "canonical_attempted": "cogs_materials",
+          "code": "sharadar:cogs",
+          "name": "cogs",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 11519000000.0,
+          "canonical_attempted": "depreciation_total",
+          "code": "sharadar:da_synthetic",
+          "name": "da_synthetic",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 110543000000.0,
+          "canonical_attempted": "cfo_total",
+          "code": "sharadar:operating_cash_flow",
+          "name": "operating_cash_flow",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": 3705000000.0,
+          "canonical_attempted": "cfi_total",
+          "code": "sharadar:investing_cash_flow",
+          "name": "investing_cash_flow",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": -108488000000.0,
+          "canonical_attempted": "cff_total",
+          "code": "sharadar:financing_cash_flow",
+          "name": "financing_cash_flow",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        },
+        {
+          "amount": -10959000000.0,
+          "canonical_attempted": "cfi_capex",
+          "code": "sharadar:capex",
+          "name": "capex",
+          "reason": "canonical_leaf_not_in_schema_v1"
+        }
+      ]
+    }
+  ],
+  "ticker": "AAPL",
+  "ticker_info": {
+    "currency": "USD",
+    "exchange": "NASDAQ",
+    "industry": "Consumer Electronics",
+    "name": "Apple Inc.",
+    "sector": "Technology",
+    "ticker": "AAPL"
+  }
+}

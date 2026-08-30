@@ -1,0 +1,65 @@
+{
+  "question": "what are our total assets",
+  "periodId": "demo-meridian",
+  "company": "Meridian Industries SRL",
+  "themes": {
+    "light": {
+      "answer": {
+        "label": "Total assets",
+        "figure": "249.372.520 RON",
+        "factKey": "total_assets",
+        "moneyAttr": "total_assets",
+        "dotTarget": "bs/totalAssets",
+        "citation": "Period · No period in scopeNot verified by the engine"
+      },
+      "landedShipped": {
+        "url": "/dashboard?period=demo-meridian&tab=bs&highlight=totalAssets",
+        "tabParam": "bs",
+        "rowFound": false,
+        "rowText": null,
+        "pulsed": false,
+        "heading": "P&L — Meridian Industries SRL — FY2025 (RON)",
+        "highlightStillInUrl": true
+      },
+      "landedCorrected": {
+        "url": "/dashboard?period=demo-meridian&tab=balance_sheet&highlight=totalAssets",
+        "rowFound": false,
+        "rowText": null,
+        "heading": "Balance sheet · FY2025",
+        "inViewport": false
+      },
+      "amount": null,
+      "spendRequests": 0,
+      "spendUrls": []
+    },
+    "dark": {
+      "answer": {
+        "label": "Total assets",
+        "figure": "236.122.126 RON",
+        "factKey": "total_assets",
+        "moneyAttr": "total_assets",
+        "dotTarget": "bs/totalAssets",
+        "citation": "Period · No period in scopeNot verified by the engine"
+      },
+      "landedShipped": {
+        "url": "/dashboard?period=demo-meridian&tab=bs&highlight=totalAssets",
+        "tabParam": "bs",
+        "rowFound": false,
+        "rowText": null,
+        "pulsed": false,
+        "heading": "P&L — Meridian Industries SRL — FY2025 (RON)",
+        "highlightStillInUrl": true
+      },
+      "landedCorrected": {
+        "url": "/dashboard?period=demo-meridian&tab=balance_sheet&highlight=totalAssets",
+        "rowFound": false,
+        "rowText": null,
+        "heading": "Balance sheet · FY2025",
+        "inViewport": false
+      },
+      "amount": null,
+      "spendRequests": 0,
+      "spendUrls": []
+    }
+  }
+}

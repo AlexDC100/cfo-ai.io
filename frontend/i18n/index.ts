@@ -194,13 +194,23 @@ export function setLanguage(code: string): void {
 export async function pickLanguageWithProfileSync(
   code: string,
   user: { id: string } | null | undefined,
+  // Structurally typed so this module never imports @supabase/supabase-js
+  // (i18n boots before the client). `PromiseLike`, not `Promise`: what
+  // `.eq()` actually returns is a PostgrestFilterBuilder — a THENABLE that
+  // has no `.catch` / `.finally`, so the real SupabaseClient did not
+  // satisfy the previous `Promise<unknown>` shape and the one call site in
+  // Landing.tsx was a type error. The body only ever `await`s these, and
+  // `await` accepts any thenable, so this describes the real contract
+  // instead of a stricter one nothing supplies.
   supabase: {
     from: (table: string) => {
       update: (patch: Record<string, unknown>) => {
-        eq: (col: string, val: string) => Promise<unknown>;
+        eq: (col: string, val: string) => PromiseLike<unknown>;
       };
     };
-    auth: { updateUser: (args: { data: Record<string, unknown> }) => Promise<unknown> };
+    auth: {
+      updateUser: (args: { data: Record<string, unknown> }) => PromiseLike<unknown>;
+    };
   } | null | undefined,
 ): Promise<void> {
   setLanguage(code);

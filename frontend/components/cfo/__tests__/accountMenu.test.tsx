@@ -14,7 +14,15 @@
 // rendering contract.
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+
+// Mounted through the shared helper, not a bare `render`. AccountMenuContent
+// renders <CurrencyToggle />, which calls useCurrency() — and that hook throws
+// on purpose when no <CurrencyProvider> is above it, to stop the app ever
+// falling back to a silently-wrong currency. The helper supplies the same
+// provider stack App.tsx does, so this file tests the component as it is
+// actually mounted rather than in a context the app never creates.
+import { renderWithProviders } from "@/test/renderWithProviders";
 
 import { AccountMenuContent } from "../AccountMenu";
 import type { PlanState } from "@/lib/planState";
@@ -47,7 +55,7 @@ function renderContent(overrides: Partial<React.ComponentProps<typeof AccountMen
     onNavigateBilling: vi.fn(),
     onSignOut: vi.fn(),
   };
-  return render(<AccountMenuContent {...defaults} {...overrides} />);
+  return renderWithProviders(<AccountMenuContent {...defaults} {...overrides} />);
 }
 
 describe("AccountMenu — single source of truth for sign-out", () => {

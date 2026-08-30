@@ -14,6 +14,21 @@
 
 import { ApiLineItem, sumByExact, sumByPrefix } from "./plStructure";
 import type { BSLine, BSSection, BSStatement } from "./bsStructure";
+
+/** Give a BSLine array literal its element type before it is filtered.
+ *
+ *  Identical trap to `plLines` in buildPlStatement: writing
+ *  `const x: BSLine[] = [ … ].filter(f)` annotates the FILTER RESULT, not
+ *  the literal. Uncontextualised, `style: "item"` widens from BSLineStyle
+ *  to `string`, `isContra`/`bucket` stop being checked, and the whole array
+ *  is then not assignable to BSLine[] (TS2322).
+ *
+ *  Passing the literal as an argument restores contextual typing, so a
+ *  misspelt style or bucket is a compile error again instead of a silently
+ *  mis-weighted row in a balance sheet. Runtime identity; no cast. */
+function bsLines(lines: BSLine[]): BSLine[] {
+  return lines;
+}
 // servedFacts gateway — the canonical path's status/difference/totals
 // picks are shared with every other consumer via `canonicalStatusCore`
 // (same cents, same fallbacks), so the strip meta and the facts modules
@@ -471,7 +486,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
     (intangiblesGross.opening + intangibleAmort.opening) +
     accumDep.opening;
 
-  const nonCurrentLines: BSLine[] = [
+  const nonCurrentLines: BSLine[] = bsLines([
     {
       accountCode: "208/2808",
       label: "Intangibles (208 net of 2808)",
@@ -496,13 +511,13 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
       isContra: true,
       style: "contra",
     },
-  ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
+  ]).filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
 
   // Remaining non-current items (long-term investments) shown after net fixed assets
-  const remainingNonCurrent: BSLine[] = [
+  const remainingNonCurrent: BSLine[] = bsLines([
     { accountCode: "261",  label: "Shares in affiliates", opening: shares261.opening, closing: shares261.closing, style: "item" },
     { accountCode: "2678", label: "Other LT receivables", opening: ltRecv2678.opening, closing: ltRecv2678.closing, style: "item" },
-  ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
+  ]).filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
 
   const totalNonCurrentClosing = netFixedClosing + shares261.closing + ltRecv2678.closing;
   const totalNonCurrentOpening = netFixedOpening + shares261.opening + ltRecv2678.opening;
@@ -578,7 +593,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
   const inventoryNetClosing = inventoryGrossClosing + inventoryProvisions39.closing;
   const inventoryNetOpening = inventoryGrossOpening + inventoryProvisions39.opening;
 
-  const currentLines: BSLine[] = [
+  const currentLines: BSLine[] = bsLines([
     { accountCode: "301",  label: "Raw materials",                opening: rawMaterials301.opening, closing: rawMaterials301.closing, style: "item" },
     { accountCode: "302",  label: "Consumables",                  opening: consumables302.opening, closing: consumables302.closing, style: "item" },
     { accountCode: "303",  label: "Small inventory / tools",      opening: smallInventory303.opening, closing: smallInventory303.closing, style: "item" },
@@ -627,7 +642,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
       style: "item",
       bucket: "cash",
     },
-  ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
+  ]).filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
 
   const totalCurrentClosing = currentLines.reduce((s, l) => s + (l.closing ?? 0), 0);
   const totalCurrentOpening = currentLines.reduce((s, l) => s + (l.opening ?? 0), 0);
@@ -662,7 +677,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
   const retained117 = both("117");
   const currentYearNP = args.currentYearNetProfit ?? 0;
 
-  const equityLines: BSLine[] = [
+  const equityLines: BSLine[] = bsLines([
     { accountCode: "1012", label: "Share capital", opening: share1012.opening, closing: share1012.closing, style: "item" },
     { accountCode: "104",  label: "Share premium / merger premium", opening: premium104.opening, closing: premium104.closing, style: "item" },
     { accountCode: "105",  label: "Revaluation reserves", opening: reval105.opening, closing: reval105.closing, style: "item" },
@@ -677,7 +692,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
       style: "item",
       bucket: "currentYearNetProfit",
     },
-  ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
+  ]).filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
 
   const totalEquityClosing = equityLines.reduce((s, l) => s + (l.closing ?? 0), 0);
   const totalEquityOpening = equityLines.reduce((s, l) => s + (l.opening ?? 0), 0);
@@ -704,14 +719,14 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
   const provisions15 = bothPrefix("151", "152", "153", "154", "155", "158");
   const subsidies475 = both("475");
   const grants478 = both("478");
-  const nonCurrentLiabLines: BSLine[] = [
+  const nonCurrentLiabLines: BSLine[] = bsLines([
     { accountCode: "1621", label: "LT bank loans", opening: ltDebt.opening, closing: ltDebt.closing, style: "item", bucket: "longTermDebt" },
     { accountCode: "167",  label: "Leasing obligations", opening: leasing167.opening, closing: leasing167.closing, style: "item" },
     { accountCode: "168",  label: "Accrued LT interest", opening: ltInterest168.opening, closing: ltInterest168.closing, style: "item" },
     { accountCode: "15x",  label: "Provisions (litigation, decommissioning)", opening: provisions15.opening, closing: provisions15.closing, style: "item" },
     { accountCode: "475",  label: "Investment subsidies", opening: subsidies475.opening, closing: subsidies475.closing, style: "item" },
     { accountCode: "478",  label: "Grants", opening: grants478.opening, closing: grants478.closing, style: "item" },
-  ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
+  ]).filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
   const totalNonCurrentLiabClosing =
     ltDebt.closing + leasing167.closing + ltInterest168.closing +
     provisions15.closing + subsidies475.closing + grants478.closing;
@@ -754,7 +769,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
   const creditors462 = both("462");
   const deferredRev472 = both("472");
 
-  const currentLiabLines: BSLine[] = [
+  const currentLiabLines: BSLine[] = bsLines([
     { accountCode: "519",  label: "Short-term bank credit",      opening: stBank519.opening, closing: stBank519.closing, style: "item", bucket: "shortTermDebt" },
     { accountCode: "401",  label: "Trade payables",              opening: ap401.opening, closing: ap401.closing, style: "item", bucket: "accountsPayable" },
     { accountCode: "403",  label: "Notes payable",               opening: notesPayable403.opening, closing: notesPayable403.closing, style: "item" },
@@ -774,7 +789,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
     { accountCode: "457",  label: "Dividends payable",           opening: div457.opening, closing: div457.closing, style: "item" },
     { accountCode: "462",  label: "Other creditors",             opening: creditors462.opening, closing: creditors462.closing, style: "item" },
     { accountCode: "472",  label: "Deferred revenue",            opening: deferredRev472.opening, closing: deferredRev472.closing, style: "item" },
-  ].filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
+  ]).filter((l) => Math.abs(l.opening ?? 0) > 0 || Math.abs(l.closing ?? 0) > 0);
 
   const totalCurrentLiabClosing = currentLiabLines.reduce((s, l) => s + (l.closing ?? 0), 0);
   const totalCurrentLiabOpening = currentLiabLines.reduce((s, l) => s + (l.opening ?? 0), 0);

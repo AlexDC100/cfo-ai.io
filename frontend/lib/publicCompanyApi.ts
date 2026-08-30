@@ -75,6 +75,12 @@ export interface PublicCompanyPeriod {
     market_cap: number | null;
     enterprise_value: number | null;
     ev_ebitda: number | null;
+    // Emitted by `engine/public/normalizer.py` alongside ev_ebitda (both
+    // read off `DailyMetrics`), but omitted here — so PublicCompanyDashboard
+    // read them through a type error and the EV/EBIT and EV/Revenue tiles
+    // were typed as though the data could not exist. It does.
+    ev_ebit: number | null;
+    ev_revenue: number | null;
     pe_ratio: number | null;
     pb_ratio: number | null;
     ps_ratio: number | null;
@@ -116,7 +122,27 @@ export interface NasdaqErrorEnvelope {
   };
 }
 
-export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: NasdaqErrorEnvelope["error"] };
+export type ApiOk<T> = { ok: true; value: T };
+export type ApiErr = { ok: false; error: NasdaqErrorEnvelope["error"] };
+export type ApiResult<T> = ApiOk<T> | ApiErr;
+
+/** Narrow an `ApiResult` to its failure member.
+ *
+ *  `if (r.ok) { … } else { r.error }` reads as correct and IS correct at
+ *  runtime, but does not typecheck in this project: with `strict: false`
+ *  (so `strictNullChecks: false`) TypeScript declines to subtract the
+ *  `ok: true` member from a boolean-discriminated union in the else-branch.
+ *  Verified directly — the identical snippet compiles clean under
+ *  `--strict true` and reports TS2339 under `--strict false`, so this is a
+ *  compiler-mode artefact, not a defect in the call sites.
+ *
+ *  A user-defined type predicate narrows under BOTH modes and compiles to a
+ *  plain `!r.ok`, so it costs nothing and does not suppress anything: an
+ *  actually-wrong access still fails to typecheck. Preferred over widening
+ *  the union or casting at each call site. */
+export function isApiError<T>(r: ApiResult<T>): r is ApiErr {
+  return !r.ok;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 

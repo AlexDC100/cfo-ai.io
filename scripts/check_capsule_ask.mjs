@@ -140,7 +140,22 @@ function gateAskFirstCopy() {
       const langBag = bundle[lang];
       if (!langBag) continue;
       for (const [dotted, value] of flatten(langBag)) {
-        if (!/placeholder$/i.test(dotted)) continue;
+        // MUST match a nested placeholder object too, not only a key
+        // that ENDS in "placeholder".
+        //
+        // An adversarial audit changed the live command-surface string to
+        // "Search pages, actions, periods, companies… then Ask" — the
+        // exact regression K1 exists to guard — and this gate stayed
+        // GREEN. The real capsule placeholder is an OBJECT
+        // (`placeholder: { ask, askNoPeriod, aria }`), so its leaves are
+        // `…placeholder.ask` / `.askNoPeriod` / `.aria` and the
+        // end-anchored test never selected them. K1 was grading
+        // `capsuleAnswer.followUpPlaceholder` — a follow-up field — and
+        // reporting the actual command surface as DEAD COPY.
+        if (!/(^|\.)placeholder(\.|$)/i.test(dotted)) continue;
+        // `.aria` is the accessible NAME of the field, not its copy; it
+        // is graded by K1-d against the trigger instead.
+        if (/\.aria$/i.test(dotted)) continue;
         // Only the COMMAND SURFACE placeholder is under this law. A
         // period filter or a search-a-list field is honestly a search.
         if (!/palette|capsule|command|ask/i.test(dotted)) continue;
@@ -270,6 +285,9 @@ function gateTriggerAccessibleName() {
     );
     return;
   }
+  notes.push(
+    `K1b: capsule trigger anchor data-testid="header-command-bar" found in ` +
+      `${hits.map(rel).join(", ")}`);
   for (const p of hits) {
     const src = read(p);
     const block = src.slice(
@@ -556,8 +574,32 @@ function main() {
 
   for (const n of notes) console.log(`   ok  ${n}`);
 
+  // ── WORK CENSUS + DISCOVERY CANARY ────────────────────────────────
+  //
+  // Every law here is decided by reading two file sets. Both are built
+  // by a walker at module load, and a walker that returns [] makes each
+  // law vacuously satisfied: no strings file to lint, no spec file to
+  // sweep, no component to find the trigger in. K1 already fails when
+  // it finds no placeholder — this extends that discipline to the sets
+  // themselves, so the sweep cannot report a clean census over nothing.
+  const scanned = FRONTEND_SOURCE.length + SPEC_FILES.length;
+  const broken = [];
+  if (FRONTEND_SOURCE.length === 0) broken.push("0 frontend source files walked");
+  if (SPEC_FILES.length === 0) broken.push("0 e2e/design spec files walked");
+  if (broken.length) {
+    console.log("\nFAIL check_capsule_ask — DISCOVERY BROKEN");
+    for (const b of broken) console.log(`  - ${b}`);
+    console.log("  Every gate in this file reads one of those two sets. " +
+      "Empty sets satisfy every law it states.");
+    return 1;
+  }
+
   if (failures.length === 0) {
-    console.log("\nPASS check_capsule_ask — ASK-FIRST copy, header budget, selector census");
+    console.log(`GATE-WORK capsule-ask units=${scanned} floor=100 ` +
+      `label=source+spec-files`);
+    console.log(`\nPASS check_capsule_ask — ASK-FIRST copy, header budget, ` +
+      `selector census (${FRONTEND_SOURCE.length} source + ` +
+      `${SPEC_FILES.length} spec file(s) scanned)`);
     return 0;
   }
   console.log(`\nFAIL check_capsule_ask — ${failures.length} violation(s)\n`);

@@ -25,7 +25,7 @@ import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { formatRON, formatPercent } from "@/lib/formatRon";
 import { useCurrency } from "@/stores/currency";
 import { formatMoneyFrom } from "@/lib/money";
-import type { Currency } from "@/lib/rates";
+import type { Currency, Rates } from "@/lib/rates";
 import {
   STATEMENT_TAB,
   HIGHLIGHT_PARAM,
@@ -147,7 +147,14 @@ function renderFormat(
   currencyOpts?: {
     sourceCurrency: Currency;
     displayCurrency: Currency;
-    rates: Record<string, number>;
+    // `Rates`, not `Record<string, number>`: the loose record admits a
+    // table missing a currency, and `convertFromTo` reads the rate by
+    // key — so a missing RON would convert against `undefined` and put a
+    // wrong figure on screen under a correct-looking currency label. The
+    // one call site already passes a real `Rates` (`useCurrency().rates
+    // .rates`), so this narrows the annotation to what is actually
+    // supplied; nothing changes at runtime.
+    rates: Rates;
   },
 ): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";

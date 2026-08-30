@@ -34,6 +34,19 @@ SCAN_DIRS = [os.path.join(REPO, "src", "engine")]
 # Suffixes whose scale is genuinely ambiguous without a declared unit.
 AMBIGUOUS_SUFFIXES = ("_pct", "_ratio", "_margin")
 
+# ── WORK CENSUS + DISCOVERY CANARY ───────────────────────────────────
+# This gate is an AST WALKER over a directory tree, and the only thing
+# it printed for months was "PASS — every literal metric row declares a
+# unit". That sentence is TRUE OF ZERO ROWS. If SCAN_DIRS moved, an
+# import broke the walk, or the row shape changed, the gate would go on
+# saying it. So the count of rows examined is printed, and one metric
+# row that MUST be found is named: absent => DISCOVERY BROKEN.
+#
+# The canary is a real, live row rather than a marker planted for the
+# gate — a marker would keep the gate green while the real rows went
+# unscanned, which is the failure being defended against.
+CANARY_METRICS = ("net_debt_to_ebitda",)
+
 
 def _literal_metric_rows(tree):
     """Yield (lineno, name, has_unit) for dict literals that look like a
@@ -59,6 +72,9 @@ def _literal_metric_rows(tree):
 
 def main() -> int:
     violations = []
+    rows_examined = 0
+    files_parsed = 0
+    names_seen = set()
     for root_dir in SCAN_DIRS:
         for dirpath, _dirnames, filenames in os.walk(root_dir):
             if "__pycache__" in dirpath:
@@ -71,8 +87,11 @@ def main() -> int:
                     tree = ast.parse(open(path, encoding="utf-8").read())
                 except SyntaxError:
                     continue
+                files_parsed += 1
                 rel = os.path.relpath(path, REPO)
                 for lineno, name, has_unit in _literal_metric_rows(tree):
+                    rows_examined += 1
+                    names_seen.add(name)
                     if has_unit:
                         continue
                     ambiguous = name.endswith(AMBIGUOUS_SUFFIXES)
@@ -92,7 +111,26 @@ def main() -> int:
         print("  scale is not declared WILL eventually be scaled twice.")
         return 1
 
-    print("METRIC UNIT GATE: PASS — every literal metric row declares a unit")
+    missing = [c for c in CANARY_METRICS if c not in names_seen]
+    if missing:
+        print("METRIC UNIT GATE: DISCOVERY BROKEN")
+        print("  parsed %d file(s) under %s and found %d metric row(s), but "
+              "these canary metrics were never seen: %s"
+              % (files_parsed, ", ".join(SCAN_DIRS), rows_examined,
+                 ", ".join(sorted(missing))))
+        print("  Either the walk stopped reaching the producers, or the row "
+              "shape changed and this gate is now linting nothing. It does "
+              "NOT get to report a clean census.")
+        return 1
+    if rows_examined == 0:
+        print("METRIC UNIT GATE: DISCOVERY BROKEN — 0 metric rows examined.")
+        return 1
+
+    print("GATE-WORK metric-units units=%d floor=50 label=literal-metric-rows"
+          % rows_examined)
+    print("METRIC UNIT GATE: PASS — every literal metric row declares a unit "
+          "(%d row(s) across %d file(s); canaries seen: %s)"
+          % (rows_examined, files_parsed, ", ".join(CANARY_METRICS)))
     return 0
 
 

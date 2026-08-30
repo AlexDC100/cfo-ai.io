@@ -157,6 +157,15 @@ interface FetchTrap {
 /** Records every request and answers it with a calm 503 so the pipeline
  *  degrades instead of hanging. The RECORD is the measurement; the
  *  response only exists so nothing waits forever. */
+/** How long the trap holds a request before answering.
+ *
+ *  Zero for every gate whose subject is "did this request happen at
+ *  all". Non-zero for K10.f, whose subject is what the surface does
+ *  WHILE a turn is in flight — with an instant answer the first turn is
+ *  already finished by the time the second Enter is pressed, and the
+ *  gate would then be measuring nothing. Reset in `beforeEach`. */
+let trapDelayMs = 0;
+
 function trapFetch(): FetchTrap {
   const all: string[] = [];
   const g = globalThis as unknown as Record<string, unknown>;
@@ -167,6 +176,7 @@ function trapFetch(): FetchTrap {
         ? input
         : String((input as { url?: string })?.url ?? input);
     all.push(url);
+    if (trapDelayMs > 0) await new Promise((r) => setTimeout(r, trapDelayMs));
     return new Response("{}", { status: 503, headers: { "Content-Type": "application/json" } });
   };
   return {
@@ -208,6 +218,7 @@ function typeAndEnter(question: string) {
 let trap: FetchTrap;
 
 beforeEach(() => {
+  trapDelayMs = 0;
   resetCapsuleAskGuard();
   __resetCapsuleThreadForTests();
   trap = trapFetch();
@@ -429,5 +440,88 @@ describe("K10.d — a navigation question with a question mark on it", () => {
           "would be an instant answer to a question nobody asked.",
       ).toBeGreaterThan(0);
     });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// K10.e / K10.f — THE ONE COMPOSER
+// ══════════════════════════════════════════════════════════════════════
+//
+// The craft pass deleted `CapsuleAnswerPanel`'s own composer: the
+// question and the follow-up are now typed into the SAME textarea, which
+// is what makes the answer state a continuation of the resting state
+// rather than a second surface. Two guarantees came with that composer
+// and had to survive the move, and both are the host's now.
+//
+// They used to be asserted in `capsuleAnswer/__tests__/
+// capsuleAnswerPanel.test.tsx` against a callback prop. Here they are
+// asserted against the REAL surface and the REAL model seams, which is
+// a stronger claim — the panel-level version would have stayed green
+// with the whole spend boundary removed.
+
+describe("K10.e — Shift+Enter composes a newline, it does not ask", () => {
+  it("a question Tier 0 refuses spends NOTHING when committed with Shift", async () => {
+    mount();
+    const input = screen.getByRole("combobox");
+    // The SAME question K10.a proves reaches the model on a plain Enter.
+    // That is what makes this a real assertion rather than a statement
+    // about a string nobody would have billed for anyway.
+    fireEvent.change(input, { target: { value: "why is cash down this month?" } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+
+    await new Promise((r) => setTimeout(r, 80));
+
+    expect(
+      trap.spend(),
+      "K10.e: Shift+Enter reached a model seam. It is the newline key — the " +
+        "field is a textarea precisely so a long question can be composed " +
+        "before it is sent — and a newline must never be a purchase.",
+    ).toEqual([]);
+    expect(reservationTaken(USER)).toBe(false);
+    expect(screen.queryByTestId("capsule-answer")).toBeNull();
+  });
+});
+
+describe("K10.f — one turn at a time", () => {
+  it("Enter while a turn is still running does not start a second one", async () => {
+    // Hold the model seam open, so the first turn is genuinely still
+    // running when the second Enter arrives. Without this the trap
+    // answers in the same microtask, the turn finishes, `busy` is
+    // already false, and the gate below asserts nothing.
+    trapDelayMs = 2000;
+    mount();
+
+    // Turn one: an interpretation request, so the model path is the one
+    // under test and `busy` is genuinely true for a while.
+    typeAndEnter("why is cash down this month?");
+    await screen.findByTestId("capsule-answer");
+    const before = screen.getAllByTestId("capsule-turn").length;
+    expect(before).toBe(1);
+
+    // ── THE CONFOUND, REMOVED ────────────────────────────────────────
+    //
+    // `capsuleAskGuard` enforces a minimum gap between asks, so a second
+    // Enter fired straight after the first would be refused by the
+    // THROTTLE whether or not the busy guard exists — and the assertion
+    // below would pass with `runPrimary`'s `if (answer.busy) return`
+    // deleted. That is exactly the vacuous-gate shape this session is
+    // about. Clearing the ledger here leaves the busy guard as the only
+    // thing that can stop the second turn.
+    resetCapsuleAskGuard();
+
+    const input = screen.getByRole("combobox");
+    fireEvent.change(input, { target: { value: "and what about receivables?" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(
+      screen.getAllByTestId("capsule-turn").length,
+      "K10.f: a second turn started while the first was still running — two " +
+        "threads racing into one canvas. THREE guards have to be gone for " +
+        "this to fail (`CommandPalette.runPrimary`, and `useCapsuleAnswer`'s " +
+        "`ask` and `answerLocally`), which is exactly what the plant record " +
+        "in design_review/capsule-craft/ shows: removing any ONE of them " +
+        "leaves this green.",
+    ).toBe(before);
   });
 });

@@ -75,6 +75,7 @@ import type { CapsuleEvidence } from "./capsuleAnswerTypes";
 import { CapsuleFactCard, pickHeadline } from "./CapsuleFactCard";
 import { CapsuleVisuals, FigureList } from "./CapsuleFigures";
 import { buildFollowUps, type CapsuleFollowUp } from "./capsuleFollowUps";
+import "../capsuleCraftI18n";
 import { inPack, subscribePack, togglePack } from "./capsuleExportPack";
 
 /** Host-supplied citation context — the palette knows the active period,
@@ -91,7 +92,10 @@ export interface HostCitation {
 
 export interface CapsuleAnswerPanelProps {
   turns: readonly CapsuleTurn[];
-  busy: boolean;
+  /** Kept in the contract because the HOST still gates its composer and
+   *  its aria-busy on it. The panel itself no longer reads it: the busy
+   *  state is rendered by the turn's own reserved skeleton. */
+  busy?: boolean;
   citation: HostCitation;
   onAsk: (question: string) => void;
   onRetry: (turn: CapsuleTurn) => void;
@@ -502,24 +506,29 @@ function Turn({
 
   return (
     <article className="px-4 py-3" data-testid="capsule-turn">
-      {/* The question is CONTEXT for what follows, so it wears a chip and
-          not a heading. One line, truncated, with the full text in
-          `title` — a three-line question restated at full size above its
-          own answer pushes the answer off the first screen. */}
-      {/* HUGS ITS TEXT. Full-width, bordered and rounded, it read as a
-          disabled input — something you could click into and type. A
-          chip is the size of what it says. */}
-      <div className="flex items-start">
-        <span
+      {/* THE READER'S OWN WORDS, ON THE READER'S SIDE.
+          Right-aligned, accent-tinted, UI sans — the one thing on this
+          surface the reader wrote, so it is the one thing that sits
+          opposite everything the instrument wrote. It hugs its text and
+          wraps to at most two lines rather than truncating: a question
+          you cannot re-read is a question you cannot check the answer
+          against.
+
+          NO `title`. It carried a native browser tooltip restating text
+          that is already on screen — the same defect the suggestion
+          chips had, in the same 12px. */}
+      <div className="flex justify-end">
+        <p
           data-testid="capsule-question-chip"
-          title={turn.question}
           className="
-            max-w-full truncate rounded-full border border-rule bg-bg-2/70
-            px-2.5 py-1 text-[12px] text-ink-soft
+            max-w-[86%] rounded-[12px] rounded-br-[4px]
+            border border-brand/25 bg-brand-tint
+            px-3 py-1.5 text-right text-[12.5px] leading-5 text-ink
           "
         >
+          <span className="sr-only">{t("capsuleCraft.answer.you")}: </span>
           {turn.question}
-        </span>
+        </p>
       </div>
 
       {!done && (
@@ -669,10 +678,33 @@ function Turn({
 }
 
 // ── the panel ──────────────────────────────────────────────────────────
+//
+// ══ THE CRAFT PASS — THE PANEL STOPPED BEING A PANEL ══════════════════
+//
+// It used to own three things that made the answer a DIFFERENT SURFACE
+// from the one the question was typed on: its own scroll container, its
+// own composer, and (in the host) its own "← ANSWER … Esc" header bar.
+// Pressing Enter therefore swapped the whole card: the input jumped from
+// the top of the panel to the bottom of a new one, the rows vanished,
+// and a bar appeared. That is a mode switch, and a mode switch is the
+// opposite of a conversation.
+//
+// Now the host owns the scroller and the composer, and this renders ONE
+// THING: the turns. The composer the reader typed the question into is
+// the same DOM node they type the follow-up into — it never unmounts,
+// never moves, and never changes its place on the screen. The card was
+// already this shape before the question was asked.
+//
+// What did NOT move, deliberately: the follow-up chips stay at the end
+// of their own turn rather than migrating into the composer block. They
+// are evidence-derived — they belong to the answer that produced them —
+// and the last turn's chips already sit directly above the composer,
+// which is where the brief wants them. Moving them out would also put
+// them outside `[data-testid="capsule-answer"]`, where the live gate
+// that proves an `interpret` chip exists is looking for them.
 
 export function CapsuleAnswerPanel({
   turns,
-  busy,
   citation,
   onAsk,
   onRetry,
@@ -680,58 +712,11 @@ export function CapsuleAnswerPanel({
   onOpenInChat,
   className,
 }: CapsuleAnswerPanelProps) {
-  const { t } = useTranslation();
   const reduced = usePrefersReducedMotion();
-  const [draft, setDraft] = useState("");
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // The follow-up input keeps focus: the thread continues from the
-  // bottom, so the caret must already be where the next question goes.
-  useEffect(() => {
-    if (!busy) inputRef.current?.focus();
-  }, [busy, turns.length]);
-
-  // New content appends downward; keep the newest turn in view without
-  // yanking the reader off something they are mid-read of.
-  //
-  // NOT ON THE FIRST TURN. There is nothing above it to scroll past, so
-  // the scroll has no destination — but it still ANIMATES, and it
-  // animates over the fact card at exactly the moment the reader is
-  // trying to read the number. Caught in the r3 screenshots: the mobile
-  // captures show the headline figure ghosted mid-scroll, in a frame the
-  // desktop (short enough not to scroll) never produced. The first
-  // answer should simply be there.
-  useEffect(() => {
-    if (turns.length <= 1) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    // `scrollTo` is absent in jsdom and in a couple of embedded WebViews;
-    // the assignment fallback keeps the thread pinned to the bottom
-    // everywhere.
-    if (typeof el.scrollTo === "function") {
-      el.scrollTo({ top: el.scrollHeight, behavior: reduced ? "auto" : "smooth" });
-    } else {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [turns.length, reduced]);
-
-  const submit = () => {
-    const q = draft.trim();
-    if (!q || busy) return;
-    setDraft("");
-    onAsk(q);
-  };
 
   return (
-    <div className={`flex min-h-0 flex-col ${className ?? ""}`} data-testid="capsule-answer">
-      <div
-        ref={scrollRef}
-        className="chat-scroll min-h-0 flex-1 divide-y divide-rule-soft overflow-y-auto"
-        role="log"
-        aria-live="polite"
-        aria-busy={busy}
-      >
+    <div className={className} data-testid="capsule-answer">
+      <div className="divide-y divide-rule-soft">
         {turns.map((turn) => (
           <Turn
             key={turn.id}
@@ -744,35 +729,6 @@ export function CapsuleAnswerPanel({
             reduced={reduced}
           />
         ))}
-      </div>
-
-      {/* The composer docks at the bottom of the canvas — the thread
-          scrolls above it, and the caret never leaves the place the next
-          question goes. */}
-      <div className="border-t border-rule-soft px-4 py-2.5">
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={t("capsuleAnswer.followUpPlaceholder")}
-          aria-label={t("capsuleAnswer.followUpPlaceholder")}
-          data-testid="capsule-followup"
-          className="
-            max-h-24 w-full resize-none bg-transparent text-[13px] text-ink
-            placeholder:text-ink-soft outline-none
-          "
-        />
-        <div className="mt-1 flex items-center justify-between text-[10.5px] text-ink-soft">
-          <span>{t("capsuleAnswer.followUpHint")}</span>
-          <span>{t("capsuleAnswer.openChatHint")}</span>
-        </div>
       </div>
     </div>
   );

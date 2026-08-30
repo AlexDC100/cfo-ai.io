@@ -124,6 +124,13 @@ export interface PeriodValuation {
   ebitda_operational?: number | null;
   ebitda_operating_view?: number | null;
   confidence: "high" | "medium" | "low" | null;
+  // Both are emitted by `_valuation.py`'s payload dict (`asset_based_equity`
+  // is "always computed; shown when primary", `equity_ebitda_p50` is the
+  // mid peer-multiple equity) but were missing from this interface, so
+  // `periodFacts.ts` read them through a type error while building the
+  // valuation fact block. Declared here rather than cast at the read.
+  asset_based_equity?: number | null;
+  equity_ebitda_p50?: number | null;
   multiples_source: string | null;
   multiples_as_of_date: string | null;
   formula_text: string;

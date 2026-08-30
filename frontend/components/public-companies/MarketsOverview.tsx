@@ -522,7 +522,13 @@ const COVERAGE_FIELDS = [
 function snapshotCoverage(r: PublicCompanyFinancialSnapshot): number {
   let n = 0;
   for (const f of COVERAGE_FIELDS) {
-    const v = (r as Record<string, unknown>)[f];
+    // `f` comes from COVERAGE_FIELDS, a `const` tuple of real keys, so the
+    // snapshot indexes directly — the previous `as Record<string, unknown>`
+    // asserted a shape onto the value and would have kept compiling if a
+    // field were renamed out of the snapshot, silently dropping it from the
+    // coverage count (i.e. quietly changing which companies rank as
+    // well-covered). Indexing by the real key makes that a compile error.
+    const v: unknown = r[f];
     if (typeof v === "number" && Number.isFinite(v)) n += 1;
   }
   return n;

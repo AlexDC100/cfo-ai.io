@@ -233,7 +233,21 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
     );
   }
 
-  const amount = line.sign ? fmt(line.amount ?? 0, { sign: line.sign }) : fmt(line.amount);
+  // Two vocabularies that never quite met: `LineSign` has three members
+  // ("positive" | "negative" | "neutral") while the money formatter's
+  // `sign` option has two. Passing "neutral" fell through the formatter's
+  // sign branches to "render with the value's own sign" — which IS what
+  // neutral means, so nothing was visibly wrong, but the mismatch was
+  // load-bearing by accident: it was the formatter's DEFAULT that saved
+  // it, not any decision here. Making the mapping explicit keeps the
+  // rendered string byte-identical and stops a future fourth member (or a
+  // reordered branch in `formatAmountFrom`) from changing a money sign
+  // silently.
+  const explicitSign =
+    line.sign === "positive" || line.sign === "negative" ? line.sign : undefined;
+  const amount = explicitSign
+    ? fmt(line.amount ?? 0, { sign: explicitSign })
+    : fmt(line.amount);
   const amountClass =
     line.sign === "negative" ? "pl-neg" : line.sign === "positive" ? "pl-pos" : "";
 

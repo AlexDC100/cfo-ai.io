@@ -27,6 +27,7 @@ import {
   countryCodesForMarket,
   fetchMarketCompany,
   fetchMarketRegistry,
+  isMarketRefusal,
   marketIdForExchange,
   marketIdForSnapshot,
   orderMarkets,
@@ -175,7 +176,7 @@ describe("company fetch", () => {
     );
     const res = await fetchMarketCompany("us", "aapl");
     expect(res.ok).toBe(false);
-    if (!res.ok) {
+    if (isMarketRefusal(res)) {
       expect(res.refusal.code).toBe("NOT_CACHED");
       expect(res.refusal.ticker).toBe("AAPL");
       // The server's sentence survives verbatim — it names the gap.
@@ -198,14 +199,14 @@ describe("company fetch", () => {
     );
     const res = await fetchMarketCompany("cn", "X");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.refusal.code).toBe("MARKET_AWAITING_PROVIDER");
+    if (isMarketRefusal(res)) expect(res.refusal.code).toBe("MARKET_AWAITING_PROVIDER");
   });
 
   it("reports a transport failure as its own code, never as a refusal by the server", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("dns")));
     const res = await fetchMarketCompany("us", "AAPL");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.refusal.code).toBe("TRANSPORT_FAILED");
+    if (isMarketRefusal(res)) expect(res.refusal.code).toBe("TRANSPORT_FAILED");
   });
 
   it("refuses an empty ticker without touching the network", async () => {
@@ -214,7 +215,7 @@ describe("company fetch", () => {
     const res = await fetchMarketCompany("us", "   ");
     expect(spy).not.toHaveBeenCalled();
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.refusal.code).toBe("EMPTY_TICKER");
+    if (isMarketRefusal(res)) expect(res.refusal.code).toBe("EMPTY_TICKER");
   });
 
   it("returns the document when one comes back", async () => {

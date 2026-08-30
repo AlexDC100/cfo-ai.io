@@ -36,7 +36,7 @@
 // 56px, hairline bottom rule. SOLID at rest; translucency + blur appear
 // only once content actually scrolls beneath.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 // Sparkles, not Search: the same glyph the surface this trigger
@@ -99,6 +99,25 @@ function useScrolled(threshold = 8): boolean {
 //     only the card itself takes clicks, at z-30 (under the header's
 //     z-40 and under every Radix portal), so it cannot swallow a click
 //     meant for the avatar menu it points at.
+//   · IT IS ANCHORED TO THE AVATAR IT IS ABOUT (craft pass). It used to
+//     be `right-3 top-[60px]` — a fixed offset from the viewport corner,
+//     which is not the same place as the control, and on a wide screen
+//     with a scrollbar gutter or a safe-area inset it drifts further.
+//     The r0 capture is the proof: a 264px card floating in empty space
+//     at the top-right with nothing tying it to anything, reading as a
+//     toast that had lost its stack. It now MEASURES
+//     `account-menu-trigger` and centres itself under that box, clamped
+//     into the viewport, with a caret pointing at it — the same
+//     shared-element logic `capsuleMorph.anchoredLeft` uses for the
+//     overlay, for the same reason.
+//
+//     LEARNED THE HARD WAY, one lane over: an anchor that is written,
+//     exported and unit-tested but NEVER CALLED measures nothing and
+//     fails silently (`capsuleMorph`'s header). So the measurement runs
+//     on a layout effect keyed on the NODE — set through a callback ref
+//     that stores STATE — not on a boolean that flips a commit before
+//     the node exists, and `data-anchored="true"` is written only on the
+//     frame a real box was read, so a gate can assert the anchor RAN.
 //   · it arms ONLY for a user who actually holds an explicit view-mode
 //     choice (`cfo-view-mode-v1` present) — i.e. someone who used the
 //     dial while it was in the bar and would otherwise find it gone.
@@ -121,9 +140,37 @@ function coachShouldArm(): boolean {
   }
 }
 
+/** The control the hint is ABOUT. Read, never written. */
+const COACH_ANCHOR_SELECTOR = '[data-testid="account-menu-trigger"]';
+
+/** Keep the card on screen with a margin, whatever the anchor's centre
+ *  asks for. Same shape as `capsuleMorph.anchoredLeft`, and separate
+ *  from the DOM read for the same reason: the arithmetic is assertable
+ *  without a browser. */
+export function coachAnchoredLeft(
+  anchorX: number,
+  anchorW: number,
+  cardW: number,
+  viewportW: number,
+  margin = 12,
+): number {
+  const centre = anchorX + anchorW / 2;
+  const max = Math.max(margin, viewportW - cardW - margin);
+  return Math.round(Math.min(Math.max(centre - cardW / 2, margin), max));
+}
+
+const COACH_CARD_W = 264;
+
 function ModeCoachMark() {
   const { t } = useTranslation();
   const [open, setOpen] = useState<boolean>(coachShouldArm);
+  // STATE, not a ref: the card mounts through a portal, so a layout
+  // effect keyed on `open` alone would run against a null node and never
+  // run again. See the header.
+  const [card, setCard] = useState<HTMLElement | null>(null);
+  const [anchor, setAnchor] = useState<{ left: number; top: number; caret: number } | null>(
+    null,
+  );
 
   const dismiss = useCallback(() => {
     setOpen(false);
@@ -153,6 +200,28 @@ function ModeCoachMark() {
     };
   }, [open, dismiss]);
 
+  useLayoutEffect(() => {
+    if (!open || !card || typeof document === "undefined") return;
+    const place = () => {
+      const el = document.querySelector(COACH_ANCHOR_SELECTOR);
+      if (!el) return;                        // no anchor: keep the fallback
+      const r = el.getBoundingClientRect();
+      if (!(r.width > 0) || !(r.height > 0)) return;
+      const w = card.offsetWidth || COACH_CARD_W;
+      const left = coachAnchoredLeft(r.left, r.width, w, window.innerWidth);
+      setAnchor({
+        left,
+        top: Math.round(r.bottom + 10),
+        // Where the caret sits INSIDE the card, so it points at the
+        // avatar's centre even after the clamp moved the card.
+        caret: Math.round(Math.min(Math.max(r.left + r.width / 2 - left, 14), w - 14)),
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open, card]);
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -162,13 +231,35 @@ function ModeCoachMark() {
       data-testid="header-coach-mark"
     >
       <div
+        ref={setCard}
         role="status"
         aria-label={t("header.coach.aria")}
-        className="
-          pointer-events-auto absolute right-3 top-[60px] w-[264px]
-          rounded-lg border border-rule-strong bg-surface p-3
-        "
+        data-testid="header-coach-mark-card"
+        data-anchored={anchor ? "true" : undefined}
+        style={anchor ? { left: anchor.left, top: anchor.top, right: "auto" } : undefined}
+        className={`
+          pointer-events-auto absolute w-[264px]
+          rounded-[14px] border border-rule-strong bg-surface p-3
+          shadow-xl
+          ${anchor ? "" : "right-3 top-[60px]"}
+        `}
       >
+        {/* THE CARET. The card and the avatar are now one object: a
+            rotated 8px square straddling the card's top edge, sitting at
+            the anchor's centre even when the clamp has moved the card.
+            Without it the card is still in the right PLACE and still
+            reads as detached — proximity is not attachment. */}
+        {anchor && (
+          <span
+            aria-hidden
+            data-testid="header-coach-mark-caret"
+            style={{ left: anchor.caret }}
+            className="
+              absolute -top-[5px] -ml-[5px] h-[9px] w-[9px] rotate-45
+              border-l border-t border-rule-strong bg-surface
+            "
+          />
+        )}
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="text-[12.5px] font-medium text-ink">

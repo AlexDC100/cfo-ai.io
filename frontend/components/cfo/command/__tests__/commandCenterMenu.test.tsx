@@ -133,10 +133,33 @@ describe("CommandCenter — cleanup invariants", () => {
     expect(screen.queryAllByText(/^sign out$/i)).toHaveLength(0);
   });
 
-  it("shows the StateCard with 'No dataset connected' when period is null", () => {
+  // ── Successor to the StateCard ──────────────────────────────────────
+  // This test used to assert a `command-state-card` element carrying
+  // data-state="no-dataset" and the copy "No dataset connected". That card
+  // was REMOVED FROM THE PRODUCT ON PURPOSE on 2026-07-24; CommandCenter.tsx
+  // still carries the note at the Quick-actions block:
+  //
+  //   "The separate Workspace state card that sat above this was removed
+  //    2026-07-24 — the Workspace tile's subtitle now carries the active
+  //    workspace's name."
+  //
+  // The old assertion was therefore stale, not a caught regression: it
+  // described a deliberate earlier design. Rewritten to pin the behaviour
+  // that REPLACED it, and to keep guarding the removal so the card cannot be
+  // silently reintroduced alongside its successor and give the panel two
+  // competing workspace-state affordances.
+  it("surfaces the unset-workspace state on the Workspace tile, not a state card", () => {
     renderCenter();
-    const card = screen.getByTestId("command-state-card");
-    expect(card.getAttribute("data-state")).toBe("no-dataset");
-    expect(card.textContent).toContain("No dataset connected");
+
+    // The removed card must stay removed.
+    expect(screen.queryByTestId("command-state-card")).toBeNull();
+
+    // Its successor: the Workspace quick-action tile. With no workspace name
+    // in storage and useActivePeriod mocked to a null period (see the mock at
+    // the top of this file), the subtitle must say so rather than render an
+    // empty line where a company name belongs.
+    const tile = screen.getByTestId("command-quick-workspace");
+    expect(tile.textContent).toContain("Workspace");
+    expect(tile.textContent).toContain("None selected");
   });
 });

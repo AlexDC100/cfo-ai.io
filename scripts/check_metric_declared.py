@@ -22,6 +22,7 @@ Wired into scripts/run_battery.py as the `metric-declared` gate.
 """
 import ast
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,8 +79,6 @@ SURFACE_DIRS = [
     ("finding-render", "src/engine/api/_finding.py"),
     ("company-profile", "src/engine/api/_company_profile.py"),
     ("finding-rank", "src/engine/api/_finding_rank.py"),
-    ("notes", "src/engine/api/_notes.py"),
-    ("alerts", "src/engine/api/_alerts.py"),
     ("serving", "src/engine/serving/facts.py"),
     ("benchmarks", "src/engine/api/_benchmark_engine.py"),
 ]
@@ -89,6 +88,23 @@ SURFACE_DIRS = [
 CANARIES = {
     "capsule": ("total_assets",),
     "findings": ("total_assets",),
+    "benchmarks": ("ebitda_margin",),
+    "serving": ("market_cap",),
+}
+
+#: Minimum metric names each surface must yield. THE GLOBAL COUNT CANNOT
+#: DO THIS JOB: `total_names` is a set UNION, so an adversarial audit
+#: dropped five of the seven surfaces and the census still reported 41
+#: names — the same number as with all seven, because the dropped
+#: surfaces contributed no unique names. No global floor value would
+#: have caught it. A per-surface floor does, and it is asserted AFTER
+#: the discovery loop, against the totals, because a check inside the
+#: loop cannot fire for a surface the loop never visited.
+SURFACE_FLOORS = {
+    "capsule": 20,
+    "findings": 20,
+    "benchmarks": 15,
+    "serving": 5,
 }
 
 
@@ -148,6 +164,45 @@ def _registry_metrics():
         if fact:
             out[fact] = ("registry:_capsule_tools.METRICS", 0)
     return out
+
+
+def _benchmark_registry():
+    """`METRIC_DISPLAY` is a plain module-level dict, so the AST scan —
+    which matches CALL SHAPES — never saw it.
+
+    That blind spot was live: ten of its seventeen rows resolved to
+    UNIT_UNKNOWN, four of them declared `fmt: "currency"`. The gate
+    printed `benchmarks  0 metrics  OK` the whole time, and "0 metrics"
+    read as "this surface declares nothing" rather than "this gate
+    cannot see this surface".
+
+    A registry is authoritative about itself. Ask it."""
+    out = {}
+    try:
+        from engine.api._benchmark_engine import METRIC_DISPLAY
+    except Exception:
+        return out
+    for name in METRIC_DISPLAY:
+        out[name] = ("registry:_benchmark_engine.METRIC_DISPLAY", 0)
+    return out
+
+
+def _market_registry():
+    """`serving/facts._MARKET_METRICS` — all five of its names were
+    undeclared. It is a module-level tuple, invisible for the same
+    reason. Read it as source rather than importing, because
+    engine.serving.facts pulls in the whole serving stack."""
+    out = {}
+    path = os.path.join(ROOT, "src/engine/serving/facts.py")
+    if not os.path.exists(path):
+        return out
+    src = open(path, encoding="utf-8").read()
+    m = re.search(r"_MARKET_METRICS\s*=\s*[\(\[{](.*?)[\)\]}]", src, re.S)
+    if not m:
+        return out
+    for name in re.findall(r'"([a-z_][a-z0-9_]*)"', m.group(1)):
+        out[name] = ("registry:serving.facts._MARKET_METRICS", 0)
+    return out
 def _py_files(rel):
     full = os.path.join(ROOT, rel)
     if os.path.isfile(full):
@@ -165,9 +220,28 @@ def main():
     undeclared = []
     total_names = set()
 
+    # A SURFACE PATH THAT DOES NOT EXIST IS A GATE AIMED AT A GHOST.
+    #
+    # This loop used to `continue` past a missing path. Two entries had
+    # been dead for some time (`_notes.py`, `_alerts.py` — removed from
+    # the tree, never removed from here), so the gate silently audited
+    # five surfaces while its config claimed seven, and would have gone
+    # on doing that if a LIVE surface file were renamed. Same family as
+    # a Playwright selector pointed at a deleted element: it passes for
+    # the wrong reason. The two dead entries are gone; a missing path is
+    # now a failure, not a shrug.
+    missing_surfaces = [(s_, r_) for s_, r_ in SURFACE_DIRS
+                        if not os.path.exists(os.path.join(ROOT, r_))]
+    if missing_surfaces:
+        print("DISCOVERY BROKEN — configured surfaces that do not exist:")
+        for surface, rel in missing_surfaces:
+            print("  %-18s %s" % (surface, rel))
+        print("Either the file moved (retarget the entry) or the surface "
+              "is gone (delete the entry). Skipping it silently means the "
+              "census claims coverage it does not have.")
+        return 1
+
     for surface, rel in SURFACE_DIRS:
-        if not os.path.exists(os.path.join(ROOT, rel)):
-            continue
         names = {}
         for path in _py_files(rel):
             try:
@@ -184,6 +258,10 @@ def main():
                 names.setdefault(name, (os.path.relpath(path, ROOT), lineno))
         if surface == "capsule":
             names.update(_registry_metrics())
+        if surface == "benchmarks":
+            names.update(_benchmark_registry())
+        if surface == "serving":
+            names.update(_market_registry())
         missing_canary = [c for c in CANARIES.get(surface, ()) if c not in names]
         if missing_canary:
             print("DISCOVERY BROKEN for surface %r: canary %r not found. "
@@ -196,8 +274,35 @@ def main():
             if unit_for_fact(name) == UNIT_UNKNOWN:
                 undeclared.append((surface, name, where))
 
+    # ── PER-SURFACE FLOORS, asserted AFTER the discovery loop ────────
+    # Inside the loop this check cannot fire for a surface the loop never
+    # visited, which is precisely the failure it exists to catch.
+    starved = []
+    for surface, floor in sorted(SURFACE_FLOORS.items()):
+        got = len(per_surface.get(surface, {}))
+        if got < floor:
+            starved.append((surface, got, floor))
+    if starved:
+        print("DISCOVERY BROKEN — surface(s) yielded fewer metrics than")
+        print("their declared floor. The census is not measuring what it")
+        print("claims; a global count cannot see this because the totals")
+        print("are a SET UNION and a dropped surface adds no new names.")
+        for surface, got, floor in starved:
+            print("  %-16s %d metric(s), floor %d" % (surface, got, floor))
+        return 1
+
     print("METRIC DECLARATION CENSUS")
     print("=" * 62)
+    # PRINT THE CANARIES THAT WERE ACTUALLY SEEN.
+    #
+    # The canary check above returns 1 when a name is missing, but on the
+    # happy path it printed nothing — so nothing downstream (the battery,
+    # a reader skimming a log) could tell "the canary held" from "the
+    # canary was never evaluated". A gate should say what it found, not
+    # only what it objects to.
+    for surface, names in sorted(CANARIES.items()):
+        if surface in per_surface:
+            print("  canary %-14s %s  seen" % (surface, ", ".join(names)))
     for surface, names in per_surface.items():
         bad = [n for n in names if unit_for_fact(n) == UNIT_UNKNOWN]
         status = "OK" if not bad else "UNDECLARED x%d" % len(bad)

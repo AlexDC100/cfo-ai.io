@@ -1,0 +1,42 @@
+{
+  "en": {
+    "capsuleCraft": {
+      "composer": {
+        "placeholder": "Ask about {{period}}…",
+        "placeholderNoPeriod": "Ask anything…",
+        "send": "Ask",
+        "go": "Open {{target}}",
+        "fullChat": "Open the full chat",
+        "fullChatKeys": "full chat"
+      },
+      "keys": "↑↓ move · Tab to ask · esc",
+      "suggest": {
+        "aria": "Ask: {{question}} — {{basis}}",
+        "basisJoin": " · "
+      },
+      "answer": {
+        "you": "You asked"
+      }
+    }
+  },
+  "ro": {
+    "capsuleCraft": {
+      "composer": {
+        "placeholder": "Întreabă despre {{period}}…",
+        "placeholderNoPeriod": "Întreabă orice…",
+        "send": "Întreabă",
+        "go": "Deschide {{target}}",
+        "fullChat": "Deschide chatul complet",
+        "fullChatKeys": "chat complet"
+      },
+      "keys": "↑↓ navighezi · Tab întrebi · esc",
+      "suggest": {
+        "aria": "Întreabă: {{question}} — {{basis}}",
+        "basisJoin": " · "
+      },
+      "answer": {
+        "you": "Ai întrebat"
+      }
+    }
+  }
+}

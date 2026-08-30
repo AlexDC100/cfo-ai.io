@@ -220,12 +220,24 @@ const BVB_WATCHLIST: WatchlistRow[] = [
 ];
 
 function bvbSnapshot(ticker: string, netMargin: number): PublicCompanyFinancialSnapshot {
-  return {
+  // Annotated on the declaration rather than asserted with `as`. The
+  // assertion was doing real work and hiding it: `missingFields: []`
+  // infers `undefined[]`, which does not overlap `string[]`, so the object
+  // was NOT a valid snapshot and the cast said it was. A test fixture that
+  // asserts its own shape stops being evidence about the real type.
+  const snapshot: PublicCompanyFinancialSnapshot = {
     ticker, companyName: `${ticker} S.A.`, exchange: "BVB",
     sector: "Consumer Defensive", currency: "RON", mode: "live",
     netMargin, debtToEquity: 0.8, latestPeriod: "FY2024",
-    lastUpdated: "2025-04-30", source: "bvb", confidence: 1, missingFields: [],
-  } as PublicCompanyFinancialSnapshot;
+    // "seed_bvb", not "bvb" — `UniverseSource` is
+    // "demo" | "nasdaq" | "seed_bvb", and the backend tags BVB seed rows
+    // "seed_bvb" (see PublicCompanySourceBadge). "bvb" appeared nowhere
+    // else in the codebase; the `as PublicCompanyFinancialSnapshot`
+    // assertion removed above was the only reason it compiled.
+    lastUpdated: "2025-04-30", source: "seed_bvb", confidence: 1,
+    missingFields: [],
+  };
+  return snapshot;
 }
 
 describe("buildBenchGroups — a non-RO peer arrives, in its own group", () => {

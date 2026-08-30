@@ -38,6 +38,36 @@ interface BuildArgs {
   yearLabel?: string;
 }
 
+/** Narrow one `assembled_cf` field to a number, or fall back.
+ *
+ *  `assembled_cf` is genuinely heterogeneous — real engine output carries
+ *  `is_approximated` and `dividends_declared_but_unpaid` (bool) plus
+ *  `approximation_notes` (string[]) in the SAME record as its ~30 numeric
+ *  keys. Reading a field with a bare `?? 0` therefore types as
+ *  `number | boolean | string[]`, and JS then coerces silently in the
+ *  arithmetic below rather than throwing:
+ *
+ *      ["a note"] + 3695525.59  ===  "a note3695525.59"   (a string)
+ *      false + 3695525.59       ===  3695525.59           (a lost value)
+ *
+ *  Measured consequence of the string case: `cfBeforeWcChanges` becomes a
+ *  string, which propagates into `wcReconciliationPlug` (NaN), so the
+ *  `Math.abs(plug) > 50_000` disclosure note never fires, `drift` is NaN,
+ *  and the file's stated "balances to the BS cash position within RON 1"
+ *  guarantee stops being checked — while a money cell renders the
+ *  concatenated string. Narrowing at the READ is the only spot that
+ *  cannot be forgotten by a downstream caller.
+ *
+ *  Non-finite numbers (NaN / ±Infinity) are treated as absent for the same
+ *  reason: one NaN poisons every total derived from it identically, and a
+ *  visible fallback beats an invisible NaN in a money column. */
+function cfNum(
+  v: number | boolean | string[] | undefined,
+  fallback: number,
+): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
 export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
   const currency = args.currency ?? "RON";
   const pl = args.pl ?? {};
@@ -47,16 +77,19 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
 
   // ── OPERATING ────────────────────────────────────────────────────────
   // Net profit (statutory — the same view the P&L tab + briefing use).
-  const netProfit = pl.net_income_statutory ?? cf.net_profit ?? 0;
-  const depreciation = pl.depreciation ?? cf.depreciation ?? 0;
+  const netProfit = pl.net_income_statutory ?? cfNum(cf.net_profit, 0);
+  const depreciation = pl.depreciation ?? cfNum(cf.depreciation, 0);
   const cfBeforeWcChanges = netProfit + depreciation;
 
   // ── INVESTING — REAL capex (CIP additions), not D&A ──────────────────
   // The canonical view exposes capex_real as negative cash. When the FE
   // builder finds per-account 231 (CIP) movements, it surfaces them
   // separately; else it falls back to the canonical aggregate.
-  const cipCapex = cf.capitalized_construction ?? -((pl.capitalized_own_work_memo ?? 0));
-  const otherLtRecvDelta = cf.net_change_other_lt_receivables ?? 0;
+  const cipCapex = cfNum(
+    cf.capitalized_construction,
+    -((pl.capitalized_own_work_memo ?? 0)),
+  );
+  const otherLtRecvDelta = cfNum(cf.net_change_other_lt_receivables, 0);
   const investingItems: CFInvestingLine[] = [
     {
       label: "Capitalized construction",
@@ -71,30 +104,32 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
       amount: otherLtRecvDelta,
     });
   }
-  const cashUsedInInvesting =
-    cf.cash_used_in_investing ?? investingItems.reduce((s, it) => s + it.amount, 0);
+  const cashUsedInInvesting = cfNum(
+    cf.cash_used_in_investing,
+    investingItems.reduce((s, it) => s + it.amount, 0),
+  );
 
   // ── FINANCING ────────────────────────────────────────────────────────
   // YTD bank drawdowns / repayments come from raw account 1621 (st_c /
   // st_d). The canonical view surfaces them when extraction populates
   // them; absent that, we default to zero and let the WC plug capture
   // the financing flow (a single line item the user can audit).
-  const bankLoanDrawdowns = cf.bank_loan_drawdowns ?? 0;
-  const bankLoanRepayments = cf.bank_loan_repayments ?? 0; // negative (cash out)
-  const dividendsPaid = cf.dividends_paid ?? 0;
+  const bankLoanDrawdowns = cfNum(cf.bank_loan_drawdowns, 0);
+  const bankLoanRepayments = cfNum(cf.bank_loan_repayments, 0); // negative (cash out)
+  const dividendsPaid = cfNum(cf.dividends_paid, 0);
   const cashFromFinancing = bankLoanDrawdowns + bankLoanRepayments + dividendsPaid;
 
   // ── RECONCILE ────────────────────────────────────────────────────────
   // The backend canonical_cf gives us closing_cash_actual. Opening cash:
   // closing − net_change_in_cash when supplied, else closing − the
   // computed (CFO + investing + financing) which collapses the model.
-  const closingCashActual = cf.closing_cash_actual ?? bs.cash ?? 0;
+  const closingCashActual = cfNum(cf.closing_cash_actual, bs.cash ?? 0);
   // When the backend provided a real opening cash we use it. Otherwise,
   // approximate from net change — degrades gracefully to a single
   // reconciliation plug rather than producing a nonsense delta.
   const reportedNetChange = cf.net_change_in_cash;
   const openingCash =
-    typeof reportedNetChange === "number"
+    typeof reportedNetChange === "number" && Number.isFinite(reportedNetChange)
       ? closingCashActual - reportedNetChange
       : closingCashActual; // fall back: no opening data → no apparent change
 

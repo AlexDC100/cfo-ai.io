@@ -392,6 +392,21 @@ export function canonicalBsSectionMeta(id: string): CanonicalBsSectionMeta {
 
 export interface Statements {
   companyName: string;
+  /** Fiscal code. OPTIONAL and, as of today, NEVER EMITTED: the engine
+   *  builds this blob in `pipeline.py` from companyName / industry /
+   *  currency / periodLabel / balanceSheet / incomeStatement /
+   *  supplementary, and no path adds `cui`. Declared (rather than
+   *  asserted at the read site with a cast, which is what
+   *  `periodDetect.ts` used to do) so the always-null result is a stated
+   *  gap instead of a lookup that merely looks live.
+   *
+   *  Consequence while it stays absent — worth an engine-side fix:
+   *  `entitiesConflict()` says "a fiscal code is the identity; a renamed
+   *  company keeps its CUI", but with one side's CUI always null that
+   *  branch never fires and the guard falls through to fuzzy name
+   *  matching, which treats one name containing the other as the same
+   *  company. */
+  cui?: string | null;
   industry?: string;
   currency: string;
   periodLabel: string; // e.g. "FY 2025"

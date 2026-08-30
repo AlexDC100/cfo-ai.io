@@ -134,10 +134,45 @@ for (const [id, wheres] of referenced) {
   stale.push([id, wheres])
 }
 
+// ── DISCOVERY CANARIES ───────────────────────────────────────────────
+//
+// This gate is TWO censuses that only mean something together: ids the
+// specs REFERENCE, and ids the app DEFINES. Break either walker and the
+// arithmetic still produces a number — a broken DEFINED census reports
+// every live id as stale (the false red this file's own history
+// records), and a broken REFERENCED census reports a serene "0 stale"
+// (the false green, which nobody would look at).
+//
+// So each side names an id it MUST find. Both are load-bearing anchors
+// that several gates already depend on, not markers planted here.
+const CANARY_DEFINED = 'header-command-bar'
+const CANARY_REFERENCED = 'header-command-bar'
+const discoveryBroken = []
+if (appFiles.length === 0) discoveryBroken.push('0 app files walked')
+if (gateFiles.length === 0) discoveryBroken.push('0 gate files walked')
+if (!defined.has(CANARY_DEFINED)) {
+  discoveryBroken.push(
+    `DEFINED census never saw "${CANARY_DEFINED}" — the definition walker `
+    + 'is not seeing the app. Every live id would read as stale.')
+}
+if (!referenced.has(CANARY_REFERENCED)) {
+  discoveryBroken.push(
+    `REFERENCED census never saw "${CANARY_REFERENCED}" — the assertion `
+    + 'walker is not seeing the specs. Zero stale would be printed over '
+    + 'zero assertions.')
+}
+if (discoveryBroken.length) {
+  console.log('STALE-GATE CENSUS: DISCOVERY BROKEN')
+  for (const d of discoveryBroken) console.log(`  - ${d}`)
+  process.exit(1)
+}
+
 console.log('STALE-GATE CENSUS')
 console.log('='.repeat(62))
 console.log(`  ${gateFiles.length} gate files reference ${referenced.size} testids`)
 console.log(`  ${appFiles.length} app files define ${defined.size} testids`)
+console.log(`GATE-WORK stale-gates units=${appFiles.length} floor=300 `
+  + `label=app-files-scanned`)
 console.log('-'.repeat(62))
 
 // Write the baseline from the SAME code that reads it. Generating it

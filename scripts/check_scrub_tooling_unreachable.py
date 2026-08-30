@@ -102,6 +102,14 @@ FORBIDDEN = re.compile(r"history[-_]scrub", re.IGNORECASE)
 #: it would be un-passable by design — the exact failure mode this gate
 #: exists to avoid creating. `tests/…::test_gate_name_is_invokable`
 #: locks that property in.
+#: Automation surfaces that must always be found. Absent from the
+#: enumeration => the enumerator is broken, and the "no path reaches it"
+#: conclusion is unearned.
+CANARY_SURFACES = (
+    "pyproject.toml",
+    "Dockerfile",
+)
+
 SELF_EXEMPT = (
     "scripts/check_scrub_tooling_unreachable.py",
     "tests/engine/test_scrub_tooling_unreachable.py",
@@ -453,6 +461,49 @@ def run(verbose: bool = False) -> Tuple[int, List[str], Dict[str, object]]:
             "Remove the reference; run the tooling by hand per "
             "docs/decisions/ADR-corpus-history-sibiu.md."
         )
+        return 1, lines, report
+
+    # ── DISCOVERY CANARY ────────────────────────────────────────────
+    #
+    # This gate is PROOF BY ABSENCE, and absence is exactly what an
+    # empty enumeration also produces. If the surface enumerator found
+    # nothing, the closure is empty, nothing names the scrub tooling,
+    # and the PASS line below is printed having proved precisely
+    # nothing. A proof by absence must therefore first prove PRESENCE
+    # of the things it enumerated over.
+    #
+    # The canaries are the repo's own permanent automation surfaces —
+    # if they are not in the set, the enumerator is not enumerating.
+    #
+    # SCOPE. The canary applies to a tree that actually HAS automation —
+    # i.e. one where at least one canary surface file exists. The unit
+    # suite drives this same run() over synthetic minimal trees (a lone
+    # `.git/hooks/pre-push.sample`, a lone `package.json`), where "zero
+    # automation surfaces" is the honest answer and must stay a pass. A
+    # canary that fired there would make the gate untestable, which is
+    # its own kind of broken.
+    discovery = []
+    present_canaries = [w for w in CANARY_SURFACES if (REPO / w).exists()]
+    if present_canaries:
+        if not surfaces:
+            discovery.append("0 automation surfaces enumerated")
+        if not execs:
+            discovery.append("0 executable files swept")
+        if not tracked:
+            discovery.append("0 tracked files listed")
+        surface_set = set(surfaces)
+        for want in present_canaries:
+            if want not in surface_set:
+                discovery.append(
+                    "%s exists but was not enumerated as an automation "
+                    "surface" % want)
+    if discovery:
+        lines.append("")
+        lines.append("SCRUB-TOOLING REACHABILITY: DISCOVERY BROKEN")
+        for d in discovery:
+            lines.append("  x %s" % d)
+        lines.append("  Proof by absence over an empty set proves nothing. "
+                     "It must not print PASS.")
         return 1, lines, report
 
     lines.append("")

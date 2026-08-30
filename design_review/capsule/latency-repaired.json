@@ -1,0 +1,72 @@
+{
+  "measuredOn": {
+    "surface": "http://localhost:5173 (vite dev)",
+    "apiOrigin": "http://127.0.0.1:8000 rewritten to http://127.0.0.1:8011",
+    "toolBodyBinding": "repaired",
+    "periodId": "3f2a1c88-0000-4000-8000-0000000c0ffe",
+    "date": "2026-08-30"
+  },
+  "phases": {
+    "tier0_first_paint": {
+      "samples": 3,
+      "p50": 20.5,
+      "p95": 22.4,
+      "min": 19.2,
+      "max": 22.4,
+      "raw": [
+        22.4,
+        19.2,
+        20.5
+      ]
+    },
+    "tier1_fact_card_paint": {
+      "samples": 5,
+      "p50": 7317.2,
+      "p95": 7359.3,
+      "min": 5382.4,
+      "max": 7359.3,
+      "raw": [
+        7359.3,
+        5382.4,
+        6714.9,
+        7340.8,
+        7317.2
+      ]
+    },
+    "first_model_text_painted": {
+      "samples": 5,
+      "p50": 7317,
+      "p95": 7359.2,
+      "min": 5382.4,
+      "max": 7359.2,
+      "raw": [
+        7359.2,
+        5382.4,
+        6714.8,
+        7340.6,
+        7317
+      ],
+      "note": "NOT a first-token time. `edgeGenerationTransport` awaits `cfoApi.chatLlm` and yields the WHOLE answer in one chunk; `chat-llm/index.ts` contains no streaming path. There is no first token on this surface to measure, so this number is the complete model answer landing on screen."
+    },
+    "facts_arrived_at_the_client": {
+      "samples": 5,
+      "p50": 24.5,
+      "p95": 33,
+      "min": 21.3,
+      "max": 33,
+      "raw": [
+        24.5,
+        21.4,
+        21.3,
+        32.9,
+        33
+      ]
+    },
+    "fact_card_held_behind_the_model": {
+      "p50_ms": 7292.7,
+      "what": "median gap between the tool response landing (the client HAS the number) and the frame the fact card painted on."
+    }
+  },
+  "notes": [],
+  "modelSeamRequests": 13
+}

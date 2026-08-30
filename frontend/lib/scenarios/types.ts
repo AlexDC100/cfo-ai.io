@@ -49,8 +49,30 @@ export type DriverKey =
  *    for Phase 1 (concept-level adjustments cover 95% of use cases).
  *  - driver: a derived ratio that the cascade translates into the
  *    underlying field. See applyDriverAdjustment in cascade.ts. */
+/** The ADJUSTABLE keys of ReportingMetrics — the numeric ones only.
+ *
+ *  `keyof ReportingMetrics` is wrong here and was load-bearing: that
+ *  interface is not uniformly numeric. `accountTraces` is a
+ *  `Record<string, AccountTrace[]>` (the "where did this number come from"
+ *  map that drives every source deep-link) sitting beside ~40 numeric
+ *  metrics. `cascade.applySingleAdjustment` does
+ *  `{ ...state, [conceptKey]: <number> }`, so an adjustment targeting
+ *  `accountTraces` would REPLACE the whole trace map with a single number
+ *  — silently breaking every drill-down on the scenario's output while
+ *  reporting the "metric" as 0. Nothing constructs that target today; the
+ *  type simply permitted it, and the indexed read is where tsc complained.
+ *
+ *  Mapped-type filter rather than a hand-listed union so a metric added to
+ *  ReportingMetrics is adjustable automatically, and a non-numeric one
+ *  added later is excluded automatically. */
+export type AdjustableMetricKey = {
+  [K in keyof ReportingMetrics]-?: ReportingMetrics[K] extends number | undefined
+    ? K
+    : never;
+}[keyof ReportingMetrics];
+
 export type AdjustmentTarget =
-  | { type: "concept"; conceptKey: keyof ReportingMetrics }
+  | { type: "concept"; conceptKey: AdjustableMetricKey }
   | { type: "account"; accountCode: string }
   | { type: "driver"; driverKey: DriverKey };
 

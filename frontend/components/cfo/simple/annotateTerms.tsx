@@ -62,7 +62,15 @@ const SURFACE_FORMS: Array<[string, string]> = [
   ["margin", "margin"],
   ["marjă", "margin"],
   ["revenue", "revenue"],
-].sort((a, b) => b[0].length - a[0].length);
+];
+// Sorted as a SEPARATE statement, not `[ … ].sort(…)` chained onto the
+// literal. Chained, the annotation types the sort's RESULT and leaves the
+// literal uncontextualised, so its rows widen from `[string, string]` to
+// `string[]` — at which point a one-element row like `["ebitda"]` compiles
+// fine, `id` destructures to undefined, and that term silently stops being
+// annotated anywhere in the product. Array.sort mutates in place and the
+// binding stays the same array, so this is identical at runtime.
+SURFACE_FORMS.sort((a, b) => b[0].length - a[0].length);
 
 // \b is ASCII-only — "netă" ends in a non-\w char, so a trailing \b
 // can never match and every diacritic-final Romanian form silently

@@ -1885,6 +1885,12 @@ def run_gates(verbose=False, run_replay=True):
     return results
 
 
+#: The full PM roster. Every id must produce a GateResult on every run,
+#: whatever its state — a SKIP is a reported outcome, a MISSING gate is
+#: a silent one.
+EXPECTED_GATES = ("PM1", "PM2", "PM3", "PM4", "PM5", "PM6", "PM7")
+
+
 def main(argv=None):
     # type: (Optional[List[str]]) -> int
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -1909,6 +1915,24 @@ def main(argv=None):
         if args.verbose or result.state != PASS:
             for note in result.notes:
                 print("       · %s" % note)
+
+    # ── DISCOVERY CANARY ────────────────────────────────────────────
+    #
+    # `results` is built by appending one GateResult per PM check. If
+    # the loop that builds it were emptied — a renamed registry, a
+    # refactor that drops a check silently — the summary below would
+    # print "0/0 green" and exit 0. A battery reading only the exit code
+    # would call that a pass. So the roster is named and asserted.
+    seen = set(r.gate for r in results)
+    missing = [g for g in EXPECTED_GATES if g not in seen]
+    if missing or not results:
+        print("PUBLIC-MARKET GATES: DISCOVERY BROKEN")
+        print("       ! ran %d gate(s): %s"
+              % (len(results), ", ".join(sorted(seen)) or "none"))
+        print("       ! never ran: %s" % ", ".join(missing))
+        print("       ! A roster that lost a gate reports 0 failures for it. "
+              "Restore it or remove it from EXPECTED_GATES deliberately.")
+        return 1
 
     failed = [r.gate for r in results if not r.ok]
     skipped = [r.gate for r in results if r.state == SKIP]

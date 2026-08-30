@@ -112,7 +112,7 @@ export function CapsuleContextStrip({
       <div
         data-testid="capsule-context-strip"
         data-state="no-period"
-        className="flex h-7 items-center gap-2 px-4 text-[11.5px] text-ink-soft"
+        className="flex h-8 items-center gap-2 px-3.5 text-[11px] text-ink-soft"
       >
         <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-ink-mute" />
         <span className="truncate">{t("capsuleEmpty.strip.noPeriod")}</span>
@@ -139,7 +139,7 @@ export function CapsuleContextStrip({
     <div
       data-testid="capsule-context-strip"
       data-state="period"
-      className="flex h-7 items-center gap-2 overflow-hidden px-4 text-[11.5px] text-ink-soft"
+      className="flex h-8 items-center gap-2 overflow-hidden px-3.5 text-[11px] text-ink-soft"
     >
       <span
         data-testid="capsule-status-dot"

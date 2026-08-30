@@ -80,7 +80,14 @@ OWNED_PAGES = (
 )
 FOREIGN_PAGES = (
     "assertions.md", "mutation.md", "ai_payload_audit.md", "error_budget.md",
-    "testing_conventions.md"
+    "testing_conventions.md",
+    # THE GATE REGISTER — every battery gate's work count, canary, and the
+    # plant that was observed RED. Hand-maintained for the same reason
+    # testing_conventions.md is: it is a record of what was OBSERVED, and
+    # a generator cannot observe a gate going red. Enforced instead by
+    # tests/engine/test_gate_canaries.py, which fails when a gate in
+    # scripts/run_battery.py has no section here.
+    "gates.md",
 )
 
 
@@ -869,6 +876,9 @@ def render_index() -> str:
     )
     lines.append(
         "| [testing_conventions.md](testing_conventions.md) | TC-### testing rules, each naming the incident that produced it — real-output fixtures, proven-RED gates, census canaries | hand-maintained |"
+    )
+    lines.append(
+        "| [gates.md](gates.md) | THE GATE REGISTER — every battery gate's work count, floor, canary and the plant that was observed RED | hand-maintained |"
     )
     lines.append(
         "| [mutation.md](mutation.md) | Mutation-testing results and policy | mutation agent (hand-maintained) |"

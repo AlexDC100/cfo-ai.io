@@ -1,0 +1,1725 @@
+{
+  "measuredOn": {
+    "surface": "http://localhost:5173 (vite dev)",
+    "apiOrigin": "http://127.0.0.1:8000 rewritten to http://127.0.0.1:8010",
+    "periodId": "3f2a1c88-0000-4000-8000-0000000c0ffe",
+    "date": "2026-08-30",
+    "corpusFile": "frontend/lib/capsuleAskCorpus.ts",
+    "pageLoadsPerQuestion": 1
+  },
+  "total": 72,
+  "answered_free": 24,
+  "routed_free": 1,
+  "spent": 47,
+  "free_but_unanswered": 0,
+  "errors": 0,
+  "zero_spend_coverage_pct": 34.7,
+  "answered_in_place_pct": 33.3,
+  "questions_reaching_a_seam_pct": 65.3,
+  "tier0_preview_resolved": 24,
+  "preview_resolved_but_still_paid": [],
+  "seam_breakdown": {
+    "chat-llm Edge Function": 47,
+    "engine tool endpoint": 19
+  },
+  "rows": [
+    {
+      "q": "Explain our current cash flow position in plain language for the management team.",
+      "source": "production_log",
+      "origin": "chat_messages",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "What is our biggest financial risk right now? Cite the period and figures you used.",
+      "source": "production_log",
+      "origin": "chat_messages",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Tell me more about Operating Revenue (413.73M RON) for my company. What does this value mean in context?",
+      "source": "production_log",
+      "origin": "chat_messages",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "what are our total assets",
+      "source": "answer_fixture",
+      "origin": "assets",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "what is the equity ratio",
+      "source": "answer_fixture",
+      "origin": "equity-ratio",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "what is our working capital",
+      "source": "answer_fixture",
+      "origin": "working-capital",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "how did revenue change vs last month",
+      "source": "answer_fixture",
+      "origin": "compare-revenue",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "show me the revenue trend over time",
+      "source": "answer_fixture",
+      "origin": "trend-revenue",
+      "spend": 4,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "what is sitting in account 461",
+      "source": "answer_fixture",
+      "origin": "account-461",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "what findings fired this month",
+      "source": "answer_fixture",
+      "origin": "findings",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "cum stăm cu lichiditatea curentă",
+      "source": "answer_fixture",
+      "origin": "liquidity-ro",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "what if revenue drops 10%",
+      "source": "answer_fixture",
+      "origin": "scenario",
+      "spend": 3,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "how are we doing overall",
+      "source": "answer_fixture",
+      "origin": "health",
+      "spend": 6,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "how do i export the balance sheet",
+      "source": "answer_fixture",
+      "origin": "help",
+      "spend": 0,
+      "seams": [],
+      "answered": false,
+      "tier0": false,
+      "navigated": true,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "retried": true,
+      "turnCreated": false,
+      "dom": {
+        "turn": false,
+        "card": false,
+        "tier0Note": false,
+        "cite": false,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "care e marja netă față de luna trecută",
+      "source": "answer_fixture",
+      "origin": "margin-ro",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "why is cash down this month?",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "what changed vs last month",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "how much do we owe suppliers",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "de ce a scăzut profitul?",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "explain the 461 balance",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "is the balance sheet balanced",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "compare December and November revenue",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "show me the biggest risk in this period",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "can we afford a 500k capex",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "what is EBITDA",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "ce înseamnă datorie netă",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "cine sunt cei mai mari clienți",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "how do i improve cash flow",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "how do i reduce inventory",
+      "source": "router_fixture",
+      "origin": "capsuleRouterFixtures",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "total assets",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "revenue",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "how much cash do we have",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "net debt",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "what is the EBITDA margin",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "current ratio",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "how many periods",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "is it balanced",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "what changed vs FY 2024",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "cifra de afaceri",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "cât e numerarul",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "care este profitul net",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "total datorii",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "câte perioade avem",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "e echilibrat bilanțul?",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "cash conversion cycle by product line",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "cash conversion cycle",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "revenue vs FY 2024",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "refused",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "working capital",
+      "source": "brief",
+      "origin": "brief",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "Dec 2025 has no file yet — what should I upload?",
+      "source": "suggestion",
+      "origin": "unattached.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Dec 2025 is unattached — which document unlocks the statements?",
+      "source": "suggestion",
+      "origin": "unattached.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Why did inventory get flagged this month?",
+      "source": "suggestion",
+      "origin": "finding.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "inventory — what drove it, and what does the first fix cost?",
+      "source": "suggestion",
+      "origin": "finding.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Why doesn't Dec 2025 balance?",
+      "source": "suggestion",
+      "origin": "trust.imbalance.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Dec 2025 — where does the imbalance sit, and on which side?",
+      "source": "suggestion",
+      "origin": "trust.imbalance.pro",
+      "spend": 0,
+      "seams": [],
+      "answered": true,
+      "tier0": true,
+      "navigated": false,
+      "error": null,
+      "previewState": "resolved",
+      "previewResolved": true,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": true,
+        "tier0Note": true,
+        "cite": true,
+        "degraded": false,
+        "body": 0
+      }
+    },
+    {
+      "q": "Is the drift in Dec 2025 something to worry about?",
+      "source": "suggestion",
+      "origin": "trust.drift.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Dec 2025 drift — material, or rounding I can sign off?",
+      "source": "suggestion",
+      "origin": "trust.drift.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "What was adjusted to make Dec 2025 balance?",
+      "source": "suggestion",
+      "origin": "trust.reconciled.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Dec 2025 reconciliation — placement, origin and rationale?",
+      "source": "suggestion",
+      "origin": "trust.reconciled.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Can I still cover the loan payments?",
+      "source": "suggestion",
+      "origin": "covenant.dscr.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "DSCR headroom at current run-rate?",
+      "source": "suggestion",
+      "origin": "covenant.dscr.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Can I keep paying the interest?",
+      "source": "suggestion",
+      "origin": "covenant.interestCover.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Interest cover headroom at current run-rate?",
+      "source": "suggestion",
+      "origin": "covenant.interestCover.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Is my debt getting heavy for the business?",
+      "source": "suggestion",
+      "origin": "covenant.leverage.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Net debt / EBITDA headroom against a typical senior test?",
+      "source": "suggestion",
+      "origin": "covenant.leverage.pro",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Do I have enough to cover the next few months?",
+      "source": "suggestion",
+      "origin": "covenant.liquidity.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Current-ratio headroom against a typical liquidity test?",
+      "source": "suggestion",
+      "origin": "covenant.liquidity.pro",
+      "spend": 2,
+      "seams": [
+        "engine tool endpoint",
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Nothing was flagged — what did you check?",
+      "source": "suggestion",
+      "origin": "silence.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "Clean month — which rules ran, and how close were the margins?",
+      "source": "suggestion",
+      "origin": "silence.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "What pushed inventory up this period?",
+      "source": "suggestion",
+      "origin": "move.up.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "inventory moved up — which drivers, and is it repeatable?",
+      "source": "suggestion",
+      "origin": "move.up.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "What pulled inventory down this period?",
+      "source": "suggestion",
+      "origin": "move.down.simple",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    },
+    {
+      "q": "inventory moved down — which drivers, and how much is structural?",
+      "source": "suggestion",
+      "origin": "move.down.pro",
+      "spend": 1,
+      "seams": [
+        "chat-llm Edge Function"
+      ],
+      "answered": false,
+      "tier0": false,
+      "navigated": false,
+      "error": null,
+      "previewState": "absent",
+      "previewResolved": false,
+      "turnCreated": true,
+      "dom": {
+        "turn": true,
+        "card": false,
+        "tier0Note": false,
+        "cite": true,
+        "degraded": true,
+        "body": 0
+      }
+    }
+  ]
+}

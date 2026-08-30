@@ -58,12 +58,38 @@ function* walk(dir) {
 const g2 = [];
 const g3 = [];
 
+// ── WORK CENSUS + DISCOVERY CANARIES ─────────────────────────────────
+//
+// Everything below is a walk over `frontend`. If the walk stops walking
+// — a moved root, a thrown readdirSync swallowed by a future refactor,
+// an EXT set that no longer matches — both arrays stay empty and this
+// script prints "GLOBAL-POSITIONING GATES: PASS". That sentence is true
+// of an empty tree, which is exactly how `npx tsc --noEmit` passed for
+// months over zero files.
+//
+// Two canaries, and the second is the one that matters:
+//   FILE   a path that must be in the walk (proves the walker walks).
+//   MATCH  the HU pattern must FIRE somewhere (proves the detector can
+//          still detect). It fires in the country-list files, which are
+//          allowed — so a green G2 means "found and correctly excused",
+//          not "looked and saw nothing". A regex that stopped matching
+//          would otherwise be indistinguishable from a clean tree.
+const CANARY_FILE = "frontend/lib/markets.ts";
+let filesScanned = 0;
+let linesScanned = 0;
+let sawCanaryFile = false;
+let huMatchesAnywhere = 0;
+
 for (const root of ROOTS) {
   for (const file of walk(root)) {
     const rel = file.replace(/\\/g, "/");
+    if (rel === CANARY_FILE) sawCanaryFile = true;
+    filesScanned += 1;
     const text = readFileSync(file, "utf-8");
     const lines = text.split("\n");
+    linesScanned += lines.length;
     lines.forEach((line, i) => {
+      if (HU.test(line)) huMatchesAnywhere += 1;
       if (HU.test(line) && !COUNTRY_LIST_FILES.has(rel)) {
         // Headline position: an h1/h2 tag on the line, or a headline
         // string field, or any marketing-strings module.
@@ -102,7 +128,32 @@ if (g3.length) {
   console.log("G3 HONESTY LINT — certification verb beside a global claim (%d):", g3.length);
   for (const v of g3) console.log("  " + v);
 }
+const broken = [];
+if (filesScanned === 0) broken.push("the walk produced 0 files");
+if (!sawCanaryFile) {
+  broken.push(`canary file ${CANARY_FILE} was never visited`);
+}
+if (huMatchesAnywhere === 0) {
+  broken.push(
+    "the HU pattern matched NOTHING anywhere in the tree — it fires in the " +
+    "country-list files by design, so zero matches means the detector is " +
+    "broken, not that the tree is clean");
+}
+if (broken.length) {
+  console.log("GLOBAL-POSITIONING GATES: DISCOVERY BROKEN");
+  console.log(`  scanned ${filesScanned} file(s), ${linesScanned} line(s)`);
+  for (const b of broken) console.log(`  - ${b}`);
+  console.log("  A lint over nothing reports no violations. That is not a pass.");
+  process.exit(1);
+}
+
+console.log(
+  `GATE-WORK global-positioning units=${filesScanned} floor=400 label=frontend-files`);
 if (!fail) {
-  console.log("GLOBAL-POSITIONING GATES: PASS (G2 headline lint, G3 honesty lint)");
+  console.log(
+    `GLOBAL-POSITIONING GATES: PASS (G2 headline lint, G3 honesty lint) — ` +
+    `${filesScanned} file(s) / ${linesScanned} line(s) scanned; ` +
+    `HU pattern fired ${huMatchesAnywhere}x, all inside the allowed ` +
+    `country-list files`);
 }
 process.exit(fail ? 1 : 0);

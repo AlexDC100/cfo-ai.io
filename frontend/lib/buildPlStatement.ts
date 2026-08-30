@@ -23,6 +23,26 @@ import {
 } from "./plStructure";
 import type { IncomeStatement, Statements } from "./financialReport";
 
+
+/** Drop nulls from a sparse line list, WITHOUT losing PLLine's literal types.
+ *
+ *  `const x: PLLine[] = [ … ].filter((l): l is PLLine => l !== null)` looks
+ *  equivalent and is not: the annotation types the FILTER RESULT, never the
+ *  array literal. With no contextual type the literal's `style: "item"`
+ *  widens from `LineStyle` to `string`, the element type stops being a
+ *  PLLine, and the predicate is then rejected outright (TS2677 — "a type
+ *  predicate's type must be assignable to its parameter's type").
+ *
+ *  Passing the literal as an ARGUMENT restores contextual typing, so
+ *  `style`, `sign` and `bucket` are checked against their unions again
+ *  instead of being accepted as any string. That matters here: `style`
+ *  picks a row's visual weight (an item silently typed as a subtotal reads
+ *  as a total) and `sign` drives the ± prefix on a money amount. No cast —
+ *  every field is still checked. */
+function plLines(lines: Array<PLLine | null | undefined>): PLLine[] {
+  return lines.filter((l): l is PLLine => l != null);
+}
+
 interface BuildArgs {
   /** Per-account line items from the backend (statement="PL" entries only). */
   lineItems: ApiLineItem[];
@@ -122,12 +142,12 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const revOther = sumByExact(items, "708");
   const revOtherOperating = sumByExact(items, "758");
 
-  const operatingRevenueLines: PLLine[] = [
+  const operatingRevenueLines: PLLine[] = plLines([
     revRental ? { accountCode: "706", label: labelFor("706"), amount: revRental, style: "item" } : null,
     revCapOwnWork ? { accountCode: "722", label: labelFor("722"), amount: revCapOwnWork, style: "item" } : null,
     revDiscounts ? { accountCode: "767", label: labelFor("767"), amount: revDiscounts, style: "item" } : null,
     revOther ? { accountCode: "708", label: labelFor("708"), amount: revOther, style: "item" } : null,
-  ].filter((l): l is PLLine => l !== null);
+  ]);
 
   const totalOperatingRevenue = revRental + revCapOwnWork + revDiscounts + revOther;
 
@@ -213,13 +233,13 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
       ? { accountCode: code, label, amount: amt, style: "item", sign: "negative" }
       : null;
 
-  const financialLines: PLLine[] = [
+  const financialLines: PLLine[] = plLines([
     finPos("7611", labelFor("7611"), dividendIncome),
     finPos("7651", labelFor("7651"), fxGain),
     finPos("766",  labelFor("766"),  interestIncome),
     finNeg("6651", labelFor("6651"), fxLoss),
     finNeg("666",  labelFor("666"),  interestExpense),
-  ].filter((l): l is PLLine => l !== null);
+  ]);
 
   const netFinancialResult =
     dividendIncome + fxGain + interestIncome - fxLoss - interestExpense;
@@ -253,12 +273,12 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
 
   const closingSection: PLSection = {
     header: "",
-    lines: [
+    lines: plLines([
       { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal" },
       tax > 0
         ? { accountCode: "691", label: labelFor("691"), amount: tax, style: "item" }
         : null,
-    ].filter((l): l is PLLine => l !== null),
+    ]),
     // OPERATIONAL is the headline subtotal. The 722 bridge to statutory
     // ct-121 is rendered by PLReconciliationBridge in PLStatementView,
     // visually subordinated to this headline (it's a reconciliation, not
@@ -594,12 +614,12 @@ export function buildPLStatementFromAggregates(
 
   const closingSection: PLSection = {
     header: "",
-    lines: [
+    lines: plLines([
       { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal" },
       tax > 0
         ? { accountCode: "691", label: "Income tax", amount: tax, style: "item" }
         : null,
-    ].filter((l): l is PLLine => l !== null),
+    ]),
     subtotalLabel: "Net profit — operational (excl. 722)",
     subtotalAmount: netProfit,
   };

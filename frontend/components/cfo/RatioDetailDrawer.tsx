@@ -26,7 +26,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { ExternalLink, Calculator, Info, Target, TrendingUp, GaugeCircle, Lightbulb, Layers, ArrowRight, ChevronDown } from "lucide-react";
+import { ExternalLink, Calculator, Info, Target, TrendingUp, GaugeCircle, Lightbulb, Layers, ArrowRight, ChevronDown, type LucideIcon } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -435,7 +435,15 @@ function ExplainToggleButton({ open, onToggle }: { open: boolean; onToggle: () =
 function Section({
   icon: Icon, title, children,
 }: {
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  // `LucideIcon` — the library's own exported type — rather than a
+  // hand-written `ComponentType<{ size?, strokeWidth?, className? }>`.
+  // A lucide icon is a `ForwardRefExoticComponent`, which is not
+  // assignable to a plain ComponentType, so every one of the seven
+  // `<Section icon={…}>` call sites in this file was a type error. The
+  // hand-written shape also silently under-described the props (no
+  // `color`, no `absoluteStrokeWidth`, no ref). Same type the rest of the
+  // codebase already uses for lucide props (see landing/EntryCard.tsx).
+  icon: LucideIcon;
   title: string;
   children: React.ReactNode;
 }) {

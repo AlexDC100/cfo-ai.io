@@ -89,6 +89,11 @@ if str(SCRIPTS) not in sys.path:
 import check_corpus_policy as ccp  # noqa: E402  (tree enumeration + text units — reused, not touched)
 import generate_lock as glock  # noqa: E402  (the ONE input-digest definition)
 
+#: Pins that must be present in the lock for C1/C2 to have read it.
+#: `anthropic` is the incident dependency itself and `httpx` is the
+#: transitive it removed — the two the gate was built around.
+CANARY_PINS = ("anthropic", "httpx")
+
 LOCK_NAME = "requirements-lock.txt"
 ALLOWLIST_PATH = "scripts/supply_chain_allowlist.txt"
 
@@ -751,6 +756,34 @@ def run(verbose: bool = False) -> Tuple[int, List[str]]:
     lines.append(
         "checked %d tracked file(s); lock pins=%d; %d exemption(s) on file"
         % (len(tracked), len(pins), len(entries)))
+
+    # ── DISCOVERY CANARY ────────────────────────────────────────────
+    #
+    # C1/C2 read the lock, C3-C5 sweep the tracked tree. An unreadable
+    # lock parsed to zero pins and an empty file sweep both produce zero
+    # violations, and "SUPPLY CHAIN: PASS" reads the same either way.
+    # The incident this gate exists for (an unpinned anthropic>=0.30
+    # floating to 1.0.0) is invisible to a gate that read no pins.
+    discovery = []
+    if not tracked:
+        discovery.append("0 tracked files swept")
+    if not pins:
+        discovery.append("the lock parsed to 0 pins — C1/C2 checked nothing")
+    for want in CANARY_PINS:
+        if want not in pins:
+            discovery.append(
+                "%r is not among the %d pin(s) read from the lock — either "
+                "the dependency left the image (update this canary "
+                "deliberately) or the lock reader is broken"
+                % (want, len(pins)))
+    if discovery:
+        lines.append("")
+        lines.append("SUPPLY CHAIN: DISCOVERY BROKEN")
+        for d in discovery:
+            lines.append("  x %s" % d)
+        lines.append("  Zero violations over zero inputs is not a clean "
+                     "supply chain.")
+        return 1, lines
 
     if live:
         lines.append("")

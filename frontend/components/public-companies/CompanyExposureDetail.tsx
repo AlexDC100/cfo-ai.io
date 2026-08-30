@@ -32,19 +32,29 @@ interface Props {
 
 // Short labels + tints for the source-provenance badge. Same chip style as
 // the per-row badge in the RadarCard companies list — kept consistent so
-// users learn "BVB" / "10-K" / "curated" once.
+// users learn "10-K" / "sector" / "AI" / "curated" once.
+// Keyed on the ExposureSource the ENGINE emits. These tables used to be
+// keyed on a vocabulary that existed only in the frontend
+// ("sec_filing" / "operator_curated" / "bvb_override" appear nowhere in
+// `engine/public/intelligence/`), so three of the four real values missed
+// the lookup and fell through the `?? "sector"` default below. The visible
+// result was the opposite of what this badge is for: a filings-extracted
+// or AI-inferred exposure score was labelled "sector", i.e. an inferred
+// number wearing the provenance of a modelled one, and a real 10-K
+// extraction downgraded. Only "sector_model" ever matched.
 const SOURCE_LABEL: Record<ExposureSource, string> = {
+  filings: "10-K",
   sector_model: "sector",
-  sec_filing: "10-K",
-  operator_curated: "curated",
-  bvb_override: "BVB",
+  ai_inferred: "AI",
+  manual: "curated",
 };
 
 const SOURCE_TINT: Record<ExposureSource, string> = {
+  // Muted = derived/inferred, brand = traceable to a document or a human.
   sector_model: "bg-bg-2/60 text-ink-mute border-rule/60",
-  sec_filing: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
-  operator_curated: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
-  bvb_override: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
+  ai_inferred: "bg-bg-2/60 text-ink-mute border-rule/60",
+  filings: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
+  manual: "bg-brand-tint text-brand-dark dark:text-brand-light border-transparent",
 };
 
 export function CompanyExposureDetail({ ticker, category, onClose }: Props) {

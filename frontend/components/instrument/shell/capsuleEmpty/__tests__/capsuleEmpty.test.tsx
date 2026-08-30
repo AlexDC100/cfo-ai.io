@@ -138,9 +138,13 @@ describe("zone 1 — the context strip is ONE line", () => {
     expect(strip.dataset.state).toBe("no-period");
   });
 
-  it("is ONE line — the strip's own height class says 28px", () => {
+  it("is ONE line — the strip's own height class fixes it to a single row", () => {
     renderView(snapshot({ trustBand: "reconciled" }));
-    expect(screen.getByTestId("capsule-context-strip").className).toContain("h-7");
+    const cls = screen.getByTestId("capsule-context-strip").className;
+    // A FIXED height class is the invariant, not the particular value:
+    // the strip must not be allowed to become two lines by growing with
+    // its content. (h-8/32px since the craft pass; h-7/28px before it.)
+    expect(cls).toMatch(/\bh-[78]\b/);
   });
 
   it("makes 'periods without a file' a DESTINATION, not a statistic", () => {
@@ -217,18 +221,57 @@ describe("zone 2 — suggestions are computed from this workspace", () => {
     unattached: [{ periodId: "p1", label: "Nov 2025" }],
   });
 
-  it("renders three, each with its basis line", () => {
+  // ── WHERE THE BASIS LIVES AFTER THE CRAFT PASS ──────────────────────
+  //
+  // The chips are pills now, and a pill the width of a paragraph is not
+  // a pill. So the basis is stated in TWO places instead of one, and
+  // both are asserted here — the pair is strictly more than the single
+  // muted span the old row carried:
+  //
+  //   · per chip, in `aria-label`, so a screen-reader user hears the
+  //     question and its source as one utterance;
+  //   · once visibly, deduplicated, under the group.
+  //
+  // Weakening either half would let the covenant disclaimer fall off the
+  // screen, which is the thing these two tests exist to prevent.
+
+  it("renders three, and each chip names its basis in its accessible name", () => {
     renderView(busy);
-    const rows = screen.getAllByTestId("capsule-suggestion");
-    expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveTextContent("Receivables provision");
-    expect(rows[0].textContent).toContain("Anomaly Radar");
+    const chips = screen.getAllByTestId("capsule-suggestion");
+    expect(chips).toHaveLength(3);
+    expect(chips[0]).toHaveTextContent("Receivables provision");
+    expect(chips[0].getAttribute("aria-label")).toContain("Anomaly Radar");
   });
 
-  it("the covenant row admits its test is a default, not the user's facility", () => {
+  it("states every distinct basis VISIBLY, once, under the group", () => {
+    renderView(busy);
+    const line = screen.getByTestId("capsule-suggestion-basis").textContent ?? "";
+    expect(line).toContain("Anomaly Radar");
+    // Deduplicated: one source stated once, however many chips drew on it.
+    expect(line.match(/Anomaly Radar/g)).toHaveLength(1);
+  });
+
+  it("the covenant chip admits its test is a default, not the user's facility", () => {
     renderView(snapshot({ metrics: [{ name: "dscr", value: 1.2, unit: "ratio" }] }));
-    const row = screen.getByTestId("capsule-suggestion");
-    expect(row.textContent).toContain("not your loan documents");
+    const chip = screen.getByTestId("capsule-suggestion");
+    // Both halves, on the one chip that carries a disclaimer that matters.
+    expect(chip.getAttribute("aria-label")).toContain("not your loan documents");
+    expect(screen.getByTestId("capsule-suggestion-basis").textContent).toContain(
+      "not your loan documents",
+    );
+  });
+
+  it("carries NO native tooltip — `title` duplicates text already on screen", () => {
+    renderView(busy);
+    for (const chip of screen.getAllByTestId("capsule-suggestion")) {
+      expect(
+        chip.getAttribute("title"),
+        "a `title` renders an OS-drawn tooltip restating the chip's own text — " +
+          "one of the seven craft complaints, and it comes back the moment " +
+          "someone adds `title` back for 'accessibility'. aria-label is the " +
+          "accessible name; title is a second, worse one.",
+      ).toBeNull();
+    }
   });
 
   it("renders FEWER when the state yields fewer — no filler row", () => {
@@ -287,6 +330,57 @@ describe("zone 3 — jump", () => {
     { id: "page-/settings", label: "Settings" },
     { id: "page-/benchmark", label: "Benchmark", hint: "Analyze" },
   ];
+
+  it("does NOT render at rest — the resting surface is context + chips only", () => {
+    // The craft pass deleted the resting jump zone. The live host passes
+    // no destinations at all; this asserts the DEFAULT, so a caller that
+    // forgets the prop cannot silently bring the zone back.
+    render(
+      <CapsuleEmptyStateView
+        context={buildCapsuleContext(snapshot())}
+        trustLabel={null}
+        suggestions={[]}
+        onPick={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("capsule-jump")).toBeNull();
+  });
+
+  it("prints NO category label on a destination row", () => {
+    // "Dashboard … Overview" / "Scenarios … Analyze". The rail group
+    // restated a place the reader recognised by name and gave every row
+    // a second focal point at the far end of the line.
+    render(
+      <CapsuleEmptyStateView
+        context={buildCapsuleContext(snapshot())}
+        trustLabel={null}
+        suggestions={[]}
+        jumps={jumps}
+        onJump={() => {}}
+        onPick={() => {}}
+      />,
+    );
+    const text = screen.getByTestId("capsule-jump").textContent ?? "";
+    expect(text).toContain("Dashboard");
+    expect(text).not.toContain("Overview");
+    expect(text).not.toContain("Analyze");
+  });
+
+  it("rows are 36px — denser than the 40px they were", () => {
+    render(
+      <CapsuleEmptyStateView
+        context={buildCapsuleContext(snapshot())}
+        trustLabel={null}
+        suggestions={[]}
+        jumps={jumps}
+        onJump={() => {}}
+        onPick={() => {}}
+      />,
+    );
+    for (const row of screen.getAllByTestId("capsule-jump-row")) {
+      expect(row.className).toContain("h-9");
+    }
+  });
 
   it("shows FOUR destinations under one label, never five", () => {
     render(

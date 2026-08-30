@@ -36,7 +36,14 @@ import type { DocumentInspection, EntityIdentity, PeriodDetection } from "@/lib/
 
 // ─── module mocks (shared by both halves) ────────────────────────────────
 
-const uploadDocument = vi.fn(async () => ({ row: { id: "doc-new" }, error: null }));
+const uploadDocument = vi.fn(
+  async (
+    // Optional: the vi.mock wrapper forwards through `...(args as [])`,
+    // which types as a zero-arg spread at that call site.
+    _file?: unknown,
+    _opts?: { periodEndHint?: string | null },
+  ) => ({ row: { id: "doc-new" }, error: null }),
+);
 const subscribeToDocumentStatus = vi.fn(() => () => {});
 const createEmptyPeriod = vi.fn(async () => ({ id: "period-created" }));
 
@@ -383,7 +390,14 @@ describe("PeriodsSection — the drop target is never a hint", () => {
     fireEvent.click(submit);
 
     await waitFor(() => expect(uploadDocument).toHaveBeenCalledTimes(1));
-    const opts = uploadDocument.mock.calls[0][1] as { periodEndHint?: string | null };
+    // `vi.fn(async () => …)` infers a ZERO-parameter signature, so
+    // `mock.calls[0]` is the empty tuple `[]` and index 1 does not exist —
+    // the assertions below were reading `undefined` and the `as` cast let
+    // them. `periodEndHint` is the whole point of this test (2025 vs 2017),
+    // so a silently-undefined `opts` would have made both expectations
+    // pass against nothing. Declaring the mock's parameters restores a
+    // real read; see the `uploadDocument` declaration above.
+    const opts = uploadDocument.mock.calls[0][1];
     expect(opts.periodEndHint).toBe("2025-12-31");
     expect(opts.periodEndHint).not.toBe("2017-12-31");
   });

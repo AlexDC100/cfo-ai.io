@@ -71,7 +71,7 @@ import ast
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 REPO = Path(__file__).resolve().parents[1]
 ENGINE_ROOT = REPO / "src" / "engine"
@@ -303,6 +303,39 @@ def scan_python_source(source: str, py_file: Path) -> List[Violation]:
     return violations
 
 
+# ────────────────────────────────────────────────────────────────────
+# WORK CENSUS + DISCOVERY CANARY
+#
+# This gate is a WALKER, and a walker that stops walking exits 0. Before
+# the census existed the whole output was "boundary holds (engine=OK,
+# frontend=OK, private-fields=OK)" — the same sentence an empty walk
+# would print. So: every scanned path is counted, and two files that
+# MUST be in the walk are named. Absent => DISCOVERY BROKEN, exit 1.
+#
+# The canaries are chosen to be load-bearing rather than incidental:
+# pipeline.py is the engine's spine (if the engine walk misses it, the
+# walk is not happening), and the frontend gateway's own directory must
+# be reachable or the frontend half is scanning nothing.
+# ────────────────────────────────────────────────────────────────────
+
+SCANNED: Dict[str, int] = {"engine": 0, "frontend": 0, "private-fields": 0}
+SEEN_PATHS: Set[str] = set()
+
+#: (repo-relative path, which half must have seen it)
+DISCOVERY_CANARIES = (
+    ("src/engine/api/pipeline.py", "engine"),
+    ("frontend/lib/cfoApi.ts", "frontend"),
+)
+
+
+def _note_scanned(half: str, path: Path) -> None:
+    SCANNED[half] = SCANNED.get(half, 0) + 1
+    try:
+        SEEN_PATHS.add(path.relative_to(REPO).as_posix())
+    except ValueError:
+        SEEN_PATHS.add(path.as_posix())
+
+
 def run_engine_check(allowlist: Sequence[str], force: bool = False) -> Tuple[List[Violation], bool]:
     """Returns (violations, active)."""
     if not SERVING_PKG.is_dir() and not force:
@@ -318,6 +351,7 @@ def run_engine_check(allowlist: Sequence[str], force: bool = False) -> Tuple[Lis
         if is_allowlisted(py_file, allowlist):
             continue
         source = py_file.read_text(encoding="utf-8")
+        _note_scanned("engine", py_file)
         violations.extend(scan_python_source(source, py_file))
     return violations, True
 
@@ -395,6 +429,7 @@ def run_frontend_check(allowlist: Sequence[str], force: bool = False) -> Tuple[L
         if is_allowlisted(ts_file, allowlist):
             continue
         source = ts_file.read_text(encoding="utf-8")
+        _note_scanned("frontend", ts_file)
         violations.extend(scan_ts_source(source, ts_file))
     return violations, True
 
@@ -451,6 +486,7 @@ def run_private_field_scan(allowlist: Sequence[str], force: bool = False) -> Tup
         if is_allowlisted(f, allowlist):
             continue
         source = f.read_text(encoding="utf-8")
+        _note_scanned("private-fields", f)
         for lineno, line in enumerate(source.splitlines(), start=1):
             for field, pattern in patterns:
                 if pattern.search(line):
@@ -508,6 +544,66 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "scripts/import_boundary_allowlist.txt (with a reason comment)."
         )
         return 1
+
+    # ── WORK CENSUS + DISCOVERY CANARY ──────────────────────────────
+    # Printed BEFORE the verdict so a broken walk cannot hide behind a
+    # green sentence. `boundary holds` is the same string an empty walk
+    # would print; the counts are not.
+    total_scanned = sum(SCANNED.values())
+    print("[check_import_boundary] scanned %d file(s): %s"
+          % (total_scanned,
+             ", ".join("%s=%d" % (k, SCANNED[k]) for k in sorted(SCANNED))))
+    missing_canary = [
+        (rel, half) for rel, half in DISCOVERY_CANARIES
+        if (REPO / rel).is_file() and rel not in SEEN_PATHS
+    ]
+    if missing_canary:
+        print("")
+        print("DISCOVERY BROKEN — these files exist in the tree but the walk "
+              "never reached them:")
+        for rel, half in missing_canary:
+            print("  %-40s (expected in the %s half)" % (rel, half))
+        print("The census below would have been reported as a clean pass. "
+              "A gate that walks nothing must FAIL, not print OK.")
+        return 1
+    if total_scanned == 0:
+        print("DISCOVERY BROKEN — zero files scanned. Exit 0 here would be "
+              "the tsc failure: a green verdict over no work at all.")
+        return 1
+
+    # ── PER-HALF FLOORS, and why the total is not enough ─────────────
+    #
+    # An adversarial audit truncated `_fe_files()` to a single file and
+    # planted a real violation in a frontend file that was no longer
+    # walked. The gate printed "boundary holds (engine=OK, frontend=OK)"
+    # and exited 0: the frontend half had collapsed 517 -> 1, but the
+    # TOTAL stayed far above the single global floor of 200 because the
+    # engine half alone cleared it. Both named canaries survived the
+    # plant, so they could not fire either.
+    #
+    # A floor on a sum cannot detect one addend collapsing. Each half
+    # therefore declares its own, asserted here — AFTER the walks, on
+    # the totals, never inside a walk that may not have run.
+    #
+    # These floors live in the SCRIPT, not in the battery's work-count
+    # layer, because .github/workflows/tier1-validation.yml:165 invokes
+    # this file directly. In CI there is no battery wrapper, so anything
+    # that is not asserted in here is not asserted at all.
+    HALF_FLOORS = {"engine": 200, "frontend": 300, "private-fields": 200}
+    starved = [(half, SCANNED.get(half, 0), floor)
+               for half, floor in sorted(HALF_FLOORS.items())
+               if SCANNED.get(half, 0) < floor]
+    if starved:
+        print("")
+        print("DISCOVERY BROKEN — a half of the walk collapsed. The total "
+              "stays above a global floor when one half empties, which is "
+              "how a real violation in an unwalked half reads as OK:")
+        for half, got, floor in starved:
+            print("  %-16s scanned %d, floor %d" % (half, got, floor))
+        return 1
+
+    print("GATE-WORK import-boundary units=%d floor=200 label=source-files"
+          % total_scanned)
 
     parts = []
     parts.append("engine=%s" % ("OK" if engine_active else "inactive"))

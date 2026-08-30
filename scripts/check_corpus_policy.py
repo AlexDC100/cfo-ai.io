@@ -157,6 +157,10 @@ ADR_GLOB = "ADR-corpus-history-*.md"
 ADR_COUNT_KEY = "Accepted-Plaintext-Blobs:"
 
 #: The exemption register.
+#: A corpus case that MUST be in every sweep — the framework's own
+#: calibration fixture. Absent => the corpus walk is broken, not clean.
+CANARY_CORPUS_CASE = "saga_10_col"
+
 ALLOWLIST_PATH = "scripts/corpus_policy_allowlist.txt"
 
 #: TIER B's category name, as emitted by the lexicon module.
@@ -595,6 +599,38 @@ def run(verbose: bool = False) -> Tuple[int, List[str]]:
         % (len(paths), len(paths) - untracked, untracked, len(metas),
            len(entries), len(exempted))
     )
+
+    # ── DISCOVERY CANARY ────────────────────────────────────────────
+    #
+    # Both checks are sweeps: CHECK 1 over corpus/*/meta.yaml, CHECK 2
+    # over the tracked tree. An empty sweep raises no failure and prints
+    # "CORPUS POLICY: PASS", which is the same sentence a clean tree
+    # prints. So two things that MUST be in the sweep are named. Neither
+    # is a marker planted for the gate: the corpus case is the framework's
+    # calibration fixture and the allowlist is the gate's own register.
+    discovery = []
+    if not paths:
+        discovery.append("the tracked-tree sweep produced 0 files")
+    if not metas:
+        discovery.append("the corpus sweep found 0 meta.yaml declarations")
+    if not any(("corpus/%s/" % CANARY_CORPUS_CASE) in path
+               for path, _meta in metas):
+        discovery.append(
+            "corpus case %r was not among the %d declaration(s) read — "
+            "the corpus walk is not seeing corpus/"
+            % (CANARY_CORPUS_CASE, len(metas)))
+    if not entries:
+        discovery.append(
+            "%s parsed to 0 exemption entries — the allowlist reader is "
+            "not reading" % ALLOWLIST_PATH)
+    if discovery:
+        lines.append("")
+        lines.append("CORPUS POLICY: DISCOVERY BROKEN")
+        for d in discovery:
+            lines.append("  x %s" % d)
+        lines.append("  A sweep that finds nothing violates nothing. That is "
+                     "not a pass.")
+        return 1, lines
 
     failures = (
         allow_failures

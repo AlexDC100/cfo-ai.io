@@ -420,7 +420,12 @@ export async function resolvePeriodEntity(
   try {
     const res = await fetchPeriodFromApi(periodId);
     if (res.kind !== "ok") return null;
-    const statements = (res.data as { statements?: Record<string, unknown> }).statements;
+    // `res.data.statements` is already typed `Statements`; the previous
+    // `as { statements?: Record<string, unknown> }` asserted a looser shape
+    // over it, which is how `cui` — a field the blob does not contain —
+    // read as a live lookup instead of a permanent null. See the `cui`
+    // note on the `Statements` interface.
+    const statements = res.data.statements;
     const name =
       statements && typeof statements.companyName === "string"
         ? statements.companyName

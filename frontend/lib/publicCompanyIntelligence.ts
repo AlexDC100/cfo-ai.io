@@ -53,7 +53,20 @@ export type FinancialImpactChannel =
   | "valuation_multiple"
   | "supply_availability";
 
-export type ExposureSource = "filings" | "sector_model" | "ai_inferred" | "manual";
+/** Provenance of a per-ticker exposure score. Drives the source-badge chip.
+ *
+ *  MIRRORS `engine/public/intelligence/models.py::ExposureSource` exactly.
+ *  This file used to declare the type TWICE — this one, and a second
+ *  `"sector_model" | "sec_filing" | "operator_curated" | "bvb_override"`
+ *  further down. Those four strings appear nowhere in the engine; the
+ *  backend has only ever emitted the four below. The duplicate made
+ *  `ExposureSource` ambiguous (TS2300), which in turn broke the
+ *  exhaustiveness the badge tables rely on. Do not re-add a second one. */
+export type ExposureSource =
+  | "filings"        // extracted from 10-K / 10-Q risk factors
+  | "sector_model"   // sector-default, lowest confidence
+  | "ai_inferred"    // Claude proposed, operator approved
+  | "manual";        // operator-uploaded override (always wins)
 
 export type FeedStatus =
   | "live_feed_active"
@@ -81,13 +94,6 @@ export interface IntelligenceSignal {
   financial_impact_channels: FinancialImpactChannel[];
   risk_categories: RiskCategory[];
 }
-
-/** Provenance of a per-ticker exposure score. Drives the source-badge chip. */
-export type ExposureSource =
-  | "sector_model"        // sector-default, lowest confidence
-  | "sec_filing"          // extracted from 10-K text
-  | "operator_curated"    // operator-edited override
-  | "bvb_override";       // Romanian-specific BVB override
 
 /** One ticker's slot in a radar card's affected list. The category_score
  *  drives the exposure-bar width (0.0-1.0 → 0-100%). country='RO' flips on

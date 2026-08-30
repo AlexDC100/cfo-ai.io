@@ -427,9 +427,28 @@ export interface MarketCompanyDocument {
   presentation?: MarketPresentation;
 }
 
-export type MarketCompanyResult =
-  | { ok: true; document: MarketCompanyDocument }
-  | { ok: false; refusal: MarketRefusal };
+export type MarketCompanyOk = { ok: true; document: MarketCompanyDocument };
+export type MarketCompanyRefused = { ok: false; refusal: MarketRefusal };
+export type MarketCompanyResult = MarketCompanyOk | MarketCompanyRefused;
+
+/** Narrow a `MarketCompanyResult` to its refusal member.
+ *
+ *  `if (!res.ok) { res.refusal }` is correct at runtime but does not
+ *  typecheck here: with this project's `strict: false` (hence
+ *  `strictNullChecks: false`) TypeScript will not subtract the `ok: true`
+ *  member from a boolean-discriminated union in the negative branch. Same
+ *  compiler-mode artefact as `publicCompanyApi.isApiError` — verified by
+ *  compiling the identical snippet under `--strict true` (clean) and
+ *  `--strict false` (TS2339).
+ *
+ *  A user-defined predicate narrows under both modes and compiles to a
+ *  plain `!res.ok`. It suppresses nothing: a genuinely wrong property
+ *  access still fails to typecheck. */
+export function isMarketRefusal(
+  r: MarketCompanyResult,
+): r is MarketCompanyRefused {
+  return !r.ok;
+}
 
 /** Read ONE company document. The route reads the spine store and never
  *  fetches from a feed on a web request, so a miss is a real "not cached

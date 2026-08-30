@@ -1260,8 +1260,17 @@ export default function Products() {
                     sourceCurrency: sourceCurrency,
                     displayCurrency: displayCurrencyForExport,
                     rate: exportRate,
-                    rateDate: ratesPayload.rateDate,
-                    provider: ratesPayload.provider,
+                    // `RatesPayload` names these `as_of` and `source`; the
+                    // reads below used to be `.rateDate` / `.provider`,
+                    // which do not exist on it. Both resolved to undefined,
+                    // so EVERY converted export shipped
+                    // "# FX provider: n/a · rate date: n/a" — the exact
+                    // disclosure `exportCsv` says no converted CSV ships
+                    // without. The rate itself was always correct; only its
+                    // provenance was missing, which is the harder half to
+                    // notice in a file handed to a bank or an auditor.
+                    rateDate: ratesPayload.as_of,
+                    provider: ratesPayload.source,
                   })}
                   data-testid="export-portfolio"
                   className="inline-flex items-center gap-2 h-10 px-4 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink text-[13px] font-medium hover:border-brand/60 transition-colors"

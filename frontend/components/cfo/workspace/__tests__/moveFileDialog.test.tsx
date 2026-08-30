@@ -25,7 +25,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import "@/i18n";
 import type { DetectOutcome, MoveResult } from "../periodFiling";
 
-const detectPeriodForFilename = vi.fn<[], Promise<DetectOutcome>>();
+// vitest 3 takes the WHOLE function signature as one type argument
+// (`vi.fn<(...a) => R>()`), not the old `<Args, Return>` pair. Written the
+// old way, `vi.fn<[], Promise<DetectOutcome>>()` was TS2558 and the mock's
+// parameters degraded to `never`, which is what made the forwarding call
+// below (`detectPeriodForFilename(...(a as []))`) a second error.
+const detectPeriodForFilename = vi.fn<() => Promise<DetectOutcome>>();
 const moveDocumentToPeriod = vi.fn();
 
 vi.mock("../periodFiling", () => ({

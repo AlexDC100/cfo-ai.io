@@ -1,0 +1,53 @@
+{
+  "measuredOn": {
+    "surface": "http://localhost:5173 (vite dev)",
+    "apiOrigin": "http://127.0.0.1:8000 rewritten to http://127.0.0.1:8010",
+    "toolBodyBinding": "as-shipped",
+    "periodId": "3f2a1c88-0000-4000-8000-0000000c0ffe",
+    "date": "2026-08-30"
+  },
+  "phases": {
+    "tier0_first_paint": {
+      "samples": 9,
+      "p50": 34.7,
+      "p95": 38.6,
+      "min": 26.4,
+      "max": 38.6,
+      "raw": [
+        34.3,
+        37.1,
+        34,
+        35.3,
+        26.4,
+        34.1,
+        38.6,
+        34.7,
+        35.3
+      ]
+    },
+    "tier1_fact_card_paint": {
+      "samples": 0,
+      "p50": null,
+      "p95": null,
+      "state": "UNMEASURED",
+      "why": "AS SHIPPED, POST /api/capsule/tools/* returns 422 (see the C-JUMP/422 finding), so no facts reach the turn and the fact card is never rendered. Re-run against a sidecar started with --repair-tool-body for the number this phase would carry once the defect is closed."
+    },
+    "first_model_text_painted": {
+      "samples": 5,
+      "p50": 4870.9,
+      "p95": 5552.2,
+      "min": 3772.7,
+      "max": 5552.2,
+      "raw": [
+        5432.5,
+        5552.2,
+        3772.7,
+        4366.7,
+        4870.9
+      ],
+      "note": "NOT a first-token time. `edgeGenerationTransport` awaits `cfoApi.chatLlm` and yields the WHOLE answer in one chunk; `chat-llm/index.ts` contains no streaming path. There is no first token on this surface to measure, so this number is the complete model answer landing on screen."
+    }
+  },
+  "notes": [],
+  "modelSeamRequests": 10
+}

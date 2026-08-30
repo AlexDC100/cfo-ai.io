@@ -110,7 +110,16 @@ function reduce(entry: StreamEntry, p: Record<string, unknown>): CouncilStreamSt
     case "member_done": {
       const m = String(p.member || "");
       const verdict = p.verdict ? String(p.verdict) : "";
-      const doneCount = Object.values({ ...prev.members, [m]: { active: false } })
+      // Annotated so the injected `[m]` entry unions with the map's own
+      // member type instead of narrowing it to `{ active: boolean }` —
+      // without it `x.stats` is not on the inferred element type at all.
+      // The injected entry deliberately carries no `stats` so it fails the
+      // filter, and the `+ 1` adds it back; that stays exactly as written.
+      const withCurrent: CouncilStreamState["members"] = {
+        ...prev.members,
+        [m]: { active: false },
+      };
+      const doneCount = Object.values(withCurrent)
         .filter((x) => x.active === false && x.stats).length + 1;
       return {
         ...prev,

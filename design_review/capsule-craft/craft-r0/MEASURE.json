@@ -1,0 +1,146 @@
+[
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "dark",
+    "box": {
+      "x": 330,
+      "y": 68,
+      "w": 720,
+      "h": 376,
+      "contentH": 375
+    }
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "dark",
+    "box": {
+      "x": 330,
+      "y": 68,
+      "w": 720,
+      "h": 524,
+      "contentH": 523
+    }
+  },
+  {
+    "state": "answer",
+    "viewport": "1440",
+    "theme": "dark",
+    "box": {
+      "x": 330,
+      "y": 68,
+      "w": 720,
+      "h": 363,
+      "contentH": 362
+    }
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "dark",
+    "box": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 376,
+      "contentH": 375
+    }
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "dark",
+    "box": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 522,
+      "contentH": 521
+    }
+  },
+  {
+    "state": "answer",
+    "viewport": "390",
+    "theme": "dark",
+    "box": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 411,
+      "contentH": 410
+    }
+  },
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "light",
+    "box": {
+      "x": 330,
+      "y": 68,
+      "w": 720,
+      "h": 376,
+      "contentH": 375
+    }
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "light",
+    "box": {
+      "x": 330,
+      "y": 68,
+      "w": 720,
+      "h": 524,
+      "contentH": 523
+    }
+  },
+  {
+    "state": "answer",
+    "viewport": "1440",
+    "theme": "light",
+    "box": {
+      "x": 330,
+      "y": 68,
+      "w": 720,
+      "h": 363,
+      "contentH": 362
+    }
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "light",
+    "box": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 376,
+      "contentH": 375
+    }
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "light",
+    "box": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 522,
+      "contentH": 521
+    }
+  },
+  {
+    "state": "answer",
+    "viewport": "390",
+    "theme": "light",
+    "box": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 411,
+      "contentH": 410
+    }
+  }
+]

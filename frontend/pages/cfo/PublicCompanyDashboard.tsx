@@ -39,6 +39,7 @@ import { buildPublicStatements } from "@/lib/publicCompanyAdapters";
 import type { Currency } from "@/lib/rates";
 import {
   getPublicCompany,
+  isApiError,
   syncPublicCompany,
   type Dimension,
   type NasdaqErrorEnvelope,
@@ -72,12 +73,15 @@ export default function PublicCompanyDashboard() {
       setLoading(true);
       const r = await getPublicCompany(ticker, { dimension, limit: 20, signal });
       if (signal?.aborted) return;
-      if (r.ok) {
-        setEnvelope(r.value);
-        setError(null);
-      } else {
+      // isApiError, not `r.ok` — see publicCompanyApi.isApiError: the
+      // else-branch of a boolean discriminant does not narrow under this
+      // project's `strict: false`.
+      if (isApiError(r)) {
         setEnvelope(null);
         setError(r.error);
+      } else {
+        setEnvelope(r.value);
+        setError(null);
       }
       setLoading(false);
     },

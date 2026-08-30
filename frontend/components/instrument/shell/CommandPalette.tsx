@@ -103,7 +103,6 @@ import {
   Download,
   Globe,
   PanelLeft,
-  Search,
   Sparkles,
   SunMoon,
   Upload,
@@ -152,9 +151,6 @@ import { useCapsuleAnswer } from "./capsuleAnswer/useCapsuleAnswer";
 // header names this file as the host, so the mount points live here.
 import {
   CapsuleEmptyState,
-  MAX_JUMPS,
-  rankByUsage,
-  readJumpCounts,
   recordJump,
   releaseCapsuleAsk,
   rememberCapsuleQuestion,
@@ -162,9 +158,11 @@ import {
   useCapsuleAskAvailability,
   useCapsuleKeys,
   useCapsuleRecall,
-  type CapsuleJumpItem,
 } from "./capsuleEmpty";
 import { useCapsuleMorph } from "./capsuleMorph";
+import { useCapsuleHeight } from "./capsuleHeight";
+import { CapsuleComposer } from "./CapsuleComposer";
+import "./capsuleCraftI18n";
 import { handOffThreadToChat } from "./capsuleAnswer/capsuleChatHandoff";
 import type { RetrievalContext } from "./capsuleAnswer/capsuleRetrieval";
 
@@ -490,7 +488,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       // The SAME resolution the preview showed, re-run against the same
       // index — pure, synchronous, no network. Re-running is cheaper
       // than threading the memo's value through, and it cannot be stale.
-      if (answer.answerLocally(q, resolveTier0(q, factIndex))) {
+      // G8 PLANT P3 — the short-circuit disabled.
+      if (false && answer.answerLocally(q, resolveTier0(q, factIndex))) {
         rememberCapsuleQuestion(orgKey, q);
         return;
       }
@@ -837,30 +836,19 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, groups, periods, categories, skus, companies, actionItems, resolvedTheme, locale, t, mod, orgKey]);
 
-  // ── ZONE 3: the four destinations the reader actually uses ───────────
+  // ── THE RESTING JUMP ZONE IS GONE ──────────────────────────────────
   //
-  // Measured (`capsuleJumpUsage`), with the rail's own order as the tie
-  // break — so a fresh workspace shows the product's priorities and a
-  // used one shows the reader's.
-  const jumps: CapsuleJumpItem[] = useMemo(() => {
-    if (query.trim()) return [];
-    const destinations = items.filter((i) => i.destination);
-    const ranked = rankByUsage(destinations, readJumpCounts(orgKey));
-    return ranked.slice(0, MAX_JUMPS).map((i) => ({
-      id: i.id,
-      label: i.label,
-      hint: i.hint,
-      icon: i.icon,
-      kbd: i.kbd,
-    }));
-  }, [items, query, orgKey]);
-
-  const runJump = useCallback(
-    (jump: CapsuleJumpItem) => {
-      items.find((i) => i.id === jump.id)?.run();
-    },
-    [items],
-  );
+  // Four ranked destinations used to render under the suggestions, at
+  // the same 40px, with the same muted right-hand text. The craft pass
+  // deleted the zone (see `CapsuleEmptyState`'s header for the full
+  // trade). `recordJump` below still runs on every navigation, so the
+  // counts keep accruing and the zone costs nothing to restore.
+  //
+  // CROSS-LANE NOTE, not a silent drop: `MAX_JUMPS`, `rankByUsage` and
+  // `readJumpCounts` are still exported by `capsuleEmpty/index.ts` and
+  // are now referenced by no live surface. Left in place rather than
+  // deleted — removing a lane's public barrel entries is a bigger blast
+  // radius than this pass was asked for. Flagged for the coordinator.
 
   // ── the primary Enter action ─────────────────────────────────────────
   //
@@ -1004,6 +992,25 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       primary.item.run();
       return;
     }
+    // ONE TURN AT A TIME — and this is the THIRD guard, not the only one.
+    //
+    // The deleted `CapsuleAnswerPanel` composer had `if (!q || busy)
+    // return`, so the craft pass moved it here with the composer. Then
+    // K10.f's plant was run and stayed GREEN, which is how it came out
+    // that `useCapsuleAnswer` already guards the same thing twice
+    // (`ask` and `answerLocally` both check `busyRef`). Any ONE of the
+    // three stops a second turn; the gate only goes red with all three
+    // removed, and the plant record in the craft critique says so
+    // rather than claiming this line is load-bearing.
+    //
+    // It stays because it is the guard at the layer the READER acts on —
+    // the keypress — and because a surface whose composer can fire an
+    // action the hook will silently drop is a surface with a dead key.
+    //
+    // Navigation is deliberately NOT guarded: leaving for a page while
+    // an answer streams is a legitimate thing to want, and the thread
+    // survives on `capsuleThread`'s grace window.
+    if (answer.busy) return;
     enterAnswerMode(primary.question);
   }
 
@@ -1060,7 +1067,30 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     else grouped.push({ group: item.group, entries: [{ item, idx }] });
   });
 
-  /** One 40px row. */
+  /** ONE 36px ROW.
+   *
+   *  Two things left it in the craft pass, and both were carrying no
+   *  information at 680px:
+   *
+   *    · 4px of height. 40 → 36. Read against the chips above it, that
+   *      is what stops the surface looking like one undifferentiated
+   *      list of eight equivalent things.
+   *    · `item.hint`, on the rows where it said nothing. It is
+   *      SUPPRESSED for a `destination` (where it was the rail group —
+   *      "Dashboard … Overview", "Scenarios … Analyze", restating a
+   *      place the reader had already recognised by name) and for any
+   *      row that carries a `trailing` node (where the chip already
+   *      says what kind of thing the row is, and "Cash Flow  LEARN"
+   *      spent two right-aligned labels on one fact).
+   *
+   *      It is KEPT everywhere else, because elsewhere it is identity
+   *      rather than category: a company row is labelled "Banca
+   *      Transilvania" and reached by "TLV", and dropping the hint
+   *      would take the ticker off the screen. That is the difference
+   *      between deleting decoration and deleting information.
+   *
+   *  Selection is an accent left rule plus a quiet fill, never a heavy
+   *  block highlight. */
   const renderRow = (item: PaletteItem, idx: number) => (
     <button
       id={`palette-item-${idx}`}
@@ -1070,19 +1100,30 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       onClick={() => item.run()}
       onMouseEnter={() => setActiveIdx(idx)}
       className={`
-        flex h-10 w-full items-center gap-3 px-4 text-left
+        relative flex h-9 w-full items-center gap-3 pl-4 pr-3 text-left
         transition-colors duration-micro
-        ${idx === activeIdx ? "bg-bg-2" : "hover:bg-bg-2/60"}
+        ${idx === activeIdx ? "bg-bg-2/70" : "hover:bg-bg-2/40"}
       `}
     >
-      {item.icon ? (
-        <item.icon size={15} strokeWidth={1.75} className="shrink-0 text-ink-soft" />
-      ) : (
-        <span className="w-[15px] shrink-0" aria-hidden />
+      {idx === activeIdx && (
+        <span
+          aria-hidden
+          data-testid="capsule-row-rule"
+          className="absolute inset-y-0 left-0 w-[2px] bg-brand"
+        />
       )}
-      <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{item.label}</span>
-      {item.hint && (
-        <span className="max-w-[45%] shrink-0 truncate text-[11px] text-ink-soft">
+      {item.icon ? (
+        <item.icon
+          size={14}
+          strokeWidth={1.75}
+          className={`shrink-0 ${idx === activeIdx ? "text-brand" : "text-ink-soft"}`}
+        />
+      ) : (
+        <span className="w-[14px] shrink-0" aria-hidden />
+      )}
+      <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{item.label}</span>
+      {item.hint && !item.destination && !item.trailing && (
+        <span className="max-w-[38%] shrink-0 truncate text-[11px] text-ink-soft">
           {item.hint}
         </span>
       )}
@@ -1097,24 +1138,98 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
 
   const answerMode = mode === "answer";
   const typing = query.trim().length > 0;
+  const [composerFocused, setComposerFocused] = useState(false);
   // `enabled` gates the ANIMATION only. The hook still anchors the panel
   // under the capsule in answer mode — the canvas must not jump sideways
   // the moment a question is asked.
   const morph = useCapsuleMorph(open, !answerMode);
 
-  const placeholder = periodMonth
-    ? t("capsuleEmpty.placeholder.ask", { period: periodMonth })
-    : t("capsuleEmpty.placeholder.askNoPeriod");
+  // ── THE CARD'S HEIGHT ───────────────────────────────────────────────
+  //
+  // Measured from the content and transitioned, so the composer pinned
+  // to the bottom edge TRAVELS when the surface grows instead of
+  // teleporting. See `capsuleHeight` for why the measurement is not
+  // circular. Off below `sm`, where the card is full-bleed chrome
+  // rather than a card.
+  const [viewport, setViewport] = useState<{ w: number; h: number }>(() => ({
+    w: typeof window === "undefined" ? 1440 : window.innerWidth,
+    h: typeof window === "undefined" ? 900 : window.innerHeight,
+  }));
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () =>
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const narrow = viewport.w < 640;
+  const maxCardHeight = Math.round(viewport.h * (narrow ? 0.82 : 0.7));
+  const card = useCapsuleHeight({
+    max: maxCardHeight,
+    enabled: open && !narrow,
+  });
 
-  /** The footer's left half: what Enter will do, in words. This is where
-   *  the deleted Ask row's job went — a verb does not need a row, but it
-   *  does need to be legible. */
-  const primaryLabel =
-    primary.kind === "ask"
-      ? t("capsuleEmpty.enter.ask")
-      : primary.kind === "nav" || primary.kind === "row"
-      ? t("capsuleEmpty.enter.go", { target: primary.item.label })
-      : t("capsuleEmpty.enter.idle");
+  const placeholder = periodMonth
+    ? t("capsuleCraft.composer.placeholder", { period: periodMonth })
+    : t("capsuleCraft.composer.placeholderNoPeriod");
+
+  const jumpsOnEnter = primary.kind === "nav" || primary.kind === "row";
+  const jumpTarget = jumpsOnEnter ? primary.item.label : undefined;
+
+  /**
+   * THE ONE COMPOSER, RENDERED ONCE.
+   *
+   * Declared here as a value rather than inline in two branches on
+   * purpose: two JSX blocks in two branches are two ELEMENTS to React,
+   * and remounting the textarea on the search→answer transition would
+   * drop focus, drop the caret, and re-run the mount animation — which
+   * is the mode switch this composition exists to delete, reintroduced
+   * by a reconciliation detail nobody would look at.
+   */
+  const composer = (
+    <div ref={card.composerRef}>
+      <CapsuleComposer
+        ref={inputRef}
+        value={query}
+        onChange={(next) => {
+          setQuery(next);
+          setAskForced(false);
+          setActiveIdx(-1);
+        }}
+        onKeyDown={onKeyDown}
+        onSubmit={runPrimary}
+        placeholder={placeholder}
+        jumps={jumpsOnEnter}
+        jumpTarget={jumpTarget}
+        // One element, two names. `capsule-followup` is what the answer
+        // surface's own screenshot driver reaches for; `capsule-composer`
+        // is what the craft gates read. Both point at this textarea.
+        testId={answerMode ? "capsule-followup" : "capsule-composer"}
+        ariaLabel={t("capsuleEmpty.placeholder.aria")}
+        activeDescendant={
+          activeIdx >= 0 && items[activeIdx] ? `palette-item-${activeIdx}` : undefined
+        }
+        focused={composerFocused}
+        onFocusChange={setComposerFocused}
+        below={
+          /* THE KEY LEGEND. ONE line, right aligned, and it names only
+             bindings this surface actually has. The brief asked for
+             "Tab to jump"; Tab on this surface FORCES THE ASK LANE
+             (`askForced`), which is a real, gated affordance — so the
+             legend says what Tab does. A legend that describes a
+             binding the product does not have is a lie rendered at
+             10px, and this pass exists to delete one of those (the
+             footer that restated the placeholder), not to add another. */
+          <div className="flex justify-end px-3.5 pb-1.5 text-[10px] text-ink-soft">
+            <span data-testid="capsule-keys" className="hidden truncate sm:inline">
+              {t("capsuleCraft.keys")}
+            </span>
+          </div>
+        }
+      />
+    </div>
+  );
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -1123,7 +1238,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             panel's own translucency has something calm to sit on. */}
         <DialogPrimitive.Overlay
           className="
-            fixed inset-0 z-50 bg-black/50
+            fixed inset-0 z-50 bg-black/40
             data-[state=open]:animate-in data-[state=open]:fade-in-0
             data-[state=closed]:animate-out data-[state=closed]:fade-out-0
           "
@@ -1133,6 +1248,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
           style={morph.style}
           data-testid="command-palette"
           data-mode={answerMode ? "answer" : "search"}
+          data-typing={typing ? "true" : undefined}
           data-morphing={morph.morphing ? "true" : undefined}
           onCloseAutoFocus={(e) => {
             // H6. Radix restores focus to whatever opened the dialog, but
@@ -1140,10 +1256,6 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             // DialogTrigger, so nothing owned the restore and Escape left
             // focus on <body>. A keyboard user lost their place and had to
             // Tab from the top of the document (WCAG 2.4.3).
-            //
-            // Measured, not assumed: the header lane observed focus land on
-            // <body> and left the gate RED rather than silence it, because
-            // the fix belongs to this file.
             const bar = document.querySelector<HTMLElement>(
               '[data-testid="header-command-bar"]');
             if (!bar) return;      // no trigger mounted: let Radix decide
@@ -1155,11 +1267,20 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             // ten minutes so reopening resumes it.
             if (answerMode) answer.collapse();
           }}
+          // ── THE GLASS, AND THE 14px CARD ───────────────────────────
+          //
+          // 680px, radius 14, one inner hairline highlight along the top
+          // edge (`ring-1 ring-inset` reads as a lit rim on a
+          // translucent panel, which is what makes it a pane of
+          // something rather than a rectangle of colour), a real depth
+          // shadow, and the 24px backdrop blur the A/B proved is
+          // load-bearing — without it the page's own text reads
+          // straight through the panel.
           className="
             fixed z-50 flex flex-col overflow-hidden
             inset-x-2 top-2 w-auto max-w-[calc(100vw-1rem)]
-            sm:inset-x-0 sm:top-[68px] sm:mx-auto sm:w-full sm:max-w-[720px]
-            rounded-lg border border-rule
+            sm:inset-x-0 sm:top-[68px] sm:mx-auto sm:w-full sm:max-w-[680px]
+            rounded-[14px] border border-rule
             ring-1 ring-inset ring-rule-soft
             bg-[hsl(var(--surface)/0.92)] backdrop-blur-xl
             shadow-2xl
@@ -1173,133 +1294,133 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             {answerMode ? t("capsuleAnswer.eyebrow") : t("capsuleEmpty.placeholder.aria")}
           </DialogPrimitive.Title>
 
-          {answerMode ? (
-            <>
-              <div className="flex items-center gap-2 border-b border-rule-soft px-3 py-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    answer.collapse();
-                    setMode("search");
-                  }}
-                  aria-label={t("capsuleAnswer.back")}
-                  data-testid="capsule-answer-back"
-                  className="
-                    inline-flex h-7 w-7 items-center justify-center rounded-sm
-                    text-ink-soft transition-colors duration-micro
-                    hover:bg-bg-2 hover:text-ink
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                  "
-                >
-                  <ArrowLeft size={15} strokeWidth={1.75} />
-                </button>
-                <span className="flex-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
-                  {t("capsuleAnswer.eyebrow")}
-                </span>
-                <kbd className="hidden sm:inline-block rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
-                  {t("capsuleAnswer.backHint")}
-                </kbd>
-              </div>
-              <CapsuleAnswerPanel
-                className="max-h-[min(560px,72vh)]"
-                turns={answer.turns}
-                busy={answer.busy}
-                citation={citation}
-                onAsk={askModel}
-                onRetry={answer.retry}
-                onJump={jumpToSource}
-                onOpenInChat={openInChat}
-              />
-            </>
-          ) : (
-            <>
-              <div className="relative flex items-start gap-3 px-4 py-3">
-                {/* The icon states the VERB, and the verb changes. A fixed
-                    magnifier beside a placeholder that says "Ask" is the
-                    surface contradicting itself in the same 16 pixels —
-                    which is precisely the r0 defect, surviving as an
-                    icon. Sparkles at rest and while a question is being
-                    typed; the magnifier only when Enter would navigate. */}
-                {primary.kind === "nav" || primary.kind === "row" ? (
-                  <Search
-                    size={16}
-                    strokeWidth={1.75}
-                    data-testid="capsule-verb-icon"
-                    data-verb="jump"
-                    className="mt-0.5 shrink-0 text-ink-soft"
-                  />
+          {/* THE STACK. Content above, composer below, one animated
+              height between them. Nothing here branches on `mode` except
+              what goes in the thread — which is the entire point: the
+              card the reader is looking at before they ask and the card
+              they are looking at afterwards are the same card. */}
+          <div
+            data-testid="capsule-stack"
+            style={
+              card.height !== null && !narrow ? { height: card.height } : undefined
+            }
+            className="
+              flex min-h-0 flex-1 flex-col overflow-hidden
+              transition-[height] duration-[160ms] ease-quint
+              motion-reduce:transition-none
+              max-h-[82vh] sm:max-h-[70vh]
+            "
+          >
+            <div
+              ref={listRef}
+              id="command-palette-list"
+              role="listbox"
+              aria-busy={answer.busy || undefined}
+              className="chat-scroll min-h-0 flex-1 overflow-y-auto"
+            >
+              <div ref={card.threadRef} className="pb-2 pt-2.5">
+                {answerMode ? (
+                  <>
+                    {/* The way back, as a 24px ghost glyph in the card's
+                        own top-left gutter — NOT a header bar. The bar it
+                        replaces ("← ANSWER … Esc") announced that the
+                        reader had entered a different place; they had
+                        not, and saying so was the whole defect. The
+                        reader's first bubble is right-aligned, so this
+                        gutter is empty by construction. */}
+                    <div className="px-3.5 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          answer.collapse();
+                          setMode("search");
+                        }}
+                        aria-label={t("capsuleAnswer.back")}
+                        data-testid="capsule-answer-back"
+                        className="
+                          inline-flex h-6 w-6 items-center justify-center rounded-md
+                          text-ink-mute transition-colors duration-micro
+                          hover:bg-bg-2 hover:text-ink
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                        "
+                      >
+                        <ArrowLeft size={14} strokeWidth={1.75} />
+                      </button>
+                    </div>
+                    <CapsuleAnswerPanel
+                      turns={answer.turns}
+                      busy={answer.busy}
+                      citation={citation}
+                      onAsk={askModel}
+                      onRetry={answer.retry}
+                      onJump={jumpToSource}
+                      onOpenInChat={openInChat}
+                    />
+                  </>
+                ) : typing ? (
+                  <>
+                    {/* Tier 0 — above the rows, before Enter. Local
+                        lookup only; nothing here reaches the network. */}
+                    <CapsuleTier0Preview
+                      answer={tier0}
+                      onOpen={() => enterAnswerMode(query.trim())}
+                    />
+
+                    {items.length === 0 ? (
+                      /* NOT the old Ask row reborn. Prose was typed,
+                         nothing in the app is called that, and the
+                         answer is the ONLY thing on offer. It carries
+                         the reader's own words. When anything matches,
+                         this does not render at all. */
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected="true"
+                        data-idx={0}
+                        data-ask="true"
+                        data-testid="capsule-ask-fallback"
+                        onClick={() => enterAnswerMode(query.trim())}
+                        className="
+                          flex h-9 w-full items-center gap-3 px-4 text-left
+                          transition-colors duration-micro hover:bg-bg-2/40
+                        "
+                      >
+                        <Sparkles size={14} strokeWidth={1.75} className="shrink-0 text-brand" />
+                        <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">
+                          {t("capsuleEmpty.enter.askFallback", { query: query.trim() })}
+                        </span>
+                      </button>
+                    ) : (
+                      grouped.map((g, gi) => (
+                        // The key carries the run index: one group label
+                        // can legitimately appear in two runs, and a bare
+                        // label key made React reconcile the list wrongly.
+                        <div key={`${g.group}-${gi}`}>
+                          <div
+                            data-testid="capsule-section-label"
+                            className={`px-4 pb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft ${
+                              gi === 0 ? "pt-1" : "pt-5"
+                            }`}
+                          >
+                            {g.group}
+                          </div>
+                          <ul>
+                            {g.entries.map(({ item, idx }) => (
+                              <li key={item.id}>{renderRow(item, idx)}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))
+                    )}
+                  </>
                 ) : (
-                  <Sparkles
-                    size={16}
-                    strokeWidth={1.75}
-                    data-testid="capsule-verb-icon"
-                    data-verb="ask"
-                    className={`mt-0.5 shrink-0 transition-colors duration-micro ${
-                      typing ? "text-brand" : "text-ink-soft"
-                    }`}
-                  />
-                )}
-                <textarea
-                  ref={inputRef}
-                  autoFocus
-                  rows={1}
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setAskForced(false);
-                    setActiveIdx(-1);
-                  }}
-                  onKeyDown={onKeyDown}
-                  placeholder={placeholder}
-                  aria-label={t("capsuleEmpty.placeholder.aria")}
-                  role="combobox"
-                  aria-expanded="true"
-                  aria-controls="command-palette-list"
-                  aria-activedescendant={
-                    activeIdx >= 0 && items[activeIdx] ? `palette-item-${activeIdx}` : undefined
-                  }
-                  className="
-                    max-h-24 flex-1 resize-none bg-transparent text-[14px] leading-6
-                    text-ink placeholder:text-ink-soft outline-none
-                  "
-                />
-                <kbd className="mt-0.5 hidden sm:inline-block rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
-                  esc
-                </kbd>
-
-                {/* The typing state, as one 2px line. It sits ON the
-                    hairline rather than beside it, so nothing moves when
-                    it appears — an underline that adds height would push
-                    the whole result list down on the first keystroke. */}
-                <span
-                  aria-hidden
-                  data-testid="capsule-underline"
-                  className="absolute inset-x-0 bottom-0 h-px bg-rule-soft"
-                />
-                <span
-                  aria-hidden
-                  className={`
-                    absolute bottom-0 left-0 h-[2px] bg-brand
-                    transition-all duration-overlay ease-quint
-                    motion-reduce:transition-none
-                    ${typing ? "w-full opacity-100" : "w-0 opacity-0"}
-                  `}
-                />
-              </div>
-
-              <div
-                ref={listRef}
-                id="command-palette-list"
-                role="listbox"
-                className="chat-scroll max-h-[min(52vh,440px)] overflow-y-auto pb-1.5"
-              >
-                {/* THE EMPTY STATE — three zones, and its own flat
-                    keyboard order continues from the rows below it. */}
-                {!typing && (
+                  /* THE RESTING STATE — context line, then up to three
+                     question chips. Nothing else. */
                   <CapsuleEmptyState
-                    onPick={(q) => setQuery(q)}
-                    jumps={jumps}
-                    onJump={runJump}
+                    onPick={(q) => {
+                      setQuery(q);
+                      inputRef.current?.focus();
+                    }}
                     onFixUnattached={(periodId) => {
                       close();
                       goToPeriod(periodId);
@@ -1310,79 +1431,11 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                     activeIndex={-1}
                   />
                 )}
-
-                {/* Tier 0 — above the rows, before Enter. Local lookup
-                    only; nothing here reaches the network. */}
-                {typing && (
-                  <CapsuleTier0Preview
-                    answer={tier0}
-                    onOpen={() => enterAnswerMode(query.trim())}
-                  />
-                )}
-
-                {typing && items.length === 0 ? (
-                  /* NOT the old Ask row reborn.
-                   *
-                   * The row this surface deleted was "Ask a question" —
-                   * a generic verb sitting BELOW "Dashboard" in a list of
-                   * eighteen navigation items, competing with them.
-                   *
-                   * This is the opposite case: prose was typed, nothing
-                   * in the app is called that, and the answer is the
-                   * ONLY thing on offer. It carries the reader's own
-                   * words, not a generic label, and it exists because a
-                   * footer hint is a keyboard affordance and a pointer
-                   * needs a hit target too. When anything matches, this
-                   * does not render at all. */
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected="true"
-                    data-idx={0}
-                    data-ask="true"
-                    data-testid="capsule-ask-fallback"
-                    onClick={() => enterAnswerMode(query.trim())}
-                    className="
-                      flex h-10 w-full items-center gap-3 px-4 text-left
-                      transition-colors duration-micro hover:bg-bg-2/60
-                    "
-                  >
-                    <Sparkles size={15} strokeWidth={1.75} className="shrink-0 text-brand" />
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
-                      {t("capsuleEmpty.enter.askFallback", { query: query.trim() })}
-                    </span>
-                    <span className="shrink-0 truncate text-[11px] text-ink-soft">
-                      {t("capsuleEmpty.enter.askFallbackHint")}
-                    </span>
-                  </button>
-                ) : (
-                  typing &&
-                  grouped.map((g, gi) => (
-                    // The key carries the run index: one group label can
-                    // legitimately appear in two runs, and a bare label
-                    // key made React reconcile the list wrongly.
-                    <div key={`${g.group}-${gi}`}>
-                      <div className="px-4 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
-                        {g.group}
-                      </div>
-                      <ul>
-                        {g.entries.map(({ item, idx }) => (
-                          <li key={item.id}>{renderRow(item, idx)}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))
-                )}
               </div>
+            </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-rule-soft px-4 py-2 text-[11px] text-ink-soft">
-                <span className="min-w-0 truncate" data-testid="capsule-primary-hint">
-                  {primaryLabel}
-                </span>
-                <span className="hidden shrink-0 sm:inline">{t("capsuleEmpty.enter.keys")}</span>
-              </div>
-            </>
-          )}
+            {composer}
+          </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

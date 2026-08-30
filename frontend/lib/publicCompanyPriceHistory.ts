@@ -110,8 +110,12 @@ async function fetchBvbHistoryViaProxy(
   const quote = result?.indicators?.quote?.[0] ?? {};
   if (!stamps.length) return null;
 
+  // Annotated on the MAP, not on the filtered result. Annotating only the
+  // final binding leaves the mapped object literal uncontextualised, so
+  // `close: number` widens, the element type stops being a PricePoint, and
+  // the type predicate below is rejected (TS2677).
   let points: PricePoint[] = stamps
-    .map((ts, i) => {
+    .map((ts, i): PricePoint | null => {
       const close = quote.close?.[i];
       if (close == null) return null;
       return {

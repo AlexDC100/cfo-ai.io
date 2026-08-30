@@ -18,6 +18,7 @@ import { PublicCompanyResultCard } from "@/components/cfo/PublicCompanyResultCar
 import {
   getPublicCompanyHealth,
   searchPublicCompanies,
+  isApiError,
   type NasdaqErrorEnvelope,
   type PublicCompanyHit,
 } from "@/lib/publicCompanyApi";
@@ -57,12 +58,13 @@ export default function PublicCompanySearchPage() {
       const r = await searchPublicCompanies(q, { limit: 20, signal: ctrl.signal });
       // Drop response if a newer search has started
       if (ctrl.signal.aborted) return;
-      if (r.ok) {
-        setResults(r.value.results);
-        setError(null);
-      } else {
+      // isApiError, not `r.ok` — see publicCompanyApi.isApiError.
+      if (isApiError(r)) {
         setResults([]);
         setError(r.error);
+      } else {
+        setResults(r.value.results);
+        setError(null);
       }
       setSearching(false);
     }, 300);

@@ -146,6 +146,19 @@ def _is_noindex(resp: Any) -> bool:
     return False
 
 
+# ── WORK LEDGER ──────────────────────────────────────────────────────
+# PS6 is the battery's one HONESTLY VACUOUS gate: on a host that has
+# ingested no public data there are no shards, so it examines nothing
+# and says so. That absence is legitimate (the repo never reconstructs a
+# missing denominator as a failure) — but "passed" and "had nothing to
+# look at" must not read the same, so the count is published and
+# scripts/run_battery.py reports 0 work as PASS(VACUOUS), never green.
+#
+# The gate's LOGIC is exercised regardless, by tests/engine/
+# test_public_seo.py driving run_gate() against a planted fixture app.
+PROBES = {"urls": 0, "shards": 0}
+
+
 def run_gate(client: Any,
              sitemap_dir: Path,
              base_url: str,
@@ -163,6 +176,10 @@ def run_gate(client: Any,
     markers = markers or {}
     base = base_url.rstrip("/")
     headers = {"host": host}
+    # WORK LEDGER — see PROBES below. Reset per run so a caller driving
+    # run_gate twice (tests do) gets this run's count, not a total.
+    PROBES["urls"] = 0
+    PROBES["shards"] = 0
 
     try:
         shards = load_shard_urls(sitemap_dir)
@@ -203,6 +220,7 @@ def run_gate(client: Any,
             # no continue — the direct-request noindex facet is checked
             # independently so a planted violation reports both defects
         resp = _get(client, _to_path(url, base), headers)
+        PROBES["urls"] += 1
         if resp.status_code in (404, 410):
             continue
         if not _is_noindex(resp):
@@ -212,6 +230,7 @@ def run_gate(client: Any,
 
     # 2) per-shard sampled liveness + marker + indexability
     for name, urls in sorted(shards.items()):
+        PROBES["shards"] += 1
         if not urls:
             violations.append("shard %s is empty" % name)
             continue
@@ -221,6 +240,7 @@ def run_gate(client: Any,
                     "shard %s: non-canonical-origin url %s" % (name, url))
                 continue
             resp = _get(client, _to_path(url, base), headers)
+            PROBES["urls"] += 1
             if resp.status_code in _REDIRECT_STATUSES:
                 violations.append(
                     "shard %s: %s -> HTTP %d redirect to %s (a sitemap must"
@@ -338,7 +358,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         for v in violations:
             print("  - %s" % v)
         return 1
-    print("PS6 GATE: PASS (%d shards)" % len(load_shard_urls(sitemap_dir)))
+    shard_count = len(load_shard_urls(sitemap_dir))
+    print("GATE-WORK public-sitemaps units=%d floor=1 label=sitemap-urls-probed"
+          % PROBES["urls"])
+    if PROBES["urls"] == 0:
+        print("PS6 GATE: PASS (%d shards) — VACUOUS: this host has no "
+              "ingested public data, so the gate probed no URL. Not "
+              "evidence. Run scripts/public_ingest.py + public_seo.py "
+              "sitemaps to give it a subject; the gate's own logic is "
+              "proven meanwhile by tests/engine/test_public_seo.py."
+              % shard_count)
+        return 0
+    print("PS6 GATE: PASS (%d shards, %d URL(s) probed across %d shard(s))"
+          % (shard_count, PROBES["urls"], PROBES["shards"]))
     return 0
 
 

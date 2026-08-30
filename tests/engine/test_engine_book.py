@@ -97,6 +97,11 @@ def test_generator_never_writes_agent_owned_pages(book):
         # a hand-maintained page stays a deliberate two-file act — the
         # generator must never overwrite one.
         "testing_conventions.md",
+        # Hand-maintained: the gate register. Its content is a record of
+        # gates OBSERVED going red, which no generator can derive from
+        # the tree; tests/engine/test_gate_canaries.py enforces that
+        # every battery gate has an entry.
+        "gates.md",
     }
     pages = book.generate()
     for foreign in book.FOREIGN_PAGES:

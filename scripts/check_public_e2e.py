@@ -74,8 +74,59 @@ YEARS = (2022, 2023, 2024)
 
 
 class Violations(list):
+    """Violations plus a WORK LEDGER.
+
+    Every check in this file is "make a request, judge the response".
+    With an empty seed or a broken app fixture each loop runs zero
+    times, no violation is added, and the closing "PS-E2E GATE: PASS —
+    real store, links render, sitemap URLs resolve…" is printed over
+    nothing at all. That sentence would be TRUE and worthless — the
+    exact shape of the tsc false green.
+
+    So each probe is counted as it is made, and the count is asserted
+    against a floor before the verdict prints. `witnesses` records the
+    named surfaces actually exercised, so a canary can be checked
+    rather than assumed.
+    """
+
+    def __init__(self, *a):
+        list.__init__(self, *a)
+        self.probes = 0
+        self.witnesses = set()
+
     def add(self, code: str, detail: str) -> None:
         self.append("%s: %s" % (code, detail))
+
+    def probe(self, witness: str = "") -> None:
+        self.probes += 1
+        if witness:
+            self.witnesses.add(witness)
+
+
+#: Surfaces this gate MUST have exercised, classified by the URL SHAPE
+#: actually fetched — not by the loop that happened to fetch it. Each is
+#: a distinct public tier; losing one silently is how the hub-500 and
+#: dropped-funnel outages hid behind 244 green tests in the first place.
+#:
+#: Worth knowing (found by this canary, 2026-08-30): the rendered
+#: /companii index links ONLY county and sector hubs — no company page
+#: is reachable from it. Company pages reach this gate through the
+#: SITEMAP loop alone. That is a public_ro linking question, recorded
+#: here rather than papered over by a laxer canary.
+DISCOVERY_CANARIES = ("index", "hub", "company-page",
+                      "funnel-sink", "takedown")
+
+
+def _url_kind(path: str) -> str:
+    """Classify a public URL by shape: index / hub / company-page."""
+    p = path.split("?", 1)[0].rstrip("/")
+    if p in ("/companii", "/companies", ""):
+        return "index"
+    if p.startswith(("/sector", "/sectors", "/judet", "/counties")):
+        return "hub"
+    if p.startswith(("/companii/", "/companies/")):
+        return "company-page"
+    return "other"
 
 
 def _seed_store(store: Any) -> None:
@@ -129,6 +180,7 @@ def _check_links_render(client: Any, v: Violations, verbose: bool) -> None:
 
     for index in ("/companii", "/companies"):
         r = client.get(index, headers=HDRS)
+        v.probe("index")
         if r.status_code != 200:
             v.add("INDEX_NOT_200", "%s -> HTTP %d" % (index, r.status_code))
             continue
@@ -144,6 +196,7 @@ def _check_links_render(client: Any, v: Violations, verbose: bool) -> None:
                   "orphaned from internal linking" % index)
         for href in internal:
             rr = client.get(href, headers=HDRS)
+            v.probe(_url_kind(href))
             if rr.status_code != 200:
                 v.add("LINKED_URL_NOT_200",
                       "%s links %s -> HTTP %d" % (index, href, rr.status_code))
@@ -181,6 +234,7 @@ def _check_sitemap_urls(client: Any, store: Any, out_dir: Path,
             v.add("SITEMAP_LOC_NOT_RFC3986",
                   "%s contains a raw space or non-ASCII byte" % url)
         r = client.get(parts.path, headers=HDRS, follow_redirects=False)
+        v.probe(_url_kind(parts.path))
         if r.status_code in (301, 302, 307, 308):
             v.add("SITEMAP_URL_REDIRECTS",
                   "%s -> HTTP %d (Location: %s) — the sitemap must list "
@@ -234,6 +288,7 @@ def _check_funnel_sink(db_path: Path, v: Violations, verbose: bool) -> None:
                              utm=None, ip="203.0.113.9",
                              user_agent="Mozilla/5.0", db=db_path)
     after = _funnel_count(conn)
+    v.probe("funnel-sink")
     if not ok or after <= before:
         v.add("FUNNEL_EVENT_NOT_PERSISTED",
               "record_event returned %r and the row count went %d -> %d"
@@ -272,17 +327,20 @@ def _check_takedown_is_total(client: Any, store: Any, out_dir: Path,
 
     r = client.get("/companii/%d-alfa-prod-srl" % cui, headers=HDRS,
                    follow_redirects=False)
+    v.probe("takedown")
     if r.status_code != 410:
         v.add("TAKEDOWN_PAGE_NOT_410",
               "removed CUI %d page -> HTTP %d" % (cui, r.status_code))
 
     j = client.get("/api/public/ro/search", params={"q": name}, headers=HDRS)
+    v.probe("takedown")
     if j.status_code == 200 and str(cui) in j.text:
         v.add("TAKEDOWN_LEAKS_VIA_SEARCH",
               "JSON search still returns removed CUI %d (with its name "
               "and URL)" % cui)
 
     h = client.get("/companii", params={"q": name}, headers=HDRS)
+    v.probe("takedown")
     # Assert on the RESULT LINK, not the name: the index echoes the
     # caller's own query back into the search box, so searching for a
     # company always puts its name in the HTML. Only a link to the
@@ -366,8 +424,24 @@ def main(argv: Optional[List[str]] = None) -> int:
         for item in violations:
             print("  %s" % item)
         return 1
+
+    missing = [c for c in DISCOVERY_CANARIES if c not in violations.witnesses]
+    if missing or violations.probes == 0:
+        print("PS-E2E GATE: DISCOVERY BROKEN")
+        print("  %d probe(s) made; surfaces exercised: %s"
+              % (violations.probes, ", ".join(sorted(violations.witnesses)) or "none"))
+        print("  never reached: %s" % ", ".join(missing))
+        print("  Every check here is a loop over a served surface. A loop "
+              "that runs zero times raises zero violations, and the PASS "
+              "line below would be printed over nothing.")
+        return 1
+
+    print("GATE-WORK public-e2e units=%d floor=10 label=live-probes"
+          % violations.probes)
     print("PS-E2E GATE: PASS — real store, links render, sitemap URLs "
-          "resolve without redirect, funnel persists, takedown is total")
+          "resolve without redirect, funnel persists, takedown is total "
+          "(%d probe(s) across %s)"
+          % (violations.probes, ", ".join(sorted(violations.witnesses))))
     return 0
 
 
