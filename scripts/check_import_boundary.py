@@ -331,7 +331,17 @@ FE_PATTERNS = [
      re.compile(r"\.totals\.(?:assets|equity|liabilities|equity_plus_liabilities"
                 r"|current_assets|current_liabilities)\b")),
     ("F-DERIVE-TOTALS", re.compile(r"\bderiveTotals\s*\(")),
-    ("F-DIFFERENCE", re.compile(r"\.difference\b")),
+    # A raw PROPERTY read (`envelope.canonical_bs.difference`) is the
+    # violation. The gateway's own accessor is a METHOD — `facts.
+    # difference()` — and is the sanctioned path this rule exists to
+    # push people toward, so a call form is not a finding. Without the
+    # lookahead the gate flagged servedFacts' own consumers, which
+    # teaches people to ignore it.
+    # ...and a translation KEY is not a data read either: the receipt
+    # row is labelled t("shell.trust.difference"), where the token is
+    # the tail of a quoted i18n path. Excluded by the closing-quote
+    # lookahead. A raw property read is never followed by a quote.
+    ("F-DIFFERENCE", re.compile(r"\.difference\b(?!\s*\()(?![\"'])")),
 ]
 _FE_DEF_RE = re.compile(r"\bfunction\s+deriveTotals\b")
 

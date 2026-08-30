@@ -24,7 +24,29 @@ import {
 import { Money } from "@/components/ui/Money";
 import { useAmountFormatter } from "@/stores/currency";
 import type { Currency } from "@/lib/rates";
-import { linkifyAlertBody } from "@/lib/linkifyAlertBody";
+import { NarrativeText, formatCitedFact } from "@/lib/narrativeMoney";
+import type { PeriodAlertItem } from "@/lib/activePeriod";
+
+/** Everything an alert card needs to render its claim in ONE currency:
+ *  the cited facts, the templates that name them, the unit of each, and
+ *  the currency they are denominated in. Threaded as a sidecar because
+ *  the page coerces alerts into the older `Recommendation` shape, which
+ *  has nowhere to put any of it. */
+interface AlertFactsSidecar {
+  facts: Record<string, number>;
+  ruleKey?: string;
+  units?: Record<string, string> | null;
+  titleTemplate?: string | null;
+  bodyTemplate?: string | null;
+  sourceCurrency?: Currency;
+}
+
+/** Currency the alert's facts are denominated in. Rows predating the
+ *  field are RON — all 128 production periods are. */
+function alertSourceCurrency(a: PeriodAlertItem): Currency {
+  const c = (a.source_currency ?? "").toUpperCase();
+  return c === "EUR" || c === "USD" ? (c as Currency) : "RON";
+}
 
 type Severity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -119,9 +141,21 @@ function AlertsLoaded({ statements }: { statements: NonNullable<ReturnType<typeo
   // the card via a sidecar map keyed by recommendation id, so the card's
   // "Facts backing this alert" expander shows the exact JSON values.
   const factsByAlertId = useMemo(() => {
-    const m = new Map<string, { facts: Record<string, number>; ruleKey?: string }>();
+    const m = new Map<string, AlertFactsSidecar>();
     for (const a of period.alerts) {
-      if (a.facts_cited) m.set(a.id, { facts: a.facts_cited, ruleKey: a.rule_key });
+      if (a.facts_cited) {
+        m.set(a.id, {
+          facts: a.facts_cited,
+          ruleKey: a.rule_key,
+          // Typed placeholders + declared units (2026-08-30). Null on
+          // rows written before that, which is why every consumer below
+          // keeps a fallback.
+          units: a.fact_units ?? null,
+          titleTemplate: a.title_template ?? null,
+          bodyTemplate: a.body_template ?? null,
+          sourceCurrency: alertSourceCurrency(a),
+        });
+      }
     }
     return m;
   }, [period.alerts]);
@@ -250,7 +284,7 @@ function AlertCard({
   rec: Recommendation;
   severity: Severity;
   currency: string;
-  factsBacking?: { facts: Record<string, number>; ruleKey?: string };
+  factsBacking?: AlertFactsSidecar;
   isResolved: boolean;
   onResolve: () => void;
   onDismiss: () => void;
@@ -274,18 +308,33 @@ function AlertCard({
             {factsBacking.ruleKey}
           </span>
         )}
-        {/* CUR-FIX — pipe titles + rationale through `linkifyAlertBody` so any
-            "RON X,XXX,XXX" string emitted by the rules engine (which writes
-            in source RON) is replaced with a <TraceableNumber> that converts
-            live when the user toggles EUR/USD in TopHeader. Without this,
-            titles like "Refinance window: ... RON 14M debt" stayed in RON
-            forever even after the toggle flipped. */}
+        {/* ONE CURRENCY PER CLAIM.
+            CUR-FIX first piped titles + rationale through `linkifyAlertBody`
+            so a "RON X,XXX,XXX" string from the rules engine (which writes in
+            source RON) converted live with the EUR/USD toggle. That
+            recognises money by REGEX over rendered text — which cannot see a
+            leading "-", so every negative fact stayed RON beside converted
+            siblings, and cannot see a ro-RO `toLocaleString()` string at all.
+            `NarrativeText` resolves the FACTS the engine named instead, and
+            falls back to exactly the linkify path for rows with no template. */}
         <h3 className={`text-[15px] font-semibold text-ink leading-tight ${isResolved ? "line-through" : ""}`}>
-          {linkifyAlertBody(rec.title, factsBacking?.facts)}
+          <NarrativeText
+            text={rec.title}
+            template={factsBacking?.titleTemplate}
+            facts={factsBacking?.facts}
+            factUnits={factsBacking?.units}
+            sourceCurrency={factsBacking?.sourceCurrency ?? (currency as Currency)}
+          />
         </h3>
       </div>
       <p className="text-[13px] text-ink-soft leading-snug mt-2">
-        {linkifyAlertBody(rec.rationale, factsBacking?.facts)}
+        <NarrativeText
+          text={rec.rationale}
+          template={factsBacking?.bodyTemplate}
+          facts={factsBacking?.facts}
+          factUnits={factsBacking?.units}
+          sourceCurrency={factsBacking?.sourceCurrency ?? (currency as Currency)}
+        />
       </p>
       {rec.estimatedImpact && (
         <div className="mt-2 inline-flex items-center text-[11.5px] font-medium text-brand bg-brand-tint px-3 py-1 rounded-md">
@@ -316,7 +365,10 @@ function AlertCard({
                 >
                   <span className="text-ink-soft">{k}</span>
                   <span className="text-ink tabular-nums">
-                    {typeof v === "number" && Math.abs(v) > 1 ? fmt(v) : String(v)}
+                    {/* By DECLARED unit, not by magnitude: the old
+                        `Math.abs(v) > 1` guess currency-converted
+                        `debt_to_ebitda: 8.5` and `threshold: 12.0`. */}
+                    {formatCitedFact(k, v, factsBacking.units, fmt)}
                   </span>
                 </div>
               ))}

@@ -70,6 +70,24 @@ export interface PeriodAlertItem {
   /** Exact numbers from period_facts backing this alert. Rendered in
    *  the "Facts backing this alert" expander on the alert card. */
   facts_cited?: Record<string, number> | null;
+  /** TYPED PLACEHOLDERS (2026-08-30). `title` / `body` with every cited
+   *  MONEY figure — and its hard-coded currency label — replaced by
+   *  `{{money:<fact>}}`, so the renderer puts every figure in one claim
+   *  through one money path instead of converting whichever ones a regex
+   *  happened to recognise (the Critical-461 mixed-currency note).
+   *
+   *  NULL on every row written before that date, which is why `title` /
+   *  `body` remain the fallback. See `lib/narrativeMoney.tsx` and
+   *  `src/engine/api/_ratio_units.py`. */
+  title_template?: string | null;
+  body_template?: string | null;
+  /** Unit per cited fact ("money" / "ratio" / "percent" / "days" / …).
+   *  Ends the magnitude guessing — the facts expander currency-formats
+   *  every fact with |v| > 1, which renders a leverage multiple of 8.5×
+   *  as a currency amount. */
+  fact_units?: Record<string, string> | null;
+  /** Currency the cited facts are denominated in (the period's own). */
+  source_currency?: string | null;
   industry?: string | null;
 }
 

@@ -1,0 +1,20 @@
+{
+  "en": {
+    "nm": {
+      "provenance": "{{native}} · displayed at 1 {{display}} = {{rate}} {{source}}",
+      "provenanceDated": "{{native}} · displayed at 1 {{display}} = {{rate}} {{source}} ({{asOf}})",
+      "noRate": "Shown in {{source}} — no {{display}} rate is available, so this figure was not converted.",
+      "noRateNote": "Shown in {{source}} — no {{display}} rate available.",
+      "nativeOnly": "{{native}} · shown in its own currency"
+    }
+  },
+  "ro": {
+    "nm": {
+      "provenance": "{{native}} · afișat la 1 {{display}} = {{rate}} {{source}}",
+      "provenanceDated": "{{native}} · afișat la 1 {{display}} = {{rate}} {{source}} ({{asOf}})",
+      "noRate": "Afișat în {{source}} — nu există curs pentru {{display}}, așa că suma nu a fost convertită.",
+      "noRateNote": "Afișat în {{source}} — nu există curs pentru {{display}}.",
+      "nativeOnly": "{{native}} · afișat în moneda proprie"
+    }
+  }
+}

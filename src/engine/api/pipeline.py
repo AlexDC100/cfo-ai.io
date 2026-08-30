@@ -2463,14 +2463,24 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     # ── R1. Data quality — BS imbalance ──────────────────────────────────
     drift = abs(bs_delta) if bs_delta else abs(total_assets - total_liabilities - total_equity)
-    if total_assets > 0 and drift / max(total_assets, 1) > 0.01:
+    # RATIO LAW: drift and assets are both money in the period's own
+    # currency at unit scale, so this quotient is dimensionless and
+    # invariant under the display currency. `_q` refuses rather than
+    # coerces if that ever stops being true.
+    # `safe_ratio` because this one is computed UNCONDITIONALLY: a
+    # non-finite total from a broken extract must skip the rule the way it
+    # always did, not raise out of stage_validate on a live upload.
+    _drift_share = _ratio_units.safe_ratio(_q(drift, "drift"),
+                                           _q(max(total_assets, 1), "total_assets"))
+    drift_share = _drift_share if _drift_share is not None else 0.0
+    if total_assets > 0 and drift_share > 0.01:
         sev = "critical" if drift > total_assets * 0.05 else "high"
         _add(
             "data_quality_bs_imbalance", sev, "data_quality",
             f"Balance sheet does not balance — drift RON {drift:,.0f}",
             f"Total assets RON {total_assets:,.0f} vs liabilities + equity RON "
             f"{total_liabilities + total_equity:,.0f} differ by RON {drift:,.0f} "
-            f"({drift / max(total_assets, 1) * 100:.1f}% of assets). Pipeline "
+            f"({drift_share * 100:.1f}% of assets). Pipeline "
             f"integrity issue — every downstream metric is suspect until resolved.",
             {"total_assets": total_assets, "total_liabilities": total_liabilities,
              "total_equity": total_equity, "drift": drift},
@@ -2490,7 +2500,8 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     # ── R3. Leverage — Debt/EBITDA above threshold ───────────────────────
     if ebitda_statutory > 0 and bank_debt_total > 0:
-        dte = bank_debt_total / ebitda_statutory
+        dte = _ratio_units.ratio(_q(bank_debt_total, "bank_debt_total"),
+                                 _q(ebitda_statutory, "ebitda_statutory"))
         if dte > dte_critical:
             _add(
                 "leverage_debt_to_ebitda_high", "critical", "leverage",
@@ -2531,14 +2542,16 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
             f"registered share capital the administrator must convene the general "
             f"meeting to decide on recapitalisation or dissolution.",
             {"total_equity": total_equity, "share_capital": share_capital,
-             "ratio": total_equity / max(share_capital, 1)},
+             "ratio": _ratio_units.ratio(_q(total_equity, "total_equity"),
+                                         _q(max(share_capital, 1), "share_capital"))},
         )
 
     # ── R5. Capitalized own-work earnings-quality observation ────────────
     # Info-level only — the operating-view P&L already accounts for 722.
     # This card explains the 722/628 wash to the analyst.
     if capitalized > 100_000 and rental_revenue > 0:
-        pct = capitalized / rental_revenue
+        pct = _ratio_units.ratio(_q(capitalized, "capitalized_own_work_memo"),
+                                 _q(rental_revenue, "rental_revenue"))
         if pct > 0.5:
             _add(
                 "earnings_quality_capitalized_own_work", "info", "data_quality",
@@ -2556,7 +2569,9 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     # ── R6. Revaluation reserves — equity quality ────────────────────────
     if total_equity > 0 and abs(revaluation_reserves) > total_equity * 0.25:
-        share_pct = abs(revaluation_reserves) / total_equity * 100
+        share_pct = _ratio_units.ratio(
+            _q(abs(revaluation_reserves), "revaluation_reserves"),
+            _q(total_equity, "total_equity")) * 100
         _add(
             "equity_quality_revaluation_reserves", "info", "data_quality",
             f"Revaluation reserves are {share_pct:.0f}% of equity",
@@ -2571,7 +2586,11 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     # ── R7. Concentration — intercompany receivable ──────────────────────
     if total_assets > 0 and intercompany > 100_000:
-        pct = intercompany / total_assets
+        # The 19.6% of the Critical-461 note. Native over native, same
+        # currency, same scale — correct, and pinned by
+        # frontend/lib/__tests__/noteCurrencyUnity.test.tsx.
+        pct = _ratio_units.ratio(_q(intercompany, "intercompany_loans"),
+                                 _q(total_assets, "total_assets"))
         if pct > 0.10:
             sev = "high" if pct > 0.20 else "medium"
             _add(
@@ -2648,19 +2667,35 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     inventory_local = float(bs.get("inventory", 0) or 0)
     exp_601 = float(sub_agg.get("cogs_601") or 0)
     exp_602 = float(sub_agg.get("cogs_602") or 0)
-    materials_pct = ((exp_601 + exp_602) / revenue_local) if revenue_local > 0 else 0
+    materials_pct = (
+        _ratio_units.ratio(_q(exp_601 + exp_602, "materials"), _q(revenue_local, "revenue"))
+        if revenue_local > 0 else 0
+    )
     cur_liab_local = float(
         bs.get("accountsPayable", 0) + bs.get("shortTermDebt", 0)
         + bs.get("otherCurrentLiabilities", 0)
     )
-    cash_ratio_local = (cash_val / cur_liab_local) if cur_liab_local > 0 else 0
+    cash_ratio_local = (
+        _ratio_units.ratio(_q(cash_val, "cash"), _q(cur_liab_local, "cur_liab"))
+        if cur_liab_local > 0 else 0
+    )
     ppe_gross_proxy = abs(float(bs.get("propertyPlantEquipment", 0) or 0))
     ppe_amort_proxy = max(0.0, float(sub_agg.get("ppe_amort") or 0))
-    asset_maturity = (ppe_amort_proxy / ppe_gross_proxy) if ppe_gross_proxy > 0 else 0
+    asset_maturity = (
+        _ratio_units.ratio(_q(ppe_amort_proxy, "ppe_amort"), _q(ppe_gross_proxy, "ppe_gross"))
+        if ppe_gross_proxy > 0 else 0
+    )
     affiliate_income = float(sub_agg.get("financial_income") or 0)
-    affiliate_dep = (affiliate_income / net_income_local) if net_income_local > 0 else 0
+    affiliate_dep = (
+        _ratio_units.ratio(_q(affiliate_income, "affiliate_income"),
+                           _q(net_income_local, "net_income"))
+        if net_income_local > 0 else 0
+    )
     net_debt_local = bank_debt_total - cash_val
-    nde_local = (net_debt_local / ebitda_statutory) if ebitda_statutory > 0 else 0
+    nde_local = (
+        _ratio_units.ratio(_q(net_debt_local, "net_debt"), _q(ebitda_statutory, "ebitda_statutory"))
+        if ebitda_statutory > 0 else 0
+    )
 
     # R-RI-1 — Receivables allowance elevated. Historical credit issues
     # or affiliated-party stale balances. The Scandia case had 9.78M of
@@ -2670,7 +2705,8 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # show Section-7 risks. The DB CHECK constraint doesn't accept
     # `risk_inventory` so we route via rule_key instead.
     if trade_rec_local > 0 and rec_provisions_local > 0:
-        prov_pct = rec_provisions_local / trade_rec_local
+        prov_pct = _ratio_units.ratio(_q(rec_provisions_local, "rec_provisions"),
+                                      _q(trade_rec_local, "trade_rec"))
         if prov_pct > 0.15:
             _add(
                 "risk_inventory_receivables_quality", "high", "working_capital",
@@ -2737,14 +2773,18 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     # R-RI-7 — FX exposure (FX cash >10% of total cash). Proxy via cash_fx sub_agg.
     fx_cash_local = float(sub_agg.get("cash_fx") or 0)
-    if cash_val > 0 and fx_cash_local / cash_val > 0.10:
+    fx_cash_share = (
+        _ratio_units.ratio(_q(fx_cash_local, "fx_cash"), _q(cash_val, "total_cash"))
+        if cash_val > 0 else 0
+    )
+    if cash_val > 0 and fx_cash_share > 0.10:
         _add(
             "risk_inventory_fx_exposure", "medium", "liquidity",
-            f"FX exposure — {(fx_cash_local/cash_val)*100:.0f}% of cash in foreign currency",
+            f"FX exposure — {fx_cash_share*100:.0f}% of cash in foreign currency",
             f"Significant FX cash position. Movements in EUR/RON or USD/RON create P&L "
             f"volatility. Consider an FX hedging policy or natural-hedge alignment with "
             f"foreign-currency liabilities.",
-            {"fx_cash_pct": fx_cash_local/cash_val, "fx_cash": fx_cash_local, "total_cash": cash_val},
+            {"fx_cash_pct": fx_cash_share, "fx_cash": fx_cash_local, "total_cash": cash_val},
         )
 
     # ── Deduplicate by rule_key (structural guarantee) ──────────────────
@@ -3271,11 +3311,47 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     except json.JSONDecodeError:
         return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": []}
 
-    return {
+    narrated = {
         "briefing": data.get("briefing", "Narrative unavailable."),
         "recommendations": data.get("recommendations", []) or [],
         "alerts": data.get("alerts", []) or [],
     }
+
+    # ── THE AI BOUNDARY (engine.ai.numerals) ──────────────────────────
+    # This is where model output becomes narrative the product ships:
+    # `briefing` lands in the briefings table and `recommendations`
+    # land — title, rationale and actions as free text — in the
+    # recommendations table, which the UI renders verbatim. Alerts do
+    # NOT come through here (stage_validate is their only source), so
+    # this is the one seam where a model authors a digit the engine
+    # then displays.
+    #
+    # The guard resolves `{fact_id}` placeholders against TYPED facts
+    # and rejects any numeral the model wrote itself. DEFAULT MODE IS
+    # `observe`: the payload passes through byte-identical and the
+    # verdict is logged only — today's prompt still asks for literal
+    # figures, so enforcing here would replace every live briefing.
+    # Flipping AI_NUMERAL_GUARD=enforce is the ops action that lands
+    # after the prompt moves to placeholder form; the fallback text is
+    # deterministic and already in place.
+    try:
+        from engine.ai import numerals as _numerals
+
+        narrated, _numeral_report = _numerals.guard_narrate_result(
+            narrated,
+            _numerals.facts_from_briefing(briefing_facts, effective_display),
+        )
+        if _numeral_report["fields_rejected"]:
+            logger.warning(
+                "[pipeline] narrative numeral guard (%s): %d/%d fields carry "
+                "model-authored digits %s — doc=%s",
+                _numeral_report["mode"], _numeral_report["fields_rejected"],
+                _numeral_report["fields_checked"],
+                _numeral_report["rejected_fields"], doc.get("id"),
+            )
+    except Exception:  # noqa: BLE001 — the boundary must never break narration
+        logger.exception("[pipeline] numeral guard failed (non-fatal)")
+    return narrated
 
 
 def stage_persist_narrative(
@@ -3414,6 +3490,18 @@ def stage_persist_narrative(
                     "rule_key": a.get("rule_key"),
                     "facts_cited": a.get("facts_cited"),
                     "industry": a.get("industry"),
+                    # Typed placeholders (2026-08-30). `*_template` carry
+                    # `{{money:<fact>}}` in place of every cited money
+                    # figure AND its currency label, so the renderer puts
+                    # every figure in one claim through one money path.
+                    # `fact_units` ends the guessing ("≥1000 is money",
+                    # "|v|>1 is money") that renders a leverage multiple
+                    # as a currency amount. All four keys are optional —
+                    # a row without them falls back to `title` / `body`.
+                    "title_template": a.get("title_template"),
+                    "body_template": a.get("body_template"),
+                    "fact_units": a.get("fact_units"),
+                    "source_currency": a.get("source_currency"),
                 },
             })
         if rows:
@@ -4177,6 +4265,29 @@ def _run_pipeline_sync(document_id: str) -> None:
                 )
                 validation_alerts = list(validation_alerts) + \
                     _ai_council.council_findings_as_alerts(council_result)
+            # ── Advisory unit-sanity sweep (engine.ai.unit_sanity) ─────
+            # Reads the ASSEMBLED alert text the way a CFO reads it — one
+            # sentence at a time — and flags two things nothing upstream
+            # can see: two currencies inside one claim, and a percentage
+            # its own stated operands contradict. It runs over the merged
+            # list deliberately: `stage_validate`'s rows are rule-authored
+            # and native, but `council_findings_as_alerts` carries MODEL
+            # free text into this same channel with `facts_cited: None`.
+            #
+            # Advisory in the strict sense: flags only, never rewrites,
+            # never blocks, needs no credits. A finding here means an
+            # operator should look, not that the pipeline should stop.
+            try:
+                from engine.ai import unit_sanity as _unit_sanity
+
+                _unit_findings = _unit_sanity.check_alerts(validation_alerts)
+                for _f in _unit_findings:
+                    logger.warning(
+                        "[pipeline] unit-sanity %s at alert %s — %s | %r",
+                        _f.code, _f.pointer, _f.message, _f.sentence[:160],
+                    )
+            except Exception:  # noqa: BLE001 — advisory: never breaks a run
+                logger.exception("[pipeline] unit-sanity sweep failed (non-fatal)")
             # Industry classification fallback. When the org's industry_key is
             # unset or "generic", run the auto-classifier on the assembled
             # statements — for EEI this detects real_estate_commercial from
@@ -7024,6 +7135,17 @@ def build_router() -> APIRouter:
                     "facts_cited": (a.get("payload") or {}).get("facts_cited")
                                  if isinstance(a.get("payload"), dict) else None,
                     "industry": (a.get("payload") or {}).get("industry")
+                                 if isinstance(a.get("payload"), dict) else None,
+                    # Typed placeholders — null on rows written before
+                    # 2026-08-30, which is exactly why the FE keeps the
+                    # plain-text fallback.
+                    "title_template": (a.get("payload") or {}).get("title_template")
+                                 if isinstance(a.get("payload"), dict) else None,
+                    "body_template": (a.get("payload") or {}).get("body_template")
+                                 if isinstance(a.get("payload"), dict) else None,
+                    "fact_units": (a.get("payload") or {}).get("fact_units")
+                                 if isinstance(a.get("payload"), dict) else None,
+                    "source_currency": (a.get("payload") or {}).get("source_currency")
                                  if isinstance(a.get("payload"), dict) else None,
                     "severity": a["severity"],
                     "category": a["category"],

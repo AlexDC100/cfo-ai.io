@@ -105,6 +105,16 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
     # Unit-declaration gate — makes the 2026-08-30 "1553.0%" double-scale
     # collision unwritable at the producer (see check_metric_units.py).
     ("metric-units", [PY, "scripts/check_metric_units.py"]),
+    # U1/U3 — NARRATIVE UNITS. A note that reads "holds RON 7,692,203 — 19.6%
+    # of total assets 7.467.122,25 €" is one claim in two currencies; the
+    # ratio was correct and the sentence still made it unverifiable. This
+    # lints the narrative PRODUCERS (a template must not bake in a currency
+    # or build its own money numeral); U1's render-level twin is
+    # tests/engine/test_narrative_units.py (in `pytest`) and
+    # frontend/lib/__tests__/narrativeUnitGates.test.tsx (in vitest).
+    # Known violations are quarantined by name — a ratchet, not an
+    # exemption. Contract + plant log: design_review/narrative/GATES.md
+    ("narrative-units", ["node", "scripts/check_narrative_units.mjs"]),
     ("global-positioning", ["node", "scripts/check_global_positioning.mjs"]),
     ("tsc", ["npx", "tsc", "--noEmit"]),
             ("npm-build", ["npm", "run", "build"]),

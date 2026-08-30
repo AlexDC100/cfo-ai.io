@@ -34,9 +34,9 @@ import the target package.
 ```mermaid
 graph LR
     pkg__root_["(root) (16 modules)"]
-    pkg_ai["ai (6 modules)"]
+    pkg_ai["ai (8 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (66 modules)"]
+    pkg_api["api (69 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_confidence["confidence (5 modules)"]
@@ -56,10 +56,11 @@ graph LR
     pkg_packs["packs (5 modules)"]
     pkg_passes["passes (5 modules)"]
     pkg_public["public (44 modules)"]
+    pkg_public_market["public_market (19 modules)"]
     pkg_public_ro["public_ro (24 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
-    pkg_serving["serving (6 modules)"]
+    pkg_serving["serving (7 modules)"]
     pkg_storage["storage (3 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
@@ -80,10 +81,11 @@ graph LR
     pkg_api -->|2| pkg_country_packs
     pkg_api -->|1| pkg_detection
     pkg_api -->|1| pkg_interp
-    pkg_api -->|2| pkg_journal
+    pkg_api -->|3| pkg_journal
     pkg_api -->|1| pkg_obs
     pkg_api -->|1| pkg_passes
     pkg_api -->|1| pkg_public
+    pkg_api -->|1| pkg_public_market
     pkg_api -->|1| pkg_public_ro
     pkg_api -->|1| pkg_routing
     pkg_api -->|2| pkg_serving
@@ -126,6 +128,7 @@ graph LR
     pkg_passes -->|3| pkg_packs
     pkg_public -->|1| pkg_api
     pkg_public -->|1| pkg_canonical
+    pkg_public_market -->|1| pkg_serving
     pkg_public_ro -->|3| pkg_api
     pkg_public_ro -->|1| pkg_journal
     pkg_public_ro -->|1| pkg_obs
@@ -149,7 +152,9 @@ graph LR
         engine_ai_breaker["breaker"]
         engine_ai_evals["evals"]
         engine_ai_evals_run_baseline["run_baseline"]
+        engine_ai_numerals["numerals"]
         engine_ai_registry["registry"]
+        engine_ai_unit_sanity["unit_sanity"]
     end
     subgraph sg_api["api"]
         engine_api__reconcile["_reconcile"]
@@ -198,6 +203,7 @@ graph LR
         engine_serving__internal_guard["_internal_guard"]
         engine_serving_access_log["access_log"]
         engine_serving_facts["facts"]
+        engine_serving_public_market["public_market"]
         engine_serving_public_summary["public_summary"]
         engine_serving_status["status"]
     end
@@ -216,7 +222,9 @@ graph LR
     engine_api__reconcile --> engine_serving
     engine_api_pipeline --> engine_ai
     engine_api_pipeline --> engine_ai_advisory
+    engine_api_pipeline --> engine_ai_numerals
     engine_api_pipeline --> engine_ai_registry
+    engine_api_pipeline --> engine_ai_unit_sanity
     engine_api_pipeline --> engine_api__reconcile
     engine_api_pipeline --> engine_journal
     engine_api_pipeline --> engine_journal_hooks
@@ -286,6 +294,7 @@ graph LR
     engine_passes_shadow --> engine_frontends_saga10
     engine_passes_shadow --> engine_passes_classify
     engine_serving --> engine_serving_facts
+    engine_serving --> engine_serving_public_market
     engine_serving --> engine_serving_public_summary
     engine_serving --> engine_serving_status
     engine_serving_facts --> engine_api__reconcile
@@ -313,5 +322,6 @@ declaration is the supply-chain lock's job to reject).
 | `methodology` | yaml (pyyaml) |
 | `packs` | yaml (pyyaml) |
 | `public` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), pydantic (pydantic) |
+| `public_market` | anthropic (anthropic), fastapi (fastapi), yaml (pyyaml) |
 | `public_ro` | fastapi (fastapi), pydantic (pydantic) |
 | `storage` | pandas (pandas), sqlalchemy (sqlalchemy) |

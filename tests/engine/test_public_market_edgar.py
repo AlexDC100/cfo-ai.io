@@ -421,6 +421,36 @@ def test_transport_failure_is_typed():
 
 
 # ---------------------------------------------------------------------------
+# Store isolation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _isolated_market_store(tmp_path, monkeypatch):
+    """Point the spine store at a per-test DB.
+
+    Without this the adapter's `_get_store()` discovers the REPO's real
+    data/public_market.db. Two consequences, both bad: the suite writes
+    into a shared on-disk artifact, and it becomes order-dependent —
+    once that DB already holds AAPL under the same accession with a
+    different content hash, `store.put` correctly REFUSES (the
+    same-accession-different-content guard) and the adapter journals
+    `cache_fail`, so the test fails for a reason that has nothing to do
+    with the code under test. The store's refusal is right; the test's
+    lack of isolation was not.
+    """
+    monkeypatch.setenv("PUBLIC_MARKET_DB_PATH", str(tmp_path / "pm.db"))
+    try:
+        from engine.public_market import store as _store
+
+        _store.reset_store()
+        yield
+        _store.reset_store()
+    except ImportError:  # spine absent — the adapter degrades to no cache
+        yield
+
+
+# ---------------------------------------------------------------------------
 # Journaled ingestion + DLQ (minimal in-module jsonl journal)
 # ---------------------------------------------------------------------------
 

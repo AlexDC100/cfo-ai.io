@@ -27,6 +27,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Info, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { PeriodRecommendation, PeriodAlertItem } from "@/lib/activePeriod";
+import type { Currency } from "@/lib/rates";
 import {
   dedupeAlerts,
   dedupeRecommendations,
@@ -34,6 +35,7 @@ import {
   type DedupedRecommendation,
 } from "@/lib/dedupeNotes";
 import { linkifyAlertBody } from "@/lib/linkifyAlertBody";
+import { NarrativeText } from "@/lib/narrativeMoney";
 
 export type StatementNotesScope = "pl" | "bs" | "cf";
 
@@ -249,6 +251,15 @@ function FilterPill({
 }
 
 // ─── Alert card ─────────────────────────────────────────────────
+
+/** The currency the alert's facts are denominated in. Engine rows carry
+ *  it explicitly; older rows predate the field and are RON — every one of
+ *  the 128 production periods is. */
+function sourceCurrencyOf(alert: PeriodAlertItem): Currency {
+  const c = (alert.source_currency ?? "").toUpperCase();
+  return c === "EUR" || c === "USD" ? (c as Currency) : "RON";
+}
+
 function AlertCard({ deduped }: { deduped: DedupedAlert }) {
   const alert = deduped.alert;
   const Icon =
@@ -281,14 +292,37 @@ function AlertCard({ deduped }: { deduped: DedupedAlert }) {
         <Icon size={14} className={`flex-shrink-0 mt-[3px] ${tone.icon}`} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">
+            {/* ONE CURRENCY PER CLAIM — title included.
+              *
+              * The title used to render RAW while the body one line below
+              * was linkified and converted. 8 of the 17 engine rules put
+              * money in the title, and 10 live rows read two currencies
+              * across those two lines — including every
+              * `concentration_intercompany_loan` row, the reported 461
+              * defect's own rule. Both halves now go through the same
+              * renderer, which resolves named facts rather than guessing
+              * money out of rendered text. Rows with no template fall
+              * back to the stored string unchanged. */}
             <span className="text-[13px] text-ink font-medium leading-snug">
-              {alert.title}
+              <NarrativeText
+                text={alert.title}
+                template={alert.title_template}
+                facts={alert.facts_cited}
+                factUnits={alert.fact_units}
+                sourceCurrency={sourceCurrencyOf(alert)}
+              />
             </span>
             <DuplicateCountPill count={deduped.duplicateCount} sourceIds={deduped.sourceIds} />
           </div>
           {alert.body && (
             <div className="mt-1 text-[12.5px] text-ink-soft leading-relaxed">
-              {linkifyAlertBody(alert.body, alert.facts_cited)}
+              <NarrativeText
+                text={alert.body}
+                template={alert.body_template}
+                facts={alert.facts_cited}
+                factUnits={alert.fact_units}
+                sourceCurrency={sourceCurrencyOf(alert)}
+              />
             </div>
           )}
         </div>

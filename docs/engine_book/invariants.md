@@ -31,7 +31,7 @@ it (bare single-letter markers are file-level attributions).
 | `I10` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
 | `I11` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_summary_serving.py` |
 | `I12` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py` |
-| `I13` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
+| `I13` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_funnel.py`, `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_market_spine.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_seo.py`, `tests/engine/test_public_summary_serving.py` |
 | `I14` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
 | `I15` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ingest_fixes.py`, `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
 | `I16` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_public_ro_spine.py`, `tests/engine/test_public_summary_serving.py` |
@@ -65,7 +65,7 @@ it (bare single-letter markers are file-level attributions).
 | `N3` | Pack pinning + effective-dated resolution (a 2024 period keeps its 2024 pack). | — | `tests/engine/test_pack_loader.py`, `tests/engine/test_pack_pinning.py` |
 | `N5` | ABSENT is not ZERO, end to end through the Phase-1 IR. | — | `tests/engine/test_properties.py` |
 | `N6` | Currency scales HUF(0) / RON(2) / KWD(3) flow through Money and the IR. | — | `tests/engine/test_ir_invariants.py` |
-| `N7` | New-jurisdiction acceptance gate: a jurisdiction lands tree-only (packs + fixtures), never by editing engine code. | — | `tests/engine/test_e8_jurisdiction_blindness.py`, `tests/engine/test_movements.py`, `tests/engine/test_new_jurisdiction.py` |
+| `N7` | New-jurisdiction acceptance gate: a jurisdiction lands tree-only (packs + fixtures), never by editing engine code. | — | `tests/engine/test_e8_jurisdiction_blindness.py`, `tests/engine/test_movements.py`, `tests/engine/test_new_jurisdiction.py`, `tests/engine/test_public_market_gates.py`, `tests/engine/test_public_market_spine.py` |
 
 ## M-family — Metamorphic suite (algebraic relations, no oracles)
 
