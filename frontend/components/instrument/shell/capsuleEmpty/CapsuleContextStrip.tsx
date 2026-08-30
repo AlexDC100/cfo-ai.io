@@ -84,7 +84,14 @@ function usePulse(key: number): boolean {
 }
 
 const SEP = (
-  <span aria-hidden className="text-ink-soft/60">
+  // FULL `ink-soft`, NOT `ink-soft/60`. Measured through the real
+  // composite (scrim → glass → strip) the 60% separator lands at 3.5:1
+  // on Terminal against a 4.5 requirement — a punctuation mark the
+  // reader cannot see is a punctuation mark that is not there, and the
+  // token failed the same way everywhere else it was used. The glass
+  // lane already learned this once with `ink-mute` (3.53) versus
+  // `ink-soft` (5.82) on this panel.
+  <span aria-hidden className="text-ink-soft">
     ·
   </span>
 );

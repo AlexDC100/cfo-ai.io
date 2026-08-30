@@ -373,6 +373,19 @@ def _frontend_gates() -> List[Gate]:
              work_rx=r"(\d+) distinct metric names", floor=30,
              units="distinct metric names",
              canaries=("total_assets", "capsule", "findings")),
+        # NO PLANTED DEFECT MAY BE COMMITTED. Gates here are certified by
+        # planting the defect they catch, observing RED, and reverting —
+        # and on 2026-08-30 a `git add -A` ran while a lane's plant was
+        # live, so commit 36d34ef shipped `if (false && answerLocally(…))`
+        # to main: every Tier-0 question straight to the paid seam, inside
+        # the commit claiming that gate works. It missed production only
+        # because the last deploy predated it. A plant reads as ordinary
+        # code and the suite stays green, because the one gate that would
+        # catch it is the one nobody re-runs before committing.
+        Gate("no-plants", ["node", "scripts/check_no_plants.mjs"],
+             work_rx=r"units=(\d+)", floor=400,
+             units="product source files",
+             canaries=("PLANT SCAN", "GATE-WORK no-plants")),
         # A gate aimed at an element that no longer exists passes for the
         # wrong reason. This is a STATIC census, so it runs in the battery
         # even though the Playwright suite it audits needs a live server —

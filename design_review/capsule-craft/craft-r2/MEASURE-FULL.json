@@ -1,0 +1,446 @@
+[
+  {
+    "theme": "dark",
+    "viewport": "1440",
+    "states": {
+      "rest": {
+        "card": {
+          "x": 350,
+          "y": 68,
+          "w": 680,
+          "h": 190
+        },
+        "composerTop": 183,
+        "composerH": 74,
+        "contentH": 188,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 678,
+        "rows": 1
+      },
+      "typing": {
+        "card": {
+          "x": 350,
+          "y": 68,
+          "w": 680,
+          "h": 630
+        },
+        "composerTop": 623,
+        "composerH": 74,
+        "contentH": 628,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 678,
+        "rows": 13
+      },
+      "answer": {
+        "card": {
+          "x": 350,
+          "y": 68,
+          "w": 680,
+          "h": 382
+        },
+        "composerTop": 375,
+        "composerH": 74,
+        "contentH": 380,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 678,
+        "rows": 0
+      }
+    },
+    "contrast": [
+      {
+        "text": "Ask a question, or jump to a page",
+        "px": 16,
+        "ratio": 15.69,
+        "need": 4.5
+      },
+      {
+        "text": "Period not dated",
+        "px": 11,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "Not verified",
+        "px": 11,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "2 periods without a file",
+        "px": 11,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "Aug 2026 has no file yet — what sh",
+        "px": 12.5,
+        "ratio": 7.71,
+        "need": 4.5
+      },
+      {
+        "text": "From this workspace's period list",
+        "px": 10.5,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "⌘↵",
+        "px": 9.5,
+        "ratio": 8.07,
+        "need": 4.5
+      },
+      {
+        "text": "↑↓ move · Tab to ask · esc",
+        "px": 10,
+        "ratio": 7.72,
+        "need": 4.5
+      }
+    ],
+    "coach": {
+      "anchored": "true",
+      "hasCaret": true,
+      "cardCentre": 1296,
+      "avatarCentre": 1406,
+      "centreDrift": 110,
+      "gapBelowAvatar": 11,
+      "insideHeader": false
+    },
+    "tooltips": []
+  },
+  {
+    "theme": "dark",
+    "viewport": "390",
+    "states": {
+      "rest": {
+        "card": {
+          "x": 8,
+          "y": 8,
+          "w": 374,
+          "h": 175
+        },
+        "composerTop": 123,
+        "composerH": 59,
+        "contentH": 173,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 372,
+        "rows": 1
+      },
+      "typing": {
+        "card": {
+          "x": 8,
+          "y": 8,
+          "w": 374,
+          "h": 615
+        },
+        "composerTop": 563,
+        "composerH": 59,
+        "contentH": 613,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 372,
+        "rows": 13
+      },
+      "answer": {
+        "card": {
+          "x": 8,
+          "y": 8,
+          "w": 374,
+          "h": 436
+        },
+        "composerTop": 384,
+        "composerH": 59,
+        "contentH": 434,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 372,
+        "rows": 0
+      }
+    },
+    "contrast": [
+      {
+        "text": "Ask a question, or jump to a page",
+        "px": 16,
+        "ratio": 15.69,
+        "need": 4.5
+      },
+      {
+        "text": "Period not dated",
+        "px": 11,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "Not verified",
+        "px": 11,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "2 periods without a file",
+        "px": 11,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "Aug 2026 has no file yet — what sh",
+        "px": 12.5,
+        "ratio": 7.71,
+        "need": 4.5
+      },
+      {
+        "text": "From this workspace's period list",
+        "px": 10.5,
+        "ratio": 7.66,
+        "need": 4.5
+      },
+      {
+        "text": "⌘↵",
+        "px": 9.5,
+        "ratio": 8.07,
+        "need": 4.5
+      }
+    ],
+    "coach": {
+      "anchored": "true",
+      "hasCaret": true,
+      "cardCentre": 246,
+      "avatarCentre": 360,
+      "centreDrift": 114,
+      "gapBelowAvatar": 11,
+      "insideHeader": false
+    },
+    "tooltips": []
+  },
+  {
+    "theme": "light",
+    "viewport": "1440",
+    "states": {
+      "rest": {
+        "card": {
+          "x": 350,
+          "y": 68,
+          "w": 680,
+          "h": 190
+        },
+        "composerTop": 183,
+        "composerH": 74,
+        "contentH": 188,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 678,
+        "rows": 1
+      },
+      "typing": {
+        "card": {
+          "x": 350,
+          "y": 68,
+          "w": 680,
+          "h": 630
+        },
+        "composerTop": 623,
+        "composerH": 74,
+        "contentH": 628,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 678,
+        "rows": 13
+      },
+      "answer": {
+        "card": {
+          "x": 350,
+          "y": 68,
+          "w": 680,
+          "h": 382
+        },
+        "composerTop": 375,
+        "composerH": 74,
+        "contentH": 380,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 678,
+        "rows": 0
+      }
+    },
+    "contrast": [
+      {
+        "text": "Ask a question, or jump to a page",
+        "px": 16,
+        "ratio": 19,
+        "need": 4.5
+      },
+      {
+        "text": "Period not dated",
+        "px": 11,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "Not verified",
+        "px": 11,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "2 periods without a file",
+        "px": 11,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "Aug 2026 has no file yet — what sh",
+        "px": 12.5,
+        "ratio": 5.6,
+        "need": 4.5
+      },
+      {
+        "text": "From this workspace's period list",
+        "px": 10.5,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "⌘↵",
+        "px": 9.5,
+        "ratio": 5.63,
+        "need": 4.5
+      },
+      {
+        "text": "↑↓ move · Tab to ask · esc",
+        "px": 10,
+        "ratio": 5.58,
+        "need": 4.5
+      }
+    ],
+    "coach": {
+      "anchored": "true",
+      "hasCaret": true,
+      "cardCentre": 1296,
+      "avatarCentre": 1406,
+      "centreDrift": 110,
+      "gapBelowAvatar": 11,
+      "insideHeader": false
+    },
+    "tooltips": []
+  },
+  {
+    "theme": "light",
+    "viewport": "390",
+    "states": {
+      "rest": {
+        "card": {
+          "x": 8,
+          "y": 8,
+          "w": 374,
+          "h": 175
+        },
+        "composerTop": 123,
+        "composerH": 59,
+        "contentH": 173,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 372,
+        "rows": 1
+      },
+      "typing": {
+        "card": {
+          "x": 8,
+          "y": 8,
+          "w": 374,
+          "h": 615
+        },
+        "composerTop": 563,
+        "composerH": 59,
+        "contentH": 613,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 372,
+        "rows": 13
+      },
+      "answer": {
+        "card": {
+          "x": 8,
+          "y": 8,
+          "w": 374,
+          "h": 391
+        },
+        "composerTop": 339,
+        "composerH": 59,
+        "contentH": 389,
+        "deadSpace": 2,
+        "composerIsLast": false,
+        "focused": true,
+        "underlineW": 372,
+        "rows": 0
+      }
+    },
+    "contrast": [
+      {
+        "text": "Ask a question, or jump to a page",
+        "px": 16,
+        "ratio": 19,
+        "need": 4.5
+      },
+      {
+        "text": "Period not dated",
+        "px": 11,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "Not verified",
+        "px": 11,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "2 periods without a file",
+        "px": 11,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "Aug 2026 has no file yet — what sh",
+        "px": 12.5,
+        "ratio": 5.6,
+        "need": 4.5
+      },
+      {
+        "text": "From this workspace's period list",
+        "px": 10.5,
+        "ratio": 5.82,
+        "need": 4.5
+      },
+      {
+        "text": "⌘↵",
+        "px": 9.5,
+        "ratio": 5.63,
+        "need": 4.5
+      }
+    ],
+    "coach": {
+      "anchored": "true",
+      "hasCaret": true,
+      "cardCentre": 246,
+      "avatarCentre": 360,
+      "centreDrift": 114,
+      "gapBelowAvatar": 11,
+      "insideHeader": false
+    },
+    "tooltips": []
+  }
+]

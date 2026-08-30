@@ -1301,6 +1301,71 @@ Verdict: **PROVEN RED**
 
 ---
 
+## no-plants
+
+No planted defect may be committed to product source. Gates here are
+certified by planting the defect they catch, observing RED, and
+reverting — this gate exists because that discipline produced a real
+escape.
+
+| | |
+|---|---|
+| command | `node scripts/check_no_plants.mjs` |
+| work count | stdout `units=N`, floor **400** product source files |
+| canary | `PLANT SCAN`, `GATE-WORK no-plants` |
+
+**THE INCIDENT IT ENCODES.** On 2026-08-30 a coordinator ran `git add -A`
+while a gates lane had its G8 plant live in the tree. Commit `36d34ef`
+shipped to `main`:
+
+```
+// G8 PLANT P3 — the short-circuit disabled.
+if (false && answer.answerLocally(q, resolveTier0(q, factIndex))) {
+```
+
+That line sends **every** Tier-0 question to the paid model seam — the
+exact money defect the gate was built to catch — inside the commit whose
+message claims the gate catches it. It reached `main` and missed
+production only because the last deploy predated it. Found by an
+adversarial critic reading `git show HEAD:`, not by any gate.
+
+Why it escaped: a plant reads as ordinary code, `git add -A` swallows it,
+and the suite stays green because the single gate that would catch it is
+the one nobody re-runs before committing.
+
+**PLANT** — the real incident, reintroduced verbatim:
+
+```diff
+--- frontend/components/instrument/shell/CommandPalette.tsx
+-      if (answer.answerLocally(q, resolveTier0(q, factIndex))) {
++      // G8 PLANT P3 — the short-circuit disabled.
++      if (false && answer.answerLocally(q, resolveTier0(q, factIndex))) {
+```
+
+**RED** — exit `1`:
+
+```
+FAIL — planted defect(s) in product source:
+  frontend/components/instrument/shell/CommandPalette.tsx:491  [gate plant marker]
+  frontend/components/instrument/shell/CommandPalette.tsx:492  [disabled branch: if (false && …)]
+```
+
+Both markers fire independently, so a plant carrying **no comment** is
+still caught by its structure.
+
+**REVERT** — restored; `PASS — no planted defects in 857 product source
+files.`
+
+**A false positive fixed rather than suppressed.** The first draft
+matched a bare `/planted/i`, which hit four prose comments that
+legitimately describe what a test does ("invokes the planted callable",
+"a planted EUR0.01 extra price still fires"). Naming those four files in
+an allowlist would have left the next prose line to be discovered by
+hand; the marker was narrowed instead to shapes that cannot occur in
+prose. Paths that legitimately record plants as evidence — `docs/`,
+`design_review/`, `__tests__/` — are excluded by path, because the word
+must stay writable where the evidence lives.
+
 ## metric-declared
 
 Every metric a surface can request is known to the ratio-unit registry, so a legitimate figure never resolves to UNIT_UNKNOWN and gets refused at render.

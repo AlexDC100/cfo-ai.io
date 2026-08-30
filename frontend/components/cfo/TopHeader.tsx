@@ -168,9 +168,13 @@ function ModeCoachMark() {
   // effect keyed on `open` alone would run against a null node and never
   // run again. See the header.
   const [card, setCard] = useState<HTMLElement | null>(null);
-  const [anchor, setAnchor] = useState<{ left: number; top: number; caret: number } | null>(
-    null,
-  );
+  const [anchor, setAnchor] = useState<{
+    left: number;
+    top: number;
+    caret: number;
+    /** The avatar's own box, so the mark can RING the control it names. */
+    target: { x: number; y: number; w: number; h: number };
+  } | null>(null);
 
   const dismiss = useCallback(() => {
     setOpen(false);
@@ -211,10 +215,14 @@ function ModeCoachMark() {
       const left = coachAnchoredLeft(r.left, r.width, w, window.innerWidth);
       setAnchor({
         left,
-        top: Math.round(r.bottom + 10),
+        top: Math.round(r.bottom + 8),
         // Where the caret sits INSIDE the card, so it points at the
         // avatar's centre even after the clamp moved the card.
-        caret: Math.round(Math.min(Math.max(r.left + r.width / 2 - left, 14), w - 14)),
+        caret: Math.round(Math.min(Math.max(r.left + r.width / 2 - left, 18), w - 22)),
+        target: {
+          x: Math.round(r.left), y: Math.round(r.top),
+          w: Math.round(r.width), h: Math.round(r.height),
+        },
       });
     };
     place();
@@ -225,6 +233,41 @@ function ModeCoachMark() {
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
+    <>
+      {/* ── THE TARGET, MARKED ────────────────────────────────────────
+          A caret alone was not enough, and the r4 close-up is why: at
+          1x it is a 1px hairline notch in a near-white edge on a
+          near-white page, and the card still read as a toast that had
+          lost its stack. What ties a hint to a control is MARKING THE
+          CONTROL, so the mark draws a ring around the avatar it is
+          about — and draws it ITSELF, from the box it measured, rather
+          than reaching into AccountMenu (another lane's file) to add a
+          state that would then have to be threaded back out.
+
+          Its own portal, at z-45. The card stays at z-30 for exactly
+          the reason the header comment gives — it must never sit above
+          a Radix overlay — but the ring has to clear the header's own
+          z-40 opaque background or it is painted under the thing it
+          points at. A child cannot escape the z-30 wrapper's stacking
+          context, hence two portals rather than two children.
+
+          `pointer-events-none` throughout: this ring can no more
+          swallow a click than the caret can. */}
+      {anchor &&
+        createPortal(
+          <div
+            aria-hidden
+            data-testid="header-coach-mark-ring"
+            className="pointer-events-none fixed z-[45] rounded-full ring-2 ring-brand/70"
+            style={{
+              left: anchor.target.x - 3,
+              top: anchor.target.y - 3,
+              width: anchor.target.w + 6,
+              height: anchor.target.h + 6,
+            }}
+          />,
+          document.body,
+        )}
     <div
       className="pointer-events-none fixed inset-0 z-30"
       data-coachmark="header-mode"
@@ -240,7 +283,7 @@ function ModeCoachMark() {
         className={`
           pointer-events-auto absolute w-[264px]
           rounded-[14px] border border-rule-strong bg-surface p-3
-          shadow-xl
+          shadow-md
           ${anchor ? "" : "right-3 top-[60px]"}
         `}
       >
@@ -255,7 +298,7 @@ function ModeCoachMark() {
             data-testid="header-coach-mark-caret"
             style={{ left: anchor.caret }}
             className="
-              absolute -top-[5px] -ml-[5px] h-[9px] w-[9px] rotate-45
+              absolute -top-[6px] -ml-[6px] h-[11px] w-[11px] rotate-45
               border-l border-t border-rule-strong bg-surface
             "
           />
@@ -285,7 +328,8 @@ function ModeCoachMark() {
           </button>
         </div>
       </div>
-    </div>,
+    </div>
+    </>,
     document.body,
   );
 }

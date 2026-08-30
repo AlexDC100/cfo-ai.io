@@ -52,7 +52,7 @@ import json
 import os
 import socket
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -1723,7 +1723,19 @@ def test_metered_stale_subscription_clears_and_skips(fake_admin, fake_stripe,
 
 
 def _seed_founder_for_renewal(fake_admin, days_ahead: int) -> str:
-    renew_on = (date.today() + timedelta(days=days_ahead)).isoformat()
+    # UTC, not `date.today()`. `send_founder_renewal_reminders` windows on
+    # `datetime.now(timezone.utc).date()`, so seeding from the LOCAL date
+    # makes this test pass or fail depending on the machine's offset and
+    # the hour it runs: for any timezone ahead of UTC there is a nightly
+    # window where local is already tomorrow, the seed lands one day past
+    # the query window, and `queued` comes back 0.
+    #
+    # It failed exactly that way at 2026-08-31 local / 2026-08-30 UTC.
+    # It had been reported as a standing "pre-existing" failure, which is
+    # how a timezone flake gets mistaken for permanent background noise —
+    # and background noise is where the next real failure hides.
+    renew_on = (datetime.now(timezone.utc).date()
+                + timedelta(days=days_ahead)).isoformat()
     fake_admin.seed("subscriptions", {
         "id": "subrow-founder-1", "org_id": ORG_ID, "is_founder": True,
         "status": "active",

@@ -488,8 +488,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       // The SAME resolution the preview showed, re-run against the same
       // index — pure, synchronous, no network. Re-running is cheaper
       // than threading the memo's value through, and it cannot be stale.
-      // G8 PLANT P3 — the short-circuit disabled.
-      if (false && answer.answerLocally(q, resolveTier0(q, factIndex))) {
+      if (answer.answerLocally(q, resolveTier0(q, factIndex))) {
         rememberCapsuleQuestion(orgKey, q);
         return;
       }
@@ -782,12 +781,17 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             id: `concept-${c.key}`,
             group: t("shell.palette.learn"),
             label: c.name.en,
+            // THE "LEARN" TAG IS GONE, and it is the same defect as the
+            // "Overview" / "Analyze" column one group up: these rows sit
+            // under a section label that already says LEARN, and the tag
+            // repeated that word once per row — ten identical
+            // right-aligned words down a 680px card, in the accent
+            // colour, competing with the ten different words on the left
+            // that are the actual choice. The `hint` (the concept's own
+            // category — "Cash Flow", "Liquidity") stays: it is
+            // different per row and it is the only thing distinguishing
+            // two similarly-named metrics.
             hint: c.category ?? t("panels.search.conceptHint"),
-            trailing: (
-              <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em] text-brand-dark">
-                {t("panels.search.learnTag")}
-              </span>
-            ),
             run: () => {
               // Concept popovers anchor center-screen from the palette.
               const cx = window.innerWidth / 2;
@@ -1164,13 +1168,28 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
   const narrow = viewport.w < 640;
-  const maxCardHeight = Math.round(viewport.h * (narrow ? 0.82 : 0.7));
+  // 70vh is the ceiling the brief sets; 520px is the one PROPORTION
+  // sets. At 1440×900 the typing state filled the whole 630px of 70vh
+  // with nine glossary rows — a 680×630 rectangle of list, which is the
+  // menu this pass exists to stop being. Capping at 520 keeps the card
+  // a card (680×520 ≈ 4:3) and puts the tail of a long result set behind
+  // the internal scroll, where a tail belongs. Whichever is smaller
+  // wins, so a short viewport still gets 70vh and never more.
+  const maxCardHeight = narrow
+    ? Math.round(viewport.h * 0.82)
+    : Math.min(Math.round(viewport.h * 0.7), 520);
   const card = useCapsuleHeight({
     max: maxCardHeight,
     enabled: open && !narrow,
   });
 
-  const placeholder = periodMonth
+  // The placeholder names the SUBJECT at rest and the ACT once a thread
+  // exists. "Ask about Dec 2025…" above a finished answer about Dec 2025
+  // is the surface introducing itself to someone it is already talking
+  // to; "Ask a follow-up…" is the sentence that belongs there.
+  const placeholder = answerMode
+    ? t("capsuleAnswer.followUpPlaceholder")
+    : periodMonth
     ? t("capsuleCraft.composer.placeholder", { period: periodMonth })
     : t("capsuleCraft.composer.placeholderNoPeriod");
 
@@ -1188,9 +1207,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
    * by a reconciliation detail nobody would look at.
    */
   const composer = (
-    <div ref={card.composerRef}>
       <CapsuleComposer
         ref={inputRef}
+        blockRef={card.composerRef}
         value={query}
         onChange={(next) => {
           setQuery(next);
@@ -1212,8 +1231,15 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         }
         focused={composerFocused}
         onFocusChange={setComposerFocused}
-        below={
-          /* THE KEY LEGEND. ONE line, right aligned, and it names only
+        above={
+          /* THE KEY LEGEND — ABOVE the input row, not below it.
+             It was below for one round, and lane 2's G2 caught it:
+             "nothing is painted below the composer, in any state",
+             +25px, and the reasoning is right — a line under the input
+             is the surface asking the reader to look away from where
+             they type, which is the shape of a form footer. Above, on
+             the composer's own raised fill, it reads as the composer's
+             caption instead. ONE line, right aligned, and it names only
              bindings this surface actually has. The brief asked for
              "Tab to jump"; Tab on this surface FORCES THE ASK LANE
              (`askForced`), which is a real, gated affordance — so the
@@ -1221,14 +1247,17 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
              binding the product does not have is a lie rendered at
              10px, and this pass exists to delete one of those (the
              footer that restated the placeholder), not to add another. */
-          <div className="flex justify-end px-3.5 pb-1.5 text-[10px] text-ink-soft">
-            <span data-testid="capsule-keys" className="hidden truncate sm:inline">
+          // `hidden sm:flex` on the ROW, not just on the span: below sm
+          // there is no keyboard to legend, and a row whose only child
+          // is hidden still spends its own padding — 6px of nothing at
+          // the top of a phone-width composer.
+          <div className="hidden justify-end px-3.5 pt-1.5 text-[10px] text-ink-soft sm:flex">
+            <span data-testid="capsule-keys" className="truncate">
               {t("capsuleCraft.keys")}
             </span>
           </div>
         }
       />
-    </div>
   );
 
   return (
@@ -1301,11 +1330,32 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
               they are looking at afterwards are the same card. */}
           <div
             data-testid="capsule-stack"
+            // `data-measured` exists so a gate can assert the height hook
+            // was INVOKED rather than merely correct. The morph anchor one
+            // lane over was written, exported, unit-tested and never
+            // called; this file is not repeating that.
+            data-measured={card.height !== null && !narrow ? String(card.height) : undefined}
             style={
               card.height !== null && !narrow ? { height: card.height } : undefined
             }
+            // NO `flex-1` HERE, AND THE REASON IS THE WHOLE ANIMATION.
+            //
+            // It was `flex min-h-0 flex-1 flex-col` for two rounds, and
+            // the measured height did nothing at all: `flex-1` expands to
+            // `flex: 1 1 0%`, and a flex item's `flex-basis` REPLACES
+            // `height` as its main size. So the hook measured, the state
+            // updated, the inline style was written to the DOM — and the
+            // browser used 0% + grow instead, which resolves to the
+            // content height. Every capture through r2 was content-sized
+            // and un-animated while the code claimed otherwise, and
+            // nothing failed: the panel looked right, because
+            // content-height is what it wanted anyway. That is the
+            // "written, never called" defect in its CSS form.
+            //
+            // The list inside KEEPS `flex-1` — it is supposed to fill
+            // whatever this block turns out to be.
             className="
-              flex min-h-0 flex-1 flex-col overflow-hidden
+              flex min-h-0 flex-col overflow-hidden
               transition-[height] duration-[160ms] ease-quint
               motion-reduce:transition-none
               max-h-[82vh] sm:max-h-[70vh]
@@ -1318,7 +1368,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
               aria-busy={answer.busy || undefined}
               className="chat-scroll min-h-0 flex-1 overflow-y-auto"
             >
-              <div ref={card.threadRef} className="pb-2 pt-2.5">
+              <div ref={card.threadRef} className="pb-3 pt-3.5">
                 {answerMode ? (
                   <>
                     {/* The way back, as a 24px ghost glyph in the card's

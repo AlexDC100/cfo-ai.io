@@ -256,7 +256,7 @@ export function lookupFacts(index: FactIndex, terms: string[]): FactRef[] {
   for (const raw of terms) {
     for (const factKey of matchFactKeys(index, raw)) {
       for (const fact of index.byKey.get(factKey) ?? []) {
-        const id = `${fact.factKey} ${fact.periodId}`;
+        const id = `${fact.factKey}\u0000${fact.periodId}`;
         if (seen.has(id)) continue;
         seen.add(id);
         out.push(fact);
@@ -276,20 +276,52 @@ export function lookupFacts(index: FactIndex, terms: string[]): FactRef[] {
  *  default). `capsuleFactIndex.test.ts` reads the Python set and asserts
  *  this mirror has not drifted. */
 export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
-  "total_assets", "total_liabilities", "total_equity", "drift",
-  "rental_revenue", "revenue",
-  "bank_debt_total", "net_debt", "share_capital",
-  "ebitda", "ebitda_statutory", "ebitda_operational",
-  "capitalized_own_work_memo", "revaluation_reserves",
-  "intercompany_loans", "dividends_payable",
-  "cash", "total_cash", "fx_cash", "cur_liab",
-  "cash_from_operating", "capex_real", "capitalized_construction",
+  "affiliate_income",
+  "bank_debt_total",
+  "capex_real",
+  "capitalized_construction",
+  "capitalized_own_work_memo",
+  "cash",
+  "cash_from_operating",
+  "cur_liab",
+  "currency",
+  "current_assets",
+  "current_liabilities",
+  "difference",
+  "dividends_payable",
+  "drift",
+  "ebitda",
+  "ebitda_cash",
+  "ebitda_operating",
+  "ebitda_operational",
+  "ebitda_statutory",
+  "enterprise_value",
+  "equity",
+  "equity_plus_liabilities",
+  "expenses",
   "free_cash_flow",
-  "trade_rec", "rec_provisions", "affiliate_income", "net_income",
-  "equity", "equity_plus_liabilities",
-  "current_assets", "current_liabilities", "working_capital",
-  "net_result", "expenses", "difference",
-  "scenario_result_delta", "total_expenses",
+  "fx_cash",
+  "intercompany_loans",
+  "market_cap",
+  "net_debt",
+  "net_income",
+  "net_income_operating",
+  "net_result",
+  "price",
+  "rec_provisions",
+  "rental_revenue",
+  "revaluation_reserves",
+  "revenue",
+  "scenario_result_delta",
+  "share_capital",
+  "total_assets",
+  "total_cash",
+  "total_equity",
+  "total_expenses",
+  "total_liabilities",
+  "total_operating_revenue",
+  "trade_rec",
+  "working_capital",
 ]);
 
 const ENGINE_MONEY_SET = new Set(ENGINE_MONEY_FACTS);

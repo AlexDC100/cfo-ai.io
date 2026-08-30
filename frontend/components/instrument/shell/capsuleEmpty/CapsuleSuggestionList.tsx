@@ -102,8 +102,8 @@ export function CapsuleSuggestionList({
   if (resolved.length === 0) return null;
 
   return (
-    <div data-testid="capsule-suggestions" className="px-3.5 pb-1 pt-1">
-      <ul className="flex flex-wrap gap-1.5">
+    <div data-testid="capsule-suggestions" className="px-3.5 pb-1 pt-2.5">
+      <ul className="flex flex-wrap gap-2">
         {resolved.map(({ s, question, basis }, i) => {
           const idx = indexOffset + i;
           const active = idx === activeIndex;
@@ -142,7 +142,7 @@ export function CapsuleSuggestionList({
       {bases.length > 0 && (
         <p
           data-testid="capsule-suggestion-basis"
-          className="mt-1.5 text-[10.5px] leading-snug text-ink-soft"
+          className="mt-2.5 text-[10.5px] leading-snug text-ink-soft"
         >
           {bases.join(t("capsuleCraft.suggest.basisJoin"))}
         </p>

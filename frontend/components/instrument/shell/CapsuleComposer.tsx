@@ -75,6 +75,11 @@ export interface CapsuleComposerProps {
    *  above it, it read as a floating label stranded between the content
    *  and the box it described. */
   below?: ReactNode;
+  /** The composer BLOCK, for the host's height measurement. Attached to
+   *  the block itself rather than to a wrapper: a wrapper would become
+   *  the card's last child, and "the composer is the bottom-most thing
+   *  on the surface" is a claim a gate reads off `lastElementChild`. */
+  blockRef?: (node: HTMLElement | null) => void;
   disabled?: boolean;
 }
 
@@ -95,6 +100,7 @@ export const CapsuleComposer = forwardRef<HTMLTextAreaElement, CapsuleComposerPr
       onFocusChange,
       above,
       below,
+      blockRef,
       disabled,
     },
     ref,
@@ -108,11 +114,17 @@ export const CapsuleComposer = forwardRef<HTMLTextAreaElement, CapsuleComposerPr
 
     return (
       <div
+        ref={blockRef}
         data-testid="capsule-composer-block"
         data-focused={focused ? "true" : undefined}
+        // THE RAISED SURFACE. `bg-2` at 0.72 rather than 0.45: measured
+        // on Paper, 0.45 over a 0.92-fill surface was a 1.5% luminance
+        // step and the composer did not read as a separate plane at all
+        // — it looked like the bottom of the thread with an icon in it.
+        // The hairline above it does the edge; this does the plane.
         className="
           relative shrink-0 border-t border-rule-soft
-          bg-[hsl(var(--bg-2)/0.45)]
+          bg-[hsl(var(--bg-2)/0.72)]
         "
       >
         {above}
@@ -226,7 +238,8 @@ export const CapsuleComposer = forwardRef<HTMLTextAreaElement, CapsuleComposerPr
                 filled
                   // `text-bg`, the app's one convention for a brand fill
                   // (UploadDialog, SourceFilesRow, sonner). Light theme:
-                  // near-white on #0E7C6B. Dark: near-black on the teal.
+                  // near-white on the dark brand green. Dark: near-black
+                  // on the light brand teal. Both directions measured.
                   ? "bg-brand text-bg hover:brightness-110"
                   : "bg-bg-2 text-ink-mute"
               }

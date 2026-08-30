@@ -125,8 +125,13 @@ export function CapsuleFactCard({ evidence, visuals, onJump }: CapsuleFactCardPr
         <span className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
           {label}
         </span>
+        {/* `ink-soft` at full strength, not `ink-soft/70`: at 70% this
+            scope label measured 4.33:1 on the glass in Terminal, just
+            under AA, and it carries the PERIOD the figure above belongs
+            to — the one label on a fact card that must never be
+            approximately readable. */}
         {meta.periodLabel && (
-          <span className="shrink-0 truncate text-[10px] uppercase tracking-[0.14em] text-ink-soft/70">
+          <span className="shrink-0 truncate text-[10px] uppercase tracking-[0.14em] text-ink-soft">
             · {meta.periodLabel}
           </span>
         )}

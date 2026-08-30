@@ -178,8 +178,10 @@ export function CapsuleTier0Preview({ answer, onOpen }: CapsuleTier0PreviewProps
       <div className="min-w-0 flex-1">
         <div className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft">
           {metricLabel(t, lead.factKey, lead.label)}
+          {/* Full `ink-soft`, not `ink-soft/70` — see CapsuleFactCard:
+              the same label at 70% measures below AA on the glass. */}
           {lead.periodLabel && (
-            <span className="text-ink-soft/70"> · {lead.periodLabel}</span>
+            <span className="text-ink-soft"> · {lead.periodLabel}</span>
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5">
