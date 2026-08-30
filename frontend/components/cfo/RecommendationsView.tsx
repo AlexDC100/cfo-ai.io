@@ -1,15 +1,29 @@
-// Reference-format recommendations renderer.
+// Recommendations — the seven-element contract first, the legacy
+// condition renderer only where the contract has not reached yet.
 //
-// Pure-frontend: reads the canonical PeriodFacts, runs deterministic rule
-// detection, renders each detected condition as a card with rationale +
-// actions + facts-backing expander.
+// WHAT CHANGED AND WHY. Everything below the `FindingsPanel` branch is
+// the pre-rebuild surface: front-end rule detection over `PeriodFacts`,
+// rendered as a title + a rationale paragraph + a bullet list of
+// suggested actions. That surface is what
+// `design_review/findings/BASELINE.md` measured — 80% of live rows
+// carried no imperative verb, 58% fewer than two figures — and the
+// reason is structural, not editorial: the card had no slot for a
+// threshold, an impact, a provenance or a confidence position, so a
+// finding could not have carried them even if a rule had computed them.
 //
-// When the backend supplies LLM-generated rationale/actions (server-side
-// recommendations table populated by the Opus 4.7 call), those override
-// the static fallbacks. Until then, the static fallbacks render as-is —
-// always grounded in the exact facts, never hallucinated numbers.
+// When the period's alert rows carry `contract_elements` (written by
+// `_finding.to_payload`), this component renders `FindingsPanel`
+// instead, and the legacy path is not rendered at all — two
+// recommendation lists over one period is the duplication problem this
+// lane exists to remove. The legacy path stays for periods analysed
+// before the rebuild; it is a bridge, not a fallback tier.
+//
+// SILENCE: only the contract path may claim it. `FindingsPanel` states
+// silence from `FindingSet.silence_statement()` with the checks that
+// ran. The legacy empty state below claims nothing about rules it cannot
+// enumerate — it says which families it examined and stops.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronRight, AlertOctagon, AlertTriangle, Info } from "lucide-react";
 import type { PeriodFacts } from "@/lib/periodFacts";
 import {
@@ -19,15 +33,33 @@ import {
   type Severity,
 } from "@/lib/recommendationRules";
 import { useAmountFormatter } from "@/stores/currency";
+import { useActivePeriod } from "@/lib/activePeriod";
+import { buildFindingsReport } from "@/lib/findings";
+import { FindingsPanel } from "@/components/cfo/findings";
 
 interface Props {
   facts: PeriodFacts;
+  /** Contract rows, when the caller already has them. Omitted, they are
+   *  read from the active period — the same React Query cache entry the
+   *  page is already subscribed to, so this costs no extra fetch. */
+  findingRows?: unknown;
 }
 
-export function RecommendationsView({ facts }: Props) {
+export function RecommendationsView({ facts, findingRows }: Props) {
+  const period = useActivePeriod();
+  const rows = findingRows ?? period.alerts;
+  const report = useMemo(() => buildFindingsReport(rows), [rows]);
+
   const conditions = detectConditions(facts).sort(
     (a, b) => severityRank(a.severity) - severityRank(b.severity),
   );
+
+  // The contract path owns the surface whenever the period carries
+  // contract rows — including when it carries only checks and a silence
+  // statement, which is a RESULT and not an empty state.
+  if (report.hasContractRows) {
+    return <FindingsPanel report={report} currency={facts.currency} />;
+  }
 
   if (conditions.length === 0) {
     return (
@@ -57,6 +89,9 @@ export function RecommendationsView({ facts }: Props) {
       <p className="text-[12px] text-ink-mute pt-2">
         Detection rules are deterministic — the same {facts.entity} facts always produce the same conditions.
         Each card cites exact numbers from <code>period_facts</code> (expandable via "Facts backing").
+        These rows predate the seven-element contract: they carry no threshold, no
+        recomputed impact and no provenance, so they are shown as stored. Re-run the
+        analysis to have them rebuilt against the contract.
       </p>
     </div>
   );

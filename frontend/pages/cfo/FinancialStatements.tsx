@@ -27,6 +27,8 @@ import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
+import { buildFindingsReport } from "@/lib/findings";
+import { FindingsPanel } from "@/components/cfo/findings";
 // Module-level i18n handle — for the few strings rendered outside React
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
@@ -4777,6 +4779,21 @@ function RecommendationsSection({
 }) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<"all" | RecBucket>("all");
+  // CONTRACT PATH (2026-08-30). This is the THIRD recommendations
+  // surface and the highest-traffic one — it backs both the dashboard
+  // Overview and the Recommendations tab. RecommendationsView and
+  // StatementNotes already hand over to FindingsPanel when the period
+  // carries contract rows; leaving this one on the pre-contract shape
+  // would mean the busiest screen still showed the generic notes the
+  // rebuild exists to replace. Same asymmetric rule as the other two:
+  // the contract path owns the surface whenever contract rows exist,
+  // including when they carry only checks plus a silence statement —
+  // that is a RESULT, not an empty state.
+  const periodForFindings = useActivePeriod();
+  const findingsReport = useMemo(
+    () => buildFindingsReport(periodForFindings.alerts),
+    [periodForFindings.alerts],
+  );
   const counts = useMemo(() => {
     const c: Record<RecBucket, number> = { critical: 0, watch: 0, info: 0 };
     for (const r of recommendations) c[recBucket(r.priority)] += 1;
@@ -4792,6 +4809,14 @@ function RecommendationsSection({
     { id: "watch", label: t("dashV2.filterWatch"), count: counts.watch },
     { id: "info", label: t("dashV2.filterInfo"), count: counts.info },
   ];
+  if (findingsReport.hasContractRows) {
+    return (
+      <section data-testid={testid}>
+        <FindingsPanel report={findingsReport} />
+      </section>
+    );
+  }
+
   return (
     <section data-testid={testid}>
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">

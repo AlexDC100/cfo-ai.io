@@ -36,6 +36,8 @@ import {
 } from "@/lib/dedupeNotes";
 import { linkifyAlertBody } from "@/lib/linkifyAlertBody";
 import { NarrativeText } from "@/lib/narrativeMoney";
+import { buildFindingsReport, type Finding } from "@/lib/findings";
+import { AllChecksList, FindingCard } from "@/components/cfo/findings";
 
 export type StatementNotesScope = "pl" | "bs" | "cf";
 
@@ -64,12 +66,45 @@ const SEVERITY_RANK: Record<string, number> = {
   critical: 0, high: 1, medium: 2, low: 3, info: 4,
 };
 
+/** Which statement a contract finding is about. `Account.statement` is
+ *  the engine's own answer ("BS" / "PL" / "CF"); the keyword regex is
+ *  only consulted for a finding whose accounts declare nothing. */
+function findingBelongsTo(f: Finding, scope: StatementNotesScope): boolean {
+  const declared = (f.elements.subject?.accounts ?? [])
+    .map((a) => (a.statement ?? "").toUpperCase())
+    .filter(Boolean);
+  if (declared.length) return declared.includes(scope.toUpperCase());
+  const hay = `${f.title ?? ""} ${f.body ?? ""} ${f.category}`;
+  return RELEVANCE_KEYWORDS[scope].test(hay);
+}
+
 export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<SeverityFilter>("all");
 
+  // CONTRACT ROWS FIRST. A row carrying `contract_elements` was written
+  // by `_finding.to_payload`, which means it has already been judged
+  // against the seven; it renders as a FindingCard and never enters the
+  // legacy dedup/keyword pipeline below. Rows without them predate the
+  // rebuild and keep the old path — running one row through both would
+  // list the same finding twice in two different voices.
+  const { report, legacyAlerts } = useMemo(() => {
+    const contract: unknown[] = [];
+    const legacy: PeriodAlertItem[] = [];
+    for (const a of alerts) {
+      if (a && typeof a === "object" && "contract_elements" in a) contract.push(a);
+      else legacy.push(a);
+    }
+    return { report: buildFindingsReport(contract), legacyAlerts: legacy };
+  }, [alerts]);
+
+  const scopedFindings = useMemo(
+    () => report.surfaced.filter((f) => findingBelongsTo(f, relevantTo)),
+    [report.surfaced, relevantTo],
+  );
+
   const { relevantAlerts, otherAlerts, relevantRecs, otherRecs, counts } = useMemo(() => {
-    const dedupedAlerts = dedupeAlerts(alerts);
+    const dedupedAlerts = dedupeAlerts(legacyAlerts);
     const dedupedRecs = dedupeRecommendations(recommendations);
     const re = RELEVANCE_KEYWORDS[relevantTo];
 
@@ -102,7 +137,7 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
       otherRecs: recsOther,
       counts,
     };
-  }, [recommendations, alerts, relevantTo]);
+  }, [recommendations, legacyAlerts, relevantTo]);
 
   const totalCount = counts.all;
 
@@ -134,7 +169,13 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
   }, [filter, relevantRecs, otherRecs]);
 
   // Honest empty state. Never fabricate filler.
-  if (totalCount === 0) {
+  //
+  // NOTE the `!report.hasContractRows` guard: a period whose alerts are
+  // ALL contract rows has `totalCount === 0` on the legacy pipeline, and
+  // returning "no notes generated" there would deny findings that are
+  // sitting right above. Silence is a claim about checks that ran, and
+  // this branch cannot make it.
+  if (totalCount === 0 && !report.hasContractRows) {
     return (
       <section
         className="mt-8 pt-6 border-t border-rule"
@@ -179,11 +220,35 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
           {t("tablesV2.notes.heading", "Notes & recommendations")}
         </h3>
         <span className="text-[11.5px] text-ink-mute">
-          {t("tablesV2.notes.unique", { defaultValue: "{{count}} unique", count: totalCount })}
+          {t("tablesV2.notes.unique", {
+            defaultValue: "{{count}} unique",
+            count: totalCount + scopedFindings.length,
+          })}
         </span>
       </div>
 
-      {/* Severity filter pills ─────────────────────────────────── */}
+      {/* Contract findings for THIS statement, then everything that did
+          not become one. A demoted row appears only under All checks —
+          never in the note list above it. */}
+      {scopedFindings.length > 0 || report.checks.length > 0 ? (
+        <div className="mb-4 space-y-3" data-testid={`statement-findings-${relevantTo}`}>
+          {scopedFindings.map((f) => (
+            <FindingCard key={f.key} finding={f} compact />
+          ))}
+          {/* The checks list is period-wide, not statement-scoped: a rule
+              that ran is a rule that ran wherever you are standing. It is
+              rendered only when there is something in it — an empty
+              "no checks recorded" note on a tab whose sibling just
+              surfaced a finding would be a false claim about the run. */}
+          {report.checks.length > 0 ? <AllChecksList report={report} /> : null}
+        </div>
+      ) : null}
+
+      {/* Severity filter pills — legacy rows only. Suppressed entirely
+          when the period carries none, so a fully-rebuilt period does
+          not show five zero-count filters over an empty list. */}
+      {totalCount === 0 ? null : (
+      <>
       <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
         <FilterPill label={t("tablesV2.notes.filterAll", "All")}                         count={counts.all}             active={filter === "all"}             onClick={() => { setFilter("all"); }} />
         <FilterPill label={t("tablesV2.notes.filterCritical", "Critical")}               count={counts.critical}        active={filter === "critical"}        onClick={() => { setFilter("critical"); }} tone="critical" />
@@ -207,6 +272,8 @@ export function StatementNotes({ recommendations, alerts, relevantTo }: Props) {
           ),
         )}
       </ul>
+      </>
+      )}
 
     </section>
   );

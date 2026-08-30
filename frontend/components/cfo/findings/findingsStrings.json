@@ -1,0 +1,302 @@
+{
+  "en": {
+    "fnd": {
+      "heading": "Recommendations",
+      "headingSub_one": "{{count}} finding meets the seven-element contract",
+      "headingSub_other": "{{count}} findings meet the seven-element contract",
+      "capNote": "Ranked by quantified impact × confidence × persistence × actionability. {{shown}} of {{total}} shown; the rest are under All checks.",
+      "rank": "Rank {{n}}",
+      "ruleId": "Rule",
+      "profile": "Profile",
+      "materiality": "Materiality",
+      "persistence": "Persistence",
+      "firstPeriod": "First period",
+      "evidence": "Evidence",
+      "basis": "Compared against",
+      "provenance": "Provenance",
+      "provPeriod": "Period {{id}}",
+      "provSnapshot": "Snapshot {{id}}",
+      "provLines": "Accounts {{refs}}",
+      "provSource": "{{source}}",
+      "provTitle": "Where these figures came from",
+      "threshold": "Threshold breached",
+      "limitIs": "Limit {{limit}}",
+      "thresholdSource": "Parameter from {{source}}",
+      "impact": "Quantified impact",
+      "impactMoves": "{{metric}} moves from {{from}} to {{to}}",
+      "impactMoney": "{{metric}}: {{from}} → {{to}}",
+      "recomputeOn": "Showing the recomputed figure — this item removed",
+      "recomputeHint": "The recomputed figure comes from the engine, not from this screen.",
+      "whyHere": "Why this matters here",
+      "signals": "Signals",
+      "action": "Do this",
+      "actionArtefact": "Artefact",
+      "actionProvider": "From",
+      "actionHorizon": "By",
+      "confidence": "Confidence",
+      "confidenceLevel_high": "High",
+      "confidenceLevel_medium": "Medium",
+      "confidenceLevel_low": "Low",
+      "cmp": {
+        "gt": "above",
+        "gte": "at or above",
+        "lt": "below",
+        "lte": "at or below",
+        "ne": "away from"
+      },
+      "act": {
+        "viewEvidence": "View evidence",
+        "viewEvidenceHint": "Open {{where}} and highlight the source row",
+        "recompute": "Recompute without this",
+        "recomputeOff": "Show as reported",
+        "compare": "Compare periods",
+        "compareHint": "Seen in {{count}} consecutive periods",
+        "dismiss": "Dismiss",
+        "ask": "Ask CFO AI",
+        "addPack": "Add to export pack",
+        "inPack": "In export pack",
+        "packCount_one": "{{count}} finding in the export pack",
+        "packCount_other": "{{count}} findings in the export pack"
+      },
+      "dismiss": {
+        "title": "Dismiss this finding",
+        "lead": "A dismissal is not a deletion. It moves the finding to All checks with your reason attached.",
+        "reasonLabel": "Reason (required)",
+        "reasonPlaceholder": "e.g. the 461 balance settles on 15 Jan; the sub-ledger is already with the auditor",
+        "scope": "Scoped to rule {{rule}} on {{scope}}",
+        "criticalNote": "This finding is critical. It stays on the list, flagged as dismissed with your reason next to it — suppressing a critical finding is a decision, and a decision has to be visible.",
+        "cancel": "Cancel",
+        "confirm": "Dismiss with reason",
+        "dismissed": "Dismissed",
+        "dismissedBecause": "Dismissed — {{reason}}",
+        "undo": "Restore"
+      },
+      "checks": {
+        "title": "All checks",
+        "subtitle_one": "{{count}} rule ran on this period.",
+        "subtitle_other": "{{count}} rules ran on this period.",
+        "open": "Show all checks",
+        "close": "Hide all checks",
+        "groupDemoted": "Fired, but demoted",
+        "groupDemotedNote": "The rule fired and the numbers stand. The finding is missing a contract element, so it is listed here rather than written as a recommendation.",
+        "groupImmaterial": "Below the materiality floor",
+        "groupHeld": "Ranked below the cap",
+        "groupQuiet": "Ran, did not fire",
+        "colRule": "Rule",
+        "colParameter": "Parameter",
+        "colLimit": "Limit",
+        "colObserved": "Observed",
+        "colNote": "Note",
+        "missing": "Missing: {{elements}}",
+        "notFired": "Did not fire",
+        "fired": "Fired",
+        "empty": "No checks were recorded for this period.",
+        "groupShown": "Fired — shown above"
+      },
+      "silence": {
+        "title": "Nothing material this period",
+        "note": "This is a claim, not an absence — every rule below ran and is listed with its parameter, its limit and the value it saw."
+      },
+      "simple": {
+        "headline": "{{scope}} — <obs/>, {{comparator}} the <lim/> limit",
+        "oneAction": "The one thing to do",
+        "showFull": "Show the full check",
+        "hideFull": "Hide the full check",
+        "proHint": "Switch to Pro for the rule id, the threshold and the full ratio math."
+      },
+      "empty": {
+        "title": "No period loaded",
+        "body": "Findings are computed from a loaded trial balance. Open Statements to upload one."
+      },
+      "legacy": {
+        "note": "These rows were written before the seven-element contract. They are shown as stored."
+      },
+      "units": {
+        "days": "days",
+        "points": "pp"
+      },
+      "contract": {
+        "title": "The seven elements",
+        "subject": "Subject",
+        "evidence": "Evidence",
+        "threshold": "Threshold",
+        "impact": "Impact",
+        "why_here": "Why here",
+        "action": "Action",
+        "confidence": "Confidence",
+        "present": "present",
+        "absent": "absent"
+      },
+      "thresholdLead": "Rule {{rule}} fires when {{parameter}} is {{comparator}}",
+      "observedLead": "Observed",
+      "history": {
+        "title": "Across periods",
+        "note_one": "This finding has held for {{count}} period on the same balance ({{root}}).",
+        "note_other": "This finding has held for {{count}} consecutive periods on the same balance ({{root}}).",
+        "thisPeriod": "This period",
+        "earlier": "Earlier",
+        "contributors": "Also detected by {{rules}}",
+        "limit": "Only the count is stored per period — earlier values are not part of this payload."
+      },
+      "limitTick": "Limit",
+      "infoTier": {
+        "title": "Below the materiality floor",
+        "note": "Complete findings that are too small to rank as recommendations. They are shown because they were found, not because they need a decision."
+      },
+      "rankNote": "Ordered by quantified impact × confidence × persistence × actionability — not by severity alone, so a smaller finding that has held for three periods can outrank a fresh larger one.",
+      "moreSignals": "+{{count}} more"
+    }
+  },
+  "ro": {
+    "fnd": {
+      "heading": "Recomandări",
+      "headingSub_one": "{{count}} constatare respectă contractul cu șapte elemente",
+      "headingSub_few": "{{count}} constatări respectă contractul cu șapte elemente",
+      "headingSub_other": "{{count}} de constatări respectă contractul cu șapte elemente",
+      "capNote": "Ordonate după impact cuantificat × încredere × persistență × acționabilitate. Vezi {{shown}} din {{total}}; restul sunt la Toate verificările.",
+      "rank": "Locul {{n}}",
+      "ruleId": "Regulă",
+      "profile": "Profil",
+      "materiality": "Prag de semnificație",
+      "persistence": "Persistență",
+      "firstPeriod": "Prima perioadă",
+      "evidence": "Dovezi",
+      "basis": "Comparat cu",
+      "provenance": "Proveniență",
+      "provPeriod": "Perioada {{id}}",
+      "provSnapshot": "Snapshot {{id}}",
+      "provLines": "Conturile {{refs}}",
+      "provSource": "{{source}}",
+      "provTitle": "De unde vin cifrele",
+      "threshold": "Prag depășit",
+      "limitIs": "Limită {{limit}}",
+      "thresholdSource": "Parametru din {{source}}",
+      "impact": "Impact cuantificat",
+      "impactMoves": "{{metric}} trece de la {{from}} la {{to}}",
+      "impactMoney": "{{metric}}: {{from}} → {{to}}",
+      "recomputeOn": "Vezi cifra recalculată — fără acest element",
+      "recomputeHint": "Cifra recalculată vine din motor, nu din acest ecran.",
+      "whyHere": "De ce contează la tine",
+      "signals": "Semnale",
+      "action": "Fă asta",
+      "actionArtefact": "Document",
+      "actionProvider": "De la",
+      "actionHorizon": "Până la",
+      "confidence": "Încredere",
+      "confidenceLevel_high": "Ridicată",
+      "confidenceLevel_medium": "Medie",
+      "confidenceLevel_low": "Scăzută",
+      "cmp": {
+        "gt": "peste",
+        "gte": "cel puțin",
+        "lt": "sub",
+        "lte": "cel mult",
+        "ne": "diferit de"
+      },
+      "act": {
+        "viewEvidence": "Vezi dovada",
+        "viewEvidenceHint": "Deschide {{where}} și evidențiază rândul sursă",
+        "recompute": "Recalculează fără asta",
+        "recomputeOff": "Arată ca raportat",
+        "compare": "Compară perioadele",
+        "compareHint": "Apare de {{count}} perioade la rând",
+        "dismiss": "Respinge",
+        "ask": "Întreabă CFO AI",
+        "addPack": "Adaugă în pachetul de export",
+        "inPack": "În pachetul de export",
+        "packCount_one": "{{count}} constatare în pachetul de export",
+        "packCount_few": "{{count}} constatări în pachetul de export",
+        "packCount_other": "{{count}} de constatări în pachetul de export"
+      },
+      "dismiss": {
+        "title": "Respinge constatarea",
+        "lead": "Respingerea nu este ștergere. Constatarea trece la Toate verificările, cu motivul tău atașat.",
+        "reasonLabel": "Motiv (obligatoriu)",
+        "reasonPlaceholder": "ex.: soldul 461 se decontează pe 15 ian.; fișa analitică e deja la auditor",
+        "scope": "Se aplică regulii {{rule}} pe {{scope}}",
+        "criticalNote": "Constatarea este critică. Rămâne în listă, marcată ca respinsă, cu motivul tău alături — a ascunde o constatare critică e o decizie, iar o decizie trebuie să se vadă.",
+        "cancel": "Renunță",
+        "confirm": "Respinge cu motiv",
+        "dismissed": "Respinsă",
+        "dismissedBecause": "Respinsă — {{reason}}",
+        "undo": "Restaurează"
+      },
+      "checks": {
+        "title": "Toate verificările",
+        "subtitle_one": "{{count}} regulă a rulat pe această perioadă.",
+        "subtitle_few": "{{count}} reguli au rulat pe această perioadă.",
+        "subtitle_other": "{{count}} de reguli au rulat pe această perioadă.",
+        "open": "Arată toate verificările",
+        "close": "Ascunde verificările",
+        "groupDemoted": "S-au declanșat, dar au fost retrogradate",
+        "groupDemotedNote": "Regula s-a declanșat și cifrele rămân valabile. Constatării îi lipsește un element din contract, așa că apare aici, nu ca recomandare.",
+        "groupImmaterial": "Sub pragul de semnificație",
+        "groupHeld": "Sub plafonul de afișare",
+        "groupQuiet": "Au rulat, nu s-au declanșat",
+        "colRule": "Regulă",
+        "colParameter": "Parametru",
+        "colLimit": "Limită",
+        "colObserved": "Observat",
+        "colNote": "Notă",
+        "missing": "Lipsește: {{elements}}",
+        "notFired": "Nu s-a declanșat",
+        "fired": "S-a declanșat",
+        "empty": "Nu s-a înregistrat nicio verificare pentru această perioadă.",
+        "groupShown": "S-au declanșat — apar mai sus"
+      },
+      "silence": {
+        "title": "Nimic semnificativ în această perioadă",
+        "note": "Este o afirmație, nu o absență — fiecare regulă de mai jos a rulat și e listată cu parametrul, limita și valoarea văzută."
+      },
+      "simple": {
+        "headline": "{{scope}} — <obs/>, {{comparator}} limita de <lim/>",
+        "oneAction": "Singurul lucru de făcut",
+        "showFull": "Arată verificarea completă",
+        "hideFull": "Ascunde verificarea completă",
+        "proHint": "Treci pe Pro pentru id-ul regulii, prag și calculul complet."
+      },
+      "empty": {
+        "title": "Nicio perioadă încărcată",
+        "body": "Constatările se calculează dintr-o balanță încărcată. Deschide Situațiile ca să încarci una."
+      },
+      "legacy": {
+        "note": "Aceste rânduri au fost scrise înainte de contractul cu șapte elemente. Sunt afișate așa cum au fost salvate."
+      },
+      "units": {
+        "days": "zile",
+        "points": "pp"
+      },
+      "contract": {
+        "title": "Cele șapte elemente",
+        "subject": "Subiect",
+        "evidence": "Dovezi",
+        "threshold": "Prag",
+        "impact": "Impact",
+        "why_here": "De ce aici",
+        "action": "Acțiune",
+        "confidence": "Încredere",
+        "present": "prezent",
+        "absent": "absent"
+      },
+      "thresholdLead": "Regula {{rule}} se declanșează când {{parameter}} este {{comparator}}",
+      "observedLead": "Observat",
+      "history": {
+        "title": "De-a lungul perioadelor",
+        "note_one": "Constatarea se menține de {{count}} perioadă pe același sold ({{root}}).",
+        "note_few": "Constatarea se menține de {{count}} perioade consecutive pe același sold ({{root}}).",
+        "note_other": "Constatarea se menține de {{count}} de perioade consecutive pe același sold ({{root}}).",
+        "thisPeriod": "Perioada curentă",
+        "earlier": "Anterior",
+        "contributors": "Detectată și de {{rules}}",
+        "limit": "Se păstrează doar numărul de perioade — valorile anterioare nu fac parte din acest payload."
+      },
+      "limitTick": "Limită",
+      "infoTier": {
+        "title": "Sub pragul de semnificație",
+        "note": "Constatări complete, dar prea mici ca să intre la recomandări. Apar pentru că au fost găsite, nu pentru că îți cer o decizie."
+      },
+      "rankNote": "Ordonate după impact cuantificat × încredere × persistență × acționabilitate — nu doar după severitate, așa că o constatare mai mică ce se menține de trei perioade poate trece înaintea uneia noi și mai mari.",
+      "moreSignals": "+încă {{count}}"
+    }
+  }
+}

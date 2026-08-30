@@ -69,6 +69,14 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
         # Contract + plant log: design_review/period/GATES.md
         ("period-integrity",
          [PY, "-m", "pytest", "tests/engine/test_period_integrity_gates.py", "-q"]),
+        # F2 — FINDING SPECIFICITY. The measured baseline (BASELINE.md) had
+        # 80% of live findings with no imperative verb and 58% citing fewer
+        # than two figures; the generic-note failure is silent, so its gate
+        # must not be. Lints every surfaced finding on the real fixtures and
+        # runs the swap test. F1/F3-F9 ride the `pytest` gate above
+        # (tests/engine/test_findings_gates.py); plant log:
+        # design_review/findings/GATES.md
+        ("finding-specificity", [PY, "scripts/check_finding_specificity.py"]),
         ("determinism", [PY, "scripts/verify_determinism.py"]),
         ("bs-drift", [PY, "scripts/measure_bs_drift.py"]),
         ("error-budget", [PY, "scripts/measure_error_budget.py"]),
