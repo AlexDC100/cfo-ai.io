@@ -122,6 +122,31 @@ roles:
       max_calls_per_day: 300
       max_tokens_per_day: 3000000
 
+  finding_specificity:
+    # THE ANTI-GENERIC NET — the adversarial self-review pass in
+    # engine.ai.finding_sharpen. Its only question is "would this
+    # sentence read identically for a DIFFERENT company?", scored 0..1
+    # against the finding's own company profile and (when supplied) a
+    # decoy company. A SECOND role on purpose: the drafting role is
+    # `narrative`, and a writer grading its own output is not a net.
+    # New role — no golden pins it, so it ships on the current flagship
+    # (the ai_validator precedent). VERIFY the model-id string against
+    # the live models endpoint at deploy.
+    model_id: claude-fable-5
+    prompt_version: finding_sharpen_review_v1
+    max_tokens: 1024
+    temperature: 0
+    # DELIBERATE caps, not inherited defaults. The reviewer runs once per
+    # drafted finding and at most twice when a draft is regenerated, so
+    # it is call-heavy and token-light next to `narrative`: a period with
+    # five surfaced findings costs at most ten calls. 300/day covers a
+    # full re-narration of every period with headroom; a trip degrades
+    # the whole lane to the deterministic template (model prose is never
+    # shipped ungated) and serving is unaffected.
+    breaker:
+      max_calls_per_day: 300
+      max_tokens_per_day: 1500000
+
   structural_interpreter_a:
     # AI-first-reader Part A — column-semantics-first framing of the
     # StructuralMap interpreter (engine.interp.interpreter). NEW role —

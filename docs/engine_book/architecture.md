@@ -34,9 +34,9 @@ import the target package.
 ```mermaid
 graph LR
     pkg__root_["(root) (16 modules)"]
-    pkg_ai["ai (8 modules)"]
+    pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (89 modules)"]
+    pkg_api["api (90 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_confidence["confidence (5 modules)"]
@@ -65,7 +65,7 @@ graph LR
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
     pkg__root_ -->|1| pkg_storage
-    pkg_ai -->|2| pkg_ai_lane
+    pkg_ai -->|3| pkg_ai_lane
     pkg_ai -->|1| pkg_packs
     pkg_ai -->|1| pkg_serving
     pkg_ai_lane -->|2| pkg_ai
@@ -74,7 +74,7 @@ graph LR
     pkg_ai_lane -->|2| pkg_country_packs
     pkg_ai_lane -->|3| pkg_packs
     pkg_api -->|6| pkg__root_
-    pkg_api -->|2| pkg_ai
+    pkg_api -->|3| pkg_ai
     pkg_api -->|1| pkg_ai_lane
     pkg_api -->|1| pkg_consensus
     pkg_api -->|2| pkg_core
@@ -152,6 +152,7 @@ graph LR
         engine_ai_breaker["breaker"]
         engine_ai_evals["evals"]
         engine_ai_evals_run_baseline["run_baseline"]
+        engine_ai_finding_sharpen["finding_sharpen"]
         engine_ai_numerals["numerals"]
         engine_ai_registry["registry"]
         engine_ai_unit_sanity["unit_sanity"]
@@ -217,6 +218,9 @@ graph LR
     engine_ai_evals_run_baseline --> engine_ai
     engine_ai_evals_run_baseline --> engine_ai_advisory
     engine_ai_evals_run_baseline --> engine_ai_registry
+    engine_ai_finding_sharpen --> engine_ai
+    engine_ai_finding_sharpen --> engine_ai_breaker
+    engine_ai_finding_sharpen --> engine_ai_registry
     engine_api__reconcile --> engine_ai
     engine_api__reconcile --> engine_ai_registry
     engine_api__reconcile --> engine_serving
