@@ -31,7 +31,7 @@ import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
 import { BackendStatusIndicator } from "./BackendStatusIndicator";
 import { NotificationsMenu } from "./NotificationsMenu";
-import { useViewModeSync } from "@/components/instrument/shell/ModeSwitch";
+import { ModeSwitch, useViewModeSync } from "@/components/instrument/shell/ModeSwitch";
 import { TrustChip } from "@/components/instrument/shell/TrustChip";
 import { useCapsuleLabel } from "@/components/instrument/shell/ContextObject";
 import { modKeyLabel } from "@/components/instrument/shell/shellI18n";
@@ -129,6 +129,20 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
           <span className="sm:hidden inline-flex"><Logo size={24} iconOnly /></span>
           <span className="hidden sm:inline-flex"><Logo size={24} iconOnly /></span>
         </button>
+
+        {/* THE DIAL — Simple | Pro. Restored to the header by owner
+            directive (2026-08-30): it had been relocated to the avatar
+            menu under the 4-element law, and the owner wanted it back
+            in sight ("it was a nice touch"). It ALSO stays in the
+            avatar menu + Settings, which is what keeps it reachable on
+            phones where this instance is hidden. The header budget is
+            therefore 5, not 4 — recorded as an owner amendment in
+            design_review/header/GATES.md rather than silently bent. */}
+        {signedIn && (
+          <div className="hidden md:block shrink-0 ml-1">
+            <ModeSwitch />
+          </div>
+        )}
 
         {/* ── THE CAPSULE ────────────────────────────────────────────
             One pill: status dot · workspace · period · search · ⌘K.

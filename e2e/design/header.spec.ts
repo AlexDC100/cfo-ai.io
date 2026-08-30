@@ -59,7 +59,13 @@ test.skip(
 );
 
 const SETTLE_MS = 8000;
-const HEADER_BUDGET = 6;
+// OWNER AMENDMENT 2026-08-30: the Capsule consolidation landed at 4
+// (brand · capsule · bell · avatar). The owner then asked for the
+// Simple|Pro dial back in the header — "leave that there, it was a
+// nice touch" — making the sanctioned set FIVE. The budget is an
+// anti-regrowth law, so it is tightened to the new exact number
+// rather than left slack at the old 6.
+const HEADER_BUDGET = 5;
 
 // ── the one H1 definition ──────────────────────────────────────────────
 
@@ -101,14 +107,25 @@ async function countHeaderInteractive(page: Page): Promise<HeaderCensus> {
     const all = [...headerEl.querySelectorAll(sel)].filter(
       (el) => visible(el) && !inOverlay(el),
     );
+    // A SEGMENTED CONTROL IS ONE ELEMENT. The Simple|Pro dial renders a
+    // role="radiogroup" of two radio buttons; the PLACEMENT LAW counts
+    // distinct controls a user must scan, not DOM nodes, so a radiogroup
+    // collapses to its container. Any control nested inside another
+    // counted control is likewise not double-counted.
     const topLevel = all.filter((el) => {
       let p = el.parentElement;
       while (p && p !== headerEl) {
         if (p.matches(sel)) return false;
+        if (p.getAttribute("role") === "radiogroup") return false;
         p = p.parentElement;
       }
       return true;
     });
+    // ...and the radiogroup itself counts once.
+    const groups = [...headerEl.querySelectorAll('[role="radiogroup"]')].filter(
+      (el) => visible(el) && !inOverlay(el),
+    );
+    topLevel.push(...groups);
     return {
       count: topLevel.length,
       items: topLevel.map((el) => ({
@@ -146,7 +163,7 @@ async function boot(page: Page, route = "/dashboard"): Promise<void> {
 
 // ── H1 · the budget gate ───────────────────────────────────────────────
 
-test.describe("H1 — header budget: ≤6 top-level interactive elements @1440", () => {
+test.describe("H1 — header budget: exactly the sanctioned control set @1440", () => {
   test.setTimeout(90_000);
 
   for (const route of ["/dashboard", "/chat"]) {

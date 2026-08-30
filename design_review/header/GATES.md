@@ -216,3 +216,25 @@ To go fully green the lane must: remove the Ask header button (H2), clean
 `shell.palette.hint` en+ro (H4), get the census to ≤6 (H1), and — once a
 canonical period exists in the test stack — put the live trust sentence in
 the chip's accessible name (H6).
+
+
+## Owner amendment — 2026-08-30: the dial returns, budget = 5
+
+The Capsule consolidation landed the header at FOUR interactive
+elements (brand · capsule · bell · avatar), removing the Simple|Pro
+dial to the avatar menu per the directive.
+
+The owner then asked for the dial back in the header: *"why remove pro
+or light option for the website, leave that there it was a nice
+touch."* Restored. The sanctioned set is now FIVE:
+
+    brand · dial · capsule · notifications · avatar
+
+`HEADER_BUDGET` is tightened from 6 to **5** — the exact new count, so
+the gate still blocks the next unplanned addition. The dial remains in
+the avatar menu and Settings as well: the header instance is
+`hidden md:block`, so those are what keep it reachable on phones.
+
+What did NOT come back: the trust TEXT (still a dot + receipt), the
+Ask CFO AI button (sidebar + ⌘J + palette), and the currency selector
+(avatar menu). Those three were the owner's original complaint.
