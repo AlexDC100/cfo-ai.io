@@ -60,6 +60,12 @@ EVENT_TYPES = frozenset(
         "AI_REVIEW_DEGRADED",
         "SNAPSHOT_PERSISTED",
         "SERVED",
+        # PERIOD_MOVED (2026-08-30) — an operator re-filed a document
+        # under a different period. It is not a pipeline stage: it is a
+        # human correcting the record, and it changes the identity of up
+        # to two periods, so the before/after belongs in the chain rather
+        # than only in a log line.
+        "PERIOD_MOVED",
         "RUN_FAILED",
     }
 )

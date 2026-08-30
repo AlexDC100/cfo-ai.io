@@ -124,6 +124,18 @@ export function marketGroupOfExchange(exchange: string | null | undefined): Mark
   return EXCHANGE_TO_MARKET[exchange.trim().toUpperCase()] ?? "unknown";
 }
 
+/** A registry market_id, when it names a group this build knows. An id
+ *  the display side has never heard of returns null so the caller falls
+ *  back to the exchange rather than silently becoming "unknown" — the
+ *  two are different failures and only one of them is the venue's. */
+export function marketGroupOfMarketId(
+  marketId: string | null | undefined,
+): MarketGroupId | null {
+  if (!marketId) return null;
+  const id = marketId.trim().toLowerCase() as MarketGroupId;
+  return MARKET_BY_ID.has(id) && id !== "unknown" ? id : null;
+}
+
 export function marketFacts(id: MarketGroupId): MarketFacts {
   return MARKET_BY_ID.get(id) ?? MARKET_BY_ID.get("unknown")!;
 }
@@ -159,6 +171,13 @@ export interface BenchmarkSubject {
   name: string;
   /** Exchange code as the snapshot spells it ("BVB", "NASDAQ", …). */
   exchange: string | null | undefined;
+  /** Registry market_id the subject was RESOLVED in ("us", "ro", …),
+   *  when the source knew it. Preferred over `exchange` because it is a
+   *  fact the market document actually carried, whereas an exchange
+   *  picked off a registry's `exchanges` list would be a guess: the US
+   *  market lists NYSE *and* NASDAQ and a pm1 envelope names neither.
+   *  Absent stays absent — the exchange path still decides. */
+  marketId?: string | null;
   /** The currency the subject's OWN figures are denominated in. */
   currency: string | null | undefined;
   /** Fiscal period label of those figures ("FY2024"). */
@@ -176,7 +195,9 @@ export interface BenchmarkMember extends BenchmarkSubject {
 }
 
 export function benchmarkKeyOf(member: BenchmarkSubject): BenchmarkKey {
-  const group = marketGroupOfExchange(member.exchange);
+  // market_id first (a stated fact), exchange second (a mapped one).
+  const group =
+    marketGroupOfMarketId(member.marketId) ?? marketGroupOfExchange(member.exchange);
   const declared = (member.currency ?? "").trim().toUpperCase();
   return {
     marketGroup: group,

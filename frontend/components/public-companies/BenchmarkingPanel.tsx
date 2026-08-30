@@ -112,6 +112,23 @@ const honestyEn = {
   noSpread: "All {{n}} report the same value",
   noSpreadWhy: "No spread, so no P25/P75 and no ranking.",
   members: "Members",
+  // "Your peers" — the group holding every company the user added, from
+  // any market. It SPANS populations on purpose; the cohort chips below
+  // it are the split.
+  groupPeers: "Your peers",
+  standard: "{{standard}}",
+  // i18next plural suffixes — "1 of these peers are listed" was the copy
+  // a single foreign peer produced, which is the common case.
+  crossMarket_one:
+    "One of these peers is listed outside Romania. It forms its own population below — {{standards}} are compared only with themselves.",
+  crossMarket_other:
+    "{{count}} of these peers are listed outside Romania. They form their own populations below — {{standards}} are compared only with themselves.",
+  metric: {
+    netMargin: "Net margin",
+    netMarginShort: "Net margin",
+    debtEquity: "Debt / equity",
+    debtEquityShort: "Debt / equity",
+  },
 };
 
 const honestyRo = {
@@ -134,10 +151,39 @@ const honestyRo = {
   noSpread: "Toate cele {{n}} raportează aceeași valoare",
   noSpreadWhy: "Nicio dispersie, deci fără P25/P75 și fără clasament.",
   members: "Companii",
+  groupPeers: "Peers-ii tăi",
+  standard: "{{standard}}",
+  crossMarket_one:
+    "Unul dintre acești peers este listat în afara României. Formează propria populație mai jos — {{standards}} se compară doar cu ele însele.",
+  crossMarket_few:
+    "{{count}} dintre acești peers sunt listați în afara României. Ei formează populații separate mai jos — {{standards}} se compară doar cu ele însele.",
+  crossMarket_other:
+    "{{count}} de peers sunt listați în afara României. Ei formează populații separate mai jos — {{standards}} se compară doar cu ele însele.",
+  metric: {
+    netMargin: "Marjă netă",
+    netMarginShort: "Marjă netă",
+    debtEquity: "Datorii / capitaluri",
+    debtEquityShort: "Datorii / capitaluri",
+  },
 };
 
-i18n.addResourceBundle("en", "translation", { pci: { bench: { h: honestyEn } } }, true, false);
-i18n.addResourceBundle("ro", "translation", { pci: { bench: { h: honestyRo } } }, true, false);
+i18n.addResourceBundle(
+  "en",
+  "translation",
+  // groupPeers sits beside groupBvb / groupGlobal because pciData names
+  // the group by that key; the honesty bundle carries it so this lane
+  // owns its own strings without editing the locale files.
+  { pci: { bench: { h: honestyEn, groupPeers: honestyEn.groupPeers } } },
+  true,
+  false,
+);
+i18n.addResourceBundle(
+  "ro",
+  "translation",
+  { pci: { bench: { h: honestyRo, groupPeers: honestyRo.groupPeers } } },
+  true,
+  false,
+);
 
 // ── Props / metrics ──────────────────────────────────────────────────────
 
@@ -155,7 +201,9 @@ interface Props {
 type MetricKey =
   | "revenue_growth_pct"
   | "ebitda_margin_pct"
+  | "net_margin_pct"
   | "net_debt_to_ebitda"
+  | "debt_to_equity"
   | "fcf_yield_pct"
   | "ev_ebitda"
   | "dividend_yield_pct";
@@ -174,10 +222,19 @@ interface Metric {
   you?: (w: WorkspaceBenchMetrics) => number | null;
 }
 
+// Two metrics (net margin, debt / equity) were added 2026-08-30 because
+// they are the only ones a real filing-sourced peer can carry end to end
+// today: both are a ratio of two money figures from the SAME statement,
+// so a US_GAAP 10-K and a RAS/IFRS snapshot can each produce one from
+// what they actually state. A tile with no finite value in the active
+// cohort renders nothing at all (BenchmarkTile returns null on "empty"),
+// so a group whose rows never carried them is visually unchanged.
 const METRICS: Metric[] = [
   { key: "revenue_growth_pct", labelKey: "pci.bench.metric.growth", shortKey: "pci.bench.metric.growthShort", icon: TrendingUp, unit: "pct", goodHigh: true, you: (w) => w.revenue_growth_pct },
   { key: "ebitda_margin_pct", labelKey: "pci.bench.metric.ebitda", shortKey: "pci.bench.metric.ebitdaShort", icon: Percent, unit: "pct", goodHigh: true, you: (w) => w.ebitda_margin_pct },
+  { key: "net_margin_pct", labelKey: "pci.bench.h.metric.netMargin", shortKey: "pci.bench.h.metric.netMarginShort", icon: Percent, unit: "pct", goodHigh: true, you: (w) => w.net_margin_pct },
   { key: "net_debt_to_ebitda", labelKey: "pci.bench.metric.leverage", shortKey: "pci.bench.metric.leverageShort", icon: Scale, unit: "x", goodHigh: false, you: (w) => w.net_debt_to_ebitda },
+  { key: "debt_to_equity", labelKey: "pci.bench.h.metric.debtEquity", shortKey: "pci.bench.h.metric.debtEquityShort", icon: Scale, unit: "x", goodHigh: false, you: (w) => w.debt_to_equity },
   { key: "fcf_yield_pct", labelKey: "pci.bench.metric.fcf", shortKey: "pci.bench.metric.fcfShort", icon: Wallet, unit: "pct", goodHigh: true },
   { key: "ev_ebitda", labelKey: "pci.bench.metric.evEbitda", shortKey: "pci.bench.metric.evEbitdaShort", icon: Layers, unit: "x", goodHigh: false },
   { key: "dividend_yield_pct", labelKey: "pci.bench.metric.dividend", shortKey: "pci.bench.metric.dividendShort", icon: Activity, unit: "pct", goodHigh: true },
@@ -192,8 +249,18 @@ function rowToSubject(r: WatchlistRow): Subject {
     ticker: r.ticker,
     name: r.name,
     exchange: r.exchange,
+    // The row's own market id wins over its exchange. A peer resolved
+    // from a pm1 envelope has no exchange to map (the US registry lists
+    // NYSE and NASDAQ; the filing names neither), so without this the
+    // cohort key would fall to "unknown" and a real US_GAAP filer would
+    // sit in an "Unclassified" population instead of the US one.
+    marketId: r.market_id ?? null,
     currency: r.currency,
-    fiscalLabel: fiscalLabelFromIso(r.last_updated_iso),
+    // A stated fiscal label (from the peer's own document, or the
+    // universe's `latestPeriod`) beats one inferred from when the row was
+    // last touched — `last_updated_iso` is a fetch timestamp, not a
+    // period end, and a peer added today would otherwise claim FY2026.
+    fiscalLabel: r.fiscal_label || fiscalLabelFromIso(r.last_updated_iso),
     row: r,
   };
 }
@@ -211,7 +278,7 @@ export function BenchmarkingPanel({
   const { display, rates } = useCurrency();
 
   const groups = useMemo(
-    () => buildBenchGroups(rows, universeRows, peers.map((p) => p.ticker)),
+    () => buildBenchGroups(rows, universeRows, peers),
     [rows, universeRows, peers],
   );
 
@@ -326,6 +393,26 @@ export function BenchmarkingPanel({
           </button>
         ))}
       </div>
+
+      {/* When a group spans markets, say so in words BEFORE the chips.
+          The chips alone read as a filter; the sentence says they are a
+          partition — the peers are not being compared with each other
+          across the line. */}
+      {cohorts.length > 1 && (
+        <p
+          data-testid="benchmark-cross-market-note"
+          className="mb-2 max-w-[720px] text-[11px] leading-relaxed text-ink-soft"
+        >
+          {t("pci.bench.h.crossMarket", {
+            count: cohorts
+              .filter((c) => c.key.marketGroup !== "ro")
+              .reduce((n, c) => n + c.members.length, 0),
+            standards: [...new Set(cohorts.map((c) => c.key.accountingStandard))].join(
+              " / ",
+            ),
+          })}
+        </p>
+      )}
 
       {/* Cohort selector — only when the chosen group really does span
           more than one population. Silence would be the bug. */}

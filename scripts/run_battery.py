@@ -58,6 +58,17 @@ def _gates(engine_only: bool) -> List[Tuple[str, List[str]]]:
     gates: List[Tuple[str, List[str]]] = [
         ("pytest", [PY, "-m", "pytest", "tests/engine", "-q"] + PYTEST_DESELECTS),
         ("corpus-replay", [PY, "scripts/corpus_replay.py"]),
+        # W1-W6 — PERIOD-ASSIGNMENT INTEGRITY. `period_end` is the period's
+        # identity, and the 2026-08-30 audit found it being set from UI
+        # state (the drop target's date written into the human-confirmation
+        # channel), filing a 2025 trial balance under 2017-12. These gates
+        # pin the law: the period comes from the DOCUMENT, absence forces an
+        # explicit choice, wrong rows are surfaced and never rewritten. Named
+        # separately from `pytest` so the battery record shows it by name —
+        # this class of defect is silent, so its gate must not be.
+        # Contract + plant log: design_review/period/GATES.md
+        ("period-integrity",
+         [PY, "-m", "pytest", "tests/engine/test_period_integrity_gates.py", "-q"]),
         ("determinism", [PY, "scripts/verify_determinism.py"]),
         ("bs-drift", [PY, "scripts/measure_bs_drift.py"]),
         ("error-budget", [PY, "scripts/measure_error_budget.py"]),

@@ -7,6 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
 import type { WatchlistRow } from "@/lib/publicCompanyWatchlist";
+import type { PeerEntry } from "@/lib/benchmarkPeersStore";
 import { fetchPriceHistory } from "@/lib/publicCompanyPriceHistory";
 import { deriveTotals } from "@/lib/financialReport";
 import type { Statements } from "@/lib/financialReport";
@@ -162,6 +163,21 @@ export function useCardSparkline(ticker: string, enabled: boolean) {
 // universe) vs "Global" (everything else). Sector subgroups materialize
 // automatically once a group's sector has ≥3 members. Stats downstream
 // are computed strictly per group — never across groups.
+//
+// GLOBAL PUBLIC MARKETS (2026-08-30) — a third builtin group: "Your
+// peers", every company the user explicitly added, from ANY market.
+//
+// It exists because the two original groups could not hold one: "Peers
+// BVB" only admitted rows the (Romania-only) universe could resolve, so
+// a peer added from the US tab was silently dropped — added, stored, and
+// invisible. "Global" is the DEMO watchlist, whose AAPL row carries
+// illustrative figures; routing a real SEC-sourced peer there would have
+// put it beside a same-ticker row of invented numbers.
+//
+// A GROUP IS NOT A POPULATION. This group deliberately spans markets;
+// BenchmarkingPanel then runs `partitionByKey` over it, so the Romanian
+// peers and the US peers are two cohorts with two medians and two
+// accounting standards. That split is the point, not a side effect.
 
 export interface BenchGroup {
   key: string;
@@ -179,7 +195,7 @@ function universeRowToWatchlist(r: PublicCompanyFinancialSnapshot): WatchlistRow
     sector: r.sector ?? "—",
     industry: r.industry ?? "—",
     exchange: r.exchange ?? "BVB",
-    currency: (r.currency === "RON" ? "RON" : "USD"),
+    currency: r.currency || "RON",
     country: r.country ?? undefined,
     market_cap_usd: r.marketCap ?? NaN,
     revenue_usd: r.revenue ?? NaN,
@@ -190,15 +206,54 @@ function universeRowToWatchlist(r: PublicCompanyFinancialSnapshot): WatchlistRow
     fcf_yield_pct: r.fcfYield ?? NaN,
     dividend_yield_pct: r.dividendYield ?? NaN,
     revenue_growth_pct: r.revenueGrowth ?? NaN,
+    net_margin_pct: r.netMargin ?? NaN,
+    debt_to_equity: r.debtToEquity ?? NaN,
+    fiscal_label: r.latestPeriod ?? null,
     last_updated_iso: r.lastUpdated,
     status: r.mode === "live" ? "fresh" : "demo",
+  };
+}
+
+/** A peer the loaded universe cannot resolve, rendered from what its own
+ *  document gave at add time. Every metric the entry does not carry is
+ *  NaN — the statistic drops non-finite values, so an absent ratio costs
+ *  the peer a tile rather than filling one with a zero. */
+function peerEntryToWatchlist(p: PeerEntry): WatchlistRow {
+  const m = p.metrics ?? {};
+  const or = (v: number | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : NaN);
+  return {
+    ticker: p.ticker,
+    name: p.name,
+    sector: p.sector ?? "—",
+    industry: "—",
+    exchange: p.exchange ?? "",
+    currency: p.currency,
+    market_id: p.marketId ?? null,
+    accounting_standard: p.accountingStandard ?? null,
+    fiscal_label: p.fiscalLabel ?? null,
+    // Market-cap and revenue are MONEY and this row is only ever used for
+    // unitless ratio statistics, so they are left absent rather than
+    // carried in a currency the panel would have to convert.
+    market_cap_usd: NaN,
+    revenue_usd: NaN,
+    ebitda_margin_pct: or(m.ebitda_margin_pct),
+    net_debt_to_ebitda: or(m.net_debt_to_ebitda),
+    pe_ratio: NaN,
+    ev_ebitda: or(m.ev_ebitda),
+    fcf_yield_pct: or(m.fcf_yield_pct),
+    dividend_yield_pct: or(m.dividend_yield_pct),
+    revenue_growth_pct: or(m.revenue_growth_pct),
+    net_margin_pct: or(m.net_margin_pct),
+    debt_to_equity: or(m.debt_to_equity),
+    last_updated_iso: p.addedAt,
+    status: "fresh",
   };
 }
 
 export function buildBenchGroups(
   watchlist: WatchlistRow[],
   universeRows: PublicCompanyFinancialSnapshot[],
-  peerTickers: string[],
+  peers: PeerEntry[],
 ): BenchGroup[] {
   const byTicker = new Map(universeRows.map((r) => [r.ticker, r] as const));
 
@@ -206,23 +261,52 @@ export function buildBenchGroups(
   for (const w of watchlist) {
     if (w.exchange === "BVB") bvbRows.set(w.ticker, w);
   }
-  // The user's added peers join the BVB group with metrics read from the
-  // loaded universe snapshot (only metrics the snapshot actually has).
-  for (const t of peerTickers) {
-    if (bvbRows.has(t)) continue;
-    const u = byTicker.get(t);
-    if (u && u.exchange === "BVB") bvbRows.set(t, universeRowToWatchlist(u));
+  // The user's Romanian peers join the BVB group with metrics read from
+  // the loaded universe snapshot (only metrics the snapshot actually
+  // has). A peer from any other market is NOT admitted here — that is
+  // the blend PM7 forbids, and it is why the "Your peers" group exists.
+  for (const p of peers) {
+    if (bvbRows.has(p.ticker)) continue;
+    const u = byTicker.get(p.ticker);
+    if (u && u.exchange === "BVB") bvbRows.set(p.ticker, universeRowToWatchlist(u));
   }
 
   const globalRows = watchlist.filter((w) => w.exchange !== "BVB");
+
+  // "Your peers" — every explicitly added company, whatever its market.
+  // Romanian peers resolve against the loaded universe (real snapshot
+  // metrics); everything else renders from the figures its own document
+  // carried at add time.
+  const peerRows: WatchlistRow[] = peers.map((p) => {
+    const u = byTicker.get(p.ticker);
+    if (u && (!p.marketId || p.marketId === "ro")) {
+      const row = universeRowToWatchlist(u);
+      return { ...row, market_id: p.marketId ?? row.market_id ?? null };
+    }
+    return peerEntryToWatchlist(p);
+  });
 
   const groups: BenchGroup[] = [
     { key: "bvb", labelKey: "pci.bench.groupBvb", rows: [...bvbRows.values()] },
     { key: "global", labelKey: "pci.bench.groupGlobal", rows: globalRows },
   ];
+  // Placed FIRST when it exists: the companies the user chose outrank the
+  // shipped demo sets in a chip row they have to read left to right.
+  if (peerRows.length > 0) {
+    groups.unshift({ key: "peers", labelKey: "pci.bench.groupPeers", rows: peerRows });
+  }
 
   // Sector subgroups (cheap): any sector with ≥3 members inside a parent
-  // group gets its own chip, labeled "<parent> · <sector>".
+  // group gets its own chip, labeled "<parent> · <sector>". The parent
+  // name is looked up, not inferred from `key !== "bvb"` — that ternary
+  // silently labelled every non-BVB parent "Global", which was harmless
+  // while there were exactly two parents and wrong the moment a third
+  // ("Your peers") appeared.
+  const PARENT_LABEL: Readonly<Record<string, string>> = {
+    bvb: "BVB",
+    global: "Global",
+    peers: "Peers",
+  };
   for (const parent of [...groups]) {
     const bySector = new Map<string, WatchlistRow[]>();
     for (const r of parent.rows) {
@@ -234,7 +318,7 @@ export function buildBenchGroups(
       if (rows.length >= 3 && rows.length < parent.rows.length) {
         groups.push({
           key: `${parent.key}-${sector.toLowerCase().replace(/\s+/g, "-")}`,
-          label: `${parent.key === "bvb" ? "BVB" : "Global"} · ${sector}`,
+          label: `${PARENT_LABEL[parent.key] ?? parent.key} · ${sector}`,
           rows,
         });
       }
@@ -249,6 +333,15 @@ export function defaultBenchGroupKey(
   groups: BenchGroup[],
   workspaceSector: string | null,
 ): string {
+  // A peer from outside the home market has NO other group that can show
+  // it — "Peers BVB" refuses it by construction and "Global" is the demo
+  // set. Landing on any other chip would leave the user staring at a
+  // panel that does not contain the company they just added, which reads
+  // exactly like the peer having been dropped.
+  const peerGroup = groups.find((g) => g.key === "peers");
+  if (peerGroup?.rows.some((r) => !!r.market_id && r.market_id !== "ro")) {
+    return peerGroup.key;
+  }
   if (workspaceSector) {
     const match = groups.find(
       (g) => g.key.startsWith("bvb-") && g.label?.endsWith(workspaceSector),

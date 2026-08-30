@@ -34,7 +34,7 @@ import time
 import traceback
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -44,6 +44,17 @@ from . import _detect
 from . import _journal_routes
 from . import _ops_routes
 from . import _org
+# PERIOD DETECTION (Part B) — the ONE hint-free answer to "which
+# period does this document belong to?", shared by stage_persist and
+# the /api/period/detect route the upload UI calls. One service means
+# the engine and the UI can never disagree about a document's month.
+from . import _period_detect
+# PERIOD MOVE (Part D) — the correction path for rows that were ALREADY
+# misfiled before Part B landed. Re-files a document under a month the
+# human confirmed for it and invalidates whatever the departure
+# orphaned; the actual re-filing is delegated back to stage_persist via
+# the hint, so there is no second implementation of "which period".
+from . import _period_move
 from . import _reconcile
 from . import _supabase
 from . import _usage_limits
@@ -1507,6 +1518,108 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
     return assembled
 
 
+def resolve_period_end_for_persist(
+    doc: Dict[str, Any], parsed: Dict[str, Any]
+) -> Tuple[str, Dict[str, Any]]:
+    """Resolve the period this document is filed under, and record WHY.
+
+    PURE — no DB, no clock beyond the documented last-resort fallback.
+    Split out of `stage_persist` so the decision is testable on its own
+    and so the ranked order lives in one readable place.
+
+    RANKED ORDER (unchanged from the pre-2026-08-30 behaviour):
+
+      1. `documents.period_end_hint` — the CONFIRMATION channel. It means
+         "a human confirmed that THIS document belongs to THIS month",
+         and it deliberately overrides the engine's own detection.
+         That meaning is load-bearing: the 2026-08-30 audit found the
+         frontend filling it with the DROP TARGET's date, so the engine
+         discarded correct detections on a value no human had ever read
+         off the document. The channel is not the bug — filling it with
+         UI state was. Rank 1 stays.
+      2. in_document     |
+      3. closing_balance | `_period_detect.detect_period` — hint-free,
+      4. filename        | the SAME service the upload UI calls, so
+                         | engine and UI can never disagree.
+      5. today, logged as a fallback and labelled `fallback_today` in
+         the record. Never labelled a detection.
+
+    Returns `(period_end, detection_record)`. The record is stamped onto
+    the persisted envelope so the mismatch chip (Parts D/E) reads GROUND
+    TRUTH — what actually won at write time — instead of recomputing a
+    verdict that could drift from the row it describes.
+
+    Behaviour note (2026-08-30): the only resolution that changes is
+    filenames the engine helper alone could not parse and which
+    therefore landed on TODAY — `balanta_2025.xlsx`, `dec2025.xls`,
+    `FY2025.xlsx`, `tb_2025-12.xlsx`. Those now resolve to their real
+    month. Every filename the helper already resolved resolves
+    identically; no existing row is rewritten.
+    """
+    # Sane-clamped like every other source: the FE's client-side
+    # detection once seeded the confirm dialog with a garbage year
+    # (2115-03-31, from stray numbers in a header row) and this path
+    # trusted it verbatim — the one unclamped door left after the
+    # 2050-12-31 fix. Out-of-range hints fall through to the document's
+    # own evidence instead of minting a corrupt period.
+    hint = doc.get("period_end_hint")
+    period_end_hint: Optional[str] = None
+    if hint:
+        try:
+            period_end_hint = _sane_period_end(
+                date.fromisoformat(str(hint)[:10]).isoformat()
+            )
+        except (TypeError, ValueError):
+            period_end_hint = None
+
+    detected = _period_detect.detect_period(
+        extracted=parsed if isinstance(parsed, dict) else None,
+        filename=doc.get("original_filename"),
+    )
+
+    if period_end_hint:
+        period_end = period_end_hint
+        signal_used = "user_confirmed"
+        confidence = 1.0
+        evidence = "user-confirmed period end: %s" % period_end_hint
+    elif detected["proposed_period_end"]:
+        period_end = detected["proposed_period_end"]
+        signal_used = detected["signal_used"]
+        confidence = detected["confidence"]
+        evidence = detected["evidence_snippet"]
+    else:
+        # ABSENT. Nothing in the document, nothing in the filename, no
+        # human confirmation. The period still has to be filed
+        # somewhere, so today stands in — but it is recorded as a
+        # fallback, never as a detection, so the UI can ask.
+        period_end = date.today().isoformat()
+        signal_used = "fallback_today"
+        confidence = 0.0
+        evidence = None
+        logger.warning(
+            "[period_end] no signal for document %s (%r) — filing under "
+            "today (%s) and flagging it as unconfirmed",
+            doc.get("id"),
+            doc.get("original_filename"),
+            period_end,
+        )
+
+    # ABSENT != ZERO: a document with no evidence of its own cannot
+    # DISAGREE with the human's choice. Only a real, resolved detection
+    # that points somewhere else is a mismatch.
+    proposed = detected["proposed_period_end"]
+    record = {
+        "resolved_period_end": period_end,
+        "signal_used": signal_used,
+        "confidence": confidence,
+        "evidence_snippet": evidence,
+        "hint": period_end_hint,
+        "detected": detected,
+        "mismatch": bool(proposed) and proposed != period_end,
+    }
+    return period_end, record
+
+
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
     """Lookup-or-create the financial_period for this document's
     (org, period_end, source_document_id) tuple, then refresh its
@@ -1531,45 +1644,7 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
     in step 4 below. Adding source_document_id to the SELECT closes that
     collision. (See Bug A fix: src/engine/api/pipeline.py:910-922.)
     """
-    # User-confirmed period-end wins (2026-07-25). The upload flow detects the
-    # closing month from the filename and lets the user confirm/edit it; the
-    # chosen date lands on documents.period_end_hint. When present it overrides
-    # both the extracted (content) and filename-derived dates so the period is
-    # filed under exactly the month the user confirmed.
-    hint = doc.get("period_end_hint")
-    period_end_hint: Optional[str] = None
-    if hint:
-        try:
-            # Sane-clamped like every other source: the FE's client-side
-            # detection once seeded the confirm dialog with a garbage year
-            # (2115-03-31, from stray numbers in a header row) and this path
-            # trusted it verbatim — the one unclamped door left after the
-            # 2050-12-31 fix. Out-of-range hints now fall through to the
-            # extracted/filename dates instead of minting a corrupt period.
-            period_end_hint = _sane_period_end(
-                date.fromisoformat(str(hint)[:10]).isoformat()
-            )
-        except (TypeError, ValueError):
-            period_end_hint = None
-
-    period_end_str = parsed.get("period_end")
-    if period_end_hint:
-        period_end = period_end_hint
-    elif period_end_str:
-        try:
-            period_end = _sane_period_end(
-                date.fromisoformat(period_end_str).isoformat()
-            ) or _detect_period_end_from_filename(doc.get("original_filename"))
-        except (TypeError, ValueError):
-            period_end = _detect_period_end_from_filename(doc.get("original_filename"))
-    else:
-        # Claude didn't surface a period_end; fall back to filename detection
-        # (Romanian ERP exports almost always include the trial-balance date
-        # in the filename: "Balanta_..._31.12.2025_..." or "..._2025.xlsx").
-        # Last resort: today's date with a warning so the period doesn't get
-        # silently misclassified.
-        period_end = _detect_period_end_from_filename(doc.get("original_filename"))
-
+    period_end, period_detection = resolve_period_end_for_persist(doc, parsed)
     period_start = period_end  # we don't have start info — treat as point-in-time
 
     # AUTO-RECONCILE addendum — the previously-persisted period row (when
@@ -1751,6 +1826,17 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 "content_hash": doc.get("content_hash"),
                 "written_at": datetime.now(timezone.utc).isoformat(),
             }
+            # PERIOD-DETECTION STAMP (2026-08-30). Same seam, same
+            # reason as the provenance stamp above: record WHICH SIGNAL
+            # actually decided this period's identity, plus what the
+            # document's own evidence said, at the moment it was
+            # written. `mismatch` is true when a real detection points
+            # somewhere other than where the period was filed — the
+            # ground truth behind the mismatch chip (Parts D/E), which
+            # must never have to recompute a verdict about a row it
+            # didn't write. Additive; readers that don't know the key
+            # are unaffected.
+            canonical["period_detection"] = period_detection
             # AUTO-RECONCILE (contract addendum, 2026-08-19) — between the
             # canonical build and the SINGLE envelope write below:
             #   1. Same-file carry-forward: a re-scan of the SAME file
@@ -4852,6 +4938,27 @@ def _enqueue(document_id: str) -> None:
 # ─── HTTP shape ─────────────────────────────────────────────────────────────
 
 
+class PeriodDetectRequest(BaseModel):
+    """POST body for `/api/period/detect`.
+
+    `extra="forbid"` is the W1 guard at the wire: a client that tries to
+    smuggle the open period / drop target into the decision gets a 422,
+    not a silently-ignored field.
+
+    Declared at MODULE level on purpose. A Pydantic model defined inside
+    the `build_router()` closure cannot have its annotations resolved by
+    FastAPI — the body parameter degrades into a required *query* param
+    (422 on every POST) and `/openapi.json` 500s on the forward ref.
+    See CLAUDE.md §16 "Backend cleanup" for the same trap on
+    `ContactSalesRequest`.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    filename: Optional[str] = None
+    extracted: Optional[Dict[str, Any]] = None
+
+
 class RunRequest(BaseModel):
     document_id: str
     # Optional ISO 639-1 language code (en, ro, de, fr, es, …). When provided,
@@ -4896,6 +5003,22 @@ def build_router() -> APIRouter:
     # (auth like the reconcile routes; 404 when no journal coverage).
     _journal_routes.register_routes(router, require_jwt=_require_jwt)
 
+    # PERIOD MOVE (Part D): POST /api/documents/{id}/move-period and
+    # /make-active — the correction path. Dependencies are injected the
+    # same way the reconcile/journal routers take `require_jwt`, so
+    # `_period_move` never imports back into this module. The re-run
+    # goes through `_admin_set_status` + `_enqueue` directly rather than
+    # /api/pipeline/run: correcting a misfiled document is not a new
+    # upload and must not consume the user's document quota.
+    _period_move.register_routes(
+        router,
+        require_jwt=_require_jwt,
+        verify_owns=_verify_user_owns_document,
+        set_status=_admin_set_status,
+        enqueue=_enqueue,
+        admin_client=_supabase.admin,
+    )
+
     # OBSERVABILITY: GET /api/ops — read-only engine-health snapshot
     # (auth like the reconcile routes; also installs the inert tracing
     # seams over the journal hooks — no behavior change until
@@ -4909,6 +5032,46 @@ def build_router() -> APIRouter:
     def get_fx_rates_endpoint(refresh: bool = False) -> Dict[str, Any]:
         from .fx_rates import get_fx_rates
         return get_fx_rates(force_refresh=refresh)
+
+    # ── PERIOD DETECTION (Part B) ────────────────────────────────────
+    # REGISTRATION ORDER IS LOAD-BEARING. `/api/period/{period_id}`
+    # (registered further down) would happily swallow the literal path
+    # segment `detect`; FastAPI resolves in registration order, so this
+    # route must be declared BEFORE it. Pinned by
+    # tests/engine/test_period_detection.py::
+    # test_get_route_is_not_shadowed_by_the_period_id_route.
+    #
+    # Stateless by design: no DB read, no DB write, no document
+    # required. The upload flow calls it BEFORE creating the document,
+    # on a filename alone or on a parsed preview, so the user confirms
+    # a date that came off the DOCUMENT — which is the only thing
+    # `documents.period_end_hint` is allowed to carry.
+
+    def _detect_period_payload(
+        filename: Optional[str], extracted: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        return _period_detect.detect_period(extracted=extracted, filename=filename)
+
+    @router.get("/api/period/detect")
+    def detect_period_get(
+        filename: Optional[str] = None,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """Filename-only detection, for the moment a file is picked and
+        no bytes have been parsed yet. Unknown query parameters are
+        ignored — and cannot matter, because the service's signature
+        accepts nothing but the document's own evidence."""
+        _require_jwt(authorization)
+        return _detect_period_payload(filename, None)
+
+    @router.post("/api/period/detect")
+    def detect_period_post(
+        req: PeriodDetectRequest,
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """Detection on a parsed preview (`extracted`) plus filename."""
+        _require_jwt(authorization)
+        return _detect_period_payload(req.filename, req.extracted)
 
     # F3-UX-2 follow-up: /api/paste-trial-balance endpoint removed after the
     # FE Paste-Trial-Balance UI was deleted (no remaining FE caller; no
@@ -5335,8 +5498,30 @@ def build_router() -> APIRouter:
                 "is_active": p["id"] == active_period_id,
                 "currency": p.get("currency"),
                 "documents": doc_list,
+                # THE ANALYSIS SOURCE, stated rather than guessed
+                # (2026-08-30). One document per period backs its numbers
+                # — `stage_persist` writes this pointer and stamps the
+                # same id into the envelope's provenance. The workspace
+                # UI used to infer it with a most-recently-analyzed
+                # heuristic, which silently picked a winner on a period
+                # holding two companies' files. Surfaced so the label can
+                # be a fact; null on legacy rows, where the UI must fall
+                # back rather than pretend.
+                "source_document_id": p.get("source_document_id"),
                 "extraction_confidence": p.get("extraction_confidence"),
                 "has_meaningful_data": has_data,
+                # PERIOD-DETECTION GROUND TRUTH (2026-08-30). Written by
+                # stage_persist into the period's envelope; surfaced
+                # here verbatim so the mismatch chip renders WHAT
+                # ACTUALLY HAPPENED at write time instead of recomputing
+                # a verdict about a row it didn't write. None on periods
+                # persisted before this shipped — ABSENT != ZERO, so the
+                # chip must render nothing rather than "no mismatch".
+                "period_detection": (
+                    (p.get("assembled_canonical_v1") or {}).get("period_detection")
+                    if isinstance(p.get("assembled_canonical_v1"), dict)
+                    else None
+                ),
             })
 
         # Soft-delete window is 30 days — surface deleted docs that fall

@@ -172,7 +172,29 @@ def test_filename_only_evidence_resolves(filename, expected):
     out = detect_period(extracted=None, filename=filename)
     assert out["proposed_period_end"] == expected
     assert out["signal_used"] == "filename"
-    assert out["proposed_period_end"] != date.today().isoformat() or expected == date.today().isoformat()
+
+
+def test_month_tags_match_the_engine_helper():
+    """`_MONTH_TAGS` only exists to rewrite numeric year-months into the
+    vocabulary the ENGINE helper already parses. If the helper's month
+    table ever changes, this catches the drift instead of letting the
+    service quietly resolve the wrong month."""
+    for month, tag in _period_detect._MONTH_TAGS.items():
+        resolved = pipeline._detect_period_end_from_filename(
+            "tb %s 2025.xlsx" % tag
+        )
+        assert resolved[:7] == "2025-%02d" % month, (
+            "tag %r no longer means month %d to the engine helper"
+            % (tag, month)
+        )
+
+
+def test_normalization_never_moves_the_year():
+    """A lexical rewrite may refine the MONTH the helper found; it must
+    never be able to relabel the document's year."""
+    out = detect_period(extracted=None, filename="TB 09-2024.xlsx")
+    assert out["proposed_period_end"] == "2024-09-30"
+    assert out["proposed_period_end"][:4] == "2024"
 
 
 def test_filename_evidence_snippet_is_the_literal_filename():

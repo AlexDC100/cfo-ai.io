@@ -18,7 +18,13 @@ export interface WatchlistRow {
   exchange: string;
   // BVB Phase 2 (2026-06-01) — widened from "USD" to "USD" | "RON" to
   // admit BVB-listed tickers (CFH, TLV) in the same quick-pick chip set.
-  currency: "USD" | "RON";
+  // GLOBAL PUBLIC MARKETS (2026-08-30) — widened again to any ISO code,
+  // because a benchmark peer can now come from any registry market (EUR,
+  // GBP, AED, …). The union was a two-market assumption, and the cohort
+  // key reads this field verbatim: a currency it cannot express would
+  // have to be coerced into one of the two, which is how a EUR filer
+  // ends up labelled RON.
+  currency: string;
   // Display country — surfaces in the search-result country chip.
   // Defaults to United States via the helper if absent (back-compat).
   country?: string;
@@ -37,6 +43,24 @@ export interface WatchlistRow {
   revenue_growth_pct: number;
   last_updated_iso: string;
   status: "fresh" | "stale" | "demo";
+
+  // ── GLOBAL PUBLIC MARKETS (2026-08-30) ──────────────────────────────
+  // Optional on purpose: the demo rows and the BVB universe predate all
+  // of it, and an absent field must stay absent rather than acquire a
+  // default that would place a company in a population it never claimed.
+
+  /** Registry market_id ("ro", "us", …) when the row's source knew it.
+   *  Preferred over `exchange` by the cohort key — see benchmarkGroups. */
+  market_id?: string | null;
+  /** Accounting standard as markets.yaml spells it ("US_GAAP"). Carried
+   *  for display; the cohort key re-derives its own from the market. */
+  accounting_standard?: string | null;
+  /** Fiscal label of this row's figures ("FY2025"), when stated. */
+  fiscal_label?: string | null;
+  /** Net income / revenue, in percentage POINTS. */
+  net_margin_pct?: number;
+  /** Total debt / equity, a multiple. */
+  debt_to_equity?: number;
 }
 
 export const DEMO_WATCHLIST: WatchlistRow[] = [

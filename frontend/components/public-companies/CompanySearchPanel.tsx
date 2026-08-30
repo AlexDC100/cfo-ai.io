@@ -24,7 +24,7 @@ import { Search, X, CheckCircle2 } from "lucide-react";
 import "./pciI18n";
 import type { PublicCompanyHit } from "@/lib/publicCompanyApi";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
-import { removePeer, useBenchmarkPeers } from "@/lib/benchmarkPeersStore";
+import { peerEntryKey, removePeer, useBenchmarkPeers } from "@/lib/benchmarkPeersStore";
 import { DataSourcesInfoButton } from "./MarketsOverview";
 import { staticBvbRows } from "@/lib/bvbStaticUniverse";
 
@@ -195,9 +195,16 @@ export function CompanySearchPanel({
             <CheckCircle2 size={10} strokeWidth={2.25} className="text-brand-dark dark:text-brand-light" />
             {t("pci.search.yourPeers")}
           </span>
-          {peers.map((p) => (
+          {peers.map((p) => {
+            // A peer from another market is NOT in this (Romania-only)
+            // search corpus, so clicking it must not pretend to open a
+            // company drawer that has nothing to show. It renders as a
+            // labelled, non-clickable chip instead — the market label is
+            // the honest difference between the two kinds of peer.
+            const foreign = !!p.marketId && p.marketId !== "ro";
+            return (
             <span
-              key={p.ticker}
+              key={peerEntryKey(p)}
               className="
                 group inline-flex items-center
                 rounded-full bg-brand-tint
@@ -205,16 +212,24 @@ export function CompanySearchPanel({
               "
             >
               <button
-                onClick={() => handleHitClick(p.ticker)}
-                className="flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 text-left"
-                title={p.name}
+                onClick={() => { if (!foreign) handleHitClick(p.ticker); }}
+                disabled={foreign}
+                className={`flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 text-left ${
+                  foreign ? "cursor-default" : ""
+                }`}
+                title={foreign ? `${p.name} · ${p.marketId?.toUpperCase()}` : p.name}
               >
                 <span className="font-mono text-[11px] font-medium text-brand-dark dark:text-brand-light tabular-nums">
                   {p.ticker}
                 </span>
+                {foreign && (
+                  <span className="font-mono text-[9.5px] uppercase text-brand-dark/70 dark:text-brand-light/70">
+                    {p.marketId!.toUpperCase()}
+                  </span>
+                )}
               </button>
               <button
-                onClick={(e) => { e.preventDefault(); removePeer(p.ticker); }}
+                onClick={(e) => { e.preventDefault(); removePeer(p.ticker, p.marketId); }}
                 aria-label={t("pci.search.removePeer", { ticker: p.ticker })}
                 className="
                   px-1.5 py-1 text-brand-dark/60 hover:text-brand-dark dark:text-brand-light/60 dark:hover:text-brand-light
@@ -224,7 +239,8 @@ export function CompanySearchPanel({
                 <X size={10} strokeWidth={2} />
               </button>
             </span>
-          ))}
+            );
+          })}
         </div>
       )}
 

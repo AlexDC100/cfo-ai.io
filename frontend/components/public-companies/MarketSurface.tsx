@@ -36,50 +36,19 @@ import {
   type MarketFigure,
   type MarketRefusal,
 } from "@/lib/marketApi";
+import { figureMajor } from "./marketFigures";
+import { MarketPeerButton } from "./MarketPeerAdd";
 import { MarketDataStatusLine, useHoldingsText } from "./MarketDataStatusLine";
 import { MarketAwaitingPanel } from "./MarketAwaitingPanel";
 import { useMarketName } from "./MarketTabs";
 import "./marketI18n";
 
 // ── minor-unit handling ────────────────────────────────────────────────
-// A money figure arrives as an INTEGER in minor units. Converting it to
-// major units needs the scale, and GUESSING the scale is how a figure
-// silently becomes wrong by 100x — so the scale is only ever taken from
-// something the document actually says:
-//
-//   · the named minor unit, when the document carries one ("cent"), or
-//   · the ISO 4217 minor-unit exponent of the document's own currency.
-//
-// A currency outside the table, or a named unit we do not know, refuses:
-// the row renders an em dash with the unit in a tooltip instead of a
-// number the reader would have no way to know was scaled wrong.
-const NAMED_MINOR_UNIT_EXPONENT: Readonly<Record<string, number>> = { cent: 2 };
-
-/** ISO 4217 minor-unit exponents for every currency the market registry
- *  can name today. Extended deliberately — a zero-decimal currency (JPY,
- *  KRW) MUST be added here before its market goes live, not defaulted. */
-const CURRENCY_MINOR_UNIT_EXPONENT: Readonly<Record<string, number>> = {
-  USD: 2,
-  EUR: 2,
-  GBP: 2,
-  RON: 2,
-  CNY: 2,
-  HKD: 2,
-  AED: 2,
-};
-
-export function figureMajor(fig: MarketFigure): number | null {
-  const minor = fig.value_minor;
-  if (typeof minor !== "number" || !Number.isInteger(minor)) return null;
-  let exponent: number | undefined;
-  if (typeof fig.minor_unit === "string" && fig.minor_unit) {
-    exponent = NAMED_MINOR_UNIT_EXPONENT[fig.minor_unit];
-  } else if (typeof fig.currency === "string" && fig.currency) {
-    exponent = CURRENCY_MINOR_UNIT_EXPONENT[fig.currency.toUpperCase()];
-  }
-  if (exponent === undefined) return null;
-  return minor / Math.pow(10, exponent);
-}
+// `figureMajor` moved to ./marketFigures so the peer-add control can
+// scale a figure the same way this card does without importing back out
+// of this module (a cycle). Re-exported here because it is part of this
+// surface's public shape and its tests import it from here.
+export { figureMajor } from "./marketFigures";
 
 /** Preferred render order. Anything not listed still renders, after
  *  these, so a new figure name is never dropped on the floor. */
@@ -472,6 +441,13 @@ export function MarketCompanyDocumentView({
           {doc.presentation.license_line}
         </p>
       )}
+
+      {/* Add as peer — the SAME store and the same added-state chip the
+          Romanian rail writes to. The control carries the market,
+          currency and accounting standard into the peer entry, which is
+          what keeps this company in its own population in Benchmark
+          instead of inside the Romanian median. */}
+      <MarketPeerButton document={doc} />
     </div>
   );
 }

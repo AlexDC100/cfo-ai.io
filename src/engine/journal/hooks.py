@@ -243,6 +243,58 @@ def on_snapshot_persisted(
         logger.exception("[journal] on_snapshot_persisted failed (non-fatal)")
 
 
+def on_period_moved(doc: Dict[str, Any], record: Dict[str, Any]) -> None:
+    """PERIOD_MOVED — an operator re-filed this document under a
+    different period (``engine.api._period_move``).
+
+    Always opens its OWN ``adhoc`` run rather than joining ``active_run``:
+    a move happens on an HTTP request thread, outside any pipeline run,
+    and an ``adhoc`` run is durable (never provisional), so the event
+    lands on the chain immediately instead of buffering behind a snapshot
+    that this path never writes.
+
+    The payload is the before/after of the period IDENTITY — that is the
+    fact a later reader needs to explain why a month's numbers changed.
+    """
+    try:
+        journal = journal_from_env()
+        if journal is None:
+            return
+        file_hash = _file_hash_of(doc)
+        if not file_hash:
+            return
+        source = (record or {}).get("from") or {}
+        destination = (record or {}).get("to") or {}
+        handle = journal.begin_run(
+            file_hash=str(file_hash),
+            document_id=str((doc or {}).get("id") or "") or None,
+            engine_version=_engine_version(),
+            run_kind="adhoc",
+        )
+        handle.emit(
+            "PERIOD_MOVED",
+            {
+                "document_id": str((doc or {}).get("id") or "") or None,
+                "original_filename": (record or {}).get("original_filename"),
+                "before": {
+                    "period_id": source.get("period_id"),
+                    "period_end": source.get("period_end"),
+                },
+                "after": {
+                    "period_id": destination.get("period_id"),
+                    "period_end": destination.get("period_end"),
+                },
+                "source_action": source.get("action"),
+                "rebuild_document_id": (record or {}).get("rebuild_document_id"),
+                # W4's own verdict on the move, stored with it: a
+                # non-empty list here is the record of a real defect.
+                "orphaned_after": (record or {}).get("orphaned_after") or [],
+            },
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("[journal] on_period_moved failed (non-fatal)")
+
+
 def on_served(
     envelope: Optional[Dict[str, Any]],
     served_cbs: Optional[Dict[str, Any]] = None,

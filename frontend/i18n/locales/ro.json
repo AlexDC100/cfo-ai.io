@@ -2803,7 +2803,7 @@
     },
     "footer": {
       "loading": "Se încarcă sursele…",
-      "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci toate cifrele de pe pagină sunt ilustrative.",
+      "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci cifrele pieței românești de aici sunt ilustrative. Cifrele companiilor deschise din raportări oficiale (SEC EDGAR, ESEF) sunt reale și poartă referința raportării.",
       "sources": "Surse: date de referință Bursa de Valori București plus raportările emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Fundamentele sunt la închiderea zilei; prețurile se actualizează la 5 minute."
     }
   }

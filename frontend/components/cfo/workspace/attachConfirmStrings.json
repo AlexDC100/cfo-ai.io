@@ -1,0 +1,104 @@
+{
+  "en": {
+    "attachConfirm": {
+      "title": {
+        "attach": "Attach file to a period",
+        "replace": "Replace file"
+      },
+      "desc": "Confirm the month this file covers. Only a month you confirm here is recorded against the file.",
+      "reading": "Reading the file…",
+      "evidence": {
+        "in_document": "Detected {{month}} — from the period stated inside the file",
+        "closing_balance": "Detected {{month}} — from the file's closing date",
+        "filename": "Detected {{month}} — from the filename",
+        "none": "Not detected — choose the month this file covers",
+        "browser": "Read in your browser — the analysis engine wasn't reachable.",
+        "disagree": "The filename says {{month}}."
+      },
+      "monthLabel": "Month this file covers",
+      "monthRange": "Pick a month between 2000 and {{year}}.",
+      "existing": "Or pick a period you already have",
+      "newPeriod": "No period for {{month}} yet — a new one will be created.",
+      "attachesTo": "Attaches to {{month}}",
+      "tag": {
+        "dropped": "You dropped it here",
+        "chosen": "You were adding this",
+        "replacing": "Current period"
+      },
+      "replacing": {
+        "title": "Replacing",
+        "meta": "{{month}} · uploaded {{date}}",
+        "note": "The file you replace is kept and marked inactive — nothing is deleted."
+      },
+      "mismatch": {
+        "title": "This file looks like {{detected}}",
+        "body": "You are attaching it to {{chosen}}. That is allowed — confirm it so it isn't a slip.",
+        "ack": "I've checked — attach it to {{chosen}}"
+      },
+      "entity": {
+        "title": "A different company",
+        "body": "This file looks like {{incoming}}, but {{month}} already holds files from {{existing}}.",
+        "bodyUnknownIncoming": "{{month}} already holds files from {{existing}}, and this file does not look like the same company.",
+        "newPeriodCta": "Attach to a new period",
+        "ack": "I've checked — attach it to {{month}} anyway"
+      },
+      "confirm": {
+        "attach": "Attach file",
+        "replace": "Replace file"
+      },
+      "cancel": "Cancel",
+      "noFile": "Choose a file first."
+    }
+  },
+  "ro": {
+    "attachConfirm": {
+      "title": {
+        "attach": "Atașează fișierul la o perioadă",
+        "replace": "Înlocuiește fișierul"
+      },
+      "desc": "Confirmă luna acoperită de acest fișier. Se reține doar luna pe care o confirmi aici.",
+      "reading": "Citesc fișierul…",
+      "evidence": {
+        "in_document": "Detectat {{month}} — din perioada scrisă în fișier",
+        "closing_balance": "Detectat {{month}} — din data de închidere a fișierului",
+        "filename": "Detectat {{month}} — din numele fișierului",
+        "none": "Nedetectat — alege luna acoperită de acest fișier",
+        "browser": "Citit în browserul tău — motorul de analiză nu a fost accesibil.",
+        "disagree": "Numele fișierului spune {{month}}."
+      },
+      "monthLabel": "Luna acoperită de fișier",
+      "monthRange": "Alege o lună între 2000 și {{year}}.",
+      "existing": "Sau alege o perioadă pe care o ai deja",
+      "newPeriod": "Nu există încă o perioadă pentru {{month}} — se va crea una nouă.",
+      "attachesTo": "Se atașează la {{month}}",
+      "tag": {
+        "dropped": "Aici ai lăsat fișierul",
+        "chosen": "Asta adăugai",
+        "replacing": "Perioada curentă"
+      },
+      "replacing": {
+        "title": "Înlocuiești",
+        "meta": "{{month}} · încărcat {{date}}",
+        "note": "Fișierul înlocuit rămâne, marcat inactiv — nu se șterge nimic."
+      },
+      "mismatch": {
+        "title": "Fișierul pare a fi {{detected}}",
+        "body": "Îl atașezi la {{chosen}}. Se poate — confirmă, ca să nu fie o scăpare.",
+        "ack": "Am verificat — atașează-l la {{chosen}}"
+      },
+      "entity": {
+        "title": "Altă firmă",
+        "body": "Fișierul pare a fi {{incoming}}, dar {{month}} conține deja fișiere de la {{existing}}.",
+        "bodyUnknownIncoming": "{{month}} conține deja fișiere de la {{existing}}, iar fișierul acesta nu pare să fie aceeași firmă.",
+        "newPeriodCta": "Atașează la o perioadă nouă",
+        "ack": "Am verificat — atașează-l oricum la {{month}}"
+      },
+      "confirm": {
+        "attach": "Atașează fișierul",
+        "replace": "Înlocuiește fișierul"
+      },
+      "cancel": "Anulează",
+      "noFile": "Alege întâi un fișier."
+    }
+  }
+}
