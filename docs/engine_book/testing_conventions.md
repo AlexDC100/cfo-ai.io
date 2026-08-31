@@ -180,3 +180,49 @@ when the complaint is visual.
 **Related.** This is the same shape as a gate that measures the wrong
 thing (TC-2's false green): the code changed, the gate agreed, and the
 defect was untouched.
+
+---
+
+## TC-8 — Verify that what is staged IS the change
+
+**Rule.** Before committing, confirm the staged set is the change —
+neither more nor less. Not "add everything", not "add only what I
+typed".
+
+**Two incidents, one session, opposite directions.**
+
+- **Too broad.** `git add -A` ran while a gates lane had its plant live
+  in the tree. Commit `36d34ef` shipped
+  `if (false && answerLocally(...))` to `main` — every Tier-0 question to
+  the paid model seam — inside the commit certifying the gate that
+  catches exactly that. The lane reverted the *working tree* afterwards,
+  so by the time anyone looked the tree was clean and only the commit
+  carried it.
+- **Too narrow.** Explicit paths staged `capsule-craft.spec.ts`,
+  `check_capsule_craft.mjs`, `check_vitest.mjs` and a baseline, while
+  `CapsulePaletteRow.tsx`, `capsuleGeometry.ts` and
+  `CapsuleTooltipGuard.tsx` sat untracked. Commit `80890a8` shipped **the
+  gates that certify a design without the design**. A `git stash` at that
+  point would have left gates asserting a surface not in the repository.
+
+Gates certifying an unstaged subject is a false green with a new delivery
+mechanism — the assertion is in the repo, the thing asserted is not.
+
+**Mechanical, not remembered.** `.githooks/pre-commit` runs two checks on
+the STAGED BLOBS (not the working tree — that is what lied in the first
+incident):
+
+- `scripts/check_no_plants.mjs --staged` **blocks** a staged plant.
+- `scripts/check_staged_is_change.mjs` **warns** when gate/spec files are
+  staged while subject files are untracked or unstaged. It warns rather
+  than blocks because untracked scratch files are normal, and a hook that
+  cries wolf gets bypassed — which costs more than it saves.
+
+**A note on the warning's own first draft**, because it is instructive:
+it filtered orphans to those sharing a top-level area with the staged
+gates, and therefore reported **zero subjects on the exact incident it
+was written for** — gates live in `e2e/` and `scripts/` while subjects
+live in `frontend/`. Gates and their subjects almost never share a
+directory; that is precisely what makes this hazard invisible by eye. The
+filter reproduced the blindness inside the warning, and printed a warning
+naming zero files besides. Removed.

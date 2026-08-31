@@ -11,8 +11,8 @@
         "withAlerts": "Account menu · {{name}} · {{n}} alerts need attention"
       },
       "capsule": {
-        "aria": "Ask about this workspace, or jump anywhere",
-        "title": "Ask or jump"
+        "aria": "Ask CFO AI",
+        "title": "Ask CFO AI"
       }
     }
   },
@@ -28,8 +28,8 @@
         "withAlerts": "Meniul contului · {{name}} · {{n}} alerte au nevoie de atenție"
       },
       "capsule": {
-        "aria": "Întreabă despre acest workspace sau navighează oriunde",
-        "title": "Întreabă sau navighează"
+        "aria": "Întreabă CFO AI",
+        "title": "Întreabă CFO AI"
       }
     }
   }

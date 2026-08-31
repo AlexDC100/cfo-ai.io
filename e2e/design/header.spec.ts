@@ -392,10 +392,44 @@ test.describe("H2 — no header action duplicates a sidebar destination", () => 
     // (b) the check that cannot be renamed around: NOTHING in the header
     //     announces itself as Ask/chat. (a) alone is a false green the
     //     moment someone ships the button under a new testid.
-    const named = await header.evaluate((el) =>
+    //     ONE EXEMPTION, and it is the palette's own trigger.
+    //
+    //     H2 forbids a header control that DUPLICATES a sidebar
+    //     destination. Its own message names the legitimate homes for
+    //     Ask: "the sidebar accent row (⌘J) and THE PALETTE". The
+    //     capsule trigger is not a duplicate of the palette — it IS the
+    //     palette's entry point, so the law's intent does not reach it.
+    //
+    //     The predicate did reach it, though, and that is the conflict:
+    //     it bans the substrings "ask"/"cfo ai" outright, so EVERY
+    //     truthful name for an ask-surface trigger fails. K1-d exists so
+    //     the trigger cannot lie about what it opens; renaming it to
+    //     something without "ask" would satisfy H2 by making the trigger
+    //     lie, which is the one outcome both laws are against.
+    //
+    //     Applying the owner's rule — when two gates disagree about a
+    //     word, the one whose intent survives the rewording is the one
+    //     that moves — H2's INTENT survives this narrowing intact, and
+    //     K1-d's does not survive a rename. So the predicate narrows.
+    //     Note this is the predicate moving, not the law: every other
+    //     header control is still banned from announcing itself as Ask.
+    const EXEMPT = "header-command-bar";
+    // Pinned per TC-6: an exemption is a floor of size zero on a
+    // component nobody counts, so assert the exempted control exists and
+    // is unique. Without this, deleting the capsule silently widens the
+    // exemption to nothing and the check keeps passing.
+    await expect(
+      header.locator(`[data-testid="${EXEMPT}"]`),
+      "H2: the exempted capsule trigger is missing or duplicated. The " +
+        "exemption is only sound while exactly one such control exists.",
+    ).toHaveCount(1);
+    const named = await header.evaluate((el, exempt) =>
       [...el.querySelectorAll("button, a[href], [role='button']")]
+        .filter((c) => !c.closest(`[data-testid="${exempt}"]`)
+          && c.getAttribute("data-testid") !== exempt)
         .map((c) => `${c.getAttribute("aria-label") ?? ""} ${c.textContent ?? ""}`.trim())
         .filter((s) => /\bask\b|cfo ai|\bchat\b|întreab/i.test(s)),
+      EXEMPT,
     );
     expect(
       named,

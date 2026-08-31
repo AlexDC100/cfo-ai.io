@@ -32,6 +32,9 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+# Warn (never block) when gates are staged without their subject.
+node scripts/check_staged_is_change.mjs >&2 || true
+
 node scripts/check_no_plants.mjs --staged || {
   echo "" >&2
   echo "pre-commit REFUSED: a planted defect is staged." >&2
