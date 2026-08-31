@@ -11,7 +11,6 @@ e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clea
 e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /public-companies
 e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /settings
 e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /workspace
-e2e/design/header.spec.ts::H2 — no header action duplicates a sidebar destination › no Ask-CFO-AI control at header level — checked by behaviour, not by testid
 e2e/design/modes.spec.ts::M6 — axe under Simple mode (dark) › axe clean [simple/dark]: /chat
 e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /
 e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /benchmark

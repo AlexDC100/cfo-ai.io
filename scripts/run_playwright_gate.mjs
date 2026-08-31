@@ -109,9 +109,54 @@
  * whose persistence it then asserted (10/10 red, forever); and the same
  * file's reset test raced the app's own write-back.
  *
- * Nothing here is quarantined and `retries: 0` still stands. Three
- * consecutive full runs now agree on the same 83 failures: new 0,
- * healed 0.
+ * Nothing here is quarantined and `retries: 0` still stands.
+ *
+ * THE CLOSURE ABOVE WAS RE-TESTED, AND HALF OF IT DID NOT HOLD
+ * -----------------------------------------------------------
+ * This section used to end: "Three consecutive full runs now agree on
+ * the same 83 failures: new 0, healed 0." Re-measured 2026-08-31, four
+ * more full runs plus repeat runs of the individual tests:
+ *
+ * WHAT HELD. The three specific repairs are real. Measured ten times
+ * each, in their own process, against this commit:
+ *     modes M5 "Pro dashboard keeps the classic overview"   10/10 PASS
+ *     learning-mode "default mode is guided"                10/10 PASS
+ *     learning-mode "toggling to subtle persists"           10/10 PASS
+ *     header H5 "currency persists across reload"           10/10 PASS
+ * All four were also green in every full run. The shared-prefs-bag
+ * diagnosis and `pinUserPrefs` earned that.
+ *
+ * WHAT DID NOT HOLD. "The four axe checks were stale baseline entries
+ * that other lanes had genuinely fixed." They are not fixed. Measured
+ * alone against this commit, `axe clean: /chat`, `: /dashboard`,
+ * `: /products` and `axe clean (dark): /chat` are 10/10 FAIL — and
+ * 5/5 FAIL again on a tree fingerprinted identical before and after.
+ * The sidebar's `⌘J` kbd is 3.2:1 (#b2d4cc on #0e7c6b) and nobody has
+ * touched it. They belong in the baseline, where they are.
+ *
+ * WHY THEY LOOKED HEALED, AND THE REAL DEFECT UNDER ALL OF IT. A run
+ * that reports them healed is a run in which the surface never
+ * rendered. Proven, not argued: with the app's JS blocked, /dashboard
+ * painted 2 elements, axe inspected 9 nodes, found 0 violations, and
+ * the D1 assertion PASSED. Every axe test in this suite could report
+ * "clean" about a blank page. That is the `tsc --noEmit` disease one
+ * more time, and it is what turned a broken surface into a "heal" and
+ * a "heal" into a wrong closure. `e2e/design/_axeVacuity.ts` now puts
+ * a per-route canary AND a per-route measured floor after every
+ * `analyze()`, in all three axe specs (D1 light, D1 dark, M6 x2).
+ *
+ * WHAT IS STILL RED, HONESTLY. `capsule.spec.ts::K6` fails 10/10 on a
+ * frozen tree — 113.5px of gap where the assertion allows 24 — while
+ * passing earlier the same day. It is a REGRESSION from another lane's
+ * uncommitted work in `frontend/components/instrument/shell/`
+ * (capsuleGeometry.ts, CommandPalette.tsx, CapsulePaletteRow.tsx), not
+ * a flake, and it is left red for that lane.
+ *
+ * AND A WARNING ABOUT MEASURING THIS AT ALL. Three of the runs behind
+ * the numbers above straddled another lane's live edits to product
+ * source, so their disagreement is NOT evidence of a flaky suite. Only
+ * a run whose tree hashes identically before and after says anything
+ * about stability. Fingerprint the tree, or do not make the claim.
  *
  * Run:
  *   node scripts/run_playwright_gate.mjs                 # gate
@@ -559,7 +604,14 @@ async function main() {
   console.log(`  ${rows.length} tests discovered, ${executed.length} executed, `
     + `${rows.length - executed.length} skipped, ${failed.length} failing`)
   console.log(`  wall clock ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, '0')}s`)
-  // The battery reads this line for its work-floor check. It counts
+  // A work-floor line in the battery's format. NOTE, measured
+  // 2026-08-31: NOTHING reads it. `scripts/run_battery.py` has no
+  // playwright gate — its own comment says so ("that suite is not in
+  // the battery") — and a grep for `GATE-WORK playwright` across the
+  // repo returns only this line. An earlier version of this comment
+  // claimed "the battery reads this line for its work-floor check",
+  // which was a coupling that does not exist; the line is still worth
+  // printing, for a human and for whoever wires it up. It counts
   // EXECUTED tests, never discovered ones — a suite that discovers 253
   // and runs 0 has done no work, and that is precisely the state this
   // gate exists to make unreportable as green.

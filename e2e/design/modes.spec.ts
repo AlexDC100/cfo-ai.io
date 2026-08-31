@@ -31,6 +31,7 @@ import {
   seedTheme,
   seedViewMode,
 } from "../_helpers";
+import { assertAxeExaminedTheSurface } from "./_axeVacuity";
 
 // Persisted keys — mirrors lib/viewMode.ts and theme/ThemeProvider.tsx.
 const MODE_KEY = "cfo-view-mode-v1";
@@ -240,6 +241,12 @@ for (const theme of ["light", "dark"] as const) {
         const results = await new AxeBuilder({ page })
           .exclude('[data-testid="test-mode-banner"]')
           .analyze();
+
+        // M6 inherited D1's shape, including its hole: a route that
+        // never rendered reports no violations and reads as clean. All
+        // 20 of these are the same assertion as axe.spec's, so they had
+        // the same vacuum (e2e/design/_axeVacuity.ts).
+        await assertAxeExaminedTheSurface(page, route, results, `simple/${theme}`);
 
         const gating = results.violations.filter(
           (v) => v.impact === "serious" || v.impact === "critical",

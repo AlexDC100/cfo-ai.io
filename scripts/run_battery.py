@@ -389,6 +389,18 @@ def _frontend_gates() -> List[Gate]:
         # package.json. Every reference to it in the repo was prose. A
         # gate nobody runs and a gate that passes wrongly fail the same
         # way, so it is wired here rather than described.
+        # THE TEST SUITE MUST NOT DEPEND ON AN UNTRACKED LOCAL FILE.
+        # `npx vitest run` was green only because a developer's real
+        # Supabase URL sat in a gitignored `.env`; with it emptied, three
+        # MONEY-BOUNDARY tests went red, and they had been reaching a
+        # live Supabase project. On a bare clone the suite issued 33 GETs
+        # at production. Differential: every recorded variable must
+        # resolve identically with the local dotenv files loaded and with
+        # none. ~50s, which is why it sits near the end.
+        Gate("hermetic", ["node", "scripts/check_hermetic.mjs"],
+             work_rx=r"GATE-WORK hermetic units=(\d+)", floor=14,
+             units="recorded environment variables",
+             canaries=("HERMETICITY", "comparisons")),
         Gate("capsule-craft", ["node", "scripts/check_capsule_craft.mjs"],
              work_rx=r"GATE-WORK capsule-craft units=(\d+)", floor=100,
              units="capsule files + rows + bundles + spec anchors",

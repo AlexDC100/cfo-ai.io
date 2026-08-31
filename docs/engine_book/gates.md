@@ -1301,6 +1301,74 @@ Verdict: **PROVEN RED**
 
 ---
 
+## hermetic
+
+The test suite must not depend on an untracked local file.
+
+| | |
+|---|---|
+| command | `node scripts/check_hermetic.mjs` |
+| work count | stdout `GATE-WORK hermetic units=N`, floor **14** variables |
+| canary | `HERMETICITY`, `comparisons` |
+
+**THE INCIDENT.** `npx vitest run` was green only because a developer's
+real Supabase URL sat in a gitignored `.env`. With `VITE_SUPABASE_URL=""`
+three tests went red — **G7.a, K10.a, K10.f, three of the money-boundary
+tests** — and they had been reaching a live seam because a real Supabase
+project happened to be configured on one machine. No CI job runs vitest,
+so those tests had never passed anywhere but a developer's laptop.
+Exposure window ≈35 days.
+
+On a bare clone the suite issued **33 GETs at production**, because
+`VITE_API_URL` defaults to `https://api.cfo-ai.io` in `config/site.ts`
+and to localhost in `features.ts`; the untracked file was the only thing
+holding it to localhost.
+
+**PLANT** — the owner's literal ask, a variable added to a gitignored
+`.env.local`:
+
+```diff
++++ .env.local   (untracked)
++VITE_ORPHAN_LEAK=leaked-from-local-dotenv
+```
+
+**RED** — the variable is named together with the untracked file it came
+from:
+
+```
+HERMETICITY BROKEN — VITE_ORPHAN_LEAK resolves from .env.local
+  (untracked) with the local dotenv files loaded, and is ABSENT without
+  them. A value that exists only on this machine is not a test fixture.
+```
+
+**REVERT** — `.env.local` restored to its prior contents; gate returns to
+`HERMETICITY: OK — every recorded variable resolves identically with and
+without the local dotenv files.` and `GATE-WORK hermetic units=14`.
+
+**TWO PLANTS BROKE THIS GATE AND FORCED FIXES**, both worth recording:
+
+- **Config ADDITION was invisible.** The gate mirrored three
+  `vitest.config.ts` fields and checked them for PRESENCE — which detects
+  removal and never addition. An audit added two: `envDir: "./frontend"`
+  pointed the suite at an untracked `frontend/.env`, and `exclude`
+  removed the in-suite half that would have caught it. The gate printed
+  `HERMETICITY: OK` with `VITE_ORPHAN_LEAK` live in `import.meta.env`.
+  Now every env-affecting config key is enumerated, and one this gate
+  cannot mirror is a failure. Replaying the plant names both keys.
+- **The source-scan floor had two units of free headroom.** 12 against a
+  measured 14, so skipping `frontend/config` alone dropped discovery to
+  12 and the gate passed clean. A floor that tolerates a partial collapse
+  is a floor on a sum by another name (TC-6). Set TO the measurement.
+
+**And its census floor was a sum of three sources** — the source scan
+collapsed 14 → 3 while the census stayed 14, padded by the manifest, and
+only the canary noticed. A separate `MIN_SOURCE_VARS` now guards the
+scan itself. That is TC-6's fifth instance in this codebase.
+
+**Output is redacted:** a plant made the gate print a real
+`sb_publishable_…` key to stdout. Values now render as
+`<redacted len=40 sha256:…>`, so gate output is safe in a CI log.
+
 ## capsule-craft
 
 The Capsule reads as a conversation: no native tooltips, no category

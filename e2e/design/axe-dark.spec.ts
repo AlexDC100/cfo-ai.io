@@ -13,6 +13,7 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { dismissPublicTestBanner, seedTheme } from "../_helpers";
+import { assertAxeExaminedTheSurface } from "./_axeVacuity";
 
 const ROUTES = [
   "/dashboard",
@@ -43,13 +44,37 @@ test.describe("D1 axe (Terminal theme) — serious/critical a11y violations", ()
   // So this pin did not fix the movement seen in these checks — it
   // removes a dependence on that accident.
   //
-  // AND THE MOVEMENT WAS NOT FLAKE. Run ten times against one commit,
-  // these ten routes were 10/10 STABLE — every one of them, in both
-  // directions. The two that the gate reported as "healed" (/settings,
-  // /dashboard/scenarios) had been genuinely FIXED by other lanes since
-  // the baseline was recorded; they were stale entries, not a coin
-  // flip. "NEW and HEALED in one run" is the flake signature only when
-  // one tree is standing still, and this one is not.
+  // THE PARAGRAPH THAT USED TO BE HERE WAS WRONG, AND IT IS WORTH
+  // KEEPING THE CORRECTION. It read: "AND THE MOVEMENT WAS NOT FLAKE.
+  // Run ten times against one commit, these ten routes were 10/10
+  // STABLE — every one of them, in both directions. The two that the
+  // gate reported as 'healed' (/settings, /dashboard/scenarios) had
+  // been genuinely FIXED by other lanes since the baseline was
+  // recorded; they were stale entries, not a coin flip."
+  //
+  // RE-MEASURED 2026-08-31, three full gate runs on one commit with no
+  // edits between them, plus ten isolated runs per test:
+  //
+  //     axe clean (dark): /chat      run1 FAIL  run2 PASS  run3 FAIL
+  //                                  isolated: 10/10 FAIL
+  //
+  // So it does move, and it is not a stale entry: alone against this
+  // commit it fails every single time. The `⌘J` kbd in the sidebar's
+  // Ask-CFO-AI row is 3.2:1 (#b2d4cc on #0e7c6b) and has not been
+  // fixed by anybody.
+  //
+  // The PASS is the anomaly, not the FAIL — and the mechanism is now
+  // proven rather than argued: this assertion passes on a page that
+  // never rendered. With the app's JS blocked, /dashboard painted 2
+  // elements, axe inspected 9 nodes, found 0 violations, and this exact
+  // expectation went green. In run 2 four capsule/anchor tests failed
+  // in the same run with "selector does not match a real element" — a
+  // surface that did not come up. `assertAxeExaminedTheSurface` below
+  // is the antibody; see e2e/design/_axeVacuity.ts.
+  //
+  // "NEW and HEALED in one run" was read here as proof of a moving
+  // tree. It can also be a vacuous pass, and telling those apart needs
+  // a floor, not an argument.
   test.beforeEach(async ({ page }) => {
     await seedTheme(page, "dark");
   });
@@ -63,6 +88,10 @@ test.describe("D1 axe (Terminal theme) — serious/critical a11y violations", ()
       const results = await new AxeBuilder({ page })
         .exclude('[data-testid="test-mode-banner"]')
         .analyze();
+
+      // See the note in axe.spec.ts: a surface that never rendered
+      // reports zero violations and reads as clean.
+      await assertAxeExaminedTheSurface(page, route, results, "dark");
 
       const gating = results.violations.filter(
         (v) => v.impact === "serious" || v.impact === "critical",

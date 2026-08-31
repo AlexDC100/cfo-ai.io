@@ -45,21 +45,54 @@
 // real project URL a developer has in `.env`, which keeps two machines on two
 // different configs and points unit tests at a live Supabase project. A fixed
 // fake makes every machine and CI evaluate the same thing and guarantees the
-// suite cannot reach production. `https://test.supabase.co` is the value the
-// two files above already stub, so the whole suite now agrees on one.
+// suite cannot reach production.
 //
 // Plain assignment rather than `vi.stubEnv`: a stub is undone by
 // `vi.unstubAllEnvs()`, which any test may legitimately call. This is the
 // baseline the run starts from, not a per-test override — tests that need a
 // different value still stub over it normally.
 //
+// ── WHY A TABLE, AND WHY IT COVERS FOURTEEN VARIABLES AND NOT TWO ─────
+// The first version of this file pinned the two Supabase variables — the two
+// the incident was about — and stopped there. An egress audit of the whole
+// suite (design_review/HERMETICITY.md) showed that left two more variables
+// still resolving from the untracked `.env.local` on this machine:
+//
+//   VITE_API_URL=http://127.0.0.1:8000   VITE_PUBLIC_TEST_MODE=1
+//
+// Both are read at module load, both change behaviour, and neither was
+// visible to a fix aimed at the reported symptom. VITE_API_URL is the worse
+// of the two: with `.env.local` absent AND the Supabase branch unavailable,
+// `lib/rates.ts` falls through to `SITE.apiUrl`, whose default is
+// `https://api.cfo-ai.io` — measured, 33 GETs at PRODUCTION in a bare clone.
+//
+// So the pin is no longer a hand-written pair of assignments. It is the whole
+// census of VITE_ variables the frontend reads, recorded one entry at a time
+// in hermeticEnv.json, applied here and independently verified by
+// scripts/check_hermetic.mjs in two environments. Adding a variable to the
+// product without adding it there fails that gate.
+//
 // NOTE: no test asserts the unconfigured path today (grepped: nothing asserts
-// "Chat isn't configured"). If one is ever added, it should stub the value away
-// explicitly rather than depend on the ambient environment being empty.
+// "Chat isn't configured"). If one is ever added, it should stub the value
+// away explicitly rather than depend on the ambient environment being empty.
 
-const env = import.meta.env as unknown as Record<string, string>;
+import manifest from "./hermeticEnv.json";
 
-env.VITE_SUPABASE_URL = "https://test.supabase.co";
-env.VITE_SUPABASE_ANON_KEY = "test-anon-key";
+const HERMETIC_ENV = manifest.env as Record<string, string | null>;
 
-export {};
+const env = import.meta.env as unknown as Record<string, string | undefined>;
+const proc = process.env as unknown as Record<string, string | undefined>;
+
+for (const [name, value] of Object.entries(HERMETIC_ENV)) {
+  if (value === null) {
+    // Absent, not empty-string. A variable the product treats as optional
+    // must be genuinely missing, the way it is in CI, so the code under test
+    // takes its own default branch rather than a developer's stray value.
+    delete env[name];
+    delete proc[name];
+  } else {
+    env[name] = value;
+  }
+}
+
+export { HERMETIC_ENV };

@@ -25,6 +25,7 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { dismissPublicTestBanner, seedTheme } from "../_helpers";
+import { assertAxeExaminedTheSurface } from "./_axeVacuity";
 
 const ROUTES = [
   "/dashboard",
@@ -63,6 +64,12 @@ test.describe("D1 axe — serious/critical a11y violations", () => {
         // survives dismissal it must not pollute the gate.
         .exclude('[data-testid="test-mode-banner"]')
         .analyze();
+
+      // BEFORE reading the verdict, establish that there was a surface
+      // to read it from. axe on a page that painted nothing reports
+      // nothing, and this assertion would pass — proven, not assumed
+      // (e2e/design/_axeVacuity.ts).
+      await assertAxeExaminedTheSurface(page, route, results, "light");
 
       const gating = results.violations.filter((v) =>
         v.impact === "serious" || v.impact === "critical",
