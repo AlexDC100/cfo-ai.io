@@ -28,6 +28,7 @@
  * Run: node scripts/check_no_plants.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { join, relative } from 'node:path'
 
 const ROOT = process.cwd()
@@ -68,15 +69,44 @@ function walk(dir, out = []) {
   return out
 }
 
-const files = SOURCE_ROOTS.flatMap((r) => walk(join(ROOT, r)))
-  .filter((p) => !DOC_PATHS.test(relative(ROOT, p)))
+// --staged scans the BLOBS GIT IS ABOUT TO COMMIT, not the working tree.
+//
+// That distinction is the incident. When 36d34ef was made, the plant was
+// live in the tree and got staged; the lane reverted the tree afterwards,
+// so by the time anyone looked, the tree was clean and only the COMMIT
+// carried the defect. A working-tree scan run one minute later would have
+// said everything was fine. Only the staged content is the truth about
+// what is being committed.
+const STAGED = process.argv.includes('--staged')
+
+let files
+if (STAGED) {
+  const out = execFileSync(
+    'git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'],
+    { cwd: ROOT, encoding: 'utf8' })
+  files = out.split('\n').map((f) => f.trim()).filter(Boolean)
+    .filter((f) => SOURCE_ROOTS.some((r) => f === r || f.startsWith(r + '/')))
+    .filter((f) => SOURCE_EXT.test(f))
+    .filter((f) => !DOC_PATHS.test(f))
+    .map((f) => join(ROOT, f))
+} else {
+  files = SOURCE_ROOTS.flatMap((r) => walk(join(ROOT, r)))
+    .filter((p) => !DOC_PATHS.test(relative(ROOT, p)))
+}
+
+function contentOf(abs) {
+  if (!STAGED) return readFileSync(abs, 'utf8')
+  // `git show :path` reads the INDEX version, which is what will land.
+  return execFileSync('git', ['show', ':' + relative(ROOT, abs)],
+    { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+}
 
 const hits = []
 let scanned = 0
 for (const f of files) {
   scanned++
   const rel = relative(ROOT, f)
-  const lines = readFileSync(f, 'utf8').split('\n')
+  const lines = contentOf(f).split('\n')
   lines.forEach((line, i) => {
     for (const [rx, what] of MARKERS) {
       if (rx.test(line)) hits.push({ rel, line: i + 1, what, text: line.trim().slice(0, 92) })
@@ -88,8 +118,10 @@ for (const f of files) {
 // inside the loop cannot fire for a walk that never ran.
 console.log('PLANT SCAN')
 console.log('='.repeat(62))
-console.log(`GATE-WORK no-plants units=${scanned} floor=400 label=product-source-files`)
-if (scanned < 400) {
+console.log(STAGED
+  ? `GATE-WORK no-plants units=${scanned} label=staged-source-files (floor N/A: a small commit is normal)`
+  : `GATE-WORK no-plants units=${scanned} floor=400 label=product-source-files`)
+if (!STAGED && scanned < 400) {
   console.log('')
   console.log(`DISCOVERY BROKEN — scanned ${scanned} files, floor 400. A clean`)
   console.log('verdict over a collapsed walk is the tsc failure.')
