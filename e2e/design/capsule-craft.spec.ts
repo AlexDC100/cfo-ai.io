@@ -147,9 +147,10 @@ const BUDGET = {
 const FLOOR = {
   /** G3 — static hint texts examined for restatement. Measured 3-4. */
   hintTexts: 2,
-  /** G4 — navigation rows summoned across the query sweep. Measured 9
-   *  (2026-08-30, after the jump list moved behind a keystroke). */
-  navRows: 5,
+  /** G4 — rows summoned across the whole query sweep. Measured 70 across
+   *  15 states (2026-08-31, after the sweep was widened from nine queries
+   *  to one per row FAMILY); 68 of them painted by `palette-row`. */
+  navRows: 40,
   /** Per TYPING state, RECORDED from measurement — not one flat number.
    *
    *  A flat floor is the wrong shape here and I measured that before
@@ -159,15 +160,23 @@ const FLOOR = {
    *
    *  So each state carries the quantity it is supposed to produce, taken
    *  from the measured census with a margin. `cash` is the state the
-   *  complaint is about and the one an adversarial audit collapsed from
-   *  13 rows to 0 while the gate stayed green on a shared total.
+   *  first complaint was about and the one an adversarial audit collapsed
+   *  from 13 rows to 0 while the gate stayed green on a shared total.
+   *  `range`, `core`, `trans`, `glossary` and `a` are the states the
+   *  SECOND audit proved the sweep had never visited at all.
+   *
+   *  Measured 2026-08-31, identical at 1440 and 390:
+   *    dash 1 · sce 1 · work 3 · bench 2 · prod 2 · sett 1 · cash 13 ·
+   *    bal 1 · a 18 · range 9 · core 10 · trans 6 · glossary 1 ·
+   *    zzqqxx 0
    *
    *  `zzqqxx` is the deliberate no-match: it must paint the ask-fallback
    *  and no palette rows, so its expectation is 0 and it is checked by
-   *  the fallback assertion instead. */
+   *  the `ask` family expectation instead. */
   rowsPerTypingState: {
     dash: 1, sce: 1, work: 2, bench: 1, prod: 1,
     sett: 1, cash: 8, bal: 1, zzqqxx: 0,
+    a: 12, range: 6, core: 6, trans: 4, glossary: 1,
   } as Record<string, number>,
   /** G6 — text nodes measured for contrast, per theme, at rest.
    *  Measured 21 before the redesign, 9-10 after it thinned the resting
@@ -304,6 +313,32 @@ async function openSurface(page: Page): Promise<Locator> {
   // settles measures the animation, not the design.
   await page.waitForTimeout(600);
   await composer(page).waitFor({ state: "visible", timeout: ACTION_MS });
+
+  // ── THE RESTING STATE IS NOT READY WHEN THE CARD IS ────────────────
+  //
+  // `buildCapsuleSuggestions` runs off the workspace snapshot, and the
+  // half of that snapshot which produces this workspace's one chip (an
+  // unattached period) arrives over the network. `boot`'s 8s settle is
+  // usually enough and SOMETIMES IS NOT: the same capture harness,
+  // unchanged, produced a resting card with one chip on one run and zero
+  // on the next, and G4 — run inside the full suite rather than alone —
+  // reported `suggestion: 0 rows` against its floor of 1.
+  //
+  // That is a race, not a defect, and a gate that reds on a race teaches
+  // the reader to ignore a red. It is waited out HERE, once, so every
+  // gate that reads the resting state reads the same one.
+  //
+  // Bounded and NOT swallowed: if the chip never arrives, this returns
+  // anyway and the assertions after each gate's discovery loop — G4's
+  // `suggestion` family floor, G1's resting ink floor — fail on the
+  // measurement rather than on the wait. A `waitFor` that threw here
+  // would report "timeout" where the gate should report "the resting
+  // state paints nothing".
+  await page
+    .locator('[data-testid="command-palette"] [data-row-source="suggestion"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 12_000 })
+    .catch(() => {});
   return overlay;
 }
 
@@ -788,11 +823,17 @@ test.describe("G0 — every anchor this file depends on resolves live", () => {
 // resting card to 640px with the same content takes rest density to
 // 2.6%, less than half the floor, and the leading gap to 455px.
 //
-// The rest floor is the loose one on purpose. The resting card is a
-// FIXED height sized for the three chips the engine's `MAX_SUGGESTIONS`
-// allows, and the demo workspace this runs against yields ONE. That
-// slack is the measured cost of the owner's ruling, it is bounded, and
-// it is bounded HERE: `restLeadingGapPx`.
+// The rest floors are the loose ones on purpose, and they are now loose
+// for a different reason than when they were written. They used to
+// absorb the slack in a FIXED-height resting card sized for three chips
+// on a workspace that yields one; that card is gone — the resting state
+// measures its content (298px → 208px at 1440, 268px → 187px at 390,
+// 2026-08-31) and its density roughly doubled, to 8.05% and 13.93%. The
+// floors were NOT raised to match: a workspace that does yield three
+// chips is a taller card with proportionally less ink, and a floor
+// tuned to this demo's one chip would red on it. The air itself is
+// bounded by `REST_LEADING_GAP_PX` below, which is the instrument that
+// can actually see it.
 
 /** The two viewports every proportion gate runs at. 1440 was the only
  *  one in the whole craft suite, and the 390 regression (a typing panel
@@ -832,14 +873,33 @@ const INK_FLOOR: Record<string, Record<string, number>> = {
 /** The tallest band of air allowed BETWEEN painted things. */
 const INTERIOR_GAP_PX = 56;
 
-/** The tallest band allowed ABOVE the first painted thing, at rest.
- *  The resting card is fixed at `CAPSULE_REST_HEIGHT` and its content is
- *  bottom-aligned, so a workspace with fewer than three suggestions
- *  leaves this much room above them — 113px measured at 1440, 104px at
- *  390. The ceiling catches the two ways that becomes a defect: a
- *  resting card sized past what three chips need, and a resting state
- *  that lost its content. */
-const REST_LEADING_GAP_PX = 130;
+/**
+ * The tallest band allowed ABOVE the first painted thing, in ANY state.
+ *
+ * ── WHY THIS NUMBER MOVED FROM 130 TO 32 ─────────────────────────────
+ *
+ * 130 was not a budget, it was a receipt. The resting card was FIXED at
+ * `CAPSULE_REST_HEIGHT`, sized for the three chips `MAX_SUGGESTIONS`
+ * allows, and its content was bottom-aligned — so a workspace rendering
+ * one chip left the difference as a hole ABOVE the content: 113px of a
+ * 298px card at 1440 (37.9%), 104px of 268px at 390 (38.8%). This
+ * ceiling was set just above those two numbers so the shipped surface
+ * would pass, and the comment said so: "the 113px lead gap at 1440 rest
+ * is a real open defect this floor cannot see."
+ *
+ * A budget set above the defect it is pointed at is a decoration. The
+ * owner re-ruled the geometry (`capsuleGeometry.ts` carries the algebra
+ * and what it cost): the resting card now measures its content, the
+ * bottom edge is a constant that no longer depends on it, and the
+ * measured lead gaps are 24px at 1440 and 24px at 390 — the card's own
+ * top padding, nothing more.
+ *
+ * 32 is those numbers plus a third of headroom. Everything this file
+ * ever measured above it was the defect. Planted and proven RED
+ * (design_review/capsule-craft/GATES-close.md): restoring the resting
+ * floor takes 1440 rest straight back to 113px.
+ */
+const REST_LEADING_GAP_PX = 32;
 
 interface Ink {
   card: { top: number; bottom: number; height: number; width: number };
@@ -1088,12 +1148,11 @@ for (const vp of VIEWPORTS) {
         m.leadingGap,
         `G1 @${vp.label}: ${m.leadingGap}px of air ABOVE the ${label} card's ` +
           `first painted thing (ceiling ${REST_LEADING_GAP_PX}px).\n` +
-          `Some is by design: the resting card is a FIXED height sized for the ` +
-          `three chips \`MAX_SUGGESTIONS\` allows, its content is bottom-aligned ` +
-          `so the slack sits above rather than below, and a workspace with one ` +
-          `suggestion leaves the difference. This ceiling bounds it, and catches ` +
-          `both ways it becomes a defect: a resting card sized past what three ` +
-          `chips need, and a resting state that lost its content.`,
+          `The card is measured from its content and pinned by its BOTTOM edge, ` +
+          `so slack cannot collect under the content — it collects above it, and ` +
+          `this is the one number that can see it. 24px is the card's own top ` +
+          `padding; 113px was a resting card reserving room for three suggestion ` +
+          `chips on a workspace that renders one.`,
       ).toBeLessThanOrEqual(REST_LEADING_GAP_PX);
       }
     });
@@ -1474,38 +1533,62 @@ test.describe("G3 — the surface says each thing once", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════
-// G4 — NO CATEGORY COLUMN, MEASURED AS THE READER SEES IT
+// G4 — NO CATEGORY COLUMN, MEASURED AS THE READER SEES IT,
+//      OVER EVERY FAMILY OF ROW THE PALETTE CAN PAINT
 // ══════════════════════════════════════════════════════════════════════
 //
-// "Dashboard … Overview". "Free cash flow … Cash Flow". The right-hand
-// word names the group the row was filed under — information the reader
-// needed while BUILDING the app and never needs while USING it. It also
-// gives every row the same two-column rhythm, which is what makes eight
-// different choices read as one table of contents.
+// "Dashboard … Overview". "Free cash flow … Cash Flow". "Core 200g …
+// Protect". The right-hand word names the group the row was filed under
+// — information the reader needed while BUILDING the app and never needs
+// while USING it. It also gives every row the same two-column rhythm,
+// which is what makes eight different choices read as one table of
+// contents.
 //
-// ── WHY THIS GATE WAS GREEN OVER 13 OFFENDING ROWS ───────────────────
+// ── FAILURE 1: IT MEASURED ELEMENT BOXES, NOT GLYPHS ─────────────────
 //
-// It measured the ELEMENT-BOX gutter: `trailing.left − label.right`. The
-// label span is `min-w-0 flex-1`, so its box stretches to fill whatever
-// the row does not use, and its right edge sits `gap-3` — 12px — from
-// the trailing span NO MATTER HOW SHORT THE LABEL IS. The gutter was
-// pinned at 12px against a 24px threshold, so the detector fired 0 of 17
-// times while the reader, who sees GLYPHS and not boxes, saw a 200px+
-// gutter on every one of them.
+// It measured `trailing.left − label.right`. The label span is
+// `min-w-0 flex-1`, so its box stretches to fill whatever the row does
+// not use, and its right edge sits `gap-3` — 12px — from the trailing
+// span NO MATTER HOW SHORT THE LABEL IS. The gutter was pinned at 12px
+// against a 24px threshold, so the detector fired 0 of 17 times while
+// the reader, who sees GLYPHS and not boxes, saw a 200px+ gutter on
+// every one of them. Fixed: the gutter below is measured with a `Range`
+// over the text nodes.
 //
-// This measures the glyph gutter with a `Range` over the text nodes:
-// (left edge of the trailing text) − (right edge of the label text).
-// Measured on the offending build it fires 17 of 17.
-//
-// ── AND WHY THE FIX LANDED ON THE WRONG COMPONENT (TC-7) ─────────────
+// ── FAILURE 2: THE FIX LANDED ON THE WRONG COMPONENT (TC-7) ──────────
 //
 // The round that "closed" this removed the column from `CapsuleJumpList`,
 // which renders ZERO rows in the state complained about, while
-// `CommandPalette`'s own inline row renderer kept it. So this gate now
-// asserts, first, WHICH COMPONENT PAINTED THE NODES IT EXAMINED: every
-// row-rendering component stamps `data-row-source`, the census is printed
-// with the tally, and a source that contributes nothing shows as an
-// absent key rather than as a silent assumption.
+// `CommandPalette`'s own inline row renderer kept it. So this gate
+// asserts WHICH COMPONENT PAINTED THE NODES IT EXAMINED: every
+// row-rendering component stamps `data-row-source`, the census is
+// printed with the tally, and a source that contributes nothing shows as
+// an absent key rather than as a silent assumption.
+//
+// ── FAILURE 3: THE SWEEP NEVER SUMMONED THE OFFENDING ROWS ───────────
+//
+// Both fixes above were live, and this gate reported ZERO offenders on a
+// build where an independent audit measured 20 at 1440 and 20 at 390.
+// Its predicate agreed those rows were offenders. Its NINE QUERIES —
+// dash, sce, work, bench, prod, sett, cash, bal, zzqqxx — summoned not
+// one of them, because every one of them was a PRODUCT row and no query
+// in the list matches a category or a SKU.
+//
+// That is failure 2 moved one axis over: from "the fix was applied to a
+// component the sweep never rendered" to "the ban was checked against a
+// family the sweep never summoned". A per-STATE floor (added after an
+// audit emptied `cash` from 13 rows to 0 while the shared total stayed
+// green) could not see it either: every state it visited was healthy;
+// the sick ones were the states it did not visit.
+//
+// So the axis this gate is now floored on is the FAMILY. Every kind of
+// row `CommandPalette` can push is declared in `CAPSULE_ROW_FAMILIES`
+// (frontend/components/instrument/shell/CapsulePaletteRow.tsx), every row
+// stamps the family it declared, and every family carries a RECORDED
+// expectation below. A family that stops being summoned FAILS. A family
+// this file does not know about FAILS. `check_capsule_craft.mjs` (F2)
+// holds the two lists to each other, so a family added to the product
+// and not to this sweep is a red before a browser ever starts.
 
 /** Every component allowed to paint a row on this surface, and what it
  *  stamps. A row with no stamp is a renderer nobody declared. */
@@ -1513,10 +1596,92 @@ const ROW_SOURCES = [
   "palette-row", "jump-row", "suggestion", "ask-fallback",
 ] as const;
 
-test.describe("G4 — navigation rows carry no category column", () => {
-  test.setTimeout(180_000);
+/**
+ * THE FAMILY SWEEP — one recorded expectation per family.
+ *
+ * `query` is a query MEASURED to summon that family; `floor` is the row
+ * count it produced on 2026-08-31, rounded DOWN with headroom so a
+ * legitimately leaner catalogue does not red. Both viewports produced
+ * identical censuses, so one table serves both.
+ *
+ *     family      query       measured   floor
+ *     page        "a"                8       6
+ *     action      "a"                5       4
+ *     glossary    "glossary"         1       1
+ *     concept     "cash"            13       8
+ *     category    "range"            2       2
+ *     sku         "range"            7       5
+ *     company     "trans"            6       4
+ *     suggestion  ""  (rest)         1       1
+ *     ask         "zzqqxx"           1       1
+ *
+ * `suggestion` and `ask` are not palette-row families — they are the two
+ * other row-painting components — but they are on the same axis and the
+ * same failure applies, so they carry expectations too. The rest state
+ * and the no-match state are exactly the two states an earlier version of
+ * this gate did not cover.
+ */
+const FAMILY_EXPECT: Record<string, { query: string; floor: number }> = {
+  page: { query: "a", floor: 6 },
+  action: { query: "a", floor: 4 },
+  glossary: { query: "glossary", floor: 1 },
+  concept: { query: "cash", floor: 8 },
+  category: { query: "range", floor: 2 },
+  sku: { query: "range", floor: 5 },
+  company: { query: "trans", floor: 4 },
+  suggestion: { query: "", floor: 1 },
+  ask: { query: "zzqqxx", floor: 1 },
+};
 
-  test("no row's trailing text is parked against the right edge", async ({ page }) => {
+/**
+ * FAMILIES THIS STACK CANNOT PAINT, AND THE PIN THAT KEEPS THAT HONEST.
+ *
+ * A floor of zero is the vacuity this gate exists to refuse, so these
+ * are not floored — they are PINNED AT EXACTLY ZERO. If one of them ever
+ * paints a row, this gate FAILS and says so: the family has become
+ * reachable and belongs in `FAMILY_EXPECT` with a measured floor and the
+ * query that summons it. The expectation is two-sided, so it cannot
+ * drift silently in either direction.
+ *
+ * `period` — `usePeriodStepper().periods` is EMPTY on the test-mode
+ *   stack: the demo period (`demo-meridian`) is a resolved sample id and
+ *   is not a row in `financial_periods`, so the palette's period loop
+ *   iterates nothing. Measured, not assumed: "aug", "dec", "202", "a",
+ *   "e", "2" and "0" all match the label a period would carry
+ *   ("Aug 2026") and none of them produced a Periods section, while "a"
+ *   returned 18 rows — the palette's own visible cap — with the four
+ *   slots after Pages/Actions/Learn filled by Products rather than by
+ *   periods.
+ * `jump-row` — `CapsuleJumpList` is mounted by nothing since the craft
+ *   pass removed the resting jump zone. Its module is still exported
+ *   (see `CommandPalette`'s cross-lane note), which is exactly why it is
+ *   pinned here rather than forgotten.
+ */
+const FAMILY_UNREACHABLE: Record<string, string> = {
+  period:
+    "`usePeriodStepper().periods` is empty on the test-mode stack, so the " +
+    "palette's period loop iterates nothing. If a period row appears, this " +
+    "stack now has periods: move `period` into FAMILY_EXPECT with the query " +
+    "that summoned it and the count it produced.",
+  "jump-row":
+    "`CapsuleJumpList` is mounted by no surface since the resting jump zone " +
+    "was removed. If a jump row appears, some surface remounted it: give it " +
+    "a measured floor, because the category-column ban has to hold there too.",
+};
+
+/** Every query the sweep types. The union of the per-family queries and
+ *  the nine the previous version used — those are kept so the per-state
+ *  coverage this gate already had is not traded away for the new axis. */
+const SWEEP_QUERIES = [
+  "dash", "sce", "work", "bench", "prod", "sett", "cash", "bal",
+  "a", "range", "core", "trans", "glossary", "zzqqxx",
+];
+
+test.describe("G4 — navigation rows carry no category column", () => {
+  test.setTimeout(240_000);
+
+  test("no row's trailing text is parked against the right edge, in any family",
+    async ({ page }) => {
     await boot(page);
     const overlay = await openSurface(page);
 
@@ -1536,14 +1701,23 @@ test.describe("G4 — navigation rows carry no category column", () => {
         const rows = [...root.querySelectorAll(ROWS)].filter(painted);
 
         const bySource: Record<string, number> = {};
+        const byFamily: Record<string, number> = {};
         const offenders: {
-          source: string; row: string; trailing: string;
+          source: string; family: string; row: string; trailing: string;
           glyphGutter: number; elementGutter: number;
         }[] = [];
 
         for (const row of rows) {
           const source = row.getAttribute("data-row-source") ?? "UNSTAMPED";
           bySource[source] = (bySource[source] ?? 0) + 1;
+          // The FAMILY axis. A palette row declares its own; the two
+          // other row-painting components are one family each, so their
+          // `data-row-source` IS their family. A row with neither is
+          // "UNSTAMPED" and fails the census below.
+          const family =
+            row.getAttribute("data-row-family") ??
+            (source === "suggestion" || source === "jump-row" ? source : "UNSTAMPED");
+          byFamily[family] = (byFamily[family] ?? 0) + 1;
 
           // TEXT RUNS, in visual order, measured as GLYPHS.
           const leaves: { text: string; left: number; right: number; el: Element }[] = [];
@@ -1578,55 +1752,142 @@ test.describe("G4 — navigation rows carry no category column", () => {
           const rightAligned = rb.right - last.right < 40;
           if (rightAligned && glyphGutter > 24) {
             offenders.push({
-              source, row: first.text.slice(0, 32), trailing: last.text.slice(0, 32),
+              source, family,
+              row: first.text.slice(0, 32), trailing: last.text.slice(0, 32),
               glyphGutter, elementGutter,
             });
           }
         }
-        return { rows: rows.length, bySource, offenders };
+        return { rows: rows.length, bySource, byFamily, offenders };
       });
       // eslint-disable-next-line no-console
       console.log(
         `[G4 ${label}] rows=${r.rows} by=${JSON.stringify(r.bySource)} ` +
-          `offenders=${r.offenders.length}`,
+          `fam=${JSON.stringify(r.byFamily)} offenders=${r.offenders.length}`,
       );
       return { ...r, label };
     };
 
-    // A SWEEP, not one query. Navigation lives behind a keystroke, so the
-    // rows have to be summoned — and from several queries, or the census
-    // is one row deciding a law about every row. "cash" is here because
-    // it is the query the critic used: it summons the concept rows, and
-    // seven of the thirteen it produced said "Cash Flow".
-    // "zzqqxx" matches NOTHING, and that state was uncovered until the
-    // final capture found the ask-fallback row rendering there with no
-    // `data-row-source`. A census that never visits a state cannot
-    // report what that state paints.
-    const QUERIES = [
-      "dash", "sce", "work", "bench", "prod", "sett", "cash", "bal", "zzqqxx",
-    ];
+    // A SWEEP OVER FAMILIES, not one query and not one state. Navigation
+    // lives behind a keystroke, so the rows have to be SUMMONED — and
+    // from a query per family, or the census is one family deciding a law
+    // about every family. "cash" is here because it is the query the
+    // first critic used; "range" because it is the query the SECOND
+    // critic used, and the one that proved nine queries had been checking
+    // a ban against rows they never rendered. "zzqqxx" matches NOTHING,
+    // and that state was uncovered until a final capture found the
+    // ask-fallback row rendering there with no `data-row-source`.
     const scans = [await scan("rest")];
     const input = composer(page);
     await input.click();
-    for (const q of QUERIES) {
+    for (const q of SWEEP_QUERIES) {
       await input.fill("");
       await input.fill(q);
       await page.waitForTimeout(340);
       scans.push(await scan(`typing:${q}`));
     }
+    await input.fill("");
+    await page.waitForTimeout(340);
 
-    // ── FLOORS, AFTER every scan — PER STATE, then the total ──────────
+    // ── FLOORS, AFTER every scan — PER FAMILY, PER STATE, then totals ──
     //
-    // A floor on the SUM is the TC-6 disease one axis over. An adversarial
-    // audit emptied the concept-row family: `typing:cash` — the exact
-    // state this complaint is about, the state that painted 13 of the 24
-    // rows, seven of them saying "Cash Flow" — collapsed to ZERO rows,
-    // and this gate printed green, because the surviving states still
-    // cleared a shared floor of 5. 79% of the rows could disappear
-    // unnoticed.
+    // A floor on the SUM is the TC-6 disease. It has now been demonstrated
+    // on this exact gate on two different axes, so all three are asserted
+    // and each names the collapse it can see that the others cannot.
+
+    const familyTally: Record<string, number> = {};
+    for (const s of scans) {
+      for (const [k, v] of Object.entries(s.byFamily)) {
+        familyTally[k] = (familyTally[k] ?? 0) + v;
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[G4 family census] ${JSON.stringify(familyTally)}`);
+
+    // (1) EVERY DECLARED FAMILY WAS SUMMONED TO ITS FLOOR **BY THE QUERY
+    //     RECORDED FOR IT**, not by the sweep as a whole.
     //
-    // So each typing state carries its own floor. "No row has a category
-    // column" must be true of SOMETHING, in every state the gate visits.
+    // The first draft of this checked the SUM across every state, and
+    // that is the TC-6 disease wearing the new axis's clothes: `sku` has
+    // a floor of 5 and is painted by both `range` (7) and `core` (3), so
+    // `range` could collapse to zero and the total would still clear the
+    // floor on `core` alone. The recorded query was then decoration —
+    // printed in the failure message, used by nothing, and wrong without
+    // consequence.
+    //
+    // So the count is per (STATE × FAMILY), read from the state the
+    // expectation names. A recorded query that is not in the sweep is
+    // itself a failure, because an expectation aimed at a state that is
+    // never visited is an expectation that can never fire.
+    const perState = new Map(scans.map((s) => [s.label, s.byFamily]));
+    const missingQueries: string[] = [];
+    const starvedFamilies: string[] = [];
+    for (const [family, exp] of Object.entries(FAMILY_EXPECT)) {
+      const label = exp.query === "" ? "rest" : `typing:${exp.query}`;
+      const byFamily = perState.get(label);
+      if (!byFamily) {
+        missingQueries.push(
+          `${family}: recorded query "${exp.query || "(rest)"}" → state ` +
+          `"${label}", which the sweep never visited`);
+        continue;
+      }
+      const got = byFamily[family] ?? 0;
+      if (got < exp.floor) {
+        starvedFamilies.push(
+          `${family}: ${got} row(s) in state "${label}", floor ${exp.floor} ` +
+          `(total across the whole sweep: ${familyTally[family] ?? 0})`);
+      }
+    }
+
+    expect(
+      missingQueries,
+      `G4 EXPECTATION AIMED AT NOTHING: a family's recorded query is not in ` +
+        `SWEEP_QUERIES, so the state it names was never measured.\n` +
+        missingQueries.map((s) => `  ${s}`).join("\n") +
+        `\nStates visited: ${[...perState.keys()].join(" ")}`,
+    ).toEqual([]);
+
+    expect(
+      starvedFamilies,
+      `G4 PER-FAMILY VACUITY: a row family this surface can paint was not ` +
+        `summoned to its recorded floor BY THE QUERY RECORDED FOR IT, so ` +
+        `"no row of that family has a category column" is true of nothing ` +
+        `THERE.\n` +
+        starvedFamilies.map((s) => `  ${s}`).join("\n") +
+        `\nCensus: ${JSON.stringify(familyTally)}\n` +
+        `This is the exact green this gate printed over 20 offending Product ` +
+        `rows: nine queries, none of which summons a category or a SKU, and a ` +
+        `predicate that would have caught every one of them. Note the total ` +
+        `beside each count: a family can look healthy in the aggregate while ` +
+        `the state that actually renders it is empty.`,
+    ).toEqual([]);
+
+    // (2) FAMILIES PINNED AT ZERO ARE STILL AT ZERO.
+    const nowReachable = Object.keys(FAMILY_UNREACHABLE)
+      .filter((f) => (familyTally[f] ?? 0) > 0)
+      .map((f) => `${f}: ${familyTally[f]} row(s). ${FAMILY_UNREACHABLE[f]}`);
+    expect(
+      nowReachable,
+      `G4 PIN BROKEN: a family recorded as unreachable on this stack painted ` +
+        `rows.\n${nowReachable.map((s) => `  ${s}`).join("\n")}\n` +
+        `A zero that is merely observed is a vacuous pass; this pin is the ` +
+        `two-sided version, and it has just told you the ground moved.`,
+    ).toEqual([]);
+
+    // (3) NO FAMILY THIS FILE DOES NOT KNOW ABOUT.
+    const unknownFamilies = Object.keys(familyTally).filter(
+      (f) => !(f in FAMILY_EXPECT) && !(f in FAMILY_UNREACHABLE));
+    expect(
+      unknownFamilies,
+      `G4: rows were painted by ${JSON.stringify(unknownFamilies)}, which this ` +
+        `sweep declares neither an expectation nor a pin for. Census: ` +
+        `${JSON.stringify(familyTally)}.\n` +
+        `"UNSTAMPED" here means a row whose renderer declared no family — the ` +
+        `same defect as an unstamped \`data-row-source\`, one axis over. ` +
+        `Declare it in \`CAPSULE_ROW_FAMILIES\` and give it a floor.`,
+    ).toEqual([]);
+
+    // (4) PER-STATE, the count of PALETTE rows each typing state owes.
     const typingScans = scans.filter((s) => s.label.startsWith("typing:"));
     const starved = typingScans
       .map((s) => ({ s, want: FLOOR.rowsPerTypingState[s.label.slice(7)] ?? 1 }))
@@ -1690,18 +1951,18 @@ test.describe("G4 — navigation rows carry no category column", () => {
       `G4: ${offenders.length} row(s) carry a right-aligned trailing label:\n` +
         offenders
           .map((o) =>
-            `  [${o.source}] "${o.row}" → "${o.trailing}"  ` +
+            `  [${o.source} · ${o.family}] "${o.row}" → "${o.trailing}"  ` +
               `glyph gutter ${o.glyphGutter}px (element gutter ${o.elementGutter}px)`,
           )
           .join("\n") +
         `\nNote the two gutters. The ELEMENT gutter is pinned near 12px by the ` +
-        `label's \`flex-1\` however short the label is, which is why the previous ` +
+        `label's \`flex-1\` however short the label is, which is why an earlier ` +
         `version of this gate fired 0 of 17 times. The GLYPH gutter is what the ` +
-        `reader sees.`,
+        `reader sees. Note the FAMILY too: the last 20 offenders were all one ` +
+        `family, and the sweep that missed them was checking eight others.`,
     ).toEqual([]);
   });
 });
-
 // ══════════════════════════════════════════════════════════════════════
 // G5 — CLS 0
 // ══════════════════════════════════════════════════════════════════════

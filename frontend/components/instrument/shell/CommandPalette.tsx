@@ -120,7 +120,6 @@ import { staticBvbRows } from "@/lib/bvbStaticUniverse";
 import { useTheme } from "@/theme";
 import { useDailyRun } from "@/lib/runStore";
 import { flattenSkus } from "@/lib/cfoDerive";
-import { BucketChip } from "@/components/cfo/BucketChip";
 import { openGlossary } from "@/components/learning/MetricGlossaryDrawer";
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
 import { CONCEPTS_BY_KEY, type Concept } from "@/lib/learning/concepts";
@@ -573,16 +572,22 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
 
   const mod = modKeyLabel();
   const skus = useMemo(() => flattenSkus(run), [run]);
+  // NAMES ONLY. This used to carry `bucket` alongside each name, for the
+  // `<BucketChip>` the category row printed against its right edge. The
+  // chip is gone (see `CapsulePaletteRow`'s header for the measurement
+  // that killed it) and the field went with it rather than sitting here
+  // unread — an unused field on a shape is how a deleted defect finds
+  // its way back under its own name.
   const categories = useMemo(() => {
     const seen = new Set<string>();
-    const cats: { name: string; bucket: string }[] = [];
+    const names: string[] = [];
     for (const s of skus) {
       if (s.category && !seen.has(s.category)) {
         seen.add(s.category);
-        cats.push({ name: s.category, bucket: s.bucket });
+        names.push(s.category);
       }
     }
-    return cats;
+    return names;
   }, [skus]);
   const companies = useMemo(() => staticBvbRows(), []);
 
@@ -603,6 +608,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     () => [
       {
         id: "act-upload",
+        family: "action",
         group: t("shell.palette.actions"),
         label: t("shell.palette.upload"),
         // SURVIVES AS INK: "Trial balance, statements or sales file"
@@ -617,6 +623,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       },
       {
         id: "act-export",
+        family: "action",
         group: t("shell.palette.actions"),
         label: t("shell.palette.export"),
         // "Open the export tab" is what the label already says. It is a
@@ -628,6 +635,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       },
       {
         id: "act-theme",
+        family: "action",
         group: t("shell.palette.actions"),
         label:
           resolvedTheme === "dark"
@@ -643,6 +651,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       },
       {
         id: "act-ask",
+        family: "action",
         group: t("shell.palette.actions"),
         label: t("shell.palette.askAi"),
         searchText: t("shell.palette.askAiHint"),
@@ -655,6 +664,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       },
       {
         id: "act-rail",
+        family: "action",
         group: t("shell.palette.actions"),
         label: t("shell.palette.toggleSidebar"),
         searchText: t("shell.palette.toggleSidebarHint"),
@@ -686,6 +696,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         if (match(label, g.label)) {
           out.push({
             id: `page-${item.to}`,
+            family: "page",
             group: t("shell.palette.pages"),
             label,
             searchText: g.label,
@@ -704,6 +715,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (match(settingsLabel)) {
       out.push({
         id: "page-/settings",
+        family: "page",
         group: t("shell.palette.pages"),
         label: settingsLabel,
         icon: SettingsIcon,
@@ -723,6 +735,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (match(t("panels.search.browseGlossary"), "glossary", "metrics", "learn")) {
       out.push({
         id: "act-glossary",
+        family: "glossary",
         group: t("shell.palette.learn"),
         label: t("panels.search.browseGlossary"),
         qualifier: t("panels.search.browseGlossaryHint"),
@@ -745,6 +758,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     for (const p of periodRows) {
       out.push({
         id: `period-${p.id}`,
+        family: "period",
         group: t("shell.palette.periods"),
         label: p.label,
         searchText: t("shell.palette.switchPeriod"),
@@ -758,15 +772,29 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
 
     // Query-only groups — the palette stays calm when empty.
     if (q.length >= 1) {
-      for (const c of categories) {
-        if (c.name.toLowerCase().includes(q)) {
+      // ── THE BUCKET CHIP WENT THE WAY OF THE CATEGORY COLUMN ──────
+      //
+      // These two loops were the LAST two `trailing:` call sites on this
+      // surface, and between them they were every offender the 2026-08-31
+      // audit found: 20 rows at 1440 and 20 at 390 ending in a muted word
+      // parked 495-524 glyph-pixels from their label. Typing `range` put
+      // nine rows on screen, nine of nine wearing one; typing `core` put
+      // four Product rows on screen and all four said "Protect".
+      //
+      // A bucket takes five values across the whole catalogue, so on a
+      // filtered list it names a GROUP, which is the complaint verbatim.
+      // It is not re-homed as a qualifier and not added to `searchText`:
+      // it was never matchable, and making it matchable would be a new
+      // feature wearing a cleanup's clothes.
+      for (const name of categories) {
+        if (name.toLowerCase().includes(q)) {
           out.push({
-            id: `cat-${c.name}`,
+            id: `cat-${name}`,
+            family: "category",
             group: t("shell.palette.products"),
-            label: c.name,
+            label: name,
             searchText: t("panels.search.categoryHint"),
-            trailing: <BucketChip bucket={c.bucket as import("@/lib/cfoApi").Bucket} />,
-            run: () => go(`/products?search=${encodeURIComponent(c.name)}`),
+            run: () => go(`/products?search=${encodeURIComponent(name)}`),
           });
           if (out.length > 60) break;
         }
@@ -775,10 +803,10 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         if (s.id.toLowerCase().includes(q) || (s.category?.toLowerCase().includes(q) ?? false)) {
           out.push({
             id: `sku-${s.id}`,
+            family: "sku",
             group: t("shell.palette.products"),
             label: s.id,
             searchText: s.category ?? "SKU",
-            trailing: <BucketChip bucket={s.bucket as import("@/lib/cfoApi").Bucket} />,
             run: () => go(`/products?search=${encodeURIComponent(s.id)}`),
           });
           if (out.length > 60) break;
@@ -790,6 +818,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         if (nameEn.includes(q) || nameRo.includes(q) || c.key.toLowerCase().includes(q)) {
           out.push({
             id: `concept-${c.key}`,
+            family: "concept",
             group: t("shell.palette.learn"),
             label: c.name.en,
             // THE "LEARN" TAG WENT FIRST. THE CATEGORY WENT WITH IT.
@@ -834,6 +863,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         if (ticker.includes(q) || name.includes(q)) {
           out.push({
             id: `company-${co.ticker}`,
+            family: "company",
             group: t("shell.palette.companies"),
             label: co.companyName ?? co.ticker,
             // THE ONE QUALIFIER THAT SURVIVES AS INK. The label is the
@@ -972,6 +1002,10 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     const to = row.to;
     return {
       id: row.id,
+      // A route the ROUTER resolved is the same kind of thing as a rail
+      // destination the palette listed; the family names what the row IS,
+      // not which code path built it.
+      family: "page" as const,
       group: t("shell.palette.pages"),
       label: row.labelKey ? t(row.labelKey) : to,
       destination: true,
@@ -1174,10 +1208,20 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   }, []);
   const frame = capsuleFrame(viewport.w, viewport.h);
   const narrow = frame.narrow;
-  // MEASURED, then CLAMPED — and the clamp is what makes the resting card
-  // fixed. `min` is the resting height, so a workspace with one chip and
-  // a workspace with three get a card of the same size and a composer in
-  // the same place. `max` is the room above the constant bottom edge.
+  // MEASURED, AND NO LONGER FLOORED.
+  //
+  // `min` used to be the resting height at rest, so a workspace with one
+  // chip and a workspace with three got a card of the same size. That is
+  // where 113px of blank at 1440 (37.9% of a 298px card) and 104px at 390
+  // (38.8% of 268px) came from — measured 2026-08-31, and re-ruled: "a
+  // card that budgets three suggestion chips and renders one should
+  // shrink to what it renders."
+  //
+  // The composer does not move as a result, because the composer never
+  // rode on this number: it rides on `frame.bottom`, which is a constant
+  // derived from `CAPSULE_REST_BUDGET` and not from what any state
+  // happens to measure. `max` is likewise the room above that constant
+  // edge — 358px at 1440, 590px at 390, the same before and after.
   //
   // Enabled at EVERY width now, narrow included. It was `!narrow`, and
   // that is where the 390 regression lived: below `sm` the card fell back
@@ -1188,25 +1232,26 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   // height lands on the stack INSIDE the card's border, so the border
   // comes off both bounds. Skipping this put the 390 typing state at
   // 70.2vh against a 70vh budget: right idea, wrong box.
-  // THE RESTING FLOOR APPLIES TO THE RESTING STATE ONLY.
-  //
-  // The fixed height is what the resting card is FOR — a stable bottom
-  // edge needs a known resting height to sit on. Once the reader has
-  // typed, the card is a working surface and hugging its content is
-  // right again: a query that resolves to one local figure and no rows
-  // would otherwise sit in a 298px card with 102px of nothing under it,
-  // which is complaint 1 rebuilt one state to the left. The bottom edge
-  // does not move either way; only the top does.
+  // NO FLOOR IN ANY STATE. The typing and answering cards already hugged
+  // their content; the resting one now does too, and that is the whole
+  // of the geometry fix. The bottom edge does not move either way; only
+  // the top does.
   const card = useCapsuleHeight({
-    min: typing || answerMode ? 0 : frame.restHeight - CAPSULE_BORDER,
+    min: 0,
     max: frame.maxHeight - CAPSULE_BORDER,
     enabled: open,
   });
   // Before the first measurement (and in jsdom, where every box is 0×0)
-  // the hook returns null. The card then takes the RESTING height rather
-  // than `auto`: `auto` at the top of a bottom-anchored card is a
-  // first-paint jump, which is the one thing this geometry exists to
-  // delete.
+  // the hook returns null, and the card then takes NO inline height —
+  // `height: auto`.
+  //
+  // This was `frame.restHeight` for exactly as long as the resting card
+  // had a floor, and the reason given was that `auto` is a first-paint
+  // jump. It WAS: `auto` renders the content height, the hook then
+  // measured the floored height, and the card grew 113px in the frame
+  // after the first paint. With the floor gone the two agree — `auto` IS
+  // the measurement — so the fallback that used to cause the jump is now
+  // the one that prevents it, and a floored fallback would cause it.
   // ── WHERE THE HEIGHT COMES FROM, AND WHAT IT COST TO GET RIGHT ─────
   //
   // Measured content, clamped, applied to the stack. Two configurations
@@ -1231,7 +1276,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   //
   // Measured after: CLS 0 on open, typing, streaming and close; the
   // composer at the same y in all three states at both viewports.
-  const cardHeight = card.height ?? frame.restHeight - CAPSULE_BORDER;
+  const cardHeight = card.height ?? undefined;
 
   // The placeholder names the SUBJECT at rest and the ACT once a thread
   // exists. "Ask about Dec 2025…" above a finished answer about Dec 2025
@@ -1404,7 +1449,12 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             // lane over was written, exported, unit-tested and never
             // called; this file is not repeating that.
             data-measured={card.height !== null ? String(card.height) : undefined}
-            data-rest-height={String(frame.restHeight)}
+            // WIDE ONLY, because it means something only there: it is
+            // the anchor-to-bottom-edge distance, and below
+            // `CAPSULE_NARROW_MAX` the bottom edge is the viewport's.
+            // A stamp that names a number governing nothing is how a
+            // future gate ends up asserting against the wrong quantity.
+            data-rest-budget={narrow ? undefined : String(frame.restBudget)}
             style={{ height: cardHeight }}
             // NO `flex-1` HERE, AND THE REASON IS THE WHOLE ANIMATION.
             //
@@ -1542,10 +1592,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                         // and an unstamped row in the one state the sweep
                         // did not cover is how a census learns to lie.
                         data-row-source="ask-fallback"
-                        // TC-7. Stamped like every other row-painting
-                        // site: it is the ONLY row in the no-match state,
-                        // and an unstamped row in the one state the sweep
-                        // did not cover is how a census learns to lie.
+                        data-row-family="ask"
                         onClick={() => enterAnswerMode(query.trim())}
                         className="
                           flex h-9 w-full items-center gap-3 px-4 text-left

@@ -19,35 +19,102 @@
 //       answering (G2);
 //   (C) the resting card is the size of its content (G1, complaint 1).
 //
-// The owner ruled, in priority order: (B), then (A), then (C). So (C) is
-// the one that goes: the resting card has a FIXED height.
+// The first ruling was (B) > (A) > (C), and (C) was dropped: the resting
+// card took a FIXED height sized for three suggestion chips.
 //
-//     bottom  = ANCHOR_TOP + REST_HEIGHT          — a constant
-//     height  = clamp(measured content, REST_HEIGHT, MAX)
-//     top     = bottom − height                   — rises as it grows
+// ══ WHY THAT WAS RE-RULED, AND THE ARITHMETIC BEHIND IT ═══════════════
 //
-// At rest, height == REST_HEIGHT, so top == ANCHOR_TOP and (A) holds.
-// In every state the bottom is the same number, so (B) holds. Growth
-// moves the TOP, which no gate pins outside the resting state.
+// Measured on the shipped build, 2026-08-31: the workspace renders ONE
+// chip, and the resting card was 298px with 113px — 37.9% — of blank
+// above its first ink at 1440, 104px of 268px (38.8%) at 390. The owner
+// re-ruled: "A card that budgets three suggestion chips and renders one
+// should shrink to what it renders … keep the constant bottom edge by
+// growing the card upward from that edge — anchoring the bottom does not
+// require reserving space you're not using."
 //
-// ══ WHAT THE RULING COSTS, IN PIXELS, STATED HERE ═════════════════════
+// That sentence drops (A), and it has to, because (A)+(B)+(C) are not
+// merely in tension — they are ALGEBRAICALLY INCOMPATIBLE, and the
+// arithmetic belongs on the record rather than in a round of surprise:
 //
-// (A) and (B) together CAP the height: the card can never be taller than
-// `bottom − EDGE_MARGIN`, which is `ANCHOR_TOP + REST_HEIGHT − 8`. At
-// 1440×900 that is 360px — 40vh, well inside the 70vh ceiling, and
-// materially shorter than the 522px the top-anchored card used to reach.
-// Long result lists and long answers scroll INSIDE the card. That is the
-// price of a composer that does not move, and it is a price, not a free
-// win: a taller ceiling is only buyable by making the RESTING card
-// taller, and a taller resting card is complaint 1 coming back.
+//     pillBottom          46   (fixed by the header)
+//     restContent        185   (fixed by what the resting card says)
+//     composerY            C   (the one free variable)
 //
-// ══ WHY REST_HEIGHT IS THE NUMBER IT IS ═══════════════════════════════
+//     (A) ⟹ cardTop_rest ≈ 68 ⟹ C = 68 + restContent − 11 = 242
+//     the card may not grow above EDGE_MARGIN, so
+//     maxHeight = (C + 11) − 8 = restContent + 60
 //
-// Measured, not chosen: the resting thread is the context strip, up to
-// three question chips, and the one basis line under them; the composer
-// block is the key legend, the input row and its hairline. Three chips
-// is the engine's own `MAX_SUGGESTIONS`, so this is the tallest the
-// resting state can honestly be.
+// So under (A)+(B) the answer canvas ceiling IS `restContent + 60`: the
+// 113px of air at rest and the 113px the ANSWERING state uses are THE
+// SAME PIXELS. Shrinking the resting card to its content while keeping
+// (A) would have taken the ceiling from 358px to 245px — the answering
+// state measures 358px and is already AT that ceiling, and the typing
+// state paints nine rows into it. That is not a fix; it is the defect
+// moved into the two states the reader spends longer in.
+//
+// ══ WHAT THIS FILE DOES INSTEAD ═══════════════════════════════════════
+//
+//     bottom  = CAPSULE_BOTTOM                     — a constant
+//     height  = measured content, clamped to MAX   — no resting floor
+//     top     = bottom − height                    — rises as it grows
+//
+// (B) holds exactly: the bottom is the same number in every state, so
+// the composer does not move — and, crucially, `bottom` is no longer
+// computed FROM the resting height, so a leaner resting card cannot
+// shorten the answer canvas. That is the decoupling the ruling asked
+// for: `maxHeight` is a fraction of the VIEWPORT, capped only by the
+// room that physically exists above a fixed bottom edge, and it is the
+// same 358px at 1440 and 590px at 390 that it was before this change.
+//
+// (C) holds: nothing reserves space it is not using. `useCapsuleHeight`
+// measures the thread and the composer and the card is their sum.
+//
+// (A) is the one that goes, and the cost is MEASURED and stated rather
+// than hidden. On a workspace whose resting content is shorter than
+// `CAPSULE_REST_BUDGET`, the resting card no longer touches the pill:
+// with one chip it measures 208px and starts at y=158, and
+// `e2e/design/capsule.spec.ts`'s K6 reports
+//
+//     [K6 centre] drift 2.0px · gap 113.5px        (tolerance 24px)
+//
+// — one of K6's four assertions RED, the other three (the anchor ran,
+// the width is derived, CLS 0 on open/close/stream) green.
+//
+// THAT IS AN OPEN, REPORTED CONFLICT, not a number this file quietly
+// satisfies. K6's gap assertion encodes (A), and (A) was only ever
+// guaranteed by the fixed resting height the ruling deleted. Once the
+// resting card measures its content, the gap is a FUNCTION OF THE
+// CONTENT — so K6's tolerance can no longer be a stable law about this
+// surface, whatever number this file picks.
+//
+// The alternative was built and PRICED rather than argued about. Setting
+// the budget to 208 — this workspace's measured resting content — puts
+// the card back under the pill (K6 4/4 green, gap 23.5px) and costs:
+//
+//     typing    @1440   358px → 268px   (9 rows into 268px)
+//     answering @1440   358px → 268px   (the action row and the
+//                                        follow-up chips go below the
+//                                        fold; the card is already AT
+//                                        its ceiling at 358)
+//     composer          y 355  → y 265
+//
+// and it is a fit to ONE DATA POINT: a workspace yielding three chips
+// then measures 298 against a 208 budget, gets clamped to the ceiling,
+// and rests at y=8 — COVERING the pill it grew out of. K6 would pass
+// that (a negative gap is ≤ 24) while the surface hid its own trigger.
+//
+// 298 degrades the other way: the card detaches, and a workspace that
+// fills the budget rests at `CAPSULE_ANCHOR_TOP` with K6 untouched. A
+// graceful degradation was preferred to a pathological one, and the
+// re-ruling of K6 — whether it should measure the morph's ORIGIN rather
+// than a static gap — belongs to the owner and to the lane that owns
+// that file.
+//
+// ══ WHY CAPSULE_REST_BUDGET IS THE NUMBER IT IS ═══════════════════════
+//
+// It is no longer a HEIGHT — nothing is ever sized to it. It is the
+// distance from the anchor to the constant bottom edge, i.e. how tall a
+// resting card WOULD be if the workspace had everything to say:
 //
 //     thread padding  14 + 12
 //     context strip   28
@@ -55,21 +122,19 @@
 //     composer block  68
 //                                                     ≈ 298
 //
-// A workspace with fewer than three chips leaves the difference as slack
-// — and the slack sits ABOVE the content, not below it, because the
-// thread is bottom-aligned inside the card (`mt-auto`). An empty
-// conversation whose first words sit just above the composer is the
-// shape every chat surface has; a card whose content stops halfway down
-// and leaves a hole at the bottom is the shape of the menu this pass
-// exists to stop being. Same pixels, and they read as opposite things.
+// Three chips is `MAX_SUGGESTIONS`, so this is the tallest the resting
+// state can honestly be, and pinning the bottom edge to it is what keeps
+// the FULL resting card anchored under the pill.
 
 /** Below this the card is full-bleed and the pill it would anchor to is
  *  not what the reader is looking at. Mirrors `MORPH_MIN_VIEWPORT`. */
 export const CAPSULE_NARROW_MAX = 640;
 
-/** Where the RESTING card's top edge sits at ≥640px. Not free: K6 allows
- *  24px between the header pill's bottom (~46px) and the card's top, so
- *  70 is the ceiling and this is 2px inside it. */
+/** Where the resting card's top edge sits at ≥640px WHEN ITS CONTENT
+ *  FILLS `CAPSULE_REST_BUDGET`. A card with less to say starts lower —
+ *  see the header for the algebra and for what that costs K6. Not free
+ *  either way: K6 allows 24px between the header pill's bottom (~44.5px)
+ *  and the card's top, so 70 is the ceiling and this is 2px inside it. */
 export const CAPSULE_ANCHOR_TOP = 68;
 
 /** Keep-off from the viewport edges, both ends. */
@@ -89,13 +154,10 @@ export const CAPSULE_EDGE_MARGIN = 8;
  */
 export const CAPSULE_BORDER = 2;
 
-/** The fixed resting height. See the header for the arithmetic. */
-export const CAPSULE_REST_HEIGHT = 298;
-
-/** The resting height below `CAPSULE_NARROW_MAX`. Shorter than the wide
- *  one because the key legend does not render on a phone (no keyboard to
- *  legend) and the chips wrap tighter into a narrower column. */
-export const CAPSULE_REST_HEIGHT_NARROW = 268;
+/** The distance from `CAPSULE_ANCHOR_TOP` to the constant bottom edge —
+ *  the height of a resting card that has everything to say. NOT a floor:
+ *  no card is ever padded up to it. See the header for the arithmetic. */
+export const CAPSULE_REST_BUDGET = 298;
 
 /** The ceiling the brief sets, as a fraction of the viewport. The owner's
  *  words: "mobile is where a 75vh overlay feels like a takeover." */
@@ -111,16 +173,28 @@ export interface CapsuleFrame {
   /** The card's bottom edge in viewport coordinates. Reported so a gate
    *  can assert the composer against it without re-deriving. */
   bottom: number;
-  /** The fixed resting height, already clamped into the viewport. */
-  restHeight: number;
-  /** The tallest the card may ever be. */
+  /** What a resting card would measure if it had everything to say. NOT
+   *  applied as a floor: a card with less to say is shorter than this,
+   *  which is the point of the 2026-08-31 re-ruling.
+   *
+   *  It governs the bottom edge at WIDE only. Below `CAPSULE_NARROW_MAX`
+   *  the bottom edge is the viewport's, so this number describes nothing
+   *  there and is reported only so `data-rest-budget` reads the same
+   *  shape at both widths. */
+  restBudget: number;
+  /** The tallest the card may ever be. A fraction of the VIEWPORT,
+   *  capped by the room above the constant bottom edge — never a
+   *  function of what the resting card happens to contain. */
   maxHeight: number;
 }
 
 /**
  * The card's frame for a viewport. Pure — no DOM, no window.
  *
- * WIDE: bottom = anchor + rest, so the resting top lands on the anchor.
+ * WIDE: bottom = anchor + BUDGET. The budget is a constant, so the
+ * bottom edge is a constant, so the composer is a constant — and a
+ * resting card shorter than the budget simply starts lower rather than
+ * dragging the bottom edge (and with it the answer canvas) up behind it.
  *
  * NARROW: the card is a bottom sheet. (A) and (B) genuinely cannot both
  * hold on a phone — anchoring the top at 8px and fixing the bottom at
@@ -134,7 +208,7 @@ export function capsuleFrame(viewportW: number, viewportH: number): CapsuleFrame
   const narrow = viewportW < CAPSULE_NARROW_MAX;
   const bottom = narrow
     ? Math.max(0, viewportH - CAPSULE_EDGE_MARGIN)
-    : CAPSULE_ANCHOR_TOP + CAPSULE_REST_HEIGHT;
+    : CAPSULE_ANCHOR_TOP + CAPSULE_REST_BUDGET;
   // FLOOR, not round. `Math.round(844 × 0.7)` is 591, and 591/844 is
   // 0.7002 — a ceiling that is 0.02vh over the ceiling.
   const ceiling = Math.floor(viewportH * CAPSULE_TALL_VH);
@@ -145,14 +219,13 @@ export function capsuleFrame(viewportW: number, viewportH: number): CapsuleFrame
     0,
     Math.min(ceiling, bottom - CAPSULE_EDGE_MARGIN),
   );
-  const wanted = narrow ? CAPSULE_REST_HEIGHT_NARROW : CAPSULE_REST_HEIGHT;
   return {
     narrow,
     bottomOffset: Math.max(0, viewportH - bottom),
     bottom,
     // A short viewport (a laptop at 600px, a phone in landscape) gets a
-    // resting card that fits it rather than one that hangs off the top.
-    restHeight: Math.min(wanted, maxHeight),
+    // budget that fits it rather than one that hangs off the top.
+    restBudget: Math.min(CAPSULE_REST_BUDGET, maxHeight),
     maxHeight,
   };
 }

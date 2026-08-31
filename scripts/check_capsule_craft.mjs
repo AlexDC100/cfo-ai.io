@@ -18,7 +18,13 @@
  *                                repeating text already on screen — and
  *                                never at all on touch.
  *   F2  NO CATEGORY COLUMN       no navigation row renders a section
- *                                label beside its own name.
+ *                                label beside its own name, and no row
+ *                                carries a generic `trailing` slot for
+ *                                one to come back through.
+ *   F2b EVERY FAMILY IS GATED    every row family the palette can paint
+ *                                has a recorded expectation in G4's
+ *                                sweep — the axis a nine-query sweep
+ *                                was blind on.
  *   F3  STRINGS DISCIPLINE       every Capsule strings file is registered
  *                                with `addResourceBundle`, carries EN and
  *                                RO, and the two have the SAME key set.
@@ -306,6 +312,23 @@ const CATEGORY_PROPS = [
   { re: /\{\s*row\.hint\s*\}/, name: "row.hint" },
   { re: /\{\s*\w+\.(?:group|section|category)Label\s*\}/, name: "<x>.groupLabel/sectionLabel/categoryLabel" },
   { re: /\{\s*t\(\s*[`"']capsuleRouter\.group\./, name: "capsuleRouter.group.* rendered on a row" },
+  // `trailing` WAS THE ESCAPE HATCH, AND IT WAS USED.
+  //
+  // The round that deleted `hint` kept a `trailing?: ReactNode` on the
+  // row, defended in the component's own comment as "a VALUE, not the
+  // name of the group the row is filed under". Two call sites used it,
+  // both passing `<BucketChip>`, and an audit measured 20 offending rows
+  // at 1440 and 20 at 390 — every one of them from those two sites, four
+  // of them in a row all saying the identical word "Protect".
+  //
+  // A generic trailing slot cannot be policed by reading it, because the
+  // node it holds is decided somewhere else. So the slot itself is
+  // banned: a row that needs a second string uses `qualifier`, which
+  // renders INLINE and is the row's own name, or `kbd`, which names a
+  // keystroke. Re-introducing the slot is a deliberate act that has to
+  // delete this line first.
+  { re: /\{\s*\w+\.trailing\s*\}/, name: "<x>.trailing (the generic trailing slot)" },
+  { re: /^\s*trailing\??:\s*ReactNode/m, name: "a `trailing` field on a row item" },
 ];
 
 /** Files that legitimately render a group HEADING (one label above a run
@@ -336,6 +359,133 @@ function checkNoCategoryColumn(files) {
     }
   }
   return componentsSeen;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// F2b — EVERY ROW FAMILY THE PALETTE CAN PAINT IS GATED
+// ══════════════════════════════════════════════════════════════════════
+//
+// G4's live half bans a right-aligned trailing word on every row. It
+// reported ZERO offenders on a build carrying 20 of them at 1440 and 20
+// at 390, because its nine-query sweep summoned eight row families and
+// the offending rows were all in the ninth. The predicate was right; the
+// SAMPLE was blind, and nothing in a green run says which families were
+// never rendered.
+//
+// The live gate now carries a recorded expectation per family. This is
+// the half that makes that list COMPLETE, and it is here rather than
+// there because it must fail before a browser starts: adding a family to
+// `CAPSULE_ROW_FAMILIES` and not to the sweep is a red in 200ms, not a
+// green run over a family nobody typed a query for.
+//
+// Two directions, because either alone is a hole:
+//   · a family the product can paint with no expectation → the sweep
+//     could never have covered it;
+//   · an expectation for a family the product cannot paint → the sweep
+//     is checking a floor against a family that will always be 0, which
+//     either reds forever or was quietly pinned.
+
+/** Row-painting components that are one family each and therefore name
+ *  their family with `data-row-source` instead of `data-row-family`. */
+const NON_PALETTE_FAMILIES = ["suggestion", "ask", "jump-row"];
+
+const FAMILY_DECL_FILE = `${SHELL_DIR}/CapsulePaletteRow.tsx`;
+
+/** The body of `const <NAME> … = [ … ];` or `const <NAME> … = { … };`.
+ *  Anchored on `const` so the same identifier mentioned in prose above
+ *  cannot be mistaken for the declaration. Returns null when the block is
+ *  not found, which every caller treats as a FAIL — a parser that
+ *  silently finds nothing is the vacuity this whole file exists to
+ *  refuse. */
+function declBody(source, name, open, close) {
+  // The terminator allows a trailing `as const` between the bracket and
+  // the semicolon: `] as const;` is how the product declares its family
+  // list, and a pattern that demanded a bare `];` matched nothing and
+  // reported it as zero families gated.
+  const re = new RegExp(
+    `const ${name}[^=]*=\\s*\\${open}([\\s\\S]*?)\\n\\${close}[^;\\n]*;`);
+  const m = re.exec(source);
+  return m ? m[1] : null;
+}
+
+/** Quoted entries of an array literal. */
+function arrayEntries(body) {
+  return [...body.matchAll(/["'`]([a-z0-9-]+)["'`]/g)].map((x) => x[1]);
+}
+
+/** TOP-LEVEL keys of an object literal — anchored at exactly two spaces,
+ *  so `query:` and `floor:` inside a nested value, and the continuation
+ *  lines of a multi-line string value, are not mistaken for keys. */
+function objectKeys(body) {
+  return [...body.matchAll(/^ {2}("?)([a-z][a-z0-9-]*)\1:/gm)].map((x) => x[2]);
+}
+
+function checkFamilyCoverage(specFiles) {
+  const declAbs = path.join(ROOT, FAMILY_DECL_FILE);
+  if (!existsSync(declAbs)) {
+    fail("F2b family-coverage",
+      `${FAMILY_DECL_FILE} is gone. The row families are declared there and ` +
+        `this check cannot run — which means G4's per-family floors are ` +
+        `unpoliced, not that they are fine.`);
+    return 0;
+  }
+  const famBody = declBody(codeOnly(read(declAbs)), "CAPSULE_ROW_FAMILIES", "[", "]");
+  const families = famBody ? arrayEntries(famBody) : null;
+  if (!families || families.length === 0) {
+    fail("F2b family-coverage",
+      `${FAMILY_DECL_FILE} declares no \`CAPSULE_ROW_FAMILIES\`. Either it was ` +
+        `renamed — in which case this check is now reading nothing and passing ` +
+        `— or the row stopped declaring its family, which is how a census ` +
+        `learns to lie.`);
+    return 0;
+  }
+
+  let checked = 0;
+  for (const relSpec of specFiles) {
+    const abs = path.join(ROOT, relSpec);
+    if (!existsSync(abs)) continue;
+    const spec = read(abs);
+    const expectBody = declBody(spec, "FAMILY_EXPECT", "{", "}");
+    const pinnedBody = declBody(spec, "FAMILY_UNREACHABLE", "{", "}");
+    const expect = expectBody ? objectKeys(expectBody) : null;
+    const pinned = pinnedBody ? objectKeys(pinnedBody) : null;
+    if (!expect || !pinned || expect.length === 0 || pinned.length === 0) {
+      fail("F2b family-coverage",
+        `${relSpec} declares no FAMILY_EXPECT / FAMILY_UNREACHABLE table. G4's ` +
+          `sweep is then floored on states rather than on families, which is ` +
+          `exactly the sample-blindness that let 20 offending rows through a ` +
+          `green run.`);
+      continue;
+    }
+    const covered = new Set([...expect, ...pinned]);
+    checked += covered.size;
+
+    const ungated = families.filter((f) => !covered.has(f));
+    if (ungated.length) {
+      fail("F2b family-coverage",
+        `${relSpec} has no expectation for row famil${ungated.length === 1 ? "y" : "ies"} ` +
+          `${ungated.map((f) => `\`${f}\``).join(", ")}, declared in ` +
+          `${FAMILY_DECL_FILE}.\n` +
+          `      A family with no recorded expectation scores zero and passes. ` +
+          `Give it a query that summons it and the row count that query ` +
+          `produced — or, if this stack genuinely cannot paint it, pin it at ` +
+          `zero in FAMILY_UNREACHABLE with the reason.`);
+    }
+
+    const known = new Set([...families, ...NON_PALETTE_FAMILIES]);
+    const stale = [...covered].filter((f) => !known.has(f));
+    if (stale.length) {
+      fail("F2b family-coverage",
+        `${relSpec} carries expectations for ` +
+          `${stale.map((f) => `\`${f}\``).join(", ")}, which no component can ` +
+          `paint: ${FAMILY_DECL_FILE} declares ${families.join(", ")} and the ` +
+          `non-palette renderers are ${NON_PALETTE_FAMILIES.join(", ")}.\n` +
+          `      An expectation aimed at a family that cannot exist is a floor ` +
+          `on nothing.`);
+    }
+    note(`  F2b families=${families.length} covered=${covered.size} in ${relSpec}`);
+  }
+  return checked;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -646,6 +796,7 @@ function main() {
   }
   const titleScanned = checkNoTitleAnywhere(files);
   const rowComponents = checkNoCategoryColumn(files);
+  const familiesGated = checkFamilyCoverage(SPEC_FILES);
   const bundles = checkStrings(files);
   const footer = checkFooterNotPlaceholder(files, renderedKeys);
   const anchors = checkSpecAlive(SPEC_FILES);
@@ -661,13 +812,14 @@ function main() {
   // visible as a number.
   const units =
     files.length + rowsSeen + rowComponents + bundles + footer.placeholders +
-    anchors + titleScanned;
+    anchors + titleScanned + familiesGated;
 
   console.log(
     `  files=${files.length} rows=${rowsSeen} rowComponents=${rowComponents} ` +
     `bundles=${bundles} renderedKeys=${renderedKeys.size} ` +
     `placeholders=${footer.placeholders} renderedHintPairs=${footer.pairs} ` +
-    `specAnchors=${anchors} titleScanned=${titleScanned}`);
+    `specAnchors=${anchors} titleScanned=${titleScanned} ` +
+    `familiesGated=${familiesGated}`);
   if (notes.length) console.log(notes.join("\n"));
   if (deadHints.length) {
     console.log(
@@ -682,7 +834,7 @@ function main() {
   const discoveryBroken =
     files.length === 0 || rowsSeen === 0 || bundles === 0 || titleScanned === 0 ||
     footer.placeholders === 0 || renderedKeys.size === 0 || anchors === 0 ||
-    SPEC_FILES.length === 0;
+    familiesGated === 0 || SPEC_FILES.length === 0;
 
   console.log(
     `GATE-WORK capsule-craft units=${units} floor=${FLOOR} ` +

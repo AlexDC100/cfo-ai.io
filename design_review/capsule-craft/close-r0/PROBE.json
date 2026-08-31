@@ -1,0 +1,2924 @@
+[
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 208,
+      "bottom": 276
+    },
+    "vhFraction": 23.1,
+    "composerBottom": 265,
+    "composerTop": 233,
+    "inkDensity": 8.05,
+    "inkArea": 11386,
+    "textRuns": 7,
+    "maxGap": 29,
+    "gapAt": 106,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 92,
+        "px": 24
+      },
+      {
+        "from": 106,
+        "to": 135,
+        "px": 29
+      },
+      {
+        "from": 150,
+        "to": 171,
+        "px": 21
+      },
+      {
+        "from": 184,
+        "to": 209,
+        "px": 25
+      },
+      {
+        "from": 222,
+        "to": 240,
+        "px": 18
+      },
+      {
+        "from": 256,
+        "to": 276,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "capsule-suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 10
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 522,
+      "bottom": 590
+    },
+    "vhFraction": 58,
+    "composerBottom": 579,
+    "composerTop": 547,
+    "inkDensity": 11.5,
+    "inkArea": 40818,
+    "textRuns": 31,
+    "maxGap": 27,
+    "gapAt": 68,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 95,
+        "px": 27
+      },
+      {
+        "from": 110,
+        "to": 129,
+        "px": 19
+      },
+      {
+        "from": 142,
+        "to": 160,
+        "px": 19
+      },
+      {
+        "from": 175,
+        "to": 196,
+        "px": 21
+      },
+      {
+        "from": 211,
+        "to": 223,
+        "px": 11
+      },
+      {
+        "from": 259,
+        "to": 268,
+        "px": 10
+      },
+      {
+        "from": 283,
+        "to": 304,
+        "px": 21
+      },
+      {
+        "from": 319,
+        "to": 340,
+        "px": 21
+      },
+      {
+        "from": 355,
+        "to": 376,
+        "px": 21
+      },
+      {
+        "from": 391,
+        "to": 412,
+        "px": 21
+      },
+      {
+        "from": 427,
+        "to": 448,
+        "px": 21
+      },
+      {
+        "from": 463,
+        "to": 484,
+        "px": 21
+      },
+      {
+        "from": 499,
+        "to": 520,
+        "px": 21
+      },
+      {
+        "from": 536,
+        "to": 554,
+        "px": 18
+      },
+      {
+        "from": 571,
+        "to": 590,
+        "px": 19,
+        "tail": true
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "UNSTAMPED": 13
+    },
+    "trailing": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 375,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 396,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 458,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 454,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 459,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 491,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 497,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 439,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 519,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 489,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 422,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "trailingOffenders": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 375,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 396,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 458,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 454,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 459,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 491,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 497,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 439,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 519,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 489,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 422,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 10
+  },
+  {
+    "state": "answer",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 387,
+      "bottom": 455
+    },
+    "vhFraction": 43,
+    "composerBottom": 444,
+    "composerTop": 412,
+    "inkDensity": 10.19,
+    "inkArea": 26813,
+    "textRuns": 16,
+    "maxGap": 39,
+    "gapAt": 349,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 88,
+        "px": 20
+      },
+      {
+        "from": 102,
+        "to": 133,
+        "px": 31
+      },
+      {
+        "from": 148,
+        "to": 167,
+        "px": 19
+      },
+      {
+        "from": 214,
+        "to": 233,
+        "px": 19
+      },
+      {
+        "from": 248,
+        "to": 270,
+        "px": 22
+      },
+      {
+        "from": 284,
+        "to": 299,
+        "px": 15
+      },
+      {
+        "from": 313,
+        "to": 335,
+        "px": 22
+      },
+      {
+        "from": 349,
+        "to": 388,
+        "px": 39
+      },
+      {
+        "from": 401,
+        "to": 419,
+        "px": 18
+      },
+      {
+        "from": 435,
+        "to": 455,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 13
+  },
+  {
+    "state": "answer2",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 522,
+      "bottom": 590
+    },
+    "vhFraction": 58,
+    "composerBottom": 579,
+    "composerTop": 547,
+    "inkDensity": 12.94,
+    "inkArea": 45925,
+    "textRuns": 29,
+    "maxGap": 41,
+    "gapAt": 349,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 88,
+        "px": 20
+      },
+      {
+        "from": 102,
+        "to": 133,
+        "px": 31
+      },
+      {
+        "from": 148,
+        "to": 167,
+        "px": 19
+      },
+      {
+        "from": 214,
+        "to": 233,
+        "px": 19
+      },
+      {
+        "from": 248,
+        "to": 270,
+        "px": 22
+      },
+      {
+        "from": 284,
+        "to": 299,
+        "px": 15
+      },
+      {
+        "from": 313,
+        "to": 335,
+        "px": 22
+      },
+      {
+        "from": 349,
+        "to": 390,
+        "px": 41
+      },
+      {
+        "from": 405,
+        "to": 424,
+        "px": 19
+      },
+      {
+        "from": 472,
+        "to": 490,
+        "px": 18
+      },
+      {
+        "from": 505,
+        "to": 523,
+        "px": 18
+      },
+      {
+        "from": 541,
+        "to": 554,
+        "px": 13
+      },
+      {
+        "from": 570,
+        "to": 590,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 13
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 187,
+      "bottom": 195
+    },
+    "vhFraction": 22.2,
+    "composerBottom": 184,
+    "composerTop": 152,
+    "inkDensity": 13.9,
+    "inkArea": 9743,
+    "textRuns": 5,
+    "maxGap": 35,
+    "gapAt": 124,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 32,
+        "px": 24
+      },
+      {
+        "from": 46,
+        "to": 75,
+        "px": 29
+      },
+      {
+        "from": 90,
+        "to": 111,
+        "px": 21
+      },
+      {
+        "from": 124,
+        "to": 159,
+        "px": 35
+      },
+      {
+        "from": 175,
+        "to": 195,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "capsule-suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 3
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 617,
+      "bottom": 625
+    },
+    "vhFraction": 73,
+    "composerBottom": 614,
+    "composerTop": 582,
+    "inkDensity": 16.79,
+    "inkArea": 38702,
+    "textRuns": 28,
+    "maxGap": 41,
+    "gapAt": 547,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 35,
+        "px": 27
+      },
+      {
+        "from": 50,
+        "to": 69,
+        "px": 19
+      },
+      {
+        "from": 82,
+        "to": 100,
+        "px": 19
+      },
+      {
+        "from": 115,
+        "to": 136,
+        "px": 21
+      },
+      {
+        "from": 151,
+        "to": 163,
+        "px": 11
+      },
+      {
+        "from": 199,
+        "to": 208,
+        "px": 10
+      },
+      {
+        "from": 223,
+        "to": 244,
+        "px": 21
+      },
+      {
+        "from": 259,
+        "to": 280,
+        "px": 21
+      },
+      {
+        "from": 295,
+        "to": 316,
+        "px": 21
+      },
+      {
+        "from": 331,
+        "to": 352,
+        "px": 21
+      },
+      {
+        "from": 367,
+        "to": 388,
+        "px": 21
+      },
+      {
+        "from": 403,
+        "to": 424,
+        "px": 21
+      },
+      {
+        "from": 439,
+        "to": 460,
+        "px": 21
+      },
+      {
+        "from": 475,
+        "to": 496,
+        "px": 21
+      },
+      {
+        "from": 511,
+        "to": 532,
+        "px": 21
+      },
+      {
+        "from": 547,
+        "to": 589,
+        "px": 41
+      },
+      {
+        "from": 605,
+        "to": 625,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "UNSTAMPED": 13
+    },
+    "trailing": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 69,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 90,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 152,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 148,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 153,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 185,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 191,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 133,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 213,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 183,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 116,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "trailingOffenders": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 69,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 90,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 152,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 148,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 153,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 185,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 191,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 133,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 213,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 183,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 116,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 3
+  },
+  {
+    "state": "answer",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 393,
+      "bottom": 401
+    },
+    "vhFraction": 46.6,
+    "composerBottom": 390,
+    "composerTop": 358,
+    "inkDensity": 17.11,
+    "inkArea": 25170,
+    "textRuns": 14,
+    "maxGap": 49,
+    "gapAt": 316,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 28,
+        "px": 20
+      },
+      {
+        "from": 42,
+        "to": 73,
+        "px": 31
+      },
+      {
+        "from": 88,
+        "to": 107,
+        "px": 19
+      },
+      {
+        "from": 154,
+        "to": 173,
+        "px": 19
+      },
+      {
+        "from": 188,
+        "to": 210,
+        "px": 22
+      },
+      {
+        "from": 224,
+        "to": 239,
+        "px": 15
+      },
+      {
+        "from": 253,
+        "to": 266,
+        "px": 13
+      },
+      {
+        "from": 280,
+        "to": 302,
+        "px": 22
+      },
+      {
+        "from": 316,
+        "to": 365,
+        "px": 49
+      },
+      {
+        "from": 381,
+        "to": 401,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 6
+  },
+  {
+    "state": "answer2",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 678,
+      "bottom": 686
+    },
+    "vhFraction": 80.3,
+    "composerBottom": 675,
+    "composerTop": 643,
+    "inkDensity": 17.48,
+    "inkArea": 44282,
+    "textRuns": 27,
+    "maxGap": 49,
+    "gapAt": 600,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 28,
+        "px": 20
+      },
+      {
+        "from": 42,
+        "to": 73,
+        "px": 31
+      },
+      {
+        "from": 88,
+        "to": 107,
+        "px": 19
+      },
+      {
+        "from": 154,
+        "to": 173,
+        "px": 19
+      },
+      {
+        "from": 188,
+        "to": 210,
+        "px": 22
+      },
+      {
+        "from": 224,
+        "to": 239,
+        "px": 15
+      },
+      {
+        "from": 253,
+        "to": 266,
+        "px": 13
+      },
+      {
+        "from": 280,
+        "to": 302,
+        "px": 22
+      },
+      {
+        "from": 316,
+        "to": 357,
+        "px": 41
+      },
+      {
+        "from": 372,
+        "to": 391,
+        "px": 19
+      },
+      {
+        "from": 439,
+        "to": 457,
+        "px": 18
+      },
+      {
+        "from": 472,
+        "to": 494,
+        "px": 22
+      },
+      {
+        "from": 508,
+        "to": 523,
+        "px": 15
+      },
+      {
+        "from": 537,
+        "to": 550,
+        "px": 13
+      },
+      {
+        "from": 564,
+        "to": 586,
+        "px": 22
+      },
+      {
+        "from": 600,
+        "to": 650,
+        "px": 49
+      },
+      {
+        "from": 666,
+        "to": 686,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 6
+  },
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 208,
+      "bottom": 276
+    },
+    "vhFraction": 23.1,
+    "composerBottom": 265,
+    "composerTop": 233,
+    "inkDensity": 8.05,
+    "inkArea": 11386,
+    "textRuns": 7,
+    "maxGap": 29,
+    "gapAt": 106,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 92,
+        "px": 24
+      },
+      {
+        "from": 106,
+        "to": 135,
+        "px": 29
+      },
+      {
+        "from": 150,
+        "to": 171,
+        "px": 21
+      },
+      {
+        "from": 184,
+        "to": 209,
+        "px": 25
+      },
+      {
+        "from": 222,
+        "to": 240,
+        "px": 18
+      },
+      {
+        "from": 256,
+        "to": 276,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "capsule-suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 10
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 522,
+      "bottom": 590
+    },
+    "vhFraction": 58,
+    "composerBottom": 579,
+    "composerTop": 547,
+    "inkDensity": 11.5,
+    "inkArea": 40818,
+    "textRuns": 31,
+    "maxGap": 27,
+    "gapAt": 68,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 95,
+        "px": 27
+      },
+      {
+        "from": 110,
+        "to": 129,
+        "px": 19
+      },
+      {
+        "from": 142,
+        "to": 160,
+        "px": 19
+      },
+      {
+        "from": 175,
+        "to": 196,
+        "px": 21
+      },
+      {
+        "from": 211,
+        "to": 223,
+        "px": 11
+      },
+      {
+        "from": 259,
+        "to": 268,
+        "px": 10
+      },
+      {
+        "from": 283,
+        "to": 304,
+        "px": 21
+      },
+      {
+        "from": 319,
+        "to": 340,
+        "px": 21
+      },
+      {
+        "from": 355,
+        "to": 376,
+        "px": 21
+      },
+      {
+        "from": 391,
+        "to": 412,
+        "px": 21
+      },
+      {
+        "from": 427,
+        "to": 448,
+        "px": 21
+      },
+      {
+        "from": 463,
+        "to": 484,
+        "px": 21
+      },
+      {
+        "from": 499,
+        "to": 520,
+        "px": 21
+      },
+      {
+        "from": 536,
+        "to": 554,
+        "px": 18
+      },
+      {
+        "from": 571,
+        "to": 590,
+        "px": 19,
+        "tail": true
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "UNSTAMPED": 13
+    },
+    "trailing": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 375,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 396,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 458,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 454,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 459,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 491,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 497,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 439,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 519,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 489,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 422,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "trailingOffenders": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 375,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 396,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 458,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 454,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 459,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 491,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 497,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 439,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 519,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 489,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 410,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 422,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 10
+  },
+  {
+    "state": "answer",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 387,
+      "bottom": 455
+    },
+    "vhFraction": 43,
+    "composerBottom": 444,
+    "composerTop": 412,
+    "inkDensity": 10.19,
+    "inkArea": 26813,
+    "textRuns": 16,
+    "maxGap": 39,
+    "gapAt": 349,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 88,
+        "px": 20
+      },
+      {
+        "from": 102,
+        "to": 133,
+        "px": 31
+      },
+      {
+        "from": 148,
+        "to": 167,
+        "px": 19
+      },
+      {
+        "from": 214,
+        "to": 233,
+        "px": 19
+      },
+      {
+        "from": 248,
+        "to": 270,
+        "px": 22
+      },
+      {
+        "from": 284,
+        "to": 299,
+        "px": 15
+      },
+      {
+        "from": 313,
+        "to": 335,
+        "px": 22
+      },
+      {
+        "from": 349,
+        "to": 388,
+        "px": 39
+      },
+      {
+        "from": 401,
+        "to": 419,
+        "px": 18
+      },
+      {
+        "from": 435,
+        "to": 455,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 13
+  },
+  {
+    "state": "answer2",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 68,
+      "w": 680,
+      "h": 522,
+      "bottom": 590
+    },
+    "vhFraction": 58,
+    "composerBottom": 579,
+    "composerTop": 547,
+    "inkDensity": 12.94,
+    "inkArea": 45925,
+    "textRuns": 29,
+    "maxGap": 41,
+    "gapAt": 349,
+    "gaps": [
+      {
+        "from": 68,
+        "to": 88,
+        "px": 20
+      },
+      {
+        "from": 102,
+        "to": 133,
+        "px": 31
+      },
+      {
+        "from": 148,
+        "to": 167,
+        "px": 19
+      },
+      {
+        "from": 214,
+        "to": 233,
+        "px": 19
+      },
+      {
+        "from": 248,
+        "to": 270,
+        "px": 22
+      },
+      {
+        "from": 284,
+        "to": 299,
+        "px": 15
+      },
+      {
+        "from": 313,
+        "to": 335,
+        "px": 22
+      },
+      {
+        "from": 349,
+        "to": 390,
+        "px": 41
+      },
+      {
+        "from": 405,
+        "to": 424,
+        "px": 19
+      },
+      {
+        "from": 472,
+        "to": 490,
+        "px": 18
+      },
+      {
+        "from": 505,
+        "to": 523,
+        "px": 18
+      },
+      {
+        "from": 541,
+        "to": 554,
+        "px": 13
+      },
+      {
+        "from": 570,
+        "to": 590,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 13
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 187,
+      "bottom": 195
+    },
+    "vhFraction": 22.2,
+    "composerBottom": 184,
+    "composerTop": 152,
+    "inkDensity": 13.9,
+    "inkArea": 9743,
+    "textRuns": 5,
+    "maxGap": 35,
+    "gapAt": 124,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 32,
+        "px": 24
+      },
+      {
+        "from": 46,
+        "to": 75,
+        "px": 29
+      },
+      {
+        "from": 90,
+        "to": 111,
+        "px": 21
+      },
+      {
+        "from": 124,
+        "to": 159,
+        "px": 35
+      },
+      {
+        "from": 175,
+        "to": 195,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "capsule-suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 3
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 617,
+      "bottom": 625
+    },
+    "vhFraction": 73,
+    "composerBottom": 614,
+    "composerTop": 582,
+    "inkDensity": 16.79,
+    "inkArea": 38702,
+    "textRuns": 28,
+    "maxGap": 41,
+    "gapAt": 547,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 35,
+        "px": 27
+      },
+      {
+        "from": 50,
+        "to": 69,
+        "px": 19
+      },
+      {
+        "from": 82,
+        "to": 100,
+        "px": 19
+      },
+      {
+        "from": 115,
+        "to": 136,
+        "px": 21
+      },
+      {
+        "from": 151,
+        "to": 163,
+        "px": 11
+      },
+      {
+        "from": 199,
+        "to": 208,
+        "px": 10
+      },
+      {
+        "from": 223,
+        "to": 244,
+        "px": 21
+      },
+      {
+        "from": 259,
+        "to": 280,
+        "px": 21
+      },
+      {
+        "from": 295,
+        "to": 316,
+        "px": 21
+      },
+      {
+        "from": 331,
+        "to": 352,
+        "px": 21
+      },
+      {
+        "from": 367,
+        "to": 388,
+        "px": 21
+      },
+      {
+        "from": 403,
+        "to": 424,
+        "px": 21
+      },
+      {
+        "from": 439,
+        "to": 460,
+        "px": 21
+      },
+      {
+        "from": 475,
+        "to": 496,
+        "px": 21
+      },
+      {
+        "from": 511,
+        "to": 532,
+        "px": 21
+      },
+      {
+        "from": 547,
+        "to": 589,
+        "px": 41
+      },
+      {
+        "from": 605,
+        "to": 625,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "UNSTAMPED": 13
+    },
+    "trailing": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 69,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 90,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 152,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 148,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 153,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 185,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 191,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 133,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 213,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 183,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 116,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "trailingOffenders": [
+      {
+        "source": "UNSTAMPED",
+        "label": "Operating CF Before WC Chang",
+        "trail": "Cash Flow",
+        "glyphGutter": 69,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Operating Activiti",
+        "trail": "Cash Flow",
+        "glyphGutter": 90,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Investing",
+        "trail": "Cash Flow",
+        "glyphGutter": 152,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash from Financing",
+        "trail": "Cash Flow",
+        "glyphGutter": 148,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Net Change in Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 153,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Opening Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 185,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Closing Cash",
+        "trail": "Cash Flow",
+        "glyphGutter": 191,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash & Cash Equivalents",
+        "trail": "Liquidity",
+        "glyphGutter": 133,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Ratio",
+        "trail": "Liquidity",
+        "glyphGutter": 213,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow",
+        "trail": "Valuation",
+        "glyphGutter": 183,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Cash Conversion Cycle",
+        "trail": "Working Capital",
+        "glyphGutter": 104,
+        "elementGutter": 12,
+        "rightAligned": true
+      },
+      {
+        "source": "UNSTAMPED",
+        "label": "Free Cash Flow Yield",
+        "trail": "Public Company",
+        "glyphGutter": 116,
+        "elementGutter": 12,
+        "rightAligned": true
+      }
+    ],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 3
+  },
+  {
+    "state": "answer",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 393,
+      "bottom": 401
+    },
+    "vhFraction": 46.6,
+    "composerBottom": 390,
+    "composerTop": 358,
+    "inkDensity": 17.11,
+    "inkArea": 25170,
+    "textRuns": 14,
+    "maxGap": 49,
+    "gapAt": 316,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 28,
+        "px": 20
+      },
+      {
+        "from": 42,
+        "to": 73,
+        "px": 31
+      },
+      {
+        "from": 88,
+        "to": 107,
+        "px": 19
+      },
+      {
+        "from": 154,
+        "to": 173,
+        "px": 19
+      },
+      {
+        "from": 188,
+        "to": 210,
+        "px": 22
+      },
+      {
+        "from": 224,
+        "to": 239,
+        "px": 15
+      },
+      {
+        "from": 253,
+        "to": 266,
+        "px": 13
+      },
+      {
+        "from": 280,
+        "to": 302,
+        "px": 22
+      },
+      {
+        "from": 316,
+        "to": 365,
+        "px": 49
+      },
+      {
+        "from": 381,
+        "to": 401,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 6
+  },
+  {
+    "state": "answer2",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 678,
+      "bottom": 686
+    },
+    "vhFraction": 80.3,
+    "composerBottom": 675,
+    "composerTop": 643,
+    "inkDensity": 17.48,
+    "inkArea": 44282,
+    "textRuns": 27,
+    "maxGap": 49,
+    "gapAt": 600,
+    "gaps": [
+      {
+        "from": 8,
+        "to": 28,
+        "px": 20
+      },
+      {
+        "from": 42,
+        "to": 73,
+        "px": 31
+      },
+      {
+        "from": 88,
+        "to": 107,
+        "px": 19
+      },
+      {
+        "from": 154,
+        "to": 173,
+        "px": 19
+      },
+      {
+        "from": 188,
+        "to": 210,
+        "px": 22
+      },
+      {
+        "from": 224,
+        "to": 239,
+        "px": 15
+      },
+      {
+        "from": 253,
+        "to": 266,
+        "px": 13
+      },
+      {
+        "from": 280,
+        "to": 302,
+        "px": 22
+      },
+      {
+        "from": 316,
+        "to": 357,
+        "px": 41
+      },
+      {
+        "from": 372,
+        "to": 391,
+        "px": 19
+      },
+      {
+        "from": 439,
+        "to": 457,
+        "px": 18
+      },
+      {
+        "from": 472,
+        "to": 494,
+        "px": 22
+      },
+      {
+        "from": 508,
+        "to": 523,
+        "px": 15
+      },
+      {
+        "from": 537,
+        "to": 550,
+        "px": 13
+      },
+      {
+        "from": 564,
+        "to": 586,
+        "px": 22
+      },
+      {
+        "from": 600,
+        "to": 650,
+        "px": 49
+      },
+      {
+        "from": 666,
+        "to": 686,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "header-command-bar",
+        "title": "Ask or jump (⌘K)",
+        "inOverlay": false
+      },
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "47.509.482,00 € · displayed at 1 RON = 0.1905 EUR (2026-08-0",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-fact-card",
+        "title": "View source: Total assets — BS grand total on Balance Sheet",
+        "inOverlay": true
+      },
+      {
+        "testid": "capsule-provenance-dot",
+        "title": "Open the source row",
+        "inOverlay": true
+      }
+    ],
+    "titleCount": 6
+  }
+]

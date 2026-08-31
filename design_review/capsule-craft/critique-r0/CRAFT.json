@@ -1,0 +1,754 @@
+[
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 68,
+      "w": 680,
+      "h": 298,
+      "bottom": 366
+    },
+    "vhFraction": 33.1,
+    "pillBottom": 45,
+    "pillGap": 24,
+    "leadGap": 188,
+    "leadGapPct": 63.1,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 188,
+    "gapAt": 68,
+    "inkDensity": 1.79,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 8,
+      "w": 680,
+      "h": 358,
+      "bottom": 366
+    },
+    "vhFraction": 39.8,
+    "pillBottom": 45,
+    "pillGap": -36,
+    "leadGap": 20,
+    "leadGapPct": 5.6,
+    "firstInk": "Products",
+    "tailGap": 3,
+    "maxGap": 21,
+    "gapAt": 75,
+    "inkDensity": 7.07,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 9,
+    "rowsBySource": {
+      "palette-row": 9
+    },
+    "rowsByFamily": {
+      "(none)": 9
+    },
+    "trailingOffenders": [
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Range",
+        "trail": "Protect",
+        "glyphGutter": 509
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned Range",
+        "trail": "Fix",
+        "glyphGutter": 520
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 200g",
+        "trail": "Protect",
+        "glyphGutter": 515
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Smoked 250g",
+        "trail": "Protect",
+        "glyphGutter": 465
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 1kg",
+        "trail": "Protect",
+        "glyphGutter": 524
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 100g",
+        "trail": "Fix",
+        "glyphGutter": 527
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 125g",
+        "trail": "Fix",
+        "glyphGutter": 527
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned in Oil 200g",
+        "trail": "Fix",
+        "glyphGutter": 496
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Orange Juice 1L",
+        "trail": "Scale",
+        "glyphGutter": 495
+      }
+    ]
+  },
+  {
+    "state": "empty",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 228,
+      "w": 680,
+      "h": 138,
+      "bottom": 366
+    },
+    "vhFraction": 15.3,
+    "pillBottom": 45,
+    "pillGap": 184,
+    "leadGap": 25,
+    "leadGapPct": 18.1,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 268,
+    "inkDensity": 3.79,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "rowsByFamily": {
+      "(none)": 1
+    },
+    "trailingOffenders": []
+  },
+  {
+    "state": "answering",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 8,
+      "w": 680,
+      "h": 358,
+      "bottom": 366
+    },
+    "vhFraction": 39.8,
+    "pillBottom": 45,
+    "pillGap": -36,
+    "leadGap": 20,
+    "leadGapPct": 5.6,
+    "firstInk": "«svg»",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 42,
+    "inkDensity": 11.01,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 568,
+      "w": 374,
+      "h": 268,
+      "bottom": 836
+    },
+    "vhFraction": 31.8,
+    "pillBottom": 45,
+    "pillGap": 524,
+    "leadGap": 179,
+    "leadGapPct": 66.8,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 179,
+    "gapAt": 568,
+    "inkDensity": 1.99,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 404,
+      "w": 374,
+      "h": 432,
+      "bottom": 836
+    },
+    "vhFraction": 51.2,
+    "pillBottom": 45,
+    "pillGap": 360,
+    "leadGap": 20,
+    "leadGapPct": 4.6,
+    "firstInk": "Products",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 9.35,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 9,
+    "rowsBySource": {
+      "palette-row": 9
+    },
+    "rowsByFamily": {
+      "(none)": 9
+    },
+    "trailingOffenders": [
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Range",
+        "trail": "Protect",
+        "glyphGutter": 203
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned Range",
+        "trail": "Fix",
+        "glyphGutter": 214
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 200g",
+        "trail": "Protect",
+        "glyphGutter": 209
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Smoked 250g",
+        "trail": "Protect",
+        "glyphGutter": 159
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 1kg",
+        "trail": "Protect",
+        "glyphGutter": 218
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 100g",
+        "trail": "Fix",
+        "glyphGutter": 221
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 125g",
+        "trail": "Fix",
+        "glyphGutter": 221
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned in Oil 200g",
+        "trail": "Fix",
+        "glyphGutter": 190
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Orange Juice 1L",
+        "trail": "Scale",
+        "glyphGutter": 189
+      }
+    ]
+  },
+  {
+    "state": "empty",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 719,
+      "w": 374,
+      "h": 117,
+      "bottom": 836
+    },
+    "vhFraction": 13.9,
+    "pillBottom": 45,
+    "pillGap": 675,
+    "leadGap": 25,
+    "leadGapPct": 21.4,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 3.3,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "rowsByFamily": {
+      "(none)": 1
+    },
+    "trailingOffenders": []
+  },
+  {
+    "state": "answering",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 443,
+      "w": 374,
+      "h": 393,
+      "bottom": 836
+    },
+    "vhFraction": 46.6,
+    "pillBottom": 45,
+    "pillGap": 399,
+    "leadGap": 20,
+    "leadGapPct": 5.1,
+    "firstInk": "«svg»",
+    "tailGap": 11,
+    "maxGap": 42,
+    "gapAt": 751,
+    "inkDensity": 17.12,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  },
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 68,
+      "w": 680,
+      "h": 298,
+      "bottom": 366
+    },
+    "vhFraction": 33.1,
+    "pillBottom": 45,
+    "pillGap": 24,
+    "leadGap": 188,
+    "leadGapPct": 63.1,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 188,
+    "gapAt": 68,
+    "inkDensity": 1.79,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 8,
+      "w": 680,
+      "h": 358,
+      "bottom": 366
+    },
+    "vhFraction": 39.8,
+    "pillBottom": 45,
+    "pillGap": -36,
+    "leadGap": 20,
+    "leadGapPct": 5.6,
+    "firstInk": "Products",
+    "tailGap": 3,
+    "maxGap": 21,
+    "gapAt": 75,
+    "inkDensity": 7.07,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 9,
+    "rowsBySource": {
+      "palette-row": 9
+    },
+    "rowsByFamily": {
+      "(none)": 9
+    },
+    "trailingOffenders": [
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Range",
+        "trail": "Protect",
+        "glyphGutter": 509
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned Range",
+        "trail": "Fix",
+        "glyphGutter": 520
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 200g",
+        "trail": "Protect",
+        "glyphGutter": 515
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Smoked 250g",
+        "trail": "Protect",
+        "glyphGutter": 465
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 1kg",
+        "trail": "Protect",
+        "glyphGutter": 524
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 100g",
+        "trail": "Fix",
+        "glyphGutter": 527
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 125g",
+        "trail": "Fix",
+        "glyphGutter": 527
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned in Oil 200g",
+        "trail": "Fix",
+        "glyphGutter": 496
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Orange Juice 1L",
+        "trail": "Scale",
+        "glyphGutter": 495
+      }
+    ]
+  },
+  {
+    "state": "empty",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 228,
+      "w": 680,
+      "h": 138,
+      "bottom": 366
+    },
+    "vhFraction": 15.3,
+    "pillBottom": 45,
+    "pillGap": 184,
+    "leadGap": 25,
+    "leadGapPct": 18.1,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 268,
+    "inkDensity": 3.79,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "rowsByFamily": {
+      "(none)": 1
+    },
+    "trailingOffenders": []
+  },
+  {
+    "state": "answering",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "top": 8,
+      "w": 680,
+      "h": 358,
+      "bottom": 366
+    },
+    "vhFraction": 39.8,
+    "pillBottom": 45,
+    "pillGap": -36,
+    "leadGap": 20,
+    "leadGapPct": 5.6,
+    "firstInk": "«svg»",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 42,
+    "inkDensity": 11.01,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 568,
+      "w": 374,
+      "h": 268,
+      "bottom": 836
+    },
+    "vhFraction": 31.8,
+    "pillBottom": 45,
+    "pillGap": 524,
+    "leadGap": 179,
+    "leadGapPct": 66.8,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 179,
+    "gapAt": 568,
+    "inkDensity": 1.99,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 404,
+      "w": 374,
+      "h": 432,
+      "bottom": 836
+    },
+    "vhFraction": 51.2,
+    "pillBottom": 45,
+    "pillGap": 360,
+    "leadGap": 20,
+    "leadGapPct": 4.6,
+    "firstInk": "Products",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 9.35,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 9,
+    "rowsBySource": {
+      "palette-row": 9
+    },
+    "rowsByFamily": {
+      "(none)": 9
+    },
+    "trailingOffenders": [
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Range",
+        "trail": "Protect",
+        "glyphGutter": 203
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned Range",
+        "trail": "Fix",
+        "glyphGutter": 214
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 200g",
+        "trail": "Protect",
+        "glyphGutter": 209
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core Smoked 250g",
+        "trail": "Protect",
+        "glyphGutter": 159
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Core 1kg",
+        "trail": "Protect",
+        "glyphGutter": 218
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 100g",
+        "trail": "Fix",
+        "glyphGutter": 221
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned 125g",
+        "trail": "Fix",
+        "glyphGutter": 221
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Tinned in Oil 200g",
+        "trail": "Fix",
+        "glyphGutter": 190
+      },
+      {
+        "source": "palette-row",
+        "family": "(none)",
+        "label": "Orange Juice 1L",
+        "trail": "Scale",
+        "glyphGutter": 189
+      }
+    ]
+  },
+  {
+    "state": "empty",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 719,
+      "w": 374,
+      "h": 117,
+      "bottom": 836
+    },
+    "vhFraction": 13.9,
+    "pillBottom": 45,
+    "pillGap": 675,
+    "leadGap": 25,
+    "leadGapPct": 21.4,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 3.3,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "rowsByFamily": {
+      "(none)": 1
+    },
+    "trailingOffenders": []
+  },
+  {
+    "state": "answering",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 443,
+      "w": 374,
+      "h": 393,
+      "bottom": 836
+    },
+    "vhFraction": 46.6,
+    "pillBottom": 45,
+    "pillGap": 399,
+    "leadGap": 20,
+    "leadGapPct": 5.1,
+    "firstInk": "«svg»",
+    "tailGap": 11,
+    "maxGap": 42,
+    "gapAt": 751,
+    "inkDensity": 17.12,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "rows": 0,
+    "rowsBySource": {},
+    "rowsByFamily": {},
+    "trailingOffenders": []
+  }
+]

@@ -1,0 +1,1748 @@
+[
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 66,
+      "w": 680,
+      "h": 300,
+      "bottom": 366
+    },
+    "vhFraction": 33.3,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 5.58,
+    "inkArea": 11386,
+    "textRuns": 7,
+    "maxGap": 115,
+    "gapAt": 66,
+    "gaps": [
+      {
+        "from": 66,
+        "to": 181,
+        "px": 115
+      },
+      {
+        "from": 195,
+        "to": 225,
+        "px": 29
+      },
+      {
+        "from": 240,
+        "to": 261,
+        "px": 21
+      },
+      {
+        "from": 274,
+        "to": 299,
+        "px": 25
+      },
+      {
+        "from": 312,
+        "to": 330,
+        "px": 18
+      },
+      {
+        "from": 346,
+        "to": 366,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 6,
+      "w": 680,
+      "h": 360,
+      "bottom": 366
+    },
+    "vhFraction": 40,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 12.42,
+    "inkArea": 30399,
+    "textRuns": 18,
+    "maxGap": 27,
+    "gapAt": 6,
+    "gaps": [
+      {
+        "from": 6,
+        "to": 33,
+        "px": 27
+      },
+      {
+        "from": 48,
+        "to": 67,
+        "px": 19
+      },
+      {
+        "from": 80,
+        "to": 98,
+        "px": 19
+      },
+      {
+        "from": 113,
+        "to": 134,
+        "px": 21
+      },
+      {
+        "from": 149,
+        "to": 170,
+        "px": 21
+      },
+      {
+        "from": 185,
+        "to": 206,
+        "px": 21
+      },
+      {
+        "from": 221,
+        "to": 242,
+        "px": 21
+      },
+      {
+        "from": 257,
+        "to": 278,
+        "px": 21
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "answer",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 6,
+      "w": 680,
+      "h": 360,
+      "bottom": 366
+    },
+    "vhFraction": 40,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 10.95,
+    "inkArea": 26813,
+    "textRuns": 16,
+    "maxGap": 31,
+    "gapAt": 40,
+    "gaps": [
+      {
+        "from": 6,
+        "to": 26,
+        "px": 20
+      },
+      {
+        "from": 40,
+        "to": 71,
+        "px": 31
+      },
+      {
+        "from": 86,
+        "to": 105,
+        "px": 19
+      },
+      {
+        "from": 152,
+        "to": 171,
+        "px": 19
+      },
+      {
+        "from": 186,
+        "to": 208,
+        "px": 22
+      },
+      {
+        "from": 222,
+        "to": 237,
+        "px": 15
+      },
+      {
+        "from": 251,
+        "to": 273,
+        "px": 22
+      },
+      {
+        "from": 287,
+        "to": 299,
+        "px": 12
+      },
+      {
+        "from": 312,
+        "to": 330,
+        "px": 18
+      },
+      {
+        "from": 346,
+        "to": 366,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "answer2",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 6,
+      "w": 680,
+      "h": 360,
+      "bottom": 366
+    },
+    "vhFraction": 40,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 18.76,
+    "inkArea": 45925,
+    "textRuns": 29,
+    "maxGap": 31,
+    "gapAt": 40,
+    "gaps": [
+      {
+        "from": 6,
+        "to": 26,
+        "px": 20
+      },
+      {
+        "from": 40,
+        "to": 71,
+        "px": 31
+      },
+      {
+        "from": 86,
+        "to": 105,
+        "px": 19
+      },
+      {
+        "from": 152,
+        "to": 171,
+        "px": 19
+      },
+      {
+        "from": 186,
+        "to": 208,
+        "px": 22
+      },
+      {
+        "from": 222,
+        "to": 237,
+        "px": 15
+      },
+      {
+        "from": 251,
+        "to": 273,
+        "px": 22
+      },
+      {
+        "from": 287,
+        "to": 299,
+        "px": 12
+      },
+      {
+        "from": 312,
+        "to": 328,
+        "px": 16
+      },
+      {
+        "from": 346,
+        "to": 362,
+        "px": 16
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 566,
+      "w": 374,
+      "h": 270,
+      "bottom": 836
+    },
+    "vhFraction": 32,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 9.65,
+    "inkArea": 9743,
+    "textRuns": 5,
+    "maxGap": 106,
+    "gapAt": 566,
+    "gaps": [
+      {
+        "from": 566,
+        "to": 672,
+        "px": 106
+      },
+      {
+        "from": 686,
+        "to": 716,
+        "px": 29
+      },
+      {
+        "from": 731,
+        "to": 752,
+        "px": 21
+      },
+      {
+        "from": 765,
+        "to": 800,
+        "px": 35
+      },
+      {
+        "from": 816,
+        "to": 836,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 243,
+      "w": 374,
+      "h": 593,
+      "bottom": 836
+    },
+    "vhFraction": 70.2,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 12.76,
+    "inkArea": 28283,
+    "textRuns": 15,
+    "maxGap": 27,
+    "gapAt": 243,
+    "gaps": [
+      {
+        "from": 243,
+        "to": 270,
+        "px": 27
+      },
+      {
+        "from": 285,
+        "to": 304,
+        "px": 19
+      },
+      {
+        "from": 317,
+        "to": 335,
+        "px": 19
+      },
+      {
+        "from": 350,
+        "to": 371,
+        "px": 21
+      },
+      {
+        "from": 386,
+        "to": 407,
+        "px": 21
+      },
+      {
+        "from": 422,
+        "to": 443,
+        "px": 21
+      },
+      {
+        "from": 458,
+        "to": 479,
+        "px": 21
+      },
+      {
+        "from": 494,
+        "to": 515,
+        "px": 21
+      },
+      {
+        "from": 530,
+        "to": 551,
+        "px": 21
+      },
+      {
+        "from": 566,
+        "to": 587,
+        "px": 21
+      },
+      {
+        "from": 602,
+        "to": 623,
+        "px": 21
+      },
+      {
+        "from": 638,
+        "to": 659,
+        "px": 21
+      },
+      {
+        "from": 674,
+        "to": 695,
+        "px": 21
+      },
+      {
+        "from": 710,
+        "to": 731,
+        "px": 21
+      },
+      {
+        "from": 746,
+        "to": 767,
+        "px": 21
+      },
+      {
+        "from": 782,
+        "to": 800,
+        "px": 18
+      },
+      {
+        "from": 816,
+        "to": 836,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  },
+  {
+    "state": "answer",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 443,
+      "w": 374,
+      "h": 393,
+      "bottom": 836
+    },
+    "vhFraction": 46.6,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 17.12,
+    "inkArea": 25170,
+    "textRuns": 14,
+    "maxGap": 49,
+    "gapAt": 751,
+    "gaps": [
+      {
+        "from": 443,
+        "to": 463,
+        "px": 20
+      },
+      {
+        "from": 477,
+        "to": 508,
+        "px": 31
+      },
+      {
+        "from": 523,
+        "to": 542,
+        "px": 19
+      },
+      {
+        "from": 589,
+        "to": 608,
+        "px": 19
+      },
+      {
+        "from": 623,
+        "to": 645,
+        "px": 22
+      },
+      {
+        "from": 659,
+        "to": 674,
+        "px": 15
+      },
+      {
+        "from": 688,
+        "to": 701,
+        "px": 13
+      },
+      {
+        "from": 715,
+        "to": 737,
+        "px": 22
+      },
+      {
+        "from": 751,
+        "to": 800,
+        "px": 49
+      },
+      {
+        "from": 816,
+        "to": 836,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  },
+  {
+    "state": "answer2",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 243,
+      "w": 374,
+      "h": 593,
+      "bottom": 836
+    },
+    "vhFraction": 70.2,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 19.97,
+    "inkArea": 44282,
+    "textRuns": 27,
+    "maxGap": 41,
+    "gapAt": 551,
+    "gaps": [
+      {
+        "from": 243,
+        "to": 263,
+        "px": 20
+      },
+      {
+        "from": 277,
+        "to": 308,
+        "px": 31
+      },
+      {
+        "from": 323,
+        "to": 342,
+        "px": 19
+      },
+      {
+        "from": 389,
+        "to": 408,
+        "px": 19
+      },
+      {
+        "from": 423,
+        "to": 445,
+        "px": 22
+      },
+      {
+        "from": 459,
+        "to": 474,
+        "px": 15
+      },
+      {
+        "from": 488,
+        "to": 501,
+        "px": 13
+      },
+      {
+        "from": 515,
+        "to": 537,
+        "px": 22
+      },
+      {
+        "from": 551,
+        "to": 592,
+        "px": 41
+      },
+      {
+        "from": 607,
+        "to": 626,
+        "px": 19
+      },
+      {
+        "from": 674,
+        "to": 692,
+        "px": 18
+      },
+      {
+        "from": 707,
+        "to": 729,
+        "px": 22
+      },
+      {
+        "from": 743,
+        "to": 758,
+        "px": 15
+      },
+      {
+        "from": 772,
+        "to": 785,
+        "px": 13
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  },
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 66,
+      "w": 680,
+      "h": 300,
+      "bottom": 366
+    },
+    "vhFraction": 33.3,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 5.58,
+    "inkArea": 11386,
+    "textRuns": 7,
+    "maxGap": 115,
+    "gapAt": 66,
+    "gaps": [
+      {
+        "from": 66,
+        "to": 181,
+        "px": 115
+      },
+      {
+        "from": 195,
+        "to": 225,
+        "px": 29
+      },
+      {
+        "from": 240,
+        "to": 261,
+        "px": 21
+      },
+      {
+        "from": 274,
+        "to": 299,
+        "px": 25
+      },
+      {
+        "from": 312,
+        "to": 330,
+        "px": 18
+      },
+      {
+        "from": 346,
+        "to": 366,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 6,
+      "w": 680,
+      "h": 360,
+      "bottom": 366
+    },
+    "vhFraction": 40,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 12.42,
+    "inkArea": 30399,
+    "textRuns": 18,
+    "maxGap": 27,
+    "gapAt": 6,
+    "gaps": [
+      {
+        "from": 6,
+        "to": 33,
+        "px": 27
+      },
+      {
+        "from": 48,
+        "to": 67,
+        "px": 19
+      },
+      {
+        "from": 80,
+        "to": 98,
+        "px": 19
+      },
+      {
+        "from": 113,
+        "to": 134,
+        "px": 21
+      },
+      {
+        "from": 149,
+        "to": 170,
+        "px": 21
+      },
+      {
+        "from": 185,
+        "to": 206,
+        "px": 21
+      },
+      {
+        "from": 221,
+        "to": 242,
+        "px": 21
+      },
+      {
+        "from": 257,
+        "to": 278,
+        "px": 21
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "answer",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 6,
+      "w": 680,
+      "h": 360,
+      "bottom": 366
+    },
+    "vhFraction": 40,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 10.95,
+    "inkArea": 26813,
+    "textRuns": 16,
+    "maxGap": 31,
+    "gapAt": 40,
+    "gaps": [
+      {
+        "from": 6,
+        "to": 26,
+        "px": 20
+      },
+      {
+        "from": 40,
+        "to": 71,
+        "px": 31
+      },
+      {
+        "from": 86,
+        "to": 105,
+        "px": 19
+      },
+      {
+        "from": 152,
+        "to": 171,
+        "px": 19
+      },
+      {
+        "from": 186,
+        "to": 208,
+        "px": 22
+      },
+      {
+        "from": 222,
+        "to": 237,
+        "px": 15
+      },
+      {
+        "from": 251,
+        "to": 273,
+        "px": 22
+      },
+      {
+        "from": 287,
+        "to": 299,
+        "px": 12
+      },
+      {
+        "from": 312,
+        "to": 330,
+        "px": 18
+      },
+      {
+        "from": 346,
+        "to": 366,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "answer2",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 350,
+      "y": 6,
+      "w": 680,
+      "h": 360,
+      "bottom": 366
+    },
+    "vhFraction": 40,
+    "composerBottom": 355,
+    "composerTop": 323,
+    "inkDensity": 18.76,
+    "inkArea": 45925,
+    "textRuns": 29,
+    "maxGap": 31,
+    "gapAt": 40,
+    "gaps": [
+      {
+        "from": 6,
+        "to": 26,
+        "px": 20
+      },
+      {
+        "from": 40,
+        "to": 71,
+        "px": 31
+      },
+      {
+        "from": 86,
+        "to": 105,
+        "px": 19
+      },
+      {
+        "from": 152,
+        "to": 171,
+        "px": 19
+      },
+      {
+        "from": 186,
+        "to": 208,
+        "px": 22
+      },
+      {
+        "from": 222,
+        "to": 237,
+        "px": 15
+      },
+      {
+        "from": 251,
+        "to": 273,
+        "px": 22
+      },
+      {
+        "from": 287,
+        "to": 299,
+        "px": 12
+      },
+      {
+        "from": 312,
+        "to": 328,
+        "px": 16
+      },
+      {
+        "from": 346,
+        "to": 362,
+        "px": 16
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-dashboard",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-scenarios",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-benchmark",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-products",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-variance",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-public-companies",
+        "title": "Create a workspace first",
+        "inOverlay": false
+      },
+      {
+        "testid": "sidebar-collapse-toggle",
+        "title": "Collapse sidebar (⌘.)",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 9
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 566,
+      "w": 374,
+      "h": 270,
+      "bottom": 836
+    },
+    "vhFraction": 32,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 9.65,
+    "inkArea": 9743,
+    "textRuns": 5,
+    "maxGap": 106,
+    "gapAt": 566,
+    "gaps": [
+      {
+        "from": 566,
+        "to": 672,
+        "px": 106
+      },
+      {
+        "from": 686,
+        "to": 716,
+        "px": 29
+      },
+      {
+        "from": 731,
+        "to": 752,
+        "px": 21
+      },
+      {
+        "from": 765,
+        "to": 800,
+        "px": 35
+      },
+      {
+        "from": 816,
+        "to": 836,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 243,
+      "w": 374,
+      "h": 593,
+      "bottom": 836
+    },
+    "vhFraction": 70.2,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 12.76,
+    "inkArea": 28283,
+    "textRuns": 15,
+    "maxGap": 27,
+    "gapAt": 243,
+    "gaps": [
+      {
+        "from": 243,
+        "to": 270,
+        "px": 27
+      },
+      {
+        "from": 285,
+        "to": 304,
+        "px": 19
+      },
+      {
+        "from": 317,
+        "to": 335,
+        "px": 19
+      },
+      {
+        "from": 350,
+        "to": 371,
+        "px": 21
+      },
+      {
+        "from": 386,
+        "to": 407,
+        "px": 21
+      },
+      {
+        "from": 422,
+        "to": 443,
+        "px": 21
+      },
+      {
+        "from": 458,
+        "to": 479,
+        "px": 21
+      },
+      {
+        "from": 494,
+        "to": 515,
+        "px": 21
+      },
+      {
+        "from": 530,
+        "to": 551,
+        "px": 21
+      },
+      {
+        "from": 566,
+        "to": 587,
+        "px": 21
+      },
+      {
+        "from": 602,
+        "to": 623,
+        "px": 21
+      },
+      {
+        "from": 638,
+        "to": 659,
+        "px": 21
+      },
+      {
+        "from": 674,
+        "to": 695,
+        "px": 21
+      },
+      {
+        "from": 710,
+        "to": 731,
+        "px": 21
+      },
+      {
+        "from": 746,
+        "to": 767,
+        "px": 21
+      },
+      {
+        "from": 782,
+        "to": 800,
+        "px": 18
+      },
+      {
+        "from": 816,
+        "to": 836,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  },
+  {
+    "state": "answer",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 443,
+      "w": 374,
+      "h": 393,
+      "bottom": 836
+    },
+    "vhFraction": 46.6,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 17.12,
+    "inkArea": 25170,
+    "textRuns": 14,
+    "maxGap": 49,
+    "gapAt": 751,
+    "gaps": [
+      {
+        "from": 443,
+        "to": 463,
+        "px": 20
+      },
+      {
+        "from": 477,
+        "to": 508,
+        "px": 31
+      },
+      {
+        "from": 523,
+        "to": 542,
+        "px": 19
+      },
+      {
+        "from": 589,
+        "to": 608,
+        "px": 19
+      },
+      {
+        "from": 623,
+        "to": 645,
+        "px": 22
+      },
+      {
+        "from": 659,
+        "to": 674,
+        "px": 15
+      },
+      {
+        "from": 688,
+        "to": 701,
+        "px": 13
+      },
+      {
+        "from": 715,
+        "to": 737,
+        "px": 22
+      },
+      {
+        "from": 751,
+        "to": 800,
+        "px": 49
+      },
+      {
+        "from": 816,
+        "to": 836,
+        "px": 20,
+        "tail": true
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  },
+  {
+    "state": "answer2",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "y": 243,
+      "w": 374,
+      "h": 593,
+      "bottom": 836
+    },
+    "vhFraction": 70.2,
+    "composerBottom": 825,
+    "composerTop": 793,
+    "inkDensity": 19.97,
+    "inkArea": 44282,
+    "textRuns": 27,
+    "maxGap": 41,
+    "gapAt": 551,
+    "gaps": [
+      {
+        "from": 243,
+        "to": 263,
+        "px": 20
+      },
+      {
+        "from": 277,
+        "to": 308,
+        "px": 31
+      },
+      {
+        "from": 323,
+        "to": 342,
+        "px": 19
+      },
+      {
+        "from": 389,
+        "to": 408,
+        "px": 19
+      },
+      {
+        "from": 423,
+        "to": 445,
+        "px": 22
+      },
+      {
+        "from": 459,
+        "to": 474,
+        "px": 15
+      },
+      {
+        "from": 488,
+        "to": 501,
+        "px": 13
+      },
+      {
+        "from": 515,
+        "to": 537,
+        "px": 22
+      },
+      {
+        "from": 551,
+        "to": 592,
+        "px": 41
+      },
+      {
+        "from": 607,
+        "to": 626,
+        "px": 19
+      },
+      {
+        "from": 674,
+        "to": 692,
+        "px": 18
+      },
+      {
+        "from": 707,
+        "to": 729,
+        "px": 22
+      },
+      {
+        "from": 743,
+        "to": 758,
+        "px": 15
+      },
+      {
+        "from": 772,
+        "to": 785,
+        "px": 13
+      }
+    ],
+    "rows": 0,
+    "rowsBySource": {},
+    "trailing": [],
+    "trailingOffenders": [],
+    "titles": [
+      {
+        "testid": "account-menu-trigger",
+        "title": "Test visitor",
+        "inOverlay": false
+      },
+      {
+        "testid": "story-how",
+        "title": "vs FY2024",
+        "inOverlay": false
+      }
+    ],
+    "titleCount": 2
+  }
+]

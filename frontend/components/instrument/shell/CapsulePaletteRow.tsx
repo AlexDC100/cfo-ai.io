@@ -49,13 +49,79 @@
 // here. A string that is only for MATCHING is `searchText` and is never
 // rendered; a string that is part of the row's name is `qualifier` and
 // is never right-aligned.
+//
+// ── AND THERE IS NO `trailing` EITHER (2026-08-31) ───────────────────
+//
+// The round that deleted `hint` kept one escape hatch: `trailing`, a
+// ReactNode "the row's own domain owns", defended in this file's own
+// comment as "a VALUE, not the name of the group the row is filed
+// under". Two call sites used it, both passing `<BucketChip>`.
+//
+// Measured on the shipped build, across a 29-query sweep at both
+// viewports: 20 rows at 1440 and 20 at 390 carried a right-aligned
+// trailing word, and EVERY ONE of them was one of those two call sites.
+// Typing `range` at 1440 put nine rows on screen and nine of nine ended
+// in a muted word 495-524 glyph-pixels from their label. Typing `core`
+// put four Product rows on screen and ALL FOUR said the identical word
+// "Protect".
+//
+// Four rows saying one word IS the name of a group. The defence was
+// wrong on its own terms: a bucket is a value the way a category is a
+// value — it takes a handful of values across the whole catalogue, so it
+// partitions the list rather than identifying a row in it. The reader
+// typing "core" is looking for a SKU, and every SKU they can see is
+// wearing the same badge.
+//
+// So the field is gone, not re-homed. It is not a qualifier either: a
+// qualifier earns its ink by DISTINGUISHING one row from a
+// same-named sibling (see `CommandPalette`'s collision pass), and
+// "Protect" on four consecutive rows distinguishes nothing. The bucket
+// is one click away on `/products`, where it sits in a column that IS a
+// column, next to the numbers that give it meaning.
+//
+// It did not become `searchText` either. It never was matchable — it
+// only ever rendered — so making it matchable now would be a new feature
+// wearing a cleanup's clothes.
+//
+// ── `data-row-family` ────────────────────────────────────────────────
+//
+// Every row DECLARES the family it belongs to, and the stamp is
+// required by the type rather than sniffed from the id. The reason is
+// the same one that produced `data-row-source` one axis over: G4 ran a
+// nine-query sweep, reported ZERO offenders, and its own predicate
+// called all 20 of the rows above offenders — because not one of those
+// nine queries summons a Product row. "The sweep never reached it"
+// moved from COMPONENTS to QUERIES and produced the same false green.
+//
+// A gate can now assert a recorded expectation PER FAMILY, so a family
+// that stops being summoned FAILS instead of scoring zero. Adding a new
+// family to the palette breaks the build until it is declared here, and
+// then breaks the gate until the gate records what it expects of it.
 
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+
+/** Every kind of row the palette can paint. Adding one is a type error
+ *  everywhere until it is listed here AND given a recorded expectation
+ *  in `e2e/design/capsule-craft.spec.ts`'s G4 sweep. */
+export const CAPSULE_ROW_FAMILIES = [
+  "page",     // a rail destination or Settings
+  "action",   // upload / export / theme / ask / rail toggle
+  "glossary", // the metric glossary opener
+  "period",   // switch to a recent period
+  "category", // a product category
+  "sku",      // one SKU
+  "concept",  // a metric from the concept catalogue
+  "company",  // a listed company
+] as const;
+
+export type CapsuleRowFamily = (typeof CAPSULE_ROW_FAMILIES)[number];
 
 export interface CapsulePaletteRowItem {
   id: string;
   group: string;
+  /** REQUIRED. See `data-row-family` in the header — a row that cannot
+   *  name its family is a row no census can hold to an expectation. */
+  family: CapsuleRowFamily;
   label: string;
   /**
    * Part of the row's NAME, rendered inline after the label. A ticker, a
@@ -74,10 +140,6 @@ export interface CapsulePaletteRowItem {
    *  keystroke, which is not a category and is different on every row
    *  that has one. */
   kbd?: string;
-  /** A trailing node the row's own domain owns — the products bucket
-   *  chip. Permitted for the same reason: it is a VALUE, not the name of
-   *  the group the row is filed under. */
-  trailing?: ReactNode;
   destination?: boolean;
   exactTokens?: readonly string[];
   run: () => void;
@@ -104,6 +166,7 @@ export function CapsulePaletteRow({
       id={`palette-item-${index}`}
       data-idx={index}
       data-row-source="palette-row"
+      data-row-family={item.family}
       role="option"
       aria-selected={active}
       onClick={() => item.run()}
@@ -142,7 +205,6 @@ export function CapsulePaletteRow({
           </span>
         )}
       </span>
-      {item.trailing}
       {item.kbd && (
         <kbd className="shrink-0 rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
           {item.kbd}

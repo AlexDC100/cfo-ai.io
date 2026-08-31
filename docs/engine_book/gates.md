@@ -1301,6 +1301,66 @@ Verdict: **PROVEN RED**
 
 ---
 
+## capsule-craft
+
+The Capsule reads as a conversation: no native tooltips, no category
+column, one voice per line, live spec anchors.
+
+| | |
+|---|---|
+| command | `node scripts/check_capsule_craft.mjs` |
+| work count | stdout `GATE-WORK capsule-craft units=N`, floor **100** |
+| canary | `familiesGated`, `rowComponents` |
+
+**IT HAD NO RUNNER FOR A FULL WAVE.** Not in `run_battery.py`, not in any
+workflow, not in `package.json`, not in the Makefile — every reference to
+it in the repository was prose. It was written, plant-proven, documented,
+and never executed by anything but a human typing its name. A gate nobody
+runs and a gate that passes wrongly fail the same way.
+
+**PLANT C — the one that matters.** The *previous* nine-query sweep,
+restored over the build that carried the trailing labels: the exact
+configuration that printed green one round earlier.
+
+```diff
+--- e2e/design/capsule-craft.spec.ts   (G4 query list restored to the old nine)
+--- frontend/components/instrument/shell/CapsulePaletteRow.tsx  (trailing slot restored)
+```
+
+**RED** — the widened gate now names the family and the query that
+summons it:
+
+```
+sku: 0 row(s) in state "typing:range", floor 5 (recorded query "range")
+```
+
+Under the old nine-query list the same build reported **zero offenders**,
+because the list never summoned the `sku` family. That is the "sweep
+never reached it" failure moved one axis over from components to
+QUERIES — 57 live offenders at each viewport, invisible to a gate whose
+own predicate called them offenders.
+
+**PLANT G — a hole in the gate author's own first draft.** The initial
+per-family floor summed a family's rows across all states, so `range`
+could paint **zero** category rows while the total (5) still cleared the
+floor (2). TC-6, discovered inside the fix for TC-6. It now reads the
+count from the state the expectation names.
+
+**REVERT** — restored; `GATE-WORK capsule-craft units=155 floor=12 ·
+familiesGated=11 · PASS`.
+
+**Vacuity self-probe:** `node scripts/check_capsule_craft.mjs
+--probe-vacuity` empties the gate's own discovery and asserts it FAILS —
+`VACUITY PROBE PASSED: with discovery emptied the gate FAILS`.
+
+**Known open, recorded not hidden:** the `period` family's pin at exactly
+zero is a HARNESS ARTIFACT, not a fact about the product. An adversarial
+critic measured `financial_periods` returning 200 with rows and 7 period
+rows painting on a SECOND navigation; the sweep's `boot()` reads the
+palette on a cold mount, before `usePeriodStepper`'s query populates. So
+the category-column ban has never actually been checked against that
+family, at any viewport, in any theme.
+
 ## no-plants
 
 No planted defect may be committed to product source. Gates here are

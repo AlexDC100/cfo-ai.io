@@ -1,0 +1,2472 @@
+[
+  {
+    "viewport": "1440",
+    "query": "(rest)",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "(unstamped)": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "suggestion",
+        "family": "(unstamped)",
+        "section": "",
+        "text": "Aug 2026 has no file yet — what should I upload?",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "dash",
+    "rows": 1,
+    "bySection": {
+      "Pages": 1
+    },
+    "byFamily": {
+      "page": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Dashboard",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "sce",
+    "rows": 1,
+    "bySection": {
+      "Pages": 1
+    },
+    "byFamily": {
+      "page": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Scenarios",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "work",
+    "rows": 3,
+    "bySection": {
+      "Pages": 1,
+      "Learn": 2
+    },
+    "byFamily": {
+      "page": 1,
+      "concept": 2
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Workspaces",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Working Capital Changes",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Working Capital",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "bench",
+    "rows": 2,
+    "bySection": {
+      "Pages": 1,
+      "Learn": 1
+    },
+    "byFamily": {
+      "page": 1,
+      "concept": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Benchmark",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Benchmark Threshold",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "prod",
+    "rows": 2,
+    "bySection": {
+      "Pages": 1,
+      "Companies": 1
+    },
+    "byFamily": {
+      "page": 1,
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Products",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Aquila Part Prod Com S.A. · AQ",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "sett",
+    "rows": 1,
+    "bySection": {
+      "Pages": 1
+    },
+    "byFamily": {
+      "page": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Settings",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "cash",
+    "rows": 13,
+    "bySection": {
+      "Learn": 13
+    },
+    "byFamily": {
+      "concept": 13
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Operating CF Before WC Changes",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash from Operating Activities",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash from Investing",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash from Financing",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Change in Cash",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Opening Cash",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Closing Cash",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash & Cash Equivalents",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Conversion Cycle · Working Capital",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Free Cash Flow",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Conversion Cycle · Working Capital",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Free Cash Flow Yield",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "bal",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Upload a document · Trial balance, statements or sales file",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "range",
+    "rows": 9,
+    "bySection": {
+      "Products": 9
+    },
+    "byFamily": {
+      "category": 2,
+      "sku": 7
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Core Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Tinned Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 200g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core Smoked 250g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 1kg",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 100g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 125g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned in Oil 200g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Orange Juice 1L",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "core",
+    "rows": 10,
+    "bySection": {
+      "Products": 4,
+      "Learn": 6
+    },
+    "byFamily": {
+      "category": 1,
+      "sku": 3,
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Core Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 200g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core Smoked 250g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 1kg",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Altman Z″ Score · Risk & Credit",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Piotroski F-Score",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Composite Credit Score",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Altman Z″ Score · Risk & Credit",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Public Risk Score",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Risk Score",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "tinned",
+    "rows": 4,
+    "bySection": {
+      "Products": 4
+    },
+    "byFamily": {
+      "category": 1,
+      "sku": 3
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Tinned Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 100g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 125g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned in Oil 200g",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "juice",
+    "rows": 3,
+    "bySection": {
+      "Products": 3
+    },
+    "byFamily": {
+      "sku": 3
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Orange Juice 1L",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Multifruit Juice 1L",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tomato Juice 1L",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "sku",
+    "rows": 6,
+    "bySection": {
+      "Learn": 6
+    },
+    "byFamily": {
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Real Margin (SKU)",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Absolute Profit (SKU)",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "SKU Classification",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Protect Bucket Count",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Watch Bucket Count",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Wind Down Bucket Count",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "dec",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “dec”",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "202",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “202”",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "aug",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “aug”",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "a",
+    "rows": 18,
+    "bySection": {
+      "Pages": 8,
+      "Actions": 5,
+      "Learn": 1,
+      "Products": 4
+    },
+    "byFamily": {
+      "page": 8,
+      "action": 5,
+      "glossary": 1,
+      "category": 4
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Dashboard",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Workspaces",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Scenarios",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Benchmark",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Products",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Budget vs Actual vs LY",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Public Companies",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Ask CFO AI ⌘J",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Upload a document · Trial balance, statements or sales file",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Export statements",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Switch to Terminal theme",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Ask CFO AI",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Toggle sidebar ⌘.",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "glossary",
+        "section": "Learn",
+        "text": "Browse glossary · Every concept CFO AI knows",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Flagship Line",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Core Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Specialty Imports",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Companion Foods",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "banca",
+    "rows": 1,
+    "bySection": {
+      "Companies": 1
+    },
+    "byFamily": {
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Banca Transilvania S.A. · TLV",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "tlv",
+    "rows": 1,
+    "bySection": {
+      "Companies": 1
+    },
+    "byFamily": {
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Banca Transilvania S.A. · TLV",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "trans",
+    "rows": 6,
+    "bySection": {
+      "Companies": 6
+    },
+    "byFamily": {
+      "company": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Banca Transilvania S.A. · TLV",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Societatea Națională de Transport Gaze Naturale Transgaz S.A",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Compania Națională de Transport al Energiei Electrice Transe",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Transport Trade Services S.A. · TTS",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "AROBS Transilvania Software S.A. · AROBS",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Transilvania Broker de Asigurare S.A. · TBK",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "digi",
+    "rows": 1,
+    "bySection": {
+      "Companies": 1
+    },
+    "byFamily": {
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Digi Communications N.V. · DIGI",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "upload",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Upload a document · Trial balance, statements or sales file",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "export",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Export statements",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "theme",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Switch to Terminal theme",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "rail",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Toggle sidebar ⌘.",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "glossary",
+    "rows": 1,
+    "bySection": {
+      "Learn": 1
+    },
+    "byFamily": {
+      "glossary": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "glossary",
+        "section": "Learn",
+        "text": "Browse glossary · Every concept CFO AI knows",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "ebitda",
+    "rows": 6,
+    "bySection": {
+      "Learn": 6
+    },
+    "byFamily": {
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Debt / EBITDA · Leverage & Solvency",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA / Interest",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EV / EBITDA Multiple",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Debt / EBITDA · Leverage & Solvency",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "ratio",
+    "rows": 7,
+    "bySection": {
+      "Learn": 7
+    },
+    "byFamily": {
+      "concept": 7
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Current Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Quick Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Equity Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Price / Earnings",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "margin",
+    "rows": 6,
+    "bySection": {
+      "Learn": 6
+    },
+    "byFamily": {
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBIT Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Real Margin (SKU)",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "1440",
+    "query": "zzqqxx",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “zzqqxx”",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "(rest)",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "(unstamped)": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "suggestion",
+        "family": "(unstamped)",
+        "section": "",
+        "text": "Aug 2026 has no file yet — what should I upload?",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "dash",
+    "rows": 1,
+    "bySection": {
+      "Pages": 1
+    },
+    "byFamily": {
+      "page": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Dashboard",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "sce",
+    "rows": 1,
+    "bySection": {
+      "Pages": 1
+    },
+    "byFamily": {
+      "page": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Scenarios",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "work",
+    "rows": 3,
+    "bySection": {
+      "Pages": 1,
+      "Learn": 2
+    },
+    "byFamily": {
+      "page": 1,
+      "concept": 2
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Workspaces",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Working Capital Changes",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Working Capital",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "bench",
+    "rows": 2,
+    "bySection": {
+      "Pages": 1,
+      "Learn": 1
+    },
+    "byFamily": {
+      "page": 1,
+      "concept": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Benchmark",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Benchmark Threshold",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "prod",
+    "rows": 2,
+    "bySection": {
+      "Pages": 1,
+      "Companies": 1
+    },
+    "byFamily": {
+      "page": 1,
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Products",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Aquila Part Prod Com S.A. · AQ",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "sett",
+    "rows": 1,
+    "bySection": {
+      "Pages": 1
+    },
+    "byFamily": {
+      "page": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Settings",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "cash",
+    "rows": 13,
+    "bySection": {
+      "Learn": 13
+    },
+    "byFamily": {
+      "concept": 13
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Operating CF Before WC Changes",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash from Operating Activities",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash from Investing",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash from Financing",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Change in Cash",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Opening Cash",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Closing Cash",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash & Cash Equivalents",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Conversion Cycle · Working Capital",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Free Cash Flow",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Conversion Cycle · Working Capital",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Free Cash Flow Yield",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "bal",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Upload a document · Trial balance, statements or sales file",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "range",
+    "rows": 9,
+    "bySection": {
+      "Products": 9
+    },
+    "byFamily": {
+      "category": 2,
+      "sku": 7
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Core Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Tinned Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 200g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core Smoked 250g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 1kg",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 100g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 125g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned in Oil 200g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Orange Juice 1L",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "core",
+    "rows": 10,
+    "bySection": {
+      "Products": 4,
+      "Learn": 6
+    },
+    "byFamily": {
+      "category": 1,
+      "sku": 3,
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Core Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 200g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core Smoked 250g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Core 1kg",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Altman Z″ Score · Risk & Credit",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Piotroski F-Score",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Composite Credit Score",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Altman Z″ Score · Risk & Credit",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Public Risk Score",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Risk Score",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "tinned",
+    "rows": 4,
+    "bySection": {
+      "Products": 4
+    },
+    "byFamily": {
+      "category": 1,
+      "sku": 3
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Tinned Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 100g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned 125g",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tinned in Oil 200g",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "juice",
+    "rows": 3,
+    "bySection": {
+      "Products": 3
+    },
+    "byFamily": {
+      "sku": 3
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Orange Juice 1L",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Multifruit Juice 1L",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "sku",
+        "section": "Products",
+        "text": "Tomato Juice 1L",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "sku",
+    "rows": 6,
+    "bySection": {
+      "Learn": 6
+    },
+    "byFamily": {
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Real Margin (SKU)",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Absolute Profit (SKU)",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "SKU Classification",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Protect Bucket Count",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Watch Bucket Count",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Wind Down Bucket Count",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "dec",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “dec”",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "202",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “202”",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "aug",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “aug”",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "a",
+    "rows": 18,
+    "bySection": {
+      "Pages": 8,
+      "Actions": 5,
+      "Learn": 1,
+      "Products": 4
+    },
+    "byFamily": {
+      "page": 8,
+      "action": 5,
+      "glossary": 1,
+      "category": 4
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Dashboard",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Workspaces",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Scenarios",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Benchmark",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Products",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Budget vs Actual vs LY",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Public Companies",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "page",
+        "section": "Pages",
+        "text": "Ask CFO AI ⌘J",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Upload a document · Trial balance, statements or sales file",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Export statements",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Switch to Terminal theme",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Ask CFO AI",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Toggle sidebar ⌘.",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "glossary",
+        "section": "Learn",
+        "text": "Browse glossary · Every concept CFO AI knows",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Flagship Line",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Core Range",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Specialty Imports",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "category",
+        "section": "Products",
+        "text": "Companion Foods",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "banca",
+    "rows": 1,
+    "bySection": {
+      "Companies": 1
+    },
+    "byFamily": {
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Banca Transilvania S.A. · TLV",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "tlv",
+    "rows": 1,
+    "bySection": {
+      "Companies": 1
+    },
+    "byFamily": {
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Banca Transilvania S.A. · TLV",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "trans",
+    "rows": 6,
+    "bySection": {
+      "Companies": 6
+    },
+    "byFamily": {
+      "company": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Banca Transilvania S.A. · TLV",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Societatea Națională de Transport Gaze Naturale Transgaz S.A",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Compania Națională de Transport al Energiei Electrice Transe",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Transport Trade Services S.A. · TTS",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "AROBS Transilvania Software S.A. · AROBS",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Transilvania Broker de Asigurare S.A. · TBK",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "digi",
+    "rows": 1,
+    "bySection": {
+      "Companies": 1
+    },
+    "byFamily": {
+      "company": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "company",
+        "section": "Companies",
+        "text": "Digi Communications N.V. · DIGI",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "upload",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Upload a document · Trial balance, statements or sales file",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "export",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Export statements",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "theme",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Switch to Terminal theme",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "rail",
+    "rows": 1,
+    "bySection": {
+      "Actions": 1
+    },
+    "byFamily": {
+      "action": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "action",
+        "section": "Actions",
+        "text": "Toggle sidebar ⌘.",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "glossary",
+    "rows": 1,
+    "bySection": {
+      "Learn": 1
+    },
+    "byFamily": {
+      "glossary": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "glossary",
+        "section": "Learn",
+        "text": "Browse glossary · Every concept CFO AI knows",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "ebitda",
+    "rows": 6,
+    "bySection": {
+      "Learn": 6
+    },
+    "byFamily": {
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Debt / EBITDA · Leverage & Solvency",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA / Interest",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EV / EBITDA Multiple",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Debt / EBITDA · Leverage & Solvency",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "ratio",
+    "rows": 7,
+    "bySection": {
+      "Learn": 7
+    },
+    "byFamily": {
+      "concept": 7
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Current Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Quick Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Cash Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Equity Ratio",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Price / Earnings",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "margin",
+    "rows": 6,
+    "bySection": {
+      "Learn": 6
+    },
+    "byFamily": {
+      "concept": 6
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBITDA Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "EBIT Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Net Margin",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Gross Margin · Profitability",
+        "offender": null
+      },
+      {
+        "source": "palette-row",
+        "family": "concept",
+        "section": "Learn",
+        "text": "Real Margin (SKU)",
+        "offender": null
+      }
+    ]
+  },
+  {
+    "viewport": "390",
+    "query": "zzqqxx",
+    "rows": 1,
+    "bySection": {
+      "(none)": 1
+    },
+    "byFamily": {
+      "ask": 1
+    },
+    "offenders": 0,
+    "detail": [
+      {
+        "source": "ask-fallback",
+        "family": "ask",
+        "section": "",
+        "text": "Answer “zzqqxx”",
+        "offender": null
+      }
+    ]
+  }
+]

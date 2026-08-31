@@ -103,6 +103,7 @@ import { CommandPalette } from "../CommandPalette";
 import { CapsuleJumpList, type CapsuleJumpItem } from "../capsuleEmpty/CapsuleJumpList";
 import {
   CapsulePaletteRow,
+  CAPSULE_ROW_FAMILIES,
   type CapsulePaletteRowItem,
 } from "../CapsulePaletteRow";
 import { suppressNativeTooltips } from "../CapsuleTooltipGuard";
@@ -282,15 +283,23 @@ describe("G4 — the palette row prints no category column", () => {
   /** The five shapes the host actually builds, each carrying the string
    *  the old `hint` field would have parked against the right edge. */
   const ROWS: { item: CapsulePaletteRowItem; wasHint: string }[] = [
-    { item: { id: "page", group: "Pages", label: "Dashboard",
+    { item: { id: "page", family: "page", group: "Pages", label: "Dashboard",
               searchText: "Overview", run: () => {} }, wasHint: "Overview" },
-    { item: { id: "concept", group: "Learn", label: "Free cash flow",
+    { item: { id: "concept", family: "concept", group: "Learn", label: "Free cash flow",
               searchText: "Cash Flow", run: () => {} }, wasHint: "Cash Flow" },
-    { item: { id: "period", group: "Recent periods", label: "Dec 2025",
+    { item: { id: "period", family: "period", group: "Recent periods", label: "Dec 2025",
               searchText: "Switch period", run: () => {} }, wasHint: "Switch period" },
-    { item: { id: "cat", group: "Products", label: "Salami",
+    { item: { id: "cat", family: "category", group: "Products", label: "Salami",
               searchText: "Category", run: () => {} }, wasHint: "Category" },
-    { item: { id: "co", group: "Companies", label: "Banca Transilvania",
+    // The bucket badge's row. `searchText` carries the exact word the
+    // `<BucketChip>` used to paint against the right edge, so the check
+    // below is a REAL one: a string the host supplied, that the reader
+    // must not see. Given `searchText: "SKU"` instead, "Protect" would
+    // be a word no code path could ever print and the assertion would
+    // pass by construction.
+    { item: { id: "sku", family: "sku", group: "Products", label: "Core 200g",
+              searchText: "Protect", run: () => {} }, wasHint: "Protect" },
+    { item: { id: "co", family: "company", group: "Companies", label: "Banca Transilvania",
               qualifier: "TLV", searchText: "Open company", run: () => {} },
       wasHint: "Open company" },
   ];
@@ -362,6 +371,29 @@ describe("G4 — the palette row prints no category column", () => {
     ).toEqual([]);
   });
 
+  it("every row DECLARES its family, and the declared set is the whole set", () => {
+    renderAll();
+    const rows = screen.getAllByRole("option");
+    expect(rows.length, "G4 VACUITY: nothing rendered.").toBe(ROWS.length);
+
+    const stamped = rows.map((r) => r.getAttribute("data-row-family"));
+    expect(
+      stamped.filter((f) => f === null).length,
+      `TC-6: ${stamped.filter((f) => f === null).length} row(s) painted with no ` +
+        `\`data-row-family\`. G4's live sweep floors itself PER FAMILY — a row ` +
+        `that cannot name its family is a row no expectation can be recorded ` +
+        `for, which is how twenty offending Product rows sat under a green ` +
+        `nine-query sweep.`,
+    ).toBe(0);
+    expect(
+      stamped.filter((f) => !CAPSULE_ROW_FAMILIES.includes(f as never)),
+      "TC-6: a row declared a family that is not in `CAPSULE_ROW_FAMILIES`.",
+    ).toEqual([]);
+    // The stamp is the ITEM's, not a constant: two different items must
+    // not stamp the same word, or the census cannot tell them apart.
+    expect(new Set(stamped).size).toBe(ROWS.length);
+  });
+
   it("a qualifier is part of the row's NAME, inline, not a right-hand column", () => {
     renderAll();
     const qualifiers = screen.getAllByTestId("capsule-row-qualifier");
@@ -378,7 +410,13 @@ describe("G4 — the palette row prints no category column", () => {
     // INLINE means: inside the same truncating element as the label. A
     // sibling of the label is free to be pushed to the right edge by a
     // `flex-1`; a child of it is not.
-    const row = screen.getAllByRole("option")[4];
+    //
+    // The row is found BY ITS QUALIFIER rather than by index: this array
+    // was indexed at [4] and a SKU row was later inserted at [4], which
+    // would have silently moved this assertion onto a row that has no
+    // qualifier and made `contains()` false for the wrong reason.
+    const row = screen.getAllByRole("option")
+      .find((r) => r.contains(qualifiers[0]))!;
     const label = row.querySelector(".flex-1");
     expect(
       label?.contains(qualifiers[0]),

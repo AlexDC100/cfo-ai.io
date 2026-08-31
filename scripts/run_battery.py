@@ -382,6 +382,17 @@ def _frontend_gates() -> List[Gate]:
         # because the last deploy predated it. A plant reads as ordinary
         # code and the suite stays green, because the one gate that would
         # catch it is the one nobody re-runs before committing.
+        # THE CAPSULE READS AS A CONVERSATION. Static half of the craft
+        # laws — no native tooltips, no category column, one voice per
+        # line, live spec anchors. It existed for a full wave WITHOUT A
+        # RUNNER: not in this table, not in any workflow, not in
+        # package.json. Every reference to it in the repo was prose. A
+        # gate nobody runs and a gate that passes wrongly fail the same
+        # way, so it is wired here rather than described.
+        Gate("capsule-craft", ["node", "scripts/check_capsule_craft.mjs"],
+             work_rx=r"GATE-WORK capsule-craft units=(\d+)", floor=100,
+             units="capsule files + rows + bundles + spec anchors",
+             canaries=("familiesGated", "rowComponents")),
         Gate("no-plants", ["node", "scripts/check_no_plants.mjs"],
              work_rx=r"units=(\d+)", floor=400,
              units="product source files",
