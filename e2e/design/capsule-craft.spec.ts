@@ -150,6 +150,25 @@ const FLOOR = {
   /** G4 — navigation rows summoned across the query sweep. Measured 9
    *  (2026-08-30, after the jump list moved behind a keystroke). */
   navRows: 5,
+  /** Per TYPING state, RECORDED from measurement — not one flat number.
+   *
+   *  A flat floor is the wrong shape here and I measured that before
+   *  believing it: most queries legitimately paint 1-2 rows while
+   *  `cash` paints 13. A floor high enough to protect `cash` fails the
+   *  honest states; one low enough for them protects nothing.
+   *
+   *  So each state carries the quantity it is supposed to produce, taken
+   *  from the measured census with a margin. `cash` is the state the
+   *  complaint is about and the one an adversarial audit collapsed from
+   *  13 rows to 0 while the gate stayed green on a shared total.
+   *
+   *  `zzqqxx` is the deliberate no-match: it must paint the ask-fallback
+   *  and no palette rows, so its expectation is 0 and it is checked by
+   *  the fallback assertion instead. */
+  rowsPerTypingState: {
+    dash: 1, sce: 1, work: 2, bench: 1, prod: 1,
+    sett: 1, cash: 8, bal: 1, zzqqxx: 0,
+  } as Record<string, number>,
   /** G6 — text nodes measured for contrast, per theme, at rest.
    *  Measured 21 before the redesign, 9-10 after it thinned the resting
    *  surface to a strip + one suggestion + the composer. */
@@ -522,9 +541,18 @@ async function armCls(page: Page): Promise<void> {
         w.__craftCls = (w.__craftCls as number) + e.value;
         (w.__craftShifts as unknown[]).push({
           v: Math.round(e.value * 10000) / 10000,
-          nodes: (e.sources ?? []).map(
-            (s) => s.node?.getAttribute?.("data-testid") ?? s.node?.tagName ?? "?",
-          ),
+          // NAME THE NODE. "DIV" is a red nobody can act on — the same
+          // lesson P3 forced on the spend gates, applied here: a shift
+          // report that cannot say WHAT moved gets triaged as flake.
+          nodes: (e.sources ?? []).map((s) => {
+            const n = s.node as Element | undefined;
+            if (!n) return "?";
+            const own = n.getAttribute?.("data-testid");
+            if (own) return own;
+            const host = n.closest?.("[data-testid]")?.getAttribute("data-testid");
+            const cls = (n.getAttribute?.("class") ?? "").trim().split(/\s+/).slice(0, 3).join(".");
+            return `${n.tagName}${cls ? "." + cls : ""}${host ? ` in [${host}]` : ""}`;
+          }),
         });
       }
     });
@@ -710,77 +738,317 @@ test.describe("G0 — every anchor this file depends on resolves live", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════
-// G1 — PROPORTION
+// G1 — PROPORTION, RE-DERIVED. THE OLD METRIC COULD NOT SEE THE DEFECT.
 // ══════════════════════════════════════════════════════════════════════
 //
-// The resting surface is the one a reader meets before they have said a
-// word. 700px of mostly-empty panel is the surface telling them it does
-// not know what it is for. The budget is a ceiling on the panel AND a
-// ceiling on the gap between the panel and what is painted in it — a
-// short panel with 200px of air at the bottom fails the second even
-// though it passes the first.
+// ── WHAT WAS WRONG WITH THE OLD G1 ───────────────────────────────────
+//
+// It measured TRAILING DEAD SPACE — `overlay.bottom − deepest painted
+// descendant.bottom` — against an 8px budget, plus a height ceiling.
+// Both are blind to the complaint they were written for:
+//
+//   · dead space is INVARIANT to air BETWEEN children. A box that hugs
+//     its last child scores ~0 however much air sits above it. Measured
+//     3px on the build that was complained about and 3px on the build
+//     that replaced it: the number did not move while the design did;
+//   · the height ceiling was 440px, and the ORIGINAL surface — the one
+//     the complaint is about — was 376px. G1 would have passed it.
+//
+// A gate that would have passed the defect it was written for is not a
+// weak gate, it is a decoration. Replaced with the two things the
+// adversarial critic actually measured:
+//
+//   INK DENSITY  Σ(area of every text run's client rects, taken with a
+//                Range over the text node — GLYPH boxes, not element
+//                boxes) ÷ the card's area. "Is this card carrying what
+//                its size promises." A card that grows without gaining
+//                words falls; a card that pads falls. It cannot be
+//                gamed by hugging the last child, because it never looks
+//                at the last child.
+//
+//   GAPS         the tallest horizontal band inside the card that no ink
+//                crosses, split into the LEADING band (above the first
+//                ink) and the INTERIOR ones. Air between children counts
+//                here and counted nowhere before.
+//
+// ── THE THRESHOLDS, AND WHY THEY ARE THESE NUMBERS ───────────────────
+//
+// Measured on the target design, 2026-08-31, both themes identical:
+//
+//   state     1440×900               390×844
+//   rest      298px 33.1vh · 5.62%   268px 31.8vh ·  9.72%
+//   typing    358px 39.8vh · 13.71%  590px 69.9vh · 14.16%
+//   tier0     227px 25.2vh ·  5.30%  206px 24.4vh ·  7.88%
+//   answering 358px 39.8vh · 14.59%  499px 59.1vh · 18.13%
+//
+// The floors below are those numbers rounded DOWN with roughly a tenth
+// of headroom, so a design that legitimately gets leaner does not red —
+// and the DEFECT is far outside them, which is the only thing that makes
+// a floor worth having. Planted (P-A, recorded in GATES.md): raising the
+// resting card to 640px with the same content takes rest density to
+// 2.6%, less than half the floor, and the leading gap to 455px.
+//
+// The rest floor is the loose one on purpose. The resting card is a
+// FIXED height sized for the three chips the engine's `MAX_SUGGESTIONS`
+// allows, and the demo workspace this runs against yields ONE. That
+// slack is the measured cost of the owner's ruling, it is bounded, and
+// it is bounded HERE: `restLeadingGapPx`.
 
-test.describe("G1 — proportion: the panel is the size of what is in it", () => {
-  test.setTimeout(150_000);
+/** The two viewports every proportion gate runs at. 1440 was the only
+ *  one in the whole craft suite, and the 390 regression (a typing panel
+ *  at 73vh, a second answered turn at 80vh, against a 70vh budget) went
+ *  unseen for exactly that reason. */
+const VIEWPORTS = [
+  { label: "1440", width: 1440, height: 900 },
+  { label: "390", width: 390, height: 844 },
+] as const;
 
-  test("resting panel fits the budget and holds no dead space", async ({ page }) => {
-    await boot(page);
-    await openSurface(page);
-    const g = await geometry(page);
+/** Ink floors, per state, per viewport. Per BOTH, because TC-6: a single
+ *  global floor survives one half collapsing while the other holds. */
+const INK_FLOOR: Record<string, Record<string, number>> = {
+  // Measured 2026-08-31 on the SHIPPED design, then rounded DOWN with
+  // ~10% headroom so a design that legitimately gets leaner does not red.
+  //            rest   typing  tier0   answering        (measured)
+  //   1440     5.62   13.71   5.30    14.59
+  //   390      9.72   14.16   7.88    18.13
+  "1440": { rest: 5.0, typing: 12.0, tier0: 4.6, answering: 12.5 },
+  "390": { rest: 8.5, typing: 12.5, tier0: 6.8, answering: 15.5 },
+};
 
-    console.log(`[G1 rest] height=${g.overlay.height}px content=${g.contentBottom} ` +
-      `dead=${g.deadSpace}px width=${g.overlay.width}`);
+/** The tallest band of air allowed BETWEEN painted things. */
+const INTERIOR_GAP_PX = 56;
 
-    expect(
-      g.overlay.height,
-      `G1: the resting overlay is ${g.overlay.height}px at ${VIEWPORT.width}×` +
-        `${VIEWPORT.height}. The budget is ${BUDGET.restHeightPx}px. A panel that ` +
-        `opens taller than the thing it has to say is a menu with the lights on.`,
-    ).toBeLessThanOrEqual(BUDGET.restHeightPx);
+/** The tallest band allowed ABOVE the first painted thing, at rest.
+ *  The resting card is fixed at `CAPSULE_REST_HEIGHT` and its content is
+ *  bottom-aligned, so a workspace with fewer than three suggestions
+ *  leaves this much room above them — 113px measured at 1440, 104px at
+ *  390. The ceiling catches the two ways that becomes a defect: a
+ *  resting card sized past what three chips need, and a resting state
+ *  that lost its content. */
+const REST_LEADING_GAP_PX = 130;
 
-    expect(
-      g.deadSpace,
-      `G1: ${g.deadSpace}px of the resting panel is painted with nothing. The ` +
-        `panel's height must be the sum of what is actually true — the gap ` +
-        `between the last painted pixel (${g.contentBottom}) and the panel's own ` +
-        `bottom (${g.overlay.bottom}) is dead space.`,
-    ).toBeLessThanOrEqual(BUDGET.deadSpacePx);
-  });
+interface Ink {
+  card: { top: number; bottom: number; height: number; width: number };
+  vhFraction: number;
+  density: number;
+  runs: number;
+  leadingGap: number;
+  interiorGap: number;
+  gaps: { from: number; px: number }[];
+}
 
-  test("typing and answering stay inside 70vh with no dead space", async ({ page }) => {
-    await stubTools(page);
-    await stubGeneration(page, GROUNDED_ANSWER);
-    await boot(page);
-    await openSurface(page);
+/**
+ * Ink and air inside the card. One `evaluate`, because every number here
+ * has to describe the SAME layout — two round trips can straddle a
+ * height transition and produce a density that never existed.
+ */
+async function ink(page: Page): Promise<Ink> {
+  return page.locator(ANCHORS.overlay).evaluate((root: Element) => {
+    const painted = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return false;
+      const cs = getComputedStyle(el);
+      return cs.visibility !== "hidden" && cs.display !== "none" && cs.opacity !== "0";
+    };
+    const rr = root.getBoundingClientRect();
+    const area = Math.max(1, rr.width * rr.height);
 
-    const ceiling = Math.round(VIEWPORT.height * BUDGET.tallStateVh);
-
-    const input = composer(page);
-    await input.click();
-    await input.fill(TIER0_QUESTION);
-    await page.waitForTimeout(450);
-    const typing = await geometry(page);
-    console.log(`[G1 typing] height=${typing.overlay.height}px dead=${typing.deadSpace}px`);
-
-    await ask(page, TIER1_QUESTION);
-    await page.waitForTimeout(1400);
-    const answering = await geometry(page);
-    console.log(`[G1 answering] height=${answering.overlay.height}px dead=${answering.deadSpace}px`);
-
-    for (const [label, g] of [["typing", typing], ["answering", answering]] as const) {
-      expect(
-        g.overlay.height,
-        `G1: the ${label} panel is ${g.overlay.height}px — over the ${ceiling}px ` +
-          `(70vh) ceiling. Past that the panel stops being an overlay and becomes ` +
-          `the page.`,
-      ).toBeLessThanOrEqual(ceiling);
-      expect(
-        g.deadSpace,
-        `G1: ${g.deadSpace}px of dead space in the ${label} state.`,
-      ).toBeLessThanOrEqual(BUDGET.deadSpacePx);
+    const bands: [number, number][] = [];
+    let inkArea = 0;
+    let runs = 0;
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let n: Node | null;
+    while ((n = walk.nextNode())) {
+      if (!n.textContent || !n.textContent.trim()) continue;
+      const parent = n.parentElement;
+      if (!parent || !painted(parent)) continue;
+      // SR-ONLY IS NOT INK, and it took a diagnostic to notice.
+      // `.sr-only` is a 1×1 clipped box, so `painted()` lets it through
+      // — but a Range over its text reports the text's NATURAL layout
+      // boxes, unclipped. The dialog's own `<h2 class="sr-only">` title
+      // therefore registered as a 20px band of ink across the top of the
+      // card: it inflated density from 5.62% to 8%, and it split the
+      // resting card's one 113px hole into a 2px lead and a 91px
+      // interior gap — turning the number this gate exists to bound into
+      // a different number under a different budget. A measurement that
+      // counts text nobody can see is not measuring the reader's page.
+      const pb = parent.getBoundingClientRect();
+      if (pb.width < 2 || pb.height < 2) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const rect of Array.from(range.getClientRects())) {
+        if (rect.width < 1 || rect.height < 1) continue;
+        inkArea += rect.width * rect.height;
+        bands.push([rect.top, rect.bottom]);
+        runs += 1;
+      }
     }
+    // Glyphless ink — icons, the selection rule — occupies the eye and
+    // therefore closes a gap, but carries no area a density should count.
+    root.querySelectorAll("svg, img").forEach((el) => {
+      if (!painted(el)) return;
+      const r = el.getBoundingClientRect();
+      bands.push([r.top, r.bottom]);
+    });
+
+    const clipped = bands
+      .map(([a, b]) => [Math.max(rr.top, a), Math.min(rr.bottom, b)] as [number, number])
+      .filter(([a, b]) => b > a)
+      .sort((x, y) => x[0] - y[0]);
+    const merged: [number, number][] = [];
+    for (const band of clipped) {
+      const last = merged[merged.length - 1];
+      if (last && band[0] <= last[1] + 0.5) last[1] = Math.max(last[1], band[1]);
+      else merged.push([band[0], band[1]]);
+    }
+
+    const gaps: { from: number; px: number }[] = [];
+    let cursor = rr.top;
+    for (const [a, b] of merged) {
+      if (a - cursor > 0.5) gaps.push({ from: Math.round(cursor - rr.top), px: Math.round(a - cursor) });
+      cursor = Math.max(cursor, b);
+    }
+    if (rr.bottom - cursor > 0.5) {
+      gaps.push({ from: Math.round(cursor - rr.top), px: Math.round(rr.bottom - cursor) });
+    }
+    const leadingGap = gaps.length && gaps[0].from === 0 ? gaps[0].px : 0;
+    const interiorGap = gaps
+      .filter((g) => g.from !== 0)
+      .reduce((m, g) => Math.max(m, g.px), 0);
+
+    return {
+      card: {
+        top: Math.round(rr.top), bottom: Math.round(rr.bottom),
+        height: Math.round(rr.height), width: Math.round(rr.width),
+      },
+      vhFraction: Math.round((rr.height / window.innerHeight) * 1000) / 10,
+      density: Math.round((inkArea / area) * 10000) / 100,
+      runs,
+      leadingGap,
+      interiorGap,
+      gaps,
+    };
   });
-});
+}
+
+for (const vp of VIEWPORTS) {
+  test.describe(`G1 @${vp.label} — the card carries what its size promises`, () => {
+    test.use({ viewport: { width: vp.width, height: vp.height } });
+    test.setTimeout(200_000);
+
+    test("ink density, air, and the 70vh ceiling, in every state", async ({ page }) => {
+      await stubTools(page);
+      await stubGeneration(page, GROUNDED_ANSWER);
+      await boot(page);
+      await openSurface(page);
+
+      const states: { label: string; m: Ink }[] = [];
+      states.push({ label: "rest", m: await ink(page) });
+
+      const input = composer(page);
+      await input.click();
+      // TWO TYPING STATES, because they are two different cards and a
+      // floor that averaged them would be a floor neither has to meet:
+      //   · "cash" summons the ROW LIST — the state the complaint is
+      //     about, and the query the critic used;
+      //   · a Tier-0 question summons the local PREVIEW and no rows, so
+      //     the card stays at its resting size with less in it.
+      await input.fill("cash");
+      await page.waitForTimeout(520);
+      states.push({ label: "typing", m: await ink(page) });
+
+      await input.fill("");
+      await input.fill(TIER0_QUESTION);
+      await page.waitForTimeout(520);
+      states.push({ label: "tier0", m: await ink(page) });
+
+      await input.fill("");
+      await ask(page, TIER1_QUESTION);
+      await page.waitForTimeout(1500);
+      states.push({ label: "answering", m: await ink(page) });
+
+      // FLOOR AFTER THE LOOP, against the total — never inside it. A
+      // sweep that produced no states would otherwise satisfy every
+      // assertion below by never running one.
+      expect(
+        states.length,
+        `G1 VACUITY @${vp.label}: ${states.length} states measured. Every ` +
+          `threshold below is a claim about nothing.`,
+      ).toBe(4);
+      const totalRuns = states.reduce((n, s) => n + s.m.runs, 0);
+      expect(
+        totalRuns,
+        `G1 VACUITY @${vp.label}: ${totalRuns} text runs found across four ` +
+          `states. The Range walk matched nothing, so every density below is ` +
+          `0/area and every floor would red for the wrong reason — or, if the ` +
+          `floors were ever lowered to accommodate it, pass for the wrong one.`,
+      ).toBeGreaterThanOrEqual(30);
+
+      const ceiling = Math.floor(vp.height * BUDGET.tallStateVh);
+      // TC-6: ONE ASSERTION PER STATE, each naming its own state. A
+      // single worst-of check over the three would let one state collapse
+      // while the other two carried the average — which is exactly how
+      // `import-boundary` printed "boundary holds" over a real violation.
+      for (const { label, m } of states) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[G1 ${vp.label} ${label}] ${m.card.width}×${m.card.height} ` +
+            `(${m.vhFraction}vh) ink=${m.density}% runs=${m.runs} ` +
+            `lead=${m.leadingGap}px interior=${m.interiorGap}px`,
+        );
+
+        expect(
+          m.card.height,
+          `G1 @${vp.label}: the ${label} card is ${m.card.height}px — ` +
+            `${m.vhFraction}vh, over the ${ceiling}px (70vh) ceiling. Past that ` +
+            `the overlay stops being an overlay and becomes the page. Mobile is ` +
+            `where that reads as a takeover, and mobile is where this budget went ` +
+            `ungated: 1440×900 was the only viewport in this suite, and the 390 ` +
+            `typing panel sat at 73vh through a round that certified it.`,
+        ).toBeLessThanOrEqual(ceiling);
+
+        const floor = INK_FLOOR[vp.label][label];
+        expect(
+          m.density,
+          `G1 @${vp.label}: the ${label} card is ${m.density}% ink against a ` +
+            `${floor}% floor. ${m.card.width}×${m.card.height} carrying ` +
+            `${m.runs} text runs.\n` +
+            `Density is area of GLYPHS over area of CARD. It falls when the card ` +
+            `grows without gaining words, and it is the measurement the old dead-` +
+            `space metric could not make: a box that hugs its last child scored ` +
+            `3px on the build that was complained about and 3px on the build that ` +
+            `replaced it.`,
+        ).toBeGreaterThanOrEqual(floor);
+
+        expect(
+          m.interiorGap,
+          `G1 @${vp.label}: ${m.interiorGap}px of air BETWEEN painted things in ` +
+            `the ${label} state (budget ${INTERIOR_GAP_PX}px). Gaps from the ` +
+            `card's top: ${JSON.stringify(m.gaps)}.\n` +
+            `Air between children is the half of "mostly empty" that trailing ` +
+            `dead space cannot see.`,
+        ).toBeLessThanOrEqual(INTERIOR_GAP_PX);
+      }
+
+      // The leading band, per state — including the grown ones, where it
+      // measures 20-27px and would catch a card that grew without its
+      // content following.
+      for (const { label, m } of states) {
+      expect(
+        m.leadingGap,
+        `G1 @${vp.label}: ${m.leadingGap}px of air ABOVE the ${label} card's ` +
+          `first painted thing (ceiling ${REST_LEADING_GAP_PX}px).\n` +
+          `Some is by design: the resting card is a FIXED height sized for the ` +
+          `three chips \`MAX_SUGGESTIONS\` allows, its content is bottom-aligned ` +
+          `so the slack sits above rather than below, and a workspace with one ` +
+          `suggestion leaves the difference. This ceiling bounds it, and catches ` +
+          `both ways it becomes a defect: a resting card sized past what three ` +
+          `chips need, and a resting state that lost its content.`,
+      ).toBeLessThanOrEqual(REST_LEADING_GAP_PX);
+      }
+    });
+  });
+}
 
 // ══════════════════════════════════════════════════════════════════════
 // G2 — COMPOSER ANCHOR
@@ -798,8 +1066,10 @@ test.describe("G1 — proportion: the panel is the size of what is in it", () =>
 // A footer hint under the input trips the first; a row under the input
 // trips both.
 
-test.describe("G2 — the composer is the bottom of the surface, and it stays put", () => {
-  test.setTimeout(180_000);
+for (const vp of VIEWPORTS) {
+test.describe(`G2 @${vp.label} — the composer is the bottom, and it stays put`, () => {
+  test.use({ viewport: { width: vp.width, height: vp.height } });
+  test.setTimeout(200_000);
 
   test("nothing is painted below the composer, in any state", async ({ page }) => {
     await stubTools(page);
@@ -834,7 +1104,8 @@ test.describe("G2 — the composer is the bottom of the surface, and it stays pu
         `below=${offenders.length} after=${JSON.stringify(g.focusablesAfterComposer)}`);
       expect(
         offenders,
-        `G2: in the ${label} state ${offenders.length} painted element(s) sit ` +
+        `G2 @${vp.label}: in the ${label} state ${offenders.length} painted ` +
+          `element(s) sit ` +
           `below the composer:\n` +
           offenders.map((o) => `  +${o.overhang}px  ${o.tag}${o.testid ? `[${o.testid}]` : ""} "${o.text}"`).join("\n") +
           `\nThe composer must be the bottom of the surface. Anything under it ` +
@@ -892,7 +1163,7 @@ test.describe("G2 — the composer is the bottom of the surface, and it stays pu
 
       expect(
         drift,
-        `G2: the composer moves ${drift}px between states ` +
+        `G2 @${vp.label}: the composer moves ${drift}px between states ` +
           `(${ys.map((v) => `${v.label}=${v.y}`).join(", ")}). The budget is ` +
           `${BUDGET.composerDriftPx}px. A composer that jumps when the answer ` +
           `arrives is a form redrawing itself, not a conversation continuing. ` +
@@ -900,6 +1171,7 @@ test.describe("G2 — the composer is the bottom of the surface, and it stays pu
       ).toBeLessThanOrEqual(BUDGET.composerDriftPx);
     });
 });
+}
 
 // ══════════════════════════════════════════════════════════════════════
 // G3 — NO DUPLICATED HINTS
@@ -982,178 +1254,400 @@ test.describe("G3 — the surface says each thing once", () => {
     ).toEqual([]);
   });
 
-  test("no row carries a native browser tooltip", async ({ page }) => {
-    await stubTools(page);
-    await stubGeneration(page, GROUNDED_ANSWER);
-    await boot(page);
-    const overlay = await openSurface(page);
+  // ── NO NATIVE TOOLTIP, ANYWHERE ON THE SURFACE, IN ANY STATE ───────
+  //
+  // The previous version swept ROWS inside the OVERLAY, at rest and while
+  // typing. It returned `[]` and the complaint was marked closed. Two
+  // things were wrong with the sweep and both were in its SCOPE:
+  //
+  //   · the states. An ANSWERED turn carried three native tooltips and a
+  //     follow-up carried six — the count GROWS with the conversation,
+  //     because a provenance dot and a money span ride every figure in
+  //     every turn. Neither state was swept.
+  //   · the root. The trigger pill and the header trust dot are part of
+  //     this surface and live OUTSIDE the portal. Both carried a `title`
+  //     the whole time; a sweep rooted at the overlay could not see
+  //     either.
+  //
+  // So: whole document, every state, plus a second turn — and the count
+  // per state is printed, because "3 then 6" is a different defect from
+  // "3 then 3" and only one of them gets worse the longer you stay.
+  test("no native tooltip in any state, and none that grows per turn",
+    async ({ page }) => {
+      await stubTools(page);
+      await stubGeneration(page, GROUNDED_ANSWER);
+      await boot(page);
+      const overlay = await openSurface(page);
 
-    // ROWS ONLY. A provenance dot whose `title` says "Open the source
-    // row" is a control describing itself, which is what `title` is for;
-    // a suggestion whose `title` repeats its own visible label is the
-    // native tooltip bug — a second, unstyled, delayed copy of text the
-    // reader is already looking at.
-    const rowTitles = async () => overlay.evaluate((root: Element) => {
-      const ROWS = '[role="option"], [data-testid="capsule-suggestion"], ' +
-        '[data-testid="capsule-jump-row"], [data-testid="capsule-ask-fallback"], ' +
-        '[data-testid="capsule-followup-chip"], [data-testid="capsule-question-chip"]';
-      const rows = [...root.querySelectorAll(ROWS)];
-      const offenders: { testid: string | null; title: string; text: string }[] = [];
-      for (const row of rows) {
-        const nodes = [row, ...row.querySelectorAll("[title]")];
-        for (const n of nodes) {
-          const title = n.getAttribute("title");
-          if (!title) continue;
-          offenders.push({
-            testid: row.getAttribute("data-testid"),
-            title, text: (row.textContent || "").trim().slice(0, 60),
-          });
-        }
+      const sweep = async () =>
+        page.evaluate(() => {
+          const painted = (el: Element) => {
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && cs.visibility !== "hidden" &&
+              cs.display !== "none";
+          };
+          const surface = (el: Element) =>
+            !!el.closest('[data-testid="command-palette"]') ||
+            !!el.closest('[data-testid="header-capsule"]');
+          const titled = [...document.querySelectorAll("[title]")].filter(painted);
+          return {
+            // Everything on the surface: the card, and the pill it grew
+            // out of.
+            onSurface: titled.filter(surface).map((el) => ({
+              testid:
+                el.getAttribute("data-testid") ??
+                el.closest("[data-testid]")?.getAttribute("data-testid") ??
+                el.tagName,
+              title: (el.getAttribute("title") ?? "").slice(0, 70),
+            })),
+            // The rest of the page, reported but not gated — this lane
+            // bans native tooltips on the CAPSULE, not app-wide.
+            elsewhere: titled.filter((el) => !surface(el)).length,
+            // Proof the guard ran rather than proof nothing had a title.
+            guard: document
+              .querySelector('[data-testid="command-palette"]')
+              ?.getAttribute("data-tooltip-guard") ?? "absent",
+            reHomed: Number(
+              document
+                .querySelector('[data-testid="command-palette"]')
+                ?.getAttribute("data-tooltips-suppressed") ?? "0",
+            ),
+            reHomedNodes: [
+              ...(document.querySelectorAll(
+                '[data-testid="command-palette"] [data-suppressed-title]',
+              ) as unknown as Element[]),
+            ].length,
+          };
+        });
+
+      const states: { label: string; r: Awaited<ReturnType<typeof sweep>> }[] = [];
+      states.push({ label: "rest", r: await sweep() });
+
+      const input = composer(page);
+      await input.click();
+      await input.fill("cash");
+      await page.waitForTimeout(420);
+      states.push({ label: "typing", r: await sweep() });
+
+      await input.fill(TIER1_QUESTION);
+      await page.waitForTimeout(220);
+      await input.press("Enter");
+      await page.locator(ANCHORS.answer).waitFor({ timeout: ACTION_MS });
+      await page.waitForTimeout(1500);
+      states.push({ label: "answered", r: await sweep() });
+
+      // THE SECOND TURN. This is the state the complaint is actually
+      // about: the count doubled here.
+      const followUp = composer(page);
+      await followUp.click();
+      await followUp.fill("why is that");
+      await page.waitForTimeout(220);
+      await followUp.press("Enter");
+      await page.waitForTimeout(1800);
+      states.push({ label: "answered+follow-up", r: await sweep() });
+
+      // FLOOR AFTER THE LOOP: four states, or the growth comparison below
+      // is one number compared with itself.
+      expect(
+        states.length,
+        "G3 VACUITY: fewer than four states were swept; a tooltip count that " +
+          "grows per turn cannot be seen in one turn.",
+      ).toBe(4);
+
+      // POSITIVE CONTROL on the detector itself. `[title]` must be
+      // findable SOMEWHERE on this page, or "zero on the surface" is
+      // satisfied by a selector that matches nothing anywhere.
+      const anywhere = states.reduce((n, s) => n + s.r.elsewhere, 0);
+      expect(
+        anywhere,
+        "G3 CONTROL: the `[title]` sweep found no tooltip anywhere on the page, " +
+          "not even outside the Capsule. The detector is blind, so every zero " +
+          "below is vacuous — it is not evidence that the surface has none.",
+      ).toBeGreaterThan(0);
+
+      // TC-6: ONE ASSERTION PER STATE.
+      for (const { label, r } of states) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[G3 tooltips ${label}] onSurface=${r.onSurface.length} ` +
+            `elsewhere=${r.elsewhere} guard=${r.guard} re-homed=${r.reHomed}/` +
+            `${r.reHomedNodes}`,
+        );
+        expect(
+          r.onSurface,
+          `G3: ${r.onSurface.length} native tooltip(s) on the Capsule in the ` +
+            `"${label}" state:\n` +
+            r.onSurface.map((o) => `  [${o.testid}] title="${o.title}"`).join("\n") +
+            `\nThe browser draws \`title\` as an unstyled box after a delay the ` +
+            `design does not control, in the OS font, never on touch, and never ` +
+            `for a keyboard user. Everything it carried belongs in the row's own ` +
+            `label, in \`aria-label\`, or nowhere.`,
+        ).toEqual([]);
       }
-      return { rows: rows.length, offenders };
+
+      // THE GROWTH CLAUSE. Stated separately because a per-turn leak is
+      // worse than a static one and reads differently in a red.
+      const counts = states.map((s) => s.r.onSurface.length);
+      expect(
+        counts[3] - counts[2],
+        `G3: the tooltip count went ${counts.join(" → ")} across rest, typing, ` +
+          `one answer and two. A count that climbs with the conversation is a ` +
+          `leak, not a constant: it was 3 after one turn and 6 after two on the ` +
+          `build that was certified clean at rest.`,
+      ).toBe(0);
+
+      // THE GUARD RAN. Two of the five `title` sites belong to files this
+      // lane may not edit and are re-homed at the surface's boundary, so
+      // "zero tooltips" must not be satisfiable by the guard silently not
+      // mounting. It has to have MOVED something.
+      const answered = states[2].r;
+      expect(
+        answered.guard,
+        "G3: `CapsuleTooltipGuard` did not mark the card. The two foreign-owned " +
+          "`title` sites (`lib/narrativeMoney.tsx`, `components/cfo/" +
+          "TraceableNumber.tsx`) are only absent because it runs; without it, a " +
+          "zero here means the answer painted no figures.",
+      ).toBe("on");
+      expect(
+        answered.reHomedNodes,
+        `G3: the guard mounted but re-homed ${answered.reHomedNodes} titles in ` +
+          `the answered state. A figure with provenance was expected to carry ` +
+          `at least one. Zero means either the answer rendered no figure — in ` +
+          `which case the tooltip zero above is vacuous — or the guard is ` +
+          `DELETING strings instead of moving them, which trades this defect ` +
+          `for a worse one.`,
+      ).toBeGreaterThan(0);
+
+      void overlay;
     });
-
-    const rest = await rowTitles();
-    const input = composer(page);
-    await input.click();
-    await input.fill("dash");
-    await page.waitForTimeout(400);
-    const typing = await rowTitles();
-    await input.fill(TIER1_QUESTION);
-    await page.waitForTimeout(200);
-    await input.press("Enter");
-    await page.locator(ANCHORS.answer).waitFor({ timeout: ACTION_MS });
-    await page.waitForTimeout(1400);
-    const answered = await rowTitles();
-
-    const totalRows = rest.rows + typing.rows + answered.rows;
-    // FLOOR after all three collections. Zero rows examined would make
-    // "no row carries a title" true and meaningless.
-    expect(
-      totalRows,
-      `G3 VACUITY: ${totalRows} rows examined across three states (floor ` +
-        `${FLOOR.navRows}). The row selector matched nothing, so the tooltip ban ` +
-        `was never tested.`,
-    ).toBeGreaterThanOrEqual(FLOOR.navRows);
-
-    const offenders = [...rest.offenders, ...typing.offenders, ...answered.offenders];
-    console.log(`[G3 tooltips] rows examined: rest=${rest.rows} typing=${typing.rows} ` +
-      `answered=${answered.rows} · offenders=${offenders.length}`);
-
-    expect(
-      offenders,
-      `G3: ${offenders.length} row(s) carry a native \`title\` tooltip:\n` +
-        offenders.map((o) => `  [${o.testid}] title="${o.title}"\n      row text: "${o.text}"`).join("\n") +
-        `\nThe browser renders \`title\` as an unstyled yellow box after a delay ` +
-        `the design does not control, duplicating text already on screen. If the ` +
-        `row's own label cannot say it, the row needs a better label — not a ` +
-        `second one nobody asked for.`,
-    ).toEqual([]);
-  });
 });
 
 // ══════════════════════════════════════════════════════════════════════
-// G4 — NO CATEGORY COLUMN
+// G4 — NO CATEGORY COLUMN, MEASURED AS THE READER SEES IT
 // ══════════════════════════════════════════════════════════════════════
 //
-// "Dashboard … Overview". "Scenarios … Analyze". The right-hand word is
-// the name of the rail group the destination lives in, which is
-// information the reader needed while BUILDING the app and never needs
-// while USING it. It also makes every row identical in rhythm, which is
-// precisely what makes the surface read as a table of contents.
+// "Dashboard … Overview". "Free cash flow … Cash Flow". The right-hand
+// word names the group the row was filed under — information the reader
+// needed while BUILDING the app and never needs while USING it. It also
+// gives every row the same two-column rhythm, which is what makes eight
+// different choices read as one table of contents.
+//
+// ── WHY THIS GATE WAS GREEN OVER 13 OFFENDING ROWS ───────────────────
+//
+// It measured the ELEMENT-BOX gutter: `trailing.left − label.right`. The
+// label span is `min-w-0 flex-1`, so its box stretches to fill whatever
+// the row does not use, and its right edge sits `gap-3` — 12px — from
+// the trailing span NO MATTER HOW SHORT THE LABEL IS. The gutter was
+// pinned at 12px against a 24px threshold, so the detector fired 0 of 17
+// times while the reader, who sees GLYPHS and not boxes, saw a 200px+
+// gutter on every one of them.
+//
+// This measures the glyph gutter with a `Range` over the text nodes:
+// (left edge of the trailing text) − (right edge of the label text).
+// Measured on the offending build it fires 17 of 17.
+//
+// ── AND WHY THE FIX LANDED ON THE WRONG COMPONENT (TC-7) ─────────────
+//
+// The round that "closed" this removed the column from `CapsuleJumpList`,
+// which renders ZERO rows in the state complained about, while
+// `CommandPalette`'s own inline row renderer kept it. So this gate now
+// asserts, first, WHICH COMPONENT PAINTED THE NODES IT EXAMINED: every
+// row-rendering component stamps `data-row-source`, the census is printed
+// with the tally, and a source that contributes nothing shows as an
+// absent key rather than as a silent assumption.
+
+/** Every component allowed to paint a row on this surface, and what it
+ *  stamps. A row with no stamp is a renderer nobody declared. */
+const ROW_SOURCES = [
+  "palette-row", "jump-row", "suggestion", "ask-fallback",
+] as const;
 
 test.describe("G4 — navigation rows carry no category column", () => {
-  test.setTimeout(150_000);
+  test.setTimeout(180_000);
 
-  test("no nav row ends in a right-aligned section label", async ({ page }) => {
+  test("no row's trailing text is parked against the right edge", async ({ page }) => {
     await boot(page);
     const overlay = await openSurface(page);
 
     const scan = async (label: string) => {
       const r = await overlay.evaluate((root: Element) => {
-        const ROWS = '[data-testid="capsule-jump-row"], ' +
-          '[role="option"]:not([data-testid="capsule-suggestion"])';
         const painted = (el: Element) => {
           const b = el.getBoundingClientRect();
           const cs = getComputedStyle(el);
           return b.width > 0 && b.height > 0 && cs.visibility !== "hidden";
         };
+        // Every row, however it was stamped — plus the legacy selectors,
+        // so a row that FORGOT to stamp is still examined and still
+        // reported as unstamped rather than quietly skipped.
+        const ROWS =
+          '[data-row-source], [data-testid="capsule-jump-row"], ' +
+          '[role="option"], [data-testid="capsule-ask-fallback"]';
         const rows = [...root.querySelectorAll(ROWS)].filter(painted);
-        const offenders: { row: string; trailing: string; gap: number }[] = [];
+
+        const bySource: Record<string, number> = {};
+        const offenders: {
+          source: string; row: string; trailing: string;
+          glyphGutter: number; elementGutter: number;
+        }[] = [];
+
         for (const row of rows) {
-          const rb = row.getBoundingClientRect();
-          // Leaf text spans inside the row, in visual order.
-          const leaves: { el: Element; text: string; box: DOMRect }[] = [];
-          row.querySelectorAll("*").forEach((el) => {
-            let own = "";
-            el.childNodes.forEach((n) => { if (n.nodeType === 3) own += n.textContent; });
-            own = own.trim();
-            if (!own || !painted(el)) return;
-            leaves.push({ el, text: own, box: el.getBoundingClientRect() });
-          });
+          const source = row.getAttribute("data-row-source") ?? "UNSTAMPED";
+          bySource[source] = (bySource[source] ?? 0) + 1;
+
+          // TEXT RUNS, in visual order, measured as GLYPHS.
+          const leaves: { text: string; left: number; right: number; el: Element }[] = [];
+          const walk = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+          let n: Node | null;
+          while ((n = walk.nextNode())) {
+            const txt = (n.textContent ?? "").trim();
+            if (!txt) continue;
+            const parent = n.parentElement;
+            if (!parent || !painted(parent)) continue;
+            const range = document.createRange();
+            range.selectNodeContents(n);
+            const box = range.getBoundingClientRect();
+            if (box.width < 1) continue;
+            leaves.push({ text: txt, left: box.left, right: box.right, el: parent });
+          }
           if (leaves.length < 2) continue;
-          leaves.sort((a, b) => a.box.left - b.box.left);
+          leaves.sort((a, b) => a.left - b.left);
           const first = leaves[0];
           const last = leaves[leaves.length - 1];
           if (last === first) continue;
-          // A KEY CAP is not a category — it names a keystroke.
+          // A KEY CAP names a keystroke, not a category.
           if (last.el.tagName === "KBD" || last.el.closest("kbd")) continue;
-          // A category column is a WORD (not a symbol, not a number)
-          // parked against the right edge, separated from the label by a
-          // real gap. Icons and arrows have no letters; a truncation
-          // ellipsis has no letters either.
+          // A word, not a symbol, not a number, not an ellipsis.
           if (!/[A-Za-zĂÂÎȘȚăâîșț]{3,}/.test(last.text)) continue;
-          const gap = Math.round(last.box.left - first.box.right);
-          const rightAligned = rb.right - last.box.right < 40;
-          if (rightAligned && gap > 24) {
+
+          const rb = row.getBoundingClientRect();
+          const glyphGutter = Math.round(last.left - first.right);
+          const fb = first.el.getBoundingClientRect();
+          const lb = last.el.getBoundingClientRect();
+          const elementGutter = Math.round(lb.left - fb.right);
+          const rightAligned = rb.right - last.right < 40;
+          if (rightAligned && glyphGutter > 24) {
             offenders.push({
-              row: first.text.slice(0, 32), trailing: last.text.slice(0, 32), gap,
+              source, row: first.text.slice(0, 32), trailing: last.text.slice(0, 32),
+              glyphGutter, elementGutter,
             });
           }
         }
-        return { rows: rows.length, offenders };
+        return { rows: rows.length, bySource, offenders };
       });
-      console.log(`[G4 ${label}] rows=${r.rows} offenders=${r.offenders.length}`);
-      return r;
+      // eslint-disable-next-line no-console
+      console.log(
+        `[G4 ${label}] rows=${r.rows} by=${JSON.stringify(r.bySource)} ` +
+          `offenders=${r.offenders.length}`,
+      );
+      return { ...r, label };
     };
 
-    // A SWEEP, not one query. The resting surface may legitimately show
-    // no navigation at all (navigation lives behind a keystroke), so the
-    // rows have to be summoned — and summoned from several queries, or
-    // the census is one row deciding a law about every row.
-    const QUERIES = ["dash", "sce", "work", "bench", "prod", "sett", "cash", "bal"];
+    // A SWEEP, not one query. Navigation lives behind a keystroke, so the
+    // rows have to be summoned — and from several queries, or the census
+    // is one row deciding a law about every row. "cash" is here because
+    // it is the query the critic used: it summons the concept rows, and
+    // seven of the thirteen it produced said "Cash Flow".
+    // "zzqqxx" matches NOTHING, and that state was uncovered until the
+    // final capture found the ask-fallback row rendering there with no
+    // `data-row-source`. A census that never visits a state cannot
+    // report what that state paints.
+    const QUERIES = [
+      "dash", "sce", "work", "bench", "prod", "sett", "cash", "bal", "zzqqxx",
+    ];
     const scans = [await scan("rest")];
     const input = composer(page);
     await input.click();
     for (const q of QUERIES) {
       await input.fill("");
       await input.fill(q);
-      await page.waitForTimeout(320);
+      await page.waitForTimeout(340);
       scans.push(await scan(`typing:${q}`));
     }
 
-    // FLOOR after every scan, against the total. Asserted here and not
-    // inside the loop: a sweep that returned nothing must be visible as
-    // a number, and a canary inside the loop cannot fire when the loop
-    // never runs.
+    // ── FLOORS, AFTER every scan — PER STATE, then the total ──────────
+    //
+    // A floor on the SUM is the TC-6 disease one axis over. An adversarial
+    // audit emptied the concept-row family: `typing:cash` — the exact
+    // state this complaint is about, the state that painted 13 of the 24
+    // rows, seven of them saying "Cash Flow" — collapsed to ZERO rows,
+    // and this gate printed green, because the surviving states still
+    // cleared a shared floor of 5. 79% of the rows could disappear
+    // unnoticed.
+    //
+    // So each typing state carries its own floor. "No row has a category
+    // column" must be true of SOMETHING, in every state the gate visits.
+    const typingScans = scans.filter((s) => s.label.startsWith("typing:"));
+    const starved = typingScans
+      .map((s) => ({ s, want: FLOOR.rowsPerTypingState[s.label.slice(7)] ?? 1 }))
+      .filter(({ s, want }) => (s.bySource["palette-row"] ?? 0) < want)
+      .map(({ s, want }) =>
+        `${s.label}: ${s.bySource["palette-row"] ?? 0} palette-rows, expected ${want}`);
+    expect(
+      starved,
+      `G4 PER-STATE VACUITY: a state painted fewer palette-rows than it is ` +
+        `supposed to. "No row has a category column" is then true of nothing ` +
+        `THERE, however healthy the total looks — an audit emptied \`cash\` ` +
+        `from 13 rows to 0 and this gate printed green on the shared total. ` +
+        `Census: ${typingScans.map((s) => `${s.label}=${s.bySource["palette-row"] ?? 0}`).join(" ")}`,
+    ).toEqual([]);
+
     const totalRows = scans.reduce((n, s) => n + s.rows, 0);
     expect(
       totalRows,
-      `G4 VACUITY: ${totalRows} navigation rows examined across ${scans.length} ` +
-        `states (floor ${FLOOR.navRows}). With no rows, "no row has a category ` +
-        `column" is true of nothing.`,
+      `G4 VACUITY: ${totalRows} rows examined across ${scans.length} states ` +
+        `(floor ${FLOOR.navRows}). With no rows, "no row has a category column" ` +
+        `is true of nothing.`,
+    ).toBeGreaterThanOrEqual(FLOOR.navRows);
+
+    // ── TC-7: WHICH COMPONENT PAINTED THEM ────────────────────────────
+    const tally: Record<string, number> = {};
+    for (const s of scans) {
+      for (const [k, v] of Object.entries(s.bySource)) tally[k] = (tally[k] ?? 0) + v;
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[G4 TC-7 census] ${JSON.stringify(tally)}`);
+
+    expect(
+      tally.UNSTAMPED ?? 0,
+      `TC-7: ${tally.UNSTAMPED ?? 0} row(s) carry no \`data-row-source\`. Census: ` +
+        `${JSON.stringify(tally)}.\nAn unstamped row is a renderer this gate ` +
+        `cannot name. The defect this predicate exists for was a row-level fix ` +
+        `applied to a component that paints nothing in the state under test, ` +
+        `while an unnamed one painted thirteen rows with the defect intact.`,
+    ).toBe(0);
+
+    expect(
+      Object.keys(tally).filter((k) => !ROW_SOURCES.includes(k as never)),
+      `TC-7: a row was painted by a source this file does not know about. ` +
+        `Census: ${JSON.stringify(tally)}. Declare it in ROW_SOURCES — or, if ` +
+        `the rows moved, this gate is now measuring the old component.`,
+    ).toEqual([]);
+
+    expect(
+      tally["palette-row"] ?? 0,
+      `TC-7 FLOOR: \`palette-row\` painted ${tally["palette-row"] ?? 0} rows ` +
+        `across the sweep. Census: ${JSON.stringify(tally)}.\nThis is the ` +
+        `component that paints the typing state. A zero here means the sweep ` +
+        `never reached it — and a category-column ban that never reached the ` +
+        `component with the category column is the exact green this gate ` +
+        `produced last round.`,
     ).toBeGreaterThanOrEqual(FLOOR.navRows);
 
     const offenders = scans.flatMap((s) => s.offenders);
     expect(
       offenders,
-      `G4: ${offenders.length} navigation row(s) carry a right-aligned category ` +
-        `label:\n` +
-        offenders.map((o) => `  "${o.row}"${" ".repeat(Math.max(1, 28 - o.row.length))}→ "${o.trailing}" (${o.gap}px gutter)`).join("\n") +
-        `\nThe trailing word names the rail group the page lives in. The reader ` +
-        `is looking for the page, not for the menu it was filed under, and the ` +
-        `column makes every row the same shape — which is what makes this read ` +
-        `as a directory instead of an answer.`,
+      `G4: ${offenders.length} row(s) carry a right-aligned trailing label:\n` +
+        offenders
+          .map((o) =>
+            `  [${o.source}] "${o.row}" → "${o.trailing}"  ` +
+              `glyph gutter ${o.glyphGutter}px (element gutter ${o.elementGutter}px)`,
+          )
+          .join("\n") +
+        `\nNote the two gutters. The ELEMENT gutter is pinned near 12px by the ` +
+        `label's \`flex-1\` however short the label is, which is why the previous ` +
+        `version of this gate fired 0 of 17 times. The GLYPH gutter is what the ` +
+        `reader sees.`,
     ).toEqual([]);
   });
 });

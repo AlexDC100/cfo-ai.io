@@ -112,6 +112,31 @@ function collectSources() {
 const rel = (p) => path.relative(ROOT, p);
 const read = (p) => readFileSync(p, "utf-8");
 
+/**
+ * SOURCE WITH ITS PROSE REMOVED.
+ *
+ * Every check below scans for a JSX pattern, and this file's subjects are
+ * heavily commented components whose comments QUOTE the very patterns
+ * being banned — "`title={resolved.provenance}` on the money span",
+ * "kept `{item.hint}`". Scanning raw text made F1 and F2 fire on the
+ * paragraphs explaining why the defect was removed, which teaches the
+ * next person to stop naming the defect in comments. That is a gate
+ * making the codebase worse.
+ *
+ * Line comments, block comments and JSX comments go; string literals
+ * stay, because a `title` inside a template literal is still a title.
+ * Lines are PRESERVED (blanked, not deleted) so reported line numbers
+ * still point at the right place.
+ */
+function codeOnly(src) {
+  const withoutBlocks = src.replace(/\/\*[\s\S]*?\*\//g, (m) =>
+    m.replace(/[^\n]/g, " "));
+  return withoutBlocks
+    .split("\n")
+    .map((l) => l.replace(/\/\/.*$/, ""))
+    .join("\n");
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // F1 — NO NATIVE TOOLTIP ON A ROW
 // ══════════════════════════════════════════════════════════════════════
@@ -139,7 +164,7 @@ function checkNoRowTooltip(files) {
   let rowsSeen = 0;
   for (const file of files) {
     if (!/\.tsx$/.test(file)) continue;
-    const lines = read(file).split("\n");
+    const lines = codeOnly(read(file)).split("\n");
     for (let i = 0; i < lines.length; i++) {
       if (!ROW_MARKERS.some((m) => lines[i].includes(m))) continue;
       rowsSeen++;
@@ -169,6 +194,104 @@ function checkNoRowTooltip(files) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// F6 — NO `title=` ANYWHERE THE CAPSULE OWNS
+// ══════════════════════════════════════════════════════════════════════
+//
+// F1 above bans a `title` on a ROW, and explicitly permits one on "a
+// control describing an action" — a provenance dot, the trigger pill.
+// That exemption was wrong and it was measured wrong: an ANSWERED turn
+// carried three native tooltips and a follow-up carried six, because a
+// provenance dot rides every figure in every turn. The pill and the
+// header trust dot carried one apiece in every state, and the live sweep
+// could not see them because it was rooted at the overlay and they live
+// outside the portal.
+//
+// So the rule is ZERO, over every file this surface owns, and it is a
+// SOURCE rule as well as a live one — deliberately, because the live one
+// alone is now satisfiable by `CapsuleTooltipGuard`, which strips
+// `title` at runtime. A runtime net that hides a source regression is
+// the same failure as a fix landing on the wrong component: the defect
+// is back in the code and the gate is green. Proven: planting a `title`
+// back onto `ProvenanceDot` left the live sweep at zero (the guard
+// re-homed it, 4 nodes → 5) and only this check reds.
+//
+// LICENSED, and only these: two files outside this lane's ownership that
+// legitimately carry a `title` for the rest of the app. Inside the
+// Capsule they are neutralised at the boundary by the guard, which
+// re-homes the string onto an accessible name rather than deleting it.
+const TITLE_LICENSED = new Set([
+  "frontend/lib/narrativeMoney.tsx",
+  "frontend/components/cfo/TraceableNumber.tsx",
+]);
+
+// THE LICENCE LIST IS ITSELF PINNED.
+//
+// An adversarial audit disarmed F6 — the only static guard against the
+// tooltip class, and the only one the runtime guard does not neutralise —
+// with a ONE-LINE edit: add the offending file to TITLE_LICENSED and the
+// gate goes green with the defect live. Nothing asserted the list, so
+// growing it was free.
+//
+// That is the TC-6 disease in its purest form: an exemption list is a
+// floor of size zero on a component nobody counts. The list may still
+// change, but only deliberately — the digest below has to move in the
+// same commit, which is a reviewable act rather than an invisible one.
+const TITLE_LICENSED_PINNED = [
+  "frontend/components/cfo/TraceableNumber.tsx",
+  "frontend/lib/narrativeMoney.tsx",
+].join("|");
+
+function assertLicenceListUnchanged() {
+  const actual = [...TITLE_LICENSED].sort().join("|");
+  if (actual === TITLE_LICENSED_PINNED) return null;
+  return [
+    "F6-LICENCE: the title-exemption list changed without its pin.",
+    "  pinned : " + TITLE_LICENSED_PINNED.split("|").join(", "),
+    "  actual : " + actual.split("|").join(", "),
+    "Adding a file here disarms the ONLY static guard against native",
+    "tooltips for that file, and the runtime guard re-homes the title so",
+    "the live gate stays green too. If the addition is deliberate, move",
+    "TITLE_LICENSED_PINNED in the same commit and say why in the diff.",
+  ].join("\n");
+}
+
+/** Files this surface owns, beyond the shell tree. */
+const SURFACE_EXTRA_FILES = ["frontend/components/cfo/TopHeader.tsx"];
+
+function checkNoTitleAnywhere(files) {
+  let scanned = 0;
+  const all = [...files];
+  for (const extra of SURFACE_EXTRA_FILES) {
+    const abs = path.join(ROOT, extra);
+    if (existsSync(abs)) all.push(abs);
+  }
+  for (const file of all) {
+    if (!/\.tsx$/.test(file)) continue;
+    if (TITLE_LICENSED.has(rel(file))) continue;
+    if (/__tests__/.test(file)) continue;
+    scanned++;
+    const raw = read(file).split("\n");
+    const lines = codeOnly(read(file)).split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = raw[i];
+      // JSX attribute only. A comment ABOUT `title=` — and both this file
+      // and its subjects are full of them — is not a tooltip.
+      if (!/(^|[\s{])title=/.test(lines[i])) continue;
+      fail(
+        "F6 no-native-tooltip-anywhere",
+        `${rel(file)}:${i + 1} — \`title=\` on the Capsule surface:\n` +
+          `      ${line.trim().slice(0, 100)}\n` +
+          `      The browser draws it unstyled, after a delay the design does ` +
+          `not own, never on touch and never for a keyboard user. On a figure ` +
+          `it MULTIPLIES: three per answered turn, six after a follow-up. Put ` +
+          `the string in the element's own label, in \`aria-label\`, or nowhere.`,
+      );
+    }
+  }
+  return scanned;
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // F2 — NO CATEGORY COLUMN
 // ══════════════════════════════════════════════════════════════════════
 //
@@ -194,7 +317,7 @@ function checkNoCategoryColumn(files) {
   let componentsSeen = 0;
   for (const file of files) {
     if (!/\.tsx$/.test(file)) continue;
-    const src = read(file);
+    const src = codeOnly(read(file));
     if (!ROW_MARKERS.some((m) => src.includes(m))) continue;
     componentsSeen++;
     for (const { re, name } of CATEGORY_PROPS) {
@@ -505,14 +628,23 @@ function checkSpecAlive(specFiles) {
 // ══════════════════════════════════════════════════════════════════════
 
 function main() {
-  console.log("CAPSULE-CRAFT GATES — F1 tooltips · F2 category column · " +
-    "F3 strings · F4 footer≠placeholder · F5 spec alive");
+  console.log("CAPSULE-CRAFT GATES — F1 row tooltips · F2 category column · " +
+    "F3 strings · F4 footer≠placeholder · F5 spec alive · F6 no title anywhere");
 
   const files = collectSources();
 
   // ── the discovery loops. Nothing is asserted inside them. ──────────
   const renderedKeys = collectRenderedKeys(files);
   const rowsSeen = checkNoRowTooltip(files);
+  // Assert the exemption list BEFORE trusting anything the title scan
+  // reports — a scan whose exemptions were widened is not a measurement.
+  const licenceDrift = assertLicenceListUnchanged();
+  if (licenceDrift) {
+    console.log("");
+    console.log(licenceDrift);
+    process.exitCode = 1;
+  }
+  const titleScanned = checkNoTitleAnywhere(files);
   const rowComponents = checkNoCategoryColumn(files);
   const bundles = checkStrings(files);
   const footer = checkFooterNotPlaceholder(files, renderedKeys);
@@ -528,13 +660,14 @@ function main() {
   // the discovery canary both belong here, where an empty discovery is
   // visible as a number.
   const units =
-    files.length + rowsSeen + rowComponents + bundles + footer.placeholders + anchors;
+    files.length + rowsSeen + rowComponents + bundles + footer.placeholders +
+    anchors + titleScanned;
 
   console.log(
     `  files=${files.length} rows=${rowsSeen} rowComponents=${rowComponents} ` +
     `bundles=${bundles} renderedKeys=${renderedKeys.size} ` +
     `placeholders=${footer.placeholders} renderedHintPairs=${footer.pairs} ` +
-    `specAnchors=${anchors}`);
+    `specAnchors=${anchors} titleScanned=${titleScanned}`);
   if (notes.length) console.log(notes.join("\n"));
   if (deadHints.length) {
     console.log(
@@ -547,7 +680,7 @@ function main() {
   }
 
   const discoveryBroken =
-    files.length === 0 || rowsSeen === 0 || bundles === 0 ||
+    files.length === 0 || rowsSeen === 0 || bundles === 0 || titleScanned === 0 ||
     footer.placeholders === 0 || renderedKeys.size === 0 || anchors === 0 ||
     SPEC_FILES.length === 0;
 
