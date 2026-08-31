@@ -806,12 +806,26 @@ const VIEWPORTS = [
 /** Ink floors, per state, per viewport. Per BOTH, because TC-6: a single
  *  global floor survives one half collapsing while the other holds. */
 const INK_FLOOR: Record<string, Record<string, number>> = {
-  // Measured 2026-08-31 on the SHIPPED design, then rounded DOWN with
-  // ~10% headroom so a design that legitimately gets leaner does not red.
-  //            rest   typing  tier0   answering        (measured)
-  //   1440     5.62   13.71   5.30    14.59
-  //   390      9.72   14.16   7.88    18.13
-  "1440": { rest: 5.0, typing: 12.0, tier0: 4.6, answering: 12.5 },
+  // RECALIBRATED 2026-08-31 against the CLIPPED metric. This is not a
+  // weakening; the instrument changed. The previous floors were derived
+  // from unclipped Range boxes, which counted truncated and scrolled-out
+  // text in full — so `1440 typing` read 13.71% while the reader saw
+  // 7.74%. Re-deriving a floor after fixing the measurement is required;
+  // keeping the old number would have failed a surface that never moved.
+  //
+  //            rest   typing  tier0   answering
+  //   1440     5.62    7.74   5.30    11.87   (visible)
+  //            5.62   13.71   5.30    14.59   (old, unclipped)
+  //   390      9.72   14.00   7.88    18.13   (visible)
+  //
+  // Rounded DOWN with ~10% headroom so a legitimately leaner design does
+  // not red. The 1440 numbers sit well below 390's for a structural
+  // reason and not a quality one: the card is 680px wide against 374, so
+  // the same rows of left-aligned text cover roughly half the area. That
+  // is also why density alone cannot police the "mostly empty" complaint
+  // — the LEAD and INTERIOR GAP budgets below do that, and the 113px
+  // lead gap at 1440 rest is a real open defect this floor cannot see.
+  "1440": { rest: 5.0, typing: 6.9, tier0: 4.6, answering: 10.5 },
   "390": { rest: 8.5, typing: 12.5, tier0: 6.8, answering: 15.5 },
 };
 
@@ -857,6 +871,28 @@ async function ink(page: Page): Promise<Ink> {
     let inkArea = 0;
     let runs = 0;
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    /** Intersect a glyph rect with every scroll/clip ancestor up to the
+     *  card, so clipped text contributes only what is on screen. */
+    const clipToAncestors = (rect: DOMRect, from: Element) => {
+      let top = rect.top, left = rect.left;
+      let bottom = rect.bottom, right = rect.right;
+      let el: Element | null = from;
+      while (el && el !== root.parentElement) {
+        const cs = getComputedStyle(el);
+        const clips = /hidden|auto|scroll|clip/.test(cs.overflowY)
+          || /hidden|auto|scroll|clip/.test(cs.overflowX);
+        if (clips) {
+          const b = el.getBoundingClientRect();
+          top = Math.max(top, b.top); left = Math.max(left, b.left);
+          bottom = Math.min(bottom, b.bottom); right = Math.min(right, b.right);
+          if (bottom <= top || right <= left) return null;
+        }
+        el = el.parentElement;
+      }
+      return { top, left, bottom, right,
+               width: right - left, height: bottom - top };
+    };
+
     let n: Node | null;
     while ((n = walk.nextNode())) {
       if (!n.textContent || !n.textContent.trim()) continue;
@@ -878,8 +914,22 @@ async function ink(page: Page): Promise<Ink> {
       range.selectNodeContents(n);
       for (const rect of Array.from(range.getClientRects())) {
         if (rect.width < 1 || rect.height < 1) continue;
-        inkArea += rect.width * rect.height;
-        bands.push([rect.top, rect.bottom]);
+        // CLIP TO WHAT IS ACTUALLY ON SCREEN.
+        //
+        // The sr-only lesson above was half the problem. The other half:
+        // a Range reports NATURAL layout boxes, so text truncated by an
+        // ellipsis or scrolled out of a list still counted in full. That
+        // made OVERFLOW BUY INK — the more the card hid, the better it
+        // scored — and it is reachable without a plant. On the shipped
+        // build, typing `o` at 1440 renders 18 rows of which 7 are
+        // visible, 830px of content in a 282px scroller, and reports
+        // 15.77% against a 12.0 floor while the reader sees 3.77% —
+        // below even the RESTING floor. A gate that a real query can
+        // walk past is not measuring the reader's page.
+        const vis = clipToAncestors(rect, parent);
+        if (!vis || vis.width < 1 || vis.height < 1) continue;
+        inkArea += vis.width * vis.height;
+        bands.push([vis.top, vis.bottom]);
         runs += 1;
       }
     }
