@@ -40,10 +40,12 @@ export const MAX_JUMPS = 4;
 export interface CapsuleJumpItem {
   id: string;
   label: string;
-  /** Where it sits in the app — the rail group, usually. NOT RENDERED by
-   *  this list (see the header); kept because the host's own rows share
-   *  the type and do render it. */
-  hint?: string;
+  /** GONE. It was "the rail group, usually", kept in the type because
+   *  "the host's own rows share the type and do render it" — and that
+   *  sentence was the whole bug: the host did not share this type, it had
+   *  its own, and its own row DID render the category the note said this
+   *  one did not. A field that exists to be not-rendered is a field the
+   *  next person renders. */
   icon?: LucideIcon;
   /** Right-aligned shortcut hint. Display only; the host owns the binding. */
   kbd?: string;
@@ -88,6 +90,12 @@ export function CapsuleJumpList({
               <button
                 type="button"
                 data-testid="capsule-jump-row"
+                // TC-7. Every row-painting component stamps WHICH ONE it
+                // is, so a gate can census by source and print a 0 for a
+                // component that rendered nothing in the state under
+                // test. This list rendered exactly 0 rows in the typing
+                // state while a fix aimed at it was reported as landed.
+                data-row-source="jump-row"
                 data-idx={idx}
                 role="option"
                 aria-selected={active}

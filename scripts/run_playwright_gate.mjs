@@ -15,8 +15,8 @@
  * So this file's first job is not to be clever. It is to EXECUTE the
  * suite and refuse to report anything green that it did not earn.
  *
- * THE FOUR REFUSALS
- * -----------------
+ * THE SIX REFUSALS
+ * ----------------
  *  1. ZERO TESTS RAN is a FAILURE, never a pass. This is the tsc lesson
  *     stated as code: `--noEmit` exited 0 in 0.2s having read nothing,
  *     and the 0 was believed for months. A run that executes nothing has
@@ -35,6 +35,22 @@
  *  4. PRECONDITIONS ARE HARD. If vite or the engine is unreachable, or
  *     the engine is not in test-mode posture, the gate exits NON-ZERO
  *     with BLOCKED. A skip must never read as a pass.
+ *  5. A FILE PLAYWRIGHT CANNOT COLLECT is a failure. Refusal 2 compares
+ *     "on disk" against "in the run", so it is blind to a file that is
+ *     in NEITHER census. `e2e/design/capsule-craft-surface.spec 2.ts`
+ *     was tracked in git, byte-identical to a live spec, and named so
+ *     that testMatch skipped it — invisible to the runner AND to the
+ *     runner's own dark-file detector. Found by running this gate, not
+ *     by reading it.
+ *  6. A FLOOR PER FILE, NOT ON THE SUM. EXECUTED_FLOOR is a floor on a
+ *     total, and this repo has already measured what that is worth:
+ *     `import-boundary` printed "boundary holds" with a real violation
+ *     planted, because one half collapsed 517 -> 1 while the total
+ *     stayed above the global floor. modes.spec.ts alone is 52 of the
+ *     249 tests here; it could collapse to 1 and the sum would still
+ *     clear 150. FILE_FLOORS records an expectation PER FILE, and a
+ *     file that runs with no recorded expectation fails rather than
+ *     silently checking nothing.
  *
  * THE RATCHET
  * -----------
@@ -53,15 +69,49 @@
  * into a pass and this ratchet cannot tell the difference between a flake
  * and a fix. If the suite is flaky, that is a finding, not a knob.
  *
- * MEASURED 2026-08-30, four full runs on one commit: seven tests move
- * between pass and fail with no edit — four `axe` checks under the dark
- * / Simple themes, and three that mutate the SHARED view-mode / learning-
- * mode preference of the single PUBLIC_TEST_MODE identity. Until those
- * are fixed this gate is RED on most runs, and that is the honest
- * reading: a ratchet cannot certify a suite that has not decided what it
- * thinks. They are NOT quarantined here — a "known flaky" list added to
- * make this gate green would be the same move as a threshold nudged to
- * meet a number.
+ * THE INSTABILITY, AND WHAT IT TURNED OUT TO BE (closed 2026-08-31)
+ * -----------------------------------------------------------------
+ * This file used to record: "MEASURED 2026-08-30, four full runs on one
+ * commit: seven tests move between pass and fail with no edit — four
+ * `axe` checks under the dark / Simple themes, and three that mutate the
+ * SHARED view-mode / learning-mode preference of the single
+ * PUBLIC_TEST_MODE identity." A fifth full run reproduced it as 4 NEW +
+ * 5 HEALED on one commit.
+ *
+ * The named cause was HALF RIGHT, and the wrong half was the loud half.
+ *
+ * RIGHT: every context in this suite authenticates as one fixed identity
+ * that owns ONE `user_prefs.prefs` row and ONE `org_prefs.prefs` row, and
+ * `frontend/lib/prefs.ts::usePrefSync` ADOPTS those over whatever a spec
+ * seeded into localStorage. A spec that seeds localStorage has pinned
+ * half the state. Traced live: a page seeded `view_mode=pro` is back to
+ * `simple` 500 ms later. Three tests were fixed by pinning the other
+ * half (e2e/_helpers.ts) — measured in runs of ten:
+ *     modes M5 "Pro dashboard keeps the classic overview"  10/10 → 0/10 red
+ *     learning-mode "default mode is guided"                7/10 → 0/10 red
+ *     header H5 "currency persists across reload"            5/6 → 0/8 red
+ *
+ * WRONG: the four axe checks. A control was built before believing the
+ * story — a bag serving the OPPOSITE of the seed, forced rather than
+ * raced — and theme did NOT flip: `ThemePrefSync` writes on mount, and
+ * `getRemotePref` returns that unconfirmed `pendingWrites` entry ahead of
+ * the server's forever, because the confirming RPC never fires in test
+ * mode. Those axe checks then measured 10/10 STABLE in isolation. They
+ * were not flakes; they were stale baseline entries that other lanes had
+ * genuinely fixed, showing up as "healed" and read as flapping. The
+ * "NEW and HEALED in the same run" note below is a heuristic, and this is
+ * the case it gets wrong: under five concurrent lanes both happen at once
+ * for real.
+ *
+ * Two more were plain test bugs the shared-state story would have hidden:
+ * `learning-mode-toggle` cleared its key in an `addInitScript`, which
+ * re-runs on the reload the test performs, so it deleted the preference
+ * whose persistence it then asserted (10/10 red, forever); and the same
+ * file's reset test raced the app's own write-back.
+ *
+ * Nothing here is quarantined and `retries: 0` still stands. Three
+ * consecutive full runs now agree on the same 83 failures: new 0,
+ * healed 0.
  *
  * Run:
  *   node scripts/run_playwright_gate.mjs                 # gate
@@ -148,6 +198,54 @@ const MUST_PASS = [
 // detector, not a ratchet. If the executed-test count falls under this,
 // something stopped collecting and the green means nothing.
 const EXECUTED_FLOOR = 150
+
+// ── Per-file floors (Refusal 2d) ──────────────────────────────────────
+// EXECUTED_FLOOR is a floor on a SUM and therefore cannot see one file
+// collapse. These are the per-file executed counts MEASURED on a real
+// run, rounded down. Adding tests never trips them; losing tests does.
+// A file that runs with no entry here fails the gate and prints the line
+// to paste — so a new spec cannot join the suite un-floored.
+const FILE_FLOORS = new Map([
+  // MEASURED 2026-08-31 on a full run (249 executed), then given a
+  // MARGIN: -2 for files of 10+, -1 below that, never below 1. The
+  // margin is not slack for its own sake — several specs carry runtime
+  // `test.skip(...)` guards (modes.spec's story-overview and command-
+  // palette probes, i18n-mobile-sweep's viewport gates), so an exact
+  // floor would go red on one conditional skip and teach the reader to
+  // ignore this check. It still catches what it is for: modes.spec
+  // collapsing 52 -> 1 while the suite total stays comfortably above
+  // EXECUTED_FLOOR.
+  ['e2e/currency-coverage.spec.ts', 1],                        // measured 2
+  ['e2e/design/axe-dark.spec.ts', 8],                          // measured 10
+  ['e2e/design/axe.spec.ts', 8],                               // measured 10
+  ['e2e/design/capsule-craft-surface.spec.ts', 4],             // measured 5
+  ['e2e/design/capsule-craft.spec.ts', 20],                     // measured 22
+  ['e2e/design/capsule.spec.ts', 25],                           // measured 27
+  ['e2e/design/context-object.spec.ts', 8],                    // measured 9
+  ['e2e/design/header.spec.ts', 22],                            // measured 24
+  ['e2e/design/keyboard.spec.ts', 1],                          // measured 2
+  ['e2e/design/modes.spec.ts', 50],                             // measured 52
+  ['e2e/f61-demo-variance.prod.spec.ts', 2],                   // measured 3
+  ['e2e/golden-path.spec.ts', 1],                              // measured 1
+  ['e2e/i18n-mobile-sweep.spec.ts', 8],                        // measured 10
+  ['e2e/learning-balance-sheet-trace.spec.ts', 5],             // measured 6
+  ['e2e/learning-glossary.spec.ts', 2],                        // measured 3
+  ['e2e/learning-guide-overlay.spec.ts', 3],                   // measured 4
+  ['e2e/learning-keyboard-accessibility.spec.ts', 4],          // measured 5
+  ['e2e/learning-landing-onboarding.spec.ts', 2],              // measured 3
+  ['e2e/learning-mobile-bottom-sheet.spec.ts', 1],             // measured 2
+  ['e2e/learning-mode-toggle.spec.ts', 2],                     // measured 3
+  ['e2e/learning-page-guides.spec.ts', 3],                     // measured 4
+  ['e2e/learning-performance.spec.ts', 1],                     // measured 2
+  ['e2e/learning-plain-english.spec.ts', 1],                   // measured 2
+  ['e2e/learning-popover-recursion.spec.ts', 3],               // measured 4
+  ['e2e/learning-products.spec.ts', 6],                        // measured 7
+  ['e2e/learning-public-companies.spec.ts', 5],                // measured 6
+  ['e2e/learning-recommendations.spec.ts', 4],                 // measured 5
+  ['e2e/learning-valuation-bridge.spec.ts', 4],                // measured 5
+  ['e2e/prod-smoke.spec.ts', 3],                               // measured 4
+  ['e2e/public-companies-drawer.spec.ts', 6],                  // measured 7
+])
 
 const args = process.argv.slice(2)
 const has = (f) => args.includes(f)
@@ -327,21 +425,58 @@ async function preflight() {
 // THE RUN
 // ──────────────────────────────────────────────────────────────────────
 
+// Playwright's default testMatch. A file that looks like a spec to a
+// human but does not match THIS is collected by nobody.
+const PLAYWRIGHT_TEST_MATCH = /\.(spec|test)\.[cm]?[jt]sx?$/
+// "Looks like a spec to a human": the word `spec` or `test` appears in
+// the name and it is a TS/JS source file.
+const LOOKS_LIKE_SPEC = /(spec|test)/i
+
+/**
+ * Returns { specs, nearMiss }.
+ *
+ * `nearMiss` is the hole this gate had until 2026-08-31, found by
+ * measurement rather than by reading: `e2e/design/capsule-craft-surface
+ * .spec 2.ts` is TRACKED IN GIT, contains 5 `test(...)` blocks, and is
+ * byte-identical to a live spec — but its name ends in `2.ts`, so
+ * Playwright's testMatch never collects it AND the old `/\.spec\.ts$/`
+ * walk below never listed it either. It was therefore invisible to
+ * BOTH the runner and the runner's own dark-file detector: Refusal 2
+ * could not fire, because the file was not in the census it compares
+ * against. A Finder "duplicate", a `cp file.spec.ts file.spec.2.ts`, or
+ * a merge artefact all land here, and the tests inside go dark silently
+ * — which is the precise disease this file was written to end.
+ */
 function specFilesOnDisk() {
-  const out = []
+  const specs = []
+  const nearMiss = []
   const walk = (dir) => {
     for (const e of readdirSync(dir)) {
       const p = join(dir, e)
       if (statSync(p).isDirectory()) {
         if (e === 'artifacts' || e === 'fixtures') continue
         walk(p)
-      } else if (/\.spec\.ts$/.test(e)) {
-        out.push(relative(ROOT, p))
+      } else if (PLAYWRIGHT_TEST_MATCH.test(e)) {
+        specs.push(relative(ROOT, p))
+      } else if (LOOKS_LIKE_SPEC.test(e) && /\.[cm]?[jt]sx?$/.test(e)
+        && !e.startsWith('_')) {
+        nearMiss.push(relative(ROOT, p))
       }
     }
   }
   walk(join(ROOT, SPEC_ROOT))
-  return out.sort()
+  return { specs: specs.sort(), nearMiss: nearMiss.sort() }
+}
+
+/** How many `test(` / `test.describe(` blocks a file declares. Used only
+ *  to say whether a near-miss file is carrying real tests. */
+function declaredTestCount(rel) {
+  try {
+    const src = readFileSync(join(ROOT, rel), 'utf8')
+    return (src.match(/^\s*test(\.\w+)*\s*\(/gm) || []).length
+  } catch {
+    return 0
+  }
 }
 
 function runSuite(jsonPath) {
@@ -414,7 +549,7 @@ async function main() {
   const executed = rows.filter((r) => r.status !== 'skipped')
   const failed = rows.filter((r) => r.status === 'unexpected' || r.status === 'flaky')
   const filesInRun = new Set(rows.map((r) => r.file))
-  const filesOnDisk = specFilesOnDisk()
+  const { specs: filesOnDisk, nearMiss } = specFilesOnDisk()
   const loadErrors = report.errors || []
 
   console.log('')
@@ -474,6 +609,18 @@ async function main() {
       + `${(e.message || JSON.stringify(e)).split('\n')[0]}`)
   }
 
+  // ── Refusal 2c: files Playwright's testMatch can never collect ───────
+  // The census above compares "on disk" against "in the run", so it can
+  // only see files it counted as on disk. A file whose NAME misses
+  // testMatch is absent from BOTH sides and cancels out to silence.
+  for (const f of nearMiss) {
+    const n = declaredTestCount(f)
+    fatal.push(`${f} is NOT COLLECTABLE by Playwright (its name does not match `
+      + `testMatch ${PLAYWRIGHT_TEST_MATCH}) yet it declares ${n} test block(s). `
+      + 'Nothing runs it and, until this check existed, nothing reported it. '
+      + 'Rename it to *.spec.ts if the tests are wanted, or delete it.')
+  }
+
   // ── Refusal 2b ───────────────────────────────────────────────────────
   const ranByFile = new Map()
   for (const r of rows) {
@@ -496,6 +643,43 @@ async function main() {
     fatal.push(`${file} collected tests but EXECUTED NONE — every one skipped, `
       + 'and the file is not named in ALL_SKIPPED_OK. Silencing a spec with '
       + 'test.skip is not the same as fixing it.')
+  }
+
+  // ── Refusal 2d: a floor PER FILE, not a floor on the sum ─────────────
+  // EXECUTED_FLOOR above is a floor on a SUM, and this session already
+  // measured what that is worth: `import-boundary` printed "boundary
+  // holds" with a real violation planted, because its frontend half
+  // collapsed 517 → 1 while the TOTAL stayed above one global floor
+  // (design_review/FALSE_GREEN_FINDINGS.md, R3). The same hole is here:
+  // modes.spec.ts alone carries ~52 tests, so it could collapse to 1 and
+  // this suite would still clear 150 comfortably.
+  //
+  // So every contributing file carries its OWN recorded expectation, and
+  // a file with no recorded expectation is a failure rather than a file
+  // that silently checks nothing.
+  const missingFloors = []
+  for (const [file, ran] of [...ranByFile].sort()) {
+    if (ran === 0) continue // handled above
+    const floor = FILE_FLOORS.get(file)
+    if (floor === undefined) { missingFloors.push([file, ran]); continue }
+    if (ran < floor) {
+      fatal.push(`${file} executed ${ran} test(s), floor ${floor}. Collection `
+        + 'collapsed in THIS file. The suite total can stay healthy while one '
+        + 'file goes dark — that is exactly what a per-file floor is for.')
+    }
+  }
+  if (missingFloors.length) {
+    fatal.push(`${missingFloors.length} spec file(s) ran with NO recorded floor. `
+      + 'An unrecorded file can collapse to one test for free. Paste the '
+      + 'measured floors into FILE_FLOORS:\n'
+      + missingFloors.map(([f, n]) => `        ['${f}', ${n}],`).join('\n'))
+  }
+  for (const file of FILE_FLOORS.keys()) {
+    if (!filesOnDisk.includes(file)) {
+      fatal.push(`FILE_FLOORS names ${file}, which is not on disk. A stale `
+        + 'expectation is a loose ratchet: remove it deliberately, so deleting '
+        + 'a spec file is a decision somebody made rather than a silent loss.')
+    }
   }
 
   // ── Refusal 3 ────────────────────────────────────────────────────────

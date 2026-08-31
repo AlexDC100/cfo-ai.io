@@ -99,14 +99,42 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
     <>
       {variant === "dot" ? (
         // CAPSULE DOT (2026-08-30): the verdict as a 7px dot, no text —
-        // the full sentence rides aria-label + title so the information
-        // is not lost, only the header real estate. Same receipt sheet
-        // below: trust parity is structural here, never re-worded.
+        // the full sentence rides aria-label so the information is not
+        // lost, only the header real estate. Same receipt sheet below:
+        // trust parity is structural here, never re-worded.
+        //
+        // ── THE `title` IS GONE, AND THIS ONE WAS A JUDGEMENT CALL ────
+        //
+        // It was flagged as "arguably deliberate", and the argument for
+        // keeping it is real: this is an icon-only control, and its
+        // tooltip was the only thing telling a sighted mouse user with no
+        // screen reader what a coloured dot means. Removed anyway, for
+        // three reasons stated so the next person can reverse it on
+        // purpose rather than by accident:
+        //
+        //   1. The rule the owner set is ZERO, in every state. A rule
+        //      with one exemption needs a list of exempt sites, and a
+        //      list is what let the category column survive the round
+        //      that removed it — the exemption ("it is identity, not
+        //      category") was applied by hand, per row, and got it wrong.
+        //   2. The string is a VERBATIM duplicate of `aria-label`. A
+        //      `title` that differs from the accessible name is at least
+        //      carrying something; this one renders the same sentence
+        //      twice, once after a delay the design does not control.
+        //   3. Nothing is lost that the surface does not already say.
+        //      Clicking the dot opens the receipt, which states the
+        //      verdict in full; and the Capsule's own context strip
+        //      prints the verdict as a WORD, one keystroke away, which is
+        //      strictly better than a tooltip that no touch device and no
+        //      keyboard can reach.
+        //
+        // If the dot needs a hover affordance, it needs a real one — a
+        // styled tooltip that works on focus as well as hover. That is a
+        // component, not an attribute, and it is not this lane's to add.
         <button
           type="button"
           data-testid="trust-dot"
           aria-label={label}
-          title={label}
           onClick={(e) => { e.stopPropagation(); setOpen(true); }}
           className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${TONE_DOT[tone]}`}

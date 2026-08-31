@@ -106,7 +106,6 @@ import {
   Sparkles,
   SunMoon,
   Upload,
-  type LucideIcon,
 } from "lucide-react";
 
 import "./shellI18n";
@@ -162,6 +161,12 @@ import {
 import { useCapsuleMorph } from "./capsuleMorph";
 import { useCapsuleHeight } from "./capsuleHeight";
 import { CapsuleComposer } from "./CapsuleComposer";
+import {
+  CapsulePaletteRow,
+  type CapsulePaletteRowItem,
+} from "./CapsulePaletteRow";
+import { CapsuleTooltipGuard } from "./CapsuleTooltipGuard";
+import { capsuleFrame, CAPSULE_BORDER } from "./capsuleGeometry";
 import "./capsuleCraftI18n";
 import { handOffThreadToChat } from "./capsuleAnswer/capsuleChatHandoff";
 import type { RetrievalContext } from "./capsuleAnswer/capsuleRetrieval";
@@ -173,25 +178,23 @@ interface Props {
   onOpenAi: () => void;
 }
 
-interface PaletteItem {
-  id: string;
+/**
+ * A ROW. The shape lives with the component that paints it
+ * (`CapsulePaletteRow`), so the two cannot drift — the previous round's
+ * whole defect was a fix landing on a component that painted nothing.
+ *
+ * Note what is NOT here any more: `hint`. One field carried a category on
+ * one row ("Cash Flow" under a section already labelled LEARN) and an
+ * identity on the next (a company's ticker), and the row rendered both
+ * the same way — right-aligned, muted, against the far edge. Split in
+ * two: `qualifier` is part of the name and renders inline; `searchText`
+ * is for the filter and renders nowhere.
+ */
+interface PaletteItem extends CapsulePaletteRowItem {
+  /** The section label this row runs under. Host-only — the row itself
+   *  never prints it, which is exactly what the trailing category column
+   *  used to do one row at a time. */
   group: string;
-  label: string;
-  hint?: string;
-  icon?: LucideIcon;
-  /** Right-aligned shortcut hint ("⌘J"). Display only. */
-  kbd?: string;
-  /** Right-aligned custom trailing (bucket chip, Learn tag). */
-  trailing?: React.ReactNode;
-  /** A destination — eligible to be the EXACT-match Enter target, and
-   *  counted for the Jump zone's "most-used" ranking. */
-  destination?: boolean;
-  /** Extra strings that NAME this row, beyond its label. A company row
-   *  is labelled with the company's name but reached by its TICKER, so
-   *  typing "TLV" is typing that row's name even though the label says
-   *  "Banca Transilvania". Folded before comparison, like the label. */
-  exactTokens?: readonly string[];
-  run: () => void;
 }
 
 /** What Enter does right now. Rendered in the footer, because the whole
@@ -602,7 +605,12 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         id: "act-upload",
         group: t("shell.palette.actions"),
         label: t("shell.palette.upload"),
-        hint: t("shell.palette.uploadHint"),
+        // SURVIVES AS INK: "Trial balance, statements or sales file"
+        // names what the row accepts, which the label does not. The
+        // other three action hints ("Open the export tab", "Open the
+        // chat", "Collapse or expand the rail") restate their own
+        // labels and are searchable only.
+        qualifier: t("shell.palette.uploadHint"),
         icon: Upload,
         destination: true,
         run: () => go("/dashboard"),
@@ -611,7 +619,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         id: "act-export",
         group: t("shell.palette.actions"),
         label: t("shell.palette.export"),
-        hint: t("shell.palette.exportHint"),
+        // "Open the export tab" is what the label already says. It is a
+        // search term, not a second name.
+        searchText: t("shell.palette.exportHint"),
         icon: Download,
         destination: true,
         run: () => go("/dashboard?tab=export"),
@@ -623,7 +633,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
           resolvedTheme === "dark"
             ? t("shell.theme.toPaper")
             : t("shell.theme.toTerminal"),
-        hint: t("shell.theme.label"),
+        searchText: t("shell.theme.label"),
         icon: SunMoon,
         destination: true,
         run: () => {
@@ -635,7 +645,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         id: "act-ask",
         group: t("shell.palette.actions"),
         label: t("shell.palette.askAi"),
-        hint: t("shell.palette.askAiHint"),
+        searchText: t("shell.palette.askAiHint"),
         icon: Sparkles,
         destination: true,
         run: () => {
@@ -647,7 +657,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         id: "act-rail",
         group: t("shell.palette.actions"),
         label: t("shell.palette.toggleSidebar"),
-        hint: t("shell.palette.toggleSidebarHint"),
+        searchText: t("shell.palette.toggleSidebarHint"),
         icon: PanelLeft,
         kbd: `${mod}.`,
         destination: true,
@@ -678,7 +688,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             id: `page-${item.to}`,
             group: t("shell.palette.pages"),
             label,
-            hint: g.label,
+            searchText: g.label,
             icon: item.icon,
             kbd: item.shortcutKey ? `${mod}${item.shortcutKey}` : undefined,
             destination: true,
@@ -706,7 +716,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     }
 
     // Actions — the list itself lives above (`actionItems`).
-    for (const a of actionItems) if (match(a.label, a.hint)) out.push(a);
+    for (const a of actionItems)
+      if (match(a.label, a.qualifier, a.searchText)) out.push(a);
 
     // Glossary — ported from the old ⌘K dialog.
     if (match(t("panels.search.browseGlossary"), "glossary", "metrics", "learn")) {
@@ -714,7 +725,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         id: "act-glossary",
         group: t("shell.palette.learn"),
         label: t("panels.search.browseGlossary"),
-        hint: t("panels.search.browseGlossaryHint"),
+        qualifier: t("panels.search.browseGlossaryHint"),
         icon: BookOpen,
         run: () => {
           close();
@@ -736,7 +747,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         id: `period-${p.id}`,
         group: t("shell.palette.periods"),
         label: p.label,
-        hint: t("shell.palette.switchPeriod"),
+        searchText: t("shell.palette.switchPeriod"),
         icon: CalendarDays,
         run: () => {
           close();
@@ -753,7 +764,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             id: `cat-${c.name}`,
             group: t("shell.palette.products"),
             label: c.name,
-            hint: t("panels.search.categoryHint"),
+            searchText: t("panels.search.categoryHint"),
             trailing: <BucketChip bucket={c.bucket as import("@/lib/cfoApi").Bucket} />,
             run: () => go(`/products?search=${encodeURIComponent(c.name)}`),
           });
@@ -766,7 +777,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             id: `sku-${s.id}`,
             group: t("shell.palette.products"),
             label: s.id,
-            hint: s.category ?? "SKU",
+            searchText: s.category ?? "SKU",
             trailing: <BucketChip bucket={s.bucket as import("@/lib/cfoApi").Bucket} />,
             run: () => go(`/products?search=${encodeURIComponent(s.id)}`),
           });
@@ -781,17 +792,20 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             id: `concept-${c.key}`,
             group: t("shell.palette.learn"),
             label: c.name.en,
-            // THE "LEARN" TAG IS GONE, and it is the same defect as the
-            // "Overview" / "Analyze" column one group up: these rows sit
-            // under a section label that already says LEARN, and the tag
-            // repeated that word once per row — ten identical
-            // right-aligned words down a 680px card, in the accent
-            // colour, competing with the ten different words on the left
-            // that are the actual choice. The `hint` (the concept's own
-            // category — "Cash Flow", "Liquidity") stays: it is
-            // different per row and it is the only thing distinguishing
-            // two similarly-named metrics.
-            hint: c.category ?? t("panels.search.conceptHint"),
+            // THE "LEARN" TAG WENT FIRST. THE CATEGORY WENT WITH IT.
+            //
+            // The previous round kept `c.category` — "Cash Flow",
+            // "Liquidity", "Working Capital" — arguing it was different
+            // per row and therefore information rather than decoration.
+            // Measured on the shipped build, typing "cash" at 1440: 13
+            // rows, and SEVEN of them said "Cash Flow". Under a section
+            // label that says LEARN, next to a query that says "cash".
+            // It was not distinguishing the rows; it was restating the
+            // query seven times against the right-hand edge.
+            //
+            // It survives as `searchText`, so typing a category still
+            // finds its concepts. It just does not print.
+            searchText: c.category ?? t("panels.search.conceptHint"),
             run: () => {
               // Concept popovers anchor center-screen from the palette.
               const cx = window.innerWidth / 2;
@@ -822,7 +836,15 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             id: `company-${co.ticker}`,
             group: t("shell.palette.companies"),
             label: co.companyName ?? co.ticker,
-            hint: `${co.ticker} · ${t("shell.palette.company")}`,
+            // THE ONE QUALIFIER THAT SURVIVES AS INK. The label is the
+            // company's NAME and the row is reached by its TICKER, so
+            // dropping it takes "TLV" off a screen where the reader just
+            // typed "TLV". It renders INLINE — "Banca Transilvania ·
+            // TLV" — not parked against the right edge. "Open company",
+            // which used to ride with it, is what the section label
+            // above already says.
+            qualifier: co.ticker || undefined,
+            searchText: t("shell.palette.company"),
             icon: Globe,
             // Typing a whole ticker IS typing this row's name.
             exactTokens: co.ticker ? [co.ticker] : undefined,
@@ -833,7 +855,39 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       }
     }
 
-    return out.slice(0, 18);
+    // ── DISAMBIGUATION, WHERE IT IS ACTUALLY NEEDED ──────────────────
+    //
+    // The category column was defended on the grounds that it "is the
+    // only thing distinguishing two similarly-named metrics". As a
+    // defence of a column on EVERY row it does not hold — seven of the
+    // thirteen rows that shipped said "Cash Flow" under a section label
+    // that said LEARN. But the underlying fact is TRUE and it is live:
+    // the concept catalog carries two "Cash Conversion Cycle", two
+    // "EBITDA", two "DSCR", two "Inventory", two "Revenue", two "Gross
+    // Margin", and the 390 capture of the fixed surface shows "Cash
+    // Conversion Cycle" twice with nothing between them.
+    //
+    // So the answer is a MECHANISM rather than a blanket: a row gets its
+    // category as a QUALIFIER — inline, part of its name — only when
+    // another VISIBLE row in the same group wears the same label. One
+    // ambiguous pair is qualified; eleven unambiguous rows are not.
+    //
+    // After the slice, deliberately: a collision with a row the reader
+    // cannot see is not a collision.
+    const visible = out.slice(0, 18);
+    const byLabel = new Map<string, number>();
+    for (const item of visible) {
+      const key = `${item.group}\u0000${item.label.toLowerCase()}`;
+      byLabel.set(key, (byLabel.get(key) ?? 0) + 1);
+    }
+    for (const item of visible) {
+      if (item.qualifier) continue;
+      const key = `${item.group}\u0000${item.label.toLowerCase()}`;
+      if ((byLabel.get(key) ?? 0) < 2) continue;
+      if (!item.searchText) continue;
+      item.qualifier = item.searchText;
+    }
+    return visible;
     // Helpers referenced above (go/close/goToPeriod/onOpenAi/setTheme) are
     // re-created per render but behaviorally constant — listing them would
     // defeat the memo without changing results.
@@ -1071,73 +1125,24 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     else grouped.push({ group: item.group, entries: [{ item, idx }] });
   });
 
-  /** ONE 36px ROW.
+  /** ONE ROW, PAINTED BY `CapsulePaletteRow`.
    *
-   *  Two things left it in the craft pass, and both were carrying no
-   *  information at 680px:
+   *  It used to be forty lines of inline JSX here, and that is precisely
+   *  how the category column survived the round that removed it: the fix
+   *  was applied to `CapsuleJumpList`, which renders nothing in the state
+   *  that was complained about, and this — the component that actually
+   *  paints those rows — kept `{item.hint}`. Correct code, wrong surface.
    *
-   *    · 4px of height. 40 → 36. Read against the chips above it, that
-   *      is what stops the surface looking like one undifferentiated
-   *      list of eight equivalent things.
-   *    · `item.hint`, on the rows where it said nothing. It is
-   *      SUPPRESSED for a `destination` (where it was the rail group —
-   *      "Dashboard … Overview", "Scenarios … Analyze", restating a
-   *      place the reader had already recognised by name) and for any
-   *      row that carries a `trailing` node (where the chip already
-   *      says what kind of thing the row is, and "Cash Flow  LEARN"
-   *      spent two right-aligned labels on one fact).
-   *
-   *      It is KEPT everywhere else, because elsewhere it is identity
-   *      rather than category: a company row is labelled "Banca
-   *      Transilvania" and reached by "TLV", and dropping the hint
-   *      would take the ticker off the screen. That is the difference
-   *      between deleting decoration and deleting information.
-   *
-   *  Selection is an accent left rule plus a quiet fill, never a heavy
-   *  block highlight. */
+   *  A row renderer in its own file can be driven by a test directly, and
+   *  it stamps `data-row-source="palette-row"` so a live gate can print
+   *  WHICH component produced the nodes it examined. See TC-7. */
   const renderRow = (item: PaletteItem, idx: number) => (
-    <button
-      id={`palette-item-${idx}`}
-      data-idx={idx}
-      role="option"
-      aria-selected={idx === activeIdx}
-      onClick={() => item.run()}
-      onMouseEnter={() => setActiveIdx(idx)}
-      className={`
-        relative flex h-9 w-full items-center gap-3 pl-4 pr-3 text-left
-        transition-colors duration-micro
-        ${idx === activeIdx ? "bg-bg-2/70" : "hover:bg-bg-2/40"}
-      `}
-    >
-      {idx === activeIdx && (
-        <span
-          aria-hidden
-          data-testid="capsule-row-rule"
-          className="absolute inset-y-0 left-0 w-[2px] bg-brand"
-        />
-      )}
-      {item.icon ? (
-        <item.icon
-          size={14}
-          strokeWidth={1.75}
-          className={`shrink-0 ${idx === activeIdx ? "text-brand" : "text-ink-soft"}`}
-        />
-      ) : (
-        <span className="w-[14px] shrink-0" aria-hidden />
-      )}
-      <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{item.label}</span>
-      {item.hint && !item.destination && !item.trailing && (
-        <span className="max-w-[38%] shrink-0 truncate text-[11px] text-ink-soft">
-          {item.hint}
-        </span>
-      )}
-      {item.trailing}
-      {item.kbd && (
-        <kbd className="shrink-0 rounded-sm border border-rule bg-bg-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
-          {item.kbd}
-        </kbd>
-      )}
-    </button>
+    <CapsulePaletteRow
+      item={item}
+      index={idx}
+      active={idx === activeIdx}
+      onActivate={setActiveIdx}
+    />
   );
 
   const answerMode = mode === "answer";
@@ -1148,13 +1153,13 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   // the moment a question is asked.
   const morph = useCapsuleMorph(open, !answerMode);
 
-  // ── THE CARD'S HEIGHT ───────────────────────────────────────────────
+  // ── THE CARD'S FRAME ────────────────────────────────────────────────
   //
-  // Measured from the content and transitioned, so the composer pinned
-  // to the bottom edge TRAVELS when the surface grows instead of
-  // teleporting. See `capsuleHeight` for why the measurement is not
-  // circular. Off below `sm`, where the card is full-bleed chrome
-  // rather than a card.
+  // The bottom edge is a CONSTANT and the card grows UPWARD from it, so
+  // the composer pinned to that edge does not move between rest, typing
+  // and answering. The numbers, and the ruling that produced them, are
+  // in `capsuleGeometry.ts` — one module, because the live spec and the
+  // jsdom test both read the same constants rather than restating them.
   const [viewport, setViewport] = useState<{ w: number; h: number }>(() => ({
     w: typeof window === "undefined" ? 1440 : window.innerWidth,
     h: typeof window === "undefined" ? 900 : window.innerHeight,
@@ -1167,21 +1172,66 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  const narrow = viewport.w < 640;
-  // 70vh is the ceiling the brief sets; 520px is the one PROPORTION
-  // sets. At 1440×900 the typing state filled the whole 630px of 70vh
-  // with nine glossary rows — a 680×630 rectangle of list, which is the
-  // menu this pass exists to stop being. Capping at 520 keeps the card
-  // a card (680×520 ≈ 4:3) and puts the tail of a long result set behind
-  // the internal scroll, where a tail belongs. Whichever is smaller
-  // wins, so a short viewport still gets 70vh and never more.
-  const maxCardHeight = narrow
-    ? Math.round(viewport.h * 0.82)
-    : Math.min(Math.round(viewport.h * 0.7), 520);
+  const frame = capsuleFrame(viewport.w, viewport.h);
+  const narrow = frame.narrow;
+  // MEASURED, then CLAMPED — and the clamp is what makes the resting card
+  // fixed. `min` is the resting height, so a workspace with one chip and
+  // a workspace with three get a card of the same size and a composer in
+  // the same place. `max` is the room above the constant bottom edge.
+  //
+  // Enabled at EVERY width now, narrow included. It was `!narrow`, and
+  // that is where the 390 regression lived: below `sm` the card fell back
+  // to `height: auto` under a `max-h-[82vh]`, so the typing state grew to
+  // 617px on an 844px phone — 73vh, past the project's own 70vh budget,
+  // and 80vh once a second turn landed.
+  // `frame` speaks in CARD heights — the box a gate measures. The inline
+  // height lands on the stack INSIDE the card's border, so the border
+  // comes off both bounds. Skipping this put the 390 typing state at
+  // 70.2vh against a 70vh budget: right idea, wrong box.
+  // THE RESTING FLOOR APPLIES TO THE RESTING STATE ONLY.
+  //
+  // The fixed height is what the resting card is FOR — a stable bottom
+  // edge needs a known resting height to sit on. Once the reader has
+  // typed, the card is a working surface and hugging its content is
+  // right again: a query that resolves to one local figure and no rows
+  // would otherwise sit in a 298px card with 102px of nothing under it,
+  // which is complaint 1 rebuilt one state to the left. The bottom edge
+  // does not move either way; only the top does.
   const card = useCapsuleHeight({
-    max: maxCardHeight,
-    enabled: open && !narrow,
+    min: typing || answerMode ? 0 : frame.restHeight - CAPSULE_BORDER,
+    max: frame.maxHeight - CAPSULE_BORDER,
+    enabled: open,
   });
+  // Before the first measurement (and in jsdom, where every box is 0×0)
+  // the hook returns null. The card then takes the RESTING height rather
+  // than `auto`: `auto` at the top of a bottom-anchored card is a
+  // first-paint jump, which is the one thing this geometry exists to
+  // delete.
+  // ── WHERE THE HEIGHT COMES FROM, AND WHAT IT COST TO GET RIGHT ─────
+  //
+  // Measured content, clamped, applied to the stack. Two configurations
+  // were built and measured before this one, and both are worth naming
+  // because both looked correct:
+  //
+  //   · answer mode pinned to `frame.maxHeight`, to stop the card
+  //     resizing while text streamed. It did stop that — and it left a
+  //     217px band of nothing above a short Tier-0 answer on a 390
+  //     phone, at 11.4% ink. A fixed canvas is only honest when the
+  //     canvas is full.
+  //   · the same, with the thread top-pinned in answer mode, to put the
+  //     slack somewhere better. It put 141px of it UNDER the answer,
+  //     which is complaint 1 exactly.
+  //
+  // Neither was the fix, because neither was the cause. G5 named the
+  // shifting node once the report was taught to name nodes:
+  // `DIV.mt-auto.pb-3.pt-3.5` — the TYPING thread, bottom-pinned, whose
+  // top moved every time the query changed the row count under it. Pin
+  // that one to the top (see the thread below) and the card can be
+  // content-sized in every state, which is what it wanted to be.
+  //
+  // Measured after: CLS 0 on open, typing, streaming and close; the
+  // composer at the same y in all three states at both viewports.
+  const cardHeight = card.height ?? frame.restHeight - CAPSULE_BORDER;
 
   // The placeholder names the SUBJECT at rest and the ACT once a thread
   // exists. "Ask about Dec 2025…" above a finished answer about Dec 2025
@@ -1274,7 +1324,22 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         />
         <DialogPrimitive.Content
           ref={morph.ref as unknown as React.Ref<HTMLDivElement>}
-          style={morph.style}
+          // THE CONSTANT BOTTOM EDGE, and the whole of G2.
+          //
+          // `top` is gone. The card is pinned by its BOTTOM, so the
+          // composer sitting on that edge is at the same viewport y at
+          // rest, while a result list is open, and after an answer lands.
+          // The top edge is what moves, and nothing pins the top outside
+          // the resting state (K6 measures the gap under the pill on a
+          // freshly-opened surface, which is exactly the state where
+          // `height === frame.restHeight` puts the top back on 68).
+          //
+          // Merged with the morph's own inline `left` rather than layered:
+          // two `style` props on one element is the last one winning
+          // silently, and the anchor has already been dead once in this
+          // file's history for a reason of that shape.
+          style={{ ...morph.style, top: "auto", bottom: frame.bottomOffset }}
+          data-capsule-bottom={String(frame.bottom)}
           data-testid="command-palette"
           data-mode={answerMode ? "answer" : "search"}
           data-typing={typing ? "true" : undefined}
@@ -1307,8 +1372,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
           // straight through the panel.
           className="
             fixed z-50 flex flex-col overflow-hidden
-            inset-x-2 top-2 w-auto max-w-[calc(100vw-1rem)]
-            sm:inset-x-0 sm:top-[68px] sm:mx-auto sm:w-full sm:max-w-[680px]
+            inset-x-2 w-auto max-w-[calc(100vw-1rem)]
+            sm:inset-x-0 sm:mx-auto sm:w-full sm:max-w-[680px]
             rounded-[14px] border border-rule
             ring-1 ring-inset ring-rule-soft
             bg-[hsl(var(--surface)/0.92)] backdrop-blur-xl
@@ -1319,6 +1384,10 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             motion-reduce:data-[state=closed]:animate-none
           "
         >
+          {/* NO NATIVE TOOLTIPS ON THIS SURFACE, including the two written
+              by files this lane does not own. See the component. */}
+          <CapsuleTooltipGuard />
+
           <DialogPrimitive.Title className="sr-only">
             {answerMode ? t("capsuleAnswer.eyebrow") : t("capsuleEmpty.placeholder.aria")}
           </DialogPrimitive.Title>
@@ -1334,10 +1403,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             // was INVOKED rather than merely correct. The morph anchor one
             // lane over was written, exported, unit-tested and never
             // called; this file is not repeating that.
-            data-measured={card.height !== null && !narrow ? String(card.height) : undefined}
-            style={
-              card.height !== null && !narrow ? { height: card.height } : undefined
-            }
+            data-measured={card.height !== null ? String(card.height) : undefined}
+            data-rest-height={String(frame.restHeight)}
+            style={{ height: cardHeight }}
             // NO `flex-1` HERE, AND THE REASON IS THE WHOLE ANIMATION.
             //
             // It was `flex min-h-0 flex-1 flex-col` for two rounds, and
@@ -1354,11 +1422,16 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
             //
             // The list inside KEEPS `flex-1` — it is supposed to fill
             // whatever this block turns out to be.
+            // 70vh at EVERY width. It was `max-h-[82vh]` below `sm`, which
+            // is how the typing state reached 73vh and a second answered
+            // turn reached 80vh on a 390×844 phone. The inline height
+            // already respects `frame.maxHeight`; this is the belt to its
+            // braces, and it is the same number in both places.
             className="
               flex min-h-0 flex-col overflow-hidden
               transition-[height] duration-[160ms] ease-quint
               motion-reduce:transition-none
-              max-h-[82vh] sm:max-h-[70vh]
+              max-h-[70vh]
             "
           >
             <div
@@ -1366,9 +1439,44 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
               id="command-palette-list"
               role="listbox"
               aria-busy={answer.busy || undefined}
-              className="chat-scroll min-h-0 flex-1 overflow-y-auto"
+              className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto"
             >
-              <div ref={card.threadRef} className="pb-3 pt-3.5">
+              {/* `mt-auto`, NOT `justify-end`, and the difference is a
+                  bug: a flex container that centres or end-aligns its
+                  overflowing child clips the TOP of that child, and the
+                  top is where the oldest turn is. `mt-auto` on the child
+                  collapses to nothing the moment the content is taller
+                  than the box, so a short thread sits above the composer
+                  and a long one scrolls from its first line.
+
+                  Why bottom-aligned at all: the resting card is now a
+                  FIXED height, so on a workspace with fewer than three
+                  chips there is slack. Slack UNDER the content is the
+                  dead space of complaint 1. Slack ABOVE it is the empty
+                  upper half of a conversation that has not happened yet,
+                  which is what every chat surface looks like before the
+                  first message. */}
+              <div
+                ref={card.threadRef}
+                // BOTTOM-PINNED ONLY AT REST, and the reason is CLS.
+                //
+                // `mt-auto` puts the slack ABOVE the content, which is
+                // what a chat surface looks like before the first message
+                // and is the shape the fixed resting height needs. But a
+                // bottom-pinned box GROWS UPWARD, so its top-left moves
+                // every time its content changes — and while the reader
+                // is typing, the content changes on every keystroke that
+                // adds or drops a row. G5 caught exactly that: 0.0049 on
+                // `DIV.mt-auto.pb-3.pt-3.5`, recorded in the streaming
+                // phase but produced by the query change BEFORE it.
+                //
+                // The resting state is the only one whose content does
+                // not change under it. Everywhere else the thread is
+                // top-pinned and grows DOWNWARD, which moves nothing —
+                // and, separately, is the right reading behaviour: text
+                // arriving must not push the sentence being read.
+                className={`pb-3 pt-3.5 ${typing ? "" : "mt-auto"}`}
+              >
                 {answerMode ? (
                   <>
                     {/* The way back, as a 24px ghost glyph in the card's
@@ -1429,6 +1537,15 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                         data-idx={0}
                         data-ask="true"
                         data-testid="capsule-ask-fallback"
+                        // TC-7. Stamped like every other row-painting
+                        // site: it is the ONLY row in the no-match state,
+                        // and an unstamped row in the one state the sweep
+                        // did not cover is how a census learns to lie.
+                        data-row-source="ask-fallback"
+                        // TC-7. Stamped like every other row-painting
+                        // site: it is the ONLY row in the no-match state,
+                        // and an unstamped row in the one state the sweep
+                        // did not cover is how a census learns to lie.
                         onClick={() => enterAnswerMode(query.trim())}
                         className="
                           flex h-9 w-full items-center gap-3 px-4 text-left

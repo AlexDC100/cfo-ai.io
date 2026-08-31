@@ -101,6 +101,11 @@ vi.mock("@/stores/currency", () => ({
 
 import { CommandPalette } from "../CommandPalette";
 import { CapsuleJumpList, type CapsuleJumpItem } from "../capsuleEmpty/CapsuleJumpList";
+import {
+  CapsulePaletteRow,
+  type CapsulePaletteRowItem,
+} from "../CapsulePaletteRow";
+import { suppressNativeTooltips } from "../CapsuleTooltipGuard";
 import { CapsuleSuggestionList } from "../capsuleEmpty/CapsuleSuggestionList";
 import type { CapsuleSuggestion } from "@/lib/capsuleSuggestions";
 import { checkCapsuleAsk, resetCapsuleAskGuard } from "../capsuleEmpty/capsuleAskGuard";
@@ -229,10 +234,10 @@ describe("G3 — no row renders a native `title` tooltip", () => {
 
   it("jump rows carry no title attribute", () => {
     const items: CapsuleJumpItem[] = [
-      { id: "dashboard", label: "Dashboard", hint: "Overview" },
-      { id: "scenarios", label: "Scenarios", hint: "Analyze" },
-      { id: "workspace", label: "Workspace", hint: "Overview" },
-      { id: "benchmark", label: "Benchmark", hint: "Analyze" },
+      { id: "dashboard", label: "Dashboard" },
+      { id: "scenarios", label: "Scenarios" },
+      { id: "workspace", label: "Workspace" },
+      { id: "benchmark", label: "Benchmark" },
     ];
     render(<CapsuleJumpList items={items} onPick={() => {}} />);
     const rows = screen.getAllByTestId("capsule-jump-row");
@@ -249,56 +254,189 @@ describe("G3 — no row renders a native `title` tooltip", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════
-// G4 — NO CATEGORY COLUMN
+// G4 — NO CATEGORY COLUMN, ON THE COMPONENT THAT ACTUALLY PAINTS THE ROWS
 // ══════════════════════════════════════════════════════════════════════
 //
-// The host is asked for rows and supplies a section label with each one.
-// The row must DROP it. Driving with a hint on every item is the point:
-// a fixture with no hints would prove only that the fixture had no hints.
+// ── THE DEFECT THIS BLOCK USED TO HAVE (TC-7) ────────────────────────
+//
+// It drove `CapsuleJumpList`, asserted that a supplied `hint` never
+// reached the DOM, and went green. It was green because `CapsuleJumpList`
+// never printed a hint — and it never printed a hint because the round
+// before had removed it there. Meanwhile `CommandPalette`'s own inline
+// row renderer, the thing that paints EVERY row in the typing state,
+// still printed `{item.hint}` right-aligned. Measured on the shipped
+// build: 13 rows in the typing state at 1440, thirteen of thirteen
+// carrying a trailing category word ("Cash Flow" ×7, "Liquidity" ×2,
+// "Working Capital"); 13 of 13 at 390 too.
+//
+// Correct code. Wrong surface. A passing gate.
+//
+// So this block now drives `CapsulePaletteRow` — the component the
+// palette actually renders, extracted into its own file precisely so a
+// test can reach it — and it asserts the RENDERER'S IDENTITY as part of
+// the check: every node examined must carry `data-row-source="palette-row"`.
+// A future move of the row into some other component fails here loudly
+// instead of passing quietly.
 
-describe("G4 — navigation rows print no section label", () => {
-  const ITEMS: CapsuleJumpItem[] = [
-    { id: "dashboard", label: "Dashboard", hint: "Overview" },
-    { id: "scenarios", label: "Scenarios", hint: "Analyze" },
-    { id: "workspace", label: "Workspace", hint: "Overview" },
-    { id: "products", label: "Products", hint: "Analyze" },
+describe("G4 — the palette row prints no category column", () => {
+  /** The five shapes the host actually builds, each carrying the string
+   *  the old `hint` field would have parked against the right edge. */
+  const ROWS: { item: CapsulePaletteRowItem; wasHint: string }[] = [
+    { item: { id: "page", group: "Pages", label: "Dashboard",
+              searchText: "Overview", run: () => {} }, wasHint: "Overview" },
+    { item: { id: "concept", group: "Learn", label: "Free cash flow",
+              searchText: "Cash Flow", run: () => {} }, wasHint: "Cash Flow" },
+    { item: { id: "period", group: "Recent periods", label: "Dec 2025",
+              searchText: "Switch period", run: () => {} }, wasHint: "Switch period" },
+    { item: { id: "cat", group: "Products", label: "Salami",
+              searchText: "Category", run: () => {} }, wasHint: "Category" },
+    { item: { id: "co", group: "Companies", label: "Banca Transilvania",
+              qualifier: "TLV", searchText: "Open company", run: () => {} },
+      wasHint: "Open company" },
   ];
 
-  it("a supplied `hint` never reaches the DOM", () => {
-    render(<CapsuleJumpList items={ITEMS} onPick={() => {}} />);
-    const rows = screen.getAllByTestId("capsule-jump-row");
+  const renderAll = () =>
+    render(
+      <ul>
+        {ROWS.map(({ item }, i) => (
+          <li key={item.id}>
+            <CapsulePaletteRow item={item} index={i} active={false} onActivate={() => {}} />
+          </li>
+        ))}
+      </ul>,
+    );
 
-    // FLOOR after the query, against the total.
+  it("THE RENDERER UNDER TEST IS THE ONE THE PALETTE USES", () => {
+    renderAll();
+    const rows = screen.getAllByRole("option");
+    // FLOOR after the query, against the total — never inside a loop.
     expect(
       rows.length,
-      `G4 VACUITY: ${rows.length} rows rendered from ${ITEMS.length} items. With ` +
-        `no rows, "no row prints a category" is true of nothing.`,
-    ).toBe(ITEMS.length);
+      `G4 VACUITY: ${rows.length} rows rendered from ${ROWS.length} items.`,
+    ).toBe(ROWS.length);
 
-    // POSITIVE CONTROL, on the same detector: the LABEL does reach the
-    // DOM. Without this, "the hint is absent" is satisfied by a
-    // component that rendered nothing at all.
-    for (const item of ITEMS) {
+    const sources = rows.map((r) => r.getAttribute("data-row-source"));
+    const tally: Record<string, number> = {};
+    for (const src of sources) tally[src ?? "UNSTAMPED"] = (tally[src ?? "UNSTAMPED"] ?? 0) + 1;
+
+    expect(
+      tally,
+      "TC-7: the nodes under test were painted by " + JSON.stringify(tally) +
+        ".\nThis gate is only worth its green if the component it drives is the " +
+        "component the reader sees. The last round asserted a row-level fix " +
+        "against `CapsuleJumpList`, which paints zero rows in the state that " +
+        "was complained about, while `CommandPalette` painted thirteen with " +
+        "the defect intact.",
+    ).toEqual({ "palette-row": ROWS.length });
+  });
+
+  it("no supplied string is parked against the row's right edge", () => {
+    renderAll();
+    const rows = screen.getAllByRole("option");
+    expect(rows.length).toBe(ROWS.length);
+
+    // POSITIVE CONTROL on the same detector: the LABEL does reach the
+    // DOM. Without it, "the category is absent" is satisfied by a row
+    // that rendered nothing at all.
+    for (const { item } of ROWS) {
       expect(
-        screen.queryByText(item.label),
+        screen.queryByText(new RegExp(item.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))),
         `G4 CONTROL: the row label "${item.label}" is missing, so the absence of ` +
-          `its category below proves nothing about categories.`,
+          `a category below proves nothing about categories.`,
       ).not.toBeNull();
     }
 
-    const printed = ITEMS.map((i) => i.hint!)
-      .filter((hint, idx, arr) => arr.indexOf(hint) === idx)
-      .filter((hint) => rows.some((r) => (r.textContent ?? "").includes(hint)));
+    const printed = ROWS.flatMap(({ item, wasHint }, i) => {
+      const text = rows[i].textContent ?? "";
+      return text.includes(wasHint) ? [`${item.label} → "${wasHint}"`] : [];
+    });
 
     expect(
       printed,
-      `G4: navigation rows print their section label: ${printed.join(", ")}.\n` +
-        `That word names the rail group the destination was filed under — ` +
-        `information the reader needed while BUILDING the app and never needs ` +
-        `while using it. It also gives every row the same two-column rhythm, ` +
-        `which is what makes the surface read as a directory rather than an ` +
-        `answer.`,
+      `G4: ${printed.length} row(s) print the string the old category column ` +
+        `carried:\n  ${printed.join("\n  ")}\n` +
+        `The trailing word names the group the row was filed under — the reader ` +
+        `is looking for the row, not for the menu it lives in — and it gives ` +
+        `every row the same two-column rhythm, which is what makes eight ` +
+        `different choices read as one undifferentiated list.`,
     ).toEqual([]);
+  });
+
+  it("a qualifier is part of the row's NAME, inline, not a right-hand column", () => {
+    renderAll();
+    const qualifiers = screen.getAllByTestId("capsule-row-qualifier");
+    // The ticker is the one second string that survives, and it must
+    // still be on screen — deleting information is not the same fix as
+    // deleting decoration.
+    expect(
+      qualifiers.length,
+      "G4 VACUITY: no qualifier rendered, so 'the qualifier is inline' is a " +
+        "claim about nothing. The company row's ticker must still be painted.",
+    ).toBe(1);
+    expect(qualifiers[0].textContent).toContain("TLV");
+
+    // INLINE means: inside the same truncating element as the label. A
+    // sibling of the label is free to be pushed to the right edge by a
+    // `flex-1`; a child of it is not.
+    const row = screen.getAllByRole("option")[4];
+    const label = row.querySelector(".flex-1");
+    expect(
+      label?.contains(qualifiers[0]),
+      "G4: the qualifier is a SIBLING of the label, not part of it. A sibling " +
+        "is one `flex-1` away from being a right-aligned column again, which " +
+        "is exactly the shape that was removed.",
+    ).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// COMPLAINT 4 — NO NATIVE TOOLTIP SURVIVES THE SURFACE'S BOUNDARY
+// ══════════════════════════════════════════════════════════════════════
+//
+// Three of the five `title` sites on this surface were deleted where they
+// are written. Two belong to files this lane may not edit
+// (`lib/narrativeMoney.tsx`, `components/cfo/TraceableNumber.tsx`) and are
+// re-homed by `suppressNativeTooltips` at the Capsule's boundary. This
+// drives that function directly, because what needs proving is the
+// RE-HOMING — a guard that deleted the strings would trade one defect for
+// a worse one.
+
+describe("complaint 4 — every `title` inside the card is re-homed, not deleted", () => {
+  it("an interactive node keeps the string as its accessible name", () => {
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<button id="b" title="Open the source row">•</button>';
+    const moved = suppressNativeTooltips(root);
+    expect(moved, "the detector moved nothing — it cannot see a title").toBe(1);
+    const b = root.querySelector("#b")!;
+    expect(b.hasAttribute("title")).toBe(false);
+    expect(b.getAttribute("aria-label")).toBe("Open the source row");
+    expect(b.getAttribute("data-suppressed-title")).toBe("Open the source row");
+  });
+
+  it("a wrapper's string joins the one control it wraps", () => {
+    // THE REAL SHAPE, from `narrativeMoney.tsx` + `TraceableNumber.tsx`:
+    // a non-interactive money span carrying the FX basis, wrapping the
+    // button that carries the jump-to-source description.
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<span data-narrative-money="total_assets" title="47.509.482,00 € · displayed at 1 RON = 0.1905 EUR">' +
+      '<button title="View source: Total assets">47.509.482,00 €</button></span>';
+    const moved = suppressNativeTooltips(root);
+    expect(moved).toBe(2);
+    expect(root.querySelectorAll("[title]").length,
+      "complaint 4: a `title` survived inside the card").toBe(0);
+    const name = root.querySelector("button")!.getAttribute("aria-label") ?? "";
+    expect(name, "the FX basis was DELETED rather than re-homed — a mouse user " +
+      "loses a disclosure the money discipline requires").toContain("0.1905");
+    expect(name).toContain("View source");
+  });
+
+  it("POSITIVE CONTROL — the detector fires on a title it has not been taught", () => {
+    const root = document.createElement("div");
+    root.innerHTML = '<p title="something nobody predicted">x</p>';
+    expect(suppressNativeTooltips(root)).toBe(1);
+    expect(root.querySelectorAll("[title]").length).toBe(0);
   });
 });
 

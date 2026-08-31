@@ -112,6 +112,7 @@ export function CapsuleSuggestionList({
               <button
                 type="button"
                 data-testid="capsule-suggestion"
+                data-row-source="suggestion"
                 data-kind={s.kind}
                 data-idx={idx}
                 role="option"

@@ -12,7 +12,7 @@
  */
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { dismissPublicTestBanner } from "../_helpers";
+import { dismissPublicTestBanner, seedTheme } from "../_helpers";
 
 const ROUTES = [
   "/dashboard",
@@ -32,10 +32,26 @@ const SETTLE_MS = 8000;
 test.describe("D1 axe (Terminal theme) — serious/critical a11y violations", () => {
   test.setTimeout(60_000);
 
+  // seedTheme pins BOTH halves of the theme — localStorage and the
+  // shared identity's `user_prefs.prefs.theme`, which `usePrefSync`
+  // would otherwise be free to adopt over the seed.
+  //
+  // HONEST SCOPE: a hostile-bag control showed theme does NOT currently
+  // flip, because an unconfirmed `pendingWrites` entry shadows the
+  // server value for the whole session (e2e/_helpers.ts explains why,
+  // and why that is an accident of test mode rather than a guarantee).
+  // So this pin did not fix the movement seen in these checks — it
+  // removes a dependence on that accident.
+  //
+  // AND THE MOVEMENT WAS NOT FLAKE. Run ten times against one commit,
+  // these ten routes were 10/10 STABLE — every one of them, in both
+  // directions. The two that the gate reported as "healed" (/settings,
+  // /dashboard/scenarios) had been genuinely FIXED by other lanes since
+  // the baseline was recorded; they were stale entries, not a coin
+  // flip. "NEW and HEALED in one run" is the flake signature only when
+  // one tree is standing still, and this one is not.
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      window.localStorage.setItem("cfoai_theme", "dark");
-    });
+    await seedTheme(page, "dark");
   });
 
   for (const route of ROUTES) {

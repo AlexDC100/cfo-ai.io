@@ -438,8 +438,16 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
                   text-left focus-visible:outline-none
                   focus-visible:ring-2 focus-visible:ring-ring
                 "
+                // NO `title`. The pill already prints its own label and
+                // its own ⌘K cap, one and eight pixels away — the native
+                // tooltip was a delayed, unstyled, OS-font second copy of
+                // both. `aria-label` carries the name to the readers who
+                // need it and paints nothing. (Complaint 4: zero native
+                // tooltips on this surface, in every state. The pill is
+                // part of the surface even though it lives outside the
+                // portal, which is why a sweep scoped to the overlay
+                // reported this one as absent.)
                 aria-label={t("header.capsule.aria")}
-                title={`${t("header.capsule.title")} (${mod}K)`}
               >
                 <span className="flex-1 truncate text-[12.5px] text-ink-soft group-hover:text-ink">
                   {capsuleLabel}

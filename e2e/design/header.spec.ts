@@ -52,7 +52,12 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { dismissPublicTestBanner, preseedLearningMode } from "../_helpers";
+import {
+  dismissPublicTestBanner,
+  pinOrgPrefs,
+  preseedLearningMode,
+  seedViewMode,
+} from "../_helpers";
 import {
   INTERACTIVE_SELECTORS,
   COMPOSITE_SELECTORS,
@@ -461,6 +466,11 @@ test.describe("H5 — every relocated control is ≤2 interactions from /dashboa
   test.setTimeout(150_000);
 
   test("mode switch: 2 interactions via the avatar, persists across reload", async ({ page }) => {
+    // The reload half of this test is only meaningful if the shared
+    // identity's bag cannot re-answer the question: `view_mode` is a
+    // synced pref, and an adopted value would revert the click this
+    // test just made. Absent = the app's own default, adopting nothing.
+    await seedViewMode(page, null);
     await boot(page);
     await page.getByTestId("account-menu-trigger").click(); // 1
     const pro = page.getByTestId("mode-switch-pro").first();
@@ -483,6 +493,17 @@ test.describe("H5 — every relocated control is ≤2 interactions from /dashboa
   });
 
   test("currency: 2 interactions via the avatar, persists across reload", async ({ page }) => {
+    // Display currency is a COMPANY pref on the one shared test org, and
+    // this test asserts persistence across a reload — the exact sequence
+    // the shared bag breaks. The click writes localStorage and calls
+    // `setPref("org", …)`; that RPC never confirms in PUBLIC_TEST_MODE, so
+    // the value survives only because a page-scoped `pendingWrites` entry
+    // shadows the server's. The reload throws that shadow away, the older
+    // bag value is adopted back, and the assertion below reads it.
+    // MEASURED on the unmodified tree: 5 failures in 6 runs. Pinning the
+    // key ABSENT makes localStorage authoritative, which is what "persists"
+    // means for a single-device user.
+    await pinOrgPrefs(page, { currency_display: null });
     await boot(page);
     await page.getByTestId("account-menu-trigger").click(); // 1
     const eur = page.getByTestId("currency-toggle-eur");
@@ -686,9 +707,7 @@ test.describe("H6 — header a11y", () => {
     // load — clearing the dismissed key here would clear it on the
     // reload too, and the gate would report a re-show that the product
     // never performed.
-    await page.addInitScript(() => {
-      window.localStorage.setItem("cfo-view-mode-v1", "simple");
-    });
+    await seedViewMode(page, "simple");
     await boot(page);
 
     const mark = page.getByTestId("header-coach-mark");
@@ -711,9 +730,7 @@ test.describe("H6 — header a11y", () => {
   });
 
   test("the coach mark spends no header budget", async ({ page }) => {
-    await page.addInitScript(() => {
-      window.localStorage.setItem("cfo-view-mode-v1", "simple");
-    });
+    await seedViewMode(page, "simple");
     await boot(page);
     await expect(page.getByTestId("header-coach-mark")).toBeVisible();
     const census = await censusOf(page);

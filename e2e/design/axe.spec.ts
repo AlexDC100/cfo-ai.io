@@ -7,11 +7,24 @@
  * findings are printed as telemetry but do not fail — the gate exists
  * to stop regressions people cannot use, not to boil the ocean.
  *
+ * THE THEME IS NOW NAMED. This spec used to run "in whatever theme the
+ * session boots with", and a gate whose subject is decided by ambient
+ * state cannot say what it measured: theme is a cross-device preference
+ * on the ONE shared PUBLIC_TEST_MODE identity, so "whatever it boots
+ * with" is, in principle, whatever anything else left in the shared bag.
+ * `seedTheme(page, "light")` pins the localStorage half AND the server
+ * half, so this file's name and its subject agree.
+ *
+ * Measured, so the claim stays the right size: theme was NOT observed to
+ * flip today — a `pendingWrites` shadow suppresses adoption for the whole
+ * session (see e2e/_helpers.ts). This change buys a stated subject, not a
+ * repaired flake.
+ *
  * Run: npx playwright test e2e/design/axe.spec.ts
  */
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { dismissPublicTestBanner } from "../_helpers";
+import { dismissPublicTestBanner, seedTheme } from "../_helpers";
 
 const ROUTES = [
   "/dashboard",
@@ -34,6 +47,10 @@ const SETTLE_MS = 8000;
 // the config's workers:1 already keeps runs sequential.
 test.describe("D1 axe — serious/critical a11y violations", () => {
   test.setTimeout(60_000);
+
+  test.beforeEach(async ({ page }) => {
+    await seedTheme(page, "light");
+  });
 
   for (const route of ROUTES) {
     test(`axe clean: ${route}`, async ({ page }) => {

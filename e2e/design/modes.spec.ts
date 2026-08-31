@@ -25,7 +25,12 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { dismissPublicTestBanner, preseedLearningMode } from "../_helpers";
+import {
+  dismissPublicTestBanner,
+  preseedLearningMode,
+  seedTheme,
+  seedViewMode,
+} from "../_helpers";
 
 // Persisted keys — mirrors lib/viewMode.ts and theme/ThemeProvider.tsx.
 const MODE_KEY = "cfo-view-mode-v1";
@@ -49,11 +54,22 @@ const SETTLE_MS = 8000;
 
 type ViewMode = "simple" | "pro";
 
+/**
+ * Seed the dial. MEASURED 2026-08-31: writing MODE_KEY alone is half the
+ * state — `ModeSwitch` calls `usePrefSync("user","view_mode",…)`, and the
+ * shared PUBLIC_TEST_MODE identity's bag held `view_mode:"simple"`, so a
+ * page seeded `pro` was silently reverted to `simple` ~500 ms after
+ * first paint:
+ *
+ *     0ms   class="light" viewMode=pro
+ *     500ms class="light" viewMode=simple     ← adopted from the bag
+ *
+ * M5's Pro test then asserted the Pro surface on a Simple page. That is
+ * the flake, and no amount of extra waiting fixes it — waiting longer
+ * makes the adoption MORE likely. seedViewMode pins both halves.
+ */
 async function seedMode(page: Page, mode: ViewMode): Promise<void> {
-  await page.addInitScript(
-    ([k, m]) => window.localStorage.setItem(k, m),
-    [MODE_KEY, mode] as const,
-  );
+  await seedViewMode(page, mode);
 }
 
 /**
@@ -83,6 +99,11 @@ test.describe("M5 — the dial persists across reload", () => {
   test.setTimeout(90_000);
 
   test("switching to Pro survives a reload (UI switcher, else storage)", async ({ page }) => {
+    // No seed — this test is ABOUT making the choice. But the shared bag
+    // must not hold a view_mode either, or the reload adopts it and
+    // overwrites the choice under test. `null` = the key is absent, so
+    // the app uses its own default and adopts nothing.
+    await seedViewMode(page, null);
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(SETTLE_MS);
     await dismissPublicTestBanner(page);
@@ -205,12 +226,9 @@ for (const theme of ["light", "dark"] as const) {
 
     test.beforeEach(async ({ page }) => {
       await seedMode(page, "simple");
-      if (theme === "dark") {
-        await page.addInitScript(
-          (k) => window.localStorage.setItem(k, "dark"),
-          THEME_KEY,
-        );
-      }
+      // Both halves, both themes — including light, which is a real
+      // choice here and not "whatever the bag happens to say".
+      await seedTheme(page, theme);
     });
 
     for (const route of ALL_ROUTES) {

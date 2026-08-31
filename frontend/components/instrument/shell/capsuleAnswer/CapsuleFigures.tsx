@@ -156,7 +156,11 @@ export function ProvenanceDot({
     <button
       type="button"
       onClick={() => onJump(source)}
-      title={label}
+      // NO `title`. THIS is the one that grew: a provenance dot rides
+      // every figure, so an answered turn carried three native tooltips
+      // and a follow-up carried six — the count climbs with the
+      // conversation. A defect that gets worse the longer the reader
+      // stays is worse than the static one that was reported.
       aria-label={label}
       data-testid="capsule-provenance-dot"
       data-traceable-source-statement={source.statement}

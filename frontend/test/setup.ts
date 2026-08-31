@@ -1,3 +1,10 @@
+// Pin build-time env FIRST. Modules that read `import.meta.env` at load time
+// (cfoApi's SUPABASE_FUNCTIONS_URL, lib/supabase's client) must not be able to
+// observe a developer's gitignored `.env`. Three money-boundary tests were
+// green here and red on every other machine because of it; see envPin.ts.
+// It is a separate module because imports hoist above statements.
+import "./envPin";
+
 // Repair Web Storage before ANYTHING else. Node 25 installs a dud
 // `localStorage`/`sessionStorage` global that shadows jsdom's working one;
 // see webStorageShim.ts for the full diagnosis. This import must stay first —

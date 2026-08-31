@@ -1,8 +1,6 @@
 e2e/currency-coverage.spec.ts::CUR-FIX-G — currency coverage › RON / EUR / USD propagate across every money surface
 e2e/currency-coverage.spec.ts::CUR-FIX-G — currency coverage › subscription/billing prices DO NOT convert with the toggle
 e2e/design/axe-dark.spec.ts::D1 axe (Terminal theme) — serious/critical a11y violations › axe clean (dark): /chat
-e2e/design/axe-dark.spec.ts::D1 axe (Terminal theme) — serious/critical a11y violations › axe clean (dark): /dashboard/scenarios
-e2e/design/axe-dark.spec.ts::D1 axe (Terminal theme) — serious/critical a11y violations › axe clean (dark): /settings
 e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /
 e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /benchmark
 e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /chat
@@ -15,8 +13,6 @@ e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clea
 e2e/design/axe.spec.ts::D1 axe — serious/critical a11y violations › axe clean: /workspace
 e2e/design/header.spec.ts::H2 — no header action duplicates a sidebar destination › no Ask-CFO-AI control at header level — checked by behaviour, not by testid
 e2e/design/modes.spec.ts::M6 — axe under Simple mode (dark) › axe clean [simple/dark]: /chat
-e2e/design/modes.spec.ts::M6 — axe under Simple mode (dark) › axe clean [simple/dark]: /dashboard
-e2e/design/modes.spec.ts::M6 — axe under Simple mode (dark) › axe clean [simple/dark]: /dashboard/scenarios
 e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /
 e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /benchmark
 e2e/design/modes.spec.ts::M6 — axe under Simple mode (light) › axe clean [simple/light]: /chat
@@ -53,8 +49,6 @@ e2e/learning-landing-onboarding.spec.ts::F5.0 Phase 9 — Landing + first-run pa
 e2e/learning-landing-onboarding.spec.ts::F5.0 Phase 9 — Landing + first-run packaging › Maybe-later dismisses the coach + sticks across reload
 e2e/learning-mobile-bottom-sheet.spec.ts::F5.0 Phase 5 — Mobile bottom-sheet popover › Cash chip → vaul bottom-sheet anchored to bottom of viewport
 e2e/learning-mobile-bottom-sheet.spec.ts::F5.0 Phase 5 — Mobile bottom-sheet popover › Mobile popover renders the same content stack as desktop
-e2e/learning-mode-toggle.spec.ts::F5.0 — learning mode toggle › toggling to off persists + resetAll returns to guided
-e2e/learning-mode-toggle.spec.ts::F5.0 — learning mode toggle › toggling to subtle persists across reload
 e2e/learning-page-guides.spec.ts::F5.0 — page guide spotlight tour › Balance Sheet guide opens + Esc closes
 e2e/learning-page-guides.spec.ts::F5.0 — page guide spotlight tour › Esc closes the guide
 e2e/learning-page-guides.spec.ts::F5.0 — page guide spotlight tour › P&L guide reveals data-guide markers after Next
