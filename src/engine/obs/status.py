@@ -124,10 +124,43 @@ def read_battery_record(path: Optional[Any] = None) -> Dict[str, Any]:
     out.update(parsed)
     gate_rows = out.get("gates") or {}
     out["total"] = len(gate_rows)
+
+    # THE THIRD STATE. A gate can run cleanly and examine NOTHING — its
+    # subject absent on this host — and the battery records that as
+    # ``state: "VACUOUS"`` while keeping ``ok: True`` so an environmental
+    # absence does not red the ops surface.
+    #
+    # Reading only ``ok`` therefore reported 31/31 ALL GREEN while one
+    # gate was evidence of nothing. That is the same false green the
+    # battery itself was taught to refuse, one layer up: the record knew,
+    # and the reader did not ask.
+    #
+    # So: a vacuous gate is not counted as passed, ``all_green`` stays
+    # about FAILURES (an absent subject is not a regression, and reding
+    # on it would train people to ignore this surface), and
+    # ``evidence_complete`` is the stricter question — did every gate
+    # actually examine something.
+    def _state(g: Any) -> str:
+        if not isinstance(g, dict):
+            return "UNKNOWN"
+        st = g.get("state")
+        if isinstance(st, str) and st:
+            return st.upper()
+        return "PASS" if g.get("ok") else "FAIL"
+
+    states = {name: _state(g) for name, g in gate_rows.items()}
+    out["vacuous"] = sum(1 for st in states.values() if st == "VACUOUS")
+    out["vacuous_gates"] = sorted(
+        name for name, st in states.items() if st == "VACUOUS")
+    out["failed"] = sum(
+        1 for name, g in gate_rows.items()
+        if isinstance(g, dict) and not g.get("ok"))
     out["passed"] = sum(
-        1 for g in gate_rows.values() if isinstance(g, dict) and g.get("ok")
+        1 for name, g in gate_rows.items()
+        if isinstance(g, dict) and g.get("ok") and states[name] != "VACUOUS"
     )
-    out["all_green"] = bool(gate_rows) and out["passed"] == out["total"]
+    out["all_green"] = bool(gate_rows) and out["failed"] == 0
+    out["evidence_complete"] = out["all_green"] and out["vacuous"] == 0
     return out
 
 

@@ -892,3 +892,79 @@ def test_cli_defaults_to_status(monkeypatch, obs_dir, capsys):
     cli = _cli()
     assert cli.main([]) == 0
     assert "ENGINE OPS" in capsys.readouterr().out
+
+
+# ── The battery's THIRD STATE, read correctly ────────────────────────────
+#
+# A gate can run cleanly and examine NOTHING — its subject absent on this
+# host. The battery records that as `state: "VACUOUS"` while keeping
+# `ok: True`, so an environmental absence does not red the ops surface.
+#
+# The reader counted only `ok`, so it reported 31/31 ALL GREEN while one
+# gate was evidence of nothing: the same false green the battery itself
+# was taught to refuse, one layer up. The record knew; the reader did not
+# ask.
+
+def _battery_file(tmp_path, gates):
+    import json
+    p = tmp_path / "battery_last.json"
+    p.write_text(json.dumps({"ran_at": "2026-08-31T00:00:00+00:00",
+                             "gates": gates, "notices": []}),
+                 encoding="utf-8")
+    return p
+
+
+def test_a_vacuous_gate_is_not_counted_as_passed(tmp_path):
+    from engine.obs.status import read_battery_record
+    r = read_battery_record(_battery_file(tmp_path, {
+        "real": {"ok": True, "exit_code": 0, "state": "PASS"},
+        "hollow": {"ok": True, "exit_code": 0, "state": "VACUOUS"},
+    }))
+    assert r["total"] == 2
+    assert r["passed"] == 1, "a gate that examined nothing is not evidence"
+    assert r["vacuous"] == 1
+    assert r["vacuous_gates"] == ["hollow"]
+
+
+def test_all_green_stays_about_failures_not_absence(tmp_path):
+    # Reding on an absent subject would train people to ignore this
+    # surface, which costs more than the honesty buys.
+    from engine.obs.status import read_battery_record
+    r = read_battery_record(_battery_file(tmp_path, {
+        "real": {"ok": True, "exit_code": 0, "state": "PASS"},
+        "hollow": {"ok": True, "exit_code": 0, "state": "VACUOUS"},
+    }))
+    assert r["all_green"] is True
+    assert r["failed"] == 0
+    # …but the stricter question is answered honestly.
+    assert r["evidence_complete"] is False
+
+
+def test_evidence_complete_is_true_only_when_everything_examined_something(tmp_path):
+    from engine.obs.status import read_battery_record
+    r = read_battery_record(_battery_file(tmp_path, {
+        "a": {"ok": True, "exit_code": 0, "state": "PASS"},
+        "b": {"ok": True, "exit_code": 0, "state": "PASS"},
+    }))
+    assert r["evidence_complete"] is True
+
+
+def test_a_failing_gate_still_reds_all_green(tmp_path):
+    from engine.obs.status import read_battery_record
+    r = read_battery_record(_battery_file(tmp_path, {
+        "a": {"ok": True, "exit_code": 0, "state": "PASS"},
+        "b": {"ok": False, "exit_code": 1, "state": "FAIL"},
+    }))
+    assert r["all_green"] is False
+    assert r["failed"] == 1
+
+
+def test_a_record_without_state_falls_back_to_ok(tmp_path):
+    # Older records predate the third state; they must still read.
+    from engine.obs.status import read_battery_record
+    r = read_battery_record(_battery_file(tmp_path, {
+        "a": {"ok": True, "exit_code": 0},
+        "b": {"ok": False, "exit_code": 1},
+    }))
+    assert r["passed"] == 1 and r["failed"] == 1
+    assert r["vacuous"] == 0 and r["all_green"] is False
