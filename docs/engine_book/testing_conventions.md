@@ -226,3 +226,56 @@ live in `frontend/`. Gates and their subjects almost never share a
 directory; that is precisely what makes this hazard invisible by eye. The
 filter reproduced the blindness inside the warning, and printed a warning
 naming zero files besides. Removed.
+
+---
+
+## TC-9 — An instrument that scores well by examining nothing
+
+**Rule.** For every gate, ask: *would a "clean" result be
+distinguishable from "there was no subject"?* If not, the gate is not
+measuring — it is reporting the absence of work as the absence of
+problems.
+
+**Three instruments in one session had this exact shape.**
+
+| Instrument | How it scored well | What it hid |
+|---|---|---|
+| `tsc` | solution-style root config, `"files": []`, so `npx tsc --noEmit` checked **zero files** and exited 0 in 0.2s | 102 real type errors across 32 files |
+| G1 ink density | `Range` reported **natural** layout boxes, so truncated and scrolled-out text counted in full — **overflow bought ink** | a card reading 15.77% where the reader saw 3.77% |
+| axe | nothing asserted the route rendered; with JS blocked, `/dashboard` painted **2 elements**, axe inspected **9 nodes**, found 0 serious/critical, and the assertion **passed** | accessibility never verified on any route; 3.2:1 contrast on 58 nodes |
+
+The common shape: **the gate's "clean" output is byte-identical to its
+"no subject" output.** A green result therefore carries no information,
+and nobody reads a green gate's runtime.
+
+**The antibody is a recorded expectation of WORK, not of cleanliness.**
+Every gate must emit what it examined and fail when that count is zero
+or below a floor it declares — asserted *after* any discovery loop
+(TC-3), per component rather than per sum (TC-6).
+
+**`evidence_complete` is the surface-level version of this rule**, and
+it is subject to the rule itself. `read_battery_record` reports
+`all_green` (are there failures?) separately from `evidence_complete`
+(did every gate actually examine something?). Given this pattern,
+`evidence_complete` is the more important of the two.
+
+**Proven able to fail, both halves, 2026-08-31:**
+
+- Reverting the `tsc` gate to the historical `npx tsc --noEmit`
+  reproduced the incident exactly — exit 0 in 0.2s — and the battery
+  caught it **twice independently**: `WORK-COUNT MISSING — a gate that
+  cannot say what it examined is the tsc failure wearing a green hat`,
+  and `DISCOVERY BROKEN — canary absent`. Both ops signals went red:
+  `all_green False`, `evidence_complete False`.
+- Pointing the axe shell canary at a non-existent element produced:
+  *"the app-shell canary did not render, so 'no serious/critical
+  violations' would mean 'nothing was examined', not 'the surface is
+  clean'."*
+
+**One plant that did NOT prove what it looked like it proved**, recorded
+because the distinction is the whole convention: blocking the app's JS
+to force a blank page *did* turn the axe spec red — but via the
+violations assertion, because the logged-out page rendered real
+violations rather than nothing. That reds the spec, not the guard. The
+targeted canary plant above is what proves the guard. A plant that
+produces a red for the wrong reason is not evidence.
